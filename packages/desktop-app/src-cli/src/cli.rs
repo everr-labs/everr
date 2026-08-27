@@ -287,13 +287,16 @@ pub struct TelemetryStartArgs {
 pub struct TelemetryQueryArgs {
     /// The SQL query to run. Keep it quoted. Include LIMIT yourself.
     pub sql: String,
-    /// Output format. Default: table on TTY, ndjson otherwise.
+    /// Output format. Default: table on a TTY, compact otherwise.
+    /// compact is JSONCompactEachRowWithNames: line 1 is the column-name
+    /// array, then one JSON array per row.
     #[arg(long, value_enum)]
     pub format: Option<TelemetryFormat>,
 }
 
 #[derive(clap::ValueEnum, Debug, Clone, Copy)]
 pub enum TelemetryFormat {
+    Compact,
     Json,
     Ndjson,
     Table,
@@ -305,7 +308,7 @@ fn telemetry_query_prints_human_stdout(
 ) -> bool {
     match args.format {
         Some(TelemetryFormat::Table) => true,
-        Some(TelemetryFormat::Json | TelemetryFormat::Ndjson) => false,
+        Some(TelemetryFormat::Compact | TelemetryFormat::Json | TelemetryFormat::Ndjson) => false,
         None => stdout_is_terminal,
     }
 }
@@ -1015,6 +1018,11 @@ mod tests {
 
         let cli = Cli::try_parse_from(["everr", "local", "query", "SELECT 1", "--format", "json"])
             .expect("local query json command");
+        assert!(!cli.prints_human_stdout(true));
+
+        let cli =
+            Cli::try_parse_from(["everr", "local", "query", "SELECT 1", "--format", "compact"])
+                .expect("local query compact command");
         assert!(!cli.prints_human_stdout(true));
 
         let cli = Cli::try_parse_from(["everr", "local", "query", "SELECT 1"])

@@ -12,8 +12,8 @@ use crate::api::{
 };
 use crate::auth;
 use crate::cli::{
-    GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
-    TelemetryQueryArgs, WatchArgs,
+    GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryQueryArgs,
+    WatchArgs,
 };
 use crate::command_telemetry;
 use crate::telemetry;
@@ -85,13 +85,7 @@ pub async fn cloud_query(args: TelemetryQueryArgs) -> Result<()> {
     let client = ApiClient::from_session(&session)?;
     let body = client.post_sql(&args.sql).await?;
     let rows = telemetry::client::parse_ndjson(&body)?;
-    let format = args.format.unwrap_or_else(|| {
-        if io::stdout().is_terminal() {
-            TelemetryFormat::Table
-        } else {
-            TelemetryFormat::Ndjson
-        }
-    });
+    let format = telemetry::commands::default_format(args.format, io::stdout().is_terminal());
     telemetry::commands::render(&rows, format);
     Ok(())
 }

@@ -19,7 +19,16 @@ Use Everr telemetry before guessing when real traces, logs, metrics, or captured
 
 ## Critical: Only Raw SQL
 
-The ONLY query command is `everr cloud query "<SQL>"` or `everr local query "<SQL>"`. The only optional flag is `--format` (values: `table`, `json`, `ndjson`).
+The ONLY query command is `everr cloud query "<SQL>"` or `everr local query "<SQL>"`. The only optional flag is `--format` (values: `compact`, `table`, `json`, `ndjson`).
+
+The default output is `compact` (JSONCompactEachRowWithNames): line 1 is the column-name array in SELECT order, then one JSON array per row. Read a value by its position in the header. Nested maps stay JSON objects, NULL is `null`.
+
+```
+["ServiceName","SpanName","c"]
+["everr-app","GET /api/health",1657]
+```
+
+Pass `--format ndjson` only when a script needs one object per row.
 
 ## Choose The Source
 
@@ -50,6 +59,7 @@ If an Everr command fails, investigate why: collector stopped, stale app, wrong 
 - **Always include a time window and LIMIT** for diagnostic queries. Cloud enforces a 1000-row hard limit and 30s timeout — queries without time windows will hit these limits. Local queries without windows are wasteful.
 - Freshness checks and schema discovery (`DESCRIBE`, `SHOW TABLES`) may omit the time window.
 - Use read-only SQL only: `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`, `DESC`, `SHOW`.
+- **Do not select `SpanAttributes`, `LogAttributes`, or `ResourceAttributes` whole** in diagnostic queries: a full map is most of the output. Select the keys you need with `Column['key']`. To discover keys, use `arrayJoin(mapKeys(Column))` with a `GROUP BY` and a small `LIMIT`, or sample one or two rows.
 
 ## Tables And Columns
 
@@ -192,6 +202,7 @@ When a local query fails, always run `everr local status` to diagnose the collec
 | Mistake | Fix |
 | --- | --- |
 | Inventing subcommands or flags (`query traces`, `--filter`, `--window`) | Only `everr cloud query "<SQL>"` or `everr local query "<SQL>"` with optional `--format`. Everything else is in the SQL. |
+| Selecting a whole attributes map (`SELECT SpanAttributes`) across many rows | Select `SpanAttributes['key']`, or discover keys with `arrayJoin(mapKeys(SpanAttributes))` first. |
 | Writing queries without a time window | Always add `WHERE Timestamp > now() - INTERVAL N HOUR/MINUTE`. |
 | Writing cloud queries without LIMIT | Cloud enforces 1000-row limit. Always include `LIMIT`. |
 | Assuming attribute names without discovering them | Run `DESCRIBE TABLE` or sample rows first. Conventions vary. |
