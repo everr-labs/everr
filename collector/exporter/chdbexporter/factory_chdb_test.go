@@ -131,6 +131,11 @@ func TestFactoryCreatesCloudNamedTablesWithoutViews(t *testing.T) {
 			queries,
 			fmt.Sprintf(`ALTER TABLE "default".%q ADD COLUMN IF NOT EXISTS `+"`RowBytes`"+` UInt64 MATERIALIZED byteSize(`, table),
 		)
+		require.Contains(
+			t,
+			queries,
+			fmt.Sprintf(`ALTER TABLE "default".%q MODIFY COLUMN `+"`RowBytes`"+` UInt64 MATERIALIZED byteSize(`, table),
+		)
 	}
 	require.NotContains(t, queries, "CREATE VIEW ")
 }
@@ -149,11 +154,12 @@ func TestFactoryAdoptsLegacyLocalSchemaOnStart(t *testing.T) {
 
 	queries := startAllExporters(t, session, handle, withCloudTableNamesConfig())
 
-	// Logs: view dropped, raw table renamed, TimestampTime backfilled.
+	// Logs: view dropped, raw table renamed, required columns backfilled.
 	require.Contains(t, queries, `DROP TABLE IF EXISTS "default"."logs"`)
 	require.Contains(t, queries, `RENAME TABLE "default"."otel_logs" TO "default"."logs"`)
 	require.Contains(t, queries, `ALTER TABLE "default"."logs"`)
 	require.Contains(t, queries, "ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
+	require.Contains(t, queries, "ADD COLUMN IF NOT EXISTS `EventName` String CODEC(ZSTD(1))")
 	// Traces: view dropped, raw + lookup tables renamed, stale MV dropped.
 	require.Contains(t, queries, `RENAME TABLE "default"."otel_traces" TO "default"."traces"`)
 	require.Contains(t, queries, `DROP TABLE IF EXISTS "default"."otel_traces_trace_id_ts_mv"`)
@@ -201,10 +207,11 @@ func TestFactoryRunsLogsSchemaMigrationOnStart(t *testing.T) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	queries := joinedQueries(session.queries)
-	// Logs tables created before TimestampTime existed — under any configured
-	// name — must gain the column the explorer queries filter on.
+	// Older logs tables under any configured name must gain the columns used by
+	// explorer filters and the RowBytes expression.
 	require.Contains(t, queries, `ALTER TABLE "default"."otel_logs"`)
 	require.Contains(t, queries, "ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
+	require.Contains(t, queries, "ADD COLUMN IF NOT EXISTS `EventName` String CODEC(ZSTD(1))")
 }
 
 func withCloudTableNamesConfig() *Config {

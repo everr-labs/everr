@@ -13,8 +13,10 @@ on:
   pull_request:
     paths:
       - .github/workflows/build-and-test-clickhouse.yml
+      - .nvmrc
       - biome.json
       - clickhouse/**
+      - docker-compose.yaml
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -23,8 +25,10 @@ on:
     branches: [main]
     paths:
       - .github/workflows/build-and-test-clickhouse.yml
+      - .nvmrc
       - biome.json
       - clickhouse/**
+      - docker-compose.yaml
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -54,6 +58,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Validate development Compose config
+        run: docker compose config --quiet
 
       - name: Lint usage metering test
         run: pnpm exec biome check clickhouse

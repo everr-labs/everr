@@ -19,6 +19,7 @@ import (
 	conventions "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.uber.org/zap"
 
+	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
 )
 
@@ -98,9 +99,15 @@ func NewMetricsTable(ctx context.Context, tablesConfig MetricTablesConfigMapper,
 			return fmt.Errorf("exec create metrics table sql: %w", err)
 		}
 
-		migration := sqltemplates.AddRowBytesColumnSQL(database, table, cluster, schema.rowBytesExpression)
-		if err := db.Exec(ctx, migration); err != nil {
-			return fmt.Errorf("add RowBytes column to %s.%s: %w", database, table, err)
+		if err := internal.EnsureRowBytesColumn(
+			ctx,
+			db,
+			database,
+			table,
+			cluster,
+			schema.rowBytesExpression,
+		); err != nil {
+			return err
 		}
 	}
 	return nil

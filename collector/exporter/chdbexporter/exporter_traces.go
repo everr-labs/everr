@@ -238,7 +238,7 @@ func createTraceTables(ctx context.Context, cfg *Config, db driver.Conn) error {
 	if err := db.Exec(ctx, renderCreateTracesTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create traces table sql: %w", err)
 	}
-	if err := migrateRowBytesColumn(
+	if err := internal.EnsureRowBytesColumn(
 		ctx,
 		db,
 		cfg.database(),

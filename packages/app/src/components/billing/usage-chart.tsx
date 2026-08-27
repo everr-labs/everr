@@ -7,12 +7,21 @@ import {
   ChartTooltipContent,
 } from "@everr/ui/components/chart";
 import { ChartEmptyState } from "@everr/ui/components/chart-helpers";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Rectangle,
+  type RectangleProps,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { USAGE_METERS, type UsageMeter } from "@/lib/usage-limits";
 import {
   formatUsageBytes,
   formatUsageChartDate,
   hasUsageChartData,
+  isTopUsageMeter,
   type UsageChartRow,
 } from "./usage-model";
 
@@ -25,6 +34,18 @@ const SIGNAL_CONFIG: Record<UsageMeter, { label: string; color: string }> = {
 const chartConfig = Object.fromEntries(
   USAGE_METERS.map((meter) => [meter, SIGNAL_CONFIG[meter]]),
 ) satisfies ChartConfig;
+
+type UsageBarShapeProps = RectangleProps & { payload?: UsageChartRow };
+
+function UsageBarShape({
+  meter,
+  payload,
+  ...props
+}: UsageBarShapeProps & { meter: UsageMeter }) {
+  const radius: RectangleProps["radius"] =
+    payload && isTopUsageMeter(payload, meter) ? [4, 4, 0, 0] : 0;
+  return <Rectangle {...props} radius={radius} />;
+}
 
 export function UsageChart({ rows }: { rows: UsageChartRow[] }) {
   if (!hasUsageChartData(rows)) {
@@ -89,15 +110,15 @@ export function UsageChart({ rows }: { rows: UsageChartRow[] }) {
           }
         />
         <ChartLegend content={<ChartLegendContent />} />
-        {USAGE_METERS.map((meter, index) => (
+        {USAGE_METERS.map((meter) => (
           <Bar
             key={meter}
             dataKey={meter}
             stackId="usage"
             fill={`var(--color-${meter})`}
-            radius={
-              index === USAGE_METERS.length - 1 ? [4, 4, 0, 0] : undefined
-            }
+            shape={(props: unknown) => (
+              <UsageBarShape {...(props as UsageBarShapeProps)} meter={meter} />
+            )}
             isAnimationActive={false}
           />
         ))}

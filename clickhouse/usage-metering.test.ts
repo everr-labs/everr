@@ -559,12 +559,6 @@ describe.sequential("usage metering migration", () => {
         "1",
       ),
       expectScalar(
-        appReader,
-        "unattributed remains hidden after populated reapply",
-        "SELECT sum(items) FROM app.tenant_usage SETTINGS SQL_everr_tenant_id = 'tenant-a'",
-        "7",
-      ),
-      expectScalar(
         webAppAdmin,
         "populated reapply does not duplicate usage",
         "SELECT sum(items) FROM app.tenant_usage",

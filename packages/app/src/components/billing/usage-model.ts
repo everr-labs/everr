@@ -1,5 +1,9 @@
 import type { OrgUsage, OrgUsageSeriesPoint } from "@/data/usage";
-import { USAGE_METERS, type UsageMeter } from "@/lib/usage-limits";
+import {
+  isUsageMeter,
+  USAGE_METERS,
+  type UsageMeter,
+} from "@/lib/usage-limits";
 
 export type UsagePeriodBounds = {
   from: Date;
@@ -16,6 +20,39 @@ export type UsageTotalByMeter = Record<
 >;
 
 const DECIMAL_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"] as const;
+const SUB_BYTE_FORMATTER = new Intl.NumberFormat("en-US", {
+  maximumSignificantDigits: 3,
+});
+const SMALL_BYTE_FORMATTER = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 2,
+});
+const BYTE_FORMATTER = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 1,
+});
+const ITEM_FORMATTER = new Intl.NumberFormat("en-US");
+const FRACTIONAL_PERCENT_FORMATTER = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 1,
+});
+const WHOLE_PERCENT_FORMATTER = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+});
+const USD_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const UTC_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "short",
+  day: "numeric",
+});
+const UTC_DATE_WITH_YEAR_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
 
 function emptyUsageTotal(): UsageTotalByMeter {
   return {
@@ -39,7 +76,7 @@ export function buildUsageTotals(rows: OrgUsage[]): UsageTotalByMeter {
   const totals = emptyUsageTotal();
 
   for (const row of rows) {
-    if (!USAGE_METERS.includes(row.meter)) continue;
+    if (!isUsageMeter(row.meter)) continue;
     totals[row.meter].bytes += row.bytes;
     totals[row.meter].items += row.items;
   }
@@ -70,7 +107,7 @@ export function buildUsageChartRows(
   }
 
   for (const point of points) {
-    if (!USAGE_METERS.includes(point.meter)) continue;
+    if (!isUsageMeter(point.meter)) continue;
     const row = rows.get(point.date);
     if (!row) continue;
     row[point.meter] += point.bytes;
@@ -83,52 +120,66 @@ export function hasUsageChartData(rows: UsageChartRow[]): boolean {
   return rows.some((row) => USAGE_METERS.some((meter) => row[meter] > 0));
 }
 
+export function isTopUsageMeter(
+  row: UsageChartRow,
+  meter: UsageMeter,
+): boolean {
+  let topMeter: UsageMeter | undefined;
+  for (const candidate of USAGE_METERS) {
+    if (row[candidate] > 0) topMeter = candidate;
+  }
+  return topMeter === meter;
+}
+
+function usageByteFormatter(value: number): Intl.NumberFormat {
+  if (value < 1) return SUB_BYTE_FORMATTER;
+  return value < 10 ? SMALL_BYTE_FORMATTER : BYTE_FORMATTER;
+}
+
+function roundsToNextDecimalUnit(value: number): boolean {
+  const maximumFractionDigits = value < 10 ? 2 : 1;
+  const scale = 10 ** maximumFractionDigits;
+  return Math.round(value * scale) / scale >= 1_000;
+}
+
 export function formatUsageBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
 
-  const unitIndex = Math.min(
-    Math.max(0, Math.floor(Math.log(bytes) / Math.log(1_000))),
-    DECIMAL_UNITS.length - 1,
-  );
-  const value = bytes / 1_000 ** unitIndex;
-  const formatted = new Intl.NumberFormat(
-    "en-US",
-    value < 1
-      ? { maximumSignificantDigits: 3 }
-      : { maximumFractionDigits: value < 10 ? 2 : 1 },
-  ).format(value);
+  let unitIndex = 0;
+  let value = bytes;
+  while (value >= 1_000 && unitIndex < DECIMAL_UNITS.length - 1) {
+    value /= 1_000;
+    unitIndex++;
+  }
 
-  return `${formatted} ${DECIMAL_UNITS[unitIndex]}`;
+  if (unitIndex < DECIMAL_UNITS.length - 1 && roundsToNextDecimalUnit(value)) {
+    value /= 1_000;
+    unitIndex++;
+  }
+
+  return `${usageByteFormatter(value).format(value)} ${DECIMAL_UNITS[unitIndex]}`;
 }
 
 export function formatUsageItems(items: number): string {
-  return new Intl.NumberFormat("en-US").format(Math.max(0, items));
+  return ITEM_FORMATTER.format(Math.max(0, items));
 }
 
 export function formatUsagePercent(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "0%";
   if (value < 0.1) return "<0.1%";
-  return `${new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: value < 10 ? 1 : 0,
-  }).format(value)}%`;
+  const formatter =
+    value < 10 ? FRACTIONAL_PERCENT_FORMATTER : WHOLE_PERCENT_FORMATTER;
+  return `${formatter.format(value)}%`;
 }
 
 export function formatUsageCost(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+  return USD_FORMATTER.format(value);
 }
 
 function formatUtcDate(date: Date, includeYear: boolean): string {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    month: "short",
-    day: "numeric",
-    ...(includeYear ? { year: "numeric" } : {}),
-  }).format(date);
+  return (
+    includeYear ? UTC_DATE_WITH_YEAR_FORMATTER : UTC_DATE_FORMATTER
+  ).format(date);
 }
 
 export function formatUsagePeriod(period: UsagePeriodBounds): string {

@@ -174,7 +174,6 @@ function UsageTotals({
         <UsageSignalCard
           key={meter}
           meter={meter}
-          tier={tier}
           bytes={totalsByMeter[meter].bytes}
           items={totalsByMeter[meter].items}
           limit={limits[meter]}
@@ -207,13 +206,11 @@ function UsageSeries({
 
 function UsageSignalCard({
   meter,
-  tier,
   bytes,
   items,
   limit,
 }: {
   meter: UsageMeter;
-  tier: Tier;
   bytes: number;
   items: number;
   limit: ReturnType<typeof resolveUsageLimits>[UsageMeter];
@@ -261,11 +258,11 @@ function UsageSignalCard({
         <p className="text-muted-foreground text-xs">
           {formatUsageItems(items)} items ingested
         </p>
-        {tier === "pro" ? (
+        {overage.costUsd !== null ? (
           overage.overageBytes > 0 ? (
             <p className="text-xs font-medium text-foreground">
               {formatUsageBytes(overage.overageBytes)} overage,{" "}
-              {formatUsageCost(overage.costUsd ?? 0)} estimated
+              {formatUsageCost(overage.costUsd)} estimated
             </p>
           ) : (
             <p className="text-muted-foreground text-xs">

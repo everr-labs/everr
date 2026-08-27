@@ -309,7 +309,7 @@ func createTraceJSONTables(ctx context.Context, cfg *Config, db driver.Conn) err
 	if err := db.Exec(ctx, renderCreateTracesJSONTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create json traces table sql: %w", err)
 	}
-	if err := migrateRowBytesColumn(
+	if err := internal.EnsureRowBytesColumn(
 		ctx,
 		db,
 		cfg.database(),

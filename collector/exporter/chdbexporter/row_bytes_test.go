@@ -22,7 +22,7 @@ func TestLocalTelemetryTablesMaterializeRowBytes(t *testing.T) {
 
 	require.NoError(t, createLogsTable(ctx, cfg, db, zaptest.NewLogger(t)))
 	require.NoError(t, migrateLogsTable(ctx, cfg, db))
-	require.NoError(t, migrateRowBytesColumn(
+	require.NoError(t, internal.EnsureRowBytesColumn(
 		ctx,
 		db,
 		cfg.database(),
@@ -108,7 +108,7 @@ func TestLocalTelemetryTablesMaterializeRowBytes(t *testing.T) {
 	}
 }
 
-func TestMigrateRowBytesColumnCoversExistingRows(t *testing.T) {
+func TestEnsureRowBytesColumnCoversExistingRows(t *testing.T) {
 	db := newRealChDBConn(t)
 	ctx := t.Context()
 	const expression = "byteSize(Timestamp, Body)"
@@ -119,7 +119,7 @@ func TestMigrateRowBytesColumnCoversExistingRows(t *testing.T) {
 	) ENGINE = MergeTree ORDER BY Timestamp`)
 	mustExec(t, ctx, db, `INSERT INTO "default"."legacy_logs" VALUES (now64(9), 'before migration')`)
 
-	require.NoError(t, migrateRowBytesColumn(ctx, db, "default", "legacy_logs", "", expression))
+	require.NoError(t, internal.EnsureRowBytesColumn(ctx, db, "default", "legacy_logs", "", expression))
 	mustExec(t, ctx, db, `INSERT INTO "default"."legacy_logs" (Timestamp, Body) VALUES (now64(9), 'after migration')`)
 
 	row := db.QueryRow(ctx, `SELECT toString(count()) AS name, toString(countIf(RowBytes = byteSize(Timestamp, Body))) AS type FROM "default"."legacy_logs"`)
@@ -127,4 +127,26 @@ func TestMigrateRowBytesColumnCoversExistingRows(t *testing.T) {
 	require.NoError(t, row.Scan(&count, &matching))
 	require.Equal(t, "2", count)
 	require.Equal(t, count, matching)
+}
+
+func TestEnsureRowBytesColumnConvergesStaleExpression(t *testing.T) {
+	db := newRealChDBConn(t)
+	ctx := t.Context()
+	const expression = "byteSize(Timestamp, Body)"
+
+	mustExec(t, ctx, db, `CREATE TABLE "default"."stale_logs" (
+		Timestamp DateTime64(9),
+		Body String,
+		RowBytes UInt64 MATERIALIZED toUInt64(1)
+	) ENGINE = MergeTree ORDER BY Timestamp`)
+	mustExec(t, ctx, db, `INSERT INTO "default"."stale_logs" (Timestamp, Body) VALUES (now64(9), 'before migration')`)
+
+	require.NoError(t, internal.EnsureRowBytesColumn(ctx, db, "default", "stale_logs", "", expression))
+	mustExec(t, ctx, db, `INSERT INTO "default"."stale_logs" (Timestamp, Body) VALUES (now64(9), 'after migration')`)
+
+	row := db.QueryRow(ctx, `SELECT toString(RowBytes) AS name, toString(byteSize(Timestamp, Body)) AS type
+		FROM "default"."stale_logs" WHERE Body = 'after migration'`)
+	var rowBytes, expectedRowBytes string
+	require.NoError(t, row.Scan(&rowBytes, &expectedRowBytes))
+	require.Equal(t, expectedRowBytes, rowBytes)
 }

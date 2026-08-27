@@ -62,6 +62,9 @@ The web app starts a [`smee`](https://smee.io/) client during Vite dev when `SME
 docker compose up -d
 ```
 
+Compose runs repeatable ClickHouse migrations before starting the collector, so
+existing development data volumes are upgraded without deleting them.
+
 > [!NOTE]
 > **Fedora / SELinux:** the bind mounts in `docker-compose.yaml` carry the `:Z`
 > / `:z` flag, so Docker relabels the host paths for SELinux automatically — no

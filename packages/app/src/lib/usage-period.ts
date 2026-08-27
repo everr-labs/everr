@@ -1,6 +1,4 @@
-import type { Tier } from "@/lib/retention";
-
-const SUBSCRIPTION_PERIOD_STATUSES = new Set(["active", "trialing"]);
+import { isActiveSubscriptionStatus, type Tier } from "@/lib/retention";
 
 export type UsagePeriodEntitlement = Readonly<{
   tier: Tier;
@@ -33,8 +31,7 @@ export function resolveUsagePeriod(
   const subscriptionEnd = validDate(entitlement.currentPeriodEnd);
   if (
     entitlement.tier === "pro" &&
-    entitlement.status !== null &&
-    SUBSCRIPTION_PERIOD_STATUSES.has(entitlement.status) &&
+    isActiveSubscriptionStatus(entitlement.status) &&
     subscriptionStart !== null &&
     subscriptionEnd !== null &&
     subscriptionStart <= now &&

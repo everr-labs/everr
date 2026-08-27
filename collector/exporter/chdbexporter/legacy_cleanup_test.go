@@ -10,8 +10,10 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
+	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
@@ -38,28 +40,39 @@ func cloudNamedConfig() *Config {
 	})
 }
 
-// seedLegacyLogsLayout recreates the pre-rename local schema: a raw legacy
-// table without TimestampTime and a plain view exposing it under the
-// cloud-facing name.
+// seedLegacyLogsLayout recreates the pre-rename local schema using the full
+// exporter table shape, then removes columns added by startup migrations.
 func seedLegacyLogsLayout(t *testing.T, ctx context.Context, db driver.Conn) {
+	legacyCfg := withDefaultConfig()
+	require.NoError(t, createLogsTable(ctx, legacyCfg, db, zaptest.NewLogger(t)))
+	mustExec(t, ctx, db, `ALTER TABLE "default"."otel_logs" DROP COLUMN RowBytes`)
+	mustExec(t, ctx, db, `ALTER TABLE "default"."otel_logs" DROP COLUMN TimestampTime`)
+	mustExec(t, ctx, db, `ALTER TABLE "default"."otel_logs" DROP COLUMN EventName`)
 	mustExec(t, ctx, db,
-		`CREATE TABLE "default"."otel_logs" (Timestamp DateTime64(9), Body String) ENGINE = MergeTree ORDER BY Timestamp`)
-	mustExec(t, ctx, db,
-		`INSERT INTO "default"."otel_logs" VALUES (now64(9), 'legacy row')`)
+		`INSERT INTO "default"."otel_logs" (Timestamp, Body) VALUES (now64(9), 'legacy row')`)
 	mustExec(t, ctx, db,
 		`CREATE VIEW "default"."logs" AS SELECT * FROM "default"."otel_logs"`)
 }
 
-func TestAdoptLegacyLogsTablePreservesDataAndAddsTimestampTime(t *testing.T) {
+func TestAdoptLegacyLogsTablePreservesDataAndAddsRequiredColumns(t *testing.T) {
 	db := newRealChDBConn(t)
 	ctx := t.Context()
 	seedLegacyLogsLayout(t, ctx, db)
 
-	// Mirrors the exporter start sequence: adopt the legacy table, then run
-	// the column migration against it.
+	// Mirror the exporter start sequence against a real, insert-capable legacy
+	// table rather than a reduced fixture that omits required source columns.
 	cfg := cloudNamedConfig()
 	require.NoError(t, adoptLegacyLogsTable(ctx, cfg, db))
+	require.NoError(t, createLogsTable(ctx, cfg, db, zaptest.NewLogger(t)))
 	require.NoError(t, migrateLogsTable(ctx, cfg, db))
+	require.NoError(t, internal.EnsureRowBytesColumn(
+		ctx,
+		db,
+		cfg.database(),
+		cfg.LogsTableName,
+		cfg.clusterString(),
+		sqltemplates.LogsRowBytesExpression,
+	))
 
 	legacyExists, err := tableExists(ctx, db, "default", "otel_logs")
 	require.NoError(t, err)
@@ -68,47 +81,54 @@ func TestAdoptLegacyLogsTablePreservesDataAndAddsTimestampTime(t *testing.T) {
 	// The legacy data survives under the cloud-facing name and is queryable
 	// through the TimestampTime filter the explorer uses.
 	rows, err := db.Query(ctx,
-		`SELECT Body AS name FROM "default"."logs" WHERE TimestampTime >= now() - INTERVAL 1 HOUR`)
+		`SELECT Body AS name, toString(RowBytes) AS type FROM "default"."logs" WHERE TimestampTime >= now() - INTERVAL 1 HOUR`)
 	require.NoError(t, err)
-	defer func() { _ = rows.Close() }()
 	require.True(t, rows.Next())
-	var body string
-	require.NoError(t, rows.Scan(&body))
+	var body, rowBytes string
+	require.NoError(t, rows.Scan(&body, &rowBytes))
 	require.Equal(t, "legacy row", body)
+	require.NotEqual(t, "0", rowBytes)
+	require.NoError(t, rows.Close())
+
+	columns, err := internal.GetTableColumns(ctx, db, "default", "logs")
+	require.NoError(t, err)
+	require.Contains(t, columns, "TimestampTime")
+	require.Contains(t, columns, "EventName")
+	require.Contains(t, columns, "RowBytes")
 }
 
-func TestAdoptLegacyTraceTablesRenamesCompanionsAndDropsMV(t *testing.T) {
+func TestCreateTraceTablesUpgradesLegacyLayoutWithRowBytes(t *testing.T) {
 	db := newRealChDBConn(t)
 	ctx := t.Context()
+	legacyCfg := withDefaultConfig()
+	require.NoError(t, createTraceTables(ctx, legacyCfg, db))
+	mustExec(t, ctx, db, `ALTER TABLE "default"."otel_traces" DROP COLUMN RowBytes`)
 	mustExec(t, ctx, db,
-		`CREATE TABLE "default"."otel_traces" (Timestamp DateTime64(9), TraceId String) ENGINE = MergeTree ORDER BY Timestamp`)
-	mustExec(t, ctx, db,
-		`INSERT INTO "default"."otel_traces" VALUES (now64(9), 'trace-1')`)
-	mustExec(t, ctx, db,
-		`CREATE TABLE "default"."otel_traces_trace_id_ts" (TraceId String, Start DateTime64(9)) ENGINE = MergeTree ORDER BY TraceId`)
-	mustExec(t, ctx, db,
-		`CREATE MATERIALIZED VIEW "default"."otel_traces_trace_id_ts_mv" TO "default"."otel_traces_trace_id_ts"
-		 AS SELECT TraceId, Timestamp AS Start FROM "default"."otel_traces"`)
+		`INSERT INTO "default"."otel_traces" (Timestamp, TraceId) VALUES (now64(9), 'trace-1')`)
 	mustExec(t, ctx, db,
 		`CREATE VIEW "default"."traces" AS SELECT * FROM "default"."otel_traces"`)
 
-	require.NoError(t, adoptLegacyTraceTables(ctx, cloudNamedConfig(), db))
+	require.NoError(t, createTraceTables(ctx, cloudNamedConfig(), db))
 
 	for _, gone := range []string{"otel_traces", "otel_traces_trace_id_ts", "otel_traces_trace_id_ts_mv"} {
 		exists, err := tableExists(ctx, db, "default", gone)
 		require.NoError(t, err)
 		require.False(t, exists, gone)
 	}
-	for _, present := range []string{"traces", "traces_trace_id_ts"} {
+	for _, present := range []string{"traces", "traces_trace_id_ts", "traces_trace_id_ts_mv"} {
 		exists, err := tableExists(ctx, db, "default", present)
 		require.NoError(t, err)
 		require.True(t, exists, present)
 	}
 
-	rows, err := db.Query(ctx, `SELECT TraceId AS name FROM "default"."traces"`)
+	rows, err := db.Query(ctx, `SELECT TraceId AS name, toString(RowBytes) AS type FROM "default"."traces"`)
 	require.NoError(t, err)
 	defer func() { _ = rows.Close() }()
 	require.True(t, rows.Next())
+	var traceID, rowBytes string
+	require.NoError(t, rows.Scan(&traceID, &rowBytes))
+	require.Equal(t, "trace-1", traceID)
+	require.NotEqual(t, "0", rowBytes)
 }
 
 func TestAdoptLegacyLocalTableKeepsCurrentDataWithoutLegacyMarker(t *testing.T) {

@@ -1,5 +1,11 @@
 export type Tier = "free" | "pro";
 
+export function isActiveSubscriptionStatus(
+  status: string | null | undefined,
+): boolean {
+  return status === "active" || status === "trialing";
+}
+
 export type TenantRetention = {
   tracesDays: number;
   logsDays: number;

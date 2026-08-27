@@ -77,7 +77,7 @@ func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
 		if migrateErr := migrateLogsTable(ctx, e.cfg, e.db); migrateErr != nil {
 			return migrateErr
 		}
-		if migrateErr := migrateRowBytesColumn(
+		if migrateErr := internal.EnsureRowBytesColumn(
 			ctx,
 			e.db,
 			e.cfg.database(),

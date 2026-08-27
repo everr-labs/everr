@@ -7,6 +7,7 @@ import {
   formatUsagePercent,
   formatUsagePeriod,
   hasUsageChartData,
+  isTopUsageMeter,
 } from "./usage-model";
 
 describe("billing usage model", () => {
@@ -73,6 +74,20 @@ describe("billing usage model", () => {
     expect(hasUsageChartData(rows)).toBe(false);
   });
 
+  it("identifies the top visible signal for each stacked row", () => {
+    const logsOnly = { date: "2026-08-01", traces: 0, logs: 5, metrics: 0 };
+    const tracesAndMetrics = {
+      date: "2026-08-02",
+      traces: 3,
+      logs: 0,
+      metrics: 7,
+    };
+
+    expect(isTopUsageMeter(logsOnly, "logs")).toBe(true);
+    expect(isTopUsageMeter(logsOnly, "metrics")).toBe(false);
+    expect(isTopUsageMeter(tracesAndMetrics, "metrics")).toBe(true);
+  });
+
   it("formats decimal bytes, small percentages, and half-open periods", () => {
     expect(formatUsageBytes(1_250_000_000)).toBe("1.25 GB");
     expect(formatUsageBytes(0.5)).toBe("0.5 B");
@@ -85,5 +100,13 @@ describe("billing usage model", () => {
         to: new Date("2026-09-01T00:00:00.000Z"),
       }),
     ).toBe("Aug 1 to Aug 31, 2026");
+  });
+
+  it("promotes values whose display rounding crosses a decimal unit", () => {
+    expect(formatUsageBytes(999_949)).toBe("999.9 KB");
+    expect(formatUsageBytes(999_999)).toBe("1 MB");
+    expect(formatUsageBytes(999_999_999)).toBe("1 GB");
+    expect(formatUsageBytes(999_999_999_999)).toBe("1 TB");
+    expect(formatUsageBytes(999_999_999_999_999)).toBe("1 PB");
   });
 });

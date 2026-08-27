@@ -18,6 +18,26 @@ services:
     volumes:
       - ./volumes/clickhouse:/var/lib/clickhouse:Z
 
+  clickhouse-migrate:
+    image: clickhouse/clickhouse-server:26.2
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    entrypoint: ["clickhouse-client"]
+    command:
+      - --host
+      - clickhouse
+      - --user
+      - default
+      - --password
+      - everr
+      - --multiquery
+      - --queries-file
+      - /migrations/13-create-usage-metering.sql
+    restart: "no"
+    volumes:
+      - ./clickhouse/init/13-create-usage-metering.sql:/migrations/13-create-usage-metering.sql:ro,z
+
   postgres:
     image: postgres:18.3-alpine3.23
     healthcheck:
@@ -36,8 +56,8 @@ services:
   collector:
     build: ./collector
     depends_on:
-      clickhouse:
-        condition: service_healthy
+      clickhouse-migrate:
+        condition: service_completed_successfully
     ports:
       - "8080:8080"
       - "4317:4317"

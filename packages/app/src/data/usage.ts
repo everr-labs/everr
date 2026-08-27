@@ -12,6 +12,18 @@ const UsageRangeInputSchema = z
     path: ["to"],
   });
 
+const USAGE_AGGREGATES_SQL = `meter,
+  sum(bytes) AS bytes,
+  sum(items) AS items`;
+const USAGE_RANGE_SQL = `bucket >= toStartOfHour(
+  parseDateTimeBestEffort({from:String}),
+  'UTC'
+)
+  AND bucket < toStartOfHour(
+    parseDateTimeBestEffort({to:String}),
+    'UTC'
+  )`;
+
 export type OrgUsage = {
   meter: UsageMeter;
   bytes: number;
@@ -34,11 +46,7 @@ type RawUsageSeriesPoint = RawUsage & {
 
 function normalizeUInt64(value: string | number, column: string): number {
   const normalized = Number(value);
-  if (
-    !Number.isSafeInteger(normalized) ||
-    normalized < 0 ||
-    !Number.isFinite(normalized)
-  ) {
+  if (!Number.isSafeInteger(normalized) || normalized < 0) {
     throw new Error(`Invalid ClickHouse UInt64 value for ${column}`);
   }
   return normalized;
@@ -59,18 +67,9 @@ export const getOrgUsage = createAuthenticatedServerFn({ method: "GET" })
     const rows = await clickhouse.query<RawUsage>(
       `
         SELECT
-          meter,
-          sum(bytes) AS bytes,
-          sum(items) AS items
+          ${USAGE_AGGREGATES_SQL}
         FROM app.tenant_usage
-        WHERE bucket >= toStartOfHour(
-          parseDateTimeBestEffort({from:String}),
-          'UTC'
-        )
-          AND bucket < toStartOfHour(
-            parseDateTimeBestEffort({to:String}),
-            'UTC'
-          )
+        WHERE ${USAGE_RANGE_SQL}
         GROUP BY meter
         ORDER BY meter ASC
       `,
@@ -90,18 +89,9 @@ export const getOrgUsageSeries = createAuthenticatedServerFn({ method: "GET" })
       `
         SELECT
           toString(toDate(bucket, 'UTC')) AS date,
-          meter,
-          sum(bytes) AS bytes,
-          sum(items) AS items
+          ${USAGE_AGGREGATES_SQL}
         FROM app.tenant_usage
-        WHERE bucket >= toStartOfHour(
-          parseDateTimeBestEffort({from:String}),
-          'UTC'
-        )
-          AND bucket < toStartOfHour(
-            parseDateTimeBestEffort({to:String}),
-            'UTC'
-          )
+        WHERE ${USAGE_RANGE_SQL}
         GROUP BY date, meter
         ORDER BY date ASC, meter ASC
       `,

@@ -194,14 +194,26 @@ const (
 // AddRowBytesColumnSQL returns the idempotent migration used for local tables
 // created before RowBytes became part of the schema.
 func AddRowBytesColumnSQL(database, table, cluster, expression string) string {
+	return fmt.Sprintf(
+		"%s ADD COLUMN IF NOT EXISTS `RowBytes` UInt64 MATERIALIZED %s",
+		alterTableSQL(database, table, cluster),
+		expression,
+	)
+}
+
+// ModifyRowBytesColumnSQL converges existing local tables on the current
+// RowBytes expression without rewriting historical parts.
+func ModifyRowBytesColumnSQL(database, table, cluster, expression string) string {
+	return fmt.Sprintf(
+		"%s MODIFY COLUMN `RowBytes` UInt64 MATERIALIZED %s",
+		alterTableSQL(database, table, cluster),
+		expression,
+	)
+}
+
+func alterTableSQL(database, table, cluster string) string {
 	if cluster != "" {
 		cluster = " " + cluster
 	}
-	return fmt.Sprintf(
-		"ALTER TABLE %q.%q%s ADD COLUMN IF NOT EXISTS `RowBytes` UInt64 MATERIALIZED %s",
-		database,
-		table,
-		cluster,
-		expression,
-	)
+	return fmt.Sprintf("ALTER TABLE %q.%q%s", database, table, cluster)
 }

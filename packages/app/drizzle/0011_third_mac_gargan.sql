@@ -1,1 +1,0 @@
-ALTER TABLE "org_subscription" ADD COLUMN "current_period_start" timestamp;
