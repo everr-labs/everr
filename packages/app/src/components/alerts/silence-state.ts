@@ -5,7 +5,7 @@
  */
 import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
 
-export type SilenceState = AlertSilenceRecord["state"];
+type SilenceState = AlertSilenceRecord["state"];
 
 /** What a person may still do to a silence in each state. A window that has
  *  closed cannot be reopened, so the only move left on a past silence is to
@@ -92,3 +92,14 @@ export function windowBounds(
     },
   };
 }
+
+/**
+ * What the row's one button is called out loud. Every silence on both screens
+ * offers the same two words, so the label has to carry the silence it belongs
+ * to: `spoken` is what names this one, its matchers where it has them and its
+ * window where it does not.
+ */
+export const cancelLabel = (spoken: string) => `Cancel this silence, ${spoken}`;
+
+export const silenceAgainLabel = (spoken: string) =>
+  `Silence again with the same scope as the one for ${spoken}`;

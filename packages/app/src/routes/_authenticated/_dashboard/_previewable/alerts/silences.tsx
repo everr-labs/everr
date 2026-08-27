@@ -1,14 +1,10 @@
 import { RetryError } from "@everr/ui/components/retry-error";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import {
-  SilenceDialog,
-  type SilenceSeed,
-} from "@/components/alerts/silence-dialog";
+import { SilenceDialog } from "@/components/alerts/silence-dialog";
 import { SilencesPage } from "@/components/alerts/silences-page";
 import { alertSilencesOptions } from "@/data/alerting/triage/options";
-import { useSilenceMutations } from "@/hooks/use-silence-mutations";
+import { useSilenceControls } from "@/hooks/use-silence-controls";
 import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
@@ -24,8 +20,8 @@ export const Route = createFileRoute(
 function AlertingSilencesPage() {
   const { timeRange } = useTimeRange();
   const silences = useQuery(alertSilencesOptions(timeRange));
-  const { silence, cancelSilence } = useSilenceMutations();
-  const [seed, setSeed] = useState<SilenceSeed | null>(null);
+  const { cancelSilence, pending, openSilence, dialogProps } =
+    useSilenceControls();
 
   if (silences.isError) {
     return (
@@ -41,19 +37,12 @@ function AlertingSilencesPage() {
     <>
       <SilencesPage
         silences={silences.data ?? null}
-        pending={silence.isPending || cancelSilence.isPending}
-        onNew={() => setSeed({ rule: null, matchers: "", comment: "" })}
+        pending={pending}
+        onNew={() => openSilence({ rule: null, matchers: "", comment: "" })}
         onCancel={(id) => cancelSilence.mutate({ data: { id } })}
-        onSilenceAgain={setSeed}
+        onSilenceAgain={openSilence}
       />
-      <SilenceDialog
-        seed={seed}
-        pending={silence.isPending}
-        onClose={() => setSeed(null)}
-        onConfirm={(draft) =>
-          silence.mutate({ data: draft }, { onSuccess: () => setSeed(null) })
-        }
-      />
+      <SilenceDialog {...dialogProps} />
     </>
   );
 }

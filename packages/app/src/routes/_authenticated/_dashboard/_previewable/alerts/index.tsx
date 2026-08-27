@@ -5,15 +5,12 @@ import { useMediaQuery } from "@everr/ui/hooks/use-media-query";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { AlertDetailPanel } from "@/components/alerts/alert-detail-panel";
 import { RuleInventory } from "@/components/alerts/rule-inventory";
-import {
-  SilenceDialog,
-  type SilenceSeed,
-} from "@/components/alerts/silence-dialog";
+import { SilenceDialog } from "@/components/alerts/silence-dialog";
 import { TriageList } from "@/components/alerts/triage-list";
 import { ResourceEmptyState } from "@/components/resource-empty-state";
 import { setAlertRulePaused } from "@/data/alerting/triage/mutations";
@@ -23,7 +20,7 @@ import {
   invalidateAlertTriage,
   ruleStateHistoryOptions,
 } from "@/data/alerting/triage/options";
-import { useSilenceMutations } from "@/hooks/use-silence-mutations";
+import { useSilenceControls } from "@/hooks/use-silence-controls";
 import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
@@ -70,9 +67,6 @@ function AlertingTriagePage() {
   const queryClient = useQueryClient();
   const { alert: openPath } = Route.useSearch();
   const { timeRange } = useTimeRange();
-  // Not just the path: the dialog is also opened from a closed silence in the
-  // detail panel, which hands it the matchers and comment to start from.
-  const [silenceTarget, setSilenceTarget] = useState<SilenceSeed | null>(null);
   const isNarrow = useMediaQuery(NARROW_QUERY);
 
   const triage = useQuery(alertTriageOptions(timeRange));
@@ -80,7 +74,13 @@ function AlertingTriagePage() {
   const detail = useQuery(alertDetailOptions(openPath, timeRange));
 
   const refresh = () => invalidateAlertTriage(queryClient);
-  const { silence, cancelSilence } = useSilenceMutations();
+  const {
+    cancelSilence,
+    pending: silencePending,
+    seed: silenceTarget,
+    openSilence,
+    dialogProps,
+  } = useSilenceControls();
 
   const setPaused = useMutation({
     mutationFn: setAlertRulePaused,
@@ -167,14 +167,8 @@ function AlertingTriagePage() {
       detail={detail.data ?? null}
       onClose={() => setOpen(undefined)}
       onCancelSilence={(id) => cancelSilence.mutate({ data: { id } })}
-      onSilence={(seed) =>
-        setSilenceTarget({
-          rule: openPath,
-          matchers: seed?.matchers ?? "",
-          comment: seed?.comment ?? "",
-        })
-      }
-      silencePending={silence.isPending || cancelSilence.isPending}
+      onSilence={openSilence}
+      silencePending={silencePending}
       pausePending={setPaused.isPending}
       onTogglePaused={(paused) =>
         setPaused.mutate({ data: { path: openPath, paused } })
@@ -207,7 +201,7 @@ function AlertingTriagePage() {
               openPath={openPath ?? null}
               onOpen={openAlert}
               onSilence={(path) =>
-                setSilenceTarget({ rule: path, matchers: "", comment: "" })
+                openSilence({ rule: path, matchers: "", comment: "" })
               }
               onExpireSilence={(path) => {
                 const id = alerts.find((a) => a.path === path)?.silence?.id;
@@ -262,16 +256,8 @@ function AlertingTriagePage() {
       )}
 
       <SilenceDialog
-        seed={silenceTarget}
+        {...dialogProps}
         instanceCount={silenceAlert?.instances ?? 0}
-        pending={silence.isPending}
-        onClose={() => setSilenceTarget(null)}
-        onConfirm={(draft) => {
-          silence.mutate(
-            { data: draft },
-            { onSuccess: () => setSilenceTarget(null) },
-          );
-        }}
       />
     </div>
   );

@@ -4,7 +4,14 @@ import { BellOff } from "lucide-react";
 import { Fragment, useState } from "react";
 import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
 import { Section } from "./detail-section";
-import { isOpen, STATE_META, windowBounds } from "./silence-state";
+import type { SilenceSeed } from "./silence-dialog";
+import {
+  cancelLabel,
+  isOpen,
+  STATE_META,
+  silenceAgainLabel,
+  windowBounds,
+} from "./silence-state";
 
 /** Active first, then what is coming, then history. Within each group the
  *  server's newest-first order stands, except for scheduled silences, which
@@ -45,18 +52,23 @@ const Separator = () => <span className="mx-1.5 opacity-60">·</span>;
 
 function SilenceRow({
   record,
+  rulePath,
   inForce,
   pending,
   onCancel,
   onSilence,
 }: {
   record: AlertSilenceRecord;
+  /** The rule this panel is open on, and what a repeat falls back to when the
+   *  silence itself names no single rule: it matched this one by its labels,
+   *  so this rule is what "the same again" can mean. */
+  rulePath: string;
   /** This is the silence the rule's `silenced` status is attributed to, and
    *  more than one silence is active, so saying which is worth a badge. */
   inForce: boolean;
   pending: boolean;
   onCancel: (id: string) => void;
-  onSilence: (seed: { matchers: string; comment: string }) => void;
+  onSilence: (seed: SilenceSeed) => void;
 }) {
   const meta = STATE_META[record.state];
   // A window that is still open can be closed early; one that has closed can
@@ -136,11 +148,7 @@ function SilenceRow({
           size="sm"
           variant="ghost"
           disabled={pending}
-          aria-label={
-            open
-              ? `Cancel this silence, ${spoken}`
-              : `Silence again with the same scope as the one from ${spoken}`
-          }
+          aria-label={open ? cancelLabel(spoken) : silenceAgainLabel(spoken)}
           className={cn(
             "-my-1 -mr-2 shrink-0",
             !open && "font-normal text-muted-foreground hover:text-foreground",
@@ -149,6 +157,7 @@ function SilenceRow({
             open
               ? onCancel(record.id)
               : onSilence({
+                  rule: record.rule ?? rulePath,
                   matchers: record.scope,
                   comment: record.comment,
                 })
@@ -173,21 +182,24 @@ function SilenceRow({
  */
 export function SilenceHistory({
   silences,
+  rulePath,
   activeSilenceId,
   pending,
   onSilence,
   onCancel,
 }: {
   silences: AlertSilenceRecord[];
+  /** The rule the panel is open on. */
+  rulePath: string;
   activeSilenceId: string | null;
   /** A silence mutation is in flight. Every button here writes to the same
    *  rule, so they go inert together rather than racing each other. */
   pending: boolean;
-  /** Opens the silence dialog. A seed prefills it from a silence that has
-   *  already closed: the same noise coming back is the commonest reason
+  /** Opens the silence dialog on a seed. A closed row seeds it with its own
+   *  scope and comment: the same noise coming back is the commonest reason
    *  anyone reads this section, and retyping the matchers is the commonest
-   *  reason the replacement is scoped wrong. */
-  onSilence: (seed?: { matchers: string; comment: string }) => void;
+   *  reason the replacement is scoped wrong. The header seeds an empty one. */
+  onSilence: (seed: SilenceSeed) => void;
   onCancel: (id: string) => void;
 }) {
   const [showAllClosed, setShowAllClosed] = useState(false);
@@ -223,7 +235,9 @@ export function SilenceHistory({
           variant="ghost"
           disabled={pending}
           className="-my-1 -mr-2"
-          onClick={() => onSilence()}
+          onClick={() =>
+            onSilence({ rule: rulePath, matchers: "", comment: "" })
+          }
         >
           <BellOff data-icon="inline-start" />
           Silence rule
@@ -241,6 +255,7 @@ export function SilenceHistory({
               <SilenceRow
                 key={record.id}
                 record={record}
+                rulePath={rulePath}
                 inForce={contested && record.id === activeSilenceId}
                 pending={pending}
                 onCancel={onCancel}

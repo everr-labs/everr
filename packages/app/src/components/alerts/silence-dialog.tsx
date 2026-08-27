@@ -108,12 +108,13 @@ function SilenceForm({
   onClose: () => void;
   onConfirm: (draft: SilenceDraft) => void;
 }) {
+  // Whether this opening has a rule to pick. A row that opened the dialog
+  // named one; the Silences page's own button did not, and the dialog offers
+  // the choice itself.
+  const choosing = seed.rule === null;
   // Only fetched when there is a choice to offer: with a rule in hand the
   // list is never read.
-  const choices = useQuery({
-    ...alertRulePathsOptions(),
-    enabled: seed.rule === null,
-  });
+  const choices = useQuery({ ...alertRulePathsOptions(), enabled: choosing });
   // The whole entry, not its label: the confirm hands on `minutes`, and
   // nothing has to turn a label back into a number on the way out.
   const [duration, setDuration] = useState<SilenceDuration>(DEFAULT_DURATION);
@@ -141,10 +142,8 @@ function SilenceForm({
 
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor={seed.rule === null ? "silence-rule" : undefined}>
-            Rule
-          </Label>
-          {seed.rule === null ? (
+          <Label htmlFor={choosing ? "silence-rule" : undefined}>Rule</Label>
+          {choosing ? (
             <Select
               value={rulePath ?? ""}
               onValueChange={(v) => setRulePath(v || null)}
@@ -161,7 +160,7 @@ function SilenceForm({
               </SelectContent>
             </Select>
           ) : (
-            <p className="font-mono text-sm">{rulePath}</p>
+            <p className="font-mono text-sm">{seed.rule}</p>
           )}
         </div>
 
