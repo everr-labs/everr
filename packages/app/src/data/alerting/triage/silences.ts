@@ -3,7 +3,11 @@
  * what it looks like on a row, and the record the detail lists.
  */
 import { and, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
-import { ruleSubject, silenceSelects } from "@/data/alerting/silences/matching";
+import {
+  ruleSubject,
+  silenceIsInForce,
+  silenceSelects,
+} from "@/data/alerting/silences/matching";
 import type { AlertingMatcher } from "@/data/alerting/types";
 import { db } from "@/db/client";
 import { alertSilences } from "@/db/schema";
@@ -16,9 +20,16 @@ export type SilenceRow = typeof alertSilences.$inferSelect;
  *  ones it dropped for good. */
 export type SilenceImpactCounts = { held: number; dropped: number };
 
-/** Silences whose window covers now. A cancelled silence has its window
- *  collapsed by `expireSilence`, so `ends_at > now()` already excludes it. */
-export async function loadActiveSilences(
+/**
+ * Every silence that has not closed yet, the ones still to start included: the
+ * screens list a scheduled window as well as a muting one. A cancelled silence
+ * has its window collapsed by `expireSilence`, so `ends_at > now()` already
+ * excludes it.
+ *
+ * Not `loadActiveSilences`: delivery has a loader by that name and it means
+ * the narrower thing, the silences in force this instant.
+ */
+export async function loadOpenSilences(
   organizationId: string,
 ): Promise<SilenceRow[]> {
   return db
@@ -68,6 +79,12 @@ function isWholeRuleSilence(matchers: AlertingMatcher[]): boolean {
  * The silence in force for a rule right now, preferring one that covers the
  * whole rule: a rule muted outright is a different fact from one instance
  * being muted, and the row says so differently.
+ *
+ * The window is checked here rather than assumed of the caller's list. It used
+ * to test only that the silence had started, which was right for the rows
+ * `loadOpenSilences` returns and wrong for any other list: handed the window
+ * loader's rows, it called a silence that expired last Tuesday the one in
+ * force.
  */
 export function silenceFor(
   ruleId: string,
@@ -77,7 +94,7 @@ export function silenceFor(
 ): SilenceRow | null {
   const subject = ruleSubject(ruleId, severity);
   const matching = silences.filter(
-    (s) => s.startsAt <= now && silenceSelects(s.matchers, subject),
+    (s) => silenceIsInForce(s, now) && silenceSelects(s.matchers, subject),
   );
   return (
     matching.find((s) => isWholeRuleSilence(s.matchers)) ?? matching[0] ?? null

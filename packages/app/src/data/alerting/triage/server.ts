@@ -36,7 +36,7 @@ import {
   rulePath,
   triageStatus,
 } from "./rules";
-import { loadActiveSilences, loadSilencesInWindow } from "./silences";
+import { loadOpenSilences, loadSilencesInWindow } from "./silences";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 import type {
   AlertDetail,
@@ -70,7 +70,7 @@ export const getAlertTriage = createAuthenticatedServerFn({
     const [instances, silences, notifications, held, defaultTiers, values] =
       await Promise.all([
         loadInstances(organizationId, ids),
-        loadActiveSilences(organizationId),
+        loadOpenSilences(organizationId),
         loadLatestNotifications(organizationId, ids),
         loadHeldCounts(organizationId, ids),
         loadDefaultTiers(organizationId),
@@ -109,7 +109,7 @@ export const getRuleStateHistory = createAuthenticatedServerFn({
 
     const [definitions, silences, events, prior] = await Promise.all([
       loadRules(organizationId),
-      loadActiveSilences(organizationId),
+      loadOpenSilences(organizationId),
       loadLifecycleEvents(context.clickhouse.query, { fromISO, toISO }),
       loadPriorStates(context.clickhouse.query, { fromDate, fromISO }),
     ]);
@@ -159,7 +159,7 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
       instanceLabels,
     ] = await Promise.all([
       loadRuleInstances(organizationId, definition.id),
-      loadActiveSilences(organizationId),
+      loadOpenSilences(organizationId),
       loadSilencesInWindow(
         organizationId,
         definition.id,
