@@ -32,9 +32,8 @@ import {
   loadOpenSilences,
   loadSilencesForPage,
   loadSilencesInWindow,
-  silenceFor,
-  silenceRecord,
-} from "./silences";
+} from "@/data/alerting/silences/repository";
+import { silenceFor, silenceRecord } from "./silences";
 
 const harness = useAlertingHarness();
 

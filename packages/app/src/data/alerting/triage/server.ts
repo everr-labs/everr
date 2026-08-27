@@ -7,6 +7,11 @@
  */
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
+import {
+  loadOpenSilences,
+  loadSilencesForPage,
+  loadSilencesInWindow,
+} from "@/data/alerting/silences/repository";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   assembleAlertDetail,
@@ -37,12 +42,7 @@ import {
   rulePath,
   triageStatus,
 } from "./rules";
-import {
-  loadOpenSilences,
-  loadSilencesForPage,
-  loadSilencesInWindow,
-  silenceRecords,
-} from "./silences";
+import { silenceRecords } from "./silences";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 import type {
   AlertDetail,

@@ -16,6 +16,7 @@ import {
   ANN_DISPLAY_DESCRIPTION,
 } from "@/data/alerting/resource-annotations";
 import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
+import type { SilenceRow } from "@/data/alerting/silences/repository";
 import type {
   AlertingEvaluationSample,
   AlertingSeverity,
@@ -56,7 +57,6 @@ import {
 import { type LifecycleRow, ruleStateSegments } from "./segments";
 import {
   type SilenceImpactCounts,
-  type SilenceRow,
   silenceFor,
   silenceRecords,
   silenceView,

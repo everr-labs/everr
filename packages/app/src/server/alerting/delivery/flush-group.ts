@@ -7,6 +7,7 @@ import {
   enqueueFlushGroup,
   IDLE_GROUP_FLUSH_AT,
 } from "@/data/alerting/delivery/tasks";
+import { loadActiveSilences } from "@/data/alerting/silences/repository";
 import { currentTraceLink } from "@/data/alerting/trace-link";
 import { db } from "@/db/client";
 import {
@@ -33,7 +34,6 @@ import {
 import { deliverableGroupMemberQuery } from "./journal-reader";
 import {
   deferSuppressedEvent,
-  loadActiveSilences,
   loadFiringInstanceKeys,
   matchSilence,
 } from "./suppression";

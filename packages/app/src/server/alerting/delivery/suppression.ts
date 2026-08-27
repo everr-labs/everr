@@ -1,11 +1,15 @@
-import { and, eq, gt, inArray, isNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
 import {
   eventSubject,
   matchingSilence,
 } from "@/data/alerting/silences/matching";
+import {
+  loadActiveSilences,
+  type SilenceRow,
+} from "@/data/alerting/silences/repository";
 import { db } from "@/db/client";
-import { alertEvents, alertInstances, alertSilences } from "@/db/schema";
+import { alertEvents, alertInstances } from "@/db/schema";
 import {
   journalHoldRow,
   journalTerminalRow,
@@ -13,30 +17,9 @@ import {
 } from "../history/clickhouse";
 import { instanceKey } from "./grouping";
 
-type ActiveSilence = Awaited<ReturnType<typeof loadActiveSilences>>[number];
-
-/**
- * Every silence active for the org right now. Load once per batch of events
- * being evaluated and pass the result to `matchSilence`, rather than
- * re-querying per event: a flush evaluating hundreds of members must not
- * issue hundreds of identical org-wide scans.
- */
-export async function loadActiveSilences(organizationId: string, now: Date) {
-  return db
-    .select()
-    .from(alertSilences)
-    .where(
-      and(
-        eq(alertSilences.organizationId, organizationId),
-        lte(alertSilences.startsAt, now),
-        gt(alertSilences.endsAt, now),
-      ),
-    );
-}
-
 export function matchSilence(
   event: typeof alertEvents.$inferSelect,
-  silences: ActiveSilence[],
+  silences: SilenceRow[],
   now: Date,
 ) {
   return matchingSilence(eventSubject(event), silences, now);

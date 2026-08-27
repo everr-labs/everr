@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, lt, lte, or, sql } from "drizzle-orm";
 import {
   ALERT_PROCESS_EVENT_TASK,
   PROCESS_EVENT_MAX_ATTEMPTS,
@@ -13,8 +13,31 @@ import {
 } from "../persistence";
 import { AlertingSilenceIdSchema, AlertingSilenceInputSchema } from "../schema";
 import { type AlertingMutationScope, alertingActorPrincipal } from "../session";
+import { ruleSubject, silenceSelects } from "./matching";
 
-function toSilence(row: typeof alertSilences.$inferSelect) {
+/** A stored silence, as every reader here hands it on. The API's own shape is
+ *  `toSilence`; everything inside the product works from the row. */
+export type SilenceRow = typeof alertSilences.$inferSelect;
+
+/**
+ * Which silences a caller means. Five questions that differ mostly in their
+ * window test, kept together because they used to be spread over three
+ * modules, and two of them were both called `loadActiveSilences` and meant
+ * different things.
+ *
+ *   listSilences         `[from, to)` half-open at both ends, the as-code API's
+ *   loadSilencesInWindow `[from, to]` closed at both ends, one rule's
+ *   loadSilencesForPage  `[from, to]` closed, plus everything still open
+ *   loadActiveSilences   covering this instant, what delivery mutes against
+ *   loadOpenSilences     not closed yet, the unstarted included
+ *
+ * The first three disagree about a silence that ended exactly as the window
+ * opened: the API says it did not cover the window, the screens say it did.
+ * Nothing turns on that yet, and it is written down here so the next reader
+ * meets the two rules side by side rather than one at a time.
+ */
+
+function toSilence(row: SilenceRow) {
   return {
     id: row.id,
     tenant: row.organizationId,
@@ -60,6 +83,115 @@ export async function listSilences(
     .limit(query.limit)
     .offset(query.offset);
   return rows.map(toSilence);
+}
+
+/**
+ * Every silence in force this instant. Load once per batch of events being
+ * weighed and pass the result on, rather than re-querying per event: a flush
+ * evaluating hundreds of members must not issue hundreds of identical
+ * org-wide scans.
+ */
+export async function loadActiveSilences(
+  organizationId: string,
+  now: Date,
+): Promise<SilenceRow[]> {
+  return db
+    .select()
+    .from(alertSilences)
+    .where(
+      and(
+        eq(alertSilences.organizationId, organizationId),
+        lte(alertSilences.startsAt, now),
+        gt(alertSilences.endsAt, now),
+      ),
+    );
+}
+
+/**
+ * Every silence that has not closed yet, the ones still to start included: the
+ * screens list a scheduled window as well as a muting one. A cancelled silence
+ * has its window collapsed by `expireSilence`, so `ends_at > now()` already
+ * excludes it.
+ *
+ * Wider than `loadActiveSilences` by exactly the unstarted ones, which is why
+ * it does not share the name.
+ */
+export async function loadOpenSilences(
+  organizationId: string,
+): Promise<SilenceRow[]> {
+  return db
+    .select()
+    .from(alertSilences)
+    .where(
+      and(
+        eq(alertSilences.organizationId, organizationId),
+        gt(alertSilences.endsAt, sql`now()`),
+      ),
+    );
+}
+
+/**
+ * Silences for one rule whose window overlaps `[from, to]`, newest first.
+ * Bounded by the window rather than by "active now" on purpose: the question
+ * a silence list answers is usually "why did nobody hear about this", and by
+ * then the silence responsible has often already expired.
+ */
+export async function loadSilencesInWindow(
+  organizationId: string,
+  ruleId: string,
+  severity: string,
+  from: Date,
+  to: Date,
+): Promise<SilenceRow[]> {
+  const rows = await db
+    .select()
+    .from(alertSilences)
+    .where(
+      and(
+        eq(alertSilences.organizationId, organizationId),
+        lte(alertSilences.startsAt, to),
+        gte(alertSilences.endsAt, from),
+      ),
+    )
+    .orderBy(desc(alertSilences.startsAt));
+  const subject = ruleSubject(ruleId, severity);
+  return rows.filter((row) => silenceSelects(row.matchers, subject));
+}
+
+/** As many as one impact read counts for. Retention keeps closed silences for
+ *  90 days, and an Organization that writes more than this many in a range
+ *  that wide has a different problem than a list that stops. */
+const PAGE_LIMIT = 200;
+
+/**
+ * What the Silences page lists: every silence still open, whatever the picked
+ * range, plus the closed ones whose window overlaps it. The open ones are the
+ * control surface and must not vanish because the reader is looking at last
+ * week; the closed ones are evidence, and the range is what bounds evidence
+ * on every other screen here.
+ *
+ * Newest window first. The page regroups into what is open and what has
+ * closed, so this order only settles ties within a group.
+ */
+export async function loadSilencesForPage(
+  organizationId: string,
+  from: Date,
+  to: Date,
+): Promise<SilenceRow[]> {
+  return db
+    .select()
+    .from(alertSilences)
+    .where(
+      and(
+        eq(alertSilences.organizationId, organizationId),
+        or(
+          gt(alertSilences.endsAt, sql`now()`),
+          and(lte(alertSilences.startsAt, to), gte(alertSilences.endsAt, from)),
+        ),
+      ),
+    )
+    .orderBy(desc(alertSilences.startsAt))
+    .limit(PAGE_LIMIT);
 }
 
 export async function createSilence(

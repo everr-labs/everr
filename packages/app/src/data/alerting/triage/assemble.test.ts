@@ -9,6 +9,7 @@ vi.mock("@/db/client", () => ({
   runInTransaction: () => Promise.resolve(),
 }));
 
+import type { SilenceRow } from "@/data/alerting/silences/repository";
 import type { AlertingRuleSpec } from "@/data/alerting/types";
 import {
   type AlertDetailInput,
@@ -21,7 +22,6 @@ import {
 import { formatClock } from "./format";
 import type { NotificationFact } from "./notifications";
 import type { DefinitionRow, InstanceRow } from "./rules";
-import type { SilenceRow } from "./silences";
 import type { InstanceValues } from "./values";
 import type { InstanceValueSeries } from "./view";
 

@@ -4,11 +4,11 @@
  */
 import { and, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
+import type { SilenceRow } from "@/data/alerting/silences/repository";
 import { db } from "@/db/client";
 import { alertDefaultChannels, alertEvents } from "@/db/schema";
 import { formatClock, formatElapsed } from "./format";
 import type { DefinitionRow } from "./rules";
-import type { SilenceRow } from "./silences";
 
 export type NotificationFact = {
   eventType: string;

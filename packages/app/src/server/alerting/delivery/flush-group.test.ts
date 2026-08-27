@@ -123,10 +123,13 @@ vi.mock("@/server/worker/jobs", () => ({
 }));
 
 vi.mock("./suppression", () => ({
-  loadActiveSilences: mocks.loadSilences,
   loadFiringInstanceKeys: mocks.loadFiringKeys,
   matchSilence: () => null,
   deferSuppressedEvent: vi.fn(),
+}));
+
+vi.mock("@/data/alerting/silences/repository", () => ({
+  loadActiveSilences: mocks.loadSilences,
 }));
 
 vi.mock("../history/clickhouse", () => ({
