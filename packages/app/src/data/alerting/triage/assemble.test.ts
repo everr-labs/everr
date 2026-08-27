@@ -284,6 +284,36 @@ describe("assembleTriage", () => {
     expect(byPath.get("demo/firing")?.pending).toBeUndefined();
   });
 
+  it("counts a pending instance as breaching, as the detail panel does", () => {
+    const rule = definition({
+      slug: "mixed",
+      currentState: "firing",
+      lastRowCount: 3,
+    });
+    const { alerts } = triage({
+      definitions: [rule],
+      instances: [
+        instance(rule.id, { fingerprint: "hot", value: 120 }),
+        instance(rule.id, {
+          fingerprint: "warming",
+          status: "pending",
+          pendingSince: minutesAgo(1),
+          value: 110,
+        }),
+        instance(rule.id, {
+          fingerprint: "quiet",
+          status: "inactive",
+          value: 10,
+          activeSince: null,
+        }),
+      ],
+    });
+
+    expect(alerts[0]).toMatchObject({
+      measured: "worst of 2 breaching · 3 rows",
+    });
+  });
+
   it("attributes a rule to the whole-rule silence over an instance-scoped one", () => {
     const rule = definition({ slug: "latency", currentState: "firing" });
     const partial = silence("id-latency", {

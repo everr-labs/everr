@@ -209,7 +209,12 @@ export function measuredText(
   }
   const rows = row.lastRowCount;
   const rowsText = `${rows} ${rows === 1 ? "row" : "rows"}`;
-  const breaching = instances.filter((i) => i.status === "firing").length;
+  // Breaching is the same count `instanceSummary` reports: an instance whose
+  // condition is true, pending ones included. Pending has crossed the
+  // threshold and is only waiting out the `for` clause, and a row that called
+  // it healthy here while the detail panel counted it would put two numbers
+  // for one rule on the screen at once.
+  const breaching = instances.filter((i) => i.status !== "inactive").length;
   if (breaching === 0) return rowsText;
   return `worst of ${breaching} breaching · ${rowsText}`;
 }
