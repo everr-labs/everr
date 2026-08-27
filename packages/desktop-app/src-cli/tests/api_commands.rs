@@ -485,6 +485,31 @@ fn cloud_query_posts_sql_and_renders_ndjson_rows() {
 }
 
 #[test]
+fn cloud_query_defaults_to_compact_rows_when_stdout_is_not_a_terminal() {
+    let env = CliTestEnv::new();
+    let mut server = mock_api_server();
+
+    env.write_session(&server.url(), "token-sql");
+
+    let mock = server
+        .mock("POST", "/api/cli/sql")
+        .match_body("SELECT 2 AS z, 'a' AS a")
+        .with_status(200)
+        .with_header("content-type", "application/x-ndjson")
+        .with_body("{\"z\":2,\"a\":\"a\"}\n{\"z\":3,\"a\":null}\n")
+        .create();
+
+    env.command_with_api_base_url(&server.url())
+        .args(["cloud", "query", "SELECT 2 AS z, 'a' AS a"])
+        .assert()
+        .success()
+        .stdout(predicate::str::diff("[\"z\",\"a\"]\n[2,\"a\"]\n[3,null]\n"))
+        .stderr(predicate::str::is_empty());
+
+    mock.assert();
+}
+
+#[test]
 fn cloud_query_surfaces_error_envelope() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();

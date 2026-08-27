@@ -68,15 +68,21 @@ fn run_query(args: TelemetryQueryArgs) -> Result<()> {
         }
     };
 
-    let format = args.format.unwrap_or_else(|| {
-        if io::stdout().is_terminal() {
-            TelemetryFormat::Table
-        } else {
-            TelemetryFormat::Ndjson
-        }
-    });
+    let format = default_format(args.format, io::stdout().is_terminal());
     render(&rows, format);
     Ok(())
+}
+
+/// Machine readers (agents, pipes) get compact rows; humans get a table.
+pub(crate) fn default_format(
+    requested: Option<TelemetryFormat>,
+    stdout_is_terminal: bool,
+) -> TelemetryFormat {
+    requested.unwrap_or(if stdout_is_terminal {
+        TelemetryFormat::Table
+    } else {
+        TelemetryFormat::Compact
+    })
 }
 
 fn is_connect_error(err: &anyhow::Error) -> bool {
@@ -106,37 +112,71 @@ fn is_permission_denied(err: &anyhow::Error) -> bool {
 }
 
 pub(crate) fn render(rows: &Rows, format: TelemetryFormat) {
+    print!("{}", render_to_string(rows, format));
+}
+
+fn render_to_string(rows: &Rows, format: TelemetryFormat) -> String {
+    let mut out = String::new();
     match format {
+        TelemetryFormat::Compact => render_compact(rows, &mut out),
         TelemetryFormat::Ndjson => {
             for row in &rows.values {
-                println!("{}", serde_json::to_string(row).unwrap());
+                out.push_str(&serde_json::to_string(row).unwrap());
+                out.push('\n');
             }
         }
         TelemetryFormat::Json => {
-            println!("{}", serde_json::to_string_pretty(&rows.values).unwrap());
+            out.push_str(&serde_json::to_string_pretty(&rows.values).unwrap());
+            out.push('\n');
         }
-        TelemetryFormat::Table => render_table(rows),
+        TelemetryFormat::Table => render_table(rows, &mut out),
+    }
+    out
+}
+
+/// JSONCompactEachRowWithNames: a column-name array, then one value array per
+/// row. Columns come from the first row, which keeps the SELECT order thanks to
+/// serde_json's preserve_order feature.
+fn render_compact(rows: &Rows, out: &mut String) {
+    let Some(cols) = column_names(rows) else {
+        return;
+    };
+    out.push_str(&serde_json::to_string(&cols).unwrap());
+    out.push('\n');
+    for row in &rows.values {
+        let cells: Vec<&Value> = cols
+            .iter()
+            .map(|key| row.get(*key).unwrap_or(&Value::Null))
+            .collect();
+        out.push_str(&serde_json::to_string(&cells).unwrap());
+        out.push('\n');
     }
 }
 
-fn render_table(rows: &Rows) {
-    let Some(first) = rows.values.first() else {
-        println!("(no rows)");
+fn column_names(rows: &Rows) -> Option<Vec<&str>> {
+    let object = rows.values.first()?.as_object()?;
+    Some(object.keys().map(String::as_str).collect())
+}
+
+fn render_table(rows: &Rows, out: &mut String) {
+    if rows.values.is_empty() {
+        out.push_str("(no rows)\n");
         return;
-    };
-    let Some(object) = first.as_object() else {
-        println!("(rows are not objects)");
+    }
+    let Some(cols) = column_names(rows) else {
+        out.push_str("(rows are not objects)\n");
         return;
     };
 
-    let cols: Vec<&str> = object.keys().map(String::as_str).collect();
-    println!("{}", cols.join(" | "));
+    out.push_str(&cols.join(" | "));
+    out.push('\n');
     for row in &rows.values {
         let cells: Vec<String> = cols
             .iter()
             .map(|key| row.get(*key).map(value_to_cell).unwrap_or_default())
             .collect();
-        println!("{}", cells.join(" | "));
+        out.push_str(&cells.join(" | "));
+        out.push('\n');
     }
 }
 
@@ -151,8 +191,57 @@ fn value_to_cell(value: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
+    use serde_json::json;
 
-    use super::connection_failure_message;
+    use super::{connection_failure_message, default_format, render_to_string};
+    use crate::cli::TelemetryFormat;
+    use crate::telemetry::client::Rows;
+
+    #[test]
+    fn compact_prints_header_then_one_array_per_row_keeping_types() {
+        let rows = Rows {
+            values: vec![
+                json!({"n": 1657, "svc": "app", "avg_ms": 1.2, "attrs": {"k": "v"}, "gone": null}),
+                json!({"n": 3, "svc": "db", "avg_ms": 0.0, "attrs": {}, "gone": "x"}),
+            ],
+        };
+
+        let out = render_to_string(&rows, TelemetryFormat::Compact);
+
+        assert_eq!(
+            out,
+            "[\"n\",\"svc\",\"avg_ms\",\"attrs\",\"gone\"]\n[1657,\"app\",1.2,{\"k\":\"v\"},null]\n[3,\"db\",0.0,{},\"x\"]\n"
+        );
+    }
+
+    #[test]
+    fn compact_prints_nothing_for_an_empty_result() {
+        let rows = Rows { values: vec![] };
+
+        assert_eq!(render_to_string(&rows, TelemetryFormat::Compact), "");
+    }
+
+    #[test]
+    fn compact_keeps_column_order_from_the_wire() {
+        let rows = crate::telemetry::client::parse_ndjson("{\"z\":1,\"a\":2}\n").unwrap();
+
+        let out = render_to_string(&rows, TelemetryFormat::Compact);
+
+        assert_eq!(out, "[\"z\",\"a\"]\n[1,2]\n");
+    }
+
+    #[test]
+    fn default_format_is_table_on_a_terminal_and_compact_otherwise() {
+        assert!(matches!(default_format(None, true), TelemetryFormat::Table));
+        assert!(matches!(
+            default_format(None, false),
+            TelemetryFormat::Compact
+        ));
+        assert!(matches!(
+            default_format(Some(TelemetryFormat::Ndjson), true),
+            TelemetryFormat::Ndjson
+        ));
+    }
 
     #[test]
     fn permission_denied_connection_mentions_sandbox_network_access() {
