@@ -6,6 +6,7 @@ import type {
   RuleStateHistoryData,
 } from "@/data/alerting/triage/view";
 import { SeverityLabel, StatusIcon } from "./alert-status";
+import { COLUMN_LABEL } from "./list-columns";
 import {
   RuleStateChart,
   StateChartAxis,
@@ -24,9 +25,6 @@ const NO_INSTANCES: RuleStateHistory["instances"] = [];
 // detail panel instead.
 const COLUMNS =
   "grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-4 @[44rem]/list:grid-cols-[minmax(0,1fr)_12rem_6rem] @[50rem]/list:grid-cols-[minmax(0,1fr)_16rem_5rem_4rem_6rem]";
-
-const COLUMN_LABEL =
-  "font-mono text-[0.6875rem] tracking-wider text-muted-foreground uppercase";
 
 /**
  * Every rule in the org, quiet ones included, under the triage list on the
