@@ -11,6 +11,7 @@ import type {
   AlertDetail,
   RuleInventoryState,
 } from "@/data/alerting/triage/view";
+import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { AlertInstanceChart } from "./alert-instance-chart";
 import { STATUS_META, StatusIcon } from "./alert-status";
 import { Section } from "./detail-section";
@@ -134,7 +135,7 @@ export function AlertDetailPanel({
    *  silence" is the point: the panel can reach a scheduled silence and the
    *  second of two overlapping ones, neither of which the header's single
    *  button could name. */
-  onCancelSilence: (id: string) => void;
+  onCancelSilence: (target: SilenceCancelTarget) => void;
   /** Open the silence dialog on a seed, which a silence that has already
    *  closed fills in: the same noise coming back is the commonest reason
    *  anyone reads this section, and retyping the matchers is the commonest
@@ -319,6 +320,7 @@ export function AlertDetailPanel({
             key={detail.path}
             silences={detail.silences}
             rulePath={detail.path}
+            ruleLabel={detail.name}
             activeSilenceId={detail.activeSilenceId}
             pending={silencePending}
             onSilence={onSilence}

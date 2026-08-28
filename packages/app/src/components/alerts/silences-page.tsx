@@ -1,16 +1,24 @@
 import { Button } from "@everr/ui/components/button";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
+import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { formatElapsed } from "@/data/alerting/triage/format";
-import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
+import {
+  type AlertSilenceRecord,
+  SILENCE_PAGE_LIMIT,
+} from "@/data/alerting/triage/view";
+import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { COLUMN_LABEL } from "./list-columns";
 import type { SilenceSeed } from "./silence-dialog";
 import {
   cancelLabel,
+  cancelTargetFor,
   isOpen,
   STATE_META,
   silenceAgainLabel,
+  spokenSilence,
   windowBounds,
 } from "./silence-state";
 
@@ -20,9 +28,52 @@ import {
  * and the button, with the times and the impact reflowed onto a line of their
  * own underneath; at full width it is the table. Each fact is rendered once
  * either way, so nothing here can print two different answers at two sizes.
+ *
+ * The wide template is built from whether an impact column exists, because a
+ * track declared for a cell nobody fills is not empty space, it is the table
+ * stopping short of its own right edge. Only the identity column flexes: the
+ * window, the state and the action all print content of a known width, and
+ * giving them a share of the slack only pushed them away from each other.
+ *
+ * Baselines at the wide tier, centres at the narrow one. The identity cell
+ * runs to three lines when a silence carries matchers, an author and a
+ * comment, and centring made the row's other four cells hang 9 to 18px below
+ * the rule name they belong to, so the line a reader scans along bent by row.
  */
-const COLUMNS =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 @[52rem]/list:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_9rem_8rem_7rem]";
+const COLUMNS_BASE =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 @[52rem]/list:items-baseline";
+
+/** Both templates, resolved once for the process rather than per row per
+ *  render: `impact` has two values, and `cn` runs tailwind-merge. */
+const COLUMNS = {
+  withImpact: cn(
+    COLUMNS_BASE,
+    "@[52rem]/list:grid-cols-[minmax(0,1fr)_13rem_9rem_8rem_7rem]",
+  ),
+  withoutImpact: cn(
+    COLUMNS_BASE,
+    "@[52rem]/list:grid-cols-[minmax(0,1fr)_13rem_9rem_7rem]",
+  ),
+} as const;
+
+const columns = (impact: boolean) =>
+  impact ? COLUMNS.withImpact : COLUMNS.withoutImpact;
+
+/**
+ * The column strip's height, declared once and consumed by both ends of the
+ * sticky stack: the strip sets it, the group headings park at it.
+ *
+ * Declared rather than measured. The strip's height falls out of its padding
+ * and of `COLUMN_LABEL`'s type scale, and `COLUMN_LABEL` is shared with the
+ * rule inventory, so it can move for reasons that have nothing to do with this
+ * page. Reading it off a token means that move cannot open a transparent sliver
+ * for rows to travel through.
+ *
+ * Below the strip's tier there is no strip, and the heading is what meets the
+ * shell's chrome.
+ */
+const STRIP_HEIGHT = "[--strip-h:2rem]";
+const STICKY_HEADING_TOP = "top-0 @[52rem]/list:top-(--strip-h)";
 
 /** "ends in 2h 10m" for a silence that is muting, "starts in 4h" for one that
  *  will; a closed one just says which way it closed. */
@@ -38,17 +89,47 @@ function Row({
   row,
   now,
   pending,
+  ruleName,
+  impact,
+  focused,
+  onFocused,
   onCancel,
   onSilenceAgain,
 }: {
   row: AlertSilenceRecord;
   now: number;
   pending: boolean;
-  onCancel: (id: string) => void;
+  /** The rule's display name, where the rules read has arrived and knows it.
+   *  Falls back to the path, which is always true if not always familiar. */
+  ruleName: (path: string) => string;
+  /** Whether the list is drawing an impact column at all. */
+  impact: boolean;
+  /** This row was just cancelled and has moved down past the divider. It takes
+   *  focus, because the button that had it was unmounted by the move. */
+  focused: boolean;
+  onFocused: (id: string | null) => void;
+  onCancel: (target: SilenceCancelTarget) => void;
   onSilenceAgain: (seed: SilenceSeed) => void;
 }) {
   const open = isOpen(row.state);
   const bounds = windowBounds(row);
+  const meta = STATE_META[row.state];
+  const action = useRef<HTMLButtonElement>(null);
+  // The row the cancel moved is where the reader's attention already is, so
+  // that is where focus goes: not the top of the document, which is where an
+  // unmounted button leaves it.
+  //
+  // Both guards are load-bearing. `open` holds the claim until the row has
+  // actually moved: until the refetch lands it is still above the divider, and
+  // focusing there would spend the claim on the very button the move is about
+  // to unmount. `pending` holds it until the write settles, because the row
+  // remounts while every control is still disabled and focusing a disabled
+  // button does nothing at all.
+  useEffect(() => {
+    if (!focused || open || pending) return;
+    action.current?.focus();
+    onFocused(null);
+  }, [focused, open, pending, onFocused]);
   // Who made it, then why. The author leads: on a page that spans every rule,
   // most rows were written by somebody else, and a comment long enough to
   // truncate would otherwise take the name off the row with it. Both are typed
@@ -56,27 +137,61 @@ function Row({
   // stays mono.
   const attribution = [row.author, row.comment].filter(Boolean).join(" · ");
   // What names this row out loud. Every button on the page reads the same two
-  // words, so the label has to carry the silence it belongs to: its matchers
-  // where it has them, and its window where it does not.
-  const spoken = row.matchers || `${bounds.start.text} to ${bounds.end.text}`;
+  // words, so the label has to carry the silence it belongs to. Derived in
+  // `silence-state` so this screen and the detail panel say the same thing.
+  const spoken = spokenSilence(row, ruleName);
   return (
     <li
       className={cn(
-        COLUMNS,
-        "border-t px-3 py-2.5 text-sm transition-colors hover:bg-muted/25",
+        columns(impact),
+        "border-t px-3 py-2.5 text-sm",
         !open && "text-muted-foreground",
+        // Reinforces the group heading above, rather than standing in for it:
+        // two pixels of colour cannot carry a group on its own, which is what
+        // it was being asked to do while the open rows had no heading. `pl`
+        // gives back what the border took, so the open rows keep the same left
+        // text edge as the closed ones.
+        open && "border-l-2 border-l-chart-2 pl-[0.625rem]",
       )}
     >
-      {/* The matchers are the silence: there is no name to put above them, and
-          the rule is one matcher among the others rather than a title the rest
-          narrow. A silence with none prints nothing here; absence of text is
-          the statement.
+      {/* The rule leads, by the name the rest of the product calls it. A
+          silence stores a path, and a page that printed the path made the
+          reader translate `demo/demo-always-firing` into "Always firing
+          (demo)" against the screen they came from. It is a link because the
+          question after "what is muted" is always "show me that rule", and
+          this was the one page in the product that could not answer it.
 
-          No state dot rides in front of them. The section a row sits in is its
-          state, and the one section that holds two states prints the word. */}
+          It opens the rule here rather than on triage. "Why did nobody get
+          paged" is asked while reading this list, and answering it by
+          replacing the list with another screen loses the rows the reader was
+          comparing. A link rather than a button because the panel is
+          addressable on this route, so it still opens in a new tab and still
+          copies as a URL.
+
+          A silence naming no single rule keeps its matchers as the lead: there
+          is nothing else to call it. */}
       <div className="min-w-0">
-        {row.matchers && (
-          <div className="truncate font-mono text-xs">{row.matchers}</div>
+        {row.rule ? (
+          <Link
+            to="/alerts/silences"
+            search={(prev) => ({ ...prev, alert: row.rule ?? undefined })}
+            replace
+            title={row.rule}
+            className="block truncate text-sm font-medium outline-2 outline-dotted outline-transparent hover:underline focus-visible:outline-primary"
+          >
+            {ruleName(row.rule)}
+          </Link>
+        ) : (
+          row.matchers && (
+            <div className="truncate font-mono text-xs">{row.matchers}</div>
+          )
+        )}
+        {/* What narrows the silence within its rule. Empty means the whole
+            rule, which the row says by having nothing here. */}
+        {row.rule && row.scope && (
+          <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+            {row.scope}
+          </div>
         )}
         {attribution && (
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -84,22 +199,24 @@ function Row({
           </p>
         )}
       </div>
-      {/* Second in the markup so it lands beside the matchers on a narrow
-          list, last in the table once there are columns to be last of. */}
+      {/* Second in the markup so it lands beside the rule on a narrow list,
+          last in the table once there are columns to be last of. */}
       <div className="justify-self-end @[52rem]/list:order-last">
         {open ? (
           <Button
+            ref={action}
             size="sm"
             variant="ghost"
             className="-my-1"
             disabled={pending}
             aria-label={cancelLabel(spoken)}
-            onClick={() => onCancel(row.id)}
+            onClick={() => onCancel(cancelTargetFor(row, ruleName))}
           >
             Cancel
           </Button>
         ) : (
           <Button
+            ref={action}
             size="sm"
             variant="ghost"
             className="-my-1 font-normal text-muted-foreground"
@@ -117,119 +234,159 @@ function Row({
           </Button>
         )}
       </div>
-      {/* One wrapped line under the matchers while the list is narrow; three
-          columns of the table once it is not. `contents` is what lets the same
-          three elements be both without being written twice. */}
+      {/* One wrapped line under the rule while the list is narrow; the table's
+          own columns once it is not. `contents` is what lets the same elements
+          be both without being written twice. */}
       <div className="col-span-2 flex min-w-0 flex-wrap items-baseline gap-x-3 @[52rem]/list:contents">
         <span className="truncate font-mono text-xs tabular-nums text-muted-foreground">
           <time dateTime={bounds.start.iso}>{bounds.start.text}</time>
           {" → "}
           <time dateTime={bounds.end.iso}>{bounds.end.text}</time>
         </span>
-        <span className="font-mono text-xs tabular-nums">
+        {/* A dot on the rows that are still open, where it separates active
+            from scheduled: two states the accent alone cannot tell apart. */}
+        <span className="flex items-baseline gap-1.5 font-mono text-xs tabular-nums">
+          {open && (
+            <span
+              className={cn(
+                "size-1.5 shrink-0 translate-y-[-1px] rounded-full",
+                meta.dot,
+              )}
+            />
+          )}
           {stateText(row, now)}
         </span>
         {/* Nothing stands in for an impact of nothing: the column is read for
             the few rows where something was withheld, and a dash on every
-            other row is what buries them. */}
-        <span className="truncate font-mono text-xs text-muted-foreground">
-          {row.impact}
-        </span>
+            other row is what buries them. The column itself is only drawn when
+            some row has one. */}
+        {impact && (
+          <span className="truncate font-mono text-xs text-muted-foreground">
+            {row.impact}
+          </span>
+        )}
       </div>
     </li>
   );
 }
 
-function Section({
-  title,
-  hint,
-  aside,
-  rows,
-  loading,
-  empty,
-  children,
-}: {
-  title: string;
-  /** Only for what the reader cannot see from the rows. How a section is
-   *  sorted is visible in it; what bounds it is not. */
-  hint?: string;
-  aside?: React.ReactNode;
-  rows: AlertSilenceRecord[];
-  /** The rows have not arrived. The heading and its action stay put: the way
-   *  to write a silence must not be missing from the screen for as long as it
-   *  takes to read the ones that already exist. */
-  loading?: boolean;
-  empty: string;
-  children: (row: AlertSilenceRecord) => React.ReactNode;
-}) {
-  // The heading names the region, so a reader moving by landmark hears
-  // "Active" rather than the second of two unnamed sections.
-  const headingId = `silences-${title.toLowerCase().replace(/\s+/g, "-")}`;
+/**
+ * Drawn once, for the whole list. Two copies of the same labels, a section
+ * apart, was what made one table read as two.
+ *
+ * Sticky, because the list is long enough that a reader is usually looking at
+ * rows with the top of the page far behind them, and a column of bare
+ * timestamps with no heading is the state this strip exists to prevent. It
+ * binds tight to the first row below it (`pb-1`); the air belongs above.
+ */
+function ColumnStrip({ impact }: { impact: boolean }) {
   return (
-    <section aria-labelledby={headingId}>
-      <div className="flex items-baseline justify-between gap-3 px-3 pb-1.5">
-        <h2
-          id={headingId}
-          className="flex items-baseline gap-2 text-sm font-medium"
-        >
-          {title}
-          {/* A count of nothing, over a line that already says there is
-              nothing. */}
-          {rows.length > 0 && (
-            <span className="font-mono text-xs font-normal tabular-nums text-muted-foreground">
-              {rows.length}
-            </span>
-          )}
-          {hint && (
-            <span className="text-xs font-normal text-muted-foreground">
-              {hint}
-            </span>
-          )}
-        </h2>
-        {aside}
-      </div>
-      {/* Nothing to head while the section is empty, and nothing to head
-          below the tier where the columns exist at all: the narrow row reflows
-          its times onto one line, where a strip of labels would sit above a
-          layout it does not describe. */}
-      {rows.length > 0 && (
-        <div className={cn(COLUMNS, "hidden px-3 pb-1.5 @[52rem]/list:grid")}>
-          <span />
-          <span className={COLUMN_LABEL}>Window</span>
-          <span className={COLUMN_LABEL}>State</span>
-          <span className={COLUMN_LABEL}>Impact</span>
-          <span />
-        </div>
+    <div
+      className={cn(
+        columns(impact),
+        // `pt` is the page's top air, carried here rather than on the scroll
+        // container: padding on the scroller sits inside the scroll port, so
+        // rows pass through it unpainted and appear above the very strip that
+        // is meant to cover them. Held by the strip, the same space is opaque
+        // and travels with it.
+        "sticky top-0 z-20 hidden h-(--strip-h) items-end bg-background px-3 pb-1 @[52rem]/list:grid",
       )}
-      {loading ? (
-        <div aria-hidden>
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="border-t px-3 py-2.5">
-              <Skeleton className="h-7 w-full" />
-            </div>
-          ))}
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="border-t px-3 py-4 text-sm text-muted-foreground">
-          {empty}
-        </p>
-      ) : (
-        <ul>{rows.map(children)}</ul>
-      )}
-    </section>
+    >
+      <span />
+      <span className={COLUMN_LABEL}>Window</span>
+      <span className={COLUMN_LABEL}>State</span>
+      {/* A heading over a column that is blank in every row reads as broken
+          data. It is drawn only when some row filled it. */}
+      {impact && <span className={COLUMN_LABEL}>Impact</span>}
+      <span />
+    </div>
   );
 }
 
 /**
- * "What is muting right now." Two stacked sections, one dense row per silence:
- * the active section is the control surface, and history is evidence that the
- * picked time range bounds.
+ * The band that names a group and counts it.
  *
- * No page header: the shell's breadcrumb already names the screen, and the one
- * action it carried belongs on the section it acts on.
+ * Both groups get one, and they are built the same, because the seam between
+ * them is the page's one structural claim: these are muting, those are over.
+ * A group marked only by a two-pixel rule on its rows was invisible at a
+ * glance, which is the only distance this page is read from.
+ *
+ * Sticky under the strip, and each inside its own wrapper, so a group's name
+ * stays on screen for exactly as long as its rows do and the next one takes
+ * over rather than piling on top.
+ */
+function GroupHeading({
+  id,
+  label,
+  count,
+  hint,
+  action,
+}: {
+  id: string;
+  label: string;
+  count?: string;
+  /** Only for what the reader cannot see from the rows. */
+  hint: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    // The opaque layer is the sticky one: the band's own tint is translucent,
+    // and translucent over scrolling rows smears them.
+    <div className={cn("sticky z-10 bg-background", STICKY_HEADING_TOP)}>
+      <div className="flex items-center justify-between gap-3 border-t bg-muted/20 px-3 py-1.5">
+        <h2 id={id} className="flex items-baseline gap-2">
+          <span className={COLUMN_LABEL}>{label}</span>
+          {count && (
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">
+              {count}
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground">{hint}</span>
+        </h2>
+        {action}
+      </div>
+    </div>
+  );
+}
+
+/** Sized to a real two-line row, so the list does not resettle under the
+ *  reader when the rows it was standing in for arrive. */
+function LoadingRows() {
+  return (
+    <div aria-busy="true">
+      <span className="sr-only">Loading silences</span>
+      <div aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="border-t px-3 py-2.5">
+            <Skeleton className="h-9 w-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "What is muting right now", as one list rather than two sections.
+ *
+ * The page is ordered by consequence: the silences still muting lead, behind
+ * an accent rule, and the divider marks where evidence begins. Sections were
+ * tried and dropped. Two headed groups over one column grid read as a single
+ * table with a stray subhead in it, and the header strip had to be drawn twice
+ * to serve both, which is what made the seam invisible in the first place. One
+ * grid, one strip, one scan; position carries the rest.
+ *
+ * The list is the control surface at the top and evidence below it, and the
+ * time range bounds only the second, which the divider says and the rows above
+ * it do not have to.
+ *
+ * No page header: the shell's breadcrumb already names the screen, so the
+ * list's own heading is the document's h1 and the one action it carries sits
+ * beside it.
  */
 export function SilencesPage({
   silences,
+  ruleNames,
   pending,
   onNew,
   onCancel,
@@ -237,24 +394,49 @@ export function SilencesPage({
 }: {
   /** `null` while loading. */
   silences: AlertSilenceRecord[] | null;
+  /** Rule path to display name. Empty while the rules read is in flight, which
+   *  the row survives by falling back to the path. */
+  ruleNames: Map<string, string>;
   /** A silence write is in flight; every silence control goes inert. */
   pending: boolean;
   onNew: () => void;
-  onCancel: (id: string) => void;
+  onCancel: (target: SilenceCancelTarget) => void;
   onSilenceAgain: (seed: SilenceSeed) => void;
 }) {
   // One reading of the clock per render, so two rows cannot disagree about
   // what "in 4m" is measured from.
   const now = Date.now();
+  // Which row should take focus when it next mounts. Owned here because this
+  // is the component that knows a cancel moves a row across the divider, and
+  // the only one that can tell it has: the route has no reason to know the
+  // list is grouped at all. The setter is stable, so the row's effect does not
+  // re-run on every render of the page.
+  const [focusSilenceId, setFocusSilenceId] = useState<string | null>(null);
   const loading = silences === null;
   const rows = silences ?? [];
   // Every silence this app writes starts at `now`, so `scheduled` has no way
-  // to exist and the section that used to hold it could only ever draw its own
-  // empty state. Open rows share one section instead. Should scheduling ever
-  // ship, an unstarted row still lands here and still says "starts in 4h"
-  // rather than falling out of the page.
+  // to exist. Open rows lead the list whichever they are; should scheduling
+  // ever ship, an unstarted row still lands above the divider and still says
+  // "starts in 4h" rather than falling out of the page.
   const open = rows.filter((row) => isOpen(row.state));
   const closed = rows.filter((row) => !isOpen(row.state));
+  const ruleName = (path: string) => ruleNames.get(path) ?? path;
+  // One strip serves the whole list, so one row anywhere with an impact is
+  // what earns the column.
+  const impact = rows.some((row) => row.impact);
+  // The read stops at its cap, so the count stops being a total. Saying `200+`
+  // is the difference between a bounded answer and a wrong one.
+  //
+  // The cap is on the read, which returns both groups, so it is `rows` that
+  // reaches it. Only then is the closed count a floor rather than the answer:
+  // a page of 190 open and 12 closed knows both exactly.
+  const truncated = rows.length >= SILENCE_PAGE_LIMIT;
+  const activeCount = open.length > 0 ? `${open.length}` : undefined;
+  const historyCount = !closed.length
+    ? undefined
+    : truncated
+      ? `${closed.length}+`
+      : `${closed.length}`;
 
   const row = (record: AlertSilenceRecord) => (
     <Row
@@ -262,28 +444,44 @@ export function SilencesPage({
       row={record}
       now={now}
       pending={pending}
-      onCancel={onCancel}
+      ruleName={ruleName}
+      impact={impact}
+      focused={focusSilenceId === record.id}
+      onFocused={setFocusSilenceId}
+      onCancel={(target) => {
+        setFocusSilenceId(target.id);
+        onCancel(target);
+      }}
       onSilenceAgain={onSilenceAgain}
     />
   );
 
   return (
-    // Outside the spaced stack: `sr-only` is out of flow, and as the stack's
-    // first child it was still spending the stack's gap on nothing.
-    <>
+    <div className={cn("@container/list", STRIP_HEIGHT)}>
       {/* The topnav breadcrumb is the visible title. This is the document's,
-          so the page is not a screen of h2s under nothing. */}
+          so the page is not a screen of h2s under nothing, and the list itself
+          does not repeat a word the shell already said. */}
       <h1 className="sr-only">Silences</h1>
-      <div className="@container/list space-y-6">
-        <Section
-          title="Active"
-          rows={open}
-          loading={loading}
-          // Said to the only reader who needs telling: the one who has never
-          // made a silence. It used to run under the title on every visit,
-          // including for the people who live here.
-          empty="Nothing is silenced. A silence stops a rule's notifications without stopping the rule."
-          aside={
+
+      {/* Drawn while loading too, so the list does not shift down by the
+          strip's own height at the moment the rows arrive. */}
+      {(loading || rows.length > 0) && <ColumnStrip impact={impact} />}
+
+      {/* Each group is its own sticky context, so its heading stays for
+          exactly as long as its rows and the next one replaces it. */}
+      <div>
+        <GroupHeading
+          id="silences-active"
+          label="Active"
+          count={activeCount}
+          // The range bounds history and not this: a silence muting right now
+          // is muting whatever window the reader happens to be looking at.
+          hint="now"
+          // The action belongs on the group it acts on, which is also the only
+          // band wide enough to hold it. On its own line it was a lone
+          // saturated pill in an empty field, and the brightest thing on a page
+          // whose subject is what is already muted.
+          action={
             <Button
               size="sm"
               className="-my-1"
@@ -294,19 +492,54 @@ export function SilencesPage({
               New silence
             </Button>
           }
-        >
-          {row}
-        </Section>
-        <Section
-          title="History"
-          hint="in range"
-          rows={closed}
-          loading={loading}
-          empty="No silence closed in the selected time range."
-        >
-          {row}
-        </Section>
+        />
+        {loading ? (
+          <LoadingRows />
+        ) : open.length === 0 ? (
+          <p className="border-t px-3 py-3 text-sm text-muted-foreground">
+            {/* Said to the only reader who needs telling: the one who has never
+                made a silence. Once the org has history, "nothing is silenced"
+                is the whole fact, and the definition is a lecture to somebody
+                who just cancelled one. */}
+            {closed.length === 0 ? (
+              <span className="block max-w-prose">
+                Nothing is silenced. A silence stops a rule's notifications
+                without stopping the rule.{" "}
+                <a
+                  href="https://everr.dev/docs/guides/set-up-notifications"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  Learn more
+                </a>
+              </span>
+            ) : (
+              "Nothing is silenced."
+            )}
+          </p>
+        ) : (
+          <ul aria-labelledby="silences-active">{open.map(row)}</ul>
+        )}
       </div>
-    </>
+
+      <div>
+        <GroupHeading
+          id="silences-history"
+          label="History"
+          count={historyCount}
+          hint="in range"
+        />
+        {loading ? (
+          <LoadingRows />
+        ) : closed.length === 0 ? (
+          <p className="border-t px-3 py-3 text-sm text-muted-foreground">
+            No silence closed in the selected time range.
+          </p>
+        ) : (
+          <ul aria-labelledby="silences-history">{closed.map(row)}</ul>
+        )}
+      </div>
+    </div>
   );
 }

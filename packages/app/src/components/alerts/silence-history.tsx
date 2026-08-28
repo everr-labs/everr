@@ -3,10 +3,12 @@ import { cn } from "@everr/ui/lib/utils";
 import { BellOff } from "lucide-react";
 import { Fragment, useState } from "react";
 import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
+import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { Section } from "./detail-section";
 import type { SilenceSeed } from "./silence-dialog";
 import {
   cancelLabel,
+  cancelTargetFor,
   isOpen,
   STATE_META,
   silenceAgainLabel,
@@ -53,6 +55,7 @@ const Separator = () => <span className="mx-1.5 opacity-60">·</span>;
 function SilenceRow({
   record,
   rulePath,
+  ruleLabel,
   inForce,
   pending,
   onCancel,
@@ -63,11 +66,13 @@ function SilenceRow({
    *  silence itself names no single rule: it matched this one by its labels,
    *  so this rule is what "the same again" can mean. */
   rulePath: string;
+  /** The rule's display name, for what the cancel toast calls this silence. */
+  ruleLabel: string;
   /** This is the silence the rule's `silenced` status is attributed to, and
    *  more than one silence is active, so saying which is worth a badge. */
   inForce: boolean;
   pending: boolean;
-  onCancel: (id: string) => void;
+  onCancel: (target: SilenceCancelTarget) => void;
   onSilence: (seed: SilenceSeed) => void;
 }) {
   const meta = STATE_META[record.state];
@@ -155,7 +160,12 @@ function SilenceRow({
           )}
           onClick={() =>
             open
-              ? onCancel(record.id)
+              ? // Built in `silence-state`, so this row and the Silences page
+                // cancel the same silence the same way. It used to substitute
+                // the rule the panel happens to be open on when the silence
+                // named none, which made Undo write a silence scoped to a rule
+                // the reader had never muted.
+                onCancel(cancelTargetFor(record, () => ruleLabel))
               : onSilence({
                   rule: record.rule ?? rulePath,
                   matchers: record.scope,
@@ -183,6 +193,7 @@ function SilenceRow({
 export function SilenceHistory({
   silences,
   rulePath,
+  ruleLabel,
   activeSilenceId,
   pending,
   onSilence,
@@ -191,6 +202,8 @@ export function SilenceHistory({
   silences: AlertSilenceRecord[];
   /** The rule the panel is open on. */
   rulePath: string;
+  /** Its display name, for what the cancel toast calls the silence. */
+  ruleLabel: string;
   activeSilenceId: string | null;
   /** A silence mutation is in flight. Every button here writes to the same
    *  rule, so they go inert together rather than racing each other. */
@@ -200,7 +213,7 @@ export function SilenceHistory({
    *  anyone reads this section, and retyping the matchers is the commonest
    *  reason the replacement is scoped wrong. The header seeds an empty one. */
   onSilence: (seed: SilenceSeed) => void;
-  onCancel: (id: string) => void;
+  onCancel: (target: SilenceCancelTarget) => void;
 }) {
   const [showAllClosed, setShowAllClosed] = useState(false);
   const ordered = sortSilences(silences, activeSilenceId);
@@ -256,6 +269,7 @@ export function SilenceHistory({
                 key={record.id}
                 record={record}
                 rulePath={rulePath}
+                ruleLabel={ruleLabel}
                 inForce={contested && record.id === activeSilenceId}
                 pending={pending}
                 onCancel={onCancel}

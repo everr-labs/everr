@@ -5,6 +5,7 @@ import {
 } from "@/data/alerting/delivery/tasks";
 import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { currentTraceLink } from "@/data/alerting/trace-link";
+import { SILENCE_PAGE_LIMIT } from "@/data/alerting/triage/view";
 import { db } from "@/db/client";
 import { alertEvents, alertSilences } from "@/db/schema";
 import {
@@ -158,11 +159,6 @@ export async function loadSilencesInWindow(
   return rows.filter((row) => silenceSelects(row.matchers, subject));
 }
 
-/** As many as one impact read counts for. Retention keeps closed silences for
- *  90 days, and an Organization that writes more than this many in a range
- *  that wide has a different problem than a list that stops. */
-const PAGE_LIMIT = 200;
-
 /**
  * What the Silences page lists: every silence still open, whatever the picked
  * range, plus the closed ones whose window overlaps it. The open ones are the
@@ -191,7 +187,7 @@ export async function loadSilencesForPage(
       ),
     )
     .orderBy(desc(alertSilences.startsAt))
-    .limit(PAGE_LIMIT);
+    .limit(SILENCE_PAGE_LIMIT);
 }
 
 export async function createSilence(

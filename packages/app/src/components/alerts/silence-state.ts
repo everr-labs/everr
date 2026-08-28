@@ -94,10 +94,65 @@ export function windowBounds(
 }
 
 /**
+ * What names one silence out loud, on either screen.
+ *
+ * The rule it names first, by the name the product calls that rule; its
+ * matchers next; and its window when it has neither. Derived here rather than
+ * at each call site because the two screens had drifted onto different answers,
+ * and a silence that is called one thing in a button's label and another in the
+ * toast that confirms it is two silences to the reader.
+ */
+export function spokenSilence(
+  record: AlertSilenceRecord,
+  ruleName?: (path: string) => string,
+): string {
+  const bounds = windowBounds(record);
+  const named = record.rule ? (ruleName?.(record.rule) ?? record.rule) : "";
+  return (
+    named || record.matchers || `${bounds.start.text} to ${bounds.end.text}`
+  );
+}
+
+/**
+ * What a cancel hands the toast so it can name what it closed and write it
+ * again.
+ *
+ * `restore` is null for a silence that names no single rule, on every screen.
+ * The rule a panel happens to be open on is not that silence's scope: writing
+ * it again under that rule would mute something the reader never muted, which
+ * is the one thing an Undo must not do.
+ */
+export function cancelTargetFor(
+  record: AlertSilenceRecord,
+  ruleName?: (path: string) => string,
+): {
+  id: string;
+  label: string;
+  restore: {
+    path: string;
+    matchers: string;
+    comment: string;
+    endsAt: string;
+  } | null;
+} {
+  return {
+    id: record.id,
+    label: spokenSilence(record, ruleName),
+    restore: record.rule
+      ? {
+          path: record.rule,
+          matchers: record.scope,
+          comment: record.comment,
+          endsAt: record.endsAt,
+        }
+      : null,
+  };
+}
+
+/**
  * What the row's one button is called out loud. Every silence on both screens
  * offers the same two words, so the label has to carry the silence it belongs
- * to: `spoken` is what names this one, its matchers where it has them and its
- * window where it does not.
+ * to.
  */
 export const cancelLabel = (spoken: string) => `Cancel this silence, ${spoken}`;
 

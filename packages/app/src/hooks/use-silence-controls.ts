@@ -12,6 +12,35 @@ import {
 import { invalidateAlertTriage } from "@/data/alerting/triage/options";
 
 /**
+ * What a cancel needs to say, and to take back.
+ *
+ * Cancelling is the one act here that resumes paging, and it is irreversible
+ * in the domain's own terms: a closed window cannot be reopened. So the caller
+ * hands over enough to write the silence again, and `Undo` writes a new one
+ * over what is left of the old window. That is not a restore and the toast does
+ * not claim to be one; it is the same silence, made again, which is the only
+ * move the model allows.
+ */
+export type SilenceCancelTarget = {
+  id: string;
+  /** What the toast calls the silence: the rule's display name where the
+   *  caller knows it, its path otherwise. Never the silence's id, which names
+   *  nothing a reader recognizes. */
+  label: string;
+  /** Everything needed to write the same silence again, and the window this
+   *  cancel is about to collapse. `null` where the caller cannot offer it: a
+   *  triage row knows which silence is in force but not how it was written, and
+   *  an Undo that guessed the scope would mute more than the reader muted. */
+  restore:
+    | (Omit<SilenceDraft, "durationMinutes"> & {
+        /** Pre-cancel `endsAt`. What is left of it is the duration Undo
+         *  writes, which is why the draft's own is the one field missing. */
+        endsAt: string;
+      })
+    | null;
+};
+
+/**
  * Everything a screen needs to make and unmake silences: the two writes, and
  * the dialog they are made through. One place owns what a successful write
  * says, what it refreshes, and when the dialog goes away: the triage board,
@@ -39,16 +68,70 @@ export function useSilenceControls() {
   // the other.
   const cancelSilence = useMutation({
     mutationFn: expireAlertSilence,
-    onSuccess: async () => {
-      await refresh();
-      toast.success("Silence cancelled");
-    },
     onError: (error: Error) => toast.error(error.message),
   });
 
+  /**
+   * Cancel one silence and say which one, in the only sentence that matters:
+   * pages resume now. The success message lives here rather than on the
+   * mutation because it needs the target the mutation never sees, and because
+   * a cancel from the triage board and one from the Silences page must read
+   * the same.
+   */
+  const cancel = (target: SilenceCancelTarget) =>
+    cancelSilence.mutate(
+      { data: { id: target.id } },
+      {
+        onSuccess: async () => {
+          const { restore } = target;
+          // Measured before the refetch, not after: the window Undo restores
+          // is what was left when the reader cancelled, and awaiting the reads
+          // first billed their latency to the silence.
+          //
+          // Whole minutes, rounded up, so a window with seconds left still
+          // offers an Undo that writes something. A window already spent
+          // offers none: there would be nothing to write.
+          const left = restore
+            ? Math.ceil(
+                (new Date(restore.endsAt).getTime() - Date.now()) / 60_000,
+              )
+            : 0;
+          await refresh();
+          toast.success(
+            `Silence cancelled · ${target.label} resumes notifying`,
+            restore && left > 0
+              ? {
+                  // Bounded on purpose. Sonner keeps a toast that carries an
+                  // action until it is dismissed, and an Undo that writes a
+                  // silence must not sit on screen indefinitely waiting to be
+                  // pressed by something that is no longer the act it belongs
+                  // to. Ten seconds is long enough to change your mind and
+                  // short enough that the affordance dies with the moment.
+                  duration: 10_000,
+                  action: {
+                    label: "Undo",
+                    onClick: () => {
+                      const { endsAt: _closed, ...draft } = restore;
+                      silence.mutate({
+                        data: { ...draft, durationMinutes: left },
+                      });
+                    },
+                  },
+                }
+              : undefined,
+          );
+        },
+      },
+    );
+
+  // Neither mutation is returned. `cancelSilence` no longer carries the
+  // success path, so a caller reaching for `.mutate` would get a cancel that
+  // never refreshes and never says so, and `silence` is written through the
+  // dialog. Both stay behind `cancel`, `pending` and `dialogProps`.
   return {
-    silence,
-    cancelSilence,
+    /** Cancel one silence, named, with an Undo where the caller knows enough
+     *  to write it again. Every screen cancels through this. */
+    cancel,
     /** A write is in flight; every silence control on the screen goes inert. */
     pending: silence.isPending || cancelSilence.isPending,
     seed,

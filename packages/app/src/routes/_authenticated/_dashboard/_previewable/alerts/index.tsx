@@ -1,23 +1,23 @@
 import { RetryError } from "@everr/ui/components/retry-error";
-import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { useMediaQuery } from "@everr/ui/hooks/use-media-query";
-import { cn } from "@everr/ui/lib/utils";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { toast } from "sonner";
-import { z } from "zod";
 import { AlertDetailPanel } from "@/components/alerts/alert-detail-panel";
+import {
+  ALERT_PANEL_ROUTE,
+  ALERT_PANEL_SEARCH,
+  AlertDetailShell,
+  useAlertPanelIsNarrow,
+  useAlertRulePause,
+  useEscapeClosesPanel,
+} from "@/components/alerts/alert-detail-shell";
 import { RuleInventory } from "@/components/alerts/rule-inventory";
 import { SilenceDialog } from "@/components/alerts/silence-dialog";
 import { TriageList } from "@/components/alerts/triage-list";
 import { ResourceEmptyState } from "@/components/resource-empty-state";
-import { setAlertRulePaused } from "@/data/alerting/triage/mutations";
 import {
   alertDetailOptions,
   alertTriageOptions,
-  invalidateAlertTriage,
   ruleStateHistoryOptions,
 } from "@/data/alerting/triage/options";
 import { useSilenceControls } from "@/hooks/use-silence-controls";
@@ -30,7 +30,7 @@ export const Route = createFileRoute(
   // be pasted into an incident channel. The panel is a route, not local UI
   // state, and it is the same URL the rule inventory and the link in a
   // delivered notification both point at.
-  validateSearch: z.object({ alert: z.string().optional() }),
+  validateSearch: ALERT_PANEL_SEARCH,
   // Triage reads live evaluation state, which a preview branch does not
   // overlay: preview rules never evaluate and never notify, so the preview
   // frame would promise a diff that cannot exist. Same reasoning as Silences
@@ -39,18 +39,13 @@ export const Route = createFileRoute(
   // `fullBleed` hands the page its own scroll: the list and the detail panel
   // scroll independently, so the page itself must not, which is the same
   // contract the rail surfaces (Dashboards, Runbooks) sign.
-  staticData: { breadcrumb: "Triage", hidePreviewFrame: true, fullBleed: true },
+  staticData: { breadcrumb: "Triage", ...ALERT_PANEL_ROUTE },
   head: () => ({ meta: [{ title: "Everr - Triage" }] }),
   component: AlertingTriagePage,
 });
 
 const ASSISTANT_ALERT_PROMPT =
   "/everr-setup-resources Help me build a good first alert rule based on the telemetry we have in production";
-
-// Under this there is no width to split: a detail column narrow enough to fit
-// would leave the list unreadable, so the same panel arrives as a sheet
-// instead. The Explore grids put their inspector column behind `lg` too.
-const NARROW_QUERY = "(max-width: 1023px)";
 
 function TriageSkeleton() {
   return (
@@ -64,34 +59,23 @@ function TriageSkeleton() {
 
 function AlertingTriagePage() {
   const navigate = useNavigate({ from: Route.fullPath });
-  const queryClient = useQueryClient();
   const { alert: openPath } = Route.useSearch();
   const { timeRange } = useTimeRange();
-  const isNarrow = useMediaQuery(NARROW_QUERY);
+  const isNarrow = useAlertPanelIsNarrow();
 
   const triage = useQuery(alertTriageOptions(timeRange));
   const history = useQuery(ruleStateHistoryOptions(timeRange));
   const detail = useQuery(alertDetailOptions(openPath, timeRange));
 
-  const refresh = () => invalidateAlertTriage(queryClient);
   const {
-    cancelSilence,
+    cancel,
     pending: silencePending,
     seed: silenceTarget,
     openSilence,
     dialogProps,
   } = useSilenceControls();
 
-  const setPaused = useMutation({
-    mutationFn: setAlertRulePaused,
-    onSuccess: async (result, variables) => {
-      await refresh();
-      toast.success(
-        `${result.paused ? "Paused" : "Resumed"} ${variables.data.path}`,
-      );
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
+  const setPaused = useAlertRulePause();
 
   const setOpen = (path: string | undefined) =>
     navigate({
@@ -110,23 +94,11 @@ function AlertingTriagePage() {
     if (path !== openPath) setOpen(path);
   };
 
-  // The column is not a modal, so nothing dismisses it for us, and Escape is
-  // what a reader who just opened a row reaches for. The sheet answers it on a
-  // narrow window, so the column has to answer it on a wide one. The silence
-  // dialog keeps the key while it is up: it is the innermost thing on screen.
-  const silenceOpen = silenceTarget !== null;
-  useEffect(() => {
-    if (!openPath || isNarrow || silenceOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      navigate({
-        search: (prev) => ({ ...prev, alert: undefined }),
-        replace: true,
-      });
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openPath, isNarrow, silenceOpen, navigate]);
+  const closePanel = () => setOpen(undefined);
+  useEscapeClosesPanel(
+    Boolean(openPath) && !isNarrow && silenceTarget === null,
+    closePanel,
+  );
 
   if (triage.isError) {
     return (
@@ -166,7 +138,7 @@ function AlertingTriagePage() {
       path={openPath}
       detail={detail.data ?? null}
       onClose={() => setOpen(undefined)}
-      onCancelSilence={(id) => cancelSilence.mutate({ data: { id } })}
+      onCancelSilence={cancel}
       onSilence={openSilence}
       silencePending={silencePending}
       pausePending={setPaused.isPending}
@@ -177,88 +149,60 @@ function AlertingTriagePage() {
   ) : null;
 
   return (
-    <div
-      className={cn(
-        // Two panes that scroll independently, so the detail keeps its header
-        // in place while you read down a rule and the list keeps the row you
-        // clicked exactly where you left it.
-        "grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)]",
-        panel &&
-          !isNarrow &&
-          "lg:grid-cols-[minmax(0,1fr)_23rem] xl:grid-cols-[minmax(0,1fr)_27rem] 2xl:grid-cols-[minmax(0,1fr)_31rem]",
-      )}
-    >
-      {/* The lists inside measure themselves against this column rather than
+    <>
+      <AlertDetailShell
+        panel={panel}
+        isNarrow={isNarrow}
+        onClosePanel={closePanel}
+      >
+        {/* The lists inside measure themselves against this column rather than
           the window: opening the panel takes width away from them, and a
           viewport breakpoint cannot see that happen. */}
-      <div className="@container/list min-h-0 min-w-0 space-y-5 overflow-auto overscroll-y-contain pb-6">
-        {triage.isPending ? (
-          <TriageSkeleton />
-        ) : (
-          alerts.length > 0 && (
-            <TriageList
-              alerts={alerts}
-              openPath={openPath ?? null}
-              onOpen={openAlert}
-              onSilence={(path) =>
-                openSilence({ rule: path, matchers: "", comment: "" })
-              }
-              onExpireSilence={(path) => {
-                const id = alerts.find((a) => a.path === path)?.silence?.id;
-                if (id) cancelSilence.mutate({ data: { id } });
-              }}
-            />
-          )
-        )}
+        <div className="@container/list min-h-0 min-w-0 space-y-5 overflow-auto overscroll-y-contain pb-6">
+          {triage.isPending ? (
+            <TriageSkeleton />
+          ) : (
+            alerts.length > 0 && (
+              <TriageList
+                alerts={alerts}
+                openPath={openPath ?? null}
+                onOpen={openAlert}
+                onSilence={(path) =>
+                  openSilence({ rule: path, matchers: "", comment: "" })
+                }
+                onExpireSilence={(path) => {
+                  const alert = alerts.find((a) => a.path === path);
+                  // No `restore`: the row knows which silence is in force but
+                  // not how it was written, and an Undo that guessed the scope
+                  // would mute more than the reader muted.
+                  if (alert?.silence)
+                    cancel({
+                      id: alert.silence.id,
+                      label: alert.name,
+                      restore: null,
+                    });
+                }}
+              />
+            )
+          )}
 
-        {/* Inventory sits under triage rather than behind its own destination:
+          {/* Inventory sits under triage rather than behind its own destination:
             "is there a rule for this at all?" is a question you ask while
             triaging, and a click away is far enough to stop anyone asking it. */}
-        {rules.length > 0 && (
-          <RuleInventory
-            rules={rules}
-            history={history.data}
-            openPath={openPath ?? null}
-            onOpen={openAlert}
-          />
-        )}
-      </div>
-
-      {isNarrow ? (
-        <Sheet
-          open={Boolean(openPath)}
-          onOpenChange={(next) => {
-            if (!next) setOpen(undefined);
-          }}
-        >
-          {/* The panel draws its own close button, in the same place at both
-              widths, so the sheet's would be a second one beside it. */}
-          <SheetContent
-            showCloseButton={false}
-            className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[30rem]"
-          >
-            <SheetTitle className="sr-only">Alert detail</SheetTitle>
-            {panel}
-          </SheetContent>
-        </Sheet>
-      ) : (
-        panel && (
-          // The column arrives from the edge it will occupy, once, at the
-          // speed the app's other overlays open. Switching rules keeps the
-          // same column, so it does not replay.
-          <aside
-            aria-label="Alert detail"
-            className="animate-in fade-in slide-in-from-right-4 min-h-0 min-w-0 border-l duration-200 motion-reduce:animate-none"
-          >
-            {panel}
-          </aside>
-        )
-      )}
-
+          {rules.length > 0 && (
+            <RuleInventory
+              rules={rules}
+              history={history.data}
+              openPath={openPath ?? null}
+              onOpen={openAlert}
+            />
+          )}
+        </div>
+      </AlertDetailShell>
       <SilenceDialog
         {...dialogProps}
         instanceCount={silenceAlert?.instances ?? 0}
       />
-    </div>
+    </>
   );
 }

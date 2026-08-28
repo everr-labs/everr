@@ -275,6 +275,35 @@ export type AlertDetail = {
   forClause: string;
 };
 
+/**
+ * As many silences as one impact read counts for, and as many as the Silences
+ * page lists. Retention keeps closed silences for 90 days, and an organization
+ * that writes more than this many in a range that wide has a different problem
+ * than a list that stops.
+ *
+ * Here rather than beside the read, because the page has to say when it has
+ * hit the cap, and a client that cannot import the repository was keeping its
+ * own copy in step by comment.
+ */
+export const SILENCE_PAGE_LIMIT = 200;
+
+/**
+ * One rule as a screen that does not load rules refers to it: the `project/slug`
+ * the silence row stores, and the name every other alerting surface prints.
+ *
+ * Both travel together because a silence knows its rule only by path, and a
+ * path is not what the reader recognizes. The picker offers the name and
+ * commits the path; the Silences list stores the path and prints the name.
+ */
+export type AlertRuleOption = {
+  path: string;
+  /** Groups the picker. Every path is `project/slug`, so this is free. */
+  project: string;
+  /** `everr.display.name`, falling back to the slug, exactly as `ruleTitle`
+   *  resolves it. */
+  name: string;
+};
+
 /** The durations the silence dialog offers. The label and what it means travel
  *  together, so the two cannot drift apart and nothing has to parse a label
  *  back into a number: the dialog holds one of these and hands on its

@@ -37,7 +37,7 @@ import {
   loadInstances,
   loadRule,
   loadRuleInstances,
-  loadRulePaths,
+  loadRuleOptions,
   loadRules,
   rulePath,
   triageStatus,
@@ -46,6 +46,7 @@ import { silenceRecords } from "./silences";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 import type {
   AlertDetail,
+  AlertRuleOption,
   AlertSilenceRecord,
   AlertTriageData,
   RuleStateHistoryData,
@@ -254,11 +255,12 @@ export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
   });
 
 /** The rules a silence may be pointed at, for the dialog that opens with none
- *  to assume. Its own read: the list changes when rules are applied, not
- *  every time the silences page polls. */
-export const getAlertRulePaths = createAuthenticatedServerFn({
+ *  to assume and for the list that stores a path but prints a name. Its own
+ *  read: the list changes when rules are applied, not every time the silences
+ *  page polls. */
+export const getAlertRuleOptions = createAuthenticatedServerFn({
   method: "GET",
 }).handler(
-  ({ context }): Promise<string[]> =>
-    loadRulePaths(context.session.session.activeOrganizationId),
+  ({ context }): Promise<AlertRuleOption[]> =>
+    loadRuleOptions(context.session.session.activeOrganizationId),
 );
