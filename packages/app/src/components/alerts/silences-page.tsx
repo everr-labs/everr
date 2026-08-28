@@ -73,6 +73,11 @@ const columns = (impact: boolean) =>
  * shell's chrome.
  */
 const STRIP_HEIGHT = "[--strip-h:2.75rem]";
+
+/** What separates a column label from the first row it describes. On the
+ *  labels rather than on the strip, so the strip stays the full height the
+ *  action centres in. */
+const LABEL_GAP = "pb-1";
 const STICKY_HEADING_TOP = "top-0 @[52rem]/list:top-(--strip-h)";
 
 /** "ends in 2h 10m" for a silence that is muting, "starts in 4h" for one that
@@ -295,24 +300,39 @@ function ColumnStrip({
         // rows pass through it unpainted and appear above the very strip that
         // is meant to cover them. Held by the strip, the same space is opaque
         // and travels with it.
-        "sticky top-0 z-20 h-(--strip-h) items-end bg-background px-3 pb-1",
+        // No padding on the row itself: it would shrink the box the action
+        // centres inside, and drop the button below the middle of the strip.
+        // The gap under the labels is theirs, and only theirs.
+        //
+        // `items-end` at both tiers, overriding the baseline the row template
+        // sets: a strip of labels sits on the rows it describes, and once a
+        // button shares the line it is the button's baseline the labels would
+        // have been hung from.
+        "sticky top-0 z-20 h-(--strip-h) items-end bg-background px-3 @[52rem]/list:items-end",
       )}
     >
       <span />
       {/* In the column the row actions occupy, so the way to write a silence
           sits over the buttons that end them rather than in a band of its own.
           Second in the markup and last in the table, exactly as a row's action
-          is, so the two line up at both tiers. */}
-      <div className="justify-self-end @[52rem]/list:order-last">{action}</div>
+          is, so the two line up at both tiers.
+
+          Centred rather than sitting on the strip's baseline: the labels are
+          bottom-aligned because they belong to the rows underneath them, and a
+          control given the same treatment reads as having fallen to the floor
+          of a band taller than it is. */}
+      <div className="justify-self-end self-center @[52rem]/list:order-last">
+        {action}
+      </div>
       {/* The labels exist only where the columns do. Below that tier the row
           reflows its facts onto one line, and a strip of labels would sit over
           a layout it does not describe. */}
       <div className="hidden @[52rem]/list:contents">
-        <span className={COLUMN_LABEL}>Window</span>
-        <span className={COLUMN_LABEL}>State</span>
+        <span className={cn(COLUMN_LABEL, LABEL_GAP)}>Window</span>
+        <span className={cn(COLUMN_LABEL, LABEL_GAP)}>State</span>
         {/* A heading over a column that is blank in every row reads as broken
             data. It is drawn only when some row filled it. */}
-        {impact && <span className={COLUMN_LABEL}>Impact</span>}
+        {impact && <span className={cn(COLUMN_LABEL, LABEL_GAP)}>Impact</span>}
       </div>
     </div>
   );
