@@ -60,25 +60,13 @@ const columns = (impact: boolean) =>
   impact ? COLUMNS.withImpact : COLUMNS.withoutImpact;
 
 /**
- * The column strip's height, declared once and consumed by both ends of the
- * sticky stack: the strip sets it, the group headings park at it.
- *
- * Declared rather than measured. The strip's height falls out of its padding
- * and of `COLUMN_LABEL`'s type scale, and `COLUMN_LABEL` is shared with the
- * rule inventory, so it can move for reasons that have nothing to do with this
- * page. Reading it off a token means that move cannot open a transparent sliver
+ * The header bar's height, declared once and read from both ends of the sticky
+ * stack: the bar sets it, the group headings park at it. Declared rather than
+ * measured, so neither can drift into the other and open a transparent sliver
  * for rows to travel through.
- *
- * Below the strip's tier there is no strip, and the heading is what meets the
- * shell's chrome.
  */
-const STRIP_HEIGHT = "[--strip-h:2.75rem]";
-
-/** What separates a column label from the first row it describes. On the
- *  labels rather than on the strip, so the strip stays the full height the
- *  action centres in. */
-const LABEL_GAP = "pb-1";
-const STICKY_HEADING_TOP = "top-0 @[52rem]/list:top-(--strip-h)";
+const HEADER_HEIGHT = "[--head-h:2.75rem]";
+const STICKY_HEADING_TOP = "top-(--head-h)";
 
 /** "ends in 2h 10m" for a silence that is muting, "starts in 4h" for one that
  *  will; a closed one just says which way it closed. */
@@ -276,64 +264,24 @@ function Row({
 }
 
 /**
- * Drawn once, for the whole list. Two copies of the same labels, a section
- * apart, was what made one table read as two.
+ * The one control the page offers, on a bar of its own above the list.
  *
- * Sticky, because the list is long enough that a reader is usually looking at
- * rows with the top of the page far behind them, and a column of bare
- * timestamps with no heading is the state this strip exists to prevent. It
- * binds tight to the first row below it (`pb-1`); the air belongs above.
+ * Sticky, because the list runs long and the way to write a silence should not
+ * be something a reader has to scroll back up to find. Right-aligned on the
+ * same `px-3` the rows use, so it sits over the buttons that end silences.
  */
-function ColumnStrip({
-  impact,
-  action,
-}: {
-  impact: boolean;
-  action: React.ReactNode;
-}) {
+function ListHeader({ action }: { action: React.ReactNode }) {
   return (
-    <div
-      className={cn(
-        columns(impact),
-        // `pt` is the page's top air, carried here rather than on the scroll
-        // container: padding on the scroller sits inside the scroll port, so
-        // rows pass through it unpainted and appear above the very strip that
-        // is meant to cover them. Held by the strip, the same space is opaque
-        // and travels with it.
-        // No padding on the row itself: it would shrink the box the action
-        // centres inside, and drop the button below the middle of the strip.
-        // The gap under the labels is theirs, and only theirs.
-        //
-        // `items-end` at both tiers, overriding the baseline the row template
-        // sets: a strip of labels sits on the rows it describes, and once a
-        // button shares the line it is the button's baseline the labels would
-        // have been hung from.
-        "sticky top-0 z-20 h-(--strip-h) items-end bg-background px-3 @[52rem]/list:items-end",
-      )}
-    >
-      <span />
-      {/* In the column the row actions occupy, so the way to write a silence
-          sits over the buttons that end them rather than in a band of its own.
-          Second in the markup and last in the table, exactly as a row's action
-          is, so the two line up at both tiers.
-
-          Centred rather than sitting on the strip's baseline: the labels are
-          bottom-aligned because they belong to the rows underneath them, and a
-          control given the same treatment reads as having fallen to the floor
-          of a band taller than it is. */}
-      <div className="justify-self-end self-center @[52rem]/list:order-last">
-        {action}
-      </div>
-      {/* The labels exist only where the columns do. Below that tier the row
-          reflows its facts onto one line, and a strip of labels would sit over
-          a layout it does not describe. */}
-      <div className="hidden @[52rem]/list:contents">
-        <span className={cn(COLUMN_LABEL, LABEL_GAP)}>Window</span>
-        <span className={cn(COLUMN_LABEL, LABEL_GAP)}>State</span>
-        {/* A heading over a column that is blank in every row reads as broken
-            data. It is drawn only when some row filled it. */}
-        {impact && <span className={cn(COLUMN_LABEL, LABEL_GAP)}>Impact</span>}
-      </div>
+    // `h` rather than padding, because the group headings park at exactly this
+    // height and read it from the same token.
+    //
+    // The height is the page's top air as well: `fullBleed` traded away the
+    // page container's padding, and padding on the scroll container would sit
+    // inside the scroll port, where rows travel through it unpainted and
+    // surface above the very bar meant to cover them. Held here, that space is
+    // opaque and travels with the bar.
+    <div className="sticky top-0 z-20 flex h-(--head-h) items-center justify-end bg-background px-3">
+      {action}
     </div>
   );
 }
@@ -492,19 +440,16 @@ export function SilencesPage({
   );
 
   return (
-    <div className={cn("@container/list", STRIP_HEIGHT)}>
+    <div className={cn("@container/list", HEADER_HEIGHT)}>
       {/* The topnav breadcrumb is the visible title. This is the document's,
           so the page is not a screen of h2s under nothing, and the list itself
           does not repeat a word the shell already said. */}
       <h1 className="sr-only">Silences</h1>
 
-      {/* Drawn while loading too, so the list does not shift down by the
-          strip's own height at the moment the rows arrive. */}
-      {/* Always drawn, whatever the list holds: it carries the one way to
-          write a silence, and a page with nothing on it is exactly when that
-          has to be reachable. */}
-      <ColumnStrip
-        impact={impact}
+      {/* Always drawn, whatever the list holds and whatever is loading: it
+          carries the one way to write a silence, and a page with nothing on it
+          is exactly when that has to be reachable. */}
+      <ListHeader
         action={
           <Button size="sm" disabled={pending} onClick={onNew}>
             <Plus className="size-4" />
