@@ -72,7 +72,7 @@ const columns = (impact: boolean) =>
  * Below the strip's tier there is no strip, and the heading is what meets the
  * shell's chrome.
  */
-const STRIP_HEIGHT = "[--strip-h:2rem]";
+const STRIP_HEIGHT = "[--strip-h:2.75rem]";
 const STICKY_HEADING_TOP = "top-0 @[52rem]/list:top-(--strip-h)";
 
 /** "ends in 2h 10m" for a silence that is muting, "starts in 4h" for one that
@@ -279,7 +279,13 @@ function Row({
  * timestamps with no heading is the state this strip exists to prevent. It
  * binds tight to the first row below it (`pb-1`); the air belongs above.
  */
-function ColumnStrip({ impact }: { impact: boolean }) {
+function ColumnStrip({
+  impact,
+  action,
+}: {
+  impact: boolean;
+  action: React.ReactNode;
+}) {
   return (
     <div
       className={cn(
@@ -289,16 +295,25 @@ function ColumnStrip({ impact }: { impact: boolean }) {
         // rows pass through it unpainted and appear above the very strip that
         // is meant to cover them. Held by the strip, the same space is opaque
         // and travels with it.
-        "sticky top-0 z-20 hidden h-(--strip-h) items-end bg-background px-3 pb-1 @[52rem]/list:grid",
+        "sticky top-0 z-20 h-(--strip-h) items-end bg-background px-3 pb-1",
       )}
     >
       <span />
-      <span className={COLUMN_LABEL}>Window</span>
-      <span className={COLUMN_LABEL}>State</span>
-      {/* A heading over a column that is blank in every row reads as broken
-          data. It is drawn only when some row filled it. */}
-      {impact && <span className={COLUMN_LABEL}>Impact</span>}
-      <span />
+      {/* In the column the row actions occupy, so the way to write a silence
+          sits over the buttons that end them rather than in a band of its own.
+          Second in the markup and last in the table, exactly as a row's action
+          is, so the two line up at both tiers. */}
+      <div className="justify-self-end @[52rem]/list:order-last">{action}</div>
+      {/* The labels exist only where the columns do. Below that tier the row
+          reflows its facts onto one line, and a strip of labels would sit over
+          a layout it does not describe. */}
+      <div className="hidden @[52rem]/list:contents">
+        <span className={COLUMN_LABEL}>Window</span>
+        <span className={COLUMN_LABEL}>State</span>
+        {/* A heading over a column that is blank in every row reads as broken
+            data. It is drawn only when some row filled it. */}
+        {impact && <span className={COLUMN_LABEL}>Impact</span>}
+      </div>
     </div>
   );
 }
@@ -320,31 +335,31 @@ function GroupHeading({
   label,
   count,
   hint,
-  action,
 }: {
   id: string;
   label: string;
   count?: string;
   /** Only for what the reader cannot see from the rows. */
   hint: string;
-  action?: React.ReactNode;
 }) {
   return (
     // The opaque layer is the sticky one: the band's own tint is translucent,
     // and translucent over scrolling rows smears them.
     <div className={cn("sticky z-10 bg-background", STICKY_HEADING_TOP)}>
-      <div className="flex items-center justify-between gap-3 border-t bg-muted/20 px-3 py-1.5">
-        <h2 id={id} className="flex items-baseline gap-2">
-          <span className={COLUMN_LABEL}>{label}</span>
-          {count && (
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          )}
-          <span className="text-xs text-muted-foreground">{hint}</span>
-        </h2>
-        {action}
-      </div>
+      {/* `px-3` on the same edge the rows and the strip use, so the three
+          headings the page stacks all start on one left edge. */}
+      <h2
+        id={id}
+        className="flex items-baseline gap-2 border-t bg-muted/20 px-3 py-1.5"
+      >
+        <span className={COLUMN_LABEL}>{label}</span>
+        {count && (
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+            {count}
+          </span>
+        )}
+        <span className="text-xs text-muted-foreground">{hint}</span>
+      </h2>
     </div>
   );
 }
@@ -465,7 +480,18 @@ export function SilencesPage({
 
       {/* Drawn while loading too, so the list does not shift down by the
           strip's own height at the moment the rows arrive. */}
-      {(loading || rows.length > 0) && <ColumnStrip impact={impact} />}
+      {/* Always drawn, whatever the list holds: it carries the one way to
+          write a silence, and a page with nothing on it is exactly when that
+          has to be reachable. */}
+      <ColumnStrip
+        impact={impact}
+        action={
+          <Button size="sm" disabled={pending} onClick={onNew}>
+            <Plus className="size-4" />
+            New silence
+          </Button>
+        }
+      />
 
       {/* Each group is its own sticky context, so its heading stays for
           exactly as long as its rows and the next one replaces it. */}
@@ -477,21 +503,6 @@ export function SilencesPage({
           // The range bounds history and not this: a silence muting right now
           // is muting whatever window the reader happens to be looking at.
           hint="now"
-          // The action belongs on the group it acts on, which is also the only
-          // band wide enough to hold it. On its own line it was a lone
-          // saturated pill in an empty field, and the brightest thing on a page
-          // whose subject is what is already muted.
-          action={
-            <Button
-              size="sm"
-              className="-my-1"
-              disabled={pending}
-              onClick={onNew}
-            >
-              <Plus className="size-4" />
-              New silence
-            </Button>
-          }
         />
         {loading ? (
           <LoadingRows />
