@@ -156,6 +156,7 @@ describe("applyAlertSpecs", () => {
       deleted: [],
       adopted: [],
       conflicts: [],
+      warnings: [],
     });
     expect(mockedQuerySqlApiWithMeta).toHaveBeenCalledWith(
       expect.stringContaining("INTERVAL 15 MINUTE"),
@@ -297,6 +298,7 @@ describe("applyAlertSpecs", () => {
       deleted: ["stale"],
       adopted: [],
       conflicts: [],
+      warnings: [],
     });
     expect(updateSets).toEqual([expect.objectContaining({ active: true })]);
     expect(deleteCalled).toBe(true);

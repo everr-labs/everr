@@ -1,8 +1,10 @@
 import { type ComponentType, lazy, Suspense, useMemo } from "react";
 import type * as z from "zod";
+import { panelPluginDeprecations } from "@/data/dashboards/plugin-specs";
 import type { PanelPlugin } from "@/data/dashboards/schema";
 import { BarChartVisualization } from "./bar-chart/bar-chart-visualization";
 import { barChartSpec } from "./bar-chart/spec";
+import type { SpecDeprecation } from "./deprecations";
 import { GaugeChartVisualization } from "./gauge-chart/gauge-chart-visualization";
 import { gaugeChartSpec } from "./gauge-chart/spec";
 import type { GeoMapSpec } from "./geo-map/spec";
@@ -132,6 +134,17 @@ export function getVisualizationSpecWarnings(plugin: PanelPlugin): string[] {
   const entry = registry[plugin.kind];
   if (!entry) return [];
   return parseSpecLenient(entry.schema, plugin.spec).warnings;
+}
+
+/**
+ * Options this panel sets that still parse but no longer do what they say.
+ * Unlike a spec warning, nothing was ignored for being invalid — the panel
+ * renders, just not the way the file asks.
+ */
+export function getVisualizationSpecDeprecations(
+  plugin: PanelPlugin,
+): SpecDeprecation[] {
+  return panelPluginDeprecations[plugin.kind]?.(plugin.spec) ?? [];
 }
 
 export interface PanelVisualizationProps {

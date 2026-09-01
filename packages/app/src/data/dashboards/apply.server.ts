@@ -11,6 +11,7 @@ import {
   previewScope,
 } from "@/data/previews/scope";
 import { dashboards } from "@/db/schema";
+import { collectPanelsMapWarnings } from "./deprecations";
 import { buildDesiredSet } from "./desired";
 import type { Dashboard } from "./schema";
 
@@ -20,6 +21,7 @@ export interface ApplyDashboardsResult {
   deleted: string[];
   adopted: string[];
   conflicts: OwnershipConflict[];
+  warnings: string[];
 }
 
 /**
@@ -42,6 +44,12 @@ export const applyDashboardSpecs: Reconciler = async ({
 }): Promise<ApplyDashboardsResult> => {
   const desired = buildDesiredSet(
     resources.map((r) => ({ path: r.path, document: r.resource })),
+  );
+
+  // Scanned from the submitted files, not the reconciled diff: a panel whose
+  // options are stale is worth reporting whether or not this apply changes it.
+  const warnings = resources.flatMap((r) =>
+    collectPanelsMapWarnings(r.path, r.resource),
   );
 
   const scope = previewScope(dashboards, namespace);
@@ -81,6 +89,7 @@ export const applyDashboardSpecs: Reconciler = async ({
     deleted: diff.deletes.map((d) => d.slug),
     adopted,
     conflicts,
+    warnings,
   };
 
   if (dryRun) return summary;

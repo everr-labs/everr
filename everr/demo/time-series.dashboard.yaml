@@ -8,25 +8,25 @@ spec:
     description: >-
       TimeSeriesChart regression sheet — every option (unit, showLegend,
       lineWidth, curveType, connectNulls, stacked) and behavior (grouped pivot,
-      multi-column, multi-query, null gaps, empty result) exercised with
-      deterministic TestData.
+      multi-column, multi-query, mixed sample rates, gaps, empty result, no
+      numeric column) exercised with deterministic TestData.
   duration: 7d
   refreshInterval: 1m
   panels:
-    # ── Options + core behaviors ─────────────────────────────────────
-    ts-monotone-grouped:
+    # ── Options ──────────────────────────────────────────────────────
+    ts-grouped-legend:
       kind: Panel
       spec:
         display:
-          name: "TS: monotone, grouped, legend"
-          description: "curveType: monotone · showLegend: true · connectNulls: false · grouped pivot (one series per StatusCode)"
+          name: "TS: grouped, legend"
+          description: "curveType: linear (the default) · showLegend: true · connectNulls: false · grouped pivot (one series per StatusCode)"
         plugin:
           kind: TimeSeriesChart
           spec:
             unit: ""
             showLegend: true
             lineWidth: 1.5
-            curveType: monotone
+            curveType: linear
             connectNulls: false
         queries:
           - kind: TestData
@@ -66,54 +66,6 @@ spec:
                   series:
                     - { name: p50_ms, start: 40,  noise: 5,  min: 0 }
                     - { name: p95_ms, start: 120, noise: 12, min: 0 }
-    ts-linear-connect-nulls:
-      kind: Panel
-      spec:
-        display:
-          name: "TS: linear, connectNulls, thick"
-          description: "curveType: linear · connectNulls: true (sparse errors bridge gaps) · lineWidth: 3"
-        plugin:
-          kind: TimeSeriesChart
-          spec:
-            unit: ""
-            showLegend: false
-            lineWidth: 3
-            curveType: linear
-            connectNulls: true
-        queries:
-          - kind: TestData
-            spec:
-              plugin:
-                kind: TestData
-                spec:
-                  scenario: random_walk
-                  seed: 3
-                  series:
-                    - { name: error_spans, start: 4, noise: 3, min: 0, nullChance: 0.45 }
-    ts-natural:
-      kind: Panel
-      spec:
-        display:
-          name: "TS: natural, seconds unit"
-          description: "curveType: natural · unit: s"
-        plugin:
-          kind: TimeSeriesChart
-          spec:
-            unit: s
-            showLegend: false
-            lineWidth: 1.5
-            curveType: natural
-            connectNulls: false
-        queries:
-          - kind: TestData
-            spec:
-              plugin:
-                kind: TestData
-                spec:
-                  scenario: random_walk
-                  seed: 5
-                  series:
-                    - { name: avg_s, start: 0.5, noise: 0.1, min: 0 }
     ts-step-before:
       kind: Panel
       spec:
@@ -138,6 +90,133 @@ spec:
                   seed: 9
                   series:
                     - { name: spans, start: 50, noise: 10, min: 0 }
+    ts-unit-seconds:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: seconds unit"
+          description: "unit: s · single series, default interpolation"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: s
+            showLegend: false
+            lineWidth: 1.5
+            curveType: linear
+            connectNulls: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 5
+                  series:
+                    - { name: avg_s, start: 0.5, noise: 0.1, min: 0 }
+    # ── Gaps ─────────────────────────────────────────────────────────
+    # The same 40 rows feed both panels; only `connectNulls` differs, so the
+    # pair is what makes the option legible. `table` + `values` cycles by row
+    # index, so a run of nulls the length of the row count lands exactly once —
+    # a real outage-shaped hole, not the scatter `nullChance` produces.
+    ts-gap:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: gap, unbridged"
+          description: "connectNulls: false · lineWidth: 3 · a contiguous run of nulls breaks the line where the data stops"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: false
+            lineWidth: 3
+            curveType: linear
+            connectNulls: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 40
+                  columns:
+                    - { name: ts, time: true }
+                    - name: requests
+                      values: [320, 340, 331, 358, 372, 349, 361, 388, 402, 377,
+                               365, 391, 410, 398, 421,
+                               null, null, null, null, null, null, null, null,
+                               404, 388, 415, 430, 412, 399, 423, 441, 428, 405,
+                               418, 396, 384, 401, 377, 392, 368]
+    ts-gap-connected:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: gap, bridged"
+          description: "connectNulls: true · lineWidth: 3 · same rows as the panel to its left, drawn straight across the hole"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: false
+            lineWidth: 3
+            curveType: linear
+            connectNulls: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 40
+                  columns:
+                    - { name: ts, time: true }
+                    - name: requests
+                      values: [320, 340, 331, 358, 372, 349, 361, 388, 402, 377,
+                               365, 391, 410, 398, 421,
+                               null, null, null, null, null, null, null, null,
+                               404, 388, 415, 430, 412, 399, 423, 441, 428, 405,
+                               418, 396, 384, 401, 377, 392, 368]
+    ts-mixed-interval:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: mixed sample rates"
+          description: "Two queries, 40 rows vs 9 · every series is null where only the other one sampled, so the coarse series needs connectNulls: true to draw at all"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: true
+            lineWidth: 1.5
+            curveType: linear
+            connectNulls: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 31
+                  rows: 40
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: requests, walk: { start: 400, noise: 40, min: 0, round: 0 } }
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 32
+                  rows: 9
+                  columns:
+                    - { name: ts, time: true }
+                    - { name: batch_jobs, walk: { start: 120, noise: 25, min: 0, round: 0 } }
+    # ── Stacking ─────────────────────────────────────────────────────
     ts-stacked-grouped:
       kind: Panel
       spec:
@@ -150,7 +229,7 @@ spec:
             unit: ""
             showLegend: true
             lineWidth: 1.5
-            curveType: monotone
+            curveType: linear
             connectNulls: false
             stacked: true
         queries:
@@ -171,7 +250,7 @@ spec:
       spec:
         display:
           name: "TS: stacked, sparse series, stepAfter"
-          description: "stacked: true · curveType: stepAfter · sparse series contributes 0 where unsampled (no gaps when stacking)"
+          description: "stacked: true · curveType: stepAfter · a series with no sample contributes 0 there, so stacking never shows a gap and connectNulls has no effect"
         plugin:
           kind: TimeSeriesChart
           spec:
@@ -192,20 +271,20 @@ spec:
                   series:
                     - { name: requests, start: 300, noise: 30, min: 0 }
                     - { name: retries,  start: 25,  noise: 15, min: 0, nullChance: 0.45 }
-    # ── Data-shape behaviors + edge states ───────────────────────────
+    # ── Data-shape behaviors + empty states ──────────────────────────
     ts-multi-query:
       kind: Panel
       spec:
         display:
           name: "TS: multi-query merge"
-          description: "Two queries merged onto one timeline · showLegend: true"
+          description: "Two queries on the same timeline merge into one x-axis · showLegend: true"
         plugin:
           kind: TimeSeriesChart
           spec:
             unit: ""
             showLegend: true
             lineWidth: 1.5
-            curveType: monotone
+            curveType: linear
             connectNulls: false
         queries:
           - kind: TestData
@@ -231,14 +310,14 @@ spec:
       spec:
         display:
           name: "TS: empty result"
-          description: "Query returns no rows → 'No data in this time range' (the chart's single empty state)"
+          description: "Query returns no rows → 'No data in this time range'"
         plugin:
           kind: TimeSeriesChart
           spec:
             unit: ""
             showLegend: false
             lineWidth: 1.5
-            curveType: monotone
+            curveType: linear
             connectNulls: false
         queries:
           - kind: TestData
@@ -249,16 +328,44 @@ spec:
                   scenario: csv
                   columns: [ts, value]
                   rows: []
+    ts-no-numeric:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: no numeric column"
+          description: "Rows arrive but none carry a numeric column → 'No numeric data to plot', the other empty state"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ""
+            showLegend: false
+            lineWidth: 1.5
+            curveType: linear
+            connectNulls: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [ts, service]
+                  rows:
+                    - ["2026-01-01 00:00:00", "api"]
+                    - ["2026-01-01 00:01:00", "worker"]
   layouts:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 12, height: 8, content: { $ref: "#/spec/panels/ts-monotone-grouped" } }
+          - { x: 0,  y: 0,  width: 12, height: 8, content: { $ref: "#/spec/panels/ts-grouped-legend" } }
           - { x: 12, y: 0,  width: 12, height: 8, content: { $ref: "#/spec/panels/ts-step-after-multi-column" } }
-          - { x: 0,  y: 8,  width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-linear-connect-nulls" } }
-          - { x: 8,  y: 8,  width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-natural" } }
-          - { x: 16, y: 8,  width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-step-before" } }
-          - { x: 0,  y: 15, width: 12, height: 8, content: { $ref: "#/spec/panels/ts-stacked-grouped" } }
-          - { x: 12, y: 15, width: 12, height: 8, content: { $ref: "#/spec/panels/ts-stacked-sparse-step" } }
-          - { x: 0,  y: 23, width: 16, height: 8, content: { $ref: "#/spec/panels/ts-multi-query" } }
-          - { x: 16, y: 23, width: 8,  height: 8, content: { $ref: "#/spec/panels/ts-empty" } }
+          - { x: 0,  y: 8,  width: 12, height: 8, content: { $ref: "#/spec/panels/ts-gap" } }
+          - { x: 12, y: 8,  width: 12, height: 8, content: { $ref: "#/spec/panels/ts-gap-connected" } }
+          - { x: 0,  y: 16, width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-step-before" } }
+          - { x: 8,  y: 16, width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-unit-seconds" } }
+          - { x: 16, y: 16, width: 8,  height: 7, content: { $ref: "#/spec/panels/ts-mixed-interval" } }
+          - { x: 0,  y: 23, width: 12, height: 8, content: { $ref: "#/spec/panels/ts-stacked-grouped" } }
+          - { x: 12, y: 23, width: 12, height: 8, content: { $ref: "#/spec/panels/ts-stacked-sparse-step" } }
+          - { x: 0,  y: 31, width: 12, height: 8, content: { $ref: "#/spec/panels/ts-multi-query" } }
+          - { x: 12, y: 31, width: 6,  height: 8, content: { $ref: "#/spec/panels/ts-empty" } }
+          - { x: 18, y: 31, width: 6,  height: 8, content: { $ref: "#/spec/panels/ts-no-numeric" } }

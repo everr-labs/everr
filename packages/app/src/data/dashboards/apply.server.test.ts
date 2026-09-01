@@ -128,6 +128,7 @@ describe("applyDashboardSpecs", () => {
       deleted: ["old"],
       adopted: [],
       conflicts: [],
+      warnings: [],
     });
   });
 

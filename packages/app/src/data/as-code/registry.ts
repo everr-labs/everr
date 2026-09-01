@@ -18,6 +18,9 @@ export interface KindResult {
   deleted: string[];
   /** Live resources taken over from another owning repo (only with `adopt`). */
   adopted: string[];
+  /** Non-fatal notices about the applied files, e.g. deprecated panel options.
+   * The apply succeeds; these tell the author what to migrate. */
+  warnings: string[];
 }
 
 export interface ApplyResourcesResult {
@@ -46,6 +49,8 @@ export type Reconciler = (opts: {
   adopted: string[];
   /** Creates colliding with another repo's live resource; empty when adopting. */
   conflicts: OwnershipConflict[];
+  /** Non-fatal notices about the applied files; never blocks the apply. */
+  warnings: string[];
 }>;
 
 /**
@@ -117,6 +122,7 @@ export async function applyResources(opts: {
       updated: string[];
       deleted: string[];
       adopted: string[];
+      warnings: string[];
     },
   ): KindResult => ({
     kind,
@@ -124,6 +130,7 @@ export async function applyResources(opts: {
     updated: r.updated,
     deleted: r.deleted,
     adopted: r.adopted,
+    warnings: r.warnings,
   });
 
   // Live, or the preview resolved to its registry id via the given resolver.

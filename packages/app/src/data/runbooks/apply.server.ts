@@ -11,6 +11,7 @@ import {
   previewScope,
 } from "@/data/previews/scope";
 import { runbooks } from "@/db/schema";
+import { collectRunbookWarnings } from "./deprecations";
 import { buildDesiredRunbookSet } from "./desired";
 import type { Runbook } from "./schema";
 
@@ -20,6 +21,7 @@ export interface ApplyRunbooksResult {
   deleted: string[];
   adopted: string[];
   conflicts: OwnershipConflict[];
+  warnings: string[];
 }
 
 /**
@@ -43,6 +45,12 @@ export const applyRunbookSpecs: Reconciler = async ({
 }): Promise<ApplyRunbooksResult> => {
   const desired = buildDesiredRunbookSet(
     resources.map((r) => ({ path: r.path, document: r.resource })),
+  );
+
+  // Scanned from the submitted files, not the reconciled diff: a panel whose
+  // options are stale is worth reporting whether or not this apply changes it.
+  const warnings = resources.flatMap((r) =>
+    collectRunbookWarnings(r.path, r.resource),
   );
 
   const scope = previewScope(runbooks, namespace);
@@ -82,6 +90,7 @@ export const applyRunbookSpecs: Reconciler = async ({
     deleted: diff.deletes.map((d) => d.slug),
     adopted,
     conflicts,
+    warnings,
   };
 
   if (dryRun) return summary;
