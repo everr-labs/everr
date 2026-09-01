@@ -432,7 +432,14 @@ export function assembleAlertDetail(input: AlertDetailInput): AlertDetail {
       lastEvaluatedAt: definition.lastSeenAt?.toISOString() ?? null,
       query: spec.sql,
     },
-    silences: silenceRecords(input.windowSilences, now, input.silenceImpacts),
+    // The window read already selected on this rule, so the only id any of
+    // these rows can name is this definition's.
+    silences: silenceRecords(
+      input.windowSilences,
+      now,
+      input.silenceImpacts,
+      (ruleId) => (ruleId === definition.id ? path : null),
+    ),
     activeSilenceId: silence?.id ?? null,
     forClause: formatDurationSeconds(spec.for_secs),
   };

@@ -38,10 +38,16 @@ import { silenceFor, silenceRecord } from "./silences";
 const harness = useAlertingHarness();
 
 const HOUR = 3_600_000;
+const RULE_ID = "0e1c2b8f-4a3d-4c2b-9f11-5a7c9d2e8b41";
+
+/** What that id resolves to for the screens. */
 const RULE_PATH = "default/checkout-latency";
 
+/** The lookup a screen hands the record builder. */
+const rulePathFor = (id: string) => (id === RULE_ID ? RULE_PATH : null);
+
 /** Selects the whole Alert rule, the way the Triage screen writes a Silence. */
-const ruleMatcher = [{ label: "rule", op: "eq" as const, value: RULE_PATH }];
+const ruleMatcher = [{ label: "rule", op: "eq" as const, value: RULE_ID }];
 
 function at(hoursFromNow: number): Date {
   return new Date(Date.now() + hoursFromNow * HOUR);
@@ -72,7 +78,7 @@ describe("the Silences the Triage screen reads", () => {
     // Open by the window test, so a caller can list it as scheduled...
     expect(silences.map((row) => row.id)).toEqual([scheduled.id]);
     // ...but nothing is muted until it starts.
-    expect(silenceFor(RULE_PATH, "warning", silences, new Date())).toBeNull();
+    expect(silenceFor(RULE_ID, "warning", silences, new Date())).toBeNull();
   });
 
   it("takes each window bound on its own", async () => {
@@ -103,7 +109,7 @@ describe("the Silences the Triage screen reads", () => {
 
     const silences = await loadSilencesInWindow(
       TEST_ORG,
-      RULE_PATH,
+      RULE_ID,
       "warning",
       from,
       to,
@@ -128,7 +134,7 @@ describe("the Silences the Triage screen reads", () => {
 
     const silences = await loadSilencesInWindow(
       TEST_ORG,
-      RULE_PATH,
+      RULE_ID,
       "warning",
       at(-4),
       at(0),
@@ -151,7 +157,7 @@ describe("the Silences the Triage screen reads", () => {
 
     const silences = await loadSilencesInWindow(
       TEST_ORG,
-      RULE_PATH,
+      RULE_ID,
       "warning",
       at(-2),
       at(0),
@@ -170,14 +176,14 @@ describe("the Silences the Triage screen reads", () => {
 
     const critical = await loadSilencesInWindow(
       TEST_ORG,
-      RULE_PATH,
+      RULE_ID,
       "critical",
       at(-2),
       at(0),
     );
     const warning = await loadSilencesInWindow(
       TEST_ORG,
-      RULE_PATH,
+      RULE_ID,
       "warning",
       at(-2),
       at(0),
@@ -222,10 +228,15 @@ describe("the Silences the Silences page lists", () => {
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
-    const page = silenceRecord(row, new Date(), { held: 2, dropped: 0 });
+    const page = silenceRecord(
+      row,
+      new Date(),
+      { held: 2, dropped: 0 },
+      rulePathFor,
+    );
 
     expect(page.state).toBe("active");
-    expect(page.matchers).toBe(`rule=${RULE_PATH} region=eu`);
+    expect(page.matchers).toBe(`rule=${RULE_ID} region=eu`);
     expect(page.rule).toBe(RULE_PATH);
     expect(page.scope).toBe("region=eu");
     expect(page.impact).toBe("held 2");
@@ -241,7 +252,12 @@ describe("the Silences the Silences page lists", () => {
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
-    const page = silenceRecord(row, new Date(), { held: 0, dropped: 0 });
+    const page = silenceRecord(
+      row,
+      new Date(),
+      { held: 0, dropped: 0 },
+      rulePathFor,
+    );
 
     expect(page.rule).toBeNull();
     expect(page.matchers).toBe("environment=staging");

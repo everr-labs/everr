@@ -19,6 +19,11 @@ import type { AlertSilenceRecord, AlertSilenceView } from "./view";
  *  ones it dropped for good. */
 export type SilenceImpactCounts = { held: number; dropped: number };
 
+/** The `project/slug` for a definition's row id, or `null` where the rule is
+ *  gone: retention keeps a silence for 90 days, and the rule it named can be
+ *  deleted inside that window. */
+export type RulePathFor = (ruleId: string) => string | null;
+
 /** What a silence did to delivery when history has no row for it. */
 const NO_IMPACT: SilenceImpactCounts = { held: 0, dropped: 0 };
 
@@ -86,10 +91,9 @@ export function silenceRecord(
   row: SilenceRow,
   now: Date,
   counts: SilenceImpactCounts,
+  rulePath: RulePathFor,
 ): AlertSilenceRecord {
-  const rules = row.matchers.filter(
-    (m) => m.label === RULE_LABEL && m.op === "eq",
-  );
+  const rules = row.matchers.filter((m) => m.label === "rule" && m.op === "eq");
   return {
     id: row.id,
     startsAt: row.startsAt.toISOString(),
@@ -98,8 +102,12 @@ export function silenceRecord(
     matchers: formatMatchers(row.matchers),
     // A silence written outside these screens can name a rule twice, or with
     // `!=`, and "silence this rule again" has no one rule to mean then.
-    rule: rules.length === 1 ? rules[0].value : null,
-    scope: formatMatchers(row.matchers.filter((m) => m.label !== RULE_LABEL)),
+    //
+    // The matcher holds a row id, which names nothing a reader knows. It is
+    // resolved here, once, so every screen prints and links the same path and
+    // none of them has to know what the matcher actually stores.
+    rule: rules.length === 1 ? rulePath(rules[0].value) : null,
+    scope: formatMatchers(row.matchers.filter((m) => m.label !== "rule")),
     canceledAt: row.canceledAt?.toISOString() ?? null,
     impact: silenceImpact(counts),
     comment: row.comment,
@@ -114,8 +122,9 @@ export function silenceRecords(
   rows: SilenceRow[],
   now: Date,
   impacts: Map<string, SilenceImpactCounts>,
+  rulePath: RulePathFor,
 ): AlertSilenceRecord[] {
   return rows.map((row) =>
-    silenceRecord(row, now, impacts.get(row.id) ?? NO_IMPACT),
+    silenceRecord(row, now, impacts.get(row.id) ?? NO_IMPACT, rulePath),
   );
 }

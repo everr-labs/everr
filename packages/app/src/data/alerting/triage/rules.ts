@@ -107,6 +107,7 @@ export async function loadRuleOptions(
 ): Promise<AlertRuleOption[]> {
   const rows = await db
     .select({
+      id: alertDefinitions.id,
       project: alertDefinitions.project,
       slug: alertDefinitions.slug,
       // The annotations object, not the one name inside it: the name is
@@ -123,6 +124,7 @@ export async function loadRuleOptions(
     .where(liveRulesFilter(organizationId))
     .orderBy(alertDefinitions.project, alertDefinitions.slug);
   return rows.map((row) => ({
+    id: row.id,
     path: rulePath(row),
     project: row.project,
     name: ruleTitle({

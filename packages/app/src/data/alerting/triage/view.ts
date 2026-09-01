@@ -211,9 +211,11 @@ export type AlertSilenceRecord = {
    *  it is one matcher like the others rather than a title the rest narrow.
    *  Empty when the silence has none. */
   matchers: string;
-  /** The rule the silence names, when it names exactly one; what "Silence
-   *  again" opens the dialog on. `null` for a silence written outside these
-   *  screens that names no rule, or more than one. */
+  /** The rule the silence names, as its `project/slug` path: the matcher
+   *  holds a row id, and this is that id resolved back to the name the rest of
+   *  the product uses. What "Silence again" opens the dialog on. `null` when
+   *  the silence names no rule, names more than one, or names a rule that no
+   *  longer exists. */
   rule: string | null;
   /** The matchers beyond the rule, formatted. Empty means the whole rule,
    *  and the difference between muting a rule and muting one instance of it
@@ -296,6 +298,10 @@ export const SILENCE_PAGE_LIMIT = 200;
  * commits the path; the Silences list stores the path and prints the name.
  */
 export type AlertRuleOption = {
+  /** The definition's row id, which is what a silence matcher holds. Travels
+   *  with the path so a stored silence can be resolved back to a rule the
+   *  reader recognizes. */
+  id: string;
   path: string;
   /** Groups the picker. Every path is `project/slug`, so this is free. */
   project: string;
