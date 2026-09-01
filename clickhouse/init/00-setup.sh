@@ -24,15 +24,16 @@ GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;
 GRANT SELECT ON app.* TO app_ro;
 
 -- App writes per-tenant retention rows; the dictionary refreshes itself via
--- LIFETIME(MIN 60 MAX 120). Tables and the dictionary are created in 10-create-mvs.sql.
+-- LIFETIME(MIN 60 MAX 120), so a plan change reaches new rows within two
+-- minutes. Tables and the dictionary are created in 10-create-mvs.sql.
 -- SELECT is granted so the dictionary source can authenticate as web_app_admin.
 GRANT INSERT, SELECT ON app.tenant_retention_source TO web_app_admin;
 
--- dictGet is needed wherever the TTL expression evaluates dictGetOrDefault:
+-- dictGet is needed wherever a row gets its retention_days stamped:
 -- collector_rw inserts trigger the materialized views which call dictGet during
--- the cascading INSERT into app.*; app_ro queries may also reference it.
+-- the cascading INSERT into app.*. web_app_admin gets it in
+-- 12-create-alert-events.sql for the app.alert_events DEFAULT.
 GRANT dictGet ON app.tenant_retention TO collector_rw;
-GRANT dictGet ON app.tenant_retention TO app_ro;
 
 -- Access-management grants for /sql API per-org provisioning:
 --   CREATE/ALTER/DROP USER: needed to make per-org users \`sql_api_org_<id>\`.

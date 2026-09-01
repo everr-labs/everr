@@ -1,12 +1,19 @@
--- TTL clauses below reference dictGetOrDefault, which CH classifies as
--- non-deterministic. Opting in is intentional: we want each merge to re-read
--- the current dictionary value so plan upgrades rescue not-yet-deleted rows
--- instead of being baked into part metadata. See RETENTION_MIGRATION.md and
--- todo/issues/clickhouse-ttl-merge-cost-monitoring.md for context.
-SET allow_suspicious_ttl_expressions = 1;
+-- Per-row retention. Every app.* row is stamped with `retention_days` by its
+-- materialized view (from the app.tenant_retention dictionary, free tier when
+-- the tenant is not in it yet), the table partitions by (day, retention_days),
+-- and the TTL is `day + retention_days` with ttl_only_drop_parts = 1. Every
+-- row in a partition expires on the same day, so ClickHouse drops whole parts
+-- and never rewrites one to expire a single tenant. A retention change applies
+-- to rows ingested from that point on. See 05-create-retention-function.sql
+-- for the bounded value set.
+--
+-- Only the views write these tables. A direct INSERT that omits retention_days
+-- gets 0, and `day + 0` is already past, so the TTL drops the rows at insert.
 
--- Per-tenant retention source + dictionary. App writes to the source table;
--- TTL clauses on app.* tables call dictGetOrDefault('app.tenant_retention', ...).
+-- Per-tenant retention source + dictionary. The app writes to the source
+-- table; the materialized views below read the dictionary with
+-- dictGetOrDefault to stamp retention_days on every inserted row. A plan
+-- change reaches new rows once the dictionary refreshes (LIFETIME below).
 CREATE TABLE IF NOT EXISTS app.tenant_retention_source
 (
   tenant_id String,
@@ -37,18 +44,15 @@ LIFETIME(MIN 60 MAX 120);
 -- Traces: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.traces
 ENGINE = MergeTree
-PARTITION BY toDate(Timestamp)
+PARTITION BY (toDate(Timestamp), retention_days)
 ORDER BY (tenant_id, ServiceName, SpanName, toDateTime(Timestamp))
--- Fallback is intentionally absurdly high (10 years) so a dict outage
--- over-retains instead of silently dropping data. Over-retention self-heals
--- on the next clean TTL merge once the dict recovers; the fallback never
--- gets baked into a part.
-TTL toDateTime(Timestamp) + INTERVAL dictGetOrDefault('app.tenant_retention', 'traces_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192
+TTL toDate(Timestamp) + toIntervalDay(retention_days)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id
+  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toUInt16(0) AS retention_days
 FROM otel.otel_traces
 WHERE 1 = 0;
 
@@ -68,20 +72,22 @@ TO app.traces
 AS
 SELECT
   *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id
+  ResourceAttributes['everr.tenant.id'] AS tenant_id,
+  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'traces_days', ResourceAttributes['everr.tenant.id'], toUInt32(7))) AS retention_days
 FROM otel.otel_traces;
 
 -- Logs: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.logs
 ENGINE = MergeTree
-PARTITION BY toDate(TimestampTime)
+PARTITION BY (toDate(TimestampTime), retention_days)
 ORDER BY (tenant_id, ServiceName, TimestampTime, Timestamp)
-TTL TimestampTime + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192
+TTL toDate(TimestampTime) + toIntervalDay(retention_days)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id
+  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toUInt16(0) AS retention_days
 FROM otel.otel_logs
 WHERE 1 = 0;
 
@@ -101,20 +107,22 @@ TO app.logs
 AS
 SELECT
   *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id
+  ResourceAttributes['everr.tenant.id'] AS tenant_id,
+  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'logs_days', ResourceAttributes['everr.tenant.id'], toUInt32(7))) AS retention_days
 FROM otel.otel_logs;
 
 -- Metrics (Gauge): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_gauge
 ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
+PARTITION BY (toDate(TimeUnix), retention_days)
 ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
-TTL toDateTime(TimeUnix) + INTERVAL dictGetOrDefault('app.tenant_retention', 'metrics_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192
+TTL toDate(TimeUnix) + toIntervalDay(retention_days)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id
+  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toUInt16(0) AS retention_days
 FROM otel.otel_metrics_gauge
 WHERE 1 = 0;
 
@@ -132,20 +140,22 @@ TO app.metrics_gauge
 AS
 SELECT
   *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id
+  ResourceAttributes['everr.tenant.id'] AS tenant_id,
+  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
 FROM otel.otel_metrics_gauge;
 
 -- Metrics (Sum): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_sum
 ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
+PARTITION BY (toDate(TimeUnix), retention_days)
 ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
-TTL toDateTime(TimeUnix) + INTERVAL dictGetOrDefault('app.tenant_retention', 'metrics_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192
+TTL toDate(TimeUnix) + toIntervalDay(retention_days)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id
+  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toUInt16(0) AS retention_days
 FROM otel.otel_metrics_sum
 WHERE 1 = 0;
 
@@ -163,20 +173,22 @@ TO app.metrics_sum
 AS
 SELECT
   *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id
+  ResourceAttributes['everr.tenant.id'] AS tenant_id,
+  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
 FROM otel.otel_metrics_sum;
 
 -- Metrics (Histogram): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_histogram
 ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
+PARTITION BY (toDate(TimeUnix), retention_days)
 ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
-TTL toDateTime(TimeUnix) + INTERVAL dictGetOrDefault('app.tenant_retention', 'metrics_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192
+TTL toDate(TimeUnix) + toIntervalDay(retention_days)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id
+  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toUInt16(0) AS retention_days
 FROM otel.otel_metrics_histogram
 WHERE 1 = 0;
 
@@ -194,20 +206,22 @@ TO app.metrics_histogram
 AS
 SELECT
   *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id
+  ResourceAttributes['everr.tenant.id'] AS tenant_id,
+  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
 FROM otel.otel_metrics_histogram;
 
 -- Metrics (Exponential Histogram): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_exponential_histogram
 ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
+PARTITION BY (toDate(TimeUnix), retention_days)
 ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
-TTL toDateTime(TimeUnix) + INTERVAL dictGetOrDefault('app.tenant_retention', 'metrics_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192
+TTL toDate(TimeUnix) + toIntervalDay(retention_days)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id
+  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toUInt16(0) AS retention_days
 FROM otel.otel_metrics_exponential_histogram
 WHERE 1 = 0;
 
@@ -225,20 +239,22 @@ TO app.metrics_exponential_histogram
 AS
 SELECT
   *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id
+  ResourceAttributes['everr.tenant.id'] AS tenant_id,
+  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
 FROM otel.otel_metrics_exponential_histogram;
 
 -- Metrics (Summary): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_summary
 ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
+PARTITION BY (toDate(TimeUnix), retention_days)
 ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
-TTL toDateTime(TimeUnix) + INTERVAL dictGetOrDefault('app.tenant_retention', 'metrics_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192
+TTL toDate(TimeUnix) + toIntervalDay(retention_days)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id
+  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toUInt16(0) AS retention_days
 FROM otel.otel_metrics_summary
 WHERE 1 = 0;
 
@@ -256,5 +272,6 @@ TO app.metrics_summary
 AS
 SELECT
   *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id
+  ResourceAttributes['everr.tenant.id'] AS tenant_id,
+  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
 FROM otel.otel_metrics_summary;
