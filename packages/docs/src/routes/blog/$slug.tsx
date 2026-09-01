@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { ArrowLeft } from "lucide-react";
 import { Suspense } from "react";
+import { pageSeoTags } from "@/lib/seo";
 import { blogposts } from "@/lib/source";
 
 export const Route = createFileRoute("/blog/$slug")({
@@ -12,6 +13,17 @@ export const Route = createFileRoute("/blog/$slug")({
     const data = await serverLoader({ data: slug });
     await clientLoader.preload(data.path);
     return data;
+  },
+  head: ({ loaderData }) => {
+    if (!loaderData) return {};
+
+    return pageSeoTags({
+      title: `${loaderData.title} - Everr Blog`,
+      description: loaderData.description,
+      path: `/blog/${loaderData.slug}`,
+      ogType: "article",
+      publishedTime: loaderData.date,
+    });
   },
 });
 
@@ -24,6 +36,7 @@ const serverLoader = createServerFn({ method: "GET" })
 
     return {
       path: page.path,
+      slug,
       title: page.data.title,
       description: page.data.description,
       date: page.data.date,

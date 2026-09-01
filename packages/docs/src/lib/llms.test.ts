@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  docsMarkdownPathToSlugs,
-  docsMarkdownResponse,
-  getLLMText,
-  markdownDocsLinks,
-  markdownResponse,
-} from "./llms";
+import { getLLMText, markdownDocsLinks, textResponse } from "./llms";
 
 describe("docs LLM helpers", () => {
   it("renders a docs page as Markdown with a canonical title and URL", async () => {
@@ -25,66 +19,13 @@ describe("docs LLM helpers", () => {
     );
   });
 
-  it("maps docs Markdown paths to Fumadocs slugs", () => {
-    expect(docsMarkdownPathToSlugs("/docs/getting-started/install.md")).toEqual(
-      ["getting-started", "install"],
-    );
-    expect(docsMarkdownPathToSlugs("/docs/index.md")).toEqual([]);
-    expect(docsMarkdownPathToSlugs("/docs.md")).toEqual([]);
-  });
-
-  it("rejects non-docs Markdown paths and path traversal segments", () => {
-    expect(docsMarkdownPathToSlugs("/devlog/example.md")).toBeNull();
-    expect(docsMarkdownPathToSlugs("/docs/getting-started/install")).toBeNull();
-    expect(docsMarkdownPathToSlugs("/docs/../secret.md")).toBeNull();
-  });
-
-  it("serves Markdown responses with a text/markdown content type", async () => {
-    const response = markdownResponse("# Install");
+  it("serves plain-text responses with a charset", async () => {
+    const response = textResponse("User-agent: *");
 
     expect(response.headers.get("content-type")).toBe(
-      "text/markdown; charset=utf-8",
+      "text/plain; charset=utf-8",
     );
-    expect(await response.text()).toBe("# Install");
-  });
-
-  it("serves a matching docs page as Markdown", async () => {
-    const response = await docsMarkdownResponse(
-      {
-        getPage(slugs) {
-          expect(slugs).toEqual(["reference", "cli"]);
-          return {
-            url: "/docs/reference/cli",
-            data: {
-              title: "CLI",
-              getText: async () => "Use `everr --help`.",
-            },
-          };
-        },
-      },
-      "/docs/reference/cli.md",
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe(
-      "text/markdown; charset=utf-8",
-    );
-    expect(await response.text()).toBe(
-      "# CLI (/docs/reference/cli)\n\nUse `everr --help`.",
-    );
-  });
-
-  it("returns 404 when no Markdown docs page matches", async () => {
-    const response = await docsMarkdownResponse(
-      {
-        getPage() {
-          return undefined;
-        },
-      },
-      "/docs/missing.md",
-    );
-
-    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("User-agent: *");
   });
 
   it("rewrites docs links in llms.txt to Markdown endpoints", () => {

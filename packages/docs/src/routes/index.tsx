@@ -9,9 +9,21 @@ import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
 import { OpenStandardsBento } from "@/components/open-standards-bento";
 import { QuickstartFriction } from "@/components/quickstart-friction";
+import { EVERR_SUMMARY } from "@/lib/agent-guide";
+import { pageSeoTags } from "@/lib/seo";
+import { homepageJsonLd, jsonLdScript } from "@/lib/structured-data";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
+  head: () => {
+    const { meta, links } = pageSeoTags({
+      title: "Everr - Observability made simple",
+      description: EVERR_SUMMARY,
+      path: "/",
+    });
+
+    return { meta, links, scripts: [jsonLdScript(homepageJsonLd())] };
+  },
 });
 
 function RouteComponent() {

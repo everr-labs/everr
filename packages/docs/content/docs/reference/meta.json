@@ -1,5 +1,18 @@
 {
   "title": "Reference",
   "defaultOpen": true,
-  "pages": ["cli", "mcp", "skills", "datemath", "retention", "dashboard-spec", "visualizations", "variables", "alert-spec", "alert-queries", "runbook-spec"]
+  "pages": [
+    "cli",
+    "api",
+    "mcp",
+    "skills",
+    "datemath",
+    "retention",
+    "dashboard-spec",
+    "visualizations",
+    "variables",
+    "alert-spec",
+    "alert-queries",
+    "runbook-spec"
+  ]
 }

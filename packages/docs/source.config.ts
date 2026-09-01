@@ -15,6 +15,9 @@ export const docs = defineDocs({
 export const devlog = defineCollections({
   type: 'doc',
   dir: 'content/devlog',
+  postprocess: {
+    includeProcessedMarkdown: true,
+  },
   schema: z.object({
     title: z.string(),
     description: z.string(),
@@ -32,6 +35,9 @@ export const devlog = defineCollections({
 export const blog = defineCollections({
   type: 'doc',
   dir: 'content/blog',
+  postprocess: {
+    includeProcessedMarkdown: true,
+  },
   schema: z.object({
     title: z.string(),
     description: z.string(),

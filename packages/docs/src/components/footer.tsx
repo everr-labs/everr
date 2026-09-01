@@ -6,7 +6,7 @@ export function Footer() {
   return (
     <footer className="border-t border-fd-border">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-        <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-4 md:text-left">
+        <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-5 md:text-left">
           {/* Brand */}
           <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">
             <div className="flex items-center justify-center gap-2 font-semibold sm:justify-start font-heading">
@@ -81,6 +81,14 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link
+                  to="/pricing"
+                  className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+                >
+                  Pricing
+                </Link>
+              </li>
+              <li>
                 <a
                   href="https://app.everr.dev"
                   className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -91,18 +99,45 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Resources */}
+          {/* Developers */}
           <div>
-            <h3 className="mb-4 text-sm font-medium font-heading">Resources</h3>
+            <h3 className="mb-4 text-sm font-medium font-heading">
+              Developers
+            </h3>
             <ul className="space-y-3">
               <li>
                 <Link
                   to="/docs/$"
-                  params={{ _splat: "cli" }}
+                  params={{ _splat: "reference/cli" }}
                   className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
                 >
-                  CLI Docs
+                  Everr CLI reference
                 </Link>
+              </li>
+              <li>
+                <a
+                  href="/openapi.json"
+                  className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+                >
+                  Everr API (OpenAPI)
+                </a>
+              </li>
+              <li>
+                <Link
+                  to="/docs/$"
+                  params={{ _splat: "reference/mcp" }}
+                  className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+                >
+                  Everr MCP server
+                </Link>
+              </li>
+              <li>
+                <a
+                  href="/llms.txt"
+                  className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+                >
+                  llms.txt
+                </a>
               </li>
               <li>
                 <a
@@ -113,6 +148,37 @@ export function Footer() {
                 >
                   Discord
                 </a>
+              </li>
+            </ul>
+          </div>
+
+          {/* Company */}
+          <div>
+            <h3 className="mb-4 text-sm font-medium font-heading">Company</h3>
+            <ul className="space-y-3">
+              <li>
+                <Link
+                  to="/about"
+                  className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+                >
+                  About
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/contact"
+                  className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+                >
+                  Contact
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/privacy"
+                  className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+                >
+                  Privacy
+                </Link>
               </li>
             </ul>
           </div>

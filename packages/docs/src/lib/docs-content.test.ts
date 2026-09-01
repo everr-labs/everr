@@ -35,9 +35,17 @@ describe("docs content", () => {
     expect(existsSync(join(docsRoot, "reference/retention.mdx"))).toBe(true);
     expect(referenceMeta.pages).toEqual([
       "cli",
+      "api",
+      "mcp",
       "skills",
       "datemath",
       "retention",
+      "dashboard-spec",
+      "visualizations",
+      "variables",
+      "alert-spec",
+      "alert-queries",
+      "runbook-spec",
     ]);
   });
 });

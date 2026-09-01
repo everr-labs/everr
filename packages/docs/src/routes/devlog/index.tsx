@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { ArrowRight } from "lucide-react";
+import { pageSeoTags } from "@/lib/seo";
 import { devlogposts } from "@/lib/source";
-import { getBaseUrl } from "@/lib/url";
 
 const DEVLOG_TITLE = "Devlog - Everr";
 const DEVLOG_DESCRIPTION =
@@ -10,23 +10,12 @@ const DEVLOG_DESCRIPTION =
 
 export const Route = createFileRoute("/devlog/")({
   component: DevlogIndex,
-  head: () => {
-    const base = getBaseUrl();
-    return {
-      meta: [
-        { title: DEVLOG_TITLE },
-        { name: "description", content: DEVLOG_DESCRIPTION },
-        { property: "og:title", content: DEVLOG_TITLE },
-        { property: "og:description", content: DEVLOG_DESCRIPTION },
-        { property: "og:type", content: "website" },
-        { property: "og:url", content: `${base}/devlog` },
-        { name: "twitter:card", content: "summary" },
-        { name: "twitter:url", content: `${base}/devlog` },
-        { name: "twitter:title", content: DEVLOG_TITLE },
-        { name: "twitter:description", content: DEVLOG_DESCRIPTION },
-      ],
-    };
-  },
+  head: () =>
+    pageSeoTags({
+      title: DEVLOG_TITLE,
+      description: DEVLOG_DESCRIPTION,
+      path: "/devlog",
+    }),
   loader: async () => {
     return await loadDevlogPosts();
   },
