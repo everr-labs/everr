@@ -33,6 +33,7 @@ export type OtlpRecord = {
 export type OtlpSpan = {
   traceId: string;
   spanId: string;
+  parentSpanId?: string;
   name: string;
   kind: number;
   startTimeUnixNano: string;

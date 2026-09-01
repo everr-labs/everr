@@ -15,19 +15,21 @@ module.exports = [
     limit: "3.5 KB",
   },
   {
+    // Raised for the parent span support in the tracer.
     name: "core + errors",
     path: "dist/index.js",
     import: "{ WebSDK, errors }",
     gzip: true,
-    limit: "4 KB",
+    limit: "4.1 KB",
   },
   {
-    // Raised for the exit-flush budget code. Refer to pipeline/emitter.ts.
+    // Raised for the exit-flush budget code (refer to pipeline/emitter.ts)
+    // and for the parent span support in the tracer.
     name: "core + pageviews",
     path: "dist/index.js",
     import: "{ WebSDK, pageviews }",
     gzip: true,
-    limit: "3.6 KB",
+    limit: "3.7 KB",
   },
   {
     // Raised for the naming attributes in the element selector.
@@ -48,12 +50,14 @@ module.exports = [
     limit: "7.25 KB",
   },
   {
-    // The load window: the asset waterfall + long-animation-frame spans.
+    // The load window: the PageLoad root that ends at LCP, the asset
+    // waterfall, and the long-animation-frame spans. Raised for the root span
+    // and its LCP observer.
     name: "core + pageLoad",
     path: "dist/index.js",
     import: "{ WebSDK, pageLoad }",
     gzip: true,
-    limit: "4.3 KB",
+    limit: "4.6 KB",
   },
   {
     name: "core + network",

@@ -48,6 +48,7 @@ type OtlpLogRecord = {
 type OtlpSpan = {
   traceId: string;
   spanId: string;
+  parentSpanId?: string;
   name: string;
   kind: number;
   startTimeUnixNano: string;
@@ -74,7 +75,8 @@ export type Emit = (
 /**
  * Puts one completed CLIENT span into the traces queue. The span carries the
  * envelope, the same as each log record. The `error` value becomes the OTLP
- * status ERROR.
+ * status ERROR. A span with a `parentSpanId` is a child in the trace of
+ * `traceId`; without it, the span is the root of that trace.
  */
 export type EmitSpan = (
   traceId: string,
@@ -84,6 +86,7 @@ export type EmitSpan = (
   endEpochMs: number,
   attributes: Record<string, AttrValue | null | undefined>,
   error?: boolean,
+  parentSpanId?: string,
 ) => void;
 
 /**
@@ -419,6 +422,7 @@ export function createEmitter(
     endEpochMs,
     attributes,
     error,
+    parentSpanId,
   ) => {
     // The hook sees the envelope also, and not only the attributes of the
     // instrumentation. The envelope carries `url.full`. Thus a host that
@@ -435,6 +439,7 @@ export function createEmitter(
     spanQueue.push({
       traceId,
       spanId,
+      parentSpanId,
       name: item.name,
       kind: 3, // SPAN_KIND_CLIENT
       startTimeUnixNano: `${startEpochMs}000000`,

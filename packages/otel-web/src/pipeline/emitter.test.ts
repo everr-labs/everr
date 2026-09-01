@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { OtlpSpan } from "../test-kit.js";
 import {
   type BeforeSend,
   createEmitter,
@@ -224,6 +225,14 @@ describe("createEmitter", () => {
   });
 });
 
+/** The spans on the wire of the first sent batch. */
+const wireSpans = () =>
+  (
+    sent[0].payload as unknown as {
+      resourceSpans: Array<{ scopeSpans: Array<{ spans: OtlpSpan[] }> }>;
+    }
+  ).resourceSpans[0].scopeSpans[0].spans;
+
 describe("span pipeline", () => {
   it("ships spans as OTLP resourceSpans to the sibling /v1/traces path", async () => {
     [emit, flush, exitFlush, emitSpan] = makeEmitter(() => ({
@@ -254,6 +263,24 @@ describe("span pipeline", () => {
     const keys = (span.attributes as Array<{ key: string }>).map((a) => a.key);
     expect(keys).toContain("session.id");
     expect(keys).toContain("http.request.method");
+  });
+
+  it("ships the parent span id of a child, and none for a root", async () => {
+    emitSpan("a".repeat(32), "b".repeat(16), "PageLoad", 1, 2, {});
+    emitSpan(
+      "a".repeat(32),
+      "c".repeat(16),
+      "work",
+      1,
+      2,
+      {},
+      undefined,
+      "b".repeat(16),
+    );
+    await flush();
+    const [root, child] = wireSpans();
+    expect(root.parentSpanId).toBeUndefined();
+    expect(child.parentSpanId).toBe("b".repeat(16));
   });
 
   it("marks error spans with OTLP status ERROR", async () => {
