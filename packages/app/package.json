@@ -17,8 +17,8 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@better-auth/api-key": "^1.6.20",
-    "@better-auth/oauth-provider": "1.6.20",
+    "@better-auth/api-key": "^1.7.1",
+    "@better-auth/oauth-provider": "1.7.1",
     "@clickhouse/client": "^1.18.4",
     "@everr/datemath": "workspace:*",
     "@everr/otel-errors": "workspace:*",
@@ -47,7 +47,7 @@
     "@tanstack/react-router": "1.170.23",
     "@tanstack/react-start": "1.168.40",
     "ansi-to-react": "^6.2.6",
-    "better-auth": "^1.6.20",
+    "better-auth": "^1.7.1",
     "d3-geo": "^3.1.1",
     "drizzle-orm": "^0.45.2",
     "graphile-worker": "^0.16.6",
