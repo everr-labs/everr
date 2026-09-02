@@ -41,7 +41,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
 CREATE TABLE IF NOT EXISTS otel.otel_logs (
     Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-    TimestampTime DateTime DEFAULT toDateTime(Timestamp),
+    TimestampTime DateTime DEFAULT toDateTime(Timestamp) CODEC(Delta(4), ZSTD(1)),
     TraceId String CODEC(ZSTD(1)),
     SpanId String CODEC(ZSTD(1)),
     TraceFlags UInt8,

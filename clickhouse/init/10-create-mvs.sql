@@ -77,6 +77,36 @@ ALTER TABLE app.traces
   ADD INDEX IF NOT EXISTS idx_span_attr_value mapValues(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_duration Duration TYPE minmax GRANULARITY 1;
 
+-- Codecs mirrored from otel.otel_traces. CREATE TABLE ... AS SELECT copies
+-- types but not codecs, so without this every column falls back to LZ4 and the
+-- table is about twice the size of the raw copy. Keep in step with
+-- 03-create-otel-tables.sql; every app.* table below repeats this for its
+-- own source.
+ALTER TABLE app.traces
+  MODIFY COLUMN `Timestamp` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `TraceId` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanId` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ParentSpanId` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `TraceState` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanName` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanKind` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Duration` UInt64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `StatusCode` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `StatusMessage` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `Events.Timestamp` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Events.Name` Array(LowCardinality(String)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Events.Attributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Links.TraceId` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Links.SpanId` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Links.TraceState` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Links.Attributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_mv
 TO app.traces
 AS
@@ -112,6 +142,25 @@ ALTER TABLE app.logs
   ADD INDEX IF NOT EXISTS idx_log_attr_value mapValues(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8;
 
+-- Codecs mirrored from otel.otel_logs (see the app.traces note above).
+ALTER TABLE app.logs
+  MODIFY COLUMN `Timestamp` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `TimestampTime` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TraceId` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanId` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `SeverityText` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Body` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `LogAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `EventName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.logs_mv
 TO app.logs
 AS
@@ -144,6 +193,31 @@ ALTER TABLE app.metrics_gauge
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+
+-- Codecs mirrored from otel.otel_metrics_gauge (see the app.traces note above).
+ALTER TABLE app.metrics_gauge
+  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeDroppedAttrCount` UInt32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Value` Float64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_gauge_mv
 TO app.metrics_gauge
@@ -178,6 +252,33 @@ ALTER TABLE app.metrics_sum
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
 
+-- Codecs mirrored from otel.otel_metrics_sum (see the app.traces note above).
+ALTER TABLE app.metrics_sum
+  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeDroppedAttrCount` UInt32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Value` Float64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `AggregationTemporality` Int32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `IsMonotonic` Bool CODEC(Delta(1), ZSTD(1)),
+  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_sum_mv
 TO app.metrics_sum
 AS
@@ -210,6 +311,37 @@ ALTER TABLE app.metrics_histogram
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+
+-- Codecs mirrored from otel.otel_metrics_histogram (see the app.traces note above).
+ALTER TABLE app.metrics_histogram
+  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeDroppedAttrCount` UInt32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `BucketCounts` Array(UInt64) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ExplicitBounds` Array(Float64) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `Min` Float64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `Max` Float64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `AggregationTemporality` Int32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_histogram_mv
 TO app.metrics_histogram
@@ -244,6 +376,41 @@ ALTER TABLE app.metrics_exponential_histogram
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
 
+-- Codecs mirrored from otel.otel_metrics_exponential_histogram (see the app.traces note above).
+ALTER TABLE app.metrics_exponential_histogram
+  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeDroppedAttrCount` UInt32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `Scale` Int32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `ZeroCount` UInt64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `PositiveOffset` Int32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `PositiveBucketCounts` Array(UInt64) CODEC(ZSTD(1)),
+  MODIFY COLUMN `NegativeOffset` Int32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `NegativeBucketCounts` Array(UInt64) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `Min` Float64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `Max` Float64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `AggregationTemporality` Int32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_exponential_histogram_mv
 TO app.metrics_exponential_histogram
 AS
@@ -276,6 +443,29 @@ ALTER TABLE app.metrics_summary
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+
+-- Codecs mirrored from otel.otel_metrics_summary (see the app.traces note above).
+ALTER TABLE app.metrics_summary
+  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeDroppedAttrCount` UInt32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricName` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
+  MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
+  MODIFY COLUMN `ValueAtQuantiles.Quantile` Array(Float64) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ValueAtQuantiles.Value` Array(Float64) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_summary_mv
 TO app.metrics_summary

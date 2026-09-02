@@ -30,6 +30,18 @@ insert block. Measured on the real logs schema with 600k rows, the per-row
 dictionary lookup is not distinguishable from a constant stamp; the view's
 cost is the second table write and its skip indexes.
 
+## Column codecs
+
+The `app.*` tables are created with `CREATE TABLE ... AS SELECT`, which copies
+column types but not codecs, so until this branch every `app.*` column was
+plain LZ4 while the raw `otel.*` copy had `Delta, ZSTD(1)` on timestamps and
+`ZSTD(1)` elsewhere. Measured on the dev data, the `app.*` copies were 1.5 to 2
+times the size of the raw ones for the same rows (traces 549 vs 273 MiB, logs
+126 vs 65 MiB). `init/10` now mirrors the codecs with one `MODIFY COLUMN`
+block per table after the index block; keep those blocks in step with
+`init/03` when the exporter schema changes. The rebuild applies them to
+production because it recreates the tables.
+
 ## Follow-ups in this repo
 
 1. **Adding a retention value.** `upsertTenantRetention` takes a tier, so the
@@ -140,8 +152,9 @@ The app needs no change for the rebuild, so the order is: schema, then app
    ```
 
    What it does: drops the materialized views, drops every `app.*` data
-   table, re-runs `init/10`, `init/12` and `init/20`, reloads the
-   dictionary, and prints the partition key of every table.
+   table, re-runs `init/10`, `init/12` and `init/20` (new partition key,
+   codecs, views), reloads the dictionary, and prints the partition key of
+   every table.
 
    Effects to expect:
    - **All `app.*` rows are gone.** Traces, logs, metrics and alert history
