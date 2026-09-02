@@ -10,6 +10,8 @@ existing rows keep the retention they were stamped with.
 Schema: `clickhouse/init/10-create-mvs.sql`,
 `clickhouse/init/12-create-alert-events.sql`.
 Rebuild for existing clusters: `clickhouse/migrations/2026-09-01-retention-days-partitions.sh`.
+The rebuild drops the existing `app.*` rows; there is no backfill. The raw
+`otel.*` tables are untouched and keep their own 7-day TTL.
 
 ## Follow-ups in this repo
 
@@ -36,6 +38,22 @@ In `infra-v2/clickhouse_dbops.tf`, at any time:
   that the `web_app_admin` grant exists in Terraform, the dev init script
   grants it in `12-create-alert-events.sql`.
 
+- **Recreate the dictionary with `UInt16` attributes.** `traces_days`,
+  `logs_days` and `metrics_days` are `UInt16` in the source table and in the
+  tables the views stamp; the dictionary still declares `UInt32` on any
+  cluster created before this change. `dictGetOrDefault` accepts a `UInt16`
+  default against a `UInt32` attribute, so nothing breaks in the meantime,
+  but the dictionary definition in Terraform should match `init/10`.
+- **Add a dictionary check to the deploy.** Run
+  `SYSTEM RELOAD DICTIONARY app.tenant_retention` after every change to the
+  `web_app_admin` credentials or the dictionary definition, and fail the
+  deploy if it errors. The views call the dictionary on every insert, so a
+  dictionary that cannot load fails the collector's writes into `otel.*`
+  (see "Failure modes" below). The dev image loads dictionaries at startup
+  (`clickhouse/config.d/dictionaries.xml`) so a broken source shows in the
+  server log; ClickHouse Cloud does not expose that setting, which is why
+  the deploy check exists.
+
 A plan change reaches new rows once the dictionary refreshes, within 120 s
 (`LIFETIME(MIN 60 MAX 120)`). Rows ingested in that window keep the previous
 plan's retention.
@@ -49,6 +67,48 @@ and emitting `everr.clickhouse.partitions` and
 `everr.clickhouse.oldest_partition_age_days` per table and `retention_days`
 closes that gap.
 
+## Plan changes and existing rows
+
+Retention is stamped on a row when it is inserted and `retention_days` is a
+partition key column, so it cannot be changed afterwards:
+`ALTER TABLE ... UPDATE retention_days` fails with `Cannot UPDATE key column`.
+The consequences:
+
+- **Upgrade (free to pro).** Rows ingested before the upgrade keep the
+  free-tier retention and expire on that schedule. At most the last 7 days
+  of logs and traces and 14 days of metrics are affected. Rows ingested
+  after the dictionary refresh get the pro retention.
+- **Downgrade (pro to free).** Rows ingested before the downgrade keep the
+  pro retention and stay up to 90 days (395 for metrics). Storage for that
+  tenant shrinks over the following 90 days, not at once.
+
+This is the accepted behaviour. If a customer needs the pre-upgrade rows
+kept, the rescue is one insert-select per signal table that copies the
+tenant's rows with the new stamp, followed by a lightweight `DELETE` of the
+rows with the old stamp:
+
+```sql
+INSERT INTO app.logs SELECT * REPLACE (toUInt16(90) AS retention_days)
+FROM app.logs WHERE tenant_id = '<org>' AND retention_days = 7;
+DELETE FROM app.logs WHERE tenant_id = '<org>' AND retention_days = 7;
+```
+
+It touches at most 7 days of one tenant, so it is cheap, but it is a manual
+step and not part of the upgrade flow.
+
+## Failure modes
+
+- **Dictionary cannot load.** ClickHouse keeps the last good copy when a
+  refresh fails, so a broken source only matters when the dictionary has
+  never loaded on this server: after a restart with a rotated
+  `web_app_admin` password, or on a fresh cluster. Then `dictGetOrDefault`
+  throws inside the views, and the collector's insert into `otel.*` fails
+  with it. Ingestion stops until the dictionary loads. Do not set
+  `materialized_views_ignore_errors`: it keeps the collector insert alive
+  but drops the `app.*` rows silently. The deploy check above is the guard.
+- **Dictionary stale.** A plan change written to the source table reaches
+  the views within 120 s. Rows in that window carry the previous plan.
+
 ## Production rollout
 
 The app needs no change for the rebuild, so the order is: schema, then app
@@ -57,38 +117,29 @@ The app needs no change for the rebuild, so the order is: schema, then app
 1. Run the rebuild from a checkout of the merged commit, with an admin user:
 
    ```sh
-   KEEP_OLD=1 clickhouse/migrations/2026-09-01-retention-days-partitions.sh \
+   clickhouse/migrations/2026-09-01-retention-days-partitions.sh \
      --host <cloud-host> --secure --user default --password '<ADMIN_PASSWORD>'
    ```
 
-   What it does: drops the materialized views, renames every `app.*` data
-   table to `app.<name>_old` in one statement, re-runs `init/10`, `init/12`
-   and `init/20`, backfills each table from its `_old` copy with the
-   tenant's current retention, and prints the partition and part counts.
-   `KEEP_OLD=1` skips the final drop so the copies can be checked first.
+   What it does: drops the materialized views, drops every `app.*` data
+   table, re-runs `init/10`, `init/12` and `init/20`, reloads the
+   dictionary, and prints the partition key of every table.
 
    Effects to expect:
+   - **All `app.*` rows are gone.** Traces, logs, metrics and alert history
+     start empty and fill from the collector. The raw `otel.*` tables keep
+     their last 7 days but nothing re-projects them into `app.*`. Tell the
+     tenants, or run it before the first paying customer.
    - Rows the collector writes into `otel.*` between the view drop and the
      view recreate (well under a second) are not projected into `app.*`.
-     Inserts into `app.alert_events` fail during the rename for the same
-     window. Run it while ingestion is low.
-   - The backfill stamps rows with the plan the tenant has now. Rows already
-     past that retention (a free tenant's rows older than 7 days) are dropped
-     by the TTL at insert. That is the one-time rescue of the current plans.
+     Inserts into `app.alert_events` fail in the same window.
    - `init/10` contains `CREATE DICTIONARY IF NOT EXISTS app.tenant_retention`
      with the dev password. It is a no-op on a cluster where the dictionary
      exists. Do not drop the dictionary before running the script.
-   - Row policies and grants are bound to table names, so they stay on
-     `app.<name>` and never apply to the `_old` copies. The `_old` copies are
-     readable by `app_ro` until dropped.
-2. Verify (queries below), then drop the copies:
-
-   ```sql
-   DROP TABLE app.traces_old, app.logs_old, app.metrics_gauge_old, app.metrics_sum_old,
-     app.metrics_histogram_old, app.metrics_exponential_histogram_old,
-     app.metrics_summary_old, app.alert_events_old;
-   ```
-
+   - Row policies and grants are bound to table names and are recreated by
+     `init/20`; the `app_ro` and `web_app_admin` grants on `app.alert_events`
+     come back with `init/12`.
+2. Verify with the queries below.
 3. Deploy the app.
 
 ## Verification
@@ -120,7 +171,7 @@ Rows are stamped with the value the dictionary holds for the tenant:
 
 ```sql
 SELECT tenant_id, retention_days,
-       dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(0)) AS logs_days,
+       dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt16(0)) AS logs_days,
        count()
 FROM app.logs
 WHERE TimestampTime > now() - INTERVAL 1 HOUR

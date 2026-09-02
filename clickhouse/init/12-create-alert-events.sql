@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   instance_labels_json String DEFAULT '{}',
   -- Stamped at insert time from the dictionary; see 10-create-mvs.sql for the
   -- per-row retention model. Alert history follows the tenant's logs retention.
-  retention_days UInt16 DEFAULT toUInt16(dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(7))),
+  retention_days UInt16 DEFAULT dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt16(7)),
   INDEX alert_def_skip_idx alert_definition_id TYPE bloom_filter GRANULARITY 4
 )
 ENGINE = MergeTree

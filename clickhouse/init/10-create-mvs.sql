@@ -18,9 +18,9 @@
 CREATE TABLE IF NOT EXISTS app.tenant_retention_source
 (
   tenant_id String,
-  traces_days UInt32,
-  logs_days UInt32,
-  metrics_days UInt32,
+  traces_days UInt16,
+  logs_days UInt16,
+  metrics_days UInt16,
   updated_at DateTime DEFAULT now()
 )
 ENGINE = ReplacingMergeTree(updated_at)
@@ -29,9 +29,9 @@ ORDER BY tenant_id;
 CREATE DICTIONARY IF NOT EXISTS app.tenant_retention
 (
   tenant_id String,
-  traces_days UInt32,
-  logs_days UInt32,
-  metrics_days UInt32
+  traces_days UInt16,
+  logs_days UInt16,
+  metrics_days UInt16
 )
 PRIMARY KEY tenant_id
 SOURCE(CLICKHOUSE(
@@ -74,7 +74,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  toUInt16(dictGetOrDefault('app.tenant_retention', 'traces_days', ResourceAttributes['everr.tenant.id'], toUInt32(7))) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'traces_days', ResourceAttributes['everr.tenant.id'], toUInt16(7)) AS retention_days
 FROM otel.otel_traces;
 
 -- Logs: tenant-enriched read table + MV
@@ -109,7 +109,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  toUInt16(dictGetOrDefault('app.tenant_retention', 'logs_days', ResourceAttributes['everr.tenant.id'], toUInt32(7))) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'logs_days', ResourceAttributes['everr.tenant.id'], toUInt16(7)) AS retention_days
 FROM otel.otel_logs;
 
 -- Metrics (Gauge): tenant-enriched read table + MV
@@ -142,7 +142,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  toUInt16(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt16(14)) AS retention_days
 FROM otel.otel_metrics_gauge;
 
 -- Metrics (Sum): tenant-enriched read table + MV
@@ -175,7 +175,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  toUInt16(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt16(14)) AS retention_days
 FROM otel.otel_metrics_sum;
 
 -- Metrics (Histogram): tenant-enriched read table + MV
@@ -208,7 +208,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  toUInt16(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt16(14)) AS retention_days
 FROM otel.otel_metrics_histogram;
 
 -- Metrics (Exponential Histogram): tenant-enriched read table + MV
@@ -241,7 +241,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  toUInt16(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt16(14)) AS retention_days
 FROM otel.otel_metrics_exponential_histogram;
 
 -- Metrics (Summary): tenant-enriched read table + MV
@@ -274,5 +274,5 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  toUInt16(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt16(14)) AS retention_days
 FROM otel.otel_metrics_summary;
