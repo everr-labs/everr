@@ -7,6 +7,7 @@ import type {
 } from "@/data/alerting/triage/view";
 import { SeverityLabel, StatusIcon } from "./alert-status";
 import { COLUMN_LABEL } from "./list-columns";
+import { RowTarget, SelectableRow } from "./list-row";
 import {
   RuleStateChart,
   StateChartAxis,
@@ -85,36 +86,19 @@ export function RuleInventory({
       </div>
 
       {rules.map((row) => (
-        // The row is a pointer convenience; the rule name below is the real
-        // control, so keyboard and screen-reader users get one clear target
-        // rather than a click handler they cannot reach. Same idiom as the
-        // triage rows.
-        // biome-ignore lint/a11y/noStaticElementInteractions: pointer-only row convenience, the rule name inside is the real button
-        // biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only row convenience, the rule name inside is the real button
-        <div
+        <SelectableRow
           key={row.path}
-          onClick={() => onOpen(row.path)}
-          className={cn(
-            COLUMNS,
-            "cursor-pointer border-t px-3 py-2.5 text-sm transition-colors hover:bg-muted/25",
-            openPath === row.path && "bg-muted/40",
-          )}
+          selected={openPath === row.path}
+          onOpen={() => onOpen(row.path)}
+          className={cn(COLUMNS, "border-t px-3 py-2.5 text-sm")}
         >
           <div className="flex min-w-0 items-center gap-2">
             <StatusIcon status={row.state} className="size-3.5" />
             {/* The same panel the triage rows open, at the same URL. A rule
                 has one detail view, whichever list you reached it from. */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpen(row.path);
-              }}
-              title={row.path}
-              className="truncate text-left outline-2 outline-dotted outline-transparent hover:underline focus-visible:outline-primary"
-            >
+            <RowTarget onOpen={() => onOpen(row.path)} title={row.path}>
               {row.name}
-            </button>
+            </RowTarget>
           </div>
           <div className="hidden @[44rem]/list:block">
             {history ? (
@@ -138,7 +122,7 @@ export function RuleInventory({
           <span className="text-right font-mono text-xs text-muted-foreground tabular-nums">
             {row.silence}
           </span>
-        </div>
+        </SelectableRow>
       ))}
     </section>
   );

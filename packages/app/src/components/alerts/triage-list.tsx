@@ -5,6 +5,7 @@ import { BellOff, Send } from "lucide-react";
 import type { TriageAlert, TriageStatus } from "@/data/alerting/triage/view";
 import { AlertSparkline } from "./alert-sparkline";
 import { STATUS_META, StatusChip } from "./alert-status";
+import { RowTarget, SelectableRow } from "./list-row";
 
 /** "firing for", not "since": the row already says how long, and the verb
  *  names which clock is running. */
@@ -59,35 +60,23 @@ function TriageRow({
   const partialSilence = alert.silence && !alert.silence.wholeRule;
 
   return (
-    // The row is a pointer convenience, not the control: the rule name below
-    // is the real button, so keyboard and screen-reader users get one clear
-    // target instead of a click handler they cannot reach.
-    // biome-ignore lint/a11y/noStaticElementInteractions: pointer-only row convenience, the rule name inside is the real button
-    // biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only row convenience, the rule name inside is the real button
-    <div
-      onClick={onOpen}
+    <SelectableRow
+      selected={selected}
+      onOpen={onOpen}
       className={cn(
         // Two tiers, both measured against the list column rather than the
         // window: the first drops the sparkline and tightens the measured
         // column, the second is the full table. Without them, opening the
         // detail panel would keep five columns in half the width and crush
         // the rule name, the one thing the reader is scanning for.
-        "grid cursor-pointer grid-cols-1 items-center gap-x-6 gap-y-3 border-t px-3 py-3.5 transition-colors hover:bg-muted/25 @[44rem]/list:grid-cols-[minmax(0,1fr)_10rem_7rem_6.5rem] @[53rem]/list:grid-cols-[minmax(0,1fr)_12rem_7rem_5rem_6.5rem]",
-        selected && "bg-muted/40",
+        "grid grid-cols-1 items-center gap-x-6 gap-y-3 border-t px-3 py-3.5 @[44rem]/list:grid-cols-[minmax(0,1fr)_10rem_7rem_6.5rem] @[53rem]/list:grid-cols-[minmax(0,1fr)_12rem_7rem_5rem_6.5rem]",
         dimmed && "opacity-60",
       )}
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen();
-          }}
-          className="truncate text-left text-sm font-medium outline-2 outline-dotted outline-transparent hover:underline focus-visible:outline-primary"
-        >
+        <RowTarget onOpen={onOpen} className="text-sm font-medium">
           {alert.name}
-        </button>
+        </RowTarget>
         {/* The failure code gets its own line rather than sitting beside the
             name: these identifiers are long, and squeezing them onto the name
             line truncates the one word the reader is scanning for. */}
@@ -183,7 +172,7 @@ function TriageRow({
           </Button>
         )}
       </div>
-    </div>
+    </SelectableRow>
   );
 }
 
