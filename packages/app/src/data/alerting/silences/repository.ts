@@ -22,9 +22,7 @@ export type SilenceRow = typeof alertSilences.$inferSelect;
 
 /**
  * Which silences a caller means. Five questions that differ mostly in their
- * window test, kept together because they used to be spread over three
- * modules, and two of them were both called `loadActiveSilences` and meant
- * different things.
+ * window test, which is the one part of a silence read worth comparing:
  *
  *   listSilences         `[from, to)` half-open at both ends, the as-code API's
  *   loadSilencesInWindow `[from, to]` closed at both ends, one rule's

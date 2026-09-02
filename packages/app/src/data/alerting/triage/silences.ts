@@ -5,6 +5,7 @@
  * Which silences to fetch is a separate question, and every version of it
  * lives together in the silences repository.
  */
+import { formatMatchers } from "@/data/alerting/silences/matchers";
 import {
   ruleSubject,
   silenceIsInForce,
@@ -79,11 +80,6 @@ function silenceState(row: SilenceRow, now: Date): AlertSilenceRecord["state"] {
         ? "expired"
         : "active";
 }
-
-const formatMatchers = (matchers: AlertingMatcher[]): string =>
-  matchers
-    .map((m) => `${m.label}${m.op === "ne" ? "!=" : "="}${m.value}`)
-    .join(" ");
 
 /** Everything the app knows about a silence, for the two screens that list
  *  them. */
