@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { GroupBand } from "@everr/ui/components/group-band";
 import { Meter } from "@everr/ui/components/meter";
 import { cn } from "@everr/ui/lib/utils";
 import { BellOff, Send } from "lucide-react";
@@ -14,34 +15,6 @@ const SINCE_LABEL: Record<TriageStatus, string> = {
   firing: "firing for",
   pending: "pending for",
 };
-
-function BandHeader({
-  status,
-  count,
-  first,
-}: {
-  status: TriageStatus;
-  count: number;
-  /** The list already has a top border; the first band must not draw a second. */
-  first: boolean;
-}) {
-  const meta = STATUS_META[status];
-  const Icon = meta.icon;
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-2 px-3 py-1.5",
-        !first && "border-t",
-        meta.band,
-      )}
-    >
-      <Icon aria-hidden className={cn("size-3", meta.text)} />
-      <h2 className={cn("text-xs font-semibold tracking-wide", meta.text)}>
-        {meta.label} · {count}
-      </h2>
-    </div>
-  );
-}
 
 function TriageRow({
   alert,
@@ -196,32 +169,38 @@ export function TriageList({
   onSilence: (path: string) => void;
   onExpireSilence: (path: string) => void;
 }) {
-  const counts = new Map<TriageStatus, number>();
-  for (const a of alerts) counts.set(a.status, (counts.get(a.status) ?? 0) + 1);
-
-  let band: TriageStatus | null = null;
+  // One group per run of a status, in the order the server returned them.
+  const groups: { status: TriageStatus; alerts: TriageAlert[] }[] = [];
+  for (const alert of alerts) {
+    const last = groups[groups.length - 1];
+    if (last?.status === alert.status) last.alerts.push(alert);
+    else groups.push({ status: alert.status, alerts: [alert] });
+  }
 
   return (
-    <div className="border-b">
-      {alerts.map((alert, index) => {
-        const startsBand = alert.status !== band;
-        band = alert.status;
+    // Each band is wrapped with its rows, so it sticks for exactly those rows
+    // and the wrapper's rule, not the band's, separates the groups.
+    <div className="divide-y border-b">
+      {groups.map(({ status, alerts: rows }, index) => {
+        const meta = STATUS_META[status];
         return (
-          <div key={alert.path}>
-            {startsBand && (
-              <BandHeader
-                status={band}
-                count={counts.get(band) ?? 0}
-                first={index === 0}
-              />
-            )}
-            <TriageRow
-              alert={alert}
-              selected={openPath === alert.path}
-              onOpen={() => onOpen(alert.path)}
-              onSilence={() => onSilence(alert.path)}
-              onExpireSilence={() => onExpireSilence(alert.path)}
+          <div key={`${status}-${index}`}>
+            <GroupBand
+              label={meta.label}
+              count={rows.length}
+              icon={meta.icon}
+              tone={meta.tone}
             />
+            {rows.map((alert) => (
+              <TriageRow
+                key={alert.path}
+                alert={alert}
+                selected={openPath === alert.path}
+                onOpen={() => onOpen(alert.path)}
+                onSilence={() => onSilence(alert.path)}
+                onExpireSilence={() => onExpireSilence(alert.path)}
+              />
+            ))}
           </div>
         );
       })}

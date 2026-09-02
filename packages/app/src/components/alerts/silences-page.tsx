@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { GroupBand } from "@everr/ui/components/group-band";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
@@ -10,7 +11,6 @@ import {
   SILENCE_PAGE_LIMIT,
 } from "@/data/alerting/triage/view";
 import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
-import { COLUMN_LABEL } from "./list-columns";
 import { ROW_TARGET } from "./list-row";
 import type { SilenceSeed } from "./silence-dialog";
 import { SilenceRowAction, SilenceWindow } from "./silence-row";
@@ -230,59 +230,6 @@ function Row({
   );
 }
 
-/**
- * The band that names a group and counts it.
- *
- * Both groups get one, and they are built the same, because the seam between
- * them is the page's one structural claim: these are muting, those are over.
- * A group marked only by a two-pixel rule on its rows was invisible at a
- * glance, which is the only distance this page is read from.
- *
- * Sticky at the top, and each inside its own wrapper, so a group's name stays
- * on screen for exactly as long as its rows do and the next one takes over
- * rather than piling on top.
- *
- * The band can carry a control at its right end. The page's one control, the
- * way to write a silence, sits on the Active band: over the buttons that end
- * silences, and at the head of the group a new silence would join.
- */
-function GroupHeading({
-  id,
-  label,
-  count,
-  hint,
-  action,
-}: {
-  id: string;
-  label: string;
-  count?: string;
-  /** Only for what the reader cannot see from the rows. */
-  hint: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    // The opaque layer is the sticky one: the band's own tint is translucent,
-    // and translucent over scrolling rows smears them.
-    <div className="sticky top-0 z-10 bg-background">
-      {/* `px-3` on the same edge the rows use, so the headings and the rows
-          all start on one left edge. `h-9` on both bands, so the one without
-          a control stands as tall as the one with. */}
-      <div className="flex h-9 items-center justify-between gap-3 bg-muted/20 px-3">
-        <h2 id={id} className="flex items-baseline gap-2">
-          <span className={COLUMN_LABEL}>{label}</span>
-          {count && (
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          )}
-          <span className="text-xs text-muted-foreground">{hint}</span>
-        </h2>
-        {action}
-      </div>
-    </div>
-  );
-}
-
 /** Sized to a real two-line row, so the list does not resettle under the
  *  reader when the rows it was standing in for arrive. */
 function LoadingRows() {
@@ -427,7 +374,7 @@ export function SilencesPage({
           with it and double that one whenever the band is stuck. */}
       <div className="divide-y">
         <div>
-          <GroupHeading
+          <GroupBand
             id="silences-active"
             label="Active"
             count={activeCount}
@@ -474,7 +421,7 @@ export function SilencesPage({
         </div>
 
         <div>
-          <GroupHeading
+          <GroupBand
             id="silences-history"
             label="History"
             count={historyCount}

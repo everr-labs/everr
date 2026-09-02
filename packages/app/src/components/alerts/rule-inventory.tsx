@@ -1,3 +1,4 @@
+import { kickerClass } from "@everr/ui/components/group-band";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
 import type {
@@ -6,7 +7,6 @@ import type {
   RuleStateHistoryData,
 } from "@/data/alerting/triage/view";
 import { SeverityLabel, StatusIcon } from "./alert-status";
-import { COLUMN_LABEL } from "./list-columns";
 import { RowTarget, SelectableRow } from "./list-row";
 import {
   RuleStateChart,
@@ -76,13 +76,13 @@ export function RuleInventory({
             <Skeleton className="h-3 w-full rounded-sm" />
           )}
         </div>
-        <span className={cn(COLUMN_LABEL, "hidden @[50rem]/list:block")}>
+        <span className={cn(kickerClass, "hidden @[50rem]/list:block")}>
           Severity
         </span>
-        <span className={cn(COLUMN_LABEL, "hidden @[50rem]/list:block")}>
+        <span className={cn(kickerClass, "hidden @[50rem]/list:block")}>
           Every
         </span>
-        <span className={cn(COLUMN_LABEL, "text-right")}>Silence</span>
+        <span className={cn(kickerClass, "text-right")}>Silence</span>
       </div>
 
       {rules.map((row) => (
