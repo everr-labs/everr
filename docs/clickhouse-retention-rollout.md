@@ -32,15 +32,13 @@ cost is the second table write and its skip indexes.
 
 ## Follow-ups in this repo
 
-1. **Settle the retention values.** `ALLOWED_RETENTION_DAYS` in
-   `packages/app/src/lib/retention.ts` accepts `7, 14, 30, 90, 365, 395`:
-   the union of the current tiers (7/7/14 free, 90/90/395 pro) and the
-   proposed 14/30/90 (logs, traces) and 14/30/90/365 (metrics). Once the
-   tiers are final, trim the set. `upsertTenantRetention` rejects values
-   outside it, which is the only guard: every value costs that many daily
-   partitions per table, so the sum of the set is the partition budget,
-   about 134 per logs and traces table and 499 per metrics table with the
-   proposed tiers.
+1. **Adding a retention value.** `ALLOWED_RETENTION_DAYS` in
+   `packages/app/src/lib/retention.ts` is exactly the values the tiers use:
+   `14, 30, 395` (free 14/14/14, pro 30/30/395). `upsertTenantRetention`
+   rejects anything else, which is the only guard: every value costs that
+   many daily partitions per table, so the sum of the values in use is the
+   partition budget, 44 per logs and traces table and 409 per metrics table.
+   A new tier adds its values to the set and its days to the budget.
 2. **Optional: shorten `otel.*` retention.** The raw tables keep 7 days with
    their own TTL, and nothing reads them except the views at insert time.
    A shorter window halves the storage of every row. Separate decision.
@@ -92,12 +90,12 @@ partition key column, so it cannot be changed afterwards:
 The consequences:
 
 - **Upgrade (free to pro).** Rows ingested before the upgrade keep the
-  free-tier retention and expire on that schedule. At most the last 7 days
-  of logs and traces and 14 days of metrics are affected. Rows ingested
+  free-tier retention and expire on that schedule. At most the last 14 days
+  are affected. Rows ingested
   after the dictionary refresh get the pro retention.
 - **Downgrade (pro to free).** Rows ingested before the downgrade keep the
-  pro retention and stay up to 90 days (395 for metrics). Storage for that
-  tenant shrinks over the following 90 days, not at once.
+  pro retention and stay up to 30 days (395 for metrics). Storage for that
+  tenant shrinks over the following 30 days, not at once.
 
 This is the accepted behaviour. If a customer needs the pre-upgrade rows
 kept, the rescue is one insert-select per signal table that copies the
@@ -105,12 +103,12 @@ tenant's rows with the new stamp, followed by a lightweight `DELETE` of the
 rows with the old stamp:
 
 ```sql
-INSERT INTO app.logs SELECT * REPLACE (toUInt16(90) AS retention_days)
-FROM app.logs WHERE tenant_id = '<org>' AND retention_days = 7;
-DELETE FROM app.logs WHERE tenant_id = '<org>' AND retention_days = 7;
+INSERT INTO app.logs SELECT * REPLACE (toUInt16(30) AS retention_days)
+FROM app.logs WHERE tenant_id = '<org>' AND retention_days = 14;
+DELETE FROM app.logs WHERE tenant_id = '<org>' AND retention_days = 14;
 ```
 
-It touches at most 7 days of one tenant, so it is cheap, but it is a manual
+It touches at most 14 days of one tenant, so it is cheap, but it is a manual
 step and not part of the upgrade flow.
 
 ## Failure modes
@@ -205,6 +203,6 @@ Any other mismatch means the dictionary was stale when the rows arrived.
 
 Part pressure, on the ClickHouse Cloud dashboard: `MaxPartCountForPartition`
 under 50 on the hottest day, merge pool not saturated all day, no
-`TOO_MANY_PARTS`. Expected steady state with the current tiers: about 97 live
+`TOO_MANY_PARTS`. Expected steady state with the current tiers: about 44 live
 partitions per logs and traces table, about 409 per metrics table, one to
 three parts per settled partition.

@@ -48,7 +48,7 @@ LIFETIME(MIN 60 MAX 120);
 -- before the first insert. The app rewrites it from RETENTION_BY_TIER.free
 -- (packages/app/src/lib/retention.ts) at every start, so that file is the
 -- source of truth and these values only bootstrap a fresh cluster.
-INSERT INTO app.tenant_retention_source (tenant_id, traces_days, logs_days, metrics_days) VALUES ('', 7, 7, 14);
+INSERT INTO app.tenant_retention_source (tenant_id, traces_days, logs_days, metrics_days) VALUES ('', 14, 14, 14);
 SYSTEM RELOAD DICTIONARY app.tenant_retention;
 
 -- Traces: tenant-enriched read table + MV

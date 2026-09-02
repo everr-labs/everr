@@ -55,6 +55,7 @@ import {
   seedDefaultRetention,
   upsertTenantRetention,
 } from "./clickhouse";
+import { resolveRetention } from "./retention";
 
 const ORG = "org42";
 const ORG_USER = `sql_api_org_${ORG}`;
@@ -155,8 +156,8 @@ describe("upsertTenantRetention", () => {
   it("writes the retention row through the admin client", async () => {
     await upsertTenantRetention({
       tenantId: ORG,
-      tracesDays: 90,
-      logsDays: 90,
+      tracesDays: 30,
+      logsDays: 30,
       metricsDays: 395,
     });
 
@@ -164,7 +165,7 @@ describe("upsertTenantRetention", () => {
       expect.objectContaining({
         table: "app.tenant_retention_source",
         values: [
-          { tenant_id: ORG, traces_days: 90, logs_days: 90, metrics_days: 395 },
+          { tenant_id: ORG, traces_days: 30, logs_days: 30, metrics_days: 395 },
         ],
       }),
     );
@@ -174,7 +175,7 @@ describe("upsertTenantRetention", () => {
     await expect(
       upsertTenantRetention({
         tenantId: ORG,
-        tracesDays: 90,
+        tracesDays: 30,
         logsDays: 42,
         metricsDays: 395,
       }),
@@ -185,13 +186,19 @@ describe("upsertTenantRetention", () => {
 
 describe("seedDefaultRetention", () => {
   it("writes the free tier under the empty tenant id", async () => {
+    const free = resolveRetention("free");
     await seedDefaultRetention();
 
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         table: "app.tenant_retention_source",
         values: [
-          { tenant_id: "", traces_days: 7, logs_days: 7, metrics_days: 14 },
+          {
+            tenant_id: "",
+            traces_days: free.tracesDays,
+            logs_days: free.logsDays,
+            metrics_days: free.metricsDays,
+          },
         ],
       }),
     );
