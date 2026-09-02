@@ -32,13 +32,12 @@ cost is the second table write and its skip indexes.
 
 ## Follow-ups in this repo
 
-1. **Adding a retention value.** `ALLOWED_RETENTION_DAYS` in
-   `packages/app/src/lib/retention.ts` is exactly the values the tiers use:
-   `14, 30, 395` (free 14/14/14, pro 30/30/395). `upsertTenantRetention`
-   rejects anything else, which is the only guard: every value costs that
-   many daily partitions per table, so the sum of the values in use is the
-   partition budget, 44 per logs and traces table and 409 per metrics table.
-   A new tier adds its values to the set and its days to the budget.
+1. **Adding a retention value.** `upsertTenantRetention` takes a tier, so the
+   only values that reach ClickHouse are those in `RETENTION_BY_TIER`
+   (`packages/app/src/lib/retention.ts`): free 14/14/14, pro 30/30/395.
+   Every value costs that many daily partitions per table, so the sum of the
+   distinct values per signal is the partition budget, 44 per logs and
+   traces table and 409 per metrics table. A new tier adds its days to it.
 2. **Optional: shorten `otel.*` retention.** The raw tables keep 7 days with
    their own TTL, and nothing reads them except the views at insert time.
    A shorter window halves the storage of every row. Separate decision.

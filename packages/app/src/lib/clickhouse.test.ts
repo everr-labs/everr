@@ -153,34 +153,23 @@ describe("querySqlApiWithMeta", () => {
 });
 
 describe("upsertTenantRetention", () => {
-  it("writes the retention row through the admin client", async () => {
-    await upsertTenantRetention({
-      tenantId: ORG,
-      tracesDays: 30,
-      logsDays: 30,
-      metricsDays: 395,
-    });
+  it("writes the tier's retention row through the admin client", async () => {
+    const pro = resolveRetention("pro");
+    await upsertTenantRetention({ tenantId: ORG, tier: "pro" });
 
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         table: "app.tenant_retention_source",
         values: [
-          { tenant_id: ORG, traces_days: 30, logs_days: 30, metrics_days: 395 },
+          {
+            tenant_id: ORG,
+            traces_days: pro.tracesDays,
+            logs_days: pro.logsDays,
+            metrics_days: pro.metricsDays,
+          },
         ],
       }),
     );
-  });
-
-  it("rejects a retention outside the allowed set without writing", async () => {
-    await expect(
-      upsertTenantRetention({
-        tenantId: ORG,
-        tracesDays: 30,
-        logsDays: 42,
-        metricsDays: 395,
-      }),
-    ).rejects.toThrow("allowed set");
-    expect(mockInsert).not.toHaveBeenCalled();
   });
 });
 

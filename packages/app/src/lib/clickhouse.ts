@@ -2,9 +2,9 @@ import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
 import {
-  ALLOWED_RETENTION_DAYS,
   DEFAULT_RETENTION_TENANT_ID,
   resolveRetention,
+  type Tier,
 } from "@/lib/retention";
 import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
 
@@ -181,31 +181,20 @@ type AdminCommandOptions = Omit<
 // empty tenant id, so the free tier lives in retention.ts and is written here
 // at every app start; the SQL holds no retention numbers of its own.
 export function seedDefaultRetention(): Promise<void> {
-  const retention = resolveRetention("free");
   return upsertTenantRetention({
     tenantId: DEFAULT_RETENTION_TENANT_ID,
-    tracesDays: retention.tracesDays,
-    logsDays: retention.logsDays,
-    metricsDays: retention.metricsDays,
+    tier: "free",
   });
 }
 
-// Every distinct retention value keeps that many live (day, retention_days)
-// partitions per app.* table, so only values from the allowed set may reach
-// the dictionary the views stamp rows from.
+// Takes a tier rather than day counts so nothing outside RETENTION_BY_TIER can
+// reach the dictionary the views stamp rows from; see retention.ts for why the
+// value set is a partition budget.
 export async function upsertTenantRetention(row: {
   tenantId: string;
-  tracesDays: number;
-  logsDays: number;
-  metricsDays: number;
+  tier: Tier;
 }): Promise<void> {
-  for (const days of [row.tracesDays, row.logsDays, row.metricsDays]) {
-    if (!ALLOWED_RETENTION_DAYS.includes(days)) {
-      throw new Error(
-        `Retention of ${days} days is not in the allowed set: ${ALLOWED_RETENTION_DAYS.join(", ")}`,
-      );
-    }
-  }
+  const retention = resolveRetention(row.tier);
   await instrumentClickhouseOperation(
     { client: "admin", operation: "INSERT" },
     () =>
@@ -214,9 +203,9 @@ export async function upsertTenantRetention(row: {
         values: [
           {
             tenant_id: row.tenantId,
-            traces_days: row.tracesDays,
-            logs_days: row.logsDays,
-            metrics_days: row.metricsDays,
+            traces_days: retention.tracesDays,
+            logs_days: retention.logsDays,
+            metrics_days: retention.metricsDays,
           },
         ],
         format: "JSONEachRow",

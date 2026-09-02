@@ -10,13 +10,12 @@ export type TenantRetention = {
   metricsDays: number;
 };
 
-// The app.* tables partition by (day, retention_days), so every distinct
-// retention value keeps that many live partitions per table (a 30-day value
-// holds 30 daily partitions). upsertTenantRetention rejects values outside
-// this set to keep the partition count bounded; extend it consciously. The
-// set is exactly the values RETENTION_BY_TIER uses.
-export const ALLOWED_RETENTION_DAYS: readonly number[] = [14, 30, 395];
-
+// These are the only retention values that reach ClickHouse:
+// upsertTenantRetention takes a tier, not days. That matters because the
+// app.* tables partition by (day, retention_days), so a table holds one live
+// partition per day per distinct value in its column below: 14 + 30 = 44 for
+// logs and traces, 14 + 395 = 409 for each metrics table. A new tier or a new
+// value adds its days to that budget; keep it under about 1,000 per table.
 const RETENTION_BY_TIER: Record<Tier, TenantRetention> = {
   free: { tracesDays: 14, logsDays: 14, metricsDays: 14 },
   // Metrics retention is "13 months", the Datadog and industry convention,

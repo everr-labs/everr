@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { orgSubscription } from "@/db/schema";
 import { upsertTenantRetention } from "@/lib/clickhouse";
-import { resolveRetention, type Tier } from "@/lib/retention";
+import type { Tier } from "@/lib/retention";
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
@@ -74,14 +74,8 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
     .limit(1);
   if (!current) return;
 
-  const retention = resolveRetention(
-    tierForSubscription({ status: current.status }),
-  );
-
   await upsertTenantRetention({
     tenantId: input.orgId,
-    tracesDays: retention.tracesDays,
-    logsDays: retention.logsDays,
-    metricsDays: retention.metricsDays,
+    tier: tierForSubscription({ status: current.status }),
   });
 }

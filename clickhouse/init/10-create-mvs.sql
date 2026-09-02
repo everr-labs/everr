@@ -6,8 +6,8 @@
 -- expires on the same day, so ClickHouse drops whole parts and never rewrites
 -- one to expire a single tenant. A retention change applies to rows ingested
 -- from that point on. Every distinct retention value costs that many live
--- partitions per table, so the app only writes values from
--- ALLOWED_RETENTION_DAYS (packages/app/src/lib/retention.ts).
+-- partitions per table, so the app only writes the values of a tier
+-- (RETENTION_BY_TIER in packages/app/src/lib/retention.ts).
 --
 -- Only the views write these tables. A direct INSERT that omits retention_days
 -- gets 0, and `day + 0` is already past, so the TTL drops the rows at insert.
