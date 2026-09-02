@@ -54,9 +54,12 @@ partition. Measured with merges stopped and the threshold lowered to 40,
 writing logs, traces and gauge concurrently: the error fires after 40 inserts
 per table with one tier and after 40 inserts per table with two tiers, with
 40 parts in each `(day, retention)` partition both times. With merges running
-at default thresholds, 300 inserts per table in 31 s left at most 5 active
-parts in any partition and delayed nothing. Adding a tier adds merge work and
-total active parts (`PartsActive` on the dashboard), not insert rejections.
+at default thresholds, 12 concurrent inserters writing 6M rows across the
+three tables: one tier finished in 82 s, two tiers in 121 s, both with zero
+rejected or delayed inserts and a peak of 15 active parts in any partition.
+The second tier doubled the parts written and the merges and cost 2.5 times
+the merge CPU. Adding a tier adds merge work and total active parts
+(`PartsActive` and the merge pool on the dashboard), not insert rejections.
 
 ## Follow-ups in this repo
 
