@@ -1,11 +1,12 @@
 -- Per-row retention. Every app.* row is stamped with `retention_days` by its
--- materialized view (from the app.tenant_retention dictionary, free tier when
--- the tenant is not in it yet), the table partitions by (day, retention_days),
--- and the TTL is `day + retention_days` with ttl_only_drop_parts = 1. Every
--- row in a partition expires on the same day, so ClickHouse drops whole parts
--- and never rewrites one to expire a single tenant. A retention change applies
--- to rows ingested from that point on. Every distinct retention value costs
--- that many live partitions per table, so the app only writes values from
+-- materialized view from the app.tenant_retention dictionary. A tenant without
+-- a row gets the free tier, which is the dictionary row with tenant_id ''.
+-- The table partitions by (day, retention_days) and the TTL is
+-- `day + retention_days` with ttl_only_drop_parts = 1. Every row in a partition
+-- expires on the same day, so ClickHouse drops whole parts and never rewrites
+-- one to expire a single tenant. A retention change applies to rows ingested
+-- from that point on. Every distinct retention value costs that many live
+-- partitions per table, so the app only writes values from
 -- ALLOWED_RETENTION_DAYS (packages/app/src/lib/retention.ts).
 --
 -- Only the views write these tables. A direct INSERT that omits retention_days
@@ -42,6 +43,14 @@ SOURCE(CLICKHOUSE(
 LAYOUT(HASHED())
 LIFETIME(MIN 60 MAX 120);
 
+-- Free-tier row, keyed by the empty tenant id. The views fall back to it for
+-- tenants without a row, and dictGet on a missing key throws, so it must exist
+-- before the first insert. The app rewrites it from RETENTION_BY_TIER.free
+-- (packages/app/src/lib/retention.ts) at every start, so that file is the
+-- source of truth and these values only bootstrap a fresh cluster.
+INSERT INTO app.tenant_retention_source (tenant_id, traces_days, logs_days, metrics_days) VALUES ('', 7, 7, 14);
+SYSTEM RELOAD DICTIONARY app.tenant_retention;
+
 -- Traces: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.traces
 ENGINE = MergeTree
@@ -74,7 +83,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'traces_days', ResourceAttributes['everr.tenant.id'], toUInt16(7)) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'traces_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'traces_days', '')) AS retention_days
 FROM otel.otel_traces;
 
 -- Logs: tenant-enriched read table + MV
@@ -109,7 +118,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'logs_days', ResourceAttributes['everr.tenant.id'], toUInt16(7)) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'logs_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'logs_days', '')) AS retention_days
 FROM otel.otel_logs;
 
 -- Metrics (Gauge): tenant-enriched read table + MV
@@ -142,7 +151,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt16(14)) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'metrics_days', '')) AS retention_days
 FROM otel.otel_metrics_gauge;
 
 -- Metrics (Sum): tenant-enriched read table + MV
@@ -175,7 +184,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt16(14)) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'metrics_days', '')) AS retention_days
 FROM otel.otel_metrics_sum;
 
 -- Metrics (Histogram): tenant-enriched read table + MV
@@ -208,7 +217,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt16(14)) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'metrics_days', '')) AS retention_days
 FROM otel.otel_metrics_histogram;
 
 -- Metrics (Exponential Histogram): tenant-enriched read table + MV
@@ -241,7 +250,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt16(14)) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'metrics_days', '')) AS retention_days
 FROM otel.otel_metrics_exponential_histogram;
 
 -- Metrics (Summary): tenant-enriched read table + MV
@@ -274,5 +283,5 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt16(14)) AS retention_days
+  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'metrics_days', '')) AS retention_days
 FROM otel.otel_metrics_summary;

@@ -1,5 +1,9 @@
 export type Tier = "free" | "pro";
 
+// Dictionary key of the free-tier row the ClickHouse views fall back to for
+// tenants without a row of their own (see clickhouse/init/10-create-mvs.sql).
+export const DEFAULT_RETENTION_TENANT_ID = "";
+
 export type TenantRetention = {
   tracesDays: number;
   logsDays: number;

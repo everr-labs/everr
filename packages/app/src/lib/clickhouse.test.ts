@@ -52,6 +52,7 @@ import {
   query,
   querySqlApi,
   querySqlApiWithMeta,
+  seedDefaultRetention,
   upsertTenantRetention,
 } from "./clickhouse";
 
@@ -179,6 +180,21 @@ describe("upsertTenantRetention", () => {
       }),
     ).rejects.toThrow("allowed set");
     expect(mockInsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("seedDefaultRetention", () => {
+  it("writes the free tier under the empty tenant id", async () => {
+    await seedDefaultRetention();
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        table: "app.tenant_retention_source",
+        values: [
+          { tenant_id: "", traces_days: 7, logs_days: 7, metrics_days: 14 },
+        ],
+      }),
+    );
   });
 });
 

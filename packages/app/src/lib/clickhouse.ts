@@ -1,7 +1,11 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
-import { ALLOWED_RETENTION_DAYS } from "@/lib/retention";
+import {
+  ALLOWED_RETENTION_DAYS,
+  DEFAULT_RETENTION_TENANT_ID,
+  resolveRetention,
+} from "@/lib/retention";
 import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
 
 // The client default of 2500ms forces a fresh TLS handshake on most queries
@@ -172,6 +176,19 @@ type AdminCommandOptions = Omit<
   Parameters<typeof clickhouseAdmin.command>[0],
   "query"
 >;
+
+// The views stamp tenants without a dictionary row from the row keyed by the
+// empty tenant id, so the free tier lives in retention.ts and is written here
+// at every app start; the SQL holds no retention numbers of its own.
+export function seedDefaultRetention(): Promise<void> {
+  const retention = resolveRetention("free");
+  return upsertTenantRetention({
+    tenantId: DEFAULT_RETENTION_TENANT_ID,
+    tracesDays: retention.tracesDays,
+    logsDays: retention.logsDays,
+    metricsDays: retention.metricsDays,
+  });
+}
 
 // Every distinct retention value keeps that many live (day, retention_days)
 // partitions per app.* table, so only values from the allowed set may reach

@@ -13,6 +13,23 @@ Rebuild for existing clusters: `clickhouse/migrations/2026-09-01-retention-days-
 The rebuild drops the existing `app.*` rows; there is no backfill. The raw
 `otel.*` tables are untouched and keep their own 7-day TTL.
 
+## Where the numbers live
+
+The SQL holds no retention values. Each tenant's retention is a row in
+`app.tenant_retention_source`, written by the app on every plan change. The
+free tier is the row with the empty tenant id: the views and the
+`app.alert_events` default fall back to it with
+`dictGet('app.tenant_retention', '<signal>_days', '')` for tenants without
+a row. The app rewrites that row from `RETENTION_BY_TIER.free` in
+`packages/app/src/lib/retention.ts` at every start, so a free-tier change is
+one edit there. `init/10` seeds the same row so a fresh cluster ingests before
+the app starts; those literals only bootstrap.
+
+The fallback lookup has a constant key, so ClickHouse evaluates it once per
+insert block. Measured on the real logs schema with 600k rows, the per-row
+dictionary lookup is not distinguishable from a constant stamp; the view's
+cost is the second table write and its skip indexes.
+
 ## Follow-ups in this repo
 
 1. **Settle the retention values.** `ALLOWED_RETENTION_DAYS` in
@@ -98,6 +115,10 @@ step and not part of the upgrade flow.
 
 ## Failure modes
 
+- **Free-tier row missing.** `dictGet` on the empty key throws when the row
+  is absent, and the views fail the collector's insert with it. `init/10`
+  seeds it and the app rewrites it at start, so this only happens if someone
+  deletes the row by hand. Restore it with the app's free-tier values.
 - **Dictionary cannot load.** ClickHouse keeps the last good copy when a
   refresh fails, so a broken source only matters when the dictionary has
   never loaded on this server: after a restart with a rotated
@@ -178,9 +199,9 @@ WHERE TimestampTime > now() - INTERVAL 1 HOUR
 GROUP BY ALL;
 ```
 
-Unknown tenants show `logs_days = 0` and `retention_days = 7` (14 for
-metrics). Any other mismatch means the dictionary was stale when the rows
-arrived.
+Unknown tenants show `logs_days = 0` and `retention_days` equal to the
+free-tier row (`SELECT * FROM app.tenant_retention WHERE tenant_id = ''`).
+Any other mismatch means the dictionary was stale when the rows arrived.
 
 Part pressure, on the ClickHouse Cloud dashboard: `MaxPartCountForPartition`
 under 50 on the hottest day, merge pool not saturated all day, no
