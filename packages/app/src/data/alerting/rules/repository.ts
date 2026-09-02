@@ -22,7 +22,11 @@ import {
   AlertingRuleSpecSchema,
   AlertingRuleUpdateSchema,
 } from "../schema";
-import type { AlertingMutationScope } from "../session";
+import {
+  type AlertingActor,
+  type AlertingMutationScope,
+  alertingActorPrincipal,
+} from "../session";
 import type {
   AlertingRuleHealthStatus,
   AlertingRuleInput,
@@ -440,8 +444,27 @@ export async function deleteRule(
   });
 }
 
+/**
+ * The three columns that record a pause as one fact. Written and cleared
+ * through this pair only, so a later column cannot be added to one path and
+ * forgotten on the other: the table checks that all three agree.
+ */
+function pauseTrailFor(actor: AlertingActor, now: Date) {
+  return {
+    pausedAt: now,
+    pausedByPrincipal: alertingActorPrincipal(actor),
+    pausedBy: actor.display,
+  };
+}
+
+const PAUSE_TRAIL_CLEARED = {
+  pausedAt: null,
+  pausedByPrincipal: null,
+  pausedBy: null,
+} as const;
+
 export async function pauseRule(
-  { organizationId }: AlertingMutationScope,
+  { organizationId, actor }: AlertingMutationScope,
   id: string,
 ) {
   const now = new Date();
@@ -459,6 +482,10 @@ export async function pauseRule(
         firingInstanceCount: 0,
         consecutiveFailures: 0,
         degradedSince: null,
+        // Who took the rule out of evaluation, and when. The journal records
+        // which instances the pause closed, but it has no actor column and
+        // writes nothing at all when the rule had no open instances.
+        ...pauseTrailFor(actor, now),
         updatedAt: now,
       })
       .where(
@@ -506,7 +533,14 @@ export async function resumeRule(
   );
   const [row] = await db
     .update(alertDefinitions)
-    .set({ active: true, nextEvaluationAt, updatedAt: new Date() })
+    .set({
+      active: true,
+      nextEvaluationAt,
+      // The trail names the pause in force, not the last one ever: resuming
+      // clears it so `paused_at` stays non-null exactly while paused.
+      ...PAUSE_TRAIL_CLEARED,
+      updatedAt: new Date(),
+    })
     .where(
       and(
         eq(alertDefinitions.organizationId, organizationId),

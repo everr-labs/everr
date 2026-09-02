@@ -1,0 +1,188 @@
+// @vitest-environment node
+
+/**
+ * The Triage screen's PostgreSQL reads of Silences, against a real engine.
+ *
+ * Two things here can only be answered by a database: which clock the "still
+ * open" test runs on, and where the window bounds actually fall. `now()` is
+ * evaluated by PostgreSQL, not by the caller, and the harness shadows it with
+ * the suite's own clock so a case can place a Silence on either side of it.
+ */
+import { describe, expect, it, vi } from "vitest";
+import {
+  insertRule,
+  insertSilence,
+  TEST_ORG,
+} from "@/server/alerting/testing/fixtures";
+import { useAlertingHarness } from "@/server/alerting/testing/harness";
+
+vi.mock("@/db/client", async () => {
+  const { testDb, runInTransaction } = await import(
+    "@/server/alerting/testing/db-proxy"
+  );
+  return { db: testDb, runInTransaction };
+});
+
+vi.mock(
+  "@/lib/clickhouse",
+  async () => import("@/server/alerting/testing/test-clickhouse"),
+);
+
+import {
+  loadActiveSilences,
+  loadSilencesInWindow,
+  silenceFor,
+} from "./silences";
+
+const harness = useAlertingHarness();
+
+const HOUR = 3_600_000;
+const RULE_PATH = "default/checkout-latency";
+
+/** Selects the whole Alert rule, the way the Triage screen writes a Silence. */
+const ruleMatcher = [{ label: "rule", op: "eq" as const, value: RULE_PATH }];
+
+function at(hoursFromNow: number): Date {
+  return new Date(Date.now() + hoursFromNow * HOUR);
+}
+
+describe("the Silences the Triage screen reads", () => {
+  it("leaves out a Silence whose window has already closed", async () => {
+    const open = await insertSilence(harness().db, {
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    await insertSilence(harness().db, { startsAt: at(-4), endsAt: at(-1) });
+
+    const silences = await loadActiveSilences(TEST_ORG);
+
+    expect(silences.map((row) => row.id)).toEqual([open.id]);
+  });
+
+  it("keeps a Silence that has not started, and does not yet attribute it", async () => {
+    const scheduled = await insertSilence(harness().db, {
+      startsAt: at(1),
+      endsAt: at(2),
+      matchers: ruleMatcher,
+    });
+
+    const silences = await loadActiveSilences(TEST_ORG);
+
+    // Open by the window test, so a caller can list it as scheduled...
+    expect(silences.map((row) => row.id)).toEqual([scheduled.id]);
+    // ...but nothing is muted until it starts.
+    expect(silenceFor(RULE_PATH, "warning", silences, new Date())).toBeNull();
+  });
+
+  it("takes each window bound on its own", async () => {
+    const from = at(-1);
+    const to = new Date(Date.now());
+    const endedInside = await insertSilence(harness().db, {
+      startsAt: at(-3),
+      endsAt: at(-0.5),
+      matchers: ruleMatcher,
+    });
+    const spansTheWindow = await insertSilence(harness().db, {
+      startsAt: at(-3),
+      endsAt: at(3),
+      matchers: ruleMatcher,
+    });
+    // Closed before the window opened.
+    await insertSilence(harness().db, {
+      startsAt: at(-5),
+      endsAt: at(-4),
+      matchers: ruleMatcher,
+    });
+    // Opens after the window closed.
+    await insertSilence(harness().db, {
+      startsAt: at(1),
+      endsAt: at(2),
+      matchers: ruleMatcher,
+    });
+
+    const silences = await loadSilencesInWindow(
+      TEST_ORG,
+      RULE_PATH,
+      "warning",
+      from,
+      to,
+    );
+
+    expect(new Set(silences.map((row) => row.id))).toEqual(
+      new Set([endedInside.id, spansTheWindow.id]),
+    );
+  });
+
+  it("returns the Silences that overlapped the window newest first", async () => {
+    const older = await insertSilence(harness().db, {
+      startsAt: at(-3),
+      endsAt: at(1),
+      matchers: ruleMatcher,
+    });
+    const newer = await insertSilence(harness().db, {
+      startsAt: at(-1),
+      endsAt: at(1),
+      matchers: ruleMatcher,
+    });
+
+    const silences = await loadSilencesInWindow(
+      TEST_ORG,
+      RULE_PATH,
+      "warning",
+      at(-4),
+      at(0),
+    );
+
+    expect(silences.map((row) => row.id)).toEqual([newer.id, older.id]);
+  });
+
+  it("leaves out a Silence whose Matchers do not select the rule", async () => {
+    const mine = await insertSilence(harness().db, {
+      startsAt: at(-1),
+      endsAt: at(1),
+      matchers: ruleMatcher,
+    });
+    await insertSilence(harness().db, {
+      startsAt: at(-1),
+      endsAt: at(1),
+      matchers: [{ label: "rule", op: "eq", value: "default/some-other-rule" }],
+    });
+
+    const silences = await loadSilencesInWindow(
+      TEST_ORG,
+      RULE_PATH,
+      "warning",
+      at(-2),
+      at(0),
+    );
+
+    expect(silences.map((row) => row.id)).toEqual([mine.id]);
+  });
+
+  it("selects a Silence written against the rule's Severity", async () => {
+    await insertRule(harness().db, { slug: "checkout-latency" });
+    const bySeverity = await insertSilence(harness().db, {
+      startsAt: at(-1),
+      endsAt: at(1),
+      matchers: [{ label: "severity", op: "eq", value: "critical" }],
+    });
+
+    const critical = await loadSilencesInWindow(
+      TEST_ORG,
+      RULE_PATH,
+      "critical",
+      at(-2),
+      at(0),
+    );
+    const warning = await loadSilencesInWindow(
+      TEST_ORG,
+      RULE_PATH,
+      "warning",
+      at(-2),
+      at(0),
+    );
+
+    expect(critical.map((row) => row.id)).toEqual([bySeverity.id]);
+    expect(warning).toEqual([]);
+  });
+});

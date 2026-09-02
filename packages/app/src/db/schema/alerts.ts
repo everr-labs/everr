@@ -85,6 +85,23 @@ export const alertDefinitions = pgTable(
       .notNull()
       .defaultNow(),
     active: boolean("active").notNull().default(true),
+    // Non-null exactly while the rule is paused, the same way `degraded_since`
+    // carries health: pausing is somebody's decision, and the pair answers
+    // "who took this rule out of evaluation, and how long ago" without a join
+    // on the journal. Null on every rule paused before these columns existed.
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    // The canonical actor identity (`user:<id>` or `apikey:<id>`), not a user
+    // id: an API key can pause through apply, and a rename must not rewrite
+    // who the trail names. Same column shape and reasoning as
+    // `alert_silences.author_principal`.
+    pausedByPrincipal: text("paused_by_principal"),
+    // The actor's display at pause time, the way `alert_silences.author`
+    // keeps one: the header names a person, and resolving the principal on
+    // every read would rename past pauses whenever a profile changes. Left
+    // out of the completeness check on purpose: a pause taken before this
+    // column existed has a principal and no display, and naming it
+    // `user:<id>` would be worse than naming nobody.
+    pausedBy: text("paused_by"),
     lastError: text("last_error"),
     currentState: alertStateEnum("current_state").notNull().default("unknown"),
     consecutiveFailures: integer("consecutive_failures").notNull().default(0),
@@ -126,6 +143,14 @@ export const alertDefinitions = pgTable(
     check(
       "alert_definitions_firing_count_nonnegative",
       sql`${table.firingInstanceCount} >= 0`,
+    ),
+    // The two pause columns are one fact, so a writer that stamps a time
+    // without an actor (or the reverse) is a bug, not a half-filled trail.
+    // Deliberately not tied to `active`: rules paused before these columns
+    // existed are inactive with both null, and stay legal.
+    check(
+      "alert_definitions_pause_trail_complete",
+      sql`(${table.pausedAt} IS NULL) = (${table.pausedByPrincipal} IS NULL)`,
     ),
     // Live identity is the global address (org, project, slug); `repoid` owns
     // (reconcile scope), not identity. Preview identity via the parent.
@@ -320,6 +345,24 @@ export const alertEvents = pgTable(
     index("alert_events_cancelable_idx")
       .on(table.organizationId, table.sourceDefinitionId)
       .where(sql`${table.processedAt} IS NULL`),
+    // Backs the triage board's per-rule "what did delivery do with the last
+    // verdict" read, which asks for the newest row of one kind per rule. The
+    // journal is append-only and unbounded, so the answer has to come from an
+    // index walk per rule rather than from a scan: without this the read sorts
+    // every notifying row in the org to keep one row per rule, and at two
+    // million rows that is a seq scan plus an external merge sort on disk.
+    //
+    // `kind` sits inside the key rather than in a `WHERE kind = 'notifying'`
+    // predicate. A partial index is smaller, but most rules never fire, and on
+    // those the ordered walk runs to the end of the rule's history before it
+    // can report that there is nothing: `kind` has to be matchable, and as a
+    // key column it answers for the state stream too.
+    index("alert_events_org_definition_kind_idx").on(
+      table.organizationId,
+      table.sourceDefinitionId,
+      table.kind,
+      sql`occurred_at DESC`,
+    ),
     uniqueIndex("alert_events_org_id_uq").on(table.organizationId, table.id),
   ],
 );

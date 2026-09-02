@@ -1,3 +1,4 @@
+import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import {
   type GeoProjection as D3Projection,
   geoEqualEarth,
@@ -7,7 +8,6 @@ import {
 } from "d3-geo";
 import { Map as MapIcon } from "lucide-react";
 import { useMemo, useState } from "react";
-import { CursorTooltip } from "@/components/cursor-tooltip";
 import { colorRamp, normalizeValue, schemeBaseColor } from "../color-scale";
 import { queryLabel, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
