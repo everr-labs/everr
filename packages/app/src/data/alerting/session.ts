@@ -42,7 +42,7 @@ type AlertingSessionContext = {
   principalId?: string;
 };
 
-export function alertingOrganizationId(session: {
+function alertingOrganizationId(session: {
   session: { activeOrganizationId: string };
 }): string {
   return session.session.activeOrganizationId;

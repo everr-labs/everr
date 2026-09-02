@@ -1,19 +1,4 @@
-import type {
-  AlertingAlert,
-  AlertingMatcher,
-  AlertingRuleView,
-} from "../types";
-
-const OP_SYMBOL = { eq: "=", ne: "≠" } satisfies Record<
-  AlertingMatcher["op"],
-  string
->;
-
-export function alertingOpSymbol(op: AlertingMatcher["op"]): string {
-  // A row persisted before an op was retired renders its raw op name, never
-  // the string "undefined".
-  return (OP_SYMBOL as Record<string, string | undefined>)[op] ?? op;
-}
+import type { AlertingMatcher } from "../types";
 
 /** Missing labels match as empty strings. Matching is exact only. */
 export function alertingMatcherMatches(
@@ -36,11 +21,6 @@ export function alertingMatchersMatch(
   return matchers.every((m) => alertingMatcherMatches(m, labels));
 }
 
-/** No matchers = matches every alert. */
-export function alertingIsCatchAll(matchers: AlertingMatcher[]): boolean {
-  return matchers.length === 0;
-}
-
 /** Dispatcher labels, with system-owned values winning on collision. */
 export function alertingSyntheticLabels(
   labels: Record<string, string>,
@@ -58,20 +38,8 @@ export function alertingSyntheticLabels(
   };
 }
 
-/** Dispatch-time labels of a live rule instance. */
-export function alertingDispatchLabels(
-  alert: Pick<AlertingAlert, "labels" | "rule">,
-  rule: Pick<AlertingRuleView, "spec"> | undefined,
-): Record<string, string> {
-  return alertingSyntheticLabels(alert.labels, {
-    severity: rule?.spec.severity ?? "info",
-    status: "firing",
-    rule: alert.rule,
-  });
-}
-
 /** Half-open: a silence covers its start instant and not its end instant. */
-export function alertingSilenceIsActive(
+function alertingSilenceIsActive(
   silence: { starts_at: string; ends_at: string },
   now: number,
 ): boolean {

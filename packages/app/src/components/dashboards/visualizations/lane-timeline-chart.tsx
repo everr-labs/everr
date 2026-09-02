@@ -1,13 +1,13 @@
+import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
+import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
-import { CursorTooltip } from "@/components/cursor-tooltip";
 import {
   createTimeTickFormatter,
   generateTimeTicks,
   SERIES_COLORS,
 } from "./data-utils";
 import type { ResolvedTimeRange } from "./index";
-import { SeriesTooltipContent } from "./series-tooltip";
 
 const BRUSH_COLOR = SERIES_COLORS[0]!;
 const MAX_X_TICKS = 6;

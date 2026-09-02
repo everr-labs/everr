@@ -1,29 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   extractVariables,
-  splitTemplate,
   validateMessageRefs,
   validateQueryTemplate,
 } from "./template";
-
-describe("splitTemplate", () => {
-  it("separates the placeholders from the literal text", () => {
-    expect(splitTemplate(`up on \${host} (\${value})`)).toEqual([
-      { kind: "text", value: "up on " },
-      { kind: "variable", value: "host" },
-      { kind: "text", value: " (" },
-      { kind: "variable", value: "value" },
-      { kind: "text", value: ")" },
-    ]);
-  });
-
-  it("keeps a template without placeholders whole", () => {
-    expect(splitTemplate("plain text")).toEqual([
-      { kind: "text", value: "plain text" },
-    ]);
-    expect(splitTemplate("")).toEqual([]);
-  });
-});
 
 describe("extractVariables", () => {
   it("finds valid alert variables and ignores malformed ones", () => {

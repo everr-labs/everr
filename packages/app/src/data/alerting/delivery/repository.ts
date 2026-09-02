@@ -1,13 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, countDistinct, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, countDistinct, eq, sql } from "drizzle-orm";
 import { deliveryIsInFlight } from "@/data/alerting/delivery/config";
-import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
 import { type DbExecutor, db } from "@/db/client";
-import {
-  alertChannels,
-  alertDefaultChannels,
-  alertDeliveries,
-} from "@/db/schema";
+import { alertChannels, alertDeliveries } from "@/db/schema";
 import { truncateWithEllipsis } from "@/lib/truncate";
 import { sanitizeAlertError } from "@/server/alerting/history/content";
 import {
@@ -19,13 +14,9 @@ import {
   AlertingChannelConfigSchema,
   AlertingChannelInputSchema,
   AlertingChannelUpdateSchema,
-  AlertingDefaultDestinationInputSchema,
 } from "../schema";
 import type { AlertingMutationScope } from "../session";
-import type {
-  AlertingChannelConfig,
-  AlertingDefaultDestinationInput,
-} from "../types";
+import type { AlertingChannelConfig } from "../types";
 import {
   decryptChannelConfig,
   encryptChannelConfig,
@@ -232,93 +223,4 @@ export async function testChannel(
       error: testChannelError(cause),
     };
   }
-}
-
-/**
- * The org's default destination: which channels each tier delivers to. The
- * "all" tier is the unsplit mode; per-severity tiers exist only when the org
- * split. Returned as name lists in name order.
- */
-export async function listDefaultDestination(organizationId: string) {
-  const rows = await db
-    .select({
-      tier: alertDefaultChannels.tier,
-      channelName: alertChannels.name,
-    })
-    .from(alertDefaultChannels)
-    .innerJoin(
-      alertChannels,
-      and(
-        eq(alertDefaultChannels.organizationId, alertChannels.organizationId),
-        eq(alertDefaultChannels.channelId, alertChannels.id),
-      ),
-    )
-    .where(eq(alertDefaultChannels.organizationId, organizationId))
-    .orderBy(asc(alertDefaultChannels.tier), asc(alertChannels.name));
-  const tiers: Partial<Record<AlertingDefaultTier, string[]>> = {};
-  for (const row of rows) {
-    const list = tiers[row.tier] ?? [];
-    list.push(row.channelName);
-    tiers[row.tier] = list;
-  }
-  return { tiers };
-}
-
-/**
- * Replace the whole default destination in one write. Passing tiers with an
- * "all" entry stores unsplit mode; per-severity entries store split mode; the
- * two never coexist because this replaces everything. An empty object clears
- * the default entirely (alerts stop delivering unless a rule names channels).
- */
-export async function setDefaultDestination(
-  { organizationId }: AlertingMutationScope,
-  rawInput: AlertingDefaultDestinationInput,
-) {
-  const input = AlertingDefaultDestinationInputSchema.parse(rawInput);
-  const entries = Object.entries(input.tiers) as [
-    AlertingDefaultTier,
-    string[],
-  ][];
-  if (entries.some(([tier]) => tier === "all") && entries.length > 1) {
-    throwAlertingPersistenceError(
-      422,
-      "validation",
-      'the "all" tier cannot be combined with severity tiers',
-    );
-  }
-  const names = [...new Set(entries.flatMap(([, channels]) => channels))];
-  const resolved = await db
-    .select({ id: alertChannels.id, name: alertChannels.name })
-    .from(alertChannels)
-    .where(
-      and(
-        eq(alertChannels.organizationId, organizationId),
-        names.length > 0 ? inArray(alertChannels.name, names) : sql`false`,
-      ),
-    );
-  const idByName = new Map(resolved.map((row) => [row.name, row.id]));
-  const missing = names.filter((name) => !idByName.has(name));
-  if (missing.length > 0) {
-    throwAlertingPersistenceError(
-      422,
-      "validation",
-      `Unknown channels: ${missing.join(", ")}`,
-    );
-  }
-  await db.transaction(async (tx) => {
-    await tx
-      .delete(alertDefaultChannels)
-      .where(eq(alertDefaultChannels.organizationId, organizationId));
-    const values = entries.flatMap(([tier, channels]) =>
-      [...new Set(channels)].map((name) => ({
-        organizationId,
-        tier,
-        channelId: idByName.get(name) as string,
-      })),
-    );
-    if (values.length > 0) {
-      await tx.insert(alertDefaultChannels).values(values);
-    }
-  });
-  return listDefaultDestination(organizationId);
 }

@@ -4,6 +4,7 @@ import {
   insertDirectRule,
   insertPreview,
   insertRule,
+  insertSilence,
   TEST_ORG,
 } from "./testing/fixtures";
 import { useAlertingHarness } from "./testing/harness";
@@ -18,6 +19,10 @@ vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 const harness = useAlertingHarness();
 
 const BREACHING = [{ service: "checkout", value: 42 }];
+
+// What a correlation column holds when the row correlates nothing. The
+// columns stay non-nullable, so a reader filters on equality, not IS NULL.
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 /**
  * This file is about what ClickHouse really does for alerting, on both sides:
@@ -190,7 +195,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     // One continuous breach is one episode: the resolve has to name the fire
     // it ends, or a reader cannot pair them without guessing from timestamps.
     expect(rows[0].episode_id).toBe(rows[1].episode_id);
-    expect(rows[0].episode_id).not.toBe("00000000-0000-0000-0000-000000000000");
+    expect(rows[0].episode_id).not.toBe(ZERO_UUID);
   });
 
   it("leaves the correlation ids on the zero sentinel for a row that correlates nothing", async () => {
@@ -206,10 +211,8 @@ describe("the alerting pipeline's ClickHouse projection", () => {
       FROM app.alert_events
       WHERE event_type = 'evaluation_succeeded'
     `);
-    expect(row.notification_event_id).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
-    expect(row.episode_id).toBe("00000000-0000-0000-0000-000000000000");
+    expect(row.notification_event_id).toBe(ZERO_UUID);
+    expect(row.episode_id).toBe(ZERO_UUID);
   });
 
   it("drops a repeated write in the engine's own deduplication window", async () => {
@@ -257,9 +260,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     ]);
     // The delivery names the transition that caused it, so a per-instance
     // history can show what was sent about which fire.
-    expect(rows[1].notification_event_id).not.toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
+    expect(rows[1].notification_event_id).not.toBe(ZERO_UUID);
   });
 
   it("writes one delivery row per transition the notification carried", async () => {
@@ -290,5 +291,211 @@ describe("the alerting pipeline's ClickHouse projection", () => {
         .map((row) => (row.instance_labels as Record<string, string>).service)
         .sort(),
     ).toEqual(["checkout", "payments"]);
+  });
+  it("writes the firing rule's own identity and evidence onto the transition", async () => {
+    await insertRule(harness().db, { forSecs: 0 });
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
+
+    // A history row is self-sufficient: a reader of a paused, deleted or
+    // raced rule still has to know which rule fired, how loud it was, and
+    // what it saw. None of that can be recovered from the definition row
+    // later, so a writer that dropped one of these leaves history unreadable.
+    const [row] = harness().clickhouse.queryRows(`
+      SELECT slug, severity, instance_labels, evidence_json
+      FROM app.alert_events
+      WHERE event_type = 'instance_fired'
+    `);
+    expect(row.slug).toBe("default/checkout-latency");
+    expect(row.severity).toBe("warning");
+    expect(row.instance_labels).toEqual({ service: "checkout" });
+    expect(row.evidence_json).not.toBe("");
+  });
+
+  it("keeps two rules breaching at once under their own slugs", async () => {
+    await insertRule(harness().db, { slug: "checkout-latency", forSecs: 0 });
+    await insertRule(harness().db, { slug: "cart-errors", forSecs: 0 });
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
+
+    // slug is the second field of the sort key, so a rule that wrote under a
+    // neighbour's name would not just mislabel a row, it would land in the
+    // neighbour's part and be read back as its history.
+    const rows = harness().clickhouse.queryRows(`
+      SELECT slug FROM app.alert_events WHERE event_type = 'instance_fired'
+    `);
+    expect(rows.map((row) => row.slug).sort()).toEqual([
+      "default/cart-errors",
+      "default/checkout-latency",
+    ]);
+  });
+
+  it("writes every label column the rule declares into instance_labels", async () => {
+    await insertRule(harness().db, {
+      forSecs: 0,
+      labelColumns: ["service", "region"],
+    });
+    harness().clickhouse.setSignal([
+      { service: "checkout", region: "eu", value: 42 },
+      { service: "cart", region: "eu", value: 42 },
+    ]);
+    await harness().runDueJobs();
+
+    // instance_labels is a Map column, so a missing key is not an error at
+    // write time: it reads back as the type's default. A rule whose second
+    // label column never reached the row would look like an instance that
+    // simply had no region.
+    const rows = harness().clickhouse.queryRows(`
+      SELECT instance_labels
+      FROM app.alert_events
+      WHERE event_type = 'instance_fired'
+    `);
+    expect(
+      rows
+        .map((row) => row.instance_labels as Record<string, string>)
+        .sort((a, b) => a.service.localeCompare(b.service)),
+    ).toEqual([
+      { service: "cart", region: "eu" },
+      { service: "checkout", region: "eu" },
+    ]);
+  });
+
+  it("journals the silence that withheld a transition, and sends nothing", async () => {
+    await insertDirectRule(harness().db, {
+      forSecs: 0,
+      intervalSecs: 60,
+      channelType: "webhook",
+    });
+    const silence = await insertSilence(harness().db);
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
+
+    // The fire is only deferred while the instance is still firing, and a
+    // deferred decision is not a fact yet: nothing reaches ClickHouse. Letting
+    // the breach clear settles the resolve against the same silence, and that
+    // decision is terminal, so it is the one that gets journaled.
+    harness().clickhouse.setSignal([]);
+    harness().advance(60_000);
+    await harness().runDueJobs();
+    harness().advance(60_000);
+    await harness().runDueJobs();
+
+    // The suppression is its own row, correlated to the transition it
+    // withheld. Why nobody was paged has to outlive the silence itself, so
+    // the row freezes the silence's id, comment and matchers rather than
+    // pointing at a row a cleanup will eventually delete.
+    const [suppressed] = harness().clickhouse.queryRows(`
+      SELECT notification_event_id, silenced, silence_id, silence_matchers_json
+      FROM app.alert_events
+      WHERE event_type = 'notification_suppressed'
+    `);
+    expect(suppressed.silenced).toBe(true);
+    expect(suppressed.silence_id).toBe(silence.id);
+    expect(suppressed.silence_matchers_json).toBe(
+      JSON.stringify([{ label: "service", op: "eq", value: "checkout" }]),
+    );
+
+    const [resolved] = harness().clickhouse.queryRows(`
+      SELECT notification_event_id
+      FROM app.alert_events
+      WHERE event_type = 'instance_resolved'
+    `);
+    expect(suppressed.notification_event_id).toBe(
+      resolved.notification_event_id,
+    );
+
+    // Suppressed means nothing went out, not "went out and was marked".
+    expect(
+      harness().clickhouse.queryRows(`
+        SELECT event_type FROM app.alert_events
+        WHERE event_type LIKE 'delivery_%'
+      `),
+    ).toEqual([]);
+  });
+
+  it("leaves the notification chain id on the sentinel for a pending row", async () => {
+    await insertDirectRule(harness().db, {
+      forSecs: 60,
+      intervalSecs: 60,
+      channelType: "webhook",
+    });
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs(); // pending: inside the for window
+    harness().advance(60_000);
+    await harness().fireAndFlush(); // fires, then delivers
+
+    // Only a transition that can be notified about heads a chain. A pending
+    // row carrying a real id would attract the fire's delivery when the two
+    // are paired, and report a breach still inside its for-duration as sent.
+    const byType = new Map(
+      harness()
+        .clickhouse.queryRows(`
+          SELECT event_type, notification_event_id
+          FROM app.alert_events
+          WHERE event_type IN ('instance_pending', 'instance_fired')
+        `)
+        .map((row) => [row.event_type as string, row.notification_event_id]),
+    );
+    expect(byType.get("instance_pending")).toBe(ZERO_UUID);
+    expect(byType.get("instance_fired")).not.toBe(ZERO_UUID);
+  });
+
+  it("stamps an evaluation with the time it was due, not the time it ran", async () => {
+    // A rule that runs late is the normal case under a backlog. The two
+    // timestamps are the only way to tell a late run from a run that was due
+    // late, and a writer that stamped both with `now` would erase the
+    // difference and put the row in the wrong window.
+    const lateBy = 6 * 60 * 60 * 1_000;
+    const dueAt = new Date(Date.now() - lateBy);
+    await insertRule(harness().db, {
+      forSecs: 0,
+      intervalSecs: 60,
+      nextEvaluationAt: dueAt,
+    });
+    harness().clickhouse.setSignal(BREACHING);
+    const ranAt = Date.now();
+    await harness().runDueJobs();
+
+    const [row] = harness().clickhouse.queryRows(`
+      SELECT toUnixTimestamp64Milli(evaluation_scheduled_at) AS due,
+             toUnixTimestamp64Milli(event_time) AS written
+      FROM app.alert_events
+      WHERE event_type = 'evaluation_succeeded'
+    `);
+    expect(Number(row.due)).toBe(dueAt.getTime());
+    expect(Number(row.written)).toBe(ranAt);
+  });
+
+  it("records the error of the rule whose query failed, beside the one that ran", async () => {
+    await insertRule(harness().db, {
+      slug: "mine",
+      forSecs: 0,
+      intervalSecs: 60,
+    });
+    await insertRule(harness().db, {
+      slug: "other",
+      forSecs: 0,
+      intervalSecs: 60,
+      sql: "SELECT * FROM app.no_such_table",
+    });
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
+
+    // Both rules evaluate on the same drain. A failure that was attributed to
+    // the wrong definition, or that stopped the healthy rule from writing its
+    // own row, would show a working rule as broken.
+    const bySlug = new Map(
+      harness()
+        .clickhouse.queryRows(`
+          SELECT slug, event_type, error
+          FROM app.alert_events
+          WHERE event_type IN ('evaluation_succeeded', 'evaluation_failed')
+        `)
+        .map((row) => [row.slug as string, row]),
+    );
+    expect(bySlug.get("default/mine")?.event_type).toBe("evaluation_succeeded");
+    expect(bySlug.get("default/mine")?.error).toBe("");
+    expect(bySlug.get("default/other")?.event_type).toBe("evaluation_failed");
+    expect(bySlug.get("default/other")?.error).not.toBe("");
   });
 });

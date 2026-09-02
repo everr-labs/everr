@@ -1,0 +1,151 @@
+// @vitest-environment node
+
+/**
+ * The writes the Triage screen makes, against a real PostgreSQL.
+ *
+ * The repositories under this module are covered by the pipeline suites, so
+ * these cases assert only what this layer adds on top: the Matcher every
+ * Silence must carry, and the rule resolution that happens before anything is
+ * muted.
+ *
+ * The Organization is `test_org`, not the fixtures' default: the session these
+ * server functions run with comes from the global mock in `src/test-setup.ts`,
+ * and that is the Organization it says is active.
+ */
+import { eq } from "drizzle-orm";
+import { describe, expect, it, vi } from "vitest";
+import { alertSilences } from "@/db/schema";
+import { insertRule } from "@/server/alerting/testing/fixtures";
+import { useAlertingHarness } from "@/server/alerting/testing/harness";
+
+vi.mock("@/db/client", async () => {
+  const { testDb, runInTransaction } = await import(
+    "@/server/alerting/testing/db-proxy"
+  );
+  return { db: testDb, runInTransaction };
+});
+
+vi.mock(
+  "@/lib/clickhouse",
+  async () => import("@/server/alerting/testing/test-clickhouse"),
+);
+
+import { setAlertRulePaused, silenceAlertRule } from "./mutations";
+
+const harness = useAlertingHarness();
+
+/** The Organization the mocked session is acting as. */
+const SESSION_ORG = "test_org";
+
+const PATH = "default/checkout-latency";
+
+async function storedSilence(id: string) {
+  const [row] = await harness()
+    .db.select()
+    .from(alertSilences)
+    .where(eq(alertSilences.id, id));
+  return row;
+}
+
+describe("silencing an Alert rule from the Triage screen", () => {
+  it("scopes the Silence to the rule, never to the label alone", async () => {
+    await insertRule(harness().db, {
+      organizationId: SESSION_ORG,
+      slug: "checkout-latency",
+    });
+
+    const { id } = await silenceAlertRule({
+      data: {
+        path: PATH,
+        durationMinutes: 30,
+        matchers: "host=web-1",
+        comment: "deploying",
+      },
+    });
+
+    // The rule Matcher comes first and is always present. Without it this
+    // Silence would mute host=web-1 across every Alert rule the Organization
+    // has, not one rule on one host.
+    expect((await storedSilence(id)).matchers).toEqual([
+      { label: "rule", op: "eq", value: PATH },
+      { label: "host", op: "eq", value: "web-1" },
+    ]);
+  });
+
+  it("writes a whole-rule Silence when no Matchers were typed", async () => {
+    await insertRule(harness().db, {
+      organizationId: SESSION_ORG,
+      slug: "checkout-latency",
+    });
+
+    const { id } = await silenceAlertRule({
+      data: { path: PATH, durationMinutes: 30, matchers: "", comment: "" },
+    });
+
+    expect((await storedSilence(id)).matchers).toEqual([
+      { label: "rule", op: "eq", value: PATH },
+    ]);
+  });
+
+  it("mutes nothing for a path no Alert rule has", async () => {
+    await insertRule(harness().db, {
+      organizationId: SESSION_ORG,
+      slug: "checkout-latency",
+    });
+
+    await expect(
+      silenceAlertRule({
+        data: {
+          path: "default/no-such-rule",
+          durationMinutes: 30,
+          matchers: "",
+          comment: "",
+        },
+      }),
+    ).rejects.toThrow();
+
+    // The rule is resolved before the Silence is written, so nothing landed.
+    expect(await harness().db.select().from(alertSilences)).toEqual([]);
+  });
+
+  it("refuses a Matcher that is not a pair before it writes anything", async () => {
+    await insertRule(harness().db, {
+      organizationId: SESSION_ORG,
+      slug: "checkout-latency",
+    });
+
+    await expect(
+      silenceAlertRule({
+        data: {
+          path: PATH,
+          durationMinutes: 30,
+          matchers: "host",
+          comment: "",
+        },
+      }),
+    ).rejects.toThrow(/label=value/);
+
+    expect(await harness().db.select().from(alertSilences)).toEqual([]);
+  });
+});
+
+describe("pausing an Alert rule from the Triage screen", () => {
+  it("takes the rule by its path, the only identity the screen knows", async () => {
+    await insertRule(harness().db, {
+      organizationId: SESSION_ORG,
+      slug: "checkout-latency",
+    });
+
+    expect(
+      await setAlertRulePaused({ data: { path: PATH, paused: true } }),
+    ).toEqual({ paused: true });
+  });
+
+  it("pauses nothing for a path no Alert rule has", async () => {
+    await expect(
+      setAlertRulePaused({
+        data: { path: "default/no-such-rule", paused: true },
+      }),
+    ).rejects.toThrow();
+  });
+});

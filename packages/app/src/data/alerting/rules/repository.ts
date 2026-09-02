@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
 import {
@@ -9,8 +8,6 @@ import {
   type Transaction,
 } from "@/db/client";
 import { alertDefinitions, alertInstances } from "@/db/schema";
-import { query } from "@/lib/clickhouse";
-import { clickhouseIsoMillis } from "../history/clickhouse";
 import {
   throwAlertingPersistenceError,
   translateAlertingConflict,
@@ -25,16 +22,16 @@ import {
   AlertingRuleSpecSchema,
   AlertingRuleUpdateSchema,
 } from "../schema";
-import type { AlertingMutationScope } from "../session";
+import {
+  type AlertingActor,
+  type AlertingMutationScope,
+  alertingActorPrincipal,
+} from "../session";
 import type {
   AlertingRuleHealthStatus,
   AlertingRuleInput,
   AlertingRuleUpdate,
 } from "../types";
-import {
-  parseAlertEvaluationSamples,
-  shapeAlertEvaluationSeries,
-} from "./evaluation-series";
 import { closeRuleLifecycle } from "./lifecycle.server";
 
 type RuleRow = typeof alertDefinitions.$inferSelect;
@@ -204,95 +201,6 @@ async function getRuleRow(
   if (!row)
     throwAlertingPersistenceError(404, "not_found", `Rule not found: ${id}`);
   return row;
-}
-
-export async function getRule(organizationId: string, id: string) {
-  const row = await getRuleRow(organizationId, id);
-  return ruleView(row);
-}
-
-// Bounds transfer and server memory for pathological windows: samples_json
-// rides every row, so an uncapped month at a one-minute cadence is tens of
-// thousands of rows. Newest rows win; the shaper reduces further to the
-// display budget.
-const EVALUATION_SERIES_ROW_CAP = 20_000;
-
-// The window is asked for in scheduled time, but only `event_time` is in the
-// partition key and the sort key, so a bound on it is what prunes. An
-// evaluation writes its row within a run of being due, and a day of slack
-// covers any backlog that is not already an incident.
-//
-// Without this, the read falls back to a bloom probe over the tenant's whole
-// evaluation stream, which is two orders of magnitude larger than everything
-// else in the table.
-const EVALUATION_EVENT_TIME_SLACK_MS = 24 * 60 * 60 * 1_000;
-
-export async function getRuleEvaluationSeries(
-  organizationId: string,
-  id: string,
-  opts: { from: Date; to: Date; points: number },
-) {
-  const def = await getRuleRow(organizationId, id);
-  const rows = await query<{
-    scheduledFor: string;
-    eventType: "evaluation_succeeded" | "evaluation_failed";
-    error: string;
-    rowCount: number;
-    samplesJson: string;
-    samplesTruncated: boolean;
-  }>(
-    `
-      SELECT
-        ${clickhouseIsoMillis("evaluation_scheduled_at")} AS scheduledFor,
-        event_type AS eventType,
-        error,
-        row_count AS rowCount,
-        samples_json AS samplesJson,
-        samples_truncated AS samplesTruncated
-      FROM app.alert_events
-      WHERE tenant_id = {organizationId:String}
-        AND repoid = {repoid:String}
-        AND slug = {slug:String}
-        AND event_type IN ('evaluation_succeeded', 'evaluation_failed')
-        AND alert_definition_id = {alertDefinitionId:UUID}
-        AND event_time >= {eventFrom:DateTime64(3)}
-        AND event_time <= {eventTo:DateTime64(3)}
-        AND evaluation_scheduled_at >= {from:DateTime64(3)}
-        AND evaluation_scheduled_at <= {to:DateTime64(3)}
-      ORDER BY evaluation_scheduled_at DESC
-      LIMIT {rowCap:UInt32}
-    `,
-    organizationId,
-    {
-      organizationId,
-      repoid: def.repoid,
-      // The history column holds the qualified name, not the bare slug.
-      slug: ruleName(def),
-      alertDefinitionId: id,
-      from: toClickHouseDateTime(opts.from),
-      to: toClickHouseDateTime(opts.to),
-      eventFrom: toClickHouseDateTime(
-        new Date(opts.from.getTime() - EVALUATION_EVENT_TIME_SLACK_MS),
-      ),
-      eventTo: toClickHouseDateTime(
-        new Date(opts.to.getTime() + EVALUATION_EVENT_TIME_SLACK_MS),
-      ),
-      rowCap: EVALUATION_SERIES_ROW_CAP,
-    },
-  );
-  rows.reverse();
-  return shapeAlertEvaluationSeries(
-    rows.map((row) => ({
-      scheduledFor: new Date(row.scheduledFor),
-      error: row.eventType === "evaluation_failed" ? row.error : null,
-      rowCount:
-        row.eventType === "evaluation_failed" ? null : Number(row.rowCount),
-      samples: parseAlertEvaluationSamples(row.samplesJson),
-      samplesTruncated: Boolean(row.samplesTruncated),
-    })),
-    opts.points,
-    def.spec.condition,
-  );
 }
 
 // instanceFingerprint sorts label keys before hashing, so a reorder of
@@ -536,8 +444,27 @@ export async function deleteRule(
   });
 }
 
+/**
+ * The three columns that record a pause as one fact. Written and cleared
+ * through this pair only, so a later column cannot be added to one path and
+ * forgotten on the other: the table checks that all three agree.
+ */
+function pauseTrailFor(actor: AlertingActor, now: Date) {
+  return {
+    pausedAt: now,
+    pausedByPrincipal: alertingActorPrincipal(actor),
+    pausedBy: actor.display,
+  };
+}
+
+const PAUSE_TRAIL_CLEARED = {
+  pausedAt: null,
+  pausedByPrincipal: null,
+  pausedBy: null,
+} as const;
+
 export async function pauseRule(
-  { organizationId }: AlertingMutationScope,
+  { organizationId, actor }: AlertingMutationScope,
   id: string,
 ) {
   const now = new Date();
@@ -555,6 +482,10 @@ export async function pauseRule(
         firingInstanceCount: 0,
         consecutiveFailures: 0,
         degradedSince: null,
+        // Who took the rule out of evaluation, and when. The journal records
+        // which instances the pause closed, but it has no actor column and
+        // writes nothing at all when the rule had no open instances.
+        ...pauseTrailFor(actor, now),
         updatedAt: now,
       })
       .where(
@@ -602,7 +533,14 @@ export async function resumeRule(
   );
   const [row] = await db
     .update(alertDefinitions)
-    .set({ active: true, nextEvaluationAt, updatedAt: new Date() })
+    .set({
+      active: true,
+      nextEvaluationAt,
+      // The trail names the pause in force, not the last one ever: resuming
+      // clears it so `paused_at` stays non-null exactly while paused.
+      ...PAUSE_TRAIL_CLEARED,
+      updatedAt: new Date(),
+    })
     .where(
       and(
         eq(alertDefinitions.organizationId, organizationId),
