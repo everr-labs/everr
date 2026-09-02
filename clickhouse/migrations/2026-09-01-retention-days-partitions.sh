@@ -65,6 +65,9 @@ run_file init/20-apply-rls.sql
 # declares so both copies match. New parts pick it up, old ones on merge.
 run_sql "ALTER TABLE otel.otel_logs MODIFY COLUMN TimestampTime DateTime DEFAULT toDateTime(Timestamp) CODEC(Delta(4), ZSTD(1))"
 run_sql "SYSTEM RELOAD DICTIONARY app.tenant_retention"
+# A dictionary without the free-tier row would stamp 0 and expire every row of
+# every tenant without its own row at insert. Refuse to finish in that state.
+run_sql "SELECT throwIf(dictGet('app.tenant_retention', 'logs_days', '') = 0, 'free-tier retention row missing or zero; do not resume ingestion')"
 
 echo "done"
 run_sql "SELECT name, partition_key FROM system.tables WHERE database = 'app' AND engine LIKE '%MergeTree%' ORDER BY name FORMAT PrettyCompact"

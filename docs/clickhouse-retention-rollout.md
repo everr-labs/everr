@@ -64,12 +64,13 @@ In `infra-v2/clickhouse_dbops.tf`, at any time:
   that the `web_app_admin` grant exists in Terraform, the dev init script
   grants it in `12-create-alert-events.sql`.
 
-- **Recreate the dictionary with `UInt16` attributes.** `traces_days`,
-  `logs_days` and `metrics_days` are `UInt16` in the source table and in the
-  tables the views stamp; the dictionary still declares `UInt32` on any
-  cluster created before this change. `dictGetOrDefault` accepts a `UInt16`
-  default against a `UInt32` attribute, so nothing breaks in the meantime,
-  but the dictionary definition in Terraform should match `init/10`.
+- **Recreate the dictionary from `init/10`.** Two changes: `traces_days`,
+  `logs_days` and `metrics_days` are `UInt16`, and the source query carries
+  the `throwIf` guard that refuses to load without the free-tier row. A
+  cluster created before this change has neither. `dictGetOrDefault` accepts
+  a `UInt16` default against a `UInt32` attribute, so nothing breaks in the
+  meantime, but without the guard a deleted free-tier row stamps 0 and
+  deletes data silently, so do this before relying on the rebuild.
 - **Add a dictionary check to the deploy.** Run
   `SYSTEM RELOAD DICTIONARY app.tenant_retention` after every change to the
   `web_app_admin` credentials or the dictionary definition, and fail the
@@ -124,10 +125,14 @@ step and not part of the upgrade flow.
 
 ## Failure modes
 
-- **Free-tier row missing.** `dictGet` on the empty key throws when the row
-  is absent, and the views fail the collector's insert with it. `init/10`
-  seeds it and the app rewrites it at start, so this only happens if someone
-  deletes the row by hand. Restore it with the app's free-tier values.
+- **Free-tier row missing.** `dictGet` on a missing key returns 0, not an
+  error, and a 0 stamp expires the row at insert with no error anywhere. To
+  make that impossible the dictionary's source query refuses to load when the
+  empty-tenant row is absent (`throwIf` in `init/10`). A dictionary that never
+  loaded makes every view throw, so the collector's insert fails loudly. On a
+  cluster where it had loaded before, a failed refresh keeps the last good
+  copy, which still holds the row, and `system.dictionaries.last_exception`
+  names the problem. `init/10` seeds the row and the app rewrites it at start.
 - **Dictionary cannot load.** ClickHouse keeps the last good copy when a
   refresh fails, so a broken source only matters when the dictionary has
   never loaded on this server: after a restart with a rotated

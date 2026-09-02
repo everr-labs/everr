@@ -27,6 +27,14 @@ CREATE TABLE IF NOT EXISTS app.tenant_retention_source
 ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY tenant_id;
 
+-- Free-tier row, keyed by the empty tenant id. The views fall back to it for
+-- tenants without a row, and the dictionary below refuses to load without it,
+-- so it is written before the dictionary is created. The app rewrites it from
+-- RETENTION_BY_TIER.free (packages/app/src/lib/retention.ts) at every start,
+-- so that file is the source of truth and these values only bootstrap a fresh
+-- cluster.
+INSERT INTO app.tenant_retention_source (tenant_id, traces_days, logs_days, metrics_days) VALUES ('', 14, 14, 14);
+
 CREATE DICTIONARY IF NOT EXISTS app.tenant_retention
 (
   tenant_id String,
@@ -38,18 +46,15 @@ PRIMARY KEY tenant_id
 SOURCE(CLICKHOUSE(
   user 'web_app_admin'
   password 'web-app-admin-dev'
-  query 'SELECT tenant_id, traces_days, logs_days, metrics_days FROM app.tenant_retention_source FINAL'
+  -- Refuses to load without the free-tier row (tenant_id ''), so the views
+  -- either see that row or fail every insert: dictGet on a missing key
+  -- returns 0, not an error, and a 0 stamp would expire rows at insert. The
+  -- throwIf sits inside a scalar subquery so it runs even when the source
+  -- table is empty; a WHERE on the rows would be skipped in that case.
+  query 'SELECT tenant_id, traces_days, logs_days, metrics_days FROM app.tenant_retention_source FINAL WHERE (SELECT throwIf(count() = 0, \'app.tenant_retention_source has no free-tier row (tenant_id = empty string)\') FROM app.tenant_retention_source FINAL WHERE tenant_id = \'\') = 0'
 ))
 LAYOUT(HASHED())
 LIFETIME(MIN 60 MAX 120);
-
--- Free-tier row, keyed by the empty tenant id. The views fall back to it for
--- tenants without a row, and dictGet on a missing key throws, so it must exist
--- before the first insert. The app rewrites it from RETENTION_BY_TIER.free
--- (packages/app/src/lib/retention.ts) at every start, so that file is the
--- source of truth and these values only bootstrap a fresh cluster.
-INSERT INTO app.tenant_retention_source (tenant_id, traces_days, logs_days, metrics_days) VALUES ('', 14, 14, 14);
-SYSTEM RELOAD DICTIONARY app.tenant_retention;
 
 -- Traces: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.traces
