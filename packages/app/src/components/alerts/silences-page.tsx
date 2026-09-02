@@ -11,16 +11,10 @@ import {
 } from "@/data/alerting/triage/view";
 import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { COLUMN_LABEL } from "./list-columns";
+import { ROW_TARGET } from "./list-row";
 import type { SilenceSeed } from "./silence-dialog";
-import {
-  cancelLabel,
-  cancelTargetFor,
-  isOpen,
-  STATE_META,
-  silenceAgainLabel,
-  spokenSilence,
-  windowBounds,
-} from "./silence-state";
+import { SilenceRowAction, SilenceWindow } from "./silence-row";
+import { isOpen, STATE_META, spokenSilence } from "./silence-state";
 
 /**
  * Measured against the list column rather than the window, the same way the
@@ -97,7 +91,6 @@ function Row({
   onSilenceAgain: (seed: SilenceSeed) => void;
 }) {
   const open = isOpen(row.state);
-  const bounds = windowBounds(row);
   const meta = STATE_META[row.state];
   const action = useRef<HTMLButtonElement>(null);
   // The row the cancel moved is where the reader's attention already is, so
@@ -162,7 +155,7 @@ function Row({
             search={(prev) => ({ ...prev, alert: row.rule ?? undefined })}
             replace
             title={row.rule}
-            className="block truncate text-sm font-medium outline-2 outline-dotted outline-transparent hover:underline focus-visible:outline-primary"
+            className={cn(ROW_TARGET, "block text-sm font-medium")}
           >
             {ruleName(row.rule)}
           </Link>
@@ -187,47 +180,23 @@ function Row({
       {/* Second in the markup so it lands beside the rule on a narrow list,
           last in the table once there are columns to be last of. */}
       <div className="justify-self-end @[52rem]/list:order-last">
-        {open ? (
-          <Button
-            ref={action}
-            size="sm"
-            variant="ghost"
-            className="-my-1"
-            disabled={pending}
-            aria-label={cancelLabel(spoken)}
-            onClick={() => onCancel(cancelTargetFor(row, ruleName))}
-          >
-            Cancel
-          </Button>
-        ) : (
-          <Button
-            ref={action}
-            size="sm"
-            variant="ghost"
-            className="-my-1 font-normal text-muted-foreground"
-            disabled={pending}
-            aria-label={silenceAgainLabel(spoken)}
-            onClick={() =>
-              onSilenceAgain({
-                rule: row.rule,
-                matchers: row.scope,
-                comment: row.comment,
-              })
-            }
-          >
-            Silence again
-          </Button>
-        )}
+        <SilenceRowAction
+          ref={action}
+          record={row}
+          spoken={spoken}
+          ruleName={ruleName}
+          seedRule={null}
+          pending={pending}
+          className="-my-1"
+          onCancel={onCancel}
+          onSilence={onSilenceAgain}
+        />
       </div>
       {/* One wrapped line under the rule while the list is narrow; the table's
           own columns once it is not. `contents` is what lets the same elements
           be both without being written twice. */}
       <div className="col-span-2 flex min-w-0 flex-wrap items-baseline gap-x-3 @[52rem]/list:contents">
-        <span className="truncate font-mono text-xs tabular-nums text-muted-foreground">
-          <time dateTime={bounds.start.iso}>{bounds.start.text}</time>
-          {" → "}
-          <time dateTime={bounds.end.iso}>{bounds.end.text}</time>
-        </span>
+        <SilenceWindow record={row} className="truncate" />
         {/* A dot on the rows that are still open, where it separates active
             from scheduled: two states the accent alone cannot tell apart. */}
         <span className="flex items-baseline gap-1.5 font-mono text-xs tabular-nums">
