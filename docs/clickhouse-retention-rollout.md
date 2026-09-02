@@ -54,12 +54,16 @@ partition. Measured with merges stopped and the threshold lowered to 40,
 writing logs, traces and gauge concurrently: the error fires after 40 inserts
 per table with one tier and after 40 inserts per table with two tiers, with
 40 parts in each `(day, retention)` partition both times. With merges running
-at default thresholds, 12 concurrent inserters writing 6M rows across the
-three tables: one tier finished in 82 s, two tiers in 121 s, both with zero
-rejected or delayed inserts and a peak of 15 active parts in any partition.
-The second tier doubled the parts written and the merges and cost 2.5 times
-the merge CPU. Adding a tier adds merge work and total active parts
-(`PartsActive` and the merge pool on the dashboard), not insert rejections.
+at default thresholds and collector-sized batches (8192 rows, two inserters
+per table, 9.8M rows across logs, traces and gauge): one tier finished in
+51 s, two tiers in 64 s, both with zero rejected or delayed inserts and a peak
+of 14 active parts in any partition. The second tier doubled the parts
+written, raised write amplification from about 2.8x to 3.8x on logs (smaller
+parts are merged more times and compress worse), and doubled the bytes and
+CPU spent merging. Adding a tier adds merge work in proportion, and total
+active parts (`PartsActive` and the merge pool on the dashboard), not insert
+rejections. Larger collector batches (`send_batch_size`) are the lever that
+reduces it, since parts per partition per insert is what drives the cost.
 
 ## Follow-ups in this repo
 
