@@ -61,6 +61,9 @@ run_file init/10-create-mvs.sql
 run_sql "ALTER TABLE app.tenant_retention_source MODIFY COLUMN traces_days UInt16, MODIFY COLUMN logs_days UInt16, MODIFY COLUMN metrics_days UInt16"
 run_file init/12-create-alert-events.sql
 run_file init/20-apply-rls.sql
+# The raw logs table is not rebuilt; give TimestampTime the codec init/03 now
+# declares so both copies match. New parts pick it up, old ones on merge.
+run_sql "ALTER TABLE otel.otel_logs MODIFY COLUMN TimestampTime DateTime DEFAULT toDateTime(Timestamp) CODEC(Delta(4), ZSTD(1))"
 run_sql "SYSTEM RELOAD DICTIONARY app.tenant_retention"
 
 echo "done"
