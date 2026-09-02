@@ -68,7 +68,11 @@ const GROUPS: Group[] = [
       },
       {
         label: "Retention",
-        values: { oss: "7 days", cloud: "90 days", enterprise: "Custom" },
+        values: {
+          oss: "7 days",
+          cloud: "14 or 30 days, 13 months for Pro metrics",
+          enterprise: "Custom",
+        },
       },
       {
         label: "Query surface",

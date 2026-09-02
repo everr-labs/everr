@@ -42,6 +42,22 @@ block per table after the index block; keep those blocks in step with
 `init/03` when the exporter schema changes. The rebuild applies them to
 production because it recreates the tables.
 
+## Parts per insert
+
+A collector block splits into one part per partition it touches, so each
+`app.*` table now writes one part per retention value present in the block
+instead of one per day. With two tiers that is two parts per insert per table,
+and the merge pool has twice as many small parts to fold. What does not
+change is the per-partition insert rate: each partition still receives one
+part per block, and `parts_to_throw_insert` (`TOO_MANY_PARTS`) is enforced per
+partition. Measured with merges stopped and the threshold lowered to 40,
+writing logs, traces and gauge concurrently: the error fires after 40 inserts
+per table with one tier and after 40 inserts per table with two tiers, with
+40 parts in each `(day, retention)` partition both times. With merges running
+at default thresholds, 300 inserts per table in 31 s left at most 5 active
+parts in any partition and delayed nothing. Adding a tier adds merge work and
+total active parts (`PartsActive` on the dashboard), not insert rejections.
+
 ## Follow-ups in this repo
 
 1. **Adding a retention value.** `upsertTenantRetention` takes a tier, so the

@@ -9,28 +9,31 @@ Everr stores your telemetry for a fixed window based on your plan. Once data fal
 
 | Signal | Free | Pro |
 |---|---|---|
-| Traces | 30 days | 90 days |
-| Logs | 30 days | 90 days |
-| Metrics | 30 days | 13 months |
+| Traces | 14 days | 30 days |
+| Logs | 14 days | 30 days |
+| Metrics | 14 days | 13 months |
 
-Each signal type is governed by its own retention window. On the Pro plan, metrics stick around for 13 months, long enough to compare current behavior against the same week or month last year. Traces and logs roll off at 90 days, where the per-event volume is much higher and the long-tail value is lower.
+Each signal type is governed by its own retention window. On the Pro plan, metrics stick around for 13 months, long enough to compare current behavior against the same week or month last year. Traces and logs roll off at 30 days, where the per-event volume is much higher and the long-tail value is lower.
 
 ## When retention changes take effect
 
-When you change plans, the new retention windows start applying within a few minutes. There is no separate migration step.
+Retention is decided when data is ingested. Every event is stored with the retention window of your plan at that moment, and it is removed when that window ends. A plan change reaches the ingestion pipeline within a few minutes, and from then on new data carries the new window. There is no separate migration step.
 
-Retention applies to **all** of your data, not just data ingested after the change:
+Data ingested before the change keeps the window it was stored with:
 
-- **Upgrading.** Your existing data is held for the longer window. Anything that already aged out under the previous plan is gone. We don't restore previously-deleted data when you upgrade.
-- **Downgrading.** Existing data outside the shorter window will be removed in the minutes after the change. If keeping older data matters, export it before downgrading.
+- **Upgrading.** Data ingested after the upgrade is kept for the longer window. Data ingested before it still expires on the previous plan's schedule. On the Free plan that is at most the last 14 days.
+- **Downgrading.** Data ingested before the downgrade stays until its original window ends, up to 30 days (13 months for metrics). Data ingested after the downgrade follows the shorter window. Nothing is removed early.
 
-We chose retroactive retention (rather than grandfathering data ingested under the old plan) because it keeps the rules predictable: at any given moment, your retention is exactly what your current plan says it is. We may revisit this with a grace period for downgrades as the product matures.
+We chose to stamp retention at ingestion (rather than re-evaluate all of your data on every plan change) because it lets us expire data by dropping whole storage segments at once. That keeps the system predictable under load and keeps deletion independent of how many tenants share a cluster. Existing data is never rewritten, so a plan change cannot cause a spike in storage work that slows down queries.
 
 ## How we handle failures
 
-Retention is enforced by background processes. If those processes can't determine the correct window for a tenant (for example, during a transient outage of an internal service), they intentionally fall back to keeping data **longer**, never shorter. Once the issue clears, the system catches up on the next pass.
+Because retention is fixed at ingestion, it does not depend on background processes finding the right window later. The one moving part is the plan lookup during ingestion:
 
-In short: an internal failure may briefly delay deletion of data that should have been removed, but it will not cause data to be deleted earlier than your plan allows.
+- A new organization is on the Free window until its first plan is recorded, which happens at signup.
+- After a plan change, data ingested in the few minutes before the pipeline picks it up carries the previous plan's window.
+
+If the plan lookup itself is unavailable, ingestion stops rather than storing data with a wrong or missing window. Data waits in the collector and is delivered once the lookup is back. An internal failure can delay ingestion, but it cannot cause data to be deleted earlier than the window it was stored with.
 
 ## Custom retention
 
