@@ -10,8 +10,9 @@ const badgeVariants = cva(
       size: {
         default: "h-5 gap-1 text-[0.625rem] [&>svg]:size-2.5!",
         // A chip that sits in running text or a table row, at that text's own
-        // size: the glyph and the word are read together with the line.
-        md: "gap-1.5 text-xs [&>svg]:size-3!",
+        // size and with the row's corner radius rather than a pill's: the
+        // glyph and the word are read together with the line.
+        md: "gap-1.5 rounded-md text-xs [&>svg]:size-3!",
       },
       variant: {
         default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",

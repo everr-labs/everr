@@ -68,7 +68,6 @@ function ruleOptions(rules: AlertRuleOption[]): OptionComboboxItem[] {
     label: rule.name,
     description: <span className="font-mono">{rule.path}</span>,
     group: rule.project,
-    keywords: [rule.name],
   }));
 }
 
@@ -189,6 +188,7 @@ function SilenceForm({
               placeholder={
                 choices.isPending ? "Loading rules…" : "Choose a rule"
               }
+              searchable
               searchPlaceholder="Search rules…"
               emptyMessage="No rule matches."
               onChange={setRulePath}

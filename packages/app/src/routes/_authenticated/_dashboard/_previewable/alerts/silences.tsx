@@ -13,6 +13,7 @@ import {
   alertRuleNamesOptions,
   alertSilencesOptions,
 } from "@/data/alerting/triage/options";
+import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/silences",
@@ -26,7 +27,8 @@ export const Route = createFileRoute(
 const EMPTY_RULE_NAMES = new Map<string, string>();
 
 function AlertingSilencesPage() {
-  const { silence, timeRange, shellProps } = useAlertDetail();
+  const { silence, shellProps } = useAlertDetail();
+  const { timeRange } = useTimeRange();
   const silences = useQuery(alertSilencesOptions(timeRange));
   // A silence stores its rule as a path; every other alerting surface calls
   // that rule by name. The map is built by the query rather than in render, so

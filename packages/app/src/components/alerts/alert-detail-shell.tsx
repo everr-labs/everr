@@ -47,13 +47,6 @@ export const ALERT_PANEL_ROUTE = {
 } as const;
 
 /**
- * Under `lg` there is no width to split: a detail column narrow enough to fit
- * would leave the list unreadable, so the same panel arrives as a sheet
- * instead. The Explore rails move into a sheet at the same width.
- */
-const useAlertPanelIsNarrow = useIsNarrow;
-
-/**
  * Pausing a rule, from wherever its detail is open.
  *
  * Beside the panel rather than on each route for the same reason the silence
@@ -98,9 +91,8 @@ function useEscapeClosesPanel(active: boolean, onClose: () => void) {
 /**
  * Everything a route hosting the panel does with it: which rule is open, how
  * to open and close one, the detail read, the writes the panel offers, and the
- * panel element itself. Triage and Silences had each written this out, forty
- * lines apiece, and the two copies had already begun to disagree on which
- * conditions Escape answers under.
+ * panel element itself. One hook, so both routes open, close and Escape the
+ * panel the same way.
  *
  * `shellProps` spreads onto `AlertDetailShell`; `silence` is the same controls
  * the lists on the route write through, so a silence from a row and one from
@@ -110,9 +102,12 @@ export function useAlertDetail() {
   const navigate = useNavigate();
   // Loose search read: the hook mounts under two routes, and a `from`-bound
   // read would tie it to one of them.
-  const { alert: openPath }: { alert?: string } = useSearch({ strict: false });
+  const { alert: openPath }: Partial<z.infer<typeof ALERT_PANEL_SEARCH>> =
+    useSearch({ strict: false });
   const { timeRange } = useTimeRange();
-  const isNarrow = useAlertPanelIsNarrow();
+  // Under `lg` there is no width to split: a detail column narrow enough to
+  // fit would leave the list unreadable, so the panel arrives as a sheet.
+  const isNarrow = useIsNarrow();
   const detail = useQuery(alertDetailOptions(openPath, timeRange));
   const silence = useSilenceControls();
   const setPaused = useAlertRulePause();
@@ -163,7 +158,6 @@ export function useAlertDetail() {
     openPath: openPath ?? null,
     openAlert,
     silence,
-    timeRange,
     shellProps: { panel, isNarrow, onClosePanel: closePanel },
   };
 }

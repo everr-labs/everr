@@ -8,7 +8,7 @@ import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { Section } from "./detail-section";
 import type { SilenceSeed } from "./silence-dialog";
 import { SilenceRowAction, SilenceWindow } from "./silence-row";
-import { isOpen, STATE_META, windowBounds } from "./silence-state";
+import { isOpen, STATE_META, windowBounds, windowText } from "./silence-state";
 
 /** Active first, then what is coming, then history. Within each group the
  *  server's newest-first order stands, except for scheduled silences, which
@@ -74,7 +74,7 @@ function SilenceRow({
   // Named by its window: every row here belongs to the one rule the panel is
   // open on, so the window is what tells them apart out loud.
   const bounds = windowBounds(record);
-  const spoken = `${bounds.start.text} to ${bounds.end.text}`;
+  const spoken = windowText(bounds);
   // Only the facts this silence actually carries, so the row never prints a
   // placeholder for one it does not. A silence with no matchers is an
   // unnarrowed one, which the row already says by not narrowing it, and "no
@@ -101,7 +101,7 @@ function SilenceRow({
           <span className={cn("shrink-0 text-xs font-medium", meta.text)}>
             {meta.label}
           </span>
-          <SilenceWindow record={record} />
+          <SilenceWindow bounds={bounds} />
           {inForce && (
             <Badge variant="secondary" className="rounded-sm">
               in force

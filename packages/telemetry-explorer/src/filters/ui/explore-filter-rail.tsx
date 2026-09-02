@@ -36,9 +36,7 @@ export function ExploreFilterRail({
   onClear: () => void;
   children: ReactNode;
 }) {
-  // The same width as the `lg:` column rules on the three Explore grids. Below
-  // it there is no space for a 260px rail next to the results, and the rail
-  // moves into a sheet.
+  // Below `lg` there is no space for a 260px rail next to the results.
   const isNarrow = useIsNarrow();
   const [open, setOpen] = useState(false);
 

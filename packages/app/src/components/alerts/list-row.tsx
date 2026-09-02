@@ -2,7 +2,9 @@
  * The row idiom the alerting lists share: the whole row is a pointer
  * convenience that opens the rule, and the rule's name inside it is the real
  * control, so keyboard and screen-reader users get one clear target rather
- * than a click handler they cannot reach.
+ * than a click handler they cannot reach. The target has no handler of its
+ * own: a click on it, from a pointer or from Enter on the focused button,
+ * bubbles to the row, so the row is the one place that opens.
  */
 import { cn } from "@everr/ui/lib/utils";
 
@@ -38,28 +40,18 @@ export function SelectableRow({
   );
 }
 
-/** The row's real control. Stops the click so the row does not open twice. */
+/** The row's real control. Must sit inside a `SelectableRow`. */
 export function RowTarget({
-  onOpen,
   title,
   className,
   children,
 }: {
-  onOpen: () => void;
   title?: string;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      title={title}
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpen();
-      }}
-      className={cn(ROW_TARGET, className)}
-    >
+    <button type="button" title={title} className={cn(ROW_TARGET, className)}>
       {children}
     </button>
   );

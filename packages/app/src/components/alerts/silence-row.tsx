@@ -13,7 +13,7 @@ import {
   cancelTargetFor,
   isOpen,
   silenceAgainLabel,
-  windowBounds,
+  type WindowBounds,
 } from "./silence-state";
 
 /**
@@ -22,13 +22,13 @@ import {
  * needs.
  */
 export function SilenceWindow({
-  record,
+  bounds,
   className,
 }: {
-  record: Pick<AlertSilenceRecord, "startsAt" | "endsAt" | "canceledAt">;
+  /** From `windowBounds`, which the row already computed for its label. */
+  bounds: WindowBounds;
   className?: string;
 }) {
-  const bounds = windowBounds(record);
   return (
     <span
       className={cn(
@@ -95,10 +95,8 @@ export function SilenceRowAction({
       onClick={() =>
         open
           ? // Built in `silence-state`, so every list cancels the same silence
-            // the same way. The detail's list used to substitute the rule the
-            // panel happens to be open on when the silence named none, which
-            // made Undo write a silence scoped to a rule the reader had never
-            // muted.
+            // the same way, and Undo restores only the scope the silence
+            // itself named.
             onCancel(cancelTargetFor(record, ruleName))
           : onSilence({
               rule: record.rule ?? seedRule,

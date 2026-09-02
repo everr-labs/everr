@@ -74,9 +74,7 @@ function TriageRow({
       )}
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <RowTarget onOpen={onOpen} className="text-sm font-medium">
-          {alert.name}
-        </RowTarget>
+        <RowTarget className="text-sm font-medium">{alert.name}</RowTarget>
         {/* The failure code gets its own line rather than sitting beside the
             name: these identifiers are long, and squeezing them onto the name
             line truncates the one word the reader is scanning for. */}

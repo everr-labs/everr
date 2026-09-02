@@ -29,16 +29,13 @@ export interface OptionComboboxItem {
   /** Heading the row is listed under. Groups appear in the order their first
    *  item does; items without one are listed first, unheaded. */
   group?: string;
-  /** What the search matches besides `value`. A row whose visible label is
-   *  not its value wants that label here, or typing it finds nothing. */
-  keywords?: string[];
 }
 
 /**
  * The closed-set sibling of SuggestCombobox: holds exactly one value from a
  * fixed option list, with no free text. Options can carry an icon, menu-only
- * supporting copy and a group heading; a `searchPlaceholder` adds a search
- * field for lists too long to scan.
+ * supporting copy and a group heading; `searchable` adds a search field for
+ * lists too long to scan, matching on the value and on a string label.
  */
 export function OptionCombobox({
   id,
@@ -47,7 +44,8 @@ export function OptionCombobox({
   onChange,
   options,
   placeholder,
-  searchPlaceholder,
+  searchable = false,
+  searchPlaceholder = "Search…",
   emptyMessage = "No match.",
   className,
   disabled,
@@ -61,7 +59,7 @@ export function OptionCombobox({
   options: OptionComboboxItem[];
   /** Muted trigger text while no value is picked. */
   placeholder?: string;
-  /** Given, the menu opens with a search field bearing this placeholder. */
+  searchable?: boolean;
   searchPlaceholder?: string;
   /** What the menu says when a search matches nothing. */
   emptyMessage?: string;
@@ -124,18 +122,20 @@ export function OptionCombobox({
         </PopoverTrigger>
         <PopoverContent align="start" className="w-(--anchor-width) p-0">
           <Command className="p-0">
-            {searchPlaceholder && (
-              <CommandInput placeholder={searchPlaceholder} />
-            )}
+            {searchable && <CommandInput placeholder={searchPlaceholder} />}
             <CommandList>
-              {searchPlaceholder && <CommandEmpty>{emptyMessage}</CommandEmpty>}
+              {searchable && <CommandEmpty>{emptyMessage}</CommandEmpty>}
               {groups.map(([group, items]) => (
                 <CommandGroup key={group ?? ""} heading={group}>
                   {items.map((o) => (
                     <CommandItem
                       key={o.value}
                       value={o.value}
-                      keywords={o.keywords}
+                      // cmdk matches the value alone; the word on the row is
+                      // what a reader types.
+                      keywords={
+                        typeof o.label === "string" ? [o.label] : undefined
+                      }
                       data-checked={o.value === value || undefined}
                       onSelect={() => {
                         onChange(o.value);

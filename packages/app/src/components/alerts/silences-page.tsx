@@ -14,7 +14,12 @@ import { COLUMN_LABEL } from "./list-columns";
 import { ROW_TARGET } from "./list-row";
 import type { SilenceSeed } from "./silence-dialog";
 import { SilenceRowAction, SilenceWindow } from "./silence-row";
-import { isOpen, STATE_META, spokenSilence } from "./silence-state";
+import {
+  isOpen,
+  STATE_META,
+  spokenSilence,
+  windowBounds,
+} from "./silence-state";
 
 /**
  * Measured against the list column rather than the window, the same way the
@@ -91,6 +96,7 @@ function Row({
   onSilenceAgain: (seed: SilenceSeed) => void;
 }) {
   const open = isOpen(row.state);
+  const bounds = windowBounds(row);
   const meta = STATE_META[row.state];
   const action = useRef<HTMLButtonElement>(null);
   // The row the cancel moved is where the reader's attention already is, so
@@ -196,7 +202,7 @@ function Row({
           own columns once it is not. `contents` is what lets the same elements
           be both without being written twice. */}
       <div className="col-span-2 flex min-w-0 flex-wrap items-baseline gap-x-3 @[52rem]/list:contents">
-        <SilenceWindow record={row} className="truncate" />
+        <SilenceWindow bounds={bounds} className="truncate" />
         {/* A dot on the rows that are still open, where it separates active
             from scheduled: two states the accent alone cannot tell apart. */}
         <span className="flex items-baseline gap-1.5 font-mono text-xs tabular-nums">

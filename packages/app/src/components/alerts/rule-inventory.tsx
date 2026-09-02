@@ -96,9 +96,7 @@ export function RuleInventory({
             <StatusIcon status={row.state} className="size-3.5" />
             {/* The same panel the triage rows open, at the same URL. A rule
                 has one detail view, whichever list you reached it from. */}
-            <RowTarget onOpen={() => onOpen(row.path)} title={row.path}>
-              {row.name}
-            </RowTarget>
+            <RowTarget title={row.path}>{row.name}</RowTarget>
           </div>
           <div className="hidden @[44rem]/list:block">
             {history ? (

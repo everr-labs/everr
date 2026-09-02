@@ -2,7 +2,7 @@ import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { memo, useMemo } from "react";
-import { formatElapsed } from "@/data/alerting/triage/format";
+import { formatAgoPhrase, formatElapsed } from "@/data/alerting/triage/format";
 import type {
   ChartWindow,
   InstanceValueSeries,
@@ -25,14 +25,6 @@ const SEGMENT_STATES: RuleStateSegment["state"][] = [
   "silenced",
   "degraded",
 ];
-
-/** "3d 4h ago", or the bare "just now", which takes no suffix. The same
- *  elapsed formatter the rest of the feature prints with, so the description
- *  and the tooltip cannot call one stretch two different lengths. */
-function startedAgo(minutes: number) {
-  const elapsed = formatElapsed(minutes * 60_000);
-  return elapsed === "just now" ? elapsed : `${elapsed} ago`;
-}
 
 /**
  * One rule's state over the selected window, as a chart rather than a
@@ -84,7 +76,7 @@ export const RuleStateChart = memo(function RuleStateChart({
         : `${name}: ${visible
             .map(
               (s) =>
-                `${STATUS_META[s.state].label.toLowerCase()} for ${formatElapsed(s.minutes * 60_000)} starting ${startedAgo(s.from)}`,
+                `${STATUS_META[s.state].label.toLowerCase()} for ${formatElapsed(s.minutes * 60_000)} starting ${formatAgoPhrase(s.from * 60_000)}`,
             )
             .join(", ")}`,
     [visible, name],

@@ -16,6 +16,7 @@ import {
   alertTriageOptions,
   ruleStateHistoryOptions,
 } from "@/data/alerting/triage/options";
+import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/",
@@ -52,8 +53,8 @@ function TriageSkeleton() {
 }
 
 function AlertingTriagePage() {
-  const { openPath, openAlert, silence, timeRange, shellProps } =
-    useAlertDetail();
+  const { openPath, openAlert, silence, shellProps } = useAlertDetail();
+  const { timeRange } = useTimeRange();
   const triage = useQuery(alertTriageOptions(timeRange));
   const history = useQuery(ruleStateHistoryOptions(timeRange));
 
@@ -71,9 +72,7 @@ function AlertingTriagePage() {
 
   const alerts = triage.data?.alerts ?? [];
   const rules = triage.data?.rules ?? [];
-  const silenceAlert = silence.seed
-    ? alerts.find((a) => a.path === silence.seed?.rule)
-    : undefined;
+  const silenceAlert = alerts.find((a) => a.path === silence.seed?.rule);
 
   if (!triage.isPending && rules.length === 0) {
     return (

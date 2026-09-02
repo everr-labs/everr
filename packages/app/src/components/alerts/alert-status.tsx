@@ -132,7 +132,7 @@ export function StatusChip({
   children: React.ReactNode;
 }) {
   return (
-    <Badge variant="outline" size="md" className="rounded-md bg-input/40">
+    <Badge variant="outline" size="md">
       <StatusIcon status={status} className="text-muted-foreground" />
       {children}
     </Badge>

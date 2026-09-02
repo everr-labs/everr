@@ -110,13 +110,11 @@ const GROUPED: OptionComboboxItem[] = [
     value: "demo/always-firing",
     label: "Always firing",
     group: "demo",
-    keywords: ["Always firing"],
   },
   {
     value: "checkout/latency",
     label: "Checkout latency",
     group: "checkout",
-    keywords: ["Checkout latency"],
   },
 ];
 
@@ -146,6 +144,7 @@ it("finds a rule by its label, not only its value, when searchable", async () =>
       value={null}
       onChange={vi.fn()}
       options={GROUPED}
+      searchable
       searchPlaceholder="Search rules…"
       emptyMessage="No rule matches."
     />,

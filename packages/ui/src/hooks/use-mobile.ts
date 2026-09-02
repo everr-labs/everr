@@ -7,9 +7,9 @@ export function useIsMobile() {
 }
 
 /**
- * Below Tailwind's `lg`. The width under which a page cannot afford a second
- * column beside its main one: the Explore rails move into a sheet here, and so
- * does the alerting detail panel. One number, so the two cannot drift apart.
+ * Below Tailwind's `lg` (1024px): the width under which a page cannot afford a
+ * second column beside its main one, and a rail or a detail column becomes a
+ * sheet. Callers pairing this with `lg:` classes read the same number.
  */
 const NARROW_BREAKPOINT = 1024;
 
