@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
+import { ALLOWED_RETENTION_DAYS } from "@/lib/retention";
 import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
 
 // The client default of 2500ms forces a fresh TLS handshake on most queries
@@ -172,12 +173,22 @@ type AdminCommandOptions = Omit<
   "query"
 >;
 
+// Every distinct retention value keeps that many live (day, retention_days)
+// partitions per app.* table, so only values from the allowed set may reach
+// the dictionary the views stamp rows from.
 export async function upsertTenantRetention(row: {
   tenantId: string;
   tracesDays: number;
   logsDays: number;
   metricsDays: number;
 }): Promise<void> {
+  for (const days of [row.tracesDays, row.logsDays, row.metricsDays]) {
+    if (!ALLOWED_RETENTION_DAYS.includes(days)) {
+      throw new Error(
+        `Retention of ${days} days is not in the allowed set: ${ALLOWED_RETENTION_DAYS.join(", ")}`,
+      );
+    }
+  }
   await instrumentClickhouseOperation(
     { client: "admin", operation: "INSERT" },
     () =>

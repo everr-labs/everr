@@ -7,27 +7,22 @@ a `retention_days` column stamped on every row. Tables partition by
 rewriting parts. A retention change applies to rows ingested after the change;
 existing rows keep the retention they were stamped with.
 
-Schema: `clickhouse/init/05-create-retention-function.sql`,
-`clickhouse/init/10-create-mvs.sql`, `clickhouse/init/12-create-alert-events.sql`.
+Schema: `clickhouse/init/10-create-mvs.sql`,
+`clickhouse/init/12-create-alert-events.sql`.
 Rebuild for existing clusters: `clickhouse/migrations/2026-09-01-retention-days-partitions.sh`.
 
 ## Follow-ups in this repo
 
-1. **Settle the retention values.** `everrRetentionDays` accepts
-   `7, 14, 30, 90, 365, 395`: the union of the current tiers in
-   `packages/app/src/lib/retention.ts` (7/7/14 free, 90/90/395 pro) and the
-   proposed 14/30/90 (logs, traces) and 14/30/90/365 (metrics). Once the tiers
-   are final, trim the set in `05-create-retention-function.sql` and keep
-   `retention.ts` a subset of it. Every value costs that many daily partitions
-   per table, so the sum of the set is the partition budget: about 134 per
-   logs and traces table and 499 per metrics table with the proposed tiers.
-2. **Optional: fold the stamp expression into the UDF.** The eight call sites
-   repeat `everrRetentionDays(dictGetOrDefault('app.tenant_retention', '<attr>', <tenant>, toUInt32(<fallback>)))`.
-   A two-argument `everrRetentionDays(attribute, tenant_id)` that owns the
-   dictionary name and the free-tier fallback removes the repetition. Verify on
-   a container that the constant attribute name reaches `dictGetOrDefault` as
-   a literal through the lambda substitution before switching.
-3. **Optional: shorten `otel.*` retention.** The raw tables keep 7 days with
+1. **Settle the retention values.** `ALLOWED_RETENTION_DAYS` in
+   `packages/app/src/lib/retention.ts` accepts `7, 14, 30, 90, 365, 395`:
+   the union of the current tiers (7/7/14 free, 90/90/395 pro) and the
+   proposed 14/30/90 (logs, traces) and 14/30/90/365 (metrics). Once the
+   tiers are final, trim the set. `upsertTenantRetention` rejects values
+   outside it, which is the only guard: every value costs that many daily
+   partitions per table, so the sum of the set is the partition budget,
+   about 134 per logs and traces table and 499 per metrics table with the
+   proposed tiers.
+2. **Optional: shorten `otel.*` retention.** The raw tables keep 7 days with
    their own TTL, and nothing reads them except the views at insert time.
    A shorter window halves the storage of every row. Separate decision.
 
@@ -67,8 +62,8 @@ The app needs no change for the rebuild, so the order is: schema, then app
    ```
 
    What it does: drops the materialized views, renames every `app.*` data
-   table to `app.<name>_old` in one statement, re-runs `init/05`, `init/10`,
-   `init/12` and `init/20`, backfills each table from its `_old` copy with the
+   table to `app.<name>_old` in one statement, re-runs `init/10`, `init/12`
+   and `init/20`, backfills each table from its `_old` copy with the
    tenant's current retention, and prints the partition and part counts.
    `KEEP_OLD=1` skips the final drop so the copies can be checked first.
 

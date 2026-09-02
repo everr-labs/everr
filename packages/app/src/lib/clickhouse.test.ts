@@ -52,6 +52,7 @@ import {
   query,
   querySqlApi,
   querySqlApiWithMeta,
+  upsertTenantRetention,
 } from "./clickhouse";
 
 const ORG = "org42";
@@ -146,6 +147,38 @@ describe("querySqlApiWithMeta", () => {
       auth: { username: ORG_USER, password: ORG_PASSWORD },
       http_headers: { "X-ClickHouse-Quota": ORG_USER },
     });
+  });
+});
+
+describe("upsertTenantRetention", () => {
+  it("writes the retention row through the admin client", async () => {
+    await upsertTenantRetention({
+      tenantId: ORG,
+      tracesDays: 90,
+      logsDays: 90,
+      metricsDays: 395,
+    });
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        table: "app.tenant_retention_source",
+        values: [
+          { tenant_id: ORG, traces_days: 90, logs_days: 90, metrics_days: 395 },
+        ],
+      }),
+    );
+  });
+
+  it("rejects a retention outside the allowed set without writing", async () => {
+    await expect(
+      upsertTenantRetention({
+        tenantId: ORG,
+        tracesDays: 90,
+        logsDays: 42,
+        metricsDays: 395,
+      }),
+    ).rejects.toThrow("allowed set");
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 });
 

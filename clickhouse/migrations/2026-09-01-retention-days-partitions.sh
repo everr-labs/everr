@@ -63,7 +63,6 @@ done
 run_sql "RENAME TABLE ${rename}"
 
 echo "3/5 recreate tables and views from init/"
-run_file init/05-create-retention-function.sql
 run_file init/10-create-mvs.sql
 run_file init/12-create-alert-events.sql
 run_file init/20-apply-rls.sql
@@ -73,7 +72,7 @@ echo "4/5 backfill"
 # retention_days at the end, so a positional INSERT ... SELECT *, <stamp> lines
 # up. The stamp reads the dictionary the same way the views do.
 stamp() { # $1 = dictionary attribute, $2 = free-tier fallback
-  echo "everrRetentionDays(dictGetOrDefault('app.tenant_retention', '$1', tenant_id, toUInt32($2)))"
+  echo "toUInt16(dictGetOrDefault('app.tenant_retention', '$1', tenant_id, toUInt32($2)))"
 }
 run_sql "SYSTEM RELOAD DICTIONARY app.tenant_retention"
 # alert_events first: its logs projection view is live again, so the backfill

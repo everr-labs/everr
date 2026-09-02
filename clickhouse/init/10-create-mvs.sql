@@ -4,8 +4,9 @@
 -- and the TTL is `day + retention_days` with ttl_only_drop_parts = 1. Every
 -- row in a partition expires on the same day, so ClickHouse drops whole parts
 -- and never rewrites one to expire a single tenant. A retention change applies
--- to rows ingested from that point on. See 05-create-retention-function.sql
--- for the bounded value set.
+-- to rows ingested from that point on. Every distinct retention value costs
+-- that many live partitions per table, so the app only writes values from
+-- ALLOWED_RETENTION_DAYS (packages/app/src/lib/retention.ts).
 --
 -- Only the views write these tables. A direct INSERT that omits retention_days
 -- gets 0, and `day + 0` is already past, so the TTL drops the rows at insert.
@@ -73,7 +74,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'traces_days', ResourceAttributes['everr.tenant.id'], toUInt32(7))) AS retention_days
+  toUInt16(dictGetOrDefault('app.tenant_retention', 'traces_days', ResourceAttributes['everr.tenant.id'], toUInt32(7))) AS retention_days
 FROM otel.otel_traces;
 
 -- Logs: tenant-enriched read table + MV
@@ -108,7 +109,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'logs_days', ResourceAttributes['everr.tenant.id'], toUInt32(7))) AS retention_days
+  toUInt16(dictGetOrDefault('app.tenant_retention', 'logs_days', ResourceAttributes['everr.tenant.id'], toUInt32(7))) AS retention_days
 FROM otel.otel_logs;
 
 -- Metrics (Gauge): tenant-enriched read table + MV
@@ -141,7 +142,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
+  toUInt16(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
 FROM otel.otel_metrics_gauge;
 
 -- Metrics (Sum): tenant-enriched read table + MV
@@ -174,7 +175,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
+  toUInt16(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
 FROM otel.otel_metrics_sum;
 
 -- Metrics (Histogram): tenant-enriched read table + MV
@@ -207,7 +208,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
+  toUInt16(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
 FROM otel.otel_metrics_histogram;
 
 -- Metrics (Exponential Histogram): tenant-enriched read table + MV
@@ -240,7 +241,7 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
+  toUInt16(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
 FROM otel.otel_metrics_exponential_histogram;
 
 -- Metrics (Summary): tenant-enriched read table + MV
@@ -273,5 +274,5 @@ AS
 SELECT
   *,
   ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  everrRetentionDays(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
+  toUInt16(dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], toUInt32(14))) AS retention_days
 FROM otel.otel_metrics_summary;
