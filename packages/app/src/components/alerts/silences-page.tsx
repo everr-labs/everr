@@ -35,13 +35,14 @@ import {
  * window, the state and the action all print content of a known width, and
  * giving them a share of the slack only pushed them away from each other.
  *
- * Baselines at the wide tier, centres at the narrow one. The identity cell
- * runs to three lines when a silence carries matchers, an author and a
- * comment, and centring made the row's other four cells hang 9 to 18px below
- * the rule name they belong to, so the line a reader scans along bent by row.
+ * Centred at both tiers. The identity cell is two lines on nearly every row
+ * (three when a silence carries matchers, an author and a comment), and
+ * baseline alignment left the date, state and action riding the top line
+ * with the row's bottom half empty beside them. Centring keeps the four cells
+ * at the row's middle, which is where the eye lands on a two-line row.
  */
 const COLUMNS_BASE =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 @[52rem]/list:items-baseline";
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5";
 
 /** Both templates, resolved once for the process rather than per row per
  *  render: `impact` has two values, and `cn` runs tailwind-merge. */
@@ -58,15 +59,6 @@ const COLUMNS = {
 
 const columns = (impact: boolean) =>
   impact ? COLUMNS.withImpact : COLUMNS.withoutImpact;
-
-/**
- * The header bar's height, declared once and read from both ends of the sticky
- * stack: the bar sets it, the group headings park at it. Declared rather than
- * measured, so neither can drift into the other and open a transparent sliver
- * for rows to travel through.
- */
-const HEADER_HEIGHT = "[--head-h:2.75rem]";
-const STICKY_HEADING_TOP = "top-(--head-h)";
 
 /** "ends in 2h 10m" for a silence that is muting, "starts in 4h" for one that
  *  will; a closed one just says which way it closed. */
@@ -264,29 +256,6 @@ function Row({
 }
 
 /**
- * The one control the page offers, on a bar of its own above the list.
- *
- * Sticky, because the list runs long and the way to write a silence should not
- * be something a reader has to scroll back up to find. Right-aligned on the
- * same `px-3` the rows use, so it sits over the buttons that end silences.
- */
-function ListHeader({ action }: { action: React.ReactNode }) {
-  return (
-    // `h` rather than padding, because the group headings park at exactly this
-    // height and read it from the same token.
-    //
-    // The height is the page's top air as well: `fullBleed` traded away the
-    // page container's padding, and padding on the scroll container would sit
-    // inside the scroll port, where rows travel through it unpainted and
-    // surface above the very bar meant to cover them. Held here, that space is
-    // opaque and travels with the bar.
-    <div className="sticky top-0 z-20 flex h-(--head-h) items-center justify-end bg-background px-3">
-      {action}
-    </div>
-  );
-}
-
-/**
  * The band that names a group and counts it.
  *
  * Both groups get one, and they are built the same, because the seam between
@@ -294,40 +263,47 @@ function ListHeader({ action }: { action: React.ReactNode }) {
  * A group marked only by a two-pixel rule on its rows was invisible at a
  * glance, which is the only distance this page is read from.
  *
- * Sticky under the strip, and each inside its own wrapper, so a group's name
- * stays on screen for exactly as long as its rows do and the next one takes
- * over rather than piling on top.
+ * Sticky at the top, and each inside its own wrapper, so a group's name stays
+ * on screen for exactly as long as its rows do and the next one takes over
+ * rather than piling on top.
+ *
+ * The band can carry a control at its right end. The page's one control, the
+ * way to write a silence, sits on the Active band: over the buttons that end
+ * silences, and at the head of the group a new silence would join.
  */
 function GroupHeading({
   id,
   label,
   count,
   hint,
+  action,
 }: {
   id: string;
   label: string;
   count?: string;
   /** Only for what the reader cannot see from the rows. */
   hint: string;
+  action?: React.ReactNode;
 }) {
   return (
     // The opaque layer is the sticky one: the band's own tint is translucent,
     // and translucent over scrolling rows smears them.
-    <div className={cn("sticky z-10 bg-background", STICKY_HEADING_TOP)}>
-      {/* `px-3` on the same edge the rows and the strip use, so the three
-          headings the page stacks all start on one left edge. */}
-      <h2
-        id={id}
-        className="flex items-baseline gap-2 border-t bg-muted/20 px-3 py-1.5"
-      >
-        <span className={COLUMN_LABEL}>{label}</span>
-        {count && (
-          <span className="font-mono text-xs tabular-nums text-muted-foreground">
-            {count}
-          </span>
-        )}
-        <span className="text-xs text-muted-foreground">{hint}</span>
-      </h2>
+    <div className="sticky top-0 z-10 bg-background">
+      {/* `px-3` on the same edge the rows use, so the headings and the rows
+          all start on one left edge. `h-9` on both bands, so the one without
+          a control stands as tall as the one with. */}
+      <div className="flex h-9 items-center justify-between gap-3 bg-muted/20 px-3">
+        <h2 id={id} className="flex items-baseline gap-2">
+          <span className={COLUMN_LABEL}>{label}</span>
+          {count && (
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">
+              {count}
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground">{hint}</span>
+        </h2>
+        {action}
+      </div>
     </div>
   );
 }
@@ -355,17 +331,16 @@ function LoadingRows() {
  * The page is ordered by consequence: the silences still muting lead, behind
  * an accent rule, and the divider marks where evidence begins. Sections were
  * tried and dropped. Two headed groups over one column grid read as a single
- * table with a stray subhead in it, and the header strip had to be drawn twice
- * to serve both, which is what made the seam invisible in the first place. One
- * grid, one strip, one scan; position carries the rest.
+ * table with a stray subhead in it. One grid, one scan; position carries the
+ * rest.
  *
  * The list is the control surface at the top and evidence below it, and the
  * time range bounds only the second, which the divider says and the rows above
  * it do not have to.
  *
  * No page header: the shell's breadcrumb already names the screen, so the
- * list's own heading is the document's h1 and the one action it carries sits
- * beside it.
+ * list's own heading is the document's h1 and the one action sits on the
+ * Active band.
  */
 export function SilencesPage({
   silences,
@@ -383,7 +358,9 @@ export function SilencesPage({
   /** A silence write is in flight; every silence control goes inert. */
   pending: boolean;
   onNew: () => void;
-  onCancel: (target: SilenceCancelTarget) => void;
+  /** `onFailed` runs when the write is refused, so a claim staked on the row
+   *  moving is given back rather than left armed. */
+  onCancel: (target: SilenceCancelTarget, onFailed?: () => void) => void;
   onSilenceAgain: (seed: SilenceSeed) => void;
 }) {
   // One reading of the clock per render, so two rows cannot disagree about
@@ -397,6 +374,22 @@ export function SilencesPage({
   const [focusSilenceId, setFocusSilenceId] = useState<string | null>(null);
   const loading = silences === null;
   const rows = silences ?? [];
+  // A claim no row can honour is given back. The row it names is normally the
+  // one that just moved down the list, but a cancel can also take it out of
+  // the read: the range bounds the closed rows, so cancelling an active
+  // silence while the reader is looking at last week drops it entirely. Kept,
+  // the claim would sit armed until that row happened to be listed again and
+  // then pull focus out of wherever the reader had it.
+  //
+  // Released in render rather than from an effect: React restarts the render
+  // at once, so the list never commits with a claim it cannot spend.
+  if (
+    focusSilenceId !== null &&
+    silences !== null &&
+    !silences.some((r) => r.id === focusSilenceId)
+  ) {
+    setFocusSilenceId(null);
+  }
   // Every silence this app writes starts at `now`, so `scheduled` has no way
   // to exist. Open rows lead the list whichever they are; should scheduling
   // ever ship, an unstarted row still lands above the divider and still says
@@ -404,7 +397,7 @@ export function SilencesPage({
   const open = rows.filter((row) => isOpen(row.state));
   const closed = rows.filter((row) => !isOpen(row.state));
   const ruleName = (path: string) => ruleNames.get(path) ?? path;
-  // One strip serves the whole list, so one row anywhere with an impact is
+  // One grid serves the whole list, so one row anywhere with an impact is
   // what earns the column.
   const impact = rows.some((row) => row.impact);
   // The read stops at its cap, so the count stops being a total. Saying `200+`
@@ -433,88 +426,95 @@ export function SilencesPage({
       onFocused={setFocusSilenceId}
       onCancel={(target) => {
         setFocusSilenceId(target.id);
-        onCancel(target);
+        // The claim is only good for a row that moves. A refused cancel
+        // leaves the row open and where it was, holding the claim past the
+        // act that made it: the row's own effect cannot release it, because
+        // it releases on having moved.
+        onCancel(target, () =>
+          setFocusSilenceId((id) => (id === target.id ? null : id)),
+        );
       }}
       onSilenceAgain={onSilenceAgain}
     />
   );
 
   return (
-    <div className={cn("@container/list", HEADER_HEIGHT)}>
+    <div className="@container/list">
       {/* The topnav breadcrumb is the visible title. This is the document's,
           so the page is not a screen of h2s under nothing, and the list itself
           does not repeat a word the shell already said. */}
       <h1 className="sr-only">Silences</h1>
 
-      {/* Always drawn, whatever the list holds and whatever is loading: it
-          carries the one way to write a silence, and a page with nothing on it
-          is exactly when that has to be reachable. */}
-      <ListHeader
-        action={
-          <Button size="sm" disabled={pending} onClick={onNew}>
-            <Plus className="size-4" />
-            New silence
-          </Button>
-        }
-      />
-
       {/* Each group is its own sticky context, so its heading stays for
-          exactly as long as its rows and the next one replaces it. */}
-      <div>
-        <GroupHeading
-          id="silences-active"
-          label="Active"
-          count={activeCount}
-          // The range bounds history and not this: a silence muting right now
-          // is muting whatever window the reader happens to be looking at.
-          hint="now"
-        />
-        {loading ? (
-          <LoadingRows />
-        ) : open.length === 0 ? (
-          <p className="border-t px-3 py-3 text-sm text-muted-foreground">
-            {/* Said to the only reader who needs telling: the one who has never
+          exactly as long as its rows and the next one replaces it. The rule
+          between them is the wrapper's, not a band's: the first band sits
+          under the shell's own rule, and a rule drawn on a band would ride
+          with it and double that one whenever the band is stuck. */}
+      <div className="divide-y">
+        <div>
+          <GroupHeading
+            id="silences-active"
+            label="Active"
+            count={activeCount}
+            // The range bounds history and not this: a silence muting right now
+            // is muting whatever window the reader happens to be looking at.
+            hint="now"
+            // Always drawn, whatever the list holds and whatever is loading: a
+            // page with nothing on it is exactly when this has to be reachable.
+            action={
+              <Button size="sm" disabled={pending} onClick={onNew}>
+                <Plus className="size-4" />
+                New silence
+              </Button>
+            }
+          />
+          {loading ? (
+            <LoadingRows />
+          ) : open.length === 0 ? (
+            <p className="border-t px-3 py-3 text-sm text-muted-foreground">
+              {/* Said to the only reader who needs telling: the one who has never
                 made a silence. Once the org has history, "nothing is silenced"
                 is the whole fact, and the definition is a lecture to somebody
                 who just cancelled one. */}
-            {closed.length === 0 ? (
-              <span className="block max-w-prose">
-                Nothing is silenced. A silence stops a rule's notifications
-                without stopping the rule.{" "}
-                <a
-                  href="https://everr.dev/docs/guides/set-up-notifications"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline underline-offset-2 hover:text-foreground"
-                >
-                  Learn more
-                </a>
-              </span>
-            ) : (
-              "Nothing is silenced."
-            )}
-          </p>
-        ) : (
-          <ul aria-labelledby="silences-active">{open.map(row)}</ul>
-        )}
-      </div>
+              {closed.length === 0 ? (
+                <span className="block max-w-prose">
+                  Nothing is silenced. A silence stops a rule's notifications
+                  without stopping the rule.{" "}
+                  <a
+                    href="https://everr.dev/docs/guides/set-up-notifications"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    Learn more
+                  </a>
+                </span>
+              ) : (
+                "Nothing is silenced."
+              )}
+            </p>
+          ) : (
+            <ul aria-labelledby="silences-active">{open.map(row)}</ul>
+          )}
+        </div>
 
-      <div>
-        <GroupHeading
-          id="silences-history"
-          label="History"
-          count={historyCount}
-          hint="in range"
-        />
-        {loading ? (
-          <LoadingRows />
-        ) : closed.length === 0 ? (
-          <p className="border-t px-3 py-3 text-sm text-muted-foreground">
-            No silence closed in the selected time range.
-          </p>
-        ) : (
-          <ul aria-labelledby="silences-history">{closed.map(row)}</ul>
-        )}
+        <div>
+          <GroupHeading
+            id="silences-history"
+            label="History"
+            count={historyCount}
+            hint="in range"
+          />
+          {loading ? (
+            <LoadingRows />
+          ) : closed.length === 0 ? (
+            <p className="border-t px-3 py-3 text-sm text-muted-foreground">
+              No silence closed in the selected time range.
+            </p>
+          ) : (
+            <ul aria-labelledby="silences-history">{closed.map(row)}</ul>
+          )}
+        </div>
       </div>
     </div>
   );

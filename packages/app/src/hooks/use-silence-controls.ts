@@ -78,10 +78,15 @@ export function useSilenceControls() {
    * a cancel from the triage board and one from the Silences page must read
    * the same.
    */
-  const cancel = (target: SilenceCancelTarget) =>
+  const cancel = (target: SilenceCancelTarget, onFailed?: () => void) =>
     cancelSilence.mutate(
       { data: { id: target.id } },
       {
+        // The message is the mutation's; this is for a caller that staked
+        // something on the cancel landing and has to take it back. A screen
+        // cannot see the failure any other way: the row comes back exactly as
+        // it went in.
+        onError: () => onFailed?.(),
         onSuccess: async () => {
           const { restore } = target;
           // Measured before the refetch, not after: the window Undo restores
@@ -130,7 +135,8 @@ export function useSilenceControls() {
   // dialog. Both stay behind `cancel`, `pending` and `dialogProps`.
   return {
     /** Cancel one silence, named, with an Undo where the caller knows enough
-     *  to write it again. Every screen cancels through this. */
+     *  to write it again. Every screen cancels through this. `onFailed` runs
+     *  when the write is refused, for a caller holding something on it. */
     cancel,
     /** A write is in flight; every silence control on the screen goes inert. */
     pending: silence.isPending || cancelSilence.isPending,
