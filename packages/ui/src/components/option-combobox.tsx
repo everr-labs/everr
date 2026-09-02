@@ -3,10 +3,18 @@ import {
   type ComponentType,
   type ReactNode,
   type SVGProps,
+  useMemo,
   useState,
 } from "react";
 import { Button } from "./button";
-import { Command, CommandGroup, CommandItem, CommandList } from "./command";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "./command";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
 /** One closed-set choice with an optional explanation for the menu row. */
@@ -18,12 +26,19 @@ export interface OptionComboboxItem {
   description?: ReactNode;
   /** Any svg-props component: lucide icons and inlined brand marks alike. */
   icon?: ComponentType<SVGProps<SVGSVGElement>>;
+  /** Heading the row is listed under. Groups appear in the order their first
+   *  item does; items without one are listed first, unheaded. */
+  group?: string;
+  /** What the search matches besides `value`. A row whose visible label is
+   *  not its value wants that label here, or typing it finds nothing. */
+  keywords?: string[];
 }
 
 /**
  * The closed-set sibling of SuggestCombobox: holds exactly one value from a
- * fixed option list, with no free text and no search. Options can carry an
- * icon and menu-only supporting copy.
+ * fixed option list, with no free text. Options can carry an icon, menu-only
+ * supporting copy and a group heading; a `searchPlaceholder` adds a search
+ * field for lists too long to scan.
  */
 export function OptionCombobox({
   id,
@@ -32,22 +47,41 @@ export function OptionCombobox({
   onChange,
   options,
   placeholder,
+  searchPlaceholder,
+  emptyMessage = "No match.",
   className,
   disabled,
 }: {
   id?: string;
   /** Accessible name for the trigger when no <Label htmlFor={id}> names it. */
   label?: string;
-  value: string;
+  /** `null` while nothing is picked. */
+  value: string | null;
   onChange: (value: string) => void;
   options: OptionComboboxItem[];
   /** Muted trigger text while no value is picked. */
   placeholder?: string;
+  /** Given, the menu opens with a search field bearing this placeholder. */
+  searchPlaceholder?: string;
+  /** What the menu says when a search matches nothing. */
+  emptyMessage?: string;
   className?: string;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
+
+  // Insertion order of a Map is the order the groups were met, so a caller
+  // that hands the options in sorted order gets sorted groups for free.
+  const groups = useMemo(() => {
+    const byGroup = new Map<string | undefined, OptionComboboxItem[]>();
+    for (const option of options) {
+      const bucket = byGroup.get(option.group);
+      if (bucket) bucket.push(option);
+      else byGroup.set(option.group, [option]);
+    }
+    return [...byGroup];
+  }, [options]);
 
   return (
     // The wrapper keeps Base UI's focus-guard spans (siblings of the trigger
@@ -90,35 +124,42 @@ export function OptionCombobox({
         </PopoverTrigger>
         <PopoverContent align="start" className="w-(--anchor-width) p-0">
           <Command className="p-0">
+            {searchPlaceholder && (
+              <CommandInput placeholder={searchPlaceholder} />
+            )}
             <CommandList>
-              <CommandGroup>
-                {options.map((o) => (
-                  <CommandItem
-                    key={o.value}
-                    value={o.value}
-                    data-checked={o.value === value || undefined}
-                    onSelect={() => {
-                      onChange(o.value);
-                      setOpen(false);
-                    }}
-                  >
-                    {o.icon && (
-                      <o.icon
-                        className="text-muted-foreground mt-0.5 self-start"
-                        aria-hidden
-                      />
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{o.label}</span>
-                      {o.description && (
-                        <span className="text-muted-foreground block whitespace-normal text-xs leading-snug">
-                          {o.description}
-                        </span>
+              {searchPlaceholder && <CommandEmpty>{emptyMessage}</CommandEmpty>}
+              {groups.map(([group, items]) => (
+                <CommandGroup key={group ?? ""} heading={group}>
+                  {items.map((o) => (
+                    <CommandItem
+                      key={o.value}
+                      value={o.value}
+                      keywords={o.keywords}
+                      data-checked={o.value === value || undefined}
+                      onSelect={() => {
+                        onChange(o.value);
+                        setOpen(false);
+                      }}
+                    >
+                      {o.icon && (
+                        <o.icon
+                          className="text-muted-foreground mt-0.5 self-start"
+                          aria-hidden
+                        />
                       )}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{o.label}</span>
+                        {o.description && (
+                          <span className="text-muted-foreground block whitespace-normal text-xs leading-snug">
+                            {o.description}
+                          </span>
+                        )}
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
             </CommandList>
           </Command>
         </PopoverContent>

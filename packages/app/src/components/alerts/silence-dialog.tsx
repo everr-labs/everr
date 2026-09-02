@@ -1,13 +1,5 @@
 import { Button } from "@everr/ui/components/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@everr/ui/components/command";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -18,10 +10,9 @@ import {
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@everr/ui/components/popover";
+  OptionCombobox,
+  type OptionComboboxItem,
+} from "@everr/ui/components/option-combobox";
 import {
   Select,
   SelectContent,
@@ -30,7 +21,6 @@ import {
   SelectValue,
 } from "@everr/ui/components/select";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDownIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { alertRuleOptionsOptions } from "@/data/alerting/triage/options";
 import {
@@ -63,115 +53,23 @@ type SilenceDuration = (typeof SILENCE_DURATIONS)[number];
 const DEFAULT_DURATION: SilenceDuration = SILENCE_DURATIONS[1];
 
 /**
- * The rule the silence is written against, by the name the rest of the product
- * calls it, grouped under its project and searchable.
- *
- * A plain select was fine for the handful of rules a demo org has and stops
- * being fine at the first customer: the list is every live rule, unbounded, and
- * it printed `project/slug` paths where triage prints display names. Search and
- * grouping come free from `Command`, and every path is already `project/slug`,
- * so the grouping needs no new data.
+ * The rules the silence can be written against, as the closed set the
+ * picker offers: by the name the rest of the product calls each rule, grouped
+ * under its project, and found by either that name or the `project/slug` path
+ * a reader pasted.
  *
  * Closed set, deliberately: `SuggestCombobox` would let a typed path through,
  * and a silence against a rule that does not exist mutes nothing while looking
  * like it mutes something.
  */
-function RulePicker({
-  id,
-  value,
-  rules,
-  loading,
-  onChange,
-}: {
-  id: string;
-  value: string | null;
-  rules: AlertRuleOption[];
-  loading: boolean;
-  onChange: (path: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = rules.find((rule) => rule.path === value);
-  // Insertion order of a Map is the order the groups were met, and the read
-  // already sorted by project then slug, so the groups come out ordered
-  // without a second sort. Memoized because this sits under the dialog's text
-  // fields, and every character typed into them re-renders it.
-  const groups = useMemo(() => {
-    const byProject = new Map<string, AlertRuleOption[]>();
-    for (const rule of rules) {
-      const bucket = byProject.get(rule.project);
-      if (bucket) bucket.push(rule);
-      else byProject.set(rule.project, [rule]);
-    }
-    return [...byProject];
-  }, [rules]);
-  return (
-    // The wrapper keeps Base UI's focus-guard spans, which are siblings of the
-    // trigger while the popover is open, out of the field stack: in a `space-y`
-    // parent their presence changes which child is last and shifts what
-    // follows.
-    <div>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger
-          render={
-            <Button
-              id={id}
-              variant="outline"
-              role="combobox"
-              aria-expanded={open}
-              disabled={loading}
-              className="h-9 w-full justify-between font-normal"
-            />
-          }
-        >
-          {selected ? (
-            <span className="min-w-0 flex-1 truncate text-left text-sm">
-              {selected.name}
-            </span>
-          ) : (
-            <span className="min-w-0 flex-1 truncate text-left text-sm text-muted-foreground">
-              {loading ? "Loading rules…" : "Choose a rule"}
-            </span>
-          )}
-          <ChevronDownIcon
-            aria-hidden
-            className="size-3.5 shrink-0 text-muted-foreground"
-          />
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-(--anchor-width) p-0">
-          <Command className="p-0">
-            <CommandInput placeholder="Search rules…" />
-            <CommandList>
-              <CommandEmpty>No rule matches.</CommandEmpty>
-              {groups.map(([project, items]) => (
-                <CommandGroup key={project} heading={project}>
-                  {items.map((rule) => (
-                    <CommandItem
-                      // Searched against both, so typing either the name a
-                      // reader knows or the path they pasted finds the rule.
-                      key={rule.path}
-                      value={`${rule.name} ${rule.path}`}
-                      data-checked={rule.path === value || undefined}
-                      onSelect={() => {
-                        onChange(rule.path);
-                        setOpen(false);
-                      }}
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate">{rule.name}</span>
-                        <span className="block truncate font-mono text-xs text-muted-foreground">
-                          {rule.path}
-                        </span>
-                      </span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              ))}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
+function ruleOptions(rules: AlertRuleOption[]): OptionComboboxItem[] {
+  return rules.map((rule) => ({
+    value: rule.path,
+    label: rule.name,
+    description: <span className="font-mono">{rule.path}</span>,
+    group: rule.project,
+    keywords: [rule.name],
+  }));
 }
 
 /**
@@ -244,6 +142,12 @@ function SilenceForm({
   // Only fetched when there is a choice to offer: with a rule in hand the
   // list is never read.
   const choices = useQuery({ ...alertRuleOptionsOptions(), enabled: choosing });
+  // Memoized because this sits under the dialog's text fields, and every
+  // character typed into them re-renders the form.
+  const options = useMemo(
+    () => ruleOptions(choices.data ?? []),
+    [choices.data],
+  );
   // The whole entry, not its label: the confirm hands on `minutes`, and
   // nothing has to turn a label back into a number on the way out.
   const [duration, setDuration] = useState<SilenceDuration>(DEFAULT_DURATION);
@@ -277,11 +181,16 @@ function SilenceForm({
         <div className="space-y-1.5">
           <Label htmlFor={choosing ? "silence-rule" : undefined}>Rule</Label>
           {choosing ? (
-            <RulePicker
+            <OptionCombobox
               id="silence-rule"
               value={rulePath}
-              rules={choices.data ?? []}
-              loading={choices.isPending}
+              options={options}
+              disabled={choices.isPending}
+              placeholder={
+                choices.isPending ? "Loading rules…" : "Choose a rule"
+              }
+              searchPlaceholder="Search rules…"
+              emptyMessage="No rule matches."
               onChange={setRulePath}
             />
           ) : (
