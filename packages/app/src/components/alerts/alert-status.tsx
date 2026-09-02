@@ -5,6 +5,7 @@
  * list the reader is looking at.
  */
 
+import { Badge } from "@everr/ui/components/badge";
 import { cn } from "@everr/ui/lib/utils";
 import {
   BellOff,
@@ -131,10 +132,10 @@ export function StatusChip({
   children: React.ReactNode;
 }) {
   return (
-    <span className="inline-flex w-fit items-center gap-1.5 rounded-md border bg-input/40 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+    <Badge variant="outline" size="md" className="rounded-md bg-input/40">
       <StatusIcon status={status} className="text-muted-foreground" />
       {children}
-    </span>
+    </Badge>
   );
 }
 
