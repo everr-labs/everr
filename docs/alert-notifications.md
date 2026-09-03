@@ -6,7 +6,7 @@ Worker jobs. Durable alert state, delivery state, and job state live in the
 application Postgres database. ClickHouse stores evaluation evidence and
 transition history in addition to serving alert rule queries.
 
-Delivery is configured on the **Alerts -> Notifications** page as two things, drawn as one page of lists (channels with their delivery record over the selected range, what went undelivered, the default targets, and the rule overrides):
+Delivery is configured on the **Alerts -> Notifications** page as two things:
 channels (endpoint configs for webhook, Slack, Discord and Telegram; secrets
 encrypted at rest and redacted on read), and one organization default
 destination that names the channels every alert delivers to. The default
