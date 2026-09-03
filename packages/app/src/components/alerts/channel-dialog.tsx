@@ -14,15 +14,18 @@ import { TagsInput } from "@everr/ui/components/tags-input";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import {
+  type ChannelConfigDraft,
+  type ChannelType,
+  channelConfigDraft,
+  channelConfigInput,
+  channelConfigIsTestable,
+  EMPTY_CHANNEL_DRAFT,
+} from "@/data/alerting/delivery/channel-input";
 import { testAlertingChannel } from "@/data/alerting/delivery/server";
 import type { NotificationChannelView } from "@/data/alerting/delivery/view";
-import { ALERTING_REDACTED_SECRET as REDACTED } from "@/data/alerting/schema";
 import type { AlertingChannelConfig } from "@/data/alerting/types";
-import {
-  CHANNEL_OPTIONS,
-  CHANNEL_URL_FIELD,
-  type ChannelType,
-} from "./channel-mark";
+import { CHANNEL_OPTIONS, CHANNEL_URL_FIELD } from "./channel-mark";
 
 /** What the dialog is open on: a channel to make, seeded with a name when a
  *  gap row asked for one, or a channel to change. `null` while closed. */
@@ -36,63 +39,6 @@ export type ChannelDraft = {
   name: string;
   config: AlertingChannelConfig;
 };
-
-/** Every per-type field kept side by side so switching the type never loses
- *  what was typed. */
-type ConfigDraft = {
-  type: ChannelType;
-  url: string;
-  botToken: string;
-  chatIds: string[];
-};
-
-const EMPTY_DRAFT: ConfigDraft = {
-  type: "slack",
-  url: "",
-  botToken: "",
-  chatIds: [],
-};
-
-// Secret fields come back redacted, so an edit starts them blank and the
-// reader re-enters them; non-secret fields prefill as stored.
-function draftFromConfig(config: AlertingChannelConfig): ConfigDraft {
-  return {
-    ...EMPTY_DRAFT,
-    type: config.type,
-    chatIds: config.type === "telegram" ? config.chat_ids : [],
-  };
-}
-
-/**
- * The config the draft describes, or `null` while it cannot be saved. On an
- * edit that keeps the stored kind, a blank secret stands for the stored one.
- */
-function draftToConfig(
-  d: ConfigDraft,
-  keepsSecret: boolean,
-): AlertingChannelConfig | null {
-  const secret = (typed: string) => typed || (keepsSecret ? REDACTED : "");
-  switch (d.type) {
-    case "webhook":
-    case "slack":
-    case "discord": {
-      const url = secret(d.url);
-      return url ? { type: d.type, url } : null;
-    }
-    case "telegram": {
-      const botToken = secret(d.botToken);
-      return botToken && d.chatIds.length > 0
-        ? { type: d.type, bot_token: botToken, chat_ids: d.chatIds }
-        : null;
-    }
-  }
-}
-
-function hasSecret(config: AlertingChannelConfig): boolean {
-  return config.type === "telegram"
-    ? config.bot_token !== REDACTED
-    : config.url !== REDACTED;
-}
 
 export function ChannelDialog({
   target,
@@ -157,8 +103,8 @@ function ChannelForm({
   const [name, setName] = useState(
     target.mode === "new" ? target.name : target.channel.name,
   );
-  const [draft, setDraft] = useState<ConfigDraft>(() =>
-    editing ? draftFromConfig(editing.config) : EMPTY_DRAFT,
+  const [draft, setDraft] = useState<ChannelConfigDraft>(() =>
+    editing ? channelConfigDraft(editing.config) : EMPTY_CHANNEL_DRAFT,
   );
   // Deleting asks first, in place: a second dialog stacked on this one is
   // dismissed by the first as an outside press.
@@ -167,16 +113,15 @@ function ChannelForm({
   const trimmed = name.trim();
   const duplicate =
     existingNames.includes(trimmed) && trimmed !== editing?.name;
-  // A blank secret keeps the stored one only while the kind is unchanged: a
-  // Slack channel turned into a webhook has no stored URL to keep.
+  const config = channelConfigInput(draft, editing?.config ?? null);
+  // What a blank secret field means, said in the placeholder: on an edit of
+  // the stored kind it keeps the stored secret.
   const keepsSecret = editing !== null && editing.config.type === draft.type;
-  const config = draftToConfig(draft, keepsSecret);
   const urlField = CHANNEL_URL_FIELD[draft.type];
-  // A test sends through the config on screen, so a secret the server holds
-  // and the screen does not cannot be tested from here.
-  const testable = config !== null && hasSecret(config);
+  const testable = config !== null && channelConfigIsTestable(config);
 
-  const patch = (p: Partial<ConfigDraft>) => setDraft((d) => ({ ...d, ...p }));
+  const patch = (p: Partial<ChannelConfigDraft>) =>
+    setDraft((d) => ({ ...d, ...p }));
 
   const test = useMutation({
     mutationFn: (config: AlertingChannelConfig) =>

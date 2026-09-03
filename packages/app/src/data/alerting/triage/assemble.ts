@@ -9,6 +9,7 @@
  * tests build the inputs by hand and call.
  */
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
 import {
   ANN_ALERTING_DESCRIPTION,
   ANN_ALERTING_LINK_RUNBOOK,
@@ -95,7 +96,7 @@ export type DeliverySource = {
   silences: SilenceRow[];
   notifications: Map<string, NotificationFact>;
   held: Map<string, number>;
-  defaultTiers: Set<string>;
+  defaultTiers: Set<AlertingDefaultTier>;
 };
 
 function deliveryFor(

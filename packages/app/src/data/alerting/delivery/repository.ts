@@ -30,17 +30,21 @@ import type {
 import {
   decryptChannelConfig,
   encryptChannelConfig,
-  redactChannelConfig,
+  readRedactedChannelConfig,
   retainRedactedChannelSecrets,
 } from "./channel-secrets.server";
 
+/** A channel as a screen reads it. The envelope carries the redacted copy,
+ *  so listing every channel touches no key. */
 function channelView(row: typeof alertChannels.$inferSelect): AlertingChannel {
   return {
     id: row.id,
     tenant: row.organizationId,
     name: row.name,
-    config: redactChannelConfig(
-      decryptChannelConfig(row.organizationId, row.id, row.encryptedConfig),
+    config: readRedactedChannelConfig(
+      row.organizationId,
+      row.id,
+      row.encryptedConfig,
     ),
   };
 }

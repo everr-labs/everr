@@ -7,6 +7,7 @@
 import {
   ALERTING_SEVERITY_TIERS,
   type AlertingDefaultTier,
+  defaultTierFor,
 } from "@/data/alerting/delivery/defaults";
 import type { DefinitionRow } from "@/data/alerting/triage/rules";
 import { rulePath, ruleTitle } from "@/data/alerting/triage/rules";
@@ -104,8 +105,10 @@ export function channelViews(
  * Every way an alert reaches delivery with nothing to carry it, with each
  * `no_channels` count laid at the door of what had no channel. A rule that
  * names its own channels was on the direct path, so its count is the rule's;
- * anything else went through the default, to the tier its severity selects,
- * or to "all" while the destination is unsplit.
+ * anything else went through the default, to the tier the mode assigns its
+ * severity: the same rule the worker dispatched by, asked over the mode's
+ * tiers rather than the ones with channels, since the point is which tier
+ * was missing.
  *
  * The gaps read the destination as it is now. A tier filled since the window
  * began keeps its count in the record, but with no gap to carry it the count
@@ -118,6 +121,9 @@ export function deriveGaps(
   channelNames: Iterable<string>,
 ): NotificationGap[] {
   const direct = new Set(overrides.map((rule) => rule.path));
+  const modeTiers: readonly AlertingDefaultTier[] = destination.split
+    ? ALERTING_SEVERITY_TIERS
+    : ["all"];
   const byTier = new Map<AlertingDefaultTier, number>();
   const byRule = new Map<string, number>();
   for (const record of undelivered) {
@@ -125,7 +131,8 @@ export function deriveGaps(
       byRule.set(record.path, (byRule.get(record.path) ?? 0) + record.count);
       continue;
     }
-    const tier = destination.split ? record.severity : "all";
+    const tier = defaultTierFor(modeTiers, record.severity);
+    if (tier === null) continue;
     byTier.set(tier, (byTier.get(tier) ?? 0) + record.count);
   }
 

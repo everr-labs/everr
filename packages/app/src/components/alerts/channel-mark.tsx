@@ -12,9 +12,8 @@ import DiscordIcon from "@/assets/discord.svg?react";
 import SlackIcon from "@/assets/slack.svg?react";
 import TelegramIcon from "@/assets/telegram.svg?react";
 import WebhookIcon from "@/assets/webhook.svg?react";
+import type { ChannelType } from "@/data/alerting/delivery/channel-input";
 import type { AlertingChannelConfig } from "@/data/alerting/types";
-
-export type ChannelType = AlertingChannelConfig["type"];
 
 const CHANNEL_TYPES: ChannelType[] = [
   "slack",
