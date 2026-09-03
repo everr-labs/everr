@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The collector writes telemetry straight into the `app.*` tables, stamped with tenant and retention resolved at authentication, so the `otel.*` landing tables, the materialized views, the retention dictionary and everything that keeps the dictionary correct disappear.
+**Goal:** Telemetry is written to disk once, into the `app.*` tables, stamped with tenant and retention resolved at authentication, so the stored `otel.*` copy, the retention dictionary and everything that keeps the dictionary correct disappear.
 
-**Architecture:** The app already tells the collector which tenant an API key belongs to (`/api/internal/verify-key`) and which tenant a forwarded GitHub webhook belongs to (`x-everr-tenant-id` header). Both paths now also carry the tenant's retention in days per signal. The collector stamps them as resource attributes (`everr.tenant.id`, `everr.retention.logs_days`, `everr.retention.traces_days`, `everr.retention.metrics_days`) and the upstream ClickHouse exporter writes into `app.*`. On each `app.*` table, `tenant_id` and `retention_days` become `DEFAULT` columns computed from `ResourceAttributes`, so the exporter's insert, which names only its own columns, fills them. The partition key `(day, retention_days)`, the TTL, the codecs and the indexes from PR #426 stay exactly as they are. The retention attributes stay in the stored `ResourceAttributes` map; this was weighed against stripping them through a `Null` landing table and a view, and the simpler design won.
+**Architecture:** The app already tells the collector which tenant an API key belongs to (`/api/internal/verify-key`) and which tenant a forwarded GitHub webhook belongs to (`x-everr-tenant-id` header). Both paths now also carry the tenant's retention in days per signal. The collector stamps them as resource attributes (`everr.tenant.id`, `everr.retention.logs_days`, `everr.retention.traces_days`, `everr.retention.metrics_days`). The upstream ClickHouse exporter keeps writing to `otel.*`, but those tables become `ENGINE = Null`: they store nothing and only trigger the materialized views. Each view reads the stamps from the resource attributes, strips the `everr.retention.*` keys from the stored map, and writes the row into `app.*`. The `app.*` tables keep their partition key `(day, retention_days)`, TTL, codecs and indexes from PR #426 unchanged.
 
 **Tech Stack:** ClickHouse 26.2 (dev image, `clickhouse/Dockerfile`), OpenTelemetry Collector 0.152.0 built with `ocb` from `collector/config/manifest.yaml`, Go extension `collector/extension/everrapikeyauth`, upstream `clickhouseexporter` v0.152.0, TanStack Start app in `packages/app` (vitest, biome, tsc).
 
@@ -22,22 +22,24 @@
 - Commit after every task. Plain commits on the feature branch, no attribution footers.
 - Branch: `gio/direct-ingest`, created from `ttl-improvements` (PR #426) once it has merged, or stacked on it if not.
 
-## Why DEFAULT and not MATERIALIZED
+## Why a Null landing table and a view, not DEFAULT columns on `app.*`
 
-The production cut-over has two writers into `app.*` for a short window: the old materialized views, which insert `tenant_id` and `retention_days` explicitly, and the exporter, which omits them. A `MATERIALIZED` column rejects explicit inserts (`Cannot insert column ..., because it is MATERIALIZED column`). A `DEFAULT` column accepts an explicit value and computes its expression when the column is omitted, so both writers work on the same table and the cut-over needs no rebuild. Verified on the pinned image. The final state keeps `DEFAULT`.
+Two designs were measured on 600k exporter-shaped log rows, single thread, three rounds each. Direct insert into `app.*` with `tenant_id` and `retention_days` as `DEFAULT` columns took 0.41 to 0.81 s; the exporter writing to a `Null` table with a view stamping and stripping took 0.40 to 0.57 s. Same compressed size. The `Null` engine stores nothing, so the only disk write is `app.*` either way, and the view's expressions cost nothing measurable. The view wins on three points:
 
-## Why the retention DEFAULT throws on a missing attribute, and how
+- It removes `everr.retention.*` from the stored `ResourceAttributes` with `mapFilter`, so retention never shows up in query results or the SQL API. `DEFAULT` columns cannot alter the map the exporter inserts.
+- The exporter config keeps its default table names and database. Only processors change.
+- The `app.*` tables do not change at all: same columns, same keys, same writers (view and alert projection both insert `tenant_id` and `retention_days` explicitly).
 
-`retention_days = 0` means `day + 0` is already past, so the row is expired at insert with no error anywhere (PR #426, finding 1). After this plan the only writer is our own collector, so a missing attribute is a collector misconfiguration, not user input. The `DEFAULT` expression is evaluated for every exporter row anyway; the guard adds one string comparison. It turns silent data loss into a failed insert the exporter retries and logs.
+## Why the view throws on a missing retention attribute, and how
 
-The form matters, verified on the pinned image: `if(cond, throwIf(true, 'msg'), value)` throws for every row because the constant `throwIf(true, ...)` is folded before short-circuit evaluation. The working form is:
+`retention_days = 0` means `day + 0` is already past, so the row is expired at insert with no error anywhere (PR #426, finding 1). After this plan the only writer is our own collector, so a missing attribute is a collector misconfiguration. The guard makes the insert fail, which the exporter retries and logs.
 
-```sql
-toUInt16OrZero(ResourceAttributes['everr.retention.logs_days'])
-  + throwIf(ResourceAttributes['everr.retention.logs_days'] = '', 'everr.retention.logs_days resource attribute missing')
-```
+Two ClickHouse behaviours shape how it is written, both verified on the pinned image:
 
-`throwIf` returns 0 for rows that pass and only throws when its condition is true. Gio should confirm the guard; to remove it, delete the `+ throwIf(...)` term.
+1. `if(cond, throwIf(true, 'msg'), value)` throws for every row: the constant `throwIf(true, ...)` is folded before short-circuit evaluation. The working form is `toUInt16OrZero(attr) + throwIf(attr = '', 'msg')`, where `throwIf` returns 0 for rows that pass and only throws when its condition is true.
+2. In a `SELECT`, an alias named like a source column shadows it. `mapFilter(...) AS ResourceAttributes` followed by `ResourceAttributes['everr.retention.logs_days']` reads the filtered map and finds nothing. The stamps must be computed in an inner query, and the strip applied in the outer one.
+
+Gio should confirm the guard. To remove it, drop the `+ throwIf(...)` term and keep `toUInt16OrZero(...)`.
 
 ## Names used across tasks
 
@@ -46,8 +48,8 @@ toUInt16OrZero(ResourceAttributes['everr.retention.logs_days'])
 | verify-key JSON | `tenantId`, `keyId`, `logsDays`, `tracesDays`, `metricsDays` | numbers for the three `*Days` |
 | collector auth data | `tenant_id`, `key_id`, `retention_logs_days`, `retention_traces_days`, `retention_metrics_days` | strings |
 | webhook headers (app to collector) | `x-everr-tenant-id`, `x-everr-retention-logs-days`, `x-everr-retention-traces-days`, `x-everr-retention-metrics-days` | decimal strings |
-| resource attributes (stored) | `everr.tenant.id`, `everr.retention.logs_days`, `everr.retention.traces_days`, `everr.retention.metrics_days` | strings |
-| `app.*` columns | `tenant_id String`, `retention_days UInt16` | `DEFAULT` from the map |
+| resource attributes (in flight, stripped before storage) | `everr.tenant.id` (kept), `everr.retention.logs_days`, `everr.retention.traces_days`, `everr.retention.metrics_days` (stripped) | strings |
+| `app.*` columns | `tenant_id String`, `retention_days UInt16` | set by the view |
 
 ---
 
@@ -198,8 +200,8 @@ type VerifyKeyResponse = {
   tenantId: string;
   keyId: string;
   // Retention in days per signal. The collector stamps these on every
-  // resource it ingests with this key, and the app.* tables partition and
-  // expire by them, so this is the only place retention enters the pipeline.
+  // resource it ingests with this key and the views write them into
+  // app.*, so this is the only place retention enters the pipeline.
   logsDays: number;
   tracesDays: number;
   metricsDays: number;
@@ -302,8 +304,8 @@ import { retentionForOrg } from "@/lib/retention.server";
 
 const tenantHeaderName = "x-everr-tenant-id";
 // The collector's internal pipeline copies these into resource attributes
-// (collector/config.example.yml, processor `resource`), and the app.* tables
-// stamp retention_days from them.
+// (collector/config.example.yml, processor `resource`); the views stamp
+// retention_days from them and strip them before storage.
 const retentionHeaderNames = {
   logsDays: "x-everr-retention-logs-days",
   tracesDays: "x-everr-retention-traces-days",
@@ -334,104 +336,109 @@ git commit -m "feat(app): forward retention headers with GitHub webhooks"
 
 ---
 
-### Task 4: `app.*` tables own their schema and stamp from resource attributes
-
-The `app.*` tables are currently created with `CREATE TABLE ... AS SELECT ... FROM otel.X WHERE 1 = 0` plus index and codec mirror blocks. They become explicit `CREATE TABLE` statements: the column list of the matching `otel.*` table from `clickhouse/init/03-create-otel-tables.sql` with its codecs, the same skip indexes, plus the two `DEFAULT` columns. The `otel.*` tables, the materialized views, the dictionary and its source table go away. `app.alert_events` loses its dictionary `DEFAULT`; the app writes `retention_days` explicitly (Task 8).
+### Task 4: `otel.*` become Null landing tables and the views stamp from attributes
 
 **Files:**
-- Create: `clickhouse/init/10-create-tables.sql` (replaces `10-create-mvs.sql`)
-- Delete: `clickhouse/init/03-create-otel-tables.sql`, `clickhouse/init/10-create-mvs.sql`, `clickhouse/config.d/dictionaries.xml`
-- Modify: `clickhouse/init/12-create-alert-events.sql`, `clickhouse/init/00-setup.sh`, `clickhouse/Dockerfile`
+- Modify: `clickhouse/init/03-create-otel-tables.sql`
+- Modify: `clickhouse/init/10-create-mvs.sql`
+- Modify: `clickhouse/init/12-create-alert-events.sql`
+- Modify: `clickhouse/init/00-setup.sh`
+- Delete: `clickhouse/config.d/dictionaries.xml`; remove its `COPY` line from `clickhouse/Dockerfile`
 
 **Interfaces:**
-- Produces: tables `app.traces`, `app.logs`, `app.metrics_gauge`, `app.metrics_sum`, `app.metrics_histogram`, `app.metrics_exponential_histogram`, `app.metrics_summary` with exporter-compatible column lists and the `DEFAULT` columns below. The exporter config in Task 6 points at these names.
+- Consumes: resource attributes `everr.tenant.id`, `everr.retention.logs_days`, `everr.retention.traces_days`, `everr.retention.metrics_days` on every resource (Task 6).
+- Produces: unchanged `app.*` tables; views that stamp and strip; no dictionary.
 
-- [ ] **Step 1: Write `10-create-tables.sql`**
+- [ ] **Step 1: Turn the seven `otel.*` tables into Null engines**
 
-For each of the seven tables, take the `CREATE TABLE otel.X (...)` block from `03-create-otel-tables.sql` verbatim (columns, codecs, `INDEX` lines) and produce:
+In `03-create-otel-tables.sql`, for each `CREATE TABLE otel.X (...)`: keep the column list exactly as it is (the exporter's insert names these columns, and `CREATE TABLE app.X AS SELECT ... FROM otel.X` copies types from it), remove every `INDEX ...` line, and replace everything from `) ENGINE = MergeTree` to the closing `;` with:
 
 ```sql
-CREATE TABLE IF NOT EXISTS app.logs
-(
-    -- every column of otel.otel_logs, with its CODEC, copied verbatim, then:
-    -- Stamped by the collector on every resource; see docs/clickhouse-retention-rollout.md.
-    tenant_id String DEFAULT ResourceAttributes['everr.tenant.id'] CODEC(ZSTD(1)),
-    -- A missing attribute would stamp 0 and expire the row at insert with no
-    -- error, so refuse the row instead; the exporter retries and logs it.
-    -- Keep this form: if(x = '', throwIf(true, ...), ...) is constant-folded
-    -- and throws for every row.
-    retention_days UInt16 DEFAULT toUInt16OrZero(ResourceAttributes['everr.retention.logs_days'])
-        + throwIf(ResourceAttributes['everr.retention.logs_days'] = '', 'everr.retention.logs_days resource attribute missing'),
-    -- every INDEX line of otel.otel_logs, copied verbatim
-)
-ENGINE = MergeTree
-PARTITION BY (toDate(TimestampTime), retention_days)
-ORDER BY (tenant_id, ServiceName, TimestampTime, Timestamp)
-TTL toDate(TimestampTime) + toIntervalDay(retention_days)
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+) ENGINE = Null;
 ```
 
-Per table use these keys, taken from the current `10-create-mvs.sql`:
-
-| table | attribute for `retention_days` | PARTITION BY | ORDER BY | TTL |
-|---|---|---|---|---|
-| traces | `everr.retention.traces_days` | `(toDate(Timestamp), retention_days)` | `(tenant_id, ServiceName, SpanName, toDateTime(Timestamp))` | `toDate(Timestamp) + toIntervalDay(retention_days)` |
-| logs | `everr.retention.logs_days` | `(toDate(TimestampTime), retention_days)` | `(tenant_id, ServiceName, TimestampTime, Timestamp)` | `toDate(TimestampTime) + toIntervalDay(retention_days)` |
-| metrics_gauge, metrics_sum, metrics_histogram, metrics_exponential_histogram, metrics_summary | `everr.retention.metrics_days` | `(toDate(TimeUnix), retention_days)` | `(tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))` | `toDate(TimeUnix) + toIntervalDay(retention_days)` |
-
-`otel_logs.TimestampTime` is `DateTime DEFAULT toDateTime(Timestamp) CODEC(Delta(4), ZSTD(1))`; keep it exactly so, the exporter omits it and the default fills it.
-
-The file header comment:
+Codecs on the columns are ignored by `Null` and harmless; leave them so the `app.*` codec mirror blocks in `10-create-mvs.sql` keep a source of truth to be compared against. Replace the file header comment with:
 
 ```sql
--- The collector's ClickHouse exporter writes straight into these tables.
--- tenant_id and retention_days are DEFAULT columns computed from the resource
--- attributes the collector stamps at authentication, so the exporter's insert,
--- which names only its own columns, fills them. The tables partition by
--- (day, retention_days) and expire by whole-part drop; every row in a
--- partition expires on the same day, so nothing is ever rewritten to expire a
--- tenant. A retention change applies to rows ingested from that point on.
--- RETENTION_BY_TIER (packages/app/src/lib/retention.ts) is the only source of
--- retention values.
+-- Landing tables for the collector's ClickHouse exporter. ENGINE = Null
+-- stores nothing: an insert only triggers the materialized views in
+-- 10-create-mvs.sql, which stamp tenant_id and retention_days from the
+-- resource attributes and write the row into app.*. Column lists follow the
+-- upstream clickhouseexporter schema for v0.152.0; app.* copies its types
+-- from here, so keep them in step with the exporter version.
+```
+
+- [ ] **Step 2: Rewrite the views in `10-create-mvs.sql`**
+
+Delete the `app.tenant_retention_source` table, the `app.tenant_retention` dictionary, the free-tier seed `INSERT`, the `SYSTEM RELOAD DICTIONARY`, and every comment that mentions them. Replace the file header with:
+
+```sql
+-- Per-row retention. Every app.* row is stamped with `retention_days` by its
+-- materialized view from the resource attributes the collector sets at
+-- authentication (everr.retention.<signal>_days), and the view strips those
+-- keys before storage. The table partitions by (day, retention_days) and the
+-- TTL is `day + retention_days` with ttl_only_drop_parts = 1. Every row in a
+-- partition expires on the same day, so ClickHouse drops whole parts and never
+-- rewrites one to expire a single tenant. A retention change applies to rows
+-- ingested from that point on. Every distinct retention value costs that many
+-- live partitions per table; RETENTION_BY_TIER (packages/app/src/lib/retention.ts)
+-- is the only source of values.
 --
--- Column lists and codecs follow the upstream clickhouseexporter schema for
--- v0.152.0. When the exporter version changes, diff its DDL against this file.
+-- Only the views write these tables. A missing retention attribute would
+-- stamp 0 and expire the row at insert with no error, so the views refuse
+-- the row instead: `toUInt16OrZero(x) + throwIf(x = '', ...)`. Do not write
+-- it as if(x = '', throwIf(true, ...), ...): the constant throwIf is folded
+-- and fires on every row. The stamps are computed in an inner query because
+-- the `mapFilter(...) AS ResourceAttributes` alias in the outer query shadows
+-- the source column.
 ```
 
-If the guard decision is reversed, the `retention_days` line becomes `retention_days UInt16 DEFAULT toUInt16OrZero(ResourceAttributes['everr.retention.logs_days'])` and nothing else changes.
+Each view becomes (logs shown; traces uses `everr.retention.traces_days` and `otel.otel_traces`; the five metrics views use `everr.retention.metrics_days` and their `otel.otel_metrics_*` source):
 
-- [ ] **Step 2: Update `12-create-alert-events.sql`**
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS app.logs_mv
+TO app.logs
+AS
+SELECT
+  * EXCEPT (ResourceAttributes),
+  mapFilter((k, v) -> k NOT LIKE 'everr.retention.%', ResourceAttributes) AS ResourceAttributes
+FROM
+(
+  SELECT
+    *,
+    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toUInt16OrZero(ResourceAttributes['everr.retention.logs_days'])
+      + throwIf(ResourceAttributes['everr.retention.logs_days'] = '', 'everr.retention.logs_days resource attribute missing') AS retention_days
+  FROM otel.otel_logs
+);
+```
 
-Replace the `retention_days` line with a plain column, the app supplies it:
+The `CREATE TABLE app.X ... AS SELECT *, CAST(...) AS tenant_id, toUInt16(0) AS retention_days FROM otel.X WHERE 1 = 0` blocks, the index blocks and the codec blocks stay exactly as they are.
+
+- [ ] **Step 3: Update `12-create-alert-events.sql`**
+
+Replace the `retention_days` line with a plain column; the app supplies it (Task 8):
 
 ```sql
   -- Written by the app from the tenant's plan (packages/app/src/lib/retention.server.ts).
   retention_days UInt16,
 ```
 
-Remove `GRANT dictGet ON app.tenant_retention TO web_app_admin;`. Keep `app.alert_events_logs_mv` unchanged; it supplies `tenant_id` and `retention_days` explicitly, which a `DEFAULT` column accepts.
+Remove `GRANT dictGet ON app.tenant_retention TO web_app_admin;`. `app.alert_events_logs_mv` stays as is.
 
-- [ ] **Step 3: Update grants in `00-setup.sh`**
+- [ ] **Step 4: Update grants in `00-setup.sh`**
 
-Replace `GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;` with:
+Delete the retention-source grant block (`GRANT INSERT, SELECT ON app.tenant_retention_source TO web_app_admin;` with its comment) and the `GRANT dictGet ON app.tenant_retention TO collector_rw;` block with its comment. `collector_rw` keeps its `otel.*` grant; it still inserts there.
 
-```sql
--- The exporter writes into app.* and reads system tables for its version and
--- schema checks; it never creates or alters tables (create_schema: false).
-GRANT SELECT, INSERT ON app.* TO collector_rw;
-```
-
-Delete the retention-source grant block (`GRANT INSERT, SELECT ON app.tenant_retention_source TO web_app_admin;` and its comment) and the `GRANT dictGet ON app.tenant_retention TO collector_rw;` block with its comment. Remove `CREATE DATABASE IF NOT EXISTS otel` if present in the script.
-
-- [ ] **Step 4: Remove the dictionary config and the deleted files**
+- [ ] **Step 5: Remove the dictionary config**
 
 ```bash
-git rm clickhouse/init/03-create-otel-tables.sql clickhouse/init/10-create-mvs.sql clickhouse/config.d/dictionaries.xml
+git rm clickhouse/config.d/dictionaries.xml
 ```
 
-In `clickhouse/Dockerfile`, remove the line `COPY config.d/ /etc/clickhouse-server/config.d/` and delete the now-empty `clickhouse/config.d` directory.
+Remove `COPY config.d/ /etc/clickhouse-server/config.d/` from `clickhouse/Dockerfile` and delete the empty directory.
 
-- [ ] **Step 5: Verify on a throwaway container**
+- [ ] **Step 6: Verify on a throwaway container**
 
 ```bash
 docker build -q -t ch-di ./clickhouse
@@ -442,33 +449,27 @@ docker run -d --name ch-di-test -e CLICKHOUSE_USER=default -e CLICKHOUSE_PASSWOR
 sleep 20
 docker logs ch-di-test 2>&1 | grep -i exception   # expect nothing
 docker exec ch-di-test clickhouse-client --password everr --multiquery --query "
--- exporter-shaped insert: no tenant_id, no retention_days
-INSERT INTO app.logs (Timestamp, ResourceAttributes, Body)
-  VALUES (now64(9), map('everr.tenant.id','org1','everr.retention.logs_days','30'), 'x');
-SELECT tenant_id, retention_days, TimestampTime FROM app.logs;
-SELECT partition FROM system.parts WHERE database='app' AND table='logs' AND active;
--- explicit insert (the alert_events projection path) still works on a DEFAULT column
-INSERT INTO app.logs (Timestamp, ResourceAttributes, Body, tenant_id, retention_days)
-  VALUES (now64(9), map(), 'y', 'org2', 14);
-SELECT count() FROM app.logs;
--- a row without the retention attribute is refused, not silently expired
-INSERT INTO app.logs (Timestamp, ResourceAttributes, Body) VALUES (now64(9), map('everr.tenant.id','org1'), 'z');"
+SELECT name, engine FROM system.tables WHERE database = 'otel' ORDER BY name;
+INSERT INTO otel.otel_logs (Timestamp, TimestampTime, ResourceAttributes, Body)
+  VALUES (now64(9), now(), map('everr.tenant.id','org1','everr.retention.logs_days','30','service.name','svc'), 'x');
+SELECT tenant_id, retention_days, ResourceAttributes FROM app.logs;
+SELECT partition FROM system.parts WHERE database = 'app' AND table = 'logs' AND active;
+SELECT count() FROM otel.otel_logs;
+INSERT INTO otel.otel_logs (Timestamp, TimestampTime, ResourceAttributes, Body)
+  VALUES (now64(9), now(), map('everr.tenant.id','org1'), 'no-retention');"
 ```
 
-Expected: `org1  30  <now>`; partition `('<today>',30)`; count `2`; the last insert fails with `everr.retention.logs_days resource attribute missing`. Repeat the first insert shape for `app.traces` (`Timestamp, ResourceAttributes, SpanName`, attribute `everr.retention.traces_days`) and `app.metrics_gauge` (`TimeUnix, ResourceAttributes, MetricName`, attribute `everr.retention.metrics_days`). Then:
+Expected: seven `Null` engines; `org1  30  {'everr.tenant.id':'org1','service.name':'svc'}` (no retention key); partition `('<today>',30)`; `0` rows in the landing table; the last insert fails with `everr.retention.logs_days resource attribute missing`. Repeat the first insert for `otel.otel_traces` (`Timestamp, ResourceAttributes, SpanName`, attribute `everr.retention.traces_days`) and `otel.otel_metrics_gauge` (`TimeUnix, ResourceAttributes, MetricName`, attribute `everr.retention.metrics_days`) and check `app.traces` and `app.metrics_gauge`. Then:
 
 ```bash
-docker exec ch-di-test clickhouse-client --password everr --query "SHOW GRANTS FOR collector_rw"
 docker rm -f ch-di-test; docker rmi ch-di
 ```
 
-Expected: `GRANT SELECT, INSERT ON app.* TO collector_rw` and nothing on `otel`.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add clickhouse
-git commit -m "feat(clickhouse): app tables own their schema and stamp tenant and retention from resource attributes"
+git commit -m "feat(clickhouse): stamp retention from resource attributes through Null landing tables"
 ```
 
 ---
@@ -655,15 +656,14 @@ git commit -m "feat(collector): expose the tenant's retention from the API key a
 
 ---
 
-### Task 6: Collector config writes into `app.*` with retention stamped
+### Task 6: Collector processors stamp retention
 
 **Files:**
 - Modify: `collector/config.example.yml`
-- Read: `collector/extension/everrapikeyauth/SMOKE.md` (the smoke flow to rerun in Task 9)
 
 **Interfaces:**
-- Consumes: auth attributes from Task 5, webhook headers from Task 3, tables from Task 4.
-- Produces: resource attributes `everr.retention.logs_days`, `everr.retention.traces_days`, `everr.retention.metrics_days` on every resource; exporter targets `app.logs`, `app.traces`, `app.metrics_*`.
+- Consumes: auth attributes from Task 5, webhook headers from Task 3.
+- Produces: resource attributes `everr.retention.logs_days`, `everr.retention.traces_days`, `everr.retention.metrics_days` on every resource. The exporter block does not change.
 
 - [ ] **Step 1: Internal pipeline processor**
 
@@ -691,8 +691,6 @@ Replace the `resource:` processor block:
         key: everr.retention.metrics_days
         from_context: metadata.x-everr-retention-metrics-days
 ```
-
-Leave the existing `convert ... int` step as is unless the smoke test in Task 9 shows `tenant_id` stored differently from the public pipeline; `tenant_id` is a `String` column and the map value is read as text either way.
 
 - [ ] **Step 2: Public pipeline processors**
 
@@ -730,33 +728,17 @@ Extend `resource/public_tenant`; `upsert` overwrites any client-supplied resourc
         from_context: auth.retention_metrics_days
 ```
 
-- [ ] **Step 3: Exporter**
+- [ ] **Step 3: Exporter comment**
+
+Above the `clickhouse:` exporter add:
 
 ```yaml
-  clickhouse:
-    endpoint: http://clickhouse:8123
-    username: collector_rw
-    password: collector-dev
-    # Writes straight into the tenant-scoped read model. Schema is owned by
-    # clickhouse/init/10-create-tables.sql; the exporter never creates it.
-    database: app
-    create_schema: false
-    logs_table_name: logs
-    traces_table_name: traces
-    metrics_tables:
-      gauge:
-        name: metrics_gauge
-      sum:
-        name: metrics_sum
-      summary:
-        name: metrics_summary
-      histogram:
-        name: metrics_histogram
-      exponential_histogram:
-        name: metrics_exponential_histogram
+  # Writes into otel.* landing tables (ENGINE = Null). Nothing is stored there;
+  # the views in clickhouse/init/10-create-mvs.sql stamp tenant and retention
+  # and write app.*. `ttl` is unused with create_schema: false.
 ```
 
-Remove `ttl: 72h`; it only applies when the exporter creates the schema.
+Remove `ttl: 72h`.
 
 - [ ] **Step 4: Validate the config**
 
@@ -767,7 +749,7 @@ Expected: exits 0. If `validate` is not a subcommand in this build, run `./build
 
 ```bash
 git add collector/config.example.yml
-git commit -m "feat(collector): write into app tables with tenant and retention stamped at auth"
+git commit -m "feat(collector): stamp the tenant's retention on every resource"
 ```
 
 ---
@@ -777,7 +759,7 @@ git commit -m "feat(collector): write into app tables with tenant and retention 
 **Files:**
 - Modify: `packages/app/src/lib/clickhouse.ts` (delete `seedDefaultRetention`, `upsertTenantRetention`, the retention imports)
 - Modify: `packages/app/src/lib/clickhouse.test.ts` (delete the `upsertTenantRetention` and `seedDefaultRetention` describes and their imports)
-- Modify: `packages/app/src/lib/billing-data.server.ts` (delete the `upsertTenantRetention` call and import at the end of `upsertOrgSubscription`, and the read-back that only feeds it; check the two commits on `ttl-improvements` after `8b6c5df1b`, they touched this function)
+- Modify: `packages/app/src/lib/billing-data.server.ts` (delete the `upsertTenantRetention` call and import at the end of `upsertOrgSubscription`; the read-back comment above it goes too if nothing else needs it)
 - Modify: `packages/app/src/server.ts` (delete the `startup.retention_default` span block and the `seedDefaultRetention` import)
 - Modify: `packages/app/src/lib/retention.ts` (delete `DEFAULT_RETENTION_TENANT_ID`; rewrite the comment above `RETENTION_BY_TIER`)
 
@@ -956,15 +938,15 @@ Start the app (`cd packages/app && pnpm dev`) and follow `SMOKE.md` steps 1 to 5
 --otlp-attributes 'everr.tenant.id="org_evil"' --otlp-attributes 'everr.retention.logs_days="3650"'
 ```
 
-- [ ] **Step 3: Check the stamps**
+- [ ] **Step 3: Check the stamps and the strip**
 
 ```bash
 docker exec everr-clickhouse-1 clickhouse-client --password everr --query "
-SELECT tenant_id, retention_days, ResourceAttributes['everr.retention.logs_days'] AS attr, count()
+SELECT tenant_id, retention_days, mapKeys(ResourceAttributes) AS keys, count()
 FROM app.logs GROUP BY ALL FORMAT PrettyCompact"
 ```
 
-Expected: one row, `tenant_id` is the key's organization, `retention_days` and `attr` are that organization's plan (14 for a free organization), not `org_evil` and not `3650`. Repeat for `app.traces` and `app.metrics_gauge` with the matching attribute names.
+Expected: one row; `tenant_id` is the key's organization, `retention_days` is that organization's plan (14 for a free organization), `keys` contains `everr.tenant.id` and no `everr.retention.*`. Neither `org_evil` nor `3650` appears anywhere. Repeat for `app.traces` and `app.metrics_gauge`.
 
 - [ ] **Step 4: Check the webhook path**
 
@@ -993,81 +975,74 @@ Run `everr-dev status` and open the logs explorer for the dev organization; the 
 - Create: `clickhouse/migrations/2026-09-03-direct-ingest.sh`; delete `clickhouse/migrations/2026-09-01-retention-days-partitions.sh` (PR #426's rebuild has run by then)
 
 **Interfaces:**
-- Produces: the ordered production procedure. Order: app deploy (Tasks 1, 2, 3, 7, 8), then `STEP=1`, then collector deploy (Tasks 5, 6), then `STEP=3`.
+- Produces: the ordered production procedure. Order: app deploy (Tasks 1, 2, 3, 7, 8), then collector deploy (Tasks 5, 6), then this script.
 
 - [ ] **Step 1: Write the cut-over script**
 
+The `app.*` tables do not change. The script swaps each landing table for a `Null` one and each view for the attribute-stamping one, then removes the dictionary. It runs after the collector already stamps the attributes, so the moment a new view is created it has what it needs.
+
 ```bash
 #!/bin/bash
-# Cut the collector over from otel.* + materialized views to direct ingest
-# into app.*. Order matters:
-#   1. tenant_id and retention_days become DEFAULT columns. Both writers work
-#      after this: the views insert explicit values, the exporter omits them.
-#   2. (outside this script) deploy the collector config that stamps
-#      everr.retention.* and writes to app.*.
-#   3. drop the views, the otel.* tables, the dictionary and its source.
-# Run STEP=1, deploy the collector, confirm rows arrive with stamps, then run
-# STEP=3. The app must already be deployed before STEP=1 (it writes
-# alert_events.retention_days explicitly).
+# Cut the write path over to direct ingest: otel.* become Null landing
+# tables, the views stamp tenant_id and retention_days from the resource
+# attributes the collector sets, the dictionary goes away. app.* is untouched.
 #
-# Usage:
-#   STEP=1 clickhouse/migrations/2026-09-03-direct-ingest.sh --host <h> --secure --user default --password '<pw>'
+# Run AFTER the app and the collector that stamp everr.retention.* are
+# deployed. Per table there is a sub-second window between dropping the old
+# view and creating the new one in which exporter inserts fail; the exporter
+# retries them.
+#
+# Usage (from the repo root, as an admin user):
+#   clickhouse/migrations/2026-09-03-direct-ingest.sh --host <h> --secure --user default --password '<pw>'
 set -euo pipefail
 cd "$(dirname "$0")/.."
 client() { ${CLICKHOUSE_CLIENT:-clickhouse-client} "$@"; }
 run_sql() { client "${CLIENT_ARGS[@]}" --multiquery --query "$1"; }
+run_file() { client "${CLIENT_ARGS[@]}" --multiquery < "$1"; }
 CLIENT_ARGS=("$@")
+TABLES=(traces logs metrics_gauge metrics_sum metrics_histogram metrics_exponential_histogram metrics_summary)
 
-declare -A ATTR=(
-  [traces]=everr.retention.traces_days [logs]=everr.retention.logs_days
-  [metrics_gauge]=everr.retention.metrics_days [metrics_sum]=everr.retention.metrics_days
-  [metrics_histogram]=everr.retention.metrics_days [metrics_exponential_histogram]=everr.retention.metrics_days
-  [metrics_summary]=everr.retention.metrics_days
-)
+echo "1/4 guard: the collector must already stamp retention"
+run_sql "SELECT throwIf(
+  (SELECT count() FROM otel.otel_logs WHERE TimestampTime > now() - INTERVAL 10 MINUTE AND ResourceAttributes['everr.retention.logs_days'] = '') > 0,
+  'rows without everr.retention.logs_days arrived in the last 10 minutes: deploy the collector first')"
 
-case "${STEP:?set STEP=1 or STEP=3}" in
-1)
-  for t in "${!ATTR[@]}"; do
-    a=${ATTR[$t]}
-    run_sql "ALTER TABLE app.${t}
-      MODIFY COLUMN tenant_id String DEFAULT ResourceAttributes['everr.tenant.id'] CODEC(ZSTD(1)),
-      MODIFY COLUMN retention_days UInt16 DEFAULT toUInt16OrZero(ResourceAttributes['${a}']) + throwIf(ResourceAttributes['${a}'] = '', '${a} resource attribute missing')"
-  done
-  run_sql "ALTER TABLE app.alert_events MODIFY COLUMN retention_days UInt16"
-  run_sql "GRANT SELECT, INSERT ON app.* TO collector_rw"
-  echo "step 1 done: deploy the collector config, confirm stamps, then run STEP=3"
-  ;;
-3)
-  run_sql "SELECT throwIf(
-    (SELECT count() FROM app.logs WHERE TimestampTime > now() - INTERVAL 10 MINUTE AND ResourceAttributes['everr.retention.logs_days'] = '') > 0,
-    'rows without everr.retention.logs_days arrived in the last 10 minutes: the collector is not stamping yet')"
-  for t in "${!ATTR[@]}"; do run_sql "DROP VIEW IF EXISTS app.${t}_mv"; done
-  for t in "${!ATTR[@]}"; do run_sql "DROP TABLE IF EXISTS otel.otel_${t}"; done
-  run_sql "DROP DICTIONARY IF EXISTS app.tenant_retention"
-  run_sql "DROP TABLE IF EXISTS app.tenant_retention_source"
-  run_sql "REVOKE ALL ON otel.* FROM collector_rw"
-  run_sql "DROP DATABASE IF EXISTS otel"
-  echo "step 3 done"
-  run_sql "SELECT tenant_id, retention_days, count() FROM app.logs WHERE TimestampTime > now() - INTERVAL 5 MINUTE GROUP BY ALL FORMAT PrettyCompact"
-  ;;
-esac
+echo "2/4 swap landing tables and views"
+for t in "${TABLES[@]}"; do
+  run_sql "DROP VIEW IF EXISTS app.${t}_mv"
+  run_sql "DROP TABLE IF EXISTS otel.otel_${t}"
+done
+run_file init/03-create-otel-tables.sql   # Null engines
+run_file init/10-create-mvs.sql           # app.* CREATE IF NOT EXISTS are no-ops; views are recreated
+
+echo "3/4 alert events keep their retention from the app"
+run_sql "ALTER TABLE app.alert_events MODIFY COLUMN retention_days UInt16"
+
+echo "4/4 remove the dictionary"
+run_sql "DROP DICTIONARY IF EXISTS app.tenant_retention"
+run_sql "DROP TABLE IF EXISTS app.tenant_retention_source"
+run_sql "REVOKE dictGet ON app.tenant_retention FROM collector_rw, web_app_admin" || true
+
+echo "done"
+run_sql "SELECT name, engine FROM system.tables WHERE database = 'otel' ORDER BY name FORMAT PrettyCompact"
+run_sql "SELECT tenant_id, retention_days, count() FROM app.logs WHERE TimestampTime > now() - INTERVAL 5 MINUTE GROUP BY ALL FORMAT PrettyCompact"
 ```
 
-`ALTER TABLE app.alert_events MODIFY COLUMN retention_days UInt16` drops the dictionary `DEFAULT`, which is why the app deploy comes before `STEP=1`. Rows the old views wrote between `STEP=1` and the collector deploy still carry no `everr.retention.*` attribute but have explicit stamps, so the guard in `STEP=3` looks only at the last ten minutes.
+Step 2 drops the stored `otel.*` copies (seven days of raw rows nothing reads). Step 3 runs after the app deploy, which writes `retention_days` explicitly; the old `DEFAULT` still works until then, so ordering the app first keeps alert inserts valid throughout.
 
-Test the script against a container built from the `ttl-improvements` branch (the pre-plan schema): run `STEP=1`, insert an exporter-shaped row (into `app.logs`, omitting the two columns) and a view-shaped row (into `otel.otel_logs`), run `STEP=3`, insert the exporter-shaped row again. All inserts succeed and are stamped; `otel` is gone.
+Test the script against a container built from the `ttl-improvements` branch (the pre-plan schema): seed a tenant row and the free-tier row, insert through the old views with the retention attributes present, run the script, insert again, confirm the second batch is stamped from the attributes and stripped, and confirm `otel.*` report `Null`.
 
 - [ ] **Step 2: Update `docs/clickhouse-retention-rollout.md`**
 
 Replace the "Where the numbers live", "Failure modes" and "Production rollout" sections. The facts to state:
 
 - Retention is stamped by the collector from the plan the app returns at authentication (`verify-key`) or forwards as headers (GitHub webhooks). `RETENTION_BY_TIER` is the only source. There is no dictionary, no seed row, no reconciliation.
-- The exporter writes into `app.*`; `tenant_id` and `retention_days` are `DEFAULT` columns from `ResourceAttributes`. The `everr.retention.*` attributes remain in the stored map.
+- The `otel.*` tables are `ENGINE = Null`: nothing is stored twice. The views strip `everr.retention.*` before storage; `everr.tenant.id` stays in the map.
 - A plan change reaches new rows once the collector's auth cache expires: `cache_ttl` in the `everr_apikey` extension, 30 s by default. Webhooks read the plan on every forward.
-- Failure modes: verify-key without retention fails authentication (fail closed); a resource without the attribute is refused by the table's `DEFAULT` and retried by the exporter; a stale auth cache carries the previous plan for at most `cache_ttl`.
-- Production cut-over: the ordered steps above with the exact commands.
-- `everr-deploy`: exporter config (`database: app`, table names, remove `ttl`), remove `app_ro_dictget_tenant_retention`, remove the dictionary and source table resources and their grants, `collector_rw` grant becomes `SELECT, INSERT ON app.*`, remove `dictionaries_lazy_load` if it was added.
-- Keep "Parts per insert" and the measurements; add one sentence: the `otel.*` copy is gone, so every row is written and merged once.
+- Failure modes: verify-key without retention fails authentication (fail closed); a resource without the attribute is refused by the view and retried by the exporter; a stale auth cache carries the previous plan for at most `cache_ttl`.
+- Production cut-over: app deploy, collector deploy, then the script above.
+- `everr-deploy`: remove `app_ro_dictget_tenant_retention`, remove the dictionary and source table resources and their grants, remove `dictionaries_lazy_load` if it was added. The exporter config keeps its table names.
+- Keep "Parts per insert" and the measurements; add one sentence: the stored `otel.*` copy is gone, so every row is written and merged once.
 
 - [ ] **Step 3: Update the public retention page**
 
@@ -1077,7 +1052,7 @@ In `retention.mdx`, "How we handle failures", replace the bullet about new organ
 
 ```bash
 grep -rnP '[\x{2013}\x{2014}]' docs/clickhouse-retention-rollout.md packages/docs/content/docs/reference/retention.mdx clickhouse
-grep -rn 'tenant_retention\|dictGet\|otel\.otel_\|10-create-mvs\|dictionaries_lazy_load' clickhouse docs packages/app/src collector/config.example.yml
+grep -rn 'tenant_retention\|dictGet\|dictionaries_lazy_load' clickhouse docs packages/app/src collector/config.example.yml
 ```
 
 Expected: nothing from either.
@@ -1102,16 +1077,16 @@ cd ../../collector/extension/everrapikeyauth && go test ./... && go vet ./...
 
 - [ ] **Step 2: Open the PR**
 
-Title: `feat(ingest): collector writes straight into app tables with retention stamped at auth`
+Title: `feat(ingest): stamp retention at auth and write telemetry once`
 
-Body sections: Why (double write, dictionary correctness, the `dictGet` returns 0 class of bugs), What (the names table from this plan, `DEFAULT` columns, fail-closed rules, the decision to keep the attributes in the stored map), Verified (Task 4 container output, Task 9 smoke results), Cut-over (the ordered steps and the everr-deploy changes), Follow-ups (read-side schema items from PR #426 remain). No attribution footers.
+Body sections: Why (double write, dictionary correctness, the `dictGet` returns 0 class of bugs), What (the names table from this plan, Null landing tables, the view guard, fail-closed rules), Verified (Task 4 container output, Task 9 smoke results, the 600k-row comparison from this plan's rationale), Cut-over (the three ordered steps and the everr-deploy changes), Follow-ups (read-side schema items from PR #426 remain). No attribution footers.
 
 ---
 
 ## Self-review notes
 
-- Every writer into `app.*` after this plan supplies or derives `tenant_id` and `retention_days`: exporter (`DEFAULT` from attributes, Tasks 4 and 6), alert events (explicit, Task 8), alert projection view (explicit, unchanged).
-- Every path that produces the attributes fails closed on a missing plan: `verify-key` cannot respond without `retentionForOrg` resolving; the extension rejects a response without retention (Task 5); the webhook forwarder awaits `retentionForOrg` before sending (Task 3); the table refuses a row without the attribute (Task 4).
-- The `throwIf` constant-folding pitfall is encoded in the column comment and in the cut-over script so a future edit does not reintroduce it.
+- Every writer into `app.*` after this plan supplies `tenant_id` and `retention_days` explicitly: the seven views (from attributes, Task 4), alert events (from the app, Task 8), the alert projection view (unchanged).
+- Every path that produces the attributes fails closed on a missing plan: `verify-key` cannot respond without `retentionForOrg` resolving; the extension rejects a response without retention (Task 5); the webhook forwarder awaits `retentionForOrg` before sending (Task 3); the view refuses a row without the attribute (Task 4).
+- The two ClickHouse pitfalls (constant `throwIf` folding, alias shadowing) are encoded in the view template and its header comment so a future edit does not reintroduce them.
 - Names are consistent across tasks: `retentionForOrg`, `logsDays`/`tracesDays`/`metricsDays` in JSON, `retention_*_days` in auth data, `x-everr-retention-*-days` headers, `everr.retention.*_days` attributes.
 - The local collector (`collector/cmd/everr-local-collector`, chdb) has its own schema and pipeline and is not touched.
