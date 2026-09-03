@@ -1,5 +1,10 @@
 import { Button } from "@everr/ui/components/button";
 import { GroupBand } from "@everr/ui/components/group-band";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { Pencil, Plus, TriangleAlert } from "lucide-react";
@@ -75,6 +80,28 @@ function Receives({ channel }: { channel: NotificationChannelView }) {
 }
 
 /**
+ * The failure count, with the reason behind it. The reason is a sentence and
+ * the column is narrow, so the count is the whole of the row's failure line
+ * and hovering it says why; a truncated sentence in the list would cost a
+ * line and still send the reader here.
+ */
+function Failed({ channel }: { channel: NotificationChannelView }) {
+  const count = <> · {channel.failed} failed</>;
+  if (!channel.lastError)
+    return <span className="text-destructive">{count}</span>;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={<span className="cursor-default text-destructive" />}
+      >
+        {count}
+      </TooltipTrigger>
+      <TooltipContent className="font-mono">{channel.lastError}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
  * A channel row opens its editor the way a triage row opens its rule: the
  * row washes under the pointer and the name is the control, so there is one
  * way in for a mouse and one for a keyboard.
@@ -120,22 +147,10 @@ function ChannelRow({
         <Receives channel={channel} />
         <div className="min-w-0 font-mono text-xs tabular-nums">
           {sent ? (
-            <div className="flex flex-col gap-0.5">
-              <span>
-                {channel.sent} sent
-                {channel.failed > 0 && (
-                  <span className="text-destructive">
-                    {" "}
-                    · {channel.failed} failed
-                  </span>
-                )}
-              </span>
-              {channel.lastError && (
-                <span className="truncate text-destructive/80">
-                  {channel.lastError}
-                </span>
-              )}
-            </div>
+            <span>
+              {channel.sent} sent
+              {channel.failed > 0 && <Failed channel={channel} />}
+            </span>
           ) : (
             <span className="text-muted-foreground">nothing sent</span>
           )}
