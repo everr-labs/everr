@@ -14,7 +14,6 @@ import {
 import type { AlertingMatcher } from "@/data/alerting/types";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { loadRule } from "./rules";
-import { RULE_LABEL } from "./silences";
 
 /** Free-form `key=value` pairs, space or comma separated. Anything that is not
  *  a pair is rejected rather than silently widening the silence. */
@@ -51,13 +50,13 @@ export const silenceAlertRule = createAuthenticatedServerFn({ method: "POST" })
     // The rule has to exist in this org before anything is muted by its name,
     // and the path has to be one before it reaches the database. Same
     // resolution as pausing: the two must not disagree about what a path is.
-    await loadRule(scope.organizationId, data.path);
+    const rule = await loadRule(scope.organizationId, data.path);
     const now = new Date();
     const silence = await createSilence(scope, {
       // The rule matcher is always present: a silence with only instance
       // matchers would mute that label across every rule in the org.
       matchers: [
-        { label: RULE_LABEL, op: "eq", value: data.path },
+        { label: "rule", op: "eq", value: rule.id },
         ...parseMatchers(data.matchers),
       ],
       starts_at: now.toISOString(),

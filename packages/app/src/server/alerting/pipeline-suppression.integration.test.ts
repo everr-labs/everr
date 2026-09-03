@@ -70,6 +70,35 @@ describe("the alerting pipeline's suppression", () => {
     expect(firedEvent.processedAt).toBeNull();
   });
 
+  // The case the whole Silence dialog exists to produce, and the one nothing
+  // covered: every other case here scopes by an instance label, which both
+  // sides always spelled the same way. The rule label is the one they did not:
+  // the screen wrote the rule's path while delivery matched on the row id, so
+  // a rule silenced from the board kept paging and the board said it was
+  // muted. Both name the row id now, and this is the test that says so.
+  it("a whole-rule silence, written as the Silences dialog writes it, holds the notification", async () => {
+    const rule = await insertDirectRule(harness().db, {
+      forSecs: 0,
+      channelType: "slack",
+    });
+    await insertSilence(harness().db, {
+      matchers: [{ label: "rule", op: "eq", value: rule.id }],
+    });
+    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+
+    await harness().runDueJobs();
+
+    expect(harness().fetchCalls()).toHaveLength(0);
+    // Not just "nothing was sent yet": the event carries the silence that
+    // held it, which is the only proof the match actually happened rather
+    // than the group wait not having elapsed.
+    const [fired] = await harness()
+      .db.select()
+      .from(alertEvents)
+      .where(eq(alertEvents.eventType, "instance_fired"));
+    expect(fired.silenceId).not.toBeNull();
+  });
+
   it("records the hold when the silence arrives between dispatch and flush", async () => {
     await insertDirectRule(harness().db, { forSecs: 0, channelType: "slack" });
     harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);

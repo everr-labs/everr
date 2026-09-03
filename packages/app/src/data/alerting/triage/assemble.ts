@@ -100,12 +100,11 @@ export type DeliverySource = {
 
 function deliveryFor(
   row: DefinitionRow,
-  path: string,
   source: DeliverySource,
 ): DeliveryFacts {
   return {
     latest: source.notifications.get(row.id),
-    silence: silenceFor(path, row.spec.severity, source.silences, source.now),
+    silence: silenceFor(row.id, row.spec.severity, source.silences, source.now),
     held: source.held.get(row.id) ?? 0,
     hasTarget: hasDeliveryTarget(row, source.defaultTiers),
   };
@@ -197,7 +196,7 @@ export function assembleTriage(input: TriageInput): AlertTriageData {
   for (const row of input.definitions) {
     const path = rulePath(row);
     const own = byDefinition.get(row.id) ?? [];
-    const delivery = deliveryFor(row, path, input);
+    const delivery = deliveryFor(row, input);
     const { silence } = delivery;
 
     rules.push({
@@ -310,7 +309,7 @@ export function assembleRuleStateHistory(
   for (const definition of input.definitions) {
     const path = rulePath(definition);
     const silence = silenceFor(
-      path,
+      definition.id,
       definition.spec.severity,
       input.silences,
       input.now,
@@ -376,7 +375,7 @@ export function assembleAlertDetail(input: AlertDetailInput): AlertDetail {
   const { now, definition } = input;
   const spec = definition.spec;
   const path = rulePath(definition);
-  const delivery = deliveryFor(definition, path, input);
+  const delivery = deliveryFor(definition, input);
   const { silence } = delivery;
   const status = inventoryState(definition, silence !== null);
   const worst = worstInstance(input.instances);

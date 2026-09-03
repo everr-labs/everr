@@ -28,11 +28,7 @@ vi.mock(
   async () => import("@/server/alerting/testing/test-clickhouse"),
 );
 
-import {
-  loadActiveSilences,
-  loadSilencesInWindow,
-  silenceFor,
-} from "./silences";
+import { loadOpenSilences, loadSilencesInWindow, silenceFor } from "./silences";
 
 const harness = useAlertingHarness();
 
@@ -54,7 +50,7 @@ describe("the Silences the Triage screen reads", () => {
     });
     await insertSilence(harness().db, { startsAt: at(-4), endsAt: at(-1) });
 
-    const silences = await loadActiveSilences(TEST_ORG);
+    const silences = await loadOpenSilences(TEST_ORG);
 
     expect(silences.map((row) => row.id)).toEqual([open.id]);
   });
@@ -66,7 +62,7 @@ describe("the Silences the Triage screen reads", () => {
       matchers: ruleMatcher,
     });
 
-    const silences = await loadActiveSilences(TEST_ORG);
+    const silences = await loadOpenSilences(TEST_ORG);
 
     // Open by the window test, so a caller can list it as scheduled...
     expect(silences.map((row) => row.id)).toEqual([scheduled.id]);

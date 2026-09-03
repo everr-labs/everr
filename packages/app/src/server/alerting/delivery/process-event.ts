@@ -16,7 +16,7 @@ import { claimDeliverableEvent } from "./journal-reader";
 import {
   deferSuppressedEvent,
   eventStillFiring,
-  matchingSilence,
+  silenceForEvent,
 } from "./suppression";
 import { dispatchTargetForEvent } from "./targeting";
 
@@ -58,7 +58,7 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     await endChainWithTerminal(event, now, "no_longer_firing");
     return;
   }
-  const silence = await matchingSilence(event, now);
+  const silence = await silenceForEvent(event, now);
   if (silence) {
     await deferSuppressedEvent(event, silence, now);
     setAlertSpanAttributes({ outcome: "silenced" });
