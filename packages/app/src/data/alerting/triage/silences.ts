@@ -1,75 +1,41 @@
 /**
- * Silences as the triage screen reads them: which one is in force for a rule,
- * what it looks like on a row, and the record the detail lists.
+ * Silences as the screens read them: which one is in force for a rule, what
+ * it looks like on a row, and the record the two lists print.
+ *
+ * Which silences to fetch is a separate question, and every version of it
+ * lives together in the silences repository.
  */
-import { and, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
+import { formatMatchers } from "@/data/alerting/silences/matchers";
 import {
   ruleSubject,
   silenceIsInForce,
   silenceSelects,
 } from "@/data/alerting/silences/matching";
+import type { SilenceRow } from "@/data/alerting/silences/repository";
 import type { AlertingMatcher } from "@/data/alerting/types";
-import { db } from "@/db/client";
-import { alertSilences } from "@/db/schema";
 import { formatElapsed, silenceImpact } from "./format";
-import type { AlertSilenceRecord, AlertSilenceView } from "./view";
-
-export type SilenceRow = typeof alertSilences.$inferSelect;
+import type {
+  AlertRuleOption,
+  AlertSilenceRecord,
+  AlertSilenceView,
+} from "./view";
 
 /** What a silence did to delivery: notifications it is still sitting on, and
  *  ones it dropped for good. */
 export type SilenceImpactCounts = { held: number; dropped: number };
 
-/**
- * Every silence that has not closed yet, the ones still to start included: the
- * screens list a scheduled window as well as a muting one. A cancelled silence
- * has its window collapsed by `expireSilence`, so `ends_at > now()` already
- * excludes it.
+/** The rule a definition's row id names, by both names the product uses for
+ *  it, or `null` where the rule is gone: retention keeps a silence for 90
+ *  days, and the rule it named can be deleted inside that window.
  *
- * Not `loadActiveSilences`: delivery has a loader by that name and it means
- * the narrower thing, the silences in force this instant.
- */
-export async function loadOpenSilences(
-  organizationId: string,
-): Promise<SilenceRow[]> {
-  return db
-    .select()
-    .from(alertSilences)
-    .where(
-      and(
-        eq(alertSilences.organizationId, organizationId),
-        gt(alertSilences.endsAt, sql`now()`),
-      ),
-    );
-}
-
-/**
- * Silences for one rule whose window overlaps `[from, to]`, newest first.
- * Bounded by the window rather than by "active now" on purpose: the question
- * a silence list answers is usually "why did nobody hear about this", and by
- * then the silence responsible has often already expired.
- */
-export async function loadSilencesInWindow(
-  organizationId: string,
+ *  The pair is `AlertRuleOption`'s, so a caller holding the rules the picker
+ *  reads can hand its rows straight over. */
+export type RuleFor = (
   ruleId: string,
-  severity: string,
-  from: Date,
-  to: Date,
-): Promise<SilenceRow[]> {
-  const rows = await db
-    .select()
-    .from(alertSilences)
-    .where(
-      and(
-        eq(alertSilences.organizationId, organizationId),
-        lte(alertSilences.startsAt, to),
-        gte(alertSilences.endsAt, from),
-      ),
-    )
-    .orderBy(desc(alertSilences.startsAt));
-  const subject = ruleSubject(ruleId, severity);
-  return rows.filter((row) => silenceSelects(row.matchers, subject));
-}
+) => Pick<AlertRuleOption, "path" | "name"> | null;
+
+/** What a silence did to delivery when history has no row for it. */
+const NO_IMPACT: SilenceImpactCounts = { held: 0, dropped: 0 };
 
 function isWholeRuleSilence(matchers: AlertingMatcher[]): boolean {
   return matchers.every((m) => m.label === "rule");
@@ -114,35 +80,65 @@ export function silenceView(
   };
 }
 
-/** Everything the app knows about a silence, for the detail's own list. */
+function silenceState(row: SilenceRow, now: Date): AlertSilenceRecord["state"] {
+  return row.canceledAt !== null
+    ? "cancelled"
+    : row.startsAt > now
+      ? "scheduled"
+      : row.endsAt <= now
+        ? "expired"
+        : "active";
+}
+
+/** Everything the app knows about a silence, for the two screens that list
+ *  them. */
 export function silenceRecord(
   row: SilenceRow,
   now: Date,
   counts: SilenceImpactCounts,
+  ruleFor: RuleFor,
 ): AlertSilenceRecord {
-  const state: AlertSilenceRecord["state"] =
-    row.canceledAt !== null
-      ? "cancelled"
-      : row.startsAt > now
-        ? "scheduled"
-        : row.endsAt <= now
-          ? "expired"
-          : "active";
-  // The rule matcher is on every silence this screen writes and is what
-  // selected the row in the first place, so listing it back says nothing.
-  const scoped = row.matchers.filter((m) => m.label !== "rule");
+  const rules = row.matchers.filter((m) => m.label === "rule" && m.op === "eq");
+  // A silence written outside these screens can name a rule twice, or with
+  // `!=`, and "silence this rule again" has no one rule to mean then.
+  //
+  // The matcher holds a row id, which names nothing a reader knows. It is
+  // resolved here, once, so every screen prints and links the same rule and
+  // none of them has to know what the matcher actually stores.
+  const rule = rules.length === 1 ? ruleFor(rules[0].value) : null;
   return {
     id: row.id,
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
-    state,
-    matchers: scoped
-      .map((m) => `${m.label}${m.op === "ne" ? "!=" : "="}${m.value}`)
-      .join(" "),
-    wholeRule: scoped.length === 0,
+    state: silenceState(row, now),
+    // Projected rather than passed through: the lookup may hand over a whole
+    // rule row, and the definition's id is the one field on it that must not
+    // reach a screen.
+    rule: rule && { path: rule.path, name: rule.name },
+    scope: formatMatchers(row.matchers.filter((m) => m.label !== "rule")),
+    // It named one rule and the lookup came back empty, so the rule is gone.
+    // Only for exactly one `rule=` matcher: a silence naming a rule with `!=`,
+    // or naming two, resolves to no single rule without any of them having
+    // been deleted, and "deleted" would be a guess about data that is right
+    // there.
+    deletedRule: rules.length === 1 && rule === null,
     canceledAt: row.canceledAt?.toISOString() ?? null,
     impact: silenceImpact(counts),
     comment: row.comment,
     author: row.author,
   };
+}
+
+/** The records for a list of rows, each with whatever history counted for it.
+ *  One place decides that a silence history has no row for withheld nothing,
+ *  so the two screens that list silences cannot answer that differently. */
+export function silenceRecords(
+  rows: SilenceRow[],
+  now: Date,
+  impacts: Map<string, SilenceImpactCounts>,
+  ruleFor: RuleFor,
+): AlertSilenceRecord[] {
+  return rows.map((row) =>
+    silenceRecord(row, now, impacts.get(row.id) ?? NO_IMPACT, ruleFor),
+  );
 }

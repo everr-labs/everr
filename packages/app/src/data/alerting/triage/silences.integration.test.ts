@@ -28,15 +28,32 @@ vi.mock(
   async () => import("@/server/alerting/testing/test-clickhouse"),
 );
 
-import { loadOpenSilences, loadSilencesInWindow, silenceFor } from "./silences";
+import {
+  loadOpenSilences,
+  loadSilencesForPage,
+  loadSilencesInWindow,
+} from "@/data/alerting/silences/repository";
+import { silenceFor, silenceRecord } from "./silences";
 
 const harness = useAlertingHarness();
 
 const HOUR = 3_600_000;
+const RULE_ID = "0e1c2b8f-4a3d-4c2b-9f11-5a7c9d2e8b41";
+
+/** What that id resolves to for the screens. */
 const RULE_PATH = "default/checkout-latency";
+const RULE_NAME = "Checkout latency";
+
+/** The lookup the server hands the record builder. It hands over whole rule
+ *  rows, id and all, which is why the record has to project rather than pass
+ *  them through. */
+const ruleFor = (id: string) =>
+  id === RULE_ID
+    ? { id: RULE_ID, path: RULE_PATH, project: "default", name: RULE_NAME }
+    : null;
 
 /** Selects the whole Alert rule, the way the Triage screen writes a Silence. */
-const ruleMatcher = [{ label: "rule", op: "eq" as const, value: RULE_PATH }];
+const ruleMatcher = [{ label: "rule", op: "eq" as const, value: RULE_ID }];
 
 function at(hoursFromNow: number): Date {
   return new Date(Date.now() + hoursFromNow * HOUR);
@@ -67,7 +84,7 @@ describe("the Silences the Triage screen reads", () => {
     // Open by the window test, so a caller can list it as scheduled...
     expect(silences.map((row) => row.id)).toEqual([scheduled.id]);
     // ...but nothing is muted until it starts.
-    expect(silenceFor(RULE_PATH, "warning", silences, new Date())).toBeNull();
+    expect(silenceFor(RULE_ID, "warning", silences, new Date())).toBeNull();
   });
 
   it("takes each window bound on its own", async () => {
@@ -98,7 +115,7 @@ describe("the Silences the Triage screen reads", () => {
 
     const silences = await loadSilencesInWindow(
       TEST_ORG,
-      RULE_PATH,
+      RULE_ID,
       "warning",
       from,
       to,
@@ -123,7 +140,7 @@ describe("the Silences the Triage screen reads", () => {
 
     const silences = await loadSilencesInWindow(
       TEST_ORG,
-      RULE_PATH,
+      RULE_ID,
       "warning",
       at(-4),
       at(0),
@@ -146,7 +163,7 @@ describe("the Silences the Triage screen reads", () => {
 
     const silences = await loadSilencesInWindow(
       TEST_ORG,
-      RULE_PATH,
+      RULE_ID,
       "warning",
       at(-2),
       at(0),
@@ -165,14 +182,14 @@ describe("the Silences the Triage screen reads", () => {
 
     const critical = await loadSilencesInWindow(
       TEST_ORG,
-      RULE_PATH,
+      RULE_ID,
       "critical",
       at(-2),
       at(0),
     );
     const warning = await loadSilencesInWindow(
       TEST_ORG,
-      RULE_PATH,
+      RULE_ID,
       "warning",
       at(-2),
       at(0),
@@ -180,5 +197,146 @@ describe("the Silences the Triage screen reads", () => {
 
     expect(critical.map((row) => row.id)).toEqual([bySeverity.id]);
     expect(warning).toEqual([]);
+  });
+});
+
+describe("the Silences the Silences page lists", () => {
+  it("keeps every open Silence and only the closed ones that overlap the range", async () => {
+    const active = await insertSilence(harness().db, {
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    // Open, but a week away from the range asked about.
+    const scheduled = await insertSilence(harness().db, {
+      startsAt: at(24 * 7),
+      endsAt: at(24 * 7 + 1),
+    });
+    const closedInRange = await insertSilence(harness().db, {
+      startsAt: at(-5),
+      endsAt: at(-4),
+    });
+    await insertSilence(harness().db, { startsAt: at(-30), endsAt: at(-29) });
+
+    const { rows } = await loadSilencesForPage(TEST_ORG, at(-6), at(0));
+
+    expect(rows.map((row) => row.id).sort()).toEqual(
+      [active.id, scheduled.id, closedInRange.id].sort(),
+    );
+  });
+
+  it("reads the open Silences first, so the cap can only cut into history", async () => {
+    // The one that is muting started long before every closed row here. By
+    // window alone it sorts last and a cap would drop it, which is the row the
+    // page exists to show.
+    const muting = await insertSilence(harness().db, {
+      startsAt: at(-24 * 20),
+      endsAt: at(24 * 10),
+    });
+    await insertSilence(harness().db, { startsAt: at(-3), endsAt: at(-2) });
+    await insertSilence(harness().db, { startsAt: at(-2), endsAt: at(-1) });
+
+    const { rows, cut } = await loadSilencesForPage(TEST_ORG, at(-6), at(0));
+
+    expect(rows[0].id).toBe(muting.id);
+    // Three rows against a cap of two hundred: nothing was cut.
+    expect(cut).toBeNull();
+  });
+
+  it("resolves the stored rule id to the path it links by and the name it prints", async () => {
+    const { id } = await insertSilence(harness().db, {
+      matchers: [...ruleMatcher, { label: "region", op: "eq", value: "eu" }],
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error("silence not listed");
+
+    const page = silenceRecord(
+      row,
+      new Date(),
+      { held: 2, dropped: 0 },
+      ruleFor,
+    );
+
+    expect(page.state).toBe("active");
+    expect(page.rule).toEqual({ path: RULE_PATH, name: RULE_NAME });
+    // The lookup handed over a whole rule row; only the two names it is asked
+    // for may travel, never the definition's id.
+    expect(JSON.stringify(page)).not.toContain(RULE_ID);
+    expect(page.scope).toBe("region=eu");
+    expect(page.impact).toBe("held 2");
+  });
+
+  it("has no rule to repeat when the Silence named none", async () => {
+    const { id } = await insertSilence(harness().db, {
+      matchers: [{ label: "environment", op: "eq", value: "staging" }],
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error("silence not listed");
+
+    const page = silenceRecord(
+      row,
+      new Date(),
+      { held: 0, dropped: 0 },
+      ruleFor,
+    );
+
+    expect(page.rule).toBeNull();
+    expect(page.scope).toBe("environment=staging");
+    expect(page.impact).toBeNull();
+  });
+
+  it("keeps the stored rule id off the record when the rule is gone", async () => {
+    // Retention keeps a Silence for 90 days and the rule it named can be
+    // deleted inside that window. Nothing the record carries may then be the
+    // raw id: a row that printed it read `rule=0e1c2b8f-…` at the reader.
+    const { id } = await insertSilence(harness().db, {
+      matchers: [...ruleMatcher, { label: "region", op: "eq", value: "eu" }],
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error("silence not listed");
+
+    const page = silenceRecord(
+      row,
+      new Date(),
+      { held: 0, dropped: 0 },
+      () => null,
+    );
+
+    expect(page.rule).toBeNull();
+    // The row leads with that rather than reprinting the window it already
+    // shows in the column beside it.
+    expect(page.deletedRule).toBe(true);
+    expect(JSON.stringify(page)).not.toContain(RULE_ID);
+  });
+
+  it("does not call a rule deleted when the Silence named no single one", async () => {
+    // Negated, so it resolves to no one rule. Nothing here has been deleted,
+    // and saying so would be a guess about matchers that are right there.
+    const { id } = await insertSilence(harness().db, {
+      matchers: [{ label: "rule", op: "ne", value: RULE_ID }],
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error("silence not listed");
+
+    const page = silenceRecord(
+      row,
+      new Date(),
+      { held: 0, dropped: 0 },
+      ruleFor,
+    );
+
+    expect(page.rule).toBeNull();
+    expect(page.deletedRule).toBe(false);
   });
 });

@@ -16,6 +16,7 @@ import {
   ANN_DISPLAY_DESCRIPTION,
 } from "@/data/alerting/resource-annotations";
 import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
+import type { SilenceRow } from "@/data/alerting/silences/repository";
 import type {
   AlertingEvaluationSample,
   AlertingSeverity,
@@ -56,9 +57,8 @@ import {
 import { type LifecycleRow, ruleStateSegments } from "./segments";
 import {
   type SilenceImpactCounts,
-  type SilenceRow,
   silenceFor,
-  silenceRecord,
+  silenceRecords,
   silenceView,
 } from "./silences";
 import type { InstanceLanes, InstanceValues } from "./values";
@@ -432,12 +432,14 @@ export function assembleAlertDetail(input: AlertDetailInput): AlertDetail {
       lastEvaluatedAt: definition.lastSeenAt?.toISOString() ?? null,
       query: spec.sql,
     },
-    silences: input.windowSilences.map((row) =>
-      silenceRecord(
-        row,
-        now,
-        input.silenceImpacts.get(row.id) ?? { held: 0, dropped: 0 },
-      ),
+    // The window read already selected on this rule, so the only id any of
+    // these rows can name is this definition's.
+    silences: silenceRecords(
+      input.windowSilences,
+      now,
+      input.silenceImpacts,
+      (ruleId) =>
+        ruleId === definition.id ? { path, name: ruleTitle(definition) } : null,
     ),
     activeSilenceId: silence?.id ?? null,
     forClause: formatDurationSeconds(spec.for_secs),

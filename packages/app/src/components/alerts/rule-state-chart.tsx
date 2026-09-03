@@ -2,7 +2,7 @@ import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { memo, useMemo } from "react";
-import { formatElapsed } from "@/data/alerting/triage/format";
+import { formatAgoPhrase, formatElapsed } from "@/data/alerting/triage/format";
 import type {
   ChartWindow,
   InstanceValueSeries,
@@ -25,19 +25,6 @@ const SEGMENT_STATES: RuleStateSegment["state"][] = [
   "silenced",
   "degraded",
 ];
-
-/** Minutes under 90, then hours, then days past two of them: "168h ago" is a
- *  number a reader has to divide before it means anything. */
-function formatAgo(minutes: number) {
-  if (minutes <= 0) return "now";
-  if (minutes < 90) return `${Math.round(minutes)}m`;
-  const hours = minutes / 60;
-  if (hours < 48) {
-    return `${hours < 10 ? hours.toFixed(hours % 1 ? 1 : 0) : Math.round(hours)}h`;
-  }
-  const days = hours / 24;
-  return `${days < 10 ? days.toFixed(days % 1 ? 1 : 0) : Math.round(days)}d`;
-}
 
 /**
  * One rule's state over the selected window, as a chart rather than a
@@ -89,7 +76,7 @@ export const RuleStateChart = memo(function RuleStateChart({
         : `${name}: ${visible
             .map(
               (s) =>
-                `${STATUS_META[s.state].label.toLowerCase()} for ${formatElapsed(s.minutes * 60_000)} starting ${formatAgo(s.from)} ago`,
+                `${STATUS_META[s.state].label.toLowerCase()} for ${formatElapsed(s.minutes * 60_000)} starting ${formatAgoPhrase(s.from * 60_000)}`,
             )
             .join(", ")}`,
     [visible, name],

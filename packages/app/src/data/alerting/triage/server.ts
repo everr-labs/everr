@@ -7,6 +7,11 @@
  */
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
+import {
+  loadOpenSilences,
+  loadSilencesForPage,
+  loadSilencesInWindow,
+} from "@/data/alerting/silences/repository";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   assembleAlertDetail,
@@ -32,14 +37,17 @@ import {
   loadInstances,
   loadRule,
   loadRuleInstances,
+  loadRuleOptions,
   loadRules,
   rulePath,
   triageStatus,
 } from "./rules";
-import { loadOpenSilences, loadSilencesInWindow } from "./silences";
+import { silenceRecords } from "./silences";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 import type {
   AlertDetail,
+  AlertRuleOption,
+  AlertSilencePage,
   AlertTriageData,
   RuleStateHistoryData,
 } from "./view";
@@ -188,28 +196,30 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
     ]);
 
     const lastSamples = parseSamples(lastEvaluation[0]?.samples_json ?? "[]");
-    const silenceImpacts = await loadSilenceImpact(
-      context.clickhouse.query,
-      windowSilences,
-    );
-    const values = await loadInstanceValues(context.clickhouse.query, {
-      rules: [valueRule(definition)],
-      from: fromDate,
-      to: toDate,
-      // The chart names its lanes, and a fingerprint is not a name: instances
-      // that have since closed are named from the window's rows, and the ones
-      // the last evaluation saw from its own samples.
-      labels: new Map([
-        ...instanceLabels.map(
-          (row) =>
-            [row.instance_fingerprint, formatLabels(row.labels ?? {})] as const,
-        ),
-        ...lastSamples.map(
-          (sample) =>
-            [sample.fingerprint, formatLabels(sample.labels ?? {})] as const,
-        ),
-      ]),
-    });
+    const [silenceImpacts, values] = await Promise.all([
+      loadSilenceImpact(context.clickhouse.query, windowSilences),
+      loadInstanceValues(context.clickhouse.query, {
+        rules: [valueRule(definition)],
+        from: fromDate,
+        to: toDate,
+        // The chart names its lanes, and a fingerprint is not a name: instances
+        // that have since closed are named from the window's rows, and the ones
+        // the last evaluation saw from its own samples.
+        labels: new Map([
+          ...instanceLabels.map(
+            (row) =>
+              [
+                row.instance_fingerprint,
+                formatLabels(row.labels ?? {}),
+              ] as const,
+          ),
+          ...lastSamples.map(
+            (sample) =>
+              [sample.fingerprint, formatLabels(sample.labels ?? {})] as const,
+          ),
+        ]),
+      }),
+    ]);
 
     return assembleAlertDetail({
       now,
@@ -227,3 +237,50 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
       values,
     });
   });
+
+export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ from: z.string(), to: z.string() }))
+  .handler(async ({ data, context }): Promise<AlertSilencePage> => {
+    const organizationId = context.session.session.activeOrganizationId;
+    const now = new Date();
+    const { fromDate, toDate } = resolveTimeRange(data);
+
+    const { rows, cut } = await loadSilencesForPage(
+      organizationId,
+      fromDate,
+      toDate,
+    );
+    // The page spans every rule, so a row's stored id means nothing until it
+    // is resolved. The same read the picker uses, and it is cheap: two short
+    // columns per live rule. Skipped outright when there is nothing to
+    // resolve, which is an org-wide scan a page of no silences was paying for
+    // every thirty seconds.
+    const [impacts, rules] = await Promise.all([
+      loadSilenceImpact(context.clickhouse.query, rows),
+      rows.length > 0 ? loadRuleOptions(organizationId) : [],
+    ]);
+    // The rule rows themselves: `RuleFor` wants the pair they already carry,
+    // and the record takes only the two fields off them. Resolved here so the
+    // page does not read the organization's whole rule list a second time just
+    // to turn a path into a name.
+    const byId = new Map(rules.map((rule) => [rule.id, rule]));
+    return {
+      silences: silenceRecords(
+        rows,
+        now,
+        impacts,
+        (id) => byId.get(id) ?? null,
+      ),
+      cut,
+    };
+  });
+
+/** The rules a silence may be pointed at, for the dialog that opens with none
+ *  to assume. Its own read: the list changes when rules are applied, not every
+ *  time a screen polls. */
+export const getAlertRuleOptions = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(
+  ({ context }): Promise<AlertRuleOption[]> =>
+    loadRuleOptions(context.session.session.activeOrganizationId),
+);

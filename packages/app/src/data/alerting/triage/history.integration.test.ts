@@ -279,6 +279,20 @@ describe("the recent events the detail lists", () => {
     expect(timeline).toHaveLength(1);
   });
 
+  it("stops at the window end, so a past window never shows later events", async () => {
+    write(
+      transition({ eventType: "instance_fired", at: minutesAgo(50) }),
+      transition({ eventType: "instance_resolved", at: minutesAgo(5) }),
+    );
+
+    const timeline = await loadRecentTimeline(query, {
+      path: PATH,
+      windowTo: minutesAgo(30),
+    });
+
+    expect(timeline.map((row) => row.event_type)).toEqual(["instance_fired"]);
+  });
+
   it("reads the events of the rule it was asked about", async () => {
     const other = definition({ slug: "default/other-rule" });
     write(
@@ -348,6 +362,23 @@ describe("the last evaluation the detail reads its values from", () => {
     });
 
     expect(rows[0].samples_json).toContain("succeeded");
+  });
+
+  it("takes the last evaluation before the window end, not the newest one", async () => {
+    write(
+      evaluation(minutesAgo(50), [{ fingerprint: "inside" }]),
+      evaluation(minutesAgo(5), [{ fingerprint: "after" }]),
+    );
+
+    const rows = await loadLastEvaluation(query, {
+      path: PATH,
+      windowFrom: minutesAgo(60),
+      windowTo: minutesAgo(30),
+      intervalSecs: 60,
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].samples_json).toContain("inside");
   });
 
   it("reaches back before the window when the rule stopped evaluating", async () => {

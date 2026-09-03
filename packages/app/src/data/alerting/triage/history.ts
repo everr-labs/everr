@@ -143,6 +143,7 @@ export function loadRecentTimeline(
         AND is_live
         AND event_type IN ({types:Array(String)})
         AND event_time >= parseDateTimeBestEffort({since:String})
+        AND event_time <= parseDateTimeBestEffort({to:String})
       ORDER BY event_time DESC
       LIMIT 12`,
     {
@@ -151,6 +152,7 @@ export function loadRecentTimeline(
       since: new Date(
         opts.windowTo.getTime() - TIMELINE_LOOKBACK_MS,
       ).toISOString(),
+      to: opts.windowTo.toISOString(),
     },
   );
 }
@@ -180,10 +182,12 @@ export function loadLastEvaluation(
         AND is_live
         AND event_type = 'evaluation_succeeded'
         AND event_time >= parseDateTimeBestEffort({since:String})
+        AND event_time <= parseDateTimeBestEffort({to:String})
       ORDER BY event_time DESC
       LIMIT 1`,
     {
       slug: opts.path,
+      to: opts.windowTo.toISOString(),
       since: new Date(
         Math.min(
           opts.windowFrom.getTime(),

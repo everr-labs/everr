@@ -1,23 +1,64 @@
+import { RetryError } from "@everr/ui/components/retry-error";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader } from "@/components/page-header";
+import {
+  ALERT_PANEL_ROUTE,
+  ALERT_PANEL_SEARCH,
+  AlertDetailShell,
+  useAlertDetail,
+} from "@/components/alerts/alert-detail-shell";
+import { SilenceDialog } from "@/components/alerts/silence-dialog";
+import { SilencesPage } from "@/components/alerts/silences-page";
+import { alertSilencesOptions } from "@/data/alerting/triage/options";
+import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/silences",
 )({
-  // Silences are live operational state, not an as-code resource a preview
-  // branch overlays, so the preview banner would be misleading here.
-  staticData: { breadcrumb: "Silences", hidePreviewFrame: true },
+  validateSearch: ALERT_PANEL_SEARCH,
+  staticData: { breadcrumb: "Silences", ...ALERT_PANEL_ROUTE },
   head: () => ({ meta: [{ title: "Everr - Alert silences" }] }),
   component: AlertingSilencesPage,
 });
 
 function AlertingSilencesPage() {
+  const { silence, shellProps } = useAlertDetail();
+  const { timeRange } = useTimeRange();
+  // Each record arrives with its rule's display name already resolved: the
+  // read had the organization's rules in hand to resolve the stored id at all,
+  // so the page does not fetch that list a second time to turn a path into a
+  // name.
+  const silences = useQuery(alertSilencesOptions(timeRange));
+
+  if (silences.isError) {
+    return (
+      <div className="h-full overflow-auto p-3">
+        <RetryError
+          title="Could not load silences"
+          message={silences.error.message}
+          onRetry={() => void silences.refetch()}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-3">
-      <PageHeader
-        title="Silences"
-        lede="Silenced alerts stay visible but are not delivered."
-      />
-    </div>
+    <>
+      <AlertDetailShell {...shellProps}>
+        <div className="min-h-0 min-w-0 overflow-auto overscroll-y-contain pb-6">
+          <SilencesPage
+            silences={silences.data?.silences ?? null}
+            cut={silences.data?.cut ?? null}
+            pending={silence.pending}
+            onNew={() =>
+              silence.openSilence({ rule: null, matchers: "", comment: "" })
+            }
+            onCancel={silence.cancel}
+            onSilenceAgain={silence.openSilence}
+          />
+        </div>
+      </AlertDetailShell>
+      <SilenceDialog {...silence.dialogProps} />
+    </>
   );
 }

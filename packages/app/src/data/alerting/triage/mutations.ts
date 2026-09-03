@@ -7,30 +7,13 @@
 import * as z from "zod";
 import { pauseRule, resumeRule } from "@/data/alerting/rules/repository";
 import { alertingMutationScope } from "@/data/alerting/session";
+import { parseMatchers } from "@/data/alerting/silences/matchers";
 import {
   createSilence,
   expireSilence,
 } from "@/data/alerting/silences/repository";
-import type { AlertingMatcher } from "@/data/alerting/types";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { loadRule } from "./rules";
-
-/** Free-form `key=value` pairs, space or comma separated. Anything that is not
- *  a pair is rejected rather than silently widening the silence. */
-export function parseMatchers(input: string): AlertingMatcher[] {
-  return input
-    .split(/[\s,]+/)
-    .filter(Boolean)
-    .map((token) => {
-      const eq = token.indexOf("=");
-      if (eq <= 0) throw new Error(`matcher must be label=value: ${token}`);
-      return {
-        label: token.slice(0, eq),
-        op: "eq" as const,
-        value: token.slice(eq + 1),
-      };
-    });
-}
 
 export const silenceAlertRule = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(

@@ -4,7 +4,7 @@
  * on its own.
  */
 import { notFound } from "@tanstack/react-router";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { ANN_DISPLAY_NAME } from "@/data/alerting/resource-annotations";
 import { alertingConditionOperatorLabel } from "@/data/alerting/rules/condition";
 import type {
@@ -15,7 +15,7 @@ import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
 import { db } from "@/db/client";
 import { alertDefinitions, alertInstances } from "@/db/schema";
 import { compareRuleLabels } from "./format";
-import type { RuleInventoryState, TriageStatus } from "./view";
+import type { AlertRuleOption, RuleInventoryState, TriageStatus } from "./view";
 
 export type DefinitionRow = typeof alertDefinitions.$inferSelect;
 export type InstanceRow = typeof alertInstances.$inferSelect;
@@ -27,7 +27,7 @@ export function runbookLabel(href: string): string {
   return segments[segments.length - 1] || href;
 }
 
-export function rulePath(row: DefinitionRow): string {
+export function rulePath(row: Pick<DefinitionRow, "project" | "slug">): string {
   return formatResourceName(row.project, row.slug);
 }
 
@@ -37,7 +37,11 @@ export function rulePath(row: DefinitionRow): string {
  * once an instance has filled it in. `everr.display.name` is the name a person
  * wrote for the rule itself.
  */
-export function ruleTitle(row: DefinitionRow): string {
+export function ruleTitle(
+  row: Pick<DefinitionRow, "slug"> & {
+    spec: { annotations?: Record<string, string> | null };
+  },
+): string {
   return row.spec.annotations?.[ANN_DISPLAY_NAME]?.trim() || row.slug;
 }
 
@@ -80,6 +84,54 @@ export async function loadRules(
     .map((row) => ({ row, label: ruleTitle(row), path: rulePath(row) }))
     .sort(compareRuleLabels)
     .map((entry) => entry.row);
+}
+
+/**
+ * Path, project and display name for every live rule: what the silence picker
+ * offers, and what lets a screen that stores only a path print the name a
+ * person would recognize.
+ *
+ * `loadRules` selects every column, `spec` included, and the SQL of every rule
+ * in the org is a large thing to read to write a list of names. Only the
+ * annotations object is pulled out, so a rule costs a handful of short strings
+ * rather than its whole definition, and `ruleTitle` still resolves the name:
+ * one implementation, so the picker and the Silences list cannot print two
+ * different names for one rule.
+ *
+ * Ordered by the two columns that compose the path, which is an order the
+ * database can produce without seeing the annotation. Callers that print names
+ * sort on the name.
+ */
+export async function loadRuleOptions(
+  organizationId: string,
+): Promise<AlertRuleOption[]> {
+  const rows = await db
+    .select({
+      id: alertDefinitions.id,
+      project: alertDefinitions.project,
+      slug: alertDefinitions.slug,
+      // The annotations object, not the one name inside it: the name is
+      // `ruleTitle`'s to resolve, and a second copy of its trim-and-fallback
+      // written as SQL is one that can drift from the one every other screen
+      // prints. This keeps the point of the read, which is not fetching the
+      // whole spec.
+      annotations: sql<Record<
+        string,
+        string
+      > | null>`${alertDefinitions.spec}->'annotations'`,
+    })
+    .from(alertDefinitions)
+    .where(liveRulesFilter(organizationId))
+    .orderBy(alertDefinitions.project, alertDefinitions.slug);
+  return rows.map((row) => ({
+    id: row.id,
+    path: rulePath(row),
+    project: row.project,
+    name: ruleTitle({
+      slug: row.slug,
+      spec: { annotations: row.annotations },
+    }),
+  }));
 }
 
 /**
@@ -209,7 +261,12 @@ export function measuredText(
   }
   const rows = row.lastRowCount;
   const rowsText = `${rows} ${rows === 1 ? "row" : "rows"}`;
-  const breaching = instances.filter((i) => i.status === "firing").length;
+  // Breaching is the same count `instanceSummary` reports: an instance whose
+  // condition is true, pending ones included. Pending has crossed the
+  // threshold and is only waiting out the `for` clause, and a row that called
+  // it healthy here while the detail panel counted it would put two numbers
+  // for one rule on the screen at once.
+  const breaching = instances.filter((i) => i.status !== "inactive").length;
   if (breaching === 0) return rowsText;
   return `worst of ${breaching} breaching · ${rowsText}`;
 }

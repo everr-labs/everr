@@ -129,14 +129,6 @@ export type LifecycleEvent = {
 };
 
 /**
- * One Alert instance's evaluated values over the queried window.
- *
- * The lane is the instance, and the panel stacks one per instance so the
- * reader compares series against each other and against the Condition on a
- * single axis, which is the comparison a rule with more than one instance
- * exists to make.
- */
-/**
  * One rule's row in the state chart: the states it was in, and the values its
  * instances measured while it was in them.
  *
@@ -155,6 +147,14 @@ export type RuleStateHistoryData = {
   rules: Record<string, RuleStateHistory>;
 };
 
+/**
+ * One Alert instance's evaluated values over the queried window.
+ *
+ * The lane is the instance, and the panel stacks one per instance so the
+ * reader compares series against each other and against the Condition on a
+ * single axis, which is the comparison a rule with more than one instance
+ * exists to make.
+ */
 export type InstanceValueSeries = {
   fingerprint: string;
   /** The Alert instance's label set, formatted. */
@@ -206,13 +206,25 @@ export type AlertSilenceRecord = {
   endsAt: string;
   /** `scheduled` has not started, `cancelled` was ended by a person. */
   state: "active" | "scheduled" | "expired" | "cancelled";
-  /** Matchers beyond the rule itself, formatted; empty means the whole rule. */
-  matchers: string;
-  /** Whether those matchers leave anything out. The empty `matchers` string
-   *  already implies it, but absence of text is not a statement, and the
-   *  difference between muting a rule and muting one instance of it is the
-   *  single most consequential thing a row here says. */
-  wholeRule: boolean;
+  /** The rule the silence names: the matcher holds a definition's row id, and
+   *  this is that id resolved into the two names the product uses for a rule,
+   *  its `project/slug` path and its display name. What "Silence again" opens
+   *  the dialog on. `null` when the silence names no rule, names more than
+   *  one, or names a rule that no longer exists.
+   *
+   *  One field rather than two, so the path and the name cannot arrive one
+   *  without the other. The row id itself never travels: a screen that printed
+   *  it read `rule=0e1c2b8f-…` where the reader expected a name. */
+  rule: { path: string; name: string } | null;
+  /** The silence names one rule and the lookup could not find it: retention
+   *  keeps a silence for 90 days and the rule it named can be deleted inside
+   *  that window. The row leads with this rather than with its own window,
+   *  which the window column beside it is already printing. */
+  deletedRule: boolean;
+  /** The matchers beyond the rule, formatted. Empty means the whole rule,
+   *  and the difference between muting a rule and muting one instance of it
+   *  is the single most consequential thing a row says. */
+  scope: string;
   /** When a person closed the window early; `null` if nobody did. `endsAt`
    *  was collapsed to the same instant by the write that cancelled it, give
    *  or take the transaction, so the row prints this stamp instead: the two
@@ -267,6 +279,51 @@ export type AlertDetail = {
   activeSilenceId: string | null;
   /** `spec.for`, formatted, for the evaluation-state chain. */
   forClause: string;
+};
+
+/** Which group the Silences page read's cap cut short, so the page prints that
+ *  group's count as a floor rather than as the answer. `null` when the read
+ *  fit inside the cap and both counts are exact. Decided by the read, which is
+ *  where the cap and the sort order that makes it decidable both live. */
+export type SilenceCut = "open" | "history" | null;
+
+/** What the Silences page reads: the records, and what the cap did to them. */
+export type AlertSilencePage = {
+  silences: AlertSilenceRecord[];
+  cut: SilenceCut;
+};
+
+/**
+ * As many silences as one impact read counts for, and as many as the Silences
+ * page lists. Retention keeps closed silences for 90 days, and an organization
+ * that writes more than this many in a range that wide has a different problem
+ * than a list that stops.
+ *
+ * Here rather than beside the read, because the page has to say when it has
+ * hit the cap, and a client that cannot import the repository was keeping its
+ * own copy in step by comment.
+ */
+export const SILENCE_PAGE_LIMIT = 200;
+
+/**
+ * One rule as a screen that does not load rules refers to it: the `project/slug`
+ * the silence row stores, and the name every other alerting surface prints.
+ *
+ * Both travel together because a silence knows its rule only by path, and a
+ * path is not what the reader recognizes. The picker offers the name and
+ * commits the path; the Silences list stores the path and prints the name.
+ */
+export type AlertRuleOption = {
+  /** The definition's row id, which is what a silence matcher holds. Travels
+   *  with the path so a stored silence can be resolved back to a rule the
+   *  reader recognizes. */
+  id: string;
+  path: string;
+  /** Groups the picker. Every path is `project/slug`, so this is free. */
+  project: string;
+  /** `everr.display.name`, falling back to the slug, exactly as `ruleTitle`
+   *  resolves it. */
+  name: string;
 };
 
 /** The durations the silence dialog offers. The label and what it means travel

@@ -9,6 +9,7 @@ vi.mock("@/db/client", () => ({
   runInTransaction: () => Promise.resolve(),
 }));
 
+import type { SilenceRow } from "@/data/alerting/silences/repository";
 import type { AlertingRuleSpec } from "@/data/alerting/types";
 import {
   type AlertDetailInput,
@@ -21,7 +22,6 @@ import {
 import { formatClock } from "./format";
 import type { NotificationFact } from "./notifications";
 import type { DefinitionRow, InstanceRow } from "./rules";
-import type { SilenceRow } from "./silences";
 import type { InstanceValues } from "./values";
 import type { InstanceValueSeries } from "./view";
 
@@ -282,6 +282,36 @@ describe("assembleTriage", () => {
       instances: 2,
     });
     expect(byPath.get("demo/firing")?.pending).toBeUndefined();
+  });
+
+  it("counts a pending instance as breaching, as the detail panel does", () => {
+    const rule = definition({
+      slug: "mixed",
+      currentState: "firing",
+      lastRowCount: 3,
+    });
+    const { alerts } = triage({
+      definitions: [rule],
+      instances: [
+        instance(rule.id, { fingerprint: "hot", value: 120 }),
+        instance(rule.id, {
+          fingerprint: "warming",
+          status: "pending",
+          pendingSince: minutesAgo(1),
+          value: 110,
+        }),
+        instance(rule.id, {
+          fingerprint: "quiet",
+          status: "inactive",
+          value: 10,
+          activeSince: null,
+        }),
+      ],
+    });
+
+    expect(alerts[0]).toMatchObject({
+      measured: "worst of 2 breaching · 3 rows",
+    });
   });
 
   it("attributes a rule to the whole-rule silence over an instance-scoped one", () => {
@@ -588,13 +618,11 @@ describe("assembleAlertDetail", () => {
       ["cancelled", "cancelled"],
     ]);
     expect(out.silences[0]).toMatchObject({
-      matchers: "host!=a",
-      wholeRule: false,
+      scope: "host!=a",
       impact: "held 3 · dropped 1",
     });
     expect(out.silences[3]).toMatchObject({
-      matchers: "",
-      wholeRule: true,
+      scope: "",
       impact: null,
       canceledAt: minutesAgo(45).toISOString(),
       comment: "false positive",

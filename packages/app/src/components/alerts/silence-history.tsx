@@ -1,44 +1,14 @@
+import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { cn } from "@everr/ui/lib/utils";
 import { BellOff } from "lucide-react";
 import { Fragment, useState } from "react";
 import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
+import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { Section } from "./detail-section";
-
-/** What a person may still do to a silence in each state. A window that has
- *  closed cannot be reopened, so the only move left on a past silence is to
- *  write a new one shaped like it. */
-const STATE_META: Record<
-  AlertSilenceRecord["state"],
-  { label: string; dot: string; text: string }
-> = {
-  active: {
-    label: "Active",
-    dot: "bg-chart-2",
-    text: "text-foreground",
-  },
-  // Hollow rather than filled: it is a window that exists but is not muting
-  // anything yet, and the reader has to be able to tell at a glance which of
-  // several rows is the one costing them notifications right now.
-  scheduled: {
-    label: "Scheduled",
-    dot: "border border-chart-2 bg-transparent",
-    text: "text-foreground",
-  },
-  expired: {
-    label: "Expired",
-    dot: "bg-muted-foreground/40",
-    text: "text-muted-foreground",
-  },
-  // Distinct from `expired` on purpose. "Ran its course" and "somebody ended
-  // it early" are different answers to why the pages came back, and the
-  // glossary keeps `cancel` for the second one.
-  cancelled: {
-    label: "Cancelled",
-    dot: "border border-muted-foreground/50 bg-transparent",
-    text: "text-muted-foreground",
-  },
-};
+import type { SilenceSeed } from "./silence-dialog";
+import { SilenceRowAction, SilenceWindow } from "./silence-row";
+import { isOpen, STATE_META, windowBounds, windowText } from "./silence-state";
 
 /** Active first, then what is coming, then history. Within each group the
  *  server's newest-first order stands, except for scheduled silences, which
@@ -56,9 +26,6 @@ const GROUP_ORDER: Record<AlertSilenceRecord["state"], number> = {
  *  below it off the panel. */
 const CLOSED_PREVIEW = 4;
 
-const isOpen = (record: AlertSilenceRecord) =>
-  record.state === "active" || record.state === "scheduled";
-
 function sortSilences(
   silences: AlertSilenceRecord[],
   activeSilenceId: string | null,
@@ -75,47 +42,6 @@ function sortSilences(
   });
 }
 
-const dayLabel = (at: Date) =>
-  at.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-
-const clockLabel = (at: Date) =>
-  at.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-
-/**
- * Both bounds of the window, to the second. Whether a given notification fell
- * inside it is what this row gets read for, and a bound rounded to the minute
- * cannot answer that for an event stamped four seconds in.
- *
- * A window that opens and closes on one day prints that day once. Most do,
- * and repeating it wraps the second bound onto its own line in a panel this
- * narrow.
- */
-function windowBounds(record: AlertSilenceRecord) {
-  const start = new Date(record.startsAt);
-  // Cancelling collapses `ends_at` to the cancel instant, give or take the
-  // transaction that wrote it. That jitter is under a second and invisible
-  // until the bounds are printed to one, so a cancelled window closes at the
-  // stamp that recorded the act rather than at the window it overwrote.
-  const endIso = record.canceledAt ?? record.endsAt;
-  const end = new Date(endIso);
-  const sameDay = start.toDateString() === end.toDateString();
-  return {
-    start: {
-      iso: record.startsAt,
-      text: `${dayLabel(start)}, ${clockLabel(start)}`,
-    },
-    end: {
-      iso: endIso,
-      text: sameDay ? clockLabel(end) : `${dayLabel(end)}, ${clockLabel(end)}`,
-    },
-  };
-}
-
 /** Its own element rather than a character written into either string: the
  *  facts on this line are set in two different faces, and a separator baked
  *  into a string takes that string's space width. */
@@ -123,35 +49,36 @@ const Separator = () => <span className="mx-1.5 opacity-60">·</span>;
 
 function SilenceRow({
   record,
+  rulePath,
   inForce,
   pending,
   onCancel,
   onSilence,
 }: {
   record: AlertSilenceRecord;
+  /** The rule this panel is open on, and what a repeat falls back to when the
+   *  silence itself names no single rule: it matched this one by its labels,
+   *  so this rule is what "the same again" can mean. */
+  rulePath: string;
   /** This is the silence the rule's `silenced` status is attributed to, and
    *  more than one silence is active, so saying which is worth a badge. */
   inForce: boolean;
   pending: boolean;
-  onCancel: (id: string) => void;
-  onSilence: (seed: { matchers: string; comment: string }) => void;
+  onCancel: (target: SilenceCancelTarget) => void;
+  onSilence: (seed: SilenceSeed) => void;
 }) {
   const meta = STATE_META[record.state];
-  // A window that is still open can be closed early; one that has closed can
-  // only be written again. Both are one button, in the same place, so the row
-  // never has to explain which of the two it is offering.
-  const open = isOpen(record);
+  // Named by its window: every row here belongs to the one rule the panel is
+  // open on, so the window is what tells them apart out loud.
   const bounds = windowBounds(record);
-  const spoken = `${bounds.start.text} to ${bounds.end.text}`;
+  const spoken = windowText(bounds);
   // Only the facts this silence actually carries, so the row never prints a
   // placeholder for one it does not. A silence with no matchers is an
   // unnarrowed one, which the row already says by not narrowing it, and "no
   // comment, unknown author" reads as a person declining to explain
   // themselves: a claim the row is in no position to make.
   const facts = [
-    !record.wholeRule && record.matchers.trim()
-      ? { key: "matchers", text: record.matchers, mono: true }
-      : null,
+    record.scope ? { key: "matchers", text: record.scope, mono: true } : null,
     record.impact ? { key: "impact", text: record.impact, mono: true } : null,
     record.comment
       ? { key: "comment", text: record.comment, mono: false }
@@ -171,18 +98,11 @@ function SilenceRow({
           <span className={cn("shrink-0 text-xs font-medium", meta.text)}>
             {meta.label}
           </span>
-          {/* The bounds themselves, not a phrase about them. The row is read
-              against a timestamp from somewhere else, so it prints the two
-              numbers that comparison needs. */}
-          <span className="font-mono text-xs tabular-nums text-muted-foreground">
-            <time dateTime={bounds.start.iso}>{bounds.start.text}</time>
-            {" → "}
-            <time dateTime={bounds.end.iso}>{bounds.end.text}</time>
-          </span>
+          <SilenceWindow bounds={bounds} />
           {inForce && (
-            <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[0.6875rem] leading-none text-muted-foreground">
+            <Badge variant="secondary" className="rounded-sm">
               in force
-            </span>
+            </Badge>
           )}
           {/* Everything else the row knows, as one more item in the same wrap
               group. Most silences carry one or two short facts, and a row that
@@ -209,33 +129,15 @@ function SilenceRow({
             </span>
           )}
         </div>
-        {/* Repeating a closed silence is offered on every past row, so it is
-            toned to match them. Ending a live one is the single consequential
-            action in the section and keeps full weight. */}
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={pending}
-          aria-label={
-            open
-              ? `Cancel this silence, ${spoken}`
-              : `Silence again with the same scope as the one from ${spoken}`
-          }
-          className={cn(
-            "-my-1 -mr-2 shrink-0",
-            !open && "font-normal text-muted-foreground hover:text-foreground",
-          )}
-          onClick={() =>
-            open
-              ? onCancel(record.id)
-              : onSilence({
-                  matchers: record.matchers,
-                  comment: record.comment,
-                })
-          }
-        >
-          {open ? "Cancel" : "Silence again"}
-        </Button>
+        <SilenceRowAction
+          record={record}
+          spoken={spoken}
+          seedRule={rulePath}
+          pending={pending}
+          className="-my-1 -mr-2 shrink-0"
+          onCancel={onCancel}
+          onSilence={onSilence}
+        />
       </div>
     </li>
   );
@@ -253,26 +155,29 @@ function SilenceRow({
  */
 export function SilenceHistory({
   silences,
+  rulePath,
   activeSilenceId,
   pending,
   onSilence,
   onCancel,
 }: {
   silences: AlertSilenceRecord[];
+  /** The rule the panel is open on. */
+  rulePath: string;
   activeSilenceId: string | null;
   /** A silence mutation is in flight. Every button here writes to the same
    *  rule, so they go inert together rather than racing each other. */
   pending: boolean;
-  /** Opens the silence dialog. A seed prefills it from a silence that has
-   *  already closed: the same noise coming back is the commonest reason
+  /** Opens the silence dialog on a seed. A closed row seeds it with its own
+   *  scope and comment: the same noise coming back is the commonest reason
    *  anyone reads this section, and retyping the matchers is the commonest
-   *  reason the replacement is scoped wrong. */
-  onSilence: (seed?: { matchers: string; comment: string }) => void;
-  onCancel: (id: string) => void;
+   *  reason the replacement is scoped wrong. The header seeds an empty one. */
+  onSilence: (seed: SilenceSeed) => void;
+  onCancel: (target: SilenceCancelTarget) => void;
 }) {
   const [showAllClosed, setShowAllClosed] = useState(false);
   const ordered = sortSilences(silences, activeSilenceId);
-  const closedCount = ordered.filter((record) => !isOpen(record)).length;
+  const closedCount = ordered.filter((record) => !isOpen(record.state)).length;
   const hidden = showAllClosed ? 0 : Math.max(0, closedCount - CLOSED_PREVIEW);
   const visible =
     hidden === 0 ? ordered : ordered.slice(0, ordered.length - hidden);
@@ -303,7 +208,9 @@ export function SilenceHistory({
           variant="ghost"
           disabled={pending}
           className="-my-1 -mr-2"
-          onClick={() => onSilence()}
+          onClick={() =>
+            onSilence({ rule: rulePath, matchers: "", comment: "" })
+          }
         >
           <BellOff data-icon="inline-start" />
           Silence rule
@@ -321,6 +228,7 @@ export function SilenceHistory({
               <SilenceRow
                 key={record.id}
                 record={record}
+                rulePath={rulePath}
                 inForce={contested && record.id === activeSilenceId}
                 pending={pending}
                 onCancel={onCancel}

@@ -1,8 +1,19 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
-import { getAlertDetail, getAlertTriage, getRuleStateHistory } from "./server";
+import {
+  getAlertDetail,
+  getAlertRuleOptions,
+  getAlertSilences,
+  getAlertTriage,
+  getRuleStateHistory,
+} from "./server";
 
 const alertingQueryKey = ["alerting", "triage"] as const;
+
+/** Outside the triage key on purpose. Rules change by an apply, never by a
+ *  silence write, so a cancel or a new silence must not refetch every rule in
+ *  the organization to get back what it already had. */
+const alertRulesQueryKey = ["alerting", "rules"] as const;
 
 /** Every triage query at once, for the mutations that change what all three
  *  are reading. The shape of the key stays in this module: a caller that spelt
@@ -41,4 +52,26 @@ export const alertDetailOptions = (
         data: { path: path ?? "", from: range.from, to: range.to },
       }),
     enabled: Boolean(path),
+  });
+
+export const alertSilencesOptions = (range: TimeRange) =>
+  queryOptions({
+    // Under the triage key on purpose: silencing and cancelling from either
+    // screen change what both list, and one invalidation has to reach both.
+    queryKey: [...alertingQueryKey, "silences", range.from, range.to],
+    queryFn: () => getAlertSilences({ data: range }),
+    // "Ends in 4m" and a silence that has just lapsed are the two facts the
+    // page is read for, and both go stale on their own.
+    refetchInterval: 30_000,
+  });
+
+/** The rules the Silence dialog offers when it opens with none to assume. The
+ *  one reader left: a listed silence carries its rule's name from the read that
+ *  fetched it, so no screen loads this list only to print a row. */
+export const alertRuleOptionsOptions = () =>
+  queryOptions({
+    queryKey: [...alertRulesQueryKey, "options"],
+    queryFn: () => getAlertRuleOptions(),
+    // Rules change by an apply, not by the minute.
+    staleTime: 5 * 60_000,
   });

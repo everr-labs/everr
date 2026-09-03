@@ -11,9 +11,11 @@ import type {
   AlertDetail,
   RuleInventoryState,
 } from "@/data/alerting/triage/view";
+import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { AlertInstanceChart } from "./alert-instance-chart";
 import { STATUS_META, StatusIcon } from "./alert-status";
 import { Section } from "./detail-section";
+import type { SilenceSeed } from "./silence-dialog";
 import { SilenceHistory } from "./silence-history";
 
 /** One label/value line of the definition table. The label column is sized in
@@ -133,12 +135,12 @@ export function AlertDetailPanel({
    *  silence" is the point: the panel can reach a scheduled silence and the
    *  second of two overlapping ones, neither of which the header's single
    *  button could name. */
-  onCancelSilence: (id: string) => void;
-  /** Open the silence dialog for this rule, optionally seeded from a silence
-   *  that has already closed: the same noise coming back is the commonest
-   *  reason anyone reads this section, and retyping the matchers is the
-   *  commonest reason the new silence is scoped wrong. */
-  onSilence: (seed?: { matchers: string; comment: string }) => void;
+  onCancelSilence: (target: SilenceCancelTarget) => void;
+  /** Open the silence dialog on a seed, which a silence that has already
+   *  closed fills in: the same noise coming back is the commonest reason
+   *  anyone reads this section, and retyping the matchers is the commonest
+   *  reason the new silence is scoped wrong. */
+  onSilence: (seed: SilenceSeed) => void;
   /** A silence write is in flight; every silence control goes inert. */
   silencePending: boolean;
   /** Pause stops evaluation entirely; silence only stops delivery. Both live
@@ -317,6 +319,7 @@ export function AlertDetailPanel({
             // it means selecting another rule opens that rule's list closed.
             key={detail.path}
             silences={detail.silences}
+            rulePath={detail.path}
             activeSilenceId={detail.activeSilenceId}
             pending={silencePending}
             onSilence={onSilence}

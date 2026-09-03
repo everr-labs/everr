@@ -1,10 +1,12 @@
 import { Button } from "@everr/ui/components/button";
+import { GroupBand } from "@everr/ui/components/group-band";
 import { Meter } from "@everr/ui/components/meter";
 import { cn } from "@everr/ui/lib/utils";
 import { BellOff, Send } from "lucide-react";
 import type { TriageAlert, TriageStatus } from "@/data/alerting/triage/view";
 import { AlertSparkline } from "./alert-sparkline";
 import { STATUS_META, StatusChip } from "./alert-status";
+import { RowTarget, SelectableRow } from "./list-row";
 
 /** "firing for", not "since": the row already says how long, and the verb
  *  names which clock is running. */
@@ -13,34 +15,6 @@ const SINCE_LABEL: Record<TriageStatus, string> = {
   firing: "firing for",
   pending: "pending for",
 };
-
-function BandHeader({
-  status,
-  count,
-  first,
-}: {
-  status: TriageStatus;
-  count: number;
-  /** The list already has a top border; the first band must not draw a second. */
-  first: boolean;
-}) {
-  const meta = STATUS_META[status];
-  const Icon = meta.icon;
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-2 px-3 py-1.5",
-        !first && "border-t",
-        meta.band,
-      )}
-    >
-      <Icon aria-hidden className={cn("size-3", meta.text)} />
-      <h2 className={cn("text-xs font-semibold tracking-wide", meta.text)}>
-        {meta.label} · {count}
-      </h2>
-    </div>
-  );
-}
 
 function TriageRow({
   alert,
@@ -59,35 +33,21 @@ function TriageRow({
   const partialSilence = alert.silence && !alert.silence.wholeRule;
 
   return (
-    // The row is a pointer convenience, not the control: the rule name below
-    // is the real button, so keyboard and screen-reader users get one clear
-    // target instead of a click handler they cannot reach.
-    // biome-ignore lint/a11y/noStaticElementInteractions: pointer-only row convenience, the rule name inside is the real button
-    // biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only row convenience, the rule name inside is the real button
-    <div
-      onClick={onOpen}
+    <SelectableRow
+      selected={selected}
+      onOpen={onOpen}
       className={cn(
         // Two tiers, both measured against the list column rather than the
         // window: the first drops the sparkline and tightens the measured
         // column, the second is the full table. Without them, opening the
         // detail panel would keep five columns in half the width and crush
         // the rule name, the one thing the reader is scanning for.
-        "grid cursor-pointer grid-cols-1 items-center gap-x-6 gap-y-3 border-t px-3 py-3.5 transition-colors hover:bg-muted/25 @[44rem]/list:grid-cols-[minmax(0,1fr)_10rem_7rem_6.5rem] @[53rem]/list:grid-cols-[minmax(0,1fr)_12rem_7rem_5rem_6.5rem]",
-        selected && "bg-muted/40",
+        "grid grid-cols-1 items-center gap-x-6 gap-y-3 border-t px-3 py-3.5 @[44rem]/list:grid-cols-[minmax(0,1fr)_10rem_7rem_6.5rem] @[53rem]/list:grid-cols-[minmax(0,1fr)_12rem_7rem_5rem_6.5rem]",
         dimmed && "opacity-60",
       )}
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen();
-          }}
-          className="truncate text-left text-sm font-medium outline-2 outline-dotted outline-transparent hover:underline focus-visible:outline-primary"
-        >
-          {alert.name}
-        </button>
+        <RowTarget className="text-sm font-medium">{alert.name}</RowTarget>
         {/* The failure code gets its own line rather than sitting beside the
             name: these identifiers are long, and squeezing them onto the name
             line truncates the one word the reader is scanning for. */}
@@ -183,7 +143,7 @@ function TriageRow({
           </Button>
         )}
       </div>
-    </div>
+    </SelectableRow>
   );
 }
 
@@ -209,33 +169,38 @@ export function TriageList({
   onSilence: (path: string) => void;
   onExpireSilence: (path: string) => void;
 }) {
-  const counts = new Map<TriageStatus, number>();
-  for (const a of alerts) counts.set(a.status, (counts.get(a.status) ?? 0) + 1);
-
-  let band: TriageStatus | null = null;
+  // One group per status, in the order the server returned them: triage
+  // order sorts by status first, so each status is one contiguous run.
+  const groups: { status: TriageStatus; rows: TriageAlert[] }[] = [];
+  for (const alert of alerts) {
+    const last = groups[groups.length - 1];
+    if (last?.status === alert.status) last.rows.push(alert);
+    else groups.push({ status: alert.status, rows: [alert] });
+  }
 
   return (
-    <div className="border-b">
-      {alerts.map((alert, index) => {
-        const startsBand = alert.status !== band;
-        band = alert.status;
+    <div className="divide-y border-b">
+      {groups.map(({ status, rows }) => {
+        const meta = STATUS_META[status];
         return (
-          <div key={alert.path}>
-            {startsBand && (
-              <BandHeader
-                status={band}
-                count={counts.get(band) ?? 0}
-                first={index === 0}
+          <GroupBand
+            key={status}
+            label={meta.label}
+            count={rows.length}
+            icon={meta.icon}
+            tone={meta.tone}
+          >
+            {rows.map((alert) => (
+              <TriageRow
+                key={alert.path}
+                alert={alert}
+                selected={openPath === alert.path}
+                onOpen={() => onOpen(alert.path)}
+                onSilence={() => onSilence(alert.path)}
+                onExpireSilence={() => onExpireSilence(alert.path)}
               />
-            )}
-            <TriageRow
-              alert={alert}
-              selected={openPath === alert.path}
-              onOpen={() => onOpen(alert.path)}
-              onSilence={() => onSilence(alert.path)}
-              onExpireSilence={() => onExpireSilence(alert.path)}
-            />
-          </div>
+            ))}
+          </GroupBand>
         );
       })}
     </div>
