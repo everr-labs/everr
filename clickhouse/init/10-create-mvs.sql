@@ -22,7 +22,12 @@ CREATE TABLE IF NOT EXISTS app.tenant_retention_source
   traces_days UInt16,
   logs_days UInt16,
   metrics_days UInt16,
-  updated_at DateTime DEFAULT now()
+  -- ReplacingMergeTree version. The app writes it from the Postgres row the
+  -- tier was read off, so the write carrying the newer subscription state wins
+  -- whatever order the two arrive in. Milliseconds, not seconds: at second
+  -- precision two writes for one tenant tie, and a tie is resolved by part
+  -- order, which is unrelated to which state is current.
+  updated_at DateTime64(3) DEFAULT now64(3)
 )
 ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY tenant_id;

@@ -25,6 +25,22 @@ a row. The app rewrites that row from `RETENTION_BY_TIER.free` in
 one edit there. `init/10` seeds the same row so a fresh cluster ingests before
 the app starts; those literals only bootstrap.
 
+### Which write wins
+
+`app.tenant_retention_source` is a `ReplacingMergeTree` keyed by `tenant_id`
+and versioned by `updated_at`, and the dictionary reads it with `FINAL`, so a
+tenant's row is whichever write carries the highest version. The app sends the
+`updated_at` of the `org_subscription` row the tier was read off rather than
+the current time: two webhooks racing on one org then resolve the same way in
+Postgres and in ClickHouse, whatever order the two inserts land in.
+
+The version is `DateTime64(3)`. At the original second precision two writes for
+one tenant tied, and ClickHouse breaks a tie by part order, which has nothing
+to do with which state is current: a free to pro to free sequence inside one
+second could settle on either. `ALTER` cannot widen a version column
+(`Cannot alter version column ... will change sort order`, code 524), so the
+rebuild script recreates the table and copies the rows through `FINAL`.
+
 The fallback lookup has a constant key, so ClickHouse evaluates it once per
 insert block. Measured on the real logs schema with 600k rows, the per-row
 dictionary lookup is not distinguishable from a constant stamp; the view's
@@ -105,6 +121,10 @@ In `infra-v2/clickhouse_dbops.tf`, at any time:
   a `UInt16` default against a `UInt32` attribute, so nothing breaks in the
   meantime, but without the guard a deleted free-tier row stamps 0 and
   deletes data silently, so do this before relying on the rebuild.
+- **Match `app.tenant_retention_source` to `init/10`.** `updated_at` is
+  `DateTime64(3)`; a cluster created before this change has `DateTime`. The
+  rebuild script converts it (see "Which write wins"), so Terraform only needs
+  to stop declaring the old type.
 - **Add a dictionary check to the deploy.** Run
   `SYSTEM RELOAD DICTIONARY app.tenant_retention` after every change to the
   `web_app_admin` credentials or the dictionary definition, and fail the

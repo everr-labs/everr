@@ -184,15 +184,25 @@ export function seedDefaultRetention(): Promise<void> {
   return upsertTenantRetention({
     tenantId: DEFAULT_RETENTION_TENANT_ID,
     tier: "free",
+    // No subscription row backs the free-tier key, so wall clock is the only
+    // ordering available. Every writer sends the same values, so a tie between
+    // two app instances is a tie between identical rows.
+    updatedAt: new Date(),
   });
 }
 
 // Takes a tier rather than day counts so nothing outside RETENTION_BY_TIER can
 // reach the dictionary the views stamp rows from; see retention.ts for why the
 // value set is a partition budget.
+//
+// `updatedAt` is the ReplacingMergeTree version, so it decides which of two
+// concurrent writes for one tenant survives. Pass the timestamp of the record
+// the tier was derived from, never the current time: two writers racing on the
+// same tenant then agree on the winner instead of leaving it to part order.
 export async function upsertTenantRetention(row: {
   tenantId: string;
   tier: Tier;
+  updatedAt: Date;
 }): Promise<void> {
   const retention = resolveRetention(row.tier);
   await instrumentClickhouseOperation(
@@ -206,6 +216,10 @@ export async function upsertTenantRetention(row: {
             traces_days: retention.tracesDays,
             logs_days: retention.logsDays,
             metrics_days: retention.metricsDays,
+            // Epoch milliseconds. A number lands in DateTime64(3) as its raw
+            // tick count, so it carries no timezone; ClickHouse rejects the
+            // `Z`-suffixed ISO form outright.
+            updated_at: row.updatedAt.getTime(),
           },
         ],
         format: "JSONEachRow",

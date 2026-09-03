@@ -155,7 +155,8 @@ describe("querySqlApiWithMeta", () => {
 describe("upsertTenantRetention", () => {
   it("writes the tier's retention row through the admin client", async () => {
     const pro = resolveRetention("pro");
-    await upsertTenantRetention({ tenantId: ORG, tier: "pro" });
+    const updatedAt = new Date("2026-09-03T10:00:00.123Z");
+    await upsertTenantRetention({ tenantId: ORG, tier: "pro", updatedAt });
 
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -166,6 +167,9 @@ describe("upsertTenantRetention", () => {
             traces_days: pro.tracesDays,
             logs_days: pro.logsDays,
             metrics_days: pro.metricsDays,
+            // Epoch milliseconds: the row's version keeps the sub-second
+            // precision that decides which of two concurrent writes wins.
+            updated_at: updatedAt.getTime(),
           },
         ],
       }),
@@ -187,6 +191,7 @@ describe("seedDefaultRetention", () => {
             traces_days: free.tracesDays,
             logs_days: free.logsDays,
             metrics_days: free.metricsDays,
+            updated_at: expect.any(Number),
           },
         ],
       }),

@@ -53,12 +53,34 @@ done
 
 echo "3/3 recreate tables and views from init/"
 run_file init/10-create-mvs.sql
-# The source table predates the UInt16 columns; the CREATE above is a no-op
-# on it. The dictionary keeps its UInt32 attributes until it is recreated in
+# The source table predates the UInt16 columns and the DateTime64(3) version,
+# and the CREATE above is a no-op on it. It holds every tenant's retention, so
+# it is rebuilt in place rather than dropped. ALTER cannot widen the version
+# column (`Cannot alter version column ... will change sort order`, code 524),
+# so the rebuild is the only path to millisecond versions. FINAL collapses the
+# duplicates first; EXCHANGE keeps the name, and with it the web_app_admin
+# grants and the dictionary source query.
+# The dictionary keeps its UInt32 attributes until it is recreated in
 # everr-deploy (see docs/clickhouse-retention-rollout.md); dictGetOrDefault
 # accepts a UInt16 default against a UInt32 attribute, so the views work in
 # the meantime.
-run_sql "ALTER TABLE app.tenant_retention_source MODIFY COLUMN traces_days UInt16, MODIFY COLUMN logs_days UInt16, MODIFY COLUMN metrics_days UInt16"
+run_sql "
+CREATE TABLE app.tenant_retention_source_rebuild
+(
+  tenant_id String,
+  traces_days UInt16,
+  logs_days UInt16,
+  metrics_days UInt16,
+  updated_at DateTime64(3) DEFAULT now64(3)
+)
+ENGINE = ReplacingMergeTree(updated_at)
+ORDER BY tenant_id;
+INSERT INTO app.tenant_retention_source_rebuild
+SELECT tenant_id, traces_days, logs_days, metrics_days, toDateTime64(updated_at, 3)
+FROM app.tenant_retention_source FINAL;
+EXCHANGE TABLES app.tenant_retention_source AND app.tenant_retention_source_rebuild;
+DROP TABLE app.tenant_retention_source_rebuild;
+"
 run_file init/12-create-alert-events.sql
 run_file init/20-apply-rls.sql
 # The raw logs table is not rebuilt; give TimestampTime the codec init/03 now

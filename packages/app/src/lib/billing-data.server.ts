@@ -94,6 +94,7 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
       status: orgSubscription.status,
       currentPeriodEnd: orgSubscription.currentPeriodEnd,
       cancelAtPeriodEnd: orgSubscription.cancelAtPeriodEnd,
+      updatedAt: orgSubscription.updatedAt,
     })
     .from(orgSubscription)
     .where(eq(orgSubscription.orgId, input.orgId))
@@ -103,5 +104,8 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
   await upsertTenantRetention({
     tenantId: input.orgId,
     tier: tierForSubscription(current),
+    // Version the ClickHouse row by the Postgres row the tier came from, so
+    // two webhooks racing on one org resolve the same way in both stores.
+    updatedAt: current.updatedAt,
   });
 }
