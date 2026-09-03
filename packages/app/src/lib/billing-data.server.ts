@@ -6,10 +6,28 @@ import type { Tier } from "@/lib/retention";
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
+// Billing has stopped or is being retried, but the customer has already paid
+// through currentPeriodEnd. Dropping them to free the moment the webhook lands
+// is not recoverable: every app.* row is stamped with its tenant's retention at
+// ingest and retention_days is a partition key column, so data ingested inside
+// a paid period would keep free-tier retention for good. Over-granting costs
+// storage; under-granting deletes data the customer paid to keep.
+const PAID_THROUGH_STATUSES = new Set(["past_due", "unpaid", "canceled"]);
+
 function tierForSubscription(args: {
   status: string | null | undefined;
+  currentPeriodEnd: Date | null | undefined;
+  cancelAtPeriodEnd: boolean | null | undefined;
 }): Tier {
-  return args.status && ACTIVE_STATUSES.has(args.status) ? "pro" : "free";
+  if (!args.status) return "free";
+  if (ACTIVE_STATUSES.has(args.status)) return "pro";
+  if (!PAID_THROUGH_STATUSES.has(args.status)) return "free";
+  // A cancellation scheduled for the period end keeps the paid period;
+  // an immediate revoke leaves cancelAtPeriodEnd false and ends it now.
+  if (args.status === "canceled" && !args.cancelAtPeriodEnd) return "free";
+  return args.currentPeriodEnd && args.currentPeriodEnd > new Date()
+    ? "pro"
+    : "free";
 }
 
 export type OrgEntitlement = {
@@ -29,7 +47,11 @@ export async function readOrgEntitlement(
     .limit(1);
 
   return {
-    tier: tierForSubscription({ status: row?.status }),
+    tier: tierForSubscription({
+      status: row?.status,
+      currentPeriodEnd: row?.currentPeriodEnd,
+      cancelAtPeriodEnd: row?.cancelAtPeriodEnd,
+    }),
     status: row?.status ?? null,
     currentPeriodEnd: row?.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: row?.cancelAtPeriodEnd ?? false,
@@ -68,7 +90,11 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
   // retries after a transient ClickHouse failure still converge — including
   // the case where the staleness guard above blocks the PG update on retry.
   const [current] = await db
-    .select({ status: orgSubscription.status })
+    .select({
+      status: orgSubscription.status,
+      currentPeriodEnd: orgSubscription.currentPeriodEnd,
+      cancelAtPeriodEnd: orgSubscription.cancelAtPeriodEnd,
+    })
     .from(orgSubscription)
     .where(eq(orgSubscription.orgId, input.orgId))
     .limit(1);
@@ -76,6 +102,6 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
 
   await upsertTenantRetention({
     tenantId: input.orgId,
-    tier: tierForSubscription({ status: current.status }),
+    tier: tierForSubscription(current),
   });
 }
