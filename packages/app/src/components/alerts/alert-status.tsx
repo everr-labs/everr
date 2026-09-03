@@ -5,6 +5,8 @@
  * list the reader is looking at.
  */
 
+import { Badge } from "@everr/ui/components/badge";
+import type { GroupBandTone } from "@everr/ui/components/group-band";
 import { cn } from "@everr/ui/lib/utils";
 import {
   BellOff,
@@ -25,8 +27,9 @@ type StatusMeta = {
   /** Foreground tone in the lists. Written out in full because Tailwind only
    *  keeps classes it can see as literals. */
   text: string;
-  /** Band-header wash behind the same tone. */
-  band: string;
+  /** The band that heads this status's group, in the ui library's tone
+   *  vocabulary: the wash and the icon take it, the words stay muted. */
+  tone: GroupBandTone;
   /** Fill for a stretch of this state on a state chart, and the matching
    *  foreground tone for the legend glyph that keys it.
    *
@@ -47,7 +50,7 @@ export const STATUS_META: Record<RuleInventoryState, StatusMeta> = {
     icon: TriangleAlert,
     label: "Not evaluating",
     text: "text-muted-foreground",
-    band: "bg-muted/30",
+    tone: "neutral",
     fill: "bg-[repeating-linear-gradient(135deg,var(--muted-foreground)_0_2px,transparent_2px_5px)] opacity-70",
     chartText: "text-muted-foreground",
     stroke: "var(--muted-foreground)",
@@ -56,7 +59,7 @@ export const STATUS_META: Record<RuleInventoryState, StatusMeta> = {
     icon: Flame,
     label: "Firing",
     text: "text-destructive",
-    band: "bg-destructive/8",
+    tone: "danger",
     fill: "bg-destructive",
     chartText: "text-destructive",
     stroke: "var(--destructive)",
@@ -65,7 +68,7 @@ export const STATUS_META: Record<RuleInventoryState, StatusMeta> = {
     icon: Clock,
     label: "Pending",
     text: "text-chart-2",
-    band: "bg-chart-2/8",
+    tone: "warning",
     fill: "bg-chart-2",
     chartText: "text-chart-2",
     stroke: "var(--chart-2)",
@@ -74,7 +77,7 @@ export const STATUS_META: Record<RuleInventoryState, StatusMeta> = {
     icon: BellOff,
     label: "Silenced",
     text: "text-muted-foreground",
-    band: "bg-muted/30",
+    tone: "neutral",
     fill: "bg-destructive/35",
     chartText: "text-destructive/50",
     stroke: "var(--destructive)",
@@ -83,7 +86,7 @@ export const STATUS_META: Record<RuleInventoryState, StatusMeta> = {
     icon: Circle,
     label: "Inactive",
     text: "text-muted-foreground",
-    band: "bg-muted/30",
+    tone: "neutral",
     fill: "",
     chartText: "text-muted-foreground/60",
     stroke: "var(--muted-foreground)",
@@ -94,7 +97,7 @@ export const STATUS_META: Record<RuleInventoryState, StatusMeta> = {
     icon: Pause,
     label: "Paused",
     text: "text-muted-foreground",
-    band: "bg-muted/30",
+    tone: "neutral",
     fill: "",
     chartText: "text-muted-foreground",
     stroke: "var(--muted-foreground)",
@@ -131,10 +134,10 @@ export function StatusChip({
   children: React.ReactNode;
 }) {
   return (
-    <span className="inline-flex w-fit items-center gap-1.5 rounded-md border bg-input/40 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+    <Badge variant="outline" size="md">
       <StatusIcon status={status} className="text-muted-foreground" />
       {children}
-    </span>
+    </Badge>
   );
 }
 

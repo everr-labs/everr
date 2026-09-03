@@ -1,26 +1,21 @@
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AlertDetailPanel } from "@/components/alerts/alert-detail-panel";
+import { createFileRoute } from "@tanstack/react-router";
 import {
   ALERT_PANEL_ROUTE,
   ALERT_PANEL_SEARCH,
   AlertDetailShell,
-  useAlertPanelIsNarrow,
-  useAlertRulePause,
-  useEscapeClosesPanel,
+  useAlertDetail,
 } from "@/components/alerts/alert-detail-shell";
 import { RuleInventory } from "@/components/alerts/rule-inventory";
 import { SilenceDialog } from "@/components/alerts/silence-dialog";
 import { TriageList } from "@/components/alerts/triage-list";
 import { ResourceEmptyState } from "@/components/resource-empty-state";
 import {
-  alertDetailOptions,
   alertTriageOptions,
   ruleStateHistoryOptions,
 } from "@/data/alerting/triage/options";
-import { useSilenceControls } from "@/hooks/use-silence-controls";
 import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
@@ -58,47 +53,10 @@ function TriageSkeleton() {
 }
 
 function AlertingTriagePage() {
-  const navigate = useNavigate({ from: Route.fullPath });
-  const { alert: openPath } = Route.useSearch();
+  const { openPath, openAlert, silence, shellProps } = useAlertDetail();
   const { timeRange } = useTimeRange();
-  const isNarrow = useAlertPanelIsNarrow();
-
   const triage = useQuery(alertTriageOptions(timeRange));
   const history = useQuery(ruleStateHistoryOptions(timeRange));
-  const detail = useQuery(alertDetailOptions(openPath, timeRange));
-
-  const {
-    cancel,
-    pending: silencePending,
-    seed: silenceTarget,
-    openSilence,
-    dialogProps,
-  } = useSilenceControls();
-
-  const setPaused = useAlertRulePause();
-
-  const setOpen = (path: string | undefined) =>
-    navigate({
-      // Merge, never replace: `from`/`to` and the active preview live on the
-      // dashboard layout's search, and a bare object would drop them.
-      search: (prev) => ({ ...prev, alert: path }),
-      replace: true,
-    });
-
-  // A row is a selection, not a toggle. Clicking the row that is already open
-  // leaves it open: the click that lands on the row you are reading is nearly
-  // always aim, not a request to close, and losing the panel to it costs a
-  // reload of everything in it. Escape and the panel's own close button are
-  // the ways out, and both stay one gesture away.
-  const openAlert = (path: string) => {
-    if (path !== openPath) setOpen(path);
-  };
-
-  const closePanel = () => setOpen(undefined);
-  useEscapeClosesPanel(
-    Boolean(openPath) && !isNarrow && silenceTarget === null,
-    closePanel,
-  );
 
   if (triage.isError) {
     return (
@@ -114,9 +72,7 @@ function AlertingTriagePage() {
 
   const alerts = triage.data?.alerts ?? [];
   const rules = triage.data?.rules ?? [];
-  const silenceAlert = silenceTarget
-    ? alerts.find((a) => a.path === silenceTarget.rule)
-    : undefined;
+  const silenceAlert = alerts.find((a) => a.path === silence.seed?.rule);
 
   if (!triage.isPending && rules.length === 0) {
     return (
@@ -131,30 +87,9 @@ function AlertingTriagePage() {
     );
   }
 
-  // Built once, in one subtree, so the same panel moves between the column and
-  // the sheet rather than being mounted twice.
-  const panel = openPath ? (
-    <AlertDetailPanel
-      path={openPath}
-      detail={detail.data ?? null}
-      onClose={() => setOpen(undefined)}
-      onCancelSilence={cancel}
-      onSilence={openSilence}
-      silencePending={silencePending}
-      pausePending={setPaused.isPending}
-      onTogglePaused={(paused) =>
-        setPaused.mutate({ data: { path: openPath, paused } })
-      }
-    />
-  ) : null;
-
   return (
     <>
-      <AlertDetailShell
-        panel={panel}
-        isNarrow={isNarrow}
-        onClosePanel={closePanel}
-      >
+      <AlertDetailShell {...shellProps}>
         {/* The lists inside measure themselves against this column rather than
           the window: opening the panel takes width away from them, and a
           viewport breakpoint cannot see that happen. */}
@@ -165,10 +100,10 @@ function AlertingTriagePage() {
             alerts.length > 0 && (
               <TriageList
                 alerts={alerts}
-                openPath={openPath ?? null}
+                openPath={openPath}
                 onOpen={openAlert}
                 onSilence={(path) =>
-                  openSilence({ rule: path, matchers: "", comment: "" })
+                  silence.openSilence({ rule: path, matchers: "", comment: "" })
                 }
                 onExpireSilence={(path) => {
                   const alert = alerts.find((a) => a.path === path);
@@ -176,7 +111,7 @@ function AlertingTriagePage() {
                   // not how it was written, and an Undo that guessed the scope
                   // would mute more than the reader muted.
                   if (alert?.silence)
-                    cancel({
+                    silence.cancel({
                       id: alert.silence.id,
                       label: alert.name,
                       restore: null,
@@ -193,14 +128,14 @@ function AlertingTriagePage() {
             <RuleInventory
               rules={rules}
               history={history.data}
-              openPath={openPath ?? null}
+              openPath={openPath}
               onOpen={openAlert}
             />
           )}
         </div>
       </AlertDetailShell>
       <SilenceDialog
-        {...dialogProps}
+        {...silence.dialogProps}
         instanceCount={silenceAlert?.instances ?? 0}
       />
     </>

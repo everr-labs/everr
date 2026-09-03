@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { GroupBand } from "@everr/ui/components/group-band";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
@@ -10,14 +11,12 @@ import {
   SILENCE_PAGE_LIMIT,
 } from "@/data/alerting/triage/view";
 import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
-import { COLUMN_LABEL } from "./list-columns";
+import { ROW_TARGET } from "./list-row";
 import type { SilenceSeed } from "./silence-dialog";
+import { SilenceRowAction, SilenceWindow } from "./silence-row";
 import {
-  cancelLabel,
-  cancelTargetFor,
   isOpen,
   STATE_META,
-  silenceAgainLabel,
   spokenSilence,
   windowBounds,
 } from "./silence-state";
@@ -160,7 +159,7 @@ function Row({
             search={(prev) => ({ ...prev, alert: row.rule ?? undefined })}
             replace
             title={row.rule}
-            className="block truncate text-sm font-medium outline-2 outline-dotted outline-transparent hover:underline focus-visible:outline-primary"
+            className={cn(ROW_TARGET, "block text-sm font-medium")}
           >
             {row.ruleName ?? row.rule}
           </Link>
@@ -185,47 +184,22 @@ function Row({
       {/* Second in the markup so it lands beside the rule on a narrow list,
           last in the table once there are columns to be last of. */}
       <div className="justify-self-end @[52rem]/list:order-last">
-        {open ? (
-          <Button
-            ref={action}
-            size="sm"
-            variant="ghost"
-            className="-my-1"
-            disabled={pending}
-            aria-label={cancelLabel(spoken)}
-            onClick={() => onCancel(cancelTargetFor(row))}
-          >
-            Cancel
-          </Button>
-        ) : (
-          <Button
-            ref={action}
-            size="sm"
-            variant="ghost"
-            className="-my-1 font-normal text-muted-foreground"
-            disabled={pending}
-            aria-label={silenceAgainLabel(spoken)}
-            onClick={() =>
-              onSilenceAgain({
-                rule: row.rule,
-                matchers: row.scope,
-                comment: row.comment,
-              })
-            }
-          >
-            Silence again
-          </Button>
-        )}
+        <SilenceRowAction
+          ref={action}
+          record={row}
+          spoken={spoken}
+          seedRule={null}
+          pending={pending}
+          className="-my-1"
+          onCancel={onCancel}
+          onSilence={onSilenceAgain}
+        />
       </div>
       {/* One wrapped line under the rule while the list is narrow; the table's
           own columns once it is not. `contents` is what lets the same elements
           be both without being written twice. */}
       <div className="col-span-2 flex min-w-0 flex-wrap items-baseline gap-x-3 @[52rem]/list:contents">
-        <span className="truncate font-mono text-xs tabular-nums text-muted-foreground">
-          <time dateTime={bounds.start.iso}>{bounds.start.text}</time>
-          {" → "}
-          <time dateTime={bounds.end.iso}>{bounds.end.text}</time>
-        </span>
+        <SilenceWindow bounds={bounds} className="truncate" />
         {/* A dot on the rows that are still open, where it separates active
             from scheduled: two states the accent alone cannot tell apart. */}
         <span className="flex items-baseline gap-1.5 font-mono text-xs tabular-nums">
@@ -250,59 +224,6 @@ function Row({
         )}
       </div>
     </li>
-  );
-}
-
-/**
- * The band that names a group and counts it.
- *
- * Both groups get one, and they are built the same, because the seam between
- * them is the page's one structural claim: these are muting, those are over.
- * A group marked only by a two-pixel rule on its rows was invisible at a
- * glance, which is the only distance this page is read from.
- *
- * Sticky at the top, and each inside its own wrapper, so a group's name stays
- * on screen for exactly as long as its rows do and the next one takes over
- * rather than piling on top.
- *
- * The band can carry a control at its right end. The page's one control, the
- * way to write a silence, sits on the Active band: over the buttons that end
- * silences, and at the head of the group a new silence would join.
- */
-function GroupHeading({
-  id,
-  label,
-  count,
-  hint,
-  action,
-}: {
-  id: string;
-  label: string;
-  count?: string;
-  /** Only for what the reader cannot see from the rows. */
-  hint: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    // The opaque layer is the sticky one: the band's own tint is translucent,
-    // and translucent over scrolling rows smears them.
-    <div className="sticky top-0 z-10 bg-background">
-      {/* `px-3` on the same edge the rows use, so the headings and the rows
-          all start on one left edge. `h-9` on both bands, so the one without
-          a control stands as tall as the one with. */}
-      <div className="flex h-9 items-center justify-between gap-3 bg-muted/20 px-3">
-        <h2 id={id} className="flex items-baseline gap-2">
-          <span className={COLUMN_LABEL}>{label}</span>
-          {count && (
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          )}
-          <span className="text-xs text-muted-foreground">{hint}</span>
-        </h2>
-        {action}
-      </div>
-    </div>
   );
 }
 
@@ -440,29 +361,23 @@ export function SilencesPage({
           does not repeat a word the shell already said. */}
       <h1 className="sr-only">Silences</h1>
 
-      {/* Each group is its own sticky context, so its heading stays for
-          exactly as long as its rows and the next one replaces it. The rule
-          between them is the wrapper's, not a band's: the first band sits
-          under the shell's own rule, and a rule drawn on a band would ride
-          with it and double that one whenever the band is stuck. */}
       <div className="divide-y">
-        <div>
-          <GroupHeading
-            id="silences-active"
-            label="Active"
-            count={activeCount}
-            // The range bounds history and not this: a silence muting right now
-            // is muting whatever window the reader happens to be looking at.
-            hint="now"
-            // Always drawn, whatever the list holds and whatever is loading: a
-            // page with nothing on it is exactly when this has to be reachable.
-            action={
-              <Button size="sm" disabled={pending} onClick={onNew}>
-                <Plus className="size-4" />
-                New silence
-              </Button>
-            }
-          />
+        <GroupBand
+          id="silences-active"
+          label="Active"
+          count={activeCount}
+          // The range bounds history and not this: a silence muting right now
+          // is muting whatever window the reader happens to be looking at.
+          hint="now"
+          // Always drawn, whatever the list holds and whatever is loading: a
+          // page with nothing on it is exactly when this has to be reachable.
+          action={
+            <Button size="sm" disabled={pending} onClick={onNew}>
+              <Plus className="size-4" />
+              New silence
+            </Button>
+          }
+        >
           {loading ? (
             <LoadingRows />
           ) : open.length === 0 ? (
@@ -491,15 +406,14 @@ export function SilencesPage({
           ) : (
             <ul aria-labelledby="silences-active">{open.map(row)}</ul>
           )}
-        </div>
+        </GroupBand>
 
-        <div>
-          <GroupHeading
-            id="silences-history"
-            label="History"
-            count={historyCount}
-            hint="in range"
-          />
+        <GroupBand
+          id="silences-history"
+          label="History"
+          count={historyCount}
+          hint="in range"
+        >
           {loading ? (
             <LoadingRows />
           ) : closed.length === 0 ? (
@@ -509,7 +423,7 @@ export function SilencesPage({
           ) : (
             <ul aria-labelledby="silences-history">{closed.map(row)}</ul>
           )}
-        </div>
+        </GroupBand>
       </div>
     </div>
   );

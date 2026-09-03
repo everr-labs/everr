@@ -32,6 +32,12 @@ export function formatSincePhrase(from: Date | null, now: Date): string | null {
   return since === "just now" ? since : `since ${since}`;
 }
 
+/** "3d 4h ago", or the bare "just now", which takes no suffix either. */
+export function formatAgoPhrase(ms: number): string {
+  const elapsed = formatElapsed(ms);
+  return elapsed === "just now" ? elapsed : `${elapsed} ago`;
+}
+
 /**
  * Evaluated values keep the precision they were measured at, capped: a p99 of
  * 412.38176 is noise past the first decimal, and an integer count must not

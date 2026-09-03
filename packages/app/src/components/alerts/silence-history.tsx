@@ -1,3 +1,4 @@
+import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { cn } from "@everr/ui/lib/utils";
 import { BellOff } from "lucide-react";
@@ -6,14 +7,8 @@ import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
 import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { Section } from "./detail-section";
 import type { SilenceSeed } from "./silence-dialog";
-import {
-  cancelLabel,
-  cancelTargetFor,
-  isOpen,
-  STATE_META,
-  silenceAgainLabel,
-  windowBounds,
-} from "./silence-state";
+import { SilenceRowAction, SilenceWindow } from "./silence-row";
+import { isOpen, STATE_META, windowBounds, windowText } from "./silence-state";
 
 /** Active first, then what is coming, then history. Within each group the
  *  server's newest-first order stands, except for scheduled silences, which
@@ -73,12 +68,10 @@ function SilenceRow({
   onSilence: (seed: SilenceSeed) => void;
 }) {
   const meta = STATE_META[record.state];
-  // A window that is still open can be closed early; one that has closed can
-  // only be written again. Both are one button, in the same place, so the row
-  // never has to explain which of the two it is offering.
-  const open = isOpen(record.state);
+  // Named by its window: every row here belongs to the one rule the panel is
+  // open on, so the window is what tells them apart out loud.
   const bounds = windowBounds(record);
-  const spoken = `${bounds.start.text} to ${bounds.end.text}`;
+  const spoken = windowText(bounds);
   // Only the facts this silence actually carries, so the row never prints a
   // placeholder for one it does not. A silence with no matchers is an
   // unnarrowed one, which the row already says by not narrowing it, and "no
@@ -105,18 +98,11 @@ function SilenceRow({
           <span className={cn("shrink-0 text-xs font-medium", meta.text)}>
             {meta.label}
           </span>
-          {/* The bounds themselves, not a phrase about them. The row is read
-              against a timestamp from somewhere else, so it prints the two
-              numbers that comparison needs. */}
-          <span className="font-mono text-xs tabular-nums text-muted-foreground">
-            <time dateTime={bounds.start.iso}>{bounds.start.text}</time>
-            {" → "}
-            <time dateTime={bounds.end.iso}>{bounds.end.text}</time>
-          </span>
+          <SilenceWindow bounds={bounds} />
           {inForce && (
-            <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[0.6875rem] leading-none text-muted-foreground">
+            <Badge variant="secondary" className="rounded-sm">
               in force
-            </span>
+            </Badge>
           )}
           {/* Everything else the row knows, as one more item in the same wrap
               group. Most silences carry one or two short facts, and a row that
@@ -143,35 +129,15 @@ function SilenceRow({
             </span>
           )}
         </div>
-        {/* Repeating a closed silence is offered on every past row, so it is
-            toned to match them. Ending a live one is the single consequential
-            action in the section and keeps full weight. */}
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={pending}
-          aria-label={open ? cancelLabel(spoken) : silenceAgainLabel(spoken)}
-          className={cn(
-            "-my-1 -mr-2 shrink-0",
-            !open && "font-normal text-muted-foreground hover:text-foreground",
-          )}
-          onClick={() =>
-            open
-              ? // Built in `silence-state`, so this row and the Silences page
-                // cancel the same silence the same way. It used to substitute
-                // the rule the panel happens to be open on when the silence
-                // named none, which made Undo write a silence scoped to a rule
-                // the reader had never muted.
-                onCancel(cancelTargetFor(record))
-              : onSilence({
-                  rule: record.rule ?? rulePath,
-                  matchers: record.scope,
-                  comment: record.comment,
-                })
-          }
-        >
-          {open ? "Cancel" : "Silence again"}
-        </Button>
+        <SilenceRowAction
+          record={record}
+          spoken={spoken}
+          seedRule={rulePath}
+          pending={pending}
+          className="-my-1 -mr-2 shrink-0"
+          onCancel={onCancel}
+          onSilence={onSilence}
+        />
       </div>
     </li>
   );

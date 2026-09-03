@@ -68,9 +68,14 @@ const CLOCK = new Intl.DateTimeFormat(undefined, {
  * and repeating it wraps the second bound onto its own line in a column this
  * narrow.
  */
+export type WindowBounds = ReturnType<typeof windowBounds>;
+
 export function windowBounds(
   record: Pick<AlertSilenceRecord, "startsAt" | "endsAt" | "canceledAt">,
-) {
+): {
+  start: { iso: string; text: string };
+  end: { iso: string; text: string };
+} {
   const start = new Date(record.startsAt);
   // Cancelling collapses `ends_at` to the cancel instant, give or take the
   // transaction that wrote it. That jitter is under a second and invisible
@@ -93,6 +98,10 @@ export function windowBounds(
   };
 }
 
+/** The window as one phrase, for a label or a toast. */
+export const windowText = (bounds: WindowBounds) =>
+  `${bounds.start.text} to ${bounds.end.text}`;
+
 /**
  * What names one silence out loud, on either screen.
  *
@@ -107,12 +116,11 @@ export function windowBounds(
  * matchers out read a raw uuid into the label and the toast.
  */
 export function spokenSilence(record: AlertSilenceRecord): string {
-  const bounds = windowBounds(record);
   return (
     record.ruleName ||
     record.rule ||
     record.scope ||
-    `${bounds.start.text} to ${bounds.end.text}`
+    windowText(windowBounds(record))
   );
 }
 

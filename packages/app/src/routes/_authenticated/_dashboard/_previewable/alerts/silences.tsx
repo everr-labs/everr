@@ -1,22 +1,15 @@
 import { RetryError } from "@everr/ui/components/retry-error";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AlertDetailPanel } from "@/components/alerts/alert-detail-panel";
+import { createFileRoute } from "@tanstack/react-router";
 import {
   ALERT_PANEL_ROUTE,
   ALERT_PANEL_SEARCH,
   AlertDetailShell,
-  useAlertPanelIsNarrow,
-  useAlertRulePause,
-  useEscapeClosesPanel,
+  useAlertDetail,
 } from "@/components/alerts/alert-detail-shell";
 import { SilenceDialog } from "@/components/alerts/silence-dialog";
 import { SilencesPage } from "@/components/alerts/silences-page";
-import {
-  alertDetailOptions,
-  alertSilencesOptions,
-} from "@/data/alerting/triage/options";
-import { useSilenceControls } from "@/hooks/use-silence-controls";
+import { alertSilencesOptions } from "@/data/alerting/triage/options";
 import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
@@ -29,34 +22,13 @@ export const Route = createFileRoute(
 });
 
 function AlertingSilencesPage() {
-  const navigate = useNavigate({ from: Route.fullPath });
-  const { alert: openPath } = Route.useSearch();
+  const { silence, shellProps } = useAlertDetail();
   const { timeRange } = useTimeRange();
-  const isNarrow = useAlertPanelIsNarrow();
-
   // Each record arrives with its rule's display name already resolved: the
   // read had the organization's rules in hand to resolve the stored id at all,
   // so the page does not fetch that list a second time to turn a path into a
   // name.
   const silences = useQuery(alertSilencesOptions(timeRange));
-  const detail = useQuery(alertDetailOptions(openPath, timeRange));
-
-  const { cancel, pending, seed, openSilence, dialogProps } =
-    useSilenceControls();
-  const setPaused = useAlertRulePause();
-
-  const closePanel = () =>
-    navigate({
-      // Merge, never replace: `from`/`to` and the active preview live on the
-      // dashboard layout's search, and a bare object would drop them.
-      search: (prev) => ({ ...prev, alert: undefined }),
-      replace: true,
-    });
-
-  useEscapeClosesPanel(
-    Boolean(openPath) && !isNarrow && seed === null,
-    closePanel,
-  );
 
   if (silences.isError) {
     return (
@@ -70,41 +42,22 @@ function AlertingSilencesPage() {
     );
   }
 
-  // Built once, in one subtree, so the same panel moves between the column and
-  // the sheet rather than being mounted twice.
-  const panel = openPath ? (
-    <AlertDetailPanel
-      path={openPath}
-      detail={detail.data ?? null}
-      onClose={closePanel}
-      onCancelSilence={cancel}
-      onSilence={openSilence}
-      silencePending={pending}
-      pausePending={setPaused.isPending}
-      onTogglePaused={(paused) =>
-        setPaused.mutate({ data: { path: openPath, paused } })
-      }
-    />
-  ) : null;
-
   return (
     <>
-      <AlertDetailShell
-        panel={panel}
-        isNarrow={isNarrow}
-        onClosePanel={closePanel}
-      >
+      <AlertDetailShell {...shellProps}>
         <div className="min-h-0 min-w-0 overflow-auto overscroll-y-contain pb-6">
           <SilencesPage
             silences={silences.data ?? null}
-            pending={pending}
-            onNew={() => openSilence({ rule: null, matchers: "", comment: "" })}
-            onCancel={cancel}
-            onSilenceAgain={openSilence}
+            pending={silence.pending}
+            onNew={() =>
+              silence.openSilence({ rule: null, matchers: "", comment: "" })
+            }
+            onCancel={silence.cancel}
+            onSilenceAgain={silence.openSilence}
           />
         </div>
       </AlertDetailShell>
-      <SilenceDialog {...dialogProps} />
+      <SilenceDialog {...silence.dialogProps} />
     </>
   );
 }
