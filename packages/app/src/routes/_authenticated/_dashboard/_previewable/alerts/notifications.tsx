@@ -1,65 +1,79 @@
+import { RetryError } from "@everr/ui/components/retry-error";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
-import { PrototypeSwitcher } from "@/components/prototype-switcher";
-import { LEDGER_DATA, LEDGER_EMPTY } from "./-prototype/notifications/fixtures";
-import { VariantLedger } from "./-prototype/notifications/variant-ledger";
-import { VariantMap } from "./-prototype/notifications/variant-map";
-import { VariantMatrix } from "./-prototype/notifications/variant-matrix";
-
-// PROTOTYPE. Three variants of the Notifications page on this route,
-// switchable via `?variant=`, rendered from synthetic fixtures. The question:
-// how do the default destination, the channels, the rule overrides and the
-// delivery record in range share one screen?
-const VARIANTS = [
-  { key: "ledger", name: "Ledger · channel rows" },
-  { key: "map", name: "Map · drawn routes" },
-  { key: "matrix", name: "Matrix · tiers × channels" },
-] as const;
-
-type VariantKey = (typeof VARIANTS)[number]["key"];
-
-const NotificationsSearchSchema = z.object({
-  variant: z
-    .enum(VARIANTS.map((v) => v.key) as [VariantKey, ...VariantKey[]])
-    .optional()
-    .catch(undefined),
-  // The Ledger's other states: `?state=loading` and `?state=empty`.
-  state: z.enum(["loading", "empty"]).optional().catch(undefined),
-});
+import { ChannelDialog } from "@/components/alerts/channel-dialog";
+import { DeliveryDialog } from "@/components/alerts/delivery-dialog";
+import { NotificationsPage } from "@/components/alerts/notifications-page";
+import { alertNotificationsOptions } from "@/data/alerting/delivery/options";
+import { useNotificationControls } from "@/hooks/use-notification-controls";
+import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/notifications",
 )({
   // Channels and the default destination are live operational config, not an
   // as-code resource a preview branch overlays, so the preview banner would be
-  // misleading here.
-  // `fullBleed`: the lists run edge to edge and the page owns its scroll,
-  // the same contract Triage and Silences sign.
+  // misleading here. `fullBleed` hands the page its own scroll and runs its
+  // lists edge to edge, the same contract Triage and Silences sign.
   staticData: {
     breadcrumb: "Notifications",
     hidePreviewFrame: true,
     fullBleed: true,
   },
   head: () => ({ meta: [{ title: "Everr - Alert notifications" }] }),
-  validateSearch: NotificationsSearchSchema,
   component: AlertingNotificationsPage,
 });
 
 function AlertingNotificationsPage() {
-  const { variant = "ledger", state } = Route.useSearch();
-  const now = Date.now();
-  const ledgerData =
-    state === "loading" ? null : state === "empty" ? LEDGER_EMPTY : LEDGER_DATA;
+  const { timeRange } = useTimeRange();
+  // The delivery record on every row is scoped to the selected range, the
+  // way the Silences page's history is.
+  const notifications = useQuery(alertNotificationsOptions(timeRange));
+  const data = notifications.data ?? null;
+  const controls = useNotificationControls(data);
+
+  if (notifications.isError) {
+    return (
+      <div className="h-full overflow-auto p-3">
+        <RetryError
+          title="Could not load notifications"
+          message={notifications.error.message}
+          onRetry={() => void notifications.refetch()}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full min-h-0 overflow-auto overscroll-y-contain pb-16">
-      {variant === "ledger" && <VariantLedger data={ledgerData} now={now} />}
-      {variant === "map" && <VariantMap now={now} />}
-      {variant === "matrix" && <VariantMatrix now={now} />}
-      <PrototypeSwitcher
-        variants={VARIANTS}
-        current={variant}
-        note="synthetic data"
+    <>
+      <div className="h-full min-h-0 overflow-auto overscroll-y-contain pb-6">
+        <NotificationsPage
+          data={data}
+          pending={controls.pending}
+          onNewChannel={controls.channel.openNew}
+          onEditChannel={controls.channel.openEdit}
+          onEditDelivery={controls.delivery.show}
+        />
+      </div>
+      <ChannelDialog
+        target={controls.channel.target}
+        existingNames={data?.channels.map((c) => c.name) ?? []}
+        inDefault={controls.channel.inDefault}
+        pending={controls.pending}
+        onClose={controls.channel.close}
+        onSave={controls.channel.save}
+        onDelete={controls.channel.remove}
       />
-    </div>
+      {data && (
+        <DeliveryDialog
+          open={controls.delivery.open}
+          channels={data.channels}
+          destination={data.destination}
+          pending={controls.pending}
+          onClose={controls.delivery.close}
+          onConfirm={controls.delivery.save}
+        />
+      )}
+    </>
   );
 }

@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, countDistinct, eq, sql } from "drizzle-orm";
+import { and, asc, countDistinct, eq, inArray, sql } from "drizzle-orm";
 import { deliveryIsInFlight } from "@/data/alerting/delivery/config";
+import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
 import { type DbExecutor, db } from "@/db/client";
-import { alertChannels, alertDeliveries } from "@/db/schema";
+import {
+  alertChannels,
+  alertDefaultChannels,
+  alertDeliveries,
+} from "@/db/schema";
 import { truncateWithEllipsis } from "@/lib/truncate";
 import { sanitizeAlertError } from "@/server/alerting/history/content";
 import {
@@ -14,9 +19,10 @@ import {
   AlertingChannelConfigSchema,
   AlertingChannelInputSchema,
   AlertingChannelUpdateSchema,
+  AlertingDefaultDestinationInputSchema,
 } from "../schema";
 import type { AlertingMutationScope } from "../session";
-import type { AlertingChannelConfig } from "../types";
+import type { AlertingChannel, AlertingChannelConfig } from "../types";
 import {
   decryptChannelConfig,
   encryptChannelConfig,
@@ -24,7 +30,7 @@ import {
   retainRedactedChannelSecrets,
 } from "./channel-secrets.server";
 
-function channelView(row: typeof alertChannels.$inferSelect) {
+function channelView(row: typeof alertChannels.$inferSelect): AlertingChannel {
   return {
     id: row.id,
     tenant: row.organizationId,
@@ -223,4 +229,103 @@ export async function testChannel(
       error: testChannelError(cause),
     };
   }
+}
+
+/** The default destination by tier, as channel names. A tier absent from the
+ *  record has no channels. */
+export type AlertingDefaultDestination = {
+  tiers: Partial<Record<AlertingDefaultTier, string[]>>;
+};
+
+export async function listDefaultDestination(
+  organizationId: string,
+): Promise<AlertingDefaultDestination> {
+  const rows = await db
+    .select({
+      tier: alertDefaultChannels.tier,
+      channelName: alertChannels.name,
+    })
+    .from(alertDefaultChannels)
+    .innerJoin(
+      alertChannels,
+      and(
+        eq(alertDefaultChannels.organizationId, alertChannels.organizationId),
+        eq(alertDefaultChannels.channelId, alertChannels.id),
+      ),
+    )
+    .where(eq(alertDefaultChannels.organizationId, organizationId))
+    .orderBy(asc(alertDefaultChannels.tier), asc(alertChannels.name));
+  const tiers: AlertingDefaultDestination["tiers"] = {};
+  for (const row of rows) {
+    const list = tiers[row.tier] ?? [];
+    list.push(row.channelName);
+    tiers[row.tier] = list;
+  }
+  return { tiers };
+}
+
+/**
+ * Replace the default destination wholesale. The two modes are exclusive:
+ * "all" alone, or any of the severity tiers. Every named channel has to
+ * exist, because a default row is a foreign key to the channel and a name
+ * nobody has would otherwise fail deep in the insert with a message about
+ * ids.
+ */
+export async function setDefaultDestination(
+  { organizationId }: AlertingMutationScope,
+  rawInput: unknown,
+): Promise<AlertingDefaultDestination> {
+  const input = parseAlertingInput(
+    AlertingDefaultDestinationInputSchema,
+    rawInput,
+  );
+  const entries = Object.entries(input.tiers) as [
+    AlertingDefaultTier,
+    string[],
+  ][];
+  if (entries.some(([tier]) => tier === "all") && entries.length > 1) {
+    throwAlertingPersistenceError(
+      422,
+      "validation",
+      'the "all" tier cannot be combined with severity tiers',
+    );
+  }
+  const names = [...new Set(entries.flatMap(([, channels]) => channels))];
+  const resolved =
+    names.length === 0
+      ? []
+      : await db
+          .select({ id: alertChannels.id, name: alertChannels.name })
+          .from(alertChannels)
+          .where(
+            and(
+              eq(alertChannels.organizationId, organizationId),
+              inArray(alertChannels.name, names),
+            ),
+          );
+  const idByName = new Map(resolved.map((row) => [row.name, row.id]));
+  const missing = names.filter((name) => !idByName.has(name));
+  if (missing.length > 0) {
+    throwAlertingPersistenceError(
+      422,
+      "validation",
+      `Unknown channels: ${missing.join(", ")}`,
+    );
+  }
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(alertDefaultChannels)
+      .where(eq(alertDefaultChannels.organizationId, organizationId));
+    const values = entries.flatMap(([tier, channels]) =>
+      [...new Set(channels)].map((name) => ({
+        organizationId,
+        tier,
+        channelId: idByName.get(name) as string,
+      })),
+    );
+    if (values.length > 0) {
+      await tx.insert(alertDefaultChannels).values(values);
+    }
+  });
+  return listDefaultDestination(organizationId);
 }
