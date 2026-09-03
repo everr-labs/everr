@@ -9,9 +9,18 @@
 import { cn } from "@everr/ui/lib/utils";
 
 /** The look of the one focusable target in a row: the rule's name. Also worn
- *  by the Silences page's rule links, which open the same panel. */
+ *  by the Silences page's rule links, which open the same panel.
+ *
+ *  No underline on hover. The row washes under the pointer already, and a rule
+ *  that both highlighted its row and underlined its name was answering one
+ *  gesture twice. The focus ring stays: keyboard focus has no row wash to
+ *  lean on. */
 export const ROW_TARGET =
-  "truncate text-left outline-2 outline-dotted outline-transparent hover:underline focus-visible:outline-primary";
+  "truncate text-left outline-2 outline-dotted outline-transparent focus-visible:outline-primary";
+
+/** The wash a row wears while the pointer is over it. Shared so the lists that
+ *  open the same panel cannot drift onto two different ones. */
+export const ROW_HOVER = "transition-colors hover:bg-muted/25";
 
 export function SelectableRow({
   selected,
@@ -30,7 +39,8 @@ export function SelectableRow({
     <div
       onClick={onOpen}
       className={cn(
-        "cursor-pointer transition-colors hover:bg-muted/25",
+        "cursor-pointer",
+        ROW_HOVER,
         selected && "bg-muted/40",
         className,
       )}

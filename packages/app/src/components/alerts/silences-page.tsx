@@ -11,7 +11,7 @@ import type {
   SilenceCut,
 } from "@/data/alerting/triage/view";
 import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
-import { ROW_TARGET } from "./list-row";
+import { ROW_HOVER, ROW_TARGET } from "./list-row";
 import type { SilenceSeed } from "./silence-dialog";
 import { SilenceRowAction, SilenceWindow } from "./silence-row";
 import {
@@ -126,6 +126,10 @@ function Row({
         columns(impact),
         "border-t px-3 py-2.5 text-sm",
         !open && "text-muted-foreground",
+        // Only where there is a rule to open: the wash is what says a row
+        // leads somewhere, and a row that washes and goes nowhere is a
+        // promise the list does not keep.
+        row.rule && ROW_HOVER,
         // Reinforces the group heading above, rather than standing in for it:
         // two pixels of colour cannot carry a group on its own, which is what
         // it was being asked to do while the open rows had no heading. `pl`
@@ -161,7 +165,14 @@ function Row({
             search={(prev) => ({ ...prev, alert: row.rule?.path })}
             replace
             title={row.rule.path}
-            className={cn(ROW_TARGET, "block text-sm font-medium")}
+            // `text-foreground` against the row's own colour: a closed row is
+            // muted as a whole, and the rule's name is the one thing on it the
+            // reader scans for. Triage sets it at full strength and this is
+            // the same name on the same kind of list.
+            className={cn(
+              ROW_TARGET,
+              "block text-sm font-medium text-foreground",
+            )}
           >
             {row.rule.name}
           </Link>
