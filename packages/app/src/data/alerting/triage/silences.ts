@@ -20,10 +20,10 @@ import type { AlertSilenceRecord, AlertSilenceView } from "./view";
  *  ones it dropped for good. */
 export type SilenceImpactCounts = { held: number; dropped: number };
 
-/** The `project/slug` for a definition's row id, or `null` where the rule is
- *  gone: retention keeps a silence for 90 days, and the rule it named can be
- *  deleted inside that window. */
-export type RulePathFor = (ruleId: string) => string | null;
+/** The rule a definition's row id names, by both names the product uses for
+ *  it, or `null` where the rule is gone: retention keeps a silence for 90
+ *  days, and the rule it named can be deleted inside that window. */
+export type RuleFor = (ruleId: string) => { path: string; name: string } | null;
 
 /** What a silence did to delivery when history has no row for it. */
 const NO_IMPACT: SilenceImpactCounts = { held: 0, dropped: 0 };
@@ -87,22 +87,25 @@ export function silenceRecord(
   row: SilenceRow,
   now: Date,
   counts: SilenceImpactCounts,
-  rulePath: RulePathFor,
+  ruleFor: RuleFor,
 ): AlertSilenceRecord {
   const rules = row.matchers.filter((m) => m.label === "rule" && m.op === "eq");
+  // A silence written outside these screens can name a rule twice, or with
+  // `!=`, and "silence this rule again" has no one rule to mean then.
+  //
+  // The matcher holds a row id, which names nothing a reader knows. It is
+  // resolved here, once, so every screen prints and links the same rule and
+  // none of them has to know what the matcher actually stores. Unresolved, the
+  // id does not travel: a row that printed it read `rule=0e1c2b8f-…` where the
+  // reader expected a name.
+  const rule = rules.length === 1 ? ruleFor(rules[0].value) : null;
   return {
     id: row.id,
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
     state: silenceState(row, now),
-    matchers: formatMatchers(row.matchers),
-    // A silence written outside these screens can name a rule twice, or with
-    // `!=`, and "silence this rule again" has no one rule to mean then.
-    //
-    // The matcher holds a row id, which names nothing a reader knows. It is
-    // resolved here, once, so every screen prints and links the same path and
-    // none of them has to know what the matcher actually stores.
-    rule: rules.length === 1 ? rulePath(rules[0].value) : null,
+    rule: rule?.path ?? null,
+    ruleName: rule?.name ?? null,
     scope: formatMatchers(row.matchers.filter((m) => m.label !== "rule")),
     canceledAt: row.canceledAt?.toISOString() ?? null,
     impact: silenceImpact(counts),
@@ -118,9 +121,9 @@ export function silenceRecords(
   rows: SilenceRow[],
   now: Date,
   impacts: Map<string, SilenceImpactCounts>,
-  rulePath: RulePathFor,
+  ruleFor: RuleFor,
 ): AlertSilenceRecord[] {
   return rows.map((row) =>
-    silenceRecord(row, now, impacts.get(row.id) ?? NO_IMPACT, rulePath),
+    silenceRecord(row, now, impacts.get(row.id) ?? NO_IMPACT, ruleFor),
   );
 }

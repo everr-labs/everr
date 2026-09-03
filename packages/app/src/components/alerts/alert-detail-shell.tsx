@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { useMediaQuery } from "@everr/ui/hooks/use-media-query";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { setAlertRulePaused } from "@/data/alerting/triage/mutations";
@@ -77,17 +77,24 @@ export function useAlertRulePause() {
  * window, so the column has to answer it on a wide one. Callers pass `active:
  * false` while a dialog is up: that dialog is the innermost thing on screen and
  * answers the key itself.
+ *
+ * `onClose` is read as an Effect Event rather than depended on. Both callers
+ * pass a closure built in render, so depending on it tore the listener down and
+ * added it again on every keystroke and every poll of the list underneath;
+ * whether the panel is open is the only thing that should subscribe or
+ * unsubscribe.
  */
 export function useEscapeClosesPanel(active: boolean, onClose: () => void) {
+  const close = useEffectEvent(onClose);
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
-      onClose();
+      close();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [active, onClose]);
+  }, [active]);
 }
 
 /**

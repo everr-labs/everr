@@ -320,7 +320,6 @@ export function AlertDetailPanel({
             key={detail.path}
             silences={detail.silences}
             rulePath={detail.path}
-            ruleLabel={detail.name}
             activeSilenceId={detail.activeSilenceId}
             pending={silencePending}
             onSilence={onSilence}

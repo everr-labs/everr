@@ -7,20 +7,13 @@ import {
   getAlertTriage,
   getRuleStateHistory,
 } from "./server";
-import type { AlertRuleOption } from "./view";
 
 const alertingQueryKey = ["alerting", "triage"] as const;
 
 /** Outside the triage key on purpose. Rules change by an apply, never by a
- *  silence write, and this list is now mounted for as long as the Silences page
- *  is open: under the triage key, every cancel and every new silence refetched
- *  every rule in the organization to get back what it already had. */
+ *  silence write, so a cancel or a new silence must not refetch every rule in
+ *  the organization to get back what it already had. */
 const alertRulesQueryKey = ["alerting", "rules"] as const;
-
-/** Path to display name, built once per fetch rather than once per render.
- *  Module scope so react-query can memoize on the function's identity. */
-const toRuleNames = (rules: AlertRuleOption[]) =>
-  new Map(rules.map((rule) => [rule.path, rule.name]));
 
 /** Every triage query at once, for the mutations that change what all three
  *  are reading. The shape of the key stays in this module: a caller that spelt
@@ -72,6 +65,9 @@ export const alertSilencesOptions = (range: TimeRange) =>
     refetchInterval: 30_000,
   });
 
+/** The rules the Silence dialog offers when it opens with none to assume. The
+ *  one reader left: a listed silence carries its rule's name from the read that
+ *  fetched it, so no screen loads this list only to print a row. */
 export const alertRuleOptionsOptions = () =>
   queryOptions({
     queryKey: [...alertRulesQueryKey, "options"],
@@ -79,9 +75,3 @@ export const alertRuleOptionsOptions = () =>
     // Rules change by an apply, not by the minute.
     staleTime: 5 * 60_000,
   });
-
-/** The same read, as the lookup a list of silences needs. `select` runs on the
- *  cached payload, so the map is rebuilt when the rules change rather than on
- *  every render of whoever is reading it. */
-export const alertRuleNamesOptions = () =>
-  queryOptions({ ...alertRuleOptionsOptions(), select: toRuleNames });

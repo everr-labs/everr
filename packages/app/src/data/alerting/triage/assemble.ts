@@ -438,7 +438,8 @@ export function assembleAlertDetail(input: AlertDetailInput): AlertDetail {
       input.windowSilences,
       now,
       input.silenceImpacts,
-      (ruleId) => (ruleId === definition.id ? path : null),
+      (ruleId) =>
+        ruleId === definition.id ? { path, name: ruleTitle(definition) } : null,
     ),
     activeSilenceId: silence?.id ?? null,
     forClause: formatDurationSeconds(spec.for_secs),
