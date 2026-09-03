@@ -22,8 +22,9 @@ export type GroupBandTone = keyof typeof TONE;
  * while it is stuck.
  *
  * Colour lands on the wash and the icon, never on the words, so lists with
- * and without tones read in one typeface. `h-9` with or without an action,
- * so bands on one page stand the same height.
+ * and without tones read in one typeface. `h-10` with or without an action,
+ * so bands on one page stand the same height, and a band's buttons keep
+ * breathing room above and below.
  */
 export function GroupBand({
   id,
@@ -56,7 +57,7 @@ export function GroupBand({
             on one left edge. */}
         <div
           className={cn(
-            "flex h-9 items-center justify-between gap-3 px-3",
+            "flex h-10 items-center justify-between gap-3 px-3",
             TONE[tone].wash,
           )}
         >

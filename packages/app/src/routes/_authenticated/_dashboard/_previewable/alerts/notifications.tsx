@@ -33,7 +33,13 @@ export const Route = createFileRoute(
   // Channels and the default destination are live operational config, not an
   // as-code resource a preview branch overlays, so the preview banner would be
   // misleading here.
-  staticData: { breadcrumb: "Notifications", hidePreviewFrame: true },
+  // `fullBleed`: the lists run edge to edge and the page owns its scroll,
+  // the same contract Triage and Silences sign.
+  staticData: {
+    breadcrumb: "Notifications",
+    hidePreviewFrame: true,
+    fullBleed: true,
+  },
   head: () => ({ meta: [{ title: "Everr - Alert notifications" }] }),
   validateSearch: NotificationsSearchSchema,
   component: AlertingNotificationsPage,
@@ -45,7 +51,7 @@ function AlertingNotificationsPage() {
   const ledgerData =
     state === "loading" ? null : state === "empty" ? LEDGER_EMPTY : LEDGER_DATA;
   return (
-    <div className="pb-16">
+    <div className="h-full min-h-0 overflow-auto overscroll-y-contain pb-16">
       {variant === "ledger" && <VariantLedger data={ledgerData} now={now} />}
       {variant === "map" && <VariantMap now={now} />}
       {variant === "matrix" && <VariantMatrix now={now} />}

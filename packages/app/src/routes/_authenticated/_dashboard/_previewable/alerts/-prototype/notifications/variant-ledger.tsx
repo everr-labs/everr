@@ -258,17 +258,7 @@ function deriveGaps(
       if (destination.tiers[tier].length > 0) continue;
       gaps.push({
         id: `tier:${tier}`,
-        what: (
-          <>
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                className={cn("size-1.5 rounded-full", SEVERITY_DOT[tier])}
-              />
-              {SEVERITY_LABEL[tier]}
-            </span>{" "}
-            alerts have no channel
-          </>
-        ),
+        what: `${SEVERITY_LABEL[tier]} alerts have no channel`,
         cost: `${alerts(undelivered.tiers[tier] ?? 0)} went nowhere`,
         action: "Pick channels",
         onAction: actions.editDelivery,
@@ -325,6 +315,77 @@ function GapRow({ gap }: { gap: Gap }) {
   );
 }
 
+/** The channels a route names, as chips; a name no channel has is flagged. */
+function ChannelChips({
+  names,
+  channels,
+}: {
+  names: string[];
+  channels: Channel[];
+}) {
+  return (
+    <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-xs @[52rem]/list:col-span-1">
+      {names.map((name) => {
+        const channel = channels.find((c) => c.name === name);
+        return (
+          <span
+            key={name}
+            className={cn(
+              "inline-flex h-6 items-center gap-1 rounded-md border pr-1.5 pl-1",
+              channel
+                ? "text-muted-foreground"
+                : "border-chart-2/50 pl-1.5 text-chart-2",
+            )}
+          >
+            {channel && (
+              <ChannelMark
+                type={channel.config.type}
+                size="sm"
+                className="bg-transparent"
+              />
+            )}
+            {name}
+            {!channel && <span> · missing</span>}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** One default tier and where it delivers. A tier with no channel says so
+ *  here in the warning tone; the gaps band below carries the cost and the
+ *  action. */
+function DefaultTargetRow({
+  tier,
+  names,
+  channels,
+}: {
+  tier: "all" | AlertingSeverity;
+  names: string[];
+  channels: Channel[];
+}) {
+  return (
+    <li className={cn(OVERRIDE_COLUMNS, "border-t px-3 py-2.5 text-sm")}>
+      <div className="flex min-w-0 items-center gap-1.5 font-medium">
+        {tier !== "all" && (
+          <span className={cn("size-1.5 rounded-full", SEVERITY_DOT[tier])} />
+        )}
+        {tier === "all" ? "All alerts" : SEVERITY_LABEL[tier]}
+      </div>
+      {/* The overrides list keeps a severity here; a tier is its own. */}
+      <div className="hidden @[52rem]/list:block" />
+      {names.length === 0 ? (
+        <span className="col-span-2 font-mono text-xs text-chart-2 @[52rem]/list:col-span-1">
+          no channel · not delivered
+        </span>
+      ) : (
+        <ChannelChips names={names} channels={channels} />
+      )}
+    </li>
+  );
+}
+
 function OverrideRow({
   rule,
   channels,
@@ -350,32 +411,7 @@ function OverrideRow({
       <div className="justify-self-end @[52rem]/list:justify-self-start">
         <Severities tiers={[rule.severity]} />
       </div>
-      <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-xs @[52rem]/list:col-span-1">
-        {rule.channels.map((name) => {
-          const channel = channels.find((c) => c.name === name);
-          return (
-            <span
-              key={name}
-              className={cn(
-                "inline-flex h-6 items-center gap-1 rounded-md border pr-1.5 pl-1",
-                channel
-                  ? "text-muted-foreground"
-                  : "border-chart-2/50 pl-1.5 text-chart-2",
-              )}
-            >
-              {channel && (
-                <ChannelMark
-                  type={channel.config.type}
-                  size="sm"
-                  className="bg-transparent"
-                />
-              )}
-              {name}
-              {!channel && <span> · missing</span>}
-            </span>
-          );
-        })}
-      </div>
+      <ChannelChips names={rule.channels} channels={channels} />
     </li>
   );
 }
@@ -410,39 +446,15 @@ export function VariantLedger({
           id="channels"
           label="Channels"
           count={count(channels.length)}
-          // Only what the rows cannot say: with every row reading "All
-          // alerts", whether that is one setting or three is the band's.
-          hint={
-            data && channels.length > 0
-              ? data.destination.split
-                ? "default split by severity"
-                : "one default for all alerts"
-              : undefined
-          }
           action={
-            <div className="flex items-center gap-2">
-              {channels.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label="Edit delivery"
-                  onClick={actions.editDelivery}
-                >
-                  <Pencil />
-                  <span className="hidden @[52rem]/list:inline">
-                    Edit delivery
-                  </span>
-                </Button>
-              )}
-              <Button
-                size="sm"
-                disabled={loading}
-                onClick={() => actions.newChannel()}
-              >
-                <Plus className="size-4" />
-                New channel
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              disabled={loading}
+              onClick={() => actions.newChannel()}
+            >
+              <Plus className="size-4" />
+              New channel
+            </Button>
           }
         >
           {loading ? (
@@ -503,6 +515,50 @@ export function VariantLedger({
               {gaps.map((gap) => (
                 <GapRow key={gap.id} gap={gap} />
               ))}
+            </ul>
+          )}
+        </GroupBand>
+
+        {/* Where an alert goes unless its rule says otherwise: one row per
+            tier while the destination is split, one for every alert while it
+            is not. Same visual as the overrides below, because a tier and a
+            rule are the two things that name channels. */}
+        <GroupBand
+          id="default-targets"
+          label="Default targets"
+          hint={
+            data
+              ? data.destination.split
+                ? "split by severity"
+                : "every alert"
+              : undefined
+          }
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading || channels.length === 0}
+              onClick={actions.editDelivery}
+            >
+              <Pencil />
+              Edit delivery
+            </Button>
+          }
+        >
+          {loading || !data ? (
+            <LoadingRows count={3} label="Loading default targets" />
+          ) : (
+            <ul aria-labelledby="default-targets">
+              {(data.destination.split ? SEVERITIES : (["all"] as const)).map(
+                (tier) => (
+                  <DefaultTargetRow
+                    key={tier}
+                    tier={tier}
+                    names={data.destination.tiers[tier]}
+                    channels={channels}
+                  />
+                ),
+              )}
             </ul>
           )}
         </GroupBand>
