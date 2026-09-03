@@ -47,7 +47,8 @@ function AlertingSilencesPage() {
       <AlertDetailShell {...shellProps}>
         <div className="min-h-0 min-w-0 overflow-auto overscroll-y-contain pb-6">
           <SilencesPage
-            silences={silences.data ?? null}
+            silences={silences.data?.silences ?? null}
+            cut={silences.data?.cut ?? null}
             pending={silence.pending}
             onNew={() =>
               silence.openSilence({ rule: null, matchers: "", comment: "" })

@@ -30,17 +30,41 @@ export type SilenceCancelTarget = {
   /** Everything needed to write the same silence again, and the window this
    *  cancel is about to collapse. `null` where the caller cannot offer it: a
    *  triage row knows which silence is in force but not how it was written, and
-   *  an Undo that guessed the scope would mute more than the reader muted. Null
-   *  too for a silence that had not started, whose window this write cannot
-   *  reproduce: see `cancelTargetFor`. */
+   *  an Undo that guessed the scope would mute more than the reader muted. */
   restore:
     | (Omit<SilenceDraft, "durationMinutes"> & {
-        /** Pre-cancel `endsAt`. What is left of it is the duration Undo
-         *  writes, which is why the draft's own is the one field missing. */
+        /** The pre-cancel window. The write starts a silence at `now` and runs
+         *  it for a duration, so both bounds are needed to say whether it can
+         *  reproduce this one at all: `restorable` below is what decides, and
+         *  the draft's own duration is the field that decision produces. */
+        startsAt: string;
         endsAt: string;
       })
     | null;
 };
+
+/**
+ * What Undo would write, in whole minutes from now, or `null` where this write
+ * cannot reproduce the window at all.
+ *
+ * `silenceAlertRule` always starts a silence at `now` and runs it for a
+ * duration, so it can only ever reproduce a window that has already opened. A
+ * silence still to start is a booking: undoing its cancel would mute from this
+ * instant to that booking's end, and cancelling a one-hour silence booked for
+ * next week would mute the next seven days. A window already spent has nothing
+ * left to write. Both cases offer no Undo rather than a wrong one.
+ *
+ * Minutes are rounded up, so a window with seconds left still writes
+ * something.
+ */
+function restorableMinutes(
+  window: { startsAt: string; endsAt: string },
+  now: number,
+): number | null {
+  if (new Date(window.startsAt).getTime() > now) return null;
+  const minutes = Math.ceil((new Date(window.endsAt).getTime() - now) / 60_000);
+  return minutes > 0 ? minutes : null;
+}
 
 /**
  * Everything a screen needs to make and unmake silences: the two writes, and
@@ -94,19 +118,11 @@ export function useSilenceControls() {
           // Measured before the refetch, not after: the window Undo restores
           // is what was left when the reader cancelled, and awaiting the reads
           // first billed their latency to the silence.
-          //
-          // Whole minutes, rounded up, so a window with seconds left still
-          // offers an Undo that writes something. A window already spent
-          // offers none: there would be nothing to write.
-          const left = restore
-            ? Math.ceil(
-                (new Date(restore.endsAt).getTime() - Date.now()) / 60_000,
-              )
-            : 0;
+          const left = restore ? restorableMinutes(restore, Date.now()) : null;
           await refresh();
           toast.success(
             `Silence cancelled · ${target.label} resumes notifying`,
-            restore && left > 0
+            restore && left !== null
               ? {
                   // Bounded on purpose. Sonner keeps a toast that carries an
                   // action until it is dismissed, and an Undo that writes a
@@ -118,7 +134,11 @@ export function useSilenceControls() {
                   action: {
                     label: "Undo",
                     onClick: () => {
-                      const { endsAt: _closed, ...draft } = restore;
+                      const {
+                        startsAt: _opened,
+                        endsAt: _closed,
+                        ...draft
+                      } = restore;
                       silence.mutate({
                         data: { ...draft, durationMinutes: left },
                       });

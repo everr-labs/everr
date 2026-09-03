@@ -206,17 +206,21 @@ export type AlertSilenceRecord = {
   endsAt: string;
   /** `scheduled` has not started, `cancelled` was ended by a person. */
   state: "active" | "scheduled" | "expired" | "cancelled";
-  /** The rule the silence names, as its `project/slug` path: the matcher
-   *  holds a row id, and this is that id resolved back to the name the rest of
-   *  the product uses. What "Silence again" opens the dialog on. `null` when
-   *  the silence names no rule, names more than one, or names a rule that no
-   *  longer exists. */
-  rule: string | null;
-  /** The same rule by the display name every other alerting screen prints.
-   *  Resolved beside `rule`, on the server that read the rules anyway, so no
-   *  screen has to fetch the organization's whole rule list to print a row.
-   *  `null` exactly where `rule` is. */
-  ruleName: string | null;
+  /** The rule the silence names: the matcher holds a definition's row id, and
+   *  this is that id resolved into the two names the product uses for a rule,
+   *  its `project/slug` path and its display name. What "Silence again" opens
+   *  the dialog on. `null` when the silence names no rule, names more than
+   *  one, or names a rule that no longer exists.
+   *
+   *  One field rather than two, so the path and the name cannot arrive one
+   *  without the other. The row id itself never travels: a screen that printed
+   *  it read `rule=0e1c2b8f-…` where the reader expected a name. */
+  rule: { path: string; name: string } | null;
+  /** The silence names one rule and the lookup could not find it: retention
+   *  keeps a silence for 90 days and the rule it named can be deleted inside
+   *  that window. The row leads with this rather than with its own window,
+   *  which the window column beside it is already printing. */
+  deletedRule: boolean;
   /** The matchers beyond the rule, formatted. Empty means the whole rule,
    *  and the difference between muting a rule and muting one instance of it
    *  is the single most consequential thing a row says. */
@@ -275,6 +279,18 @@ export type AlertDetail = {
   activeSilenceId: string | null;
   /** `spec.for`, formatted, for the evaluation-state chain. */
   forClause: string;
+};
+
+/** Which group the Silences page read's cap cut short, so the page prints that
+ *  group's count as a floor rather than as the answer. `null` when the read
+ *  fit inside the cap and both counts are exact. Decided by the read, which is
+ *  where the cap and the sort order that makes it decidable both live. */
+export type SilenceCut = "open" | "history" | null;
+
+/** What the Silences page reads: the records, and what the cap did to them. */
+export type AlertSilencePage = {
+  silences: AlertSilenceRecord[];
+  cut: SilenceCut;
 };
 
 /**

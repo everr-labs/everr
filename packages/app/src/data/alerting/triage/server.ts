@@ -47,7 +47,7 @@ import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 import type {
   AlertDetail,
   AlertRuleOption,
-  AlertSilenceRecord,
+  AlertSilencePage,
   AlertTriageData,
   RuleStateHistoryData,
 } from "./view";
@@ -240,12 +240,12 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
 
 export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ from: z.string(), to: z.string() }))
-  .handler(async ({ data, context }): Promise<AlertSilenceRecord[]> => {
+  .handler(async ({ data, context }): Promise<AlertSilencePage> => {
     const organizationId = context.session.session.activeOrganizationId;
     const now = new Date();
     const { fromDate, toDate } = resolveTimeRange(data);
 
-    const silences = await loadSilencesForPage(
+    const { rows, cut } = await loadSilencesForPage(
       organizationId,
       fromDate,
       toDate,
@@ -256,22 +256,28 @@ export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
     // resolve, which is an org-wide scan a page of no silences was paying for
     // every thirty seconds.
     const [impacts, rules] = await Promise.all([
-      loadSilenceImpact(context.clickhouse.query, silences),
-      silences.length > 0 ? loadRuleOptions(organizationId) : [],
+      loadSilenceImpact(context.clickhouse.query, rows),
+      rows.length > 0 ? loadRuleOptions(organizationId) : [],
     ]);
-    // Both names, resolved here: the record carries the path it links by and
-    // the name it prints, so the page does not read the organization's whole
-    // rule list a second time just to turn one into the other.
-    const byId = new Map(
-      rules.map((rule) => [rule.id, { path: rule.path, name: rule.name }]),
-    );
-    return silenceRecords(silences, now, impacts, (id) => byId.get(id) ?? null);
+    // The rule rows themselves: `RuleFor` wants the pair they already carry,
+    // and the record takes only the two fields off them. Resolved here so the
+    // page does not read the organization's whole rule list a second time just
+    // to turn a path into a name.
+    const byId = new Map(rules.map((rule) => [rule.id, rule]));
+    return {
+      silences: silenceRecords(
+        rows,
+        now,
+        impacts,
+        (id) => byId.get(id) ?? null,
+      ),
+      cut,
+    };
   });
 
 /** The rules a silence may be pointed at, for the dialog that opens with none
- *  to assume and for the list that stores a path but prints a name. Its own
- *  read: the list changes when rules are applied, not every time the silences
- *  page polls. */
+ *  to assume. Its own read: the list changes when rules are applied, not every
+ *  time a screen polls. */
 export const getAlertRuleOptions = createAuthenticatedServerFn({
   method: "GET",
 }).handler(

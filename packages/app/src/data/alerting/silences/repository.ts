@@ -5,7 +5,10 @@ import {
 } from "@/data/alerting/delivery/tasks";
 import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { currentTraceLink } from "@/data/alerting/trace-link";
-import { SILENCE_PAGE_LIMIT } from "@/data/alerting/triage/view";
+import {
+  SILENCE_PAGE_LIMIT,
+  type SilenceCut,
+} from "@/data/alerting/triage/view";
 import { db } from "@/db/client";
 import { alertEvents, alertSilences } from "@/db/schema";
 import {
@@ -19,6 +22,15 @@ import { ruleSubject, silenceSelects } from "./matching";
 /** A stored silence, as every reader here hands it on. The API's own shape is
  *  `toSilence`; everything inside the product works from the row. */
 export type SilenceRow = typeof alertSilences.$inferSelect;
+
+/** "Not closed yet", written once. The page read filters on it, sorts by it
+ *  and reports its cap against it, and a second spelling in raw SQL is one
+ *  that can drift from this one. A cancelled silence has had its window
+ *  collapsed by `expireSilence`, so this already excludes it. */
+const stillOpen = () => gt(alertSilences.endsAt, sql`now()`);
+
+/** One page of the org's silences, and which group its cap cut short. */
+export type SilencePage = { rows: SilenceRow[]; cut: SilenceCut };
 
 /**
  * Which silences a caller means. Five questions that differ mostly in their
@@ -121,12 +133,7 @@ export async function loadOpenSilences(
   return db
     .select()
     .from(alertSilences)
-    .where(
-      and(
-        eq(alertSilences.organizationId, organizationId),
-        gt(alertSilences.endsAt, sql`now()`),
-      ),
-    );
+    .where(and(eq(alertSilences.organizationId, organizationId), stillOpen()));
 }
 
 /**
@@ -168,30 +175,52 @@ export async function loadSilencesInWindow(
  * load-bearing: ordered by window alone, a thirty-day silence started three
  * weeks ago sorts below every shorter one written since, and the one silence
  * actually muting is the row the cap drops. Sorting the open ones to the front
- * means the cap can only ever cut into history, which the page can then say.
+ * means the cap can only ever cut into one group.
+ *
+ * Which group that is, is decided here and handed on rather than inferred by
+ * the reader: the cap and the order are both written in this function, and a
+ * screen that re-derived the answer from the rows would be reading a contract
+ * it cannot see. `cut` names the group whose count is a floor rather than an
+ * answer, and is `null` when the read fit.
  */
 export async function loadSilencesForPage(
   organizationId: string,
   from: Date,
   to: Date,
-): Promise<SilenceRow[]> {
-  return db
-    .select()
+): Promise<SilencePage> {
+  const rows = await db
+    .select({
+      silence: alertSilences,
+      // Decided by the database, in the same clock and the same terms as the
+      // sort, so the row the cap stopped at cannot be filed under one group
+      // here and the other one there.
+      open: stillOpen(),
+    })
     .from(alertSilences)
     .where(
       and(
         eq(alertSilences.organizationId, organizationId),
         or(
-          gt(alertSilences.endsAt, sql`now()`),
+          stillOpen(),
           and(lte(alertSilences.startsAt, to), gte(alertSilences.endsAt, from)),
         ),
       ),
     )
-    .orderBy(
-      sql`(${alertSilences.endsAt} > now()) DESC`,
-      desc(alertSilences.startsAt),
-    )
+    .orderBy(desc(stillOpen()), desc(alertSilences.startsAt))
     .limit(SILENCE_PAGE_LIMIT);
+  const last = rows.at(-1);
+  return {
+    rows: rows.map((row) => row.silence),
+    // The open rows lead, so a full page was cut off inside whichever group
+    // its last row belongs to: reaching a closed row at all means every open
+    // one is already here.
+    cut:
+      rows.length < SILENCE_PAGE_LIMIT || !last
+        ? null
+        : last.open
+          ? "open"
+          : "history",
+  };
 }
 
 export async function createSilence(

@@ -96,7 +96,7 @@ export function SilenceRowAction({
             // itself named.
             onCancel(cancelTargetFor(record))
           : onSilence({
-              rule: record.rule ?? seedRule,
+              rule: record.rule?.path ?? seedRule,
               matchers: record.scope,
               comment: record.comment,
             })

@@ -21,6 +21,11 @@ const OPERATOR: Record<AlertingMatcher["op"], string> = { eq: "=", ne: "!=" };
 /** What ends one matcher and starts the next. */
 const SEPARATOR = /[\s,]/;
 
+/** What ends a bare label: the separators, or the token's first `=`. A bare
+ *  value ends only at a separator, which is why the two sides read with
+ *  different stop sets and the same reader. */
+const LABEL_END = /[\s,=]/;
+
 /** A label prints bare when nothing in it can be read as something else. The
  *  separators end the matcher, a quote opens a quoted field, and the first `=`
  *  in a token ends the label, with a `!` before it taken as the operator. */
@@ -62,6 +67,18 @@ function readQuoted(input: string, from: number): [string, number] {
   return [field, at + 1];
 }
 
+/** One field and where it ends: a quoted one, or the bare run up to `ends`. */
+function readField(
+  input: string,
+  from: number,
+  ends: RegExp,
+): [string, number] {
+  if (input[from] === '"') return readQuoted(input, from);
+  let end = from;
+  while (end < input.length && !ends.test(input[end])) end += 1;
+  return [input.slice(from, end), end];
+}
+
 /** The token an error is about, for a message that names what was refused. */
 const tokenAt = (input: string, from: number) =>
   input.slice(from).split(SEPARATOR)[0];
@@ -85,22 +102,17 @@ export function parseMatchers(input: string): AlertingMatcher[] {
     const start = at;
 
     let label: string;
-    if (input[at] === '"') {
-      [label, at] = readQuoted(input, at);
-    } else {
-      let end = at;
-      while (
-        end < input.length &&
-        !SEPARATOR.test(input[end]) &&
-        input[end] !== OPERATOR.eq
-      ) {
-        end += 1;
-      }
-      // The `!` before the token's first `=` is the operator's, not the
-      // label's, so the label stops short of it.
-      const negating = input[end] === OPERATOR.eq && input[end - 1] === "!";
-      at = negating ? end - 1 : end;
-      label = input.slice(start, at);
+    [label, at] = readField(input, start, LABEL_END);
+    // The `!` before the token's first `=` is the operator's, not the label's,
+    // so a bare label gives it back. Only a bare one: a label written
+    // `"bang!"` meant the bang it quoted.
+    if (
+      input[start] !== '"' &&
+      label.endsWith("!") &&
+      input[at] === OPERATOR.eq
+    ) {
+      label = label.slice(0, -1);
+      at -= 1;
     }
 
     const negated = input[at] === "!" && input[at + 1] === OPERATOR.eq;
@@ -111,14 +123,7 @@ export function parseMatchers(input: string): AlertingMatcher[] {
     at += 1;
 
     let value: string;
-    if (input[at] === '"') {
-      [value, at] = readQuoted(input, at);
-    } else {
-      let end = at;
-      while (end < input.length && !SEPARATOR.test(input[end])) end += 1;
-      value = input.slice(at, end);
-      at = end;
-    }
+    [value, at] = readField(input, at, SEPARATOR);
 
     matchers.push({ label, op: negated ? "ne" : "eq", value });
   }

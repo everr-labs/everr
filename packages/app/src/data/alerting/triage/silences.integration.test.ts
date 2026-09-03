@@ -44,9 +44,13 @@ const RULE_ID = "0e1c2b8f-4a3d-4c2b-9f11-5a7c9d2e8b41";
 const RULE_PATH = "default/checkout-latency";
 const RULE_NAME = "Checkout latency";
 
-/** The lookup the server hands the record builder. */
+/** The lookup the server hands the record builder. It hands over whole rule
+ *  rows, id and all, which is why the record has to project rather than pass
+ *  them through. */
 const ruleFor = (id: string) =>
-  id === RULE_ID ? { path: RULE_PATH, name: RULE_NAME } : null;
+  id === RULE_ID
+    ? { id: RULE_ID, path: RULE_PATH, project: "default", name: RULE_NAME }
+    : null;
 
 /** Selects the whole Alert rule, the way the Triage screen writes a Silence. */
 const ruleMatcher = [{ label: "rule", op: "eq" as const, value: RULE_ID }];
@@ -213,9 +217,9 @@ describe("the Silences the Silences page lists", () => {
     });
     await insertSilence(harness().db, { startsAt: at(-30), endsAt: at(-29) });
 
-    const silences = await loadSilencesForPage(TEST_ORG, at(-6), at(0));
+    const { rows } = await loadSilencesForPage(TEST_ORG, at(-6), at(0));
 
-    expect(silences.map((row) => row.id).sort()).toEqual(
+    expect(rows.map((row) => row.id).sort()).toEqual(
       [active.id, scheduled.id, closedInRange.id].sort(),
     );
   });
@@ -231,9 +235,11 @@ describe("the Silences the Silences page lists", () => {
     await insertSilence(harness().db, { startsAt: at(-3), endsAt: at(-2) });
     await insertSilence(harness().db, { startsAt: at(-2), endsAt: at(-1) });
 
-    const silences = await loadSilencesForPage(TEST_ORG, at(-6), at(0));
+    const { rows, cut } = await loadSilencesForPage(TEST_ORG, at(-6), at(0));
 
-    expect(silences[0].id).toBe(muting.id);
+    expect(rows[0].id).toBe(muting.id);
+    // Three rows against a cap of two hundred: nothing was cut.
+    expect(cut).toBeNull();
   });
 
   it("resolves the stored rule id to the path it links by and the name it prints", async () => {
@@ -242,7 +248,7 @@ describe("the Silences the Silences page lists", () => {
       startsAt: at(-2),
       endsAt: at(1),
     });
-    const rows = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
@@ -254,8 +260,10 @@ describe("the Silences the Silences page lists", () => {
     );
 
     expect(page.state).toBe("active");
-    expect(page.rule).toBe(RULE_PATH);
-    expect(page.ruleName).toBe(RULE_NAME);
+    expect(page.rule).toEqual({ path: RULE_PATH, name: RULE_NAME });
+    // The lookup handed over a whole rule row; only the two names it is asked
+    // for may travel, never the definition's id.
+    expect(JSON.stringify(page)).not.toContain(RULE_ID);
     expect(page.scope).toBe("region=eu");
     expect(page.impact).toBe("held 2");
   });
@@ -266,7 +274,7 @@ describe("the Silences the Silences page lists", () => {
       startsAt: at(-2),
       endsAt: at(1),
     });
-    const rows = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
@@ -278,7 +286,6 @@ describe("the Silences the Silences page lists", () => {
     );
 
     expect(page.rule).toBeNull();
-    expect(page.ruleName).toBeNull();
     expect(page.scope).toBe("environment=staging");
     expect(page.impact).toBeNull();
   });
@@ -292,7 +299,7 @@ describe("the Silences the Silences page lists", () => {
       startsAt: at(-2),
       endsAt: at(1),
     });
-    const rows = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
@@ -304,7 +311,32 @@ describe("the Silences the Silences page lists", () => {
     );
 
     expect(page.rule).toBeNull();
-    expect(page.ruleName).toBeNull();
+    // The row leads with that rather than reprinting the window it already
+    // shows in the column beside it.
+    expect(page.deletedRule).toBe(true);
     expect(JSON.stringify(page)).not.toContain(RULE_ID);
+  });
+
+  it("does not call a rule deleted when the Silence named no single one", async () => {
+    // Negated, so it resolves to no one rule. Nothing here has been deleted,
+    // and saying so would be a guess about matchers that are right there.
+    const { id } = await insertSilence(harness().db, {
+      matchers: [{ label: "rule", op: "ne", value: RULE_ID }],
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error("silence not listed");
+
+    const page = silenceRecord(
+      row,
+      new Date(),
+      { held: 0, dropped: 0 },
+      ruleFor,
+    );
+
+    expect(page.rule).toBeNull();
+    expect(page.deletedRule).toBe(false);
   });
 });

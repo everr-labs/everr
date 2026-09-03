@@ -98,6 +98,11 @@ export function windowBounds(
   };
 }
 
+/** What a silence whose rule has been deleted is called. The rule's own name
+ *  went with it, and the row's window is not an identity: the window column
+ *  beside it already prints that. */
+const DELETED_RULE = "Deleted rule";
+
 /** The window as one phrase, for a label or a toast. */
 export const windowText = (bounds: WindowBounds) =>
   `${bounds.start.text} to ${bounds.end.text}`;
@@ -111,17 +116,19 @@ export const windowText = (bounds: WindowBounds) =>
  * silence that is called one thing in a button's label and another in the
  * toast that confirms it is two silences to the reader.
  *
- * The scope, and not every matcher, because the rule matcher holds a
- * definition's row id: on a silence whose rule did not resolve, spelling the
+ * The scope, and not every matcher, because the rule matcher names the rule in
+ * a form no reader knows: on a silence whose rule did not resolve, spelling the
  * matchers out read a raw uuid into the label and the toast.
+ *
+ * A silence naming a rule that is gone is named for that, rather than for its
+ * own window: the row prints that window in the column beside this. The window
+ * is the last resort, for the silence that names no single rule and narrows
+ * nothing either.
  */
 export function spokenSilence(record: AlertSilenceRecord): string {
-  return (
-    record.ruleName ||
-    record.rule ||
-    record.scope ||
-    windowText(windowBounds(record))
-  );
+  if (record.rule) return record.rule.name;
+  if (record.deletedRule) return DELETED_RULE;
+  return record.scope || windowText(windowBounds(record));
 }
 
 /**
@@ -131,15 +138,12 @@ export function spokenSilence(record: AlertSilenceRecord): string {
  * `restore` is null for a silence that names no single rule, on every screen.
  * The rule a panel happens to be open on is not that silence's scope: writing
  * it again under that rule would mute something the reader never muted, which
- * is the one thing an Undo must not do.
+ * is the one thing an Undo must not do. That is the whole of what this decides:
+ * whether there is one rule here to write the silence against again.
  *
- * Null for a scheduled silence too, for the same reason read off the clock
- * rather than the scope. The only write available starts a silence at `now`
- * and runs it for a duration, so undoing a cancelled window that had not
- * opened yet would mute from this instant until that window's end: cancel a
- * one-hour silence booked for next week and Undo would mute the next seven
- * days. A silence still to start is a booking, and the model has no way to
- * book one again.
+ * Whether the *window* can be written again is not this module's call. Both
+ * bounds go over, and `useSilenceControls` decides from them, beside the
+ * arithmetic that turns them into the write's duration.
  */
 export function cancelTargetFor(record: AlertSilenceRecord): {
   id: string;
@@ -148,21 +152,20 @@ export function cancelTargetFor(record: AlertSilenceRecord): {
     path: string;
     matchers: string;
     comment: string;
+    startsAt: string;
     endsAt: string;
   } | null;
 } {
   return {
     id: record.id,
     label: spokenSilence(record),
-    restore:
-      record.rule && record.state === "active"
-        ? {
-            path: record.rule,
-            matchers: record.scope,
-            comment: record.comment,
-            endsAt: record.endsAt,
-          }
-        : null,
+    restore: record.rule && {
+      path: record.rule.path,
+      matchers: record.scope,
+      comment: record.comment,
+      startsAt: record.startsAt,
+      endsAt: record.endsAt,
+    },
   };
 }
 

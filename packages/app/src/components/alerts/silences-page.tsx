@@ -6,9 +6,9 @@ import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { formatElapsed } from "@/data/alerting/triage/format";
-import {
-  type AlertSilenceRecord,
-  SILENCE_PAGE_LIMIT,
+import type {
+  AlertSilenceRecord,
+  SilenceCut,
 } from "@/data/alerting/triage/view";
 import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { ROW_TARGET } from "./list-row";
@@ -148,25 +148,25 @@ function Row({
           addressable on this route, so it still opens in a new tab and still
           copies as a URL.
 
-          A silence naming no single rule keeps its scope as the lead: there is
-          nothing else to call it. Its matchers are not the lead, because the
-          rule matcher among them holds a definition's row id, and a row that
-          spelled them out printed that uuid at the reader. */}
+          A silence naming no single rule leads with whatever else names it:
+          "Deleted rule" where the rule it named is gone, its scope otherwise.
+          Its matchers are not the lead, because the rule matcher among them
+          holds a definition's row id, and a row that spelled them out printed
+          that uuid at the reader. What it must never be is empty, which is
+          what a row whose rule did not resolve used to render. */}
       <div className="min-w-0">
         {row.rule ? (
           <Link
             to="/alerts/silences"
-            search={(prev) => ({ ...prev, alert: row.rule ?? undefined })}
+            search={(prev) => ({ ...prev, alert: row.rule?.path })}
             replace
-            title={row.rule}
+            title={row.rule.path}
             className={cn(ROW_TARGET, "block text-sm font-medium")}
           >
-            {row.ruleName ?? row.rule}
+            {row.rule.name}
           </Link>
         ) : (
-          row.scope && (
-            <div className="truncate font-mono text-xs">{row.scope}</div>
-          )
+          <div className="truncate font-mono text-xs">{spoken}</div>
         )}
         {/* What narrows the silence within its rule. Empty means the whole
             rule, which the row says by having nothing here. */}
@@ -263,6 +263,7 @@ function LoadingRows() {
  */
 export function SilencesPage({
   silences,
+  cut,
   pending,
   onNew,
   onCancel,
@@ -271,6 +272,10 @@ export function SilencesPage({
   /** `null` while loading. Each record already carries its rule's display
    *  name, resolved by the read that fetched it. */
   silences: AlertSilenceRecord[] | null;
+  /** Which group the read's cap cut short, decided by the read itself. That
+   *  group's count is a floor, and its empty state cannot claim the group is
+   *  empty when the cap simply never reached it. */
+  cut: SilenceCut;
   /** A silence write is in flight; every silence control goes inert. */
   pending: boolean;
   onNew: () => void;
@@ -315,21 +320,14 @@ export function SilencesPage({
   // One grid serves the whole list, so one row anywhere with an impact is
   // what earns the column.
   const impact = rows.some((row) => row.impact);
-  // The read stops at its cap, so the count stops being a total. Saying `200+`
-  // is the difference between a bounded answer and a wrong one.
-  //
-  // The cap is on the read, which returns both groups, so it is `rows` that
-  // reaches it. Only then is either count a floor rather than the answer: a
-  // page of 190 open and 12 closed knows both exactly.
-  //
-  // Which group the cap cut is decided by the read's order: it sorts the open
-  // rows to the front, so it can only ever cut into history, unless the open
-  // rows filled the page on their own and left history nothing.
-  const truncated = rows.length >= SILENCE_PAGE_LIMIT;
+  // The read stops at its cap, so one count stops being a total. Saying `200+`
+  // is the difference between a bounded answer and a wrong one, and which
+  // group it applies to is the read's answer rather than this screen's: the
+  // sort order that makes it decidable is written where the cap is.
   const count = (group: AlertSilenceRecord[], atCap: boolean) =>
     group.length === 0 ? undefined : `${group.length}${atCap ? "+" : ""}`;
-  const activeCount = count(open, truncated && closed.length === 0);
-  const historyCount = count(closed, truncated);
+  const activeCount = count(open, cut === "open");
+  const historyCount = count(closed, cut === "history");
 
   const row = (record: AlertSilenceRecord) => (
     <Row
@@ -418,7 +416,12 @@ export function SilencesPage({
             <LoadingRows />
           ) : closed.length === 0 ? (
             <p className="border-t px-3 py-3 text-sm text-muted-foreground">
-              No silence closed in the selected time range.
+              {/* The cap can fill a page with open silences alone and never
+                  reach a closed one. "None closed" would then be this screen
+                  asserting something the read never looked for. */}
+              {cut === "open"
+                ? "The list stopped at its cap before reaching closed silences."
+                : "No silence closed in the selected time range."}
             </p>
           ) : (
             <ul aria-labelledby="silences-history">{closed.map(row)}</ul>
