@@ -10,8 +10,8 @@ vi.mock("@/db/client", () => ({
 
 import type { DefinitionRow } from "@/data/alerting/triage/rules";
 import {
-  attributeUndelivered,
   channelViews,
+  deriveGaps,
   destinationView,
   overrideViews,
 } from "./assemble";
@@ -31,6 +31,13 @@ function rule(
     ...rest,
   } as DefinitionRow;
 }
+
+const channel = (name: string) => ({
+  id: name,
+  tenant: "t",
+  name,
+  config: { type: "slack" as const, url: "***" },
+});
 
 describe("destinationView", () => {
   it("reads any severity tier as the split mode and fills every tier", () => {
@@ -66,62 +73,41 @@ describe("overrideViews", () => {
   });
 });
 
-describe("attributeUndelivered", () => {
-  const overrides = overrideViews([
-    rule({ slug: "direct", channels: ["#gone"] }),
-  ]);
-
-  it("lays a direct rule's count on the rule, whatever its severity", () => {
-    const result = attributeUndelivered(
-      [{ path: "checkout/direct", severity: "critical", count: 6 }],
-      overrides,
-      destinationView({ tiers: { critical: ["#oncall"] } }),
-    );
-    expect(result).toEqual({ tiers: {}, rules: { "checkout/direct": 6 } });
-  });
-
-  it("lays a default-path count on the severity tier while split", () => {
-    const result = attributeUndelivered(
-      [
-        { path: "checkout/other", severity: "info", count: 14 },
-        { path: "checkout/another", severity: "info", count: 1 },
-      ],
-      overrides,
-      destinationView({ tiers: { critical: ["#oncall"] } }),
-    );
-    expect(result).toEqual({ tiers: { info: 15 }, rules: {} });
-  });
-
-  it("lays every default-path count on the one tier while unsplit", () => {
-    const result = attributeUndelivered(
-      [
-        { path: "checkout/other", severity: "info", count: 2 },
-        { path: "checkout/another", severity: "critical", count: 3 },
-      ],
-      overrides,
-      destinationView({ tiers: {} }),
-    );
-    expect(result).toEqual({ tiers: { all: 5 }, rules: {} });
-  });
-});
-
 describe("channelViews", () => {
+  const overrides = overrideViews([rule({ channels: ["pager"] })]);
+
+  it("names the tiers and rules that reach each channel, worst tier first", () => {
+    const [oncall, pager, quiet] = channelViews(
+      [channel("#oncall"), channel("pager"), channel("quiet")],
+      destinationView({
+        tiers: { warning: ["#oncall"], critical: ["#oncall", "pager"] },
+      }),
+      overrides,
+      [],
+    );
+    expect(oncall).toMatchObject({ tiers: ["critical", "warning"], rules: [] });
+    expect(pager).toMatchObject({
+      tiers: ["critical"],
+      rules: ["checkout/api-latency"],
+    });
+    expect(quiet).toMatchObject({ tiers: [], rules: [] });
+  });
+
+  it("reads an unsplit destination as the one tier", () => {
+    const [oncall] = channelViews(
+      [channel("#oncall")],
+      destinationView({ tiers: { all: ["#oncall"] } }),
+      [],
+      [],
+    );
+    expect(oncall?.tiers).toEqual(["all"]);
+  });
+
   it("gives a channel nothing delivered to an empty record", () => {
     const [quiet, busy] = channelViews(
-      [
-        {
-          id: "1",
-          tenant: "t",
-          name: "quiet",
-          config: { type: "slack", url: "***" },
-        },
-        {
-          id: "2",
-          tenant: "t",
-          name: "busy",
-          config: { type: "webhook", url: "***" },
-        },
-      ],
+      [channel("quiet"), channel("busy")],
+      destinationView({ tiers: {} }),
+      [],
       [
         {
           channel: "busy",
@@ -139,5 +125,74 @@ describe("channelViews", () => {
       lastError: null,
     });
     expect(busy).toMatchObject({ sent: 41, failed: 3, lastError: "HTTP 429" });
+  });
+});
+
+describe("deriveGaps", () => {
+  const overrides = overrideViews([
+    rule({ slug: "direct", channels: ["#gone", "#oncall"] }),
+  ]);
+  const known = ["#oncall"];
+
+  it("lays a direct rule's count on the missing channel it names", () => {
+    const gaps = deriveGaps(
+      [{ path: "checkout/direct", severity: "critical", count: 6 }],
+      overrides,
+      destinationView({
+        tiers: {
+          critical: ["#oncall"],
+          warning: ["#oncall"],
+          info: ["#oncall"],
+        },
+      }),
+      known,
+    );
+    expect(gaps).toEqual([
+      {
+        kind: "missing-channel",
+        rule: { path: "checkout/direct", name: "API latency" },
+        channel: "#gone",
+        count: 6,
+      },
+    ]);
+  });
+
+  it("opens a gap per empty severity tier while split, with its count", () => {
+    const gaps = deriveGaps(
+      [
+        { path: "checkout/other", severity: "info", count: 14 },
+        { path: "checkout/another", severity: "info", count: 1 },
+      ],
+      [],
+      destinationView({ tiers: { critical: ["#oncall"] } }),
+      known,
+    );
+    expect(gaps).toEqual([
+      { kind: "tier", tier: "warning", count: 0 },
+      { kind: "tier", tier: "info", count: 15 },
+    ]);
+  });
+
+  it("opens one gap for the whole default while unsplit and empty", () => {
+    const gaps = deriveGaps(
+      [
+        { path: "checkout/other", severity: "info", count: 2 },
+        { path: "checkout/another", severity: "critical", count: 3 },
+      ],
+      [],
+      destinationView({ tiers: {} }),
+      [],
+    );
+    expect(gaps).toEqual([{ kind: "tier", tier: "all", count: 5 }]);
+  });
+
+  it("drops a count whose tier has since been filled", () => {
+    const gaps = deriveGaps(
+      [{ path: "checkout/other", severity: "info", count: 2 }],
+      [],
+      destinationView({ tiers: { all: ["#oncall"] } }),
+      known,
+    );
+    expect(gaps).toEqual([]);
   });
 });

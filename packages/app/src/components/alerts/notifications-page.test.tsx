@@ -19,6 +19,8 @@ function channel(
   return {
     name,
     config: { type: "slack", url: "***" },
+    tiers: [],
+    rules: [],
     sent: 0,
     failed: 0,
     lastSentAt: null,
@@ -29,9 +31,15 @@ function channel(
 
 const DATA: AlertNotificationsData = {
   channels: [
-    channel("#oncall", { sent: 128, lastSentAt: new Date().toISOString() }),
+    channel("#oncall", {
+      tiers: ["critical", "warning"],
+      rules: ["checkout/api-latency"],
+      sent: 128,
+      lastSentAt: new Date().toISOString(),
+    }),
     channel("pager", {
       config: { type: "webhook", url: "***" },
+      tiers: ["critical"],
       sent: 41,
       failed: 3,
       lastError: "HTTP 429 from endpoint",
@@ -57,17 +65,27 @@ const DATA: AlertNotificationsData = {
       channels: ["#sre-legacy"],
     },
   ],
-  undelivered: {
-    tiers: { info: 14 },
-    rules: { "platform/k8s-node-not-ready": 6 },
-  },
+  gaps: [
+    { kind: "tier", tier: "info", count: 14 },
+    {
+      kind: "missing-channel",
+      rule: {
+        path: "platform/k8s-node-not-ready",
+        name: "Node not ready (platform)",
+      },
+      channel: "#sre-legacy",
+      count: 6,
+    },
+  ],
 };
 
 function renderPage(
   data: AlertNotificationsData | null,
   handlers: Partial<{
     onNewChannel: (name?: string) => void;
-    onEditChannel: (name: string) => void;
+    onEditChannel: (
+      channel: AlertNotificationsData["channels"][number],
+    ) => void;
     onEditDelivery: () => void;
   }> = {},
 ) {
@@ -136,6 +154,7 @@ describe("NotificationsPage", () => {
     const rows = within(channels).getAllByRole("listitem");
     expect(rows[0]).toHaveTextContent("Critical");
     expect(rows[0]).toHaveTextContent("Warning");
+    expect(rows[0]).toHaveTextContent("+ 1 rule by name");
     expect(rows[0]).toHaveTextContent("128 sent");
     expect(rows[1]).toHaveTextContent("41 sent · 3 failed");
     expect(rows[1]).toHaveTextContent("HTTP 429 from endpoint");
@@ -148,7 +167,9 @@ describe("NotificationsPage", () => {
     renderPage(DATA, { onEditChannel });
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "pager" }));
-    expect(onEditChannel).toHaveBeenCalledWith("pager");
+    expect(onEditChannel).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "pager" }),
+    );
   });
 
   it("draws one default target per tier while split, in the overrides' grammar", async () => {
@@ -175,7 +196,7 @@ describe("NotificationsPage", () => {
         tiers: { all: [], critical: [], warning: [], info: [] },
       },
       overrides: [],
-      undelivered: { tiers: {}, rules: {} },
+      gaps: [{ kind: "tier", tier: "all", count: 0 }],
     });
     expect(await screen.findByText(/No channels yet/)).toBeInTheDocument();
     expect(

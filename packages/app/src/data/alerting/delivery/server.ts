@@ -14,7 +14,7 @@ import {
 } from "../schema";
 import { alertingMutationScope } from "../session";
 import { assembleNotifications } from "./assemble";
-import { loadChannelDeliveryRecords, loadUndelivered } from "./record";
+import { loadDeliveryRecords } from "./record";
 import * as delivery from "./repository";
 import type { AlertNotificationsData } from "./view";
 
@@ -25,21 +25,15 @@ export const getAlertNotifications = createAuthenticatedServerFn({
   .handler(async ({ data, context }): Promise<AlertNotificationsData> => {
     const organizationId = context.session.session.activeOrganizationId;
     const window = resolveTimeRange(data);
-    const [channels, destination, rules, records, undelivered] =
-      await Promise.all([
-        delivery.listChannels(organizationId),
-        delivery.listDefaultDestination(organizationId),
-        loadRules(organizationId),
-        loadChannelDeliveryRecords(context.clickhouse.query, window),
-        loadUndelivered(context.clickhouse.query, window),
-      ]);
-    return assembleNotifications({
-      channels,
-      destination,
-      rules,
-      records,
-      undelivered,
-    });
+    const [channels, destination, rules, records] = await Promise.all([
+      delivery.listChannels(organizationId),
+      delivery.listDefaultDestination(organizationId),
+      loadRules(organizationId),
+      // The one ClickHouse read in the set, so the one that overlaps the
+      // three PostgreSQL ones.
+      loadDeliveryRecords(context.clickhouse.query, window),
+    ]);
+    return assembleNotifications({ channels, destination, rules, records });
   });
 
 export const setAlertingDefaultDestination = createAuthenticatedServerFn({
@@ -89,7 +83,5 @@ export const testAlertingChannel = createAuthenticatedServerFn({
 })
   .inputValidator(z.object({ config: AlertingChannelConfigSchema }))
   .handler(({ data, context: { session } }) =>
-    delivery.testChannel(session.session.activeOrganizationId, {
-      config: data.config,
-    }),
+    delivery.testChannel(session.session.activeOrganizationId, data),
   );

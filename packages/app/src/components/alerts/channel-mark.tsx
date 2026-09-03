@@ -16,7 +16,7 @@ import type { AlertingChannelConfig } from "@/data/alerting/types";
 
 export type ChannelType = AlertingChannelConfig["type"];
 
-export const CHANNEL_TYPES: ChannelType[] = [
+const CHANNEL_TYPES: ChannelType[] = [
   "slack",
   "discord",
   "webhook",
@@ -30,7 +30,7 @@ export const CHANNEL_LABEL: Record<ChannelType, string> = {
   telegram: "Telegram",
 };
 
-export const CHANNEL_ICON: Record<
+const CHANNEL_ICON: Record<
   ChannelType,
   ComponentType<SVGProps<SVGSVGElement>>
 > = {
@@ -39,6 +39,13 @@ export const CHANNEL_ICON: Record<
   webhook: WebhookIcon,
   telegram: TelegramIcon,
 };
+
+/** The type picker's entries, built once: they never change. */
+export const CHANNEL_OPTIONS = CHANNEL_TYPES.map((type) => ({
+  value: type,
+  label: CHANNEL_LABEL[type],
+  icon: CHANNEL_ICON[type],
+}));
 
 /**
  * The URL field for the URL-kind channels; presence here drives the dialog's

@@ -29,7 +29,7 @@ vi.mock(
   async () => import("@/server/alerting/testing/test-clickhouse"),
 );
 
-import { loadChannelDeliveryRecords, loadUndelivered } from "./record";
+import { loadDeliveryRecords } from "./record";
 
 const harness = useAlertingHarness();
 
@@ -137,7 +137,7 @@ describe("what each channel delivered in the window", () => {
       }),
     );
 
-    const [record] = await loadChannelDeliveryRecords(query, windowOf(60));
+    const [record] = (await loadDeliveryRecords(query, windowOf(60))).channels;
     expect(record).toMatchObject({ channel: "#oncall", sent: 2, failed: 0 });
     expect(record?.lastSentAt).toBe(later.toISOString());
   });
@@ -169,7 +169,7 @@ describe("what each channel delivered in the window", () => {
       }),
     );
 
-    const [record] = await loadChannelDeliveryRecords(query, windowOf(60));
+    const [record] = (await loadDeliveryRecords(query, windowOf(60))).channels;
     expect(record).toMatchObject({
       channel: "pager",
       sent: 1,
@@ -189,7 +189,7 @@ describe("what each channel delivered in the window", () => {
         error: "HTTP 500",
       }),
     );
-    const [record] = await loadChannelDeliveryRecords(query, windowOf(60));
+    const [record] = (await loadDeliveryRecords(query, windowOf(60))).channels;
     expect(record).toMatchObject({ sent: 0, failed: 1, lastSentAt: null });
   });
 
@@ -215,7 +215,7 @@ describe("what each channel delivered in the window", () => {
         outcome: "succeeded",
       }),
     );
-    const records = await loadChannelDeliveryRecords(query, windowOf(60));
+    const records = (await loadDeliveryRecords(query, windowOf(60))).channels;
     expect(records.map((r) => [r.channel, r.sent])).toEqual([
       ["#oncall", 1],
       ["pager", 1],
@@ -226,6 +226,13 @@ describe("what each channel delivered in the window", () => {
 describe("what reached delivery with nothing to carry it", () => {
   it("counts no-channel terminals per rule and severity, once per chain", async () => {
     write(
+      // A delivery on the same rule: the rule grain must not count it.
+      delivery({
+        channel: "#oncall",
+        dedupKey: "d1",
+        at: minutesAgo(11),
+        outcome: "succeeded",
+      }),
       journalTerminalRow(chain(minutesAgo(10)), { reason: "no_channels" }),
       journalTerminalRow(chain(minutesAgo(9)), { reason: "no_channels" }),
       journalTerminalRow(
@@ -238,7 +245,8 @@ describe("what reached delivery with nothing to carry it", () => {
       journalTerminalRow(chain(minutesAgo(120)), { reason: "no_channels" }),
     );
 
-    const records = await loadUndelivered(query, windowOf(60));
+    const records = (await loadDeliveryRecords(query, windowOf(60)))
+      .undelivered;
     expect(records).toEqual([
       { path: PATH, severity: "warning", count: 2 },
       { path: "default/other", severity: "info", count: 1 },

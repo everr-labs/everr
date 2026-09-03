@@ -11,45 +11,29 @@ import { Label } from "@everr/ui/components/label";
 import { Switch } from "@everr/ui/components/switch";
 import { cn } from "@everr/ui/lib/utils";
 import { useState } from "react";
-import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
+import {
+  ALERTING_SEVERITY_TIERS,
+  type AlertingDefaultTier,
+} from "@/data/alerting/delivery/defaults";
 import type {
   NotificationChannelView,
   NotificationDestinationView,
 } from "@/data/alerting/delivery/view";
-import type { AlertingSeverity } from "@/data/alerting/types";
+import type { AlertingDefaultDestination } from "@/data/alerting/types";
+import { SEVERITY_DOT, TIER_LABEL } from "./alert-status";
 import { CHANNEL_LABEL, ChannelMark } from "./channel-mark";
 
-const SEVERITY_TIERS = ["critical", "warning", "info"] as const;
-
-const TIER_LABEL: Record<AlertingDefaultTier, string> = {
-  all: "All alerts",
-  critical: "Critical",
-  warning: "Warning",
-  info: "Info",
-};
-
-const SEVERITY_DOT: Record<AlertingSeverity, string> = {
-  critical: "bg-destructive",
-  warning: "bg-chart-2",
-  info: "bg-muted-foreground",
-};
-
-/** What the dialog hands back: the input of `setAlertingDefaultDestination`,
- *  so the caller does not translate it. */
-export type DestinationDraft = {
-  tiers: Partial<Record<AlertingDefaultTier, string[]>>;
-};
-
+/** The draft as the write takes it: only the tiers of the mode in force,
+ *  and only the ones with channels. */
 function tiersFromDraft(
   split: boolean,
   draft: NotificationDestinationView["tiers"],
-): DestinationDraft["tiers"] {
+): AlertingDefaultDestination["tiers"] {
   if (split)
     return Object.fromEntries(
-      SEVERITY_TIERS.filter((tier) => draft[tier].length > 0).map((tier) => [
-        tier,
-        draft[tier],
-      ]),
+      ALERTING_SEVERITY_TIERS.filter((tier) => draft[tier].length > 0).map(
+        (tier) => [tier, draft[tier]],
+      ),
     );
   return draft.all.length > 0 ? { all: draft.all } : {};
 }
@@ -113,7 +97,7 @@ export function DeliveryDialog({
   /** The write is in flight; the dialog stays open and inert until it lands. */
   pending: boolean;
   onClose: () => void;
-  onConfirm: (draft: DestinationDraft) => void;
+  onConfirm: (draft: AlertingDefaultDestination) => void;
 }) {
   return (
     <Dialog
@@ -147,7 +131,7 @@ function DeliveryForm({
   destination: NotificationDestinationView;
   pending: boolean;
   onClose: () => void;
-  onConfirm: (draft: DestinationDraft) => void;
+  onConfirm: (draft: AlertingDefaultDestination) => void;
 }) {
   const [split, setSplit] = useState(destination.split);
   const [draft, setDraft] = useState(destination.tiers);
@@ -233,7 +217,7 @@ function DeliveryForm({
           Split by severity
         </Label>
         {split ? (
-          SEVERITY_TIERS.map((tier) => (
+          ALERTING_SEVERITY_TIERS.map((tier) => (
             <div key={tier} className="space-y-1.5">
               <div className="flex items-center gap-1.5 text-sm font-medium">
                 <span
@@ -256,15 +240,13 @@ function DeliveryForm({
         <Button variant="outline" disabled={pending} onClick={onClose}>
           Cancel
         </Button>
-        {clearsDelivery ? (
-          <Button disabled={pending} onClick={() => setConfirmingClear(true)}>
-            Save delivery
-          </Button>
-        ) : (
-          <Button disabled={pending} aria-busy={pending} onClick={save}>
-            Save delivery
-          </Button>
-        )}
+        <Button
+          disabled={pending}
+          aria-busy={pending}
+          onClick={clearsDelivery ? () => setConfirmingClear(true) : save}
+        >
+          Save delivery
+        </Button>
       </DialogFooter>
     </DialogContent>
   );

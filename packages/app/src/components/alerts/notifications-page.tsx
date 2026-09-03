@@ -1,38 +1,27 @@
 import { Button } from "@everr/ui/components/button";
 import { GroupBand } from "@everr/ui/components/group-band";
-import { Skeleton } from "@everr/ui/components/skeleton";
 import { kickerClass } from "@everr/ui/lib/typography";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { Pencil, Plus, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
-import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
+import {
+  ALERTING_SEVERITY_TIERS,
+  type AlertingDefaultTier,
+} from "@/data/alerting/delivery/defaults";
 import type {
   AlertNotificationsData,
   NotificationChannelView,
-  NotificationDestinationView,
+  NotificationGap,
   NotificationOverrideView,
 } from "@/data/alerting/delivery/view";
-import { formatElapsed } from "@/data/alerting/triage/format";
+import { formatAgoPhrase } from "@/data/alerting/triage/format";
 import type { AlertingSeverity } from "@/data/alerting/types";
+import { SEVERITY_DOT, TIER_LABEL } from "./alert-status";
 import { ChannelMark, channelDetail } from "./channel-mark";
-import { ROW_HOVER, ROW_TARGET } from "./list-row";
+import { LoadingRows, ROW_HOVER, ROW_TARGET } from "./list-row";
 
 const DOCS_HREF = "https://everr.dev/docs/guides/set-up-notifications";
-
-const SEVERITIES = ["critical", "warning", "info"] as const;
-
-const SEVERITY_LABEL: Record<AlertingSeverity, string> = {
-  critical: "Critical",
-  warning: "Warning",
-  info: "Info",
-};
-
-const SEVERITY_DOT: Record<AlertingSeverity, string> = {
-  critical: "bg-destructive",
-  warning: "bg-chart-2",
-  info: "bg-muted-foreground",
-};
 
 /**
  * Narrow, the row is the channel with its facts wrapped on a line beneath;
@@ -55,50 +44,31 @@ function Severities({ tiers }: { tiers: readonly AlertingSeverity[] }) {
       {tiers.map((tier) => (
         <span key={tier} className="inline-flex items-center gap-1.5">
           <span className={cn("size-1.5 rounded-full", SEVERITY_DOT[tier])} />
-          {SEVERITY_LABEL[tier]}
+          {TIER_LABEL[tier]}
         </span>
       ))}
     </span>
   );
 }
 
-function agoText(at: string | null, now: number): string | null {
-  if (!at) return null;
-  return `${formatElapsed(now - new Date(at).getTime())} ago`;
-}
-
-/** Which default tiers deliver to a channel; every tier reads as "All
- *  alerts" while the destination is unsplit, which is what the band says. */
-function Receives({
-  destination,
-  name,
-  rules,
-}: {
-  destination: NotificationDestinationView;
-  name: string;
-  rules: number;
-}) {
-  const inDefault = destination.split
-    ? SEVERITIES.filter((tier) => destination.tiers[tier].includes(name))
-    : destination.tiers.all.includes(name)
-      ? ("all" as const)
-      : [];
-  const nothing = inDefault !== "all" && inDefault.length === 0 && rules === 0;
-  if (nothing) {
+/** Which default tiers deliver to a channel, and how many rules name it. */
+function Receives({ channel }: { channel: NotificationChannelView }) {
+  const { tiers, rules } = channel;
+  if (tiers.length === 0 && rules.length === 0) {
     return <span className="text-xs text-muted-foreground">not in use</span>;
   }
   return (
     <div className="flex flex-col gap-0.5 text-xs">
-      {inDefault === "all" ? (
-        <span>All alerts</span>
-      ) : inDefault.length > 0 ? (
-        <Severities tiers={inDefault} />
+      {tiers[0] === "all" ? (
+        <span>{TIER_LABEL.all}</span>
+      ) : tiers.length > 0 ? (
+        <Severities tiers={tiers as AlertingSeverity[]} />
       ) : (
         <span className="text-muted-foreground">not in the default</span>
       )}
-      {rules > 0 && (
+      {rules.length > 0 && (
         <span className="text-muted-foreground">
-          + {rules} {rules === 1 ? "rule" : "rules"} by name
+          + {rules.length} {rules.length === 1 ? "rule" : "rules"} by name
         </span>
       )}
     </div>
@@ -112,17 +82,13 @@ function Receives({
  */
 function ChannelRow({
   channel,
-  data,
   now,
   onOpen,
 }: {
   channel: NotificationChannelView;
-  data: AlertNotificationsData;
   now: number;
   onOpen: () => void;
 }) {
-  const { name } = channel;
-  const rules = data.overrides.filter((r) => r.channels.includes(name)).length;
   const sent = channel.sent + channel.failed > 0;
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only row convenience, the name inside is the real button
@@ -139,10 +105,10 @@ function ChannelRow({
         <div className="min-w-0">
           <button
             type="button"
-            title={`Edit ${name}`}
+            title={`Edit ${channel.name}`}
             className={cn(ROW_TARGET, "block font-medium")}
           >
-            {name}
+            {channel.name}
           </button>
           <div className="truncate font-mono text-xs text-muted-foreground">
             {channelDetail(channel.config)}
@@ -152,7 +118,7 @@ function ChannelRow({
       {/* One wrapped line under the name while the list is narrow; the
           table's own columns once it is not. */}
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1 pl-10 @[52rem]/list:contents">
-        <Receives destination={data.destination} name={name} rules={rules} />
+        <Receives channel={channel} />
         <div className="min-w-0 font-mono text-xs tabular-nums">
           {sent ? (
             <div className="flex flex-col gap-0.5">
@@ -179,7 +145,8 @@ function ChannelRow({
             read for when, and a dash on a silent row answers a question the
             row already answered. */}
         <div className="font-mono text-xs text-muted-foreground tabular-nums">
-          {agoText(channel.lastSentAt, now)}
+          {channel.lastSentAt &&
+            formatAgoPhrase(now - new Date(channel.lastSentAt).getTime())}
         </div>
       </div>
     </li>
@@ -201,112 +168,70 @@ function ColumnStrip() {
   );
 }
 
-/** Sized to a real two-line row, so the list does not resettle under the
- *  reader when the rows it was standing in for arrive. */
-function LoadingRows({ count, label }: { count: number; label: string }) {
-  return (
-    <div aria-busy="true">
-      <span className="sr-only">{label}</span>
-      <div aria-hidden>
-        {Array.from({ length: count }, (_, i) => (
-          <div key={i} className="border-t px-3 py-2.5">
-            <Skeleton className="h-9 w-full" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-type Gap = {
-  id: string;
-  what: ReactNode;
-  /** What it cost in range, as the count of alerts that went nowhere. */
-  cost: string;
-  action: string;
-  onAction: () => void;
-};
-
-function alertsWentNowhere(n: number | undefined): string {
-  if (!n) return "nothing fired in the selected time range";
-  return `${n} ${n === 1 ? "alert" : "alerts"} went nowhere`;
+function alerts(n: number): string {
+  return `${n} ${n === 1 ? "alert" : "alerts"}`;
 }
 
 /**
- * Every way an alert in range reached delivery with nothing to carry it: a
- * default tier with no channel, or a rule naming a channel nobody has. Each
- * is one row with the one act that closes it.
+ * One gap as the row says it: what has no channel, what it cost in range,
+ * and the one act that closes it. The gap itself was decided server-side;
+ * this is only its wording.
  */
-function deriveGaps(
-  data: AlertNotificationsData,
-  actions: { editDelivery: () => void; newChannel: (name?: string) => void },
-): Gap[] {
-  const { destination, undelivered } = data;
-  const gaps: Gap[] = [];
-  if (!destination.split) {
-    if (destination.tiers.all.length === 0) {
-      gaps.push({
-        id: "tier:all",
-        what: "There is no default destination",
-        cost: alertsWentNowhere(undelivered.tiers.all),
-        action: data.channels.length === 0 ? "New channel" : "Pick channels",
-        onAction:
-          data.channels.length === 0
-            ? () => actions.newChannel()
-            : actions.editDelivery,
-      });
-    }
+function GapRow({
+  gap,
+  channelCount,
+  pending,
+  onEditDelivery,
+  onNewChannel,
+}: {
+  gap: NotificationGap;
+  channelCount: number;
+  pending: boolean;
+  onEditDelivery: () => void;
+  onNewChannel: (name?: string) => void;
+}) {
+  let what: ReactNode;
+  let cost: string;
+  let action: string;
+  let onAction: () => void;
+  if (gap.kind === "tier") {
+    what =
+      gap.tier === "all"
+        ? "There is no default destination"
+        : `${TIER_LABEL[gap.tier]} alerts have no channel`;
+    cost = gap.count
+      ? `${alerts(gap.count)} went nowhere`
+      : "nothing fired in the selected time range";
+    // Picking channels needs channels to pick from.
+    action = channelCount === 0 ? "New channel" : "Pick channels";
+    onAction = channelCount === 0 ? () => onNewChannel() : onEditDelivery;
   } else {
-    for (const tier of SEVERITIES) {
-      if (destination.tiers[tier].length > 0) continue;
-      gaps.push({
-        id: `tier:${tier}`,
-        what: `${SEVERITY_LABEL[tier]} alerts have no channel`,
-        cost: alertsWentNowhere(undelivered.tiers[tier]),
-        action: "Pick channels",
-        onAction: actions.editDelivery,
-      });
-    }
+    what = (
+      <>
+        <Link
+          to="/alerts"
+          search={(prev) => ({ ...prev, alert: gap.rule.path })}
+          title={gap.rule.path}
+          className={cn(ROW_TARGET, "font-medium")}
+        >
+          {gap.rule.name}
+        </Link>{" "}
+        names <span className="font-mono text-xs">{gap.channel}</span>, which
+        does not exist
+      </>
+    );
+    cost = gap.count
+      ? `${alerts(gap.count)} recorded undelivered`
+      : "nothing fired in the selected time range";
+    action = `Create ${gap.channel}`;
+    onAction = () => onNewChannel(gap.channel);
   }
-  const known = new Set(data.channels.map((c) => c.name));
-  for (const rule of data.overrides) {
-    for (const name of rule.channels) {
-      if (known.has(name)) continue;
-      const n = undelivered.rules[rule.path];
-      gaps.push({
-        id: `rule:${rule.path}:${name}`,
-        what: (
-          <>
-            <Link
-              to="/alerts"
-              search={(prev) => ({ ...prev, alert: rule.path })}
-              title={rule.path}
-              className={cn(ROW_TARGET, "font-medium")}
-            >
-              {rule.name}
-            </Link>{" "}
-            names <span className="font-mono text-xs">{name}</span>, which does
-            not exist
-          </>
-        ),
-        cost: n
-          ? `${n} ${n === 1 ? "alert" : "alerts"} recorded undelivered`
-          : "nothing fired in the selected time range",
-        action: `Create ${name}`,
-        onAction: () => actions.newChannel(name),
-      });
-    }
-  }
-  return gaps;
-}
-
-function GapRow({ gap, pending }: { gap: Gap; pending: boolean }) {
   return (
     <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 border-t px-3 py-2.5 text-sm">
       <div className="min-w-0">
-        <div>{gap.what}</div>
+        <div>{what}</div>
         <div className="mt-0.5 font-mono text-xs text-chart-2 tabular-nums">
-          {gap.cost}
+          {cost}
         </div>
       </div>
       <Button
@@ -314,9 +239,9 @@ function GapRow({ gap, pending }: { gap: Gap; pending: boolean }) {
         size="sm"
         className="-my-1"
         disabled={pending}
-        onClick={gap.onAction}
+        onClick={onAction}
       >
-        {gap.action}
+        {action}
       </Button>
     </li>
   );
@@ -328,12 +253,12 @@ function ChannelChips({
   channels,
 }: {
   names: string[];
-  channels: NotificationChannelView[];
+  channels: Map<string, NotificationChannelView>;
 }) {
   return (
     <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-xs @[52rem]/list:col-span-1">
       {names.map((name) => {
-        const channel = channels.find((c) => c.name === name);
+        const channel = channels.get(name);
         return (
           <span
             key={name}
@@ -369,7 +294,7 @@ function DefaultTargetRow({
 }: {
   tier: AlertingDefaultTier;
   names: string[];
-  channels: NotificationChannelView[];
+  channels: Map<string, NotificationChannelView>;
 }) {
   return (
     <li className={cn(ROUTE_COLUMNS, "border-t px-3 py-2.5 text-sm")}>
@@ -377,7 +302,7 @@ function DefaultTargetRow({
         {tier !== "all" && (
           <span className={cn("size-1.5 rounded-full", SEVERITY_DOT[tier])} />
         )}
-        {tier === "all" ? "All alerts" : SEVERITY_LABEL[tier]}
+        {TIER_LABEL[tier]}
       </div>
       {/* The overrides list keeps a severity here; a tier is its own. */}
       <div className="hidden @[52rem]/list:block" />
@@ -397,7 +322,7 @@ function OverrideRow({
   channels,
 }: {
   rule: NotificationOverrideView;
-  channels: NotificationChannelView[];
+  channels: Map<string, NotificationChannelView>;
 }) {
   return (
     <li className={cn(ROUTE_COLUMNS, "border-t px-3 py-2.5 text-sm")}>
@@ -447,19 +372,14 @@ export function NotificationsPage({
   /** With a name, the dialog opens on that name: the act a gap row offers
    *  for a rule pointed at a channel nobody has. */
   onNewChannel: (name?: string) => void;
-  onEditChannel: (name: string) => void;
+  onEditChannel: (channel: NotificationChannelView) => void;
   onEditDelivery: () => void;
 }) {
   const now = Date.now();
-  const loading = data === null;
-  const gaps = data
-    ? deriveGaps(data, {
-        editDelivery: onEditDelivery,
-        newChannel: onNewChannel,
-      })
-    : [];
   const channels = data?.channels ?? [];
   const overrides = data?.overrides ?? [];
+  const gaps = data?.gaps ?? [];
+  const byName = new Map(channels.map((c) => [c.name, c]));
   const count = (n: number) => (n === 0 ? undefined : n);
 
   return (
@@ -475,7 +395,7 @@ export function NotificationsPage({
           action={
             <Button
               size="sm"
-              disabled={loading || pending}
+              disabled={data === null || pending}
               onClick={() => onNewChannel()}
             >
               <Plus className="size-4" />
@@ -483,7 +403,7 @@ export function NotificationsPage({
             </Button>
           }
         >
-          {loading ? (
+          {data === null ? (
             <LoadingRows count={3} label="Loading channels" />
           ) : channels.length === 0 ? (
             <p className={EMPTY_ROW}>
@@ -509,10 +429,9 @@ export function NotificationsPage({
                   <ChannelRow
                     key={channel.name}
                     channel={channel}
-                    data={data}
                     now={now}
                     onOpen={() => {
-                      if (!pending) onEditChannel(channel.name);
+                      if (!pending) onEditChannel(channel);
                     }}
                   />
                 ))}
@@ -532,7 +451,7 @@ export function NotificationsPage({
           icon={TriangleAlert}
           tone={gaps.length > 0 ? "warning" : "neutral"}
         >
-          {loading ? (
+          {data === null ? (
             <LoadingRows count={1} label="Loading delivery gaps" />
           ) : gaps.length === 0 ? (
             <p className={EMPTY_ROW}>
@@ -541,7 +460,18 @@ export function NotificationsPage({
           ) : (
             <ul aria-labelledby="gaps">
               {gaps.map((gap) => (
-                <GapRow key={gap.id} gap={gap} pending={pending} />
+                <GapRow
+                  key={
+                    gap.kind === "tier"
+                      ? `tier:${gap.tier}`
+                      : `rule:${gap.rule.path}:${gap.channel}`
+                  }
+                  gap={gap}
+                  channelCount={channels.length}
+                  pending={pending}
+                  onEditDelivery={onEditDelivery}
+                  onNewChannel={onNewChannel}
+                />
               ))}
             </ul>
           )}
@@ -565,7 +495,7 @@ export function NotificationsPage({
             <Button
               variant="outline"
               size="sm"
-              disabled={loading || pending || channels.length === 0}
+              disabled={data === null || pending || channels.length === 0}
               onClick={onEditDelivery}
             >
               <Pencil />
@@ -573,20 +503,21 @@ export function NotificationsPage({
             </Button>
           }
         >
-          {loading || !data ? (
+          {data === null ? (
             <LoadingRows count={3} label="Loading default targets" />
           ) : (
             <ul aria-labelledby="default-targets">
-              {(data.destination.split ? SEVERITIES : (["all"] as const)).map(
-                (tier) => (
-                  <DefaultTargetRow
-                    key={tier}
-                    tier={tier}
-                    names={data.destination.tiers[tier]}
-                    channels={channels}
-                  />
-                ),
-              )}
+              {(data.destination.split
+                ? ALERTING_SEVERITY_TIERS
+                : (["all"] as const)
+              ).map((tier) => (
+                <DefaultTargetRow
+                  key={tier}
+                  tier={tier}
+                  names={data.destination.tiers[tier]}
+                  channels={byName}
+                />
+              ))}
             </ul>
           )}
         </GroupBand>
@@ -597,7 +528,7 @@ export function NotificationsPage({
           count={count(overrides.length)}
           hint="set in the rule's YAML"
         >
-          {loading ? (
+          {data === null ? (
             <LoadingRows count={2} label="Loading rule overrides" />
           ) : overrides.length === 0 ? (
             <p className={EMPTY_ROW}>
@@ -609,7 +540,7 @@ export function NotificationsPage({
           ) : (
             <ul aria-labelledby="overrides">
               {overrides.map((rule) => (
-                <OverrideRow key={rule.path} rule={rule} channels={channels} />
+                <OverrideRow key={rule.path} rule={rule} channels={byName} />
               ))}
             </ul>
           )}

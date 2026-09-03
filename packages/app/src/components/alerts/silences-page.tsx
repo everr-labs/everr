@@ -1,6 +1,5 @@
 import { Button } from "@everr/ui/components/button";
 import { GroupBand } from "@everr/ui/components/group-band";
-import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
@@ -11,7 +10,7 @@ import type {
   SilenceCut,
 } from "@/data/alerting/triage/view";
 import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
-import { ROW_HOVER, ROW_TARGET } from "./list-row";
+import { LoadingRows, ROW_HOVER, ROW_TARGET } from "./list-row";
 import type { SilenceSeed } from "./silence-dialog";
 import { SilenceRowAction, SilenceWindow } from "./silence-row";
 import {
@@ -258,23 +257,6 @@ function Row({
   );
 }
 
-/** Sized to a real two-line row, so the list does not resettle under the
- *  reader when the rows it was standing in for arrive. */
-function LoadingRows() {
-  return (
-    <div aria-busy="true">
-      <span className="sr-only">Loading silences</span>
-      <div aria-hidden>
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="border-t px-3 py-2.5">
-            <Skeleton className="h-9 w-full" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /**
  * "What is muting right now", as one list rather than two sections.
  *
@@ -408,7 +390,7 @@ export function SilencesPage({
           }
         >
           {loading ? (
-            <LoadingRows />
+            <LoadingRows count={3} label="Loading silences" />
           ) : open.length === 0 ? (
             <p className="border-t px-3 py-3 text-sm text-muted-foreground">
               {/* Said to the only reader who needs telling: the one who has never
@@ -444,7 +426,7 @@ export function SilencesPage({
           hint="in range"
         >
           {loading ? (
-            <LoadingRows />
+            <LoadingRows count={3} label="Loading silences" />
           ) : closed.length === 0 ? (
             <p className="border-t px-3 py-3 text-sm text-muted-foreground">
               {/* The cap can fill a page with open silences alone and never

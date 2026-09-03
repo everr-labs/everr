@@ -1,22 +1,24 @@
 /**
  * What the Notifications page's rows mean, built from what the loaders
- * fetched. Pure, so every attribution here is testable without a database.
+ * fetched: which tiers and rules reach each channel, and every way an alert
+ * went nowhere. Pure, so every attribution here is testable without a
+ * database, and the screen has nothing left to derive.
  */
-import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
+import {
+  ALERTING_SEVERITY_TIERS,
+  type AlertingDefaultTier,
+} from "@/data/alerting/delivery/defaults";
 import type { DefinitionRow } from "@/data/alerting/triage/rules";
 import { rulePath, ruleTitle } from "@/data/alerting/triage/rules";
-import type { AlertingChannel } from "../types";
-import type { ChannelDeliveryRecord, UndeliveredRecord } from "./record";
-import type { AlertingDefaultDestination } from "./repository";
+import type { AlertingChannel, AlertingDefaultDestination } from "../types";
+import type { DeliveryRecords, UndeliveredRecord } from "./record";
 import type {
   AlertNotificationsData,
   NotificationChannelView,
   NotificationDestinationView,
+  NotificationGap,
   NotificationOverrideView,
-  NotificationUndelivered,
 } from "./view";
-
-const SEVERITY_TIERS = ["critical", "warning", "info"] as const;
 
 /**
  * The destination as the page draws it. Split is what the record says: the
@@ -27,7 +29,7 @@ const SEVERITY_TIERS = ["critical", "warning", "info"] as const;
 export function destinationView(
   destination: AlertingDefaultDestination,
 ): NotificationDestinationView {
-  const split = SEVERITY_TIERS.some(
+  const split = ALERTING_SEVERITY_TIERS.some(
     (tier) => destination.tiers[tier] !== undefined,
   );
   return {
@@ -46,59 +48,39 @@ export function destinationView(
 export function overrideViews(
   rules: DefinitionRow[],
 ): NotificationOverrideView[] {
-  return rules
-    .filter((rule) => (rule.spec.notifications?.channels ?? []).length > 0)
-    .map((rule) => ({
-      path: rulePath(rule),
-      name: ruleTitle(rule),
-      severity: rule.spec.severity,
-      channels: rule.spec.notifications?.channels ?? [],
-    }));
+  return rules.flatMap((rule) => {
+    const channels = rule.spec.notifications?.channels ?? [];
+    if (channels.length === 0) return [];
+    return [
+      {
+        path: rulePath(rule),
+        name: ruleTitle(rule),
+        severity: rule.spec.severity,
+        channels,
+      },
+    ];
+  });
 }
 
-/**
- * Each `no_channels` count laid at the door of what had no channel. A rule
- * that names its own channels was on the direct path, so its count is the
- * rule's; anything else went through the default, to the tier its severity
- * selects, or to "all" while the destination is unsplit.
- *
- * The attribution reads the destination as it is now, which is what the
- * page's gap rows are derived from. A tier filled since the window began
- * keeps its count in the record, but with no row to carry it the count goes
- * unshown rather than laid on a tier that has channels.
- */
-export function attributeUndelivered(
-  records: UndeliveredRecord[],
-  overrides: NotificationOverrideView[],
+/** The default tiers that deliver to a channel, in the order the lists
+ *  print them: `["all"]` while unsplit, the severities that name it while
+ *  split. */
+function tiersReaching(
   destination: NotificationDestinationView,
-): NotificationUndelivered {
-  const direct = new Set(overrides.map((rule) => rule.path));
-  const tiers: NotificationUndelivered["tiers"] = {};
-  const rules: NotificationUndelivered["rules"] = {};
-  for (const record of records) {
-    if (direct.has(record.path)) {
-      rules[record.path] = (rules[record.path] ?? 0) + record.count;
-      continue;
-    }
-    const tier: AlertingDefaultTier = destination.split
-      ? isSeverityTier(record.severity)
-        ? record.severity
-        : "info"
-      : "all";
-    tiers[tier] = (tiers[tier] ?? 0) + record.count;
-  }
-  return { tiers, rules };
-}
-
-function isSeverityTier(
-  severity: string,
-): severity is (typeof SEVERITY_TIERS)[number] {
-  return (SEVERITY_TIERS as readonly string[]).includes(severity);
+  name: string,
+): AlertingDefaultTier[] {
+  if (!destination.split)
+    return destination.tiers.all.includes(name) ? ["all"] : [];
+  return ALERTING_SEVERITY_TIERS.filter((tier) =>
+    destination.tiers[tier].includes(name),
+  );
 }
 
 export function channelViews(
   channels: AlertingChannel[],
-  records: ChannelDeliveryRecord[],
+  destination: NotificationDestinationView,
+  overrides: NotificationOverrideView[],
+  records: DeliveryRecords["channels"],
 ): NotificationChannelView[] {
   const byName = new Map(records.map((r) => [r.channel, r]));
   return channels.map((channel) => {
@@ -106,6 +88,10 @@ export function channelViews(
     return {
       name: channel.name,
       config: channel.config,
+      tiers: tiersReaching(destination, channel.name),
+      rules: overrides
+        .filter((rule) => rule.channels.includes(channel.name))
+        .map((rule) => rule.path),
       sent: record?.sent ?? 0,
       failed: record?.failed ?? 0,
       lastSentAt: record?.lastSentAt ?? null,
@@ -114,23 +100,83 @@ export function channelViews(
   });
 }
 
+/**
+ * Every way an alert reaches delivery with nothing to carry it, with each
+ * `no_channels` count laid at the door of what had no channel. A rule that
+ * names its own channels was on the direct path, so its count is the rule's;
+ * anything else went through the default, to the tier its severity selects,
+ * or to "all" while the destination is unsplit.
+ *
+ * The gaps read the destination as it is now. A tier filled since the window
+ * began keeps its count in the record, but with no gap to carry it the count
+ * goes unshown rather than laid on a tier that has channels.
+ */
+export function deriveGaps(
+  undelivered: UndeliveredRecord[],
+  overrides: NotificationOverrideView[],
+  destination: NotificationDestinationView,
+  channelNames: Iterable<string>,
+): NotificationGap[] {
+  const direct = new Set(overrides.map((rule) => rule.path));
+  const byTier = new Map<AlertingDefaultTier, number>();
+  const byRule = new Map<string, number>();
+  for (const record of undelivered) {
+    if (direct.has(record.path)) {
+      byRule.set(record.path, (byRule.get(record.path) ?? 0) + record.count);
+      continue;
+    }
+    const tier = destination.split ? record.severity : "all";
+    byTier.set(tier, (byTier.get(tier) ?? 0) + record.count);
+  }
+
+  const gaps: NotificationGap[] = [];
+  const openTiers: AlertingDefaultTier[] = destination.split
+    ? ALERTING_SEVERITY_TIERS.filter(
+        (tier) => destination.tiers[tier].length === 0,
+      )
+    : destination.tiers.all.length === 0
+      ? ["all"]
+      : [];
+  for (const tier of openTiers) {
+    gaps.push({ kind: "tier", tier, count: byTier.get(tier) ?? 0 });
+  }
+  const known = new Set(channelNames);
+  for (const rule of overrides) {
+    for (const channel of rule.channels) {
+      if (known.has(channel)) continue;
+      gaps.push({
+        kind: "missing-channel",
+        rule: { path: rule.path, name: rule.name },
+        channel,
+        count: byRule.get(rule.path) ?? 0,
+      });
+    }
+  }
+  return gaps;
+}
+
 export function assembleNotifications(input: {
   channels: AlertingChannel[];
   destination: AlertingDefaultDestination;
   rules: DefinitionRow[];
-  records: ChannelDeliveryRecord[];
-  undelivered: UndeliveredRecord[];
+  records: DeliveryRecords;
 }): AlertNotificationsData {
   const destination = destinationView(input.destination);
   const overrides = overrideViews(input.rules);
   return {
-    channels: channelViews(input.channels, input.records),
+    channels: channelViews(
+      input.channels,
+      destination,
+      overrides,
+      input.records.channels,
+    ),
     destination,
     overrides,
-    undelivered: attributeUndelivered(
-      input.undelivered,
+    gaps: deriveGaps(
+      input.records.undelivered,
       overrides,
       destination,
+      input.channels.map((c) => c.name),
     ),
   };
 }

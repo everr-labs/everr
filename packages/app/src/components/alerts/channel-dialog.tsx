@@ -16,18 +16,13 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { testAlertingChannel } from "@/data/alerting/delivery/server";
 import type { NotificationChannelView } from "@/data/alerting/delivery/view";
+import { ALERTING_REDACTED_SECRET as REDACTED } from "@/data/alerting/schema";
 import type { AlertingChannelConfig } from "@/data/alerting/types";
 import {
-  CHANNEL_ICON,
-  CHANNEL_LABEL,
-  CHANNEL_TYPES,
+  CHANNEL_OPTIONS,
   CHANNEL_URL_FIELD,
   type ChannelType,
 } from "./channel-mark";
-
-/** What the read hands back for a secret it will never show again. Sent
- *  back as-is on an edit, it tells the server to keep what it has. */
-const REDACTED = "***";
 
 /** What the dialog is open on: a channel to make, seeded with a name when a
  *  gap row asked for one, or a channel to change. `null` while closed. */
@@ -61,14 +56,11 @@ const EMPTY_DRAFT: ConfigDraft = {
 // Secret fields come back redacted, so an edit starts them blank and the
 // reader re-enters them; non-secret fields prefill as stored.
 function draftFromConfig(config: AlertingChannelConfig): ConfigDraft {
-  switch (config.type) {
-    case "webhook":
-    case "slack":
-    case "discord":
-      return { ...EMPTY_DRAFT, type: config.type };
-    case "telegram":
-      return { ...EMPTY_DRAFT, type: config.type, chatIds: config.chat_ids };
-  }
+  return {
+    ...EMPTY_DRAFT,
+    type: config.type,
+    chatIds: config.type === "telegram" ? config.chat_ids : [],
+  };
 }
 
 /**
@@ -104,19 +96,15 @@ function hasSecret(config: AlertingChannelConfig): boolean {
 
 export function ChannelDialog({
   target,
-  existingNames,
-  inDefault,
+  channels,
   pending,
   onClose,
   onSave,
   onDelete,
 }: {
   target: ChannelTarget | null;
-  /** Every channel name the org has, for the duplicate check. */
-  existingNames: string[];
-  /** Whether the channel being edited is part of the default destination,
-   *  which the delete confirm has to say. */
-  inDefault: boolean;
+  /** Every channel the org has, for the duplicate-name check. */
+  channels: NotificationChannelView[];
   /** A write is in flight. The dialog stays open and inert until the server
    *  answers: closing early would leave the reader unsure it happened. */
   pending: boolean;
@@ -139,8 +127,7 @@ export function ChannelDialog({
             target.mode === "new" ? `new:${target.name}` : target.channel.name
           }
           target={target}
-          existingNames={existingNames}
-          inDefault={inDefault}
+          existingNames={channels.map((c) => c.name)}
           pending={pending}
           onClose={onClose}
           onSave={onSave}
@@ -154,7 +141,6 @@ export function ChannelDialog({
 function ChannelForm({
   target,
   existingNames,
-  inDefault,
   pending,
   onClose,
   onSave,
@@ -162,7 +148,6 @@ function ChannelForm({
 }: {
   target: ChannelTarget;
   existingNames: string[];
-  inDefault: boolean;
   pending: boolean;
   onClose: () => void;
   onSave: (draft: ChannelDraft) => void;
@@ -175,15 +160,6 @@ function ChannelForm({
   const [draft, setDraft] = useState<ConfigDraft>(() =>
     editing ? draftFromConfig(editing.config) : EMPTY_DRAFT,
   );
-  // The result of the last test, keyed to the config it tested: a result for
-  // a config no longer on screen is never shown.
-  const [tested, setTested] = useState<{
-    config: string;
-    ok: boolean;
-    latencyMs: number;
-    error?: string;
-  } | null>(null);
-
   // Deleting asks first, in place: a second dialog stacked on this one is
   // dismissed by the first as an outside press.
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -205,22 +181,14 @@ function ChannelForm({
   const test = useMutation({
     mutationFn: (config: AlertingChannelConfig) =>
       testAlertingChannel({ data: { config } }),
-    onSuccess: (r, config) =>
-      setTested({
-        config: JSON.stringify(config),
-        ok: r.ok,
-        latencyMs: r.latency_ms,
-        ...(r.error === undefined ? {} : { error: r.error }),
-      }),
-    onError: (e: Error, config) =>
-      setTested({
-        config: JSON.stringify(config),
-        ok: false,
-        latencyMs: 0,
-        error: e.message,
-      }),
   });
-  const result = tested?.config === JSON.stringify(config) ? tested : null;
+  // The result is shown only while the config it tested is still the one on
+  // screen: a verdict on an endpoint the reader has since retyped is worse
+  // than none.
+  const tested =
+    !test.isPending &&
+    test.variables !== undefined &&
+    JSON.stringify(test.variables) === JSON.stringify(config);
   const busy = pending || test.isPending;
 
   if (editing && confirmingDelete) {
@@ -229,9 +197,11 @@ function ChannelForm({
         <DialogHeader>
           <DialogTitle>Delete {editing.name}?</DialogTitle>
           <DialogDescription>
-            {inDefault ? "It drops out of the default destination. " : ""}A rule
-            naming it directly keeps the name and delivers nothing until a
-            channel with that name exists again. Past notifications keep its
+            {editing.tiers.length > 0
+              ? "It drops out of the default destination. "
+              : ""}
+            A rule naming it directly keeps the name and delivers nothing until
+            a channel with that name exists again. Past notifications keep its
             name in their record.
           </DialogDescription>
         </DialogHeader>
@@ -293,11 +263,7 @@ function ChannelForm({
             value={draft.type}
             disabled={busy}
             onChange={(v) => patch({ type: v as ChannelType })}
-            options={CHANNEL_TYPES.map((t) => ({
-              value: t,
-              label: CHANNEL_LABEL[t],
-              icon: CHANNEL_ICON[t],
-            }))}
+            options={CHANNEL_OPTIONS}
           />
         </div>
         {urlField && (
@@ -342,17 +308,17 @@ function ChannelForm({
             </div>
           </>
         )}
-        {result && (
+        {tested && (
           <p
-            role={result.ok ? "status" : "alert"}
+            role={test.data?.ok ? "status" : "alert"}
             className={cn(
               "font-mono text-xs",
-              result.ok ? "text-chart-2" : "text-destructive",
+              test.data?.ok ? "text-chart-2" : "text-destructive",
             )}
           >
-            {result.ok
-              ? `Delivered in ${result.latencyMs}ms`
-              : `Not delivered: ${result.error ?? "unknown error"}`}
+            {test.data?.ok
+              ? `Delivered in ${test.data.latency_ms}ms`
+              : `Not delivered: ${test.data?.error ?? test.error?.message ?? "unknown error"}`}
           </p>
         )}
       </div>

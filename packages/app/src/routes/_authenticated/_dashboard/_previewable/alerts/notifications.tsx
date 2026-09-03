@@ -30,7 +30,7 @@ function AlertingNotificationsPage() {
   // way the Silences page's history is.
   const notifications = useQuery(alertNotificationsOptions(timeRange));
   const data = notifications.data ?? null;
-  const controls = useNotificationControls(data);
+  const controls = useNotificationControls();
 
   if (notifications.isError) {
     return (
@@ -57,8 +57,7 @@ function AlertingNotificationsPage() {
       </div>
       <ChannelDialog
         target={controls.channel.target}
-        existingNames={data?.channels.map((c) => c.name) ?? []}
-        inDefault={controls.channel.inDefault}
+        channels={data?.channels ?? []}
         pending={controls.pending}
         onClose={controls.channel.close}
         onSave={controls.channel.save}

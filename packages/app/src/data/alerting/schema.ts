@@ -117,6 +117,10 @@ export const AlertingRuleViewSchema = AlertingRuleSchema.extend({
 });
 
 // Secret fields come back redacted ("***") on read.
+/** What a read returns in place of a channel's secret, and what a write
+ *  sends back to say "keep the stored one". */
+export const ALERTING_REDACTED_SECRET = "***";
+
 export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("webhook"), url: z.string() }),
   z.object({ type: z.literal("slack"), url: z.string() }),

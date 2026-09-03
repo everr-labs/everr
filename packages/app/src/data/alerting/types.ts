@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type {
   AlertingChannelConfigSchema,
+  AlertingDefaultDestinationInputSchema,
   AlertingMatcherSchema,
   AlertingRuleConditionSchema,
   AlertingRuleHealthStatusSchema,
@@ -45,3 +46,9 @@ export type AlertingChannel = {
   config: AlertingChannelConfig;
 };
 export type AlertingSilenceInput = z.infer<typeof AlertingSilenceInputSchema>;
+
+/** The default destination by tier, as channel names. A tier absent from
+ *  the record has no channels. The same shape going in and coming out. */
+export type AlertingDefaultDestination = z.infer<
+  typeof AlertingDefaultDestinationInputSchema
+>;

@@ -22,7 +22,11 @@ import {
   AlertingDefaultDestinationInputSchema,
 } from "../schema";
 import type { AlertingMutationScope } from "../session";
-import type { AlertingChannel, AlertingChannelConfig } from "../types";
+import type {
+  AlertingChannel,
+  AlertingChannelConfig,
+  AlertingDefaultDestination,
+} from "../types";
 import {
   decryptChannelConfig,
   encryptChannelConfig,
@@ -231,12 +235,6 @@ export async function testChannel(
   }
 }
 
-/** The default destination by tier, as channel names. A tier absent from the
- *  record has no channels. */
-export type AlertingDefaultDestination = {
-  tiers: Partial<Record<AlertingDefaultTier, string[]>>;
-};
-
 export async function listDefaultDestination(
   organizationId: string,
 ): Promise<AlertingDefaultDestination> {
@@ -283,7 +281,7 @@ export async function setDefaultDestination(
     AlertingDefaultTier,
     string[],
   ][];
-  if (entries.some(([tier]) => tier === "all") && entries.length > 1) {
+  if ("all" in input.tiers && entries.length > 1) {
     throwAlertingPersistenceError(
       422,
       "validation",
@@ -316,8 +314,9 @@ export async function setDefaultDestination(
     await tx
       .delete(alertDefaultChannels)
       .where(eq(alertDefaultChannels.organizationId, organizationId));
+    // Unique within a tier already: the schema refused duplicates.
     const values = entries.flatMap(([tier, channels]) =>
-      [...new Set(channels)].map((name) => ({
+      channels.map((name) => ({
         organizationId,
         tier,
         channelId: idByName.get(name) as string,

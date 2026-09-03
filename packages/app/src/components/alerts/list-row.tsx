@@ -6,6 +6,7 @@
  * own: a click on it, from a pointer or from Enter on the focused button,
  * bubbles to the row, so the row is the one place that opens.
  */
+import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
 
 /** The look of the one focusable target in a row: the rule's name. Also worn
@@ -46,6 +47,31 @@ export function SelectableRow({
       )}
     >
       {children}
+    </div>
+  );
+}
+
+/** What stands in for a list's rows while they load. Sized to a real two-line
+ *  row, so the list does not resettle under the reader when the rows it was
+ *  standing in for arrive. */
+export function LoadingRows({
+  count,
+  label,
+}: {
+  count: number;
+  /** What the screen reader is told is loading. */
+  label: string;
+}) {
+  return (
+    <div aria-busy="true">
+      <span className="sr-only">{label}</span>
+      <div aria-hidden>
+        {Array.from({ length: count }, (_, i) => (
+          <div key={i} className="border-t px-3 py-2.5">
+            <Skeleton className="h-9 w-full" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

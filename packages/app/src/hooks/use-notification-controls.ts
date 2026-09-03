@@ -5,7 +5,6 @@ import type {
   ChannelDraft,
   ChannelTarget,
 } from "@/components/alerts/channel-dialog";
-import type { DestinationDraft } from "@/components/alerts/delivery-dialog";
 import { invalidateAlertNotifications } from "@/data/alerting/delivery/options";
 import {
   createAlertingChannel,
@@ -13,15 +12,17 @@ import {
   setAlertingDefaultDestination,
   updateAlertingChannel,
 } from "@/data/alerting/delivery/server";
-import type { AlertNotificationsData } from "@/data/alerting/delivery/view";
+import type { NotificationChannelView } from "@/data/alerting/delivery/view";
+import type { AlertingDefaultDestination } from "@/data/alerting/types";
 
 /**
  * Everything the Notifications page needs to change what it shows: the two
  * dialogs, which one is open on what, and the writes they make. One place
  * owns what a successful write says, what it refreshes, and when a dialog
- * goes away.
+ * goes away. Takes nothing: a row hands over the channel it draws, the way
+ * a triage row hands the silence dialog its seed.
  */
-export function useNotificationControls(data: AlertNotificationsData | null) {
+export function useNotificationControls() {
   const queryClient = useQueryClient();
   const refresh = () => invalidateAlertNotifications(queryClient);
   const [channelTarget, setChannelTarget] = useState<ChannelTarget | null>(
@@ -65,7 +66,7 @@ export function useNotificationControls(data: AlertNotificationsData | null) {
   });
 
   const saveDestination = useMutation({
-    mutationFn: (draft: DestinationDraft) =>
+    mutationFn: (draft: AlertingDefaultDestination) =>
       setAlertingDefaultDestination({ data: draft }),
     onSuccess: async () => {
       await refresh();
@@ -75,38 +76,25 @@ export function useNotificationControls(data: AlertNotificationsData | null) {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const pending =
-    saveChannel.isPending ||
-    deleteChannel.isPending ||
-    saveDestination.isPending;
-
-  const editingName =
-    channelTarget?.mode === "edit" ? channelTarget.channel.name : null;
-  const inDefault =
-    editingName !== null &&
-    Object.values(data?.destination.tiers ?? {}).some((names) =>
-      names.includes(editingName),
-    );
-
   return {
-    pending,
+    pending:
+      saveChannel.isPending ||
+      deleteChannel.isPending ||
+      saveDestination.isPending,
     channel: {
       target: channelTarget,
-      inDefault,
       openNew: (name = "") => setChannelTarget({ mode: "new", name }),
-      openEdit: (name: string) => {
-        const channel = data?.channels.find((c) => c.name === name);
-        if (channel) setChannelTarget({ mode: "edit", channel });
-      },
+      openEdit: (channel: NotificationChannelView) =>
+        setChannelTarget({ mode: "edit", channel }),
       close: () => setChannelTarget(null),
-      save: (draft: ChannelDraft) => saveChannel.mutate(draft),
-      remove: (name: string) => deleteChannel.mutate(name),
+      save: saveChannel.mutate,
+      remove: deleteChannel.mutate,
     },
     delivery: {
       open: deliveryOpen,
       show: () => setDeliveryOpen(true),
       close: () => setDeliveryOpen(false),
-      save: (draft: DestinationDraft) => saveDestination.mutate(draft),
+      save: saveDestination.mutate,
     },
   };
 }

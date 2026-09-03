@@ -9,7 +9,8 @@ import type { AlertingChannelConfig } from "@/data/alerting/types";
 import { authEnv } from "@/env/auth";
 
 const VERSION = "v1";
-const REDACTED = "***";
+
+import { ALERTING_REDACTED_SECRET as REDACTED } from "../schema";
 
 function key(): Buffer {
   return createHash("sha256")
