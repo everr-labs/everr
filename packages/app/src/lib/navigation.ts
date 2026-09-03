@@ -4,12 +4,12 @@ import {
   Bug,
   ChartLine,
   Flame,
+  Hash,
   House,
   LayoutDashboard,
   type LucideIcon,
   NotebookText,
   ScrollText,
-  Send,
   Waypoints,
 } from "lucide-react";
 
@@ -44,7 +44,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { title: "Triage", url: "/alerts", icon: Flame, exact: true },
       { title: "Silences", url: "/alerts/silences", icon: BellOff },
-      { title: "Notifications", url: "/alerts/notifications", icon: Send },
+      { title: "Notifications", url: "/alerts/notifications", icon: Hash },
     ],
   },
   {
