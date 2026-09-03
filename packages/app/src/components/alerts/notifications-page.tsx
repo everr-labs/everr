@@ -1,6 +1,5 @@
 import { Button } from "@everr/ui/components/button";
 import { GroupBand } from "@everr/ui/components/group-band";
-import { kickerClass } from "@everr/ui/lib/typography";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { Pencil, Plus, TriangleAlert } from "lucide-react";
@@ -150,21 +149,6 @@ function ChannelRow({
         </div>
       </div>
     </li>
-  );
-}
-
-/** Labels for the three fact columns. The band already names the first. */
-function ColumnStrip() {
-  return (
-    <div
-      aria-hidden
-      className={cn(COLUMNS, "hidden border-t px-3 py-1.5 @[52rem]/list:grid")}
-    >
-      <span />
-      <span className={kickerClass}>Receives</span>
-      <span className={kickerClass}>In range</span>
-      <span className={kickerClass}>Last sent</span>
-    </div>
   );
 }
 
@@ -423,7 +407,6 @@ export function NotificationsPage({
             </p>
           ) : (
             <>
-              <ColumnStrip />
               <ul aria-labelledby="channels">
                 {channels.map((channel) => (
                   <ChannelRow
@@ -440,42 +423,42 @@ export function NotificationsPage({
           )}
         </GroupBand>
 
-        {/* The warning tone only while there is something to warn about: a
-            band that glowed amber over "nothing went wrong" would teach the
-            reader to ignore amber. */}
-        <GroupBand
-          id="gaps"
-          label="Not delivered"
-          count={count(gaps.length)}
-          hint="in range"
-          icon={TriangleAlert}
-          tone={gaps.length > 0 ? "warning" : "neutral"}
-        >
-          {data === null ? (
-            <LoadingRows count={1} label="Loading delivery gaps" />
-          ) : gaps.length === 0 ? (
-            <p className={EMPTY_ROW}>
-              Every alert in the selected time range had a channel to go to.
-            </p>
-          ) : (
-            <ul aria-labelledby="gaps">
-              {gaps.map((gap) => (
-                <GapRow
-                  key={
-                    gap.kind === "tier"
-                      ? `tier:${gap.tier}`
-                      : `rule:${gap.rule.path}:${gap.channel}`
-                  }
-                  gap={gap}
-                  channelCount={channels.length}
-                  pending={pending}
-                  onEditDelivery={onEditDelivery}
-                  onNewChannel={onNewChannel}
-                />
-              ))}
-            </ul>
-          )}
-        </GroupBand>
+        {/* The band appears only when it has something to report. A standing
+            "nothing went wrong" row is a line the reader learns to skip, and
+            the band is amber whenever it is here at all, which is what makes
+            amber worth looking at. It stays through the load so the page does
+            not shift once the counts arrive. */}
+        {(data === null || gaps.length > 0) && (
+          <GroupBand
+            id="gaps"
+            label="Not delivered"
+            count={count(gaps.length)}
+            hint="in range"
+            icon={TriangleAlert}
+            tone="warning"
+          >
+            {data === null ? (
+              <LoadingRows count={1} label="Loading delivery gaps" />
+            ) : (
+              <ul aria-labelledby="gaps">
+                {gaps.map((gap) => (
+                  <GapRow
+                    key={
+                      gap.kind === "tier"
+                        ? `tier:${gap.tier}`
+                        : `rule:${gap.rule.path}:${gap.channel}`
+                    }
+                    gap={gap}
+                    channelCount={channels.length}
+                    pending={pending}
+                    onEditDelivery={onEditDelivery}
+                    onNewChannel={onNewChannel}
+                  />
+                ))}
+              </ul>
+            )}
+          </GroupBand>
+        )}
 
         {/* Where an alert goes unless its rule says otherwise: one row per
             tier while the destination is split, one for every alert while it

@@ -188,6 +188,14 @@ describe("NotificationsPage", () => {
     expect(rows[2]).toHaveTextContent("no channel · not delivered");
   });
 
+  it("says nothing at all when every alert had a channel to go to", async () => {
+    renderPage({ ...DATA, gaps: [] });
+    await screen.findByRole("heading", { name: /channels/i });
+    expect(
+      screen.queryByRole("heading", { name: /not delivered/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("tells a first-run org what a channel is, and that there is no gap band to fear", async () => {
     renderPage({
       channels: [],
