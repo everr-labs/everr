@@ -169,28 +169,27 @@ export function TriageList({
   onSilence: (path: string) => void;
   onExpireSilence: (path: string) => void;
 }) {
-  // One group per run of a status, in the order the server returned them.
-  const groups: { status: TriageStatus; alerts: TriageAlert[] }[] = [];
+  // One group per status, in the order the server returned them: triage
+  // order sorts by status first, so each status is one contiguous run.
+  const groups: { status: TriageStatus; rows: TriageAlert[] }[] = [];
   for (const alert of alerts) {
     const last = groups[groups.length - 1];
-    if (last?.status === alert.status) last.alerts.push(alert);
-    else groups.push({ status: alert.status, alerts: [alert] });
+    if (last?.status === alert.status) last.rows.push(alert);
+    else groups.push({ status: alert.status, rows: [alert] });
   }
 
   return (
-    // Each band is wrapped with its rows, so it sticks for exactly those rows
-    // and the wrapper's rule, not the band's, separates the groups.
     <div className="divide-y border-b">
-      {groups.map(({ status, alerts: rows }, index) => {
+      {groups.map(({ status, rows }) => {
         const meta = STATUS_META[status];
         return (
-          <div key={`${status}-${index}`}>
-            <GroupBand
-              label={meta.label}
-              count={rows.length}
-              icon={meta.icon}
-              tone={meta.tone}
-            />
+          <GroupBand
+            key={status}
+            label={meta.label}
+            count={rows.length}
+            icon={meta.icon}
+            tone={meta.tone}
+          >
             {rows.map((alert) => (
               <TriageRow
                 key={alert.path}
@@ -201,7 +200,7 @@ export function TriageList({
                 onExpireSilence={() => onExpireSilence(alert.path)}
               />
             ))}
-          </div>
+          </GroupBand>
         );
       })}
     </div>

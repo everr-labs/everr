@@ -329,12 +329,12 @@ export function SilencesPage({
   // reaches it. Only then is the closed count a floor rather than the answer:
   // a page of 190 open and 12 closed knows both exactly.
   const truncated = rows.length >= SILENCE_PAGE_LIMIT;
-  const activeCount = open.length > 0 ? `${open.length}` : undefined;
+  const activeCount = open.length || undefined;
   const historyCount = !closed.length
     ? undefined
     : truncated
       ? `${closed.length}+`
-      : `${closed.length}`;
+      : closed.length;
 
   const row = (record: AlertSilenceRecord) => (
     <Row
@@ -367,29 +367,23 @@ export function SilencesPage({
           does not repeat a word the shell already said. */}
       <h1 className="sr-only">Silences</h1>
 
-      {/* Each group is its own sticky context, so its heading stays for
-          exactly as long as its rows and the next one replaces it. The rule
-          between them is the wrapper's, not a band's: the first band sits
-          under the shell's own rule, and a rule drawn on a band would ride
-          with it and double that one whenever the band is stuck. */}
       <div className="divide-y">
-        <div>
-          <GroupBand
-            id="silences-active"
-            label="Active"
-            count={activeCount}
-            // The range bounds history and not this: a silence muting right now
-            // is muting whatever window the reader happens to be looking at.
-            hint="now"
-            // Always drawn, whatever the list holds and whatever is loading: a
-            // page with nothing on it is exactly when this has to be reachable.
-            action={
-              <Button size="sm" disabled={pending} onClick={onNew}>
-                <Plus className="size-4" />
-                New silence
-              </Button>
-            }
-          />
+        <GroupBand
+          id="silences-active"
+          label="Active"
+          count={activeCount}
+          // The range bounds history and not this: a silence muting right now
+          // is muting whatever window the reader happens to be looking at.
+          hint="now"
+          // Always drawn, whatever the list holds and whatever is loading: a
+          // page with nothing on it is exactly when this has to be reachable.
+          action={
+            <Button size="sm" disabled={pending} onClick={onNew}>
+              <Plus className="size-4" />
+              New silence
+            </Button>
+          }
+        >
           {loading ? (
             <LoadingRows />
           ) : open.length === 0 ? (
@@ -418,15 +412,14 @@ export function SilencesPage({
           ) : (
             <ul aria-labelledby="silences-active">{open.map(row)}</ul>
           )}
-        </div>
+        </GroupBand>
 
-        <div>
-          <GroupBand
-            id="silences-history"
-            label="History"
-            count={historyCount}
-            hint="in range"
-          />
+        <GroupBand
+          id="silences-history"
+          label="History"
+          count={historyCount}
+          hint="in range"
+        >
           {loading ? (
             <LoadingRows />
           ) : closed.length === 0 ? (
@@ -436,7 +429,7 @@ export function SilencesPage({
           ) : (
             <ul aria-labelledby="silences-history">{closed.map(row)}</ul>
           )}
-        </div>
+        </GroupBand>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { GroupBand } from "@everr/ui/components/group-band";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ClockIcon, FlameIcon, PlusIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 function Rows({ names }: { names: string[] }) {
   return (
@@ -15,15 +16,31 @@ function Rows({ names }: { names: string[] }) {
   );
 }
 
+/** The list around the groups: the rule between them is the frame's. */
+function Frame({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`w-[36rem] divide-y border-y ${className ?? ""}`}>
+      {children}
+    </div>
+  );
+}
+
 const meta = {
   title: "Data/GroupBand",
   component: GroupBand,
   args: { label: "Active", count: 1, hint: "now" },
   render: (args) => (
-    <div className="w-[36rem] border-y">
-      <GroupBand {...args} />
-      <Rows names={["Collector pod memory spike"]} />
-    </div>
+    <Frame>
+      <GroupBand {...args}>
+        <Rows names={["Collector pod memory spike"]} />
+      </GroupBand>
+    </Frame>
   ),
 } satisfies Meta<typeof GroupBand>;
 
@@ -47,33 +64,29 @@ export const WithAction: Story = {
 /** Toned bands carry an icon; the words stay muted in both. */
 export const Toned: Story = {
   render: () => (
-    <div className="w-[36rem] divide-y border-y">
-      <div>
-        <GroupBand label="Firing" count={2} icon={FlameIcon} tone="danger" />
+    <Frame>
+      <GroupBand label="Firing" count={2} icon={FlameIcon} tone="danger">
         <Rows names={["Always firing (demo)", "Flapping (demo)"]} />
-      </div>
-      <div>
-        <GroupBand label="Pending" count={1} icon={ClockIcon} tone="warning" />
+      </GroupBand>
+      <GroupBand label="Pending" count={1} icon={ClockIcon} tone="warning">
         <Rows names={["Always pending (demo)"]} />
-      </div>
-    </div>
+      </GroupBand>
+    </Frame>
   ),
 };
 
-/** Each band wrapped with its rows, so it sticks for exactly those rows. */
+/** Each band sticks for exactly its own rows. */
 export const Sticky: Story = {
   render: () => (
-    <div className="h-64 w-[36rem] divide-y overflow-auto border-y">
-      <div>
-        <GroupBand label="Active" count={2} hint="now" />
+    <Frame className="h-64 overflow-auto">
+      <GroupBand label="Active" count={2} hint="now">
         <Rows names={["Collector pod memory spike", "Checkout latency"]} />
-      </div>
-      <div>
-        <GroupBand label="History" count="200+" hint="in range" />
+      </GroupBand>
+      <GroupBand label="History" count="200+" hint="in range">
         <Rows
           names={Array.from({ length: 12 }, (_, i) => `Silence ${i + 1}`)}
         />
-      </div>
-    </div>
+      </GroupBand>
+    </Frame>
   ),
 };

@@ -1,5 +1,5 @@
-import { kickerClass } from "@everr/ui/components/group-band";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { kickerClass } from "@everr/ui/lib/typography";
 import { cn } from "@everr/ui/lib/utils";
 import type {
   RuleInventoryRow,
