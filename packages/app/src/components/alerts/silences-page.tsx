@@ -2,7 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { GroupBand } from "@everr/ui/components/group-band";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { formatElapsed } from "@/data/alerting/triage/format";
@@ -120,16 +120,31 @@ function Row({
   // words, so the label has to carry the silence it belongs to. Derived in
   // `silence-state` so this screen and the detail panel say the same thing.
   const spoken = spokenSilence(row);
+  const navigate = useNavigate();
+  // One destination for the row's pointer convenience and for the name's link,
+  // so a click anywhere on the row lands where the link says it goes. The link
+  // stays the real control: it is what keyboard focus reaches, what opens in a
+  // new tab and what copies as a URL, none of which a click handler gives.
+  const openRule = row.rule
+    ? () =>
+        navigate({
+          to: "/alerts/silences",
+          search: (prev) => ({ ...prev, alert: row.rule?.path }),
+          replace: true,
+        })
+    : undefined;
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only row convenience, the link inside is the real control
     <li
+      onClick={openRule}
       className={cn(
         columns(impact),
         "border-t px-3 py-2.5 text-sm",
         !open && "text-muted-foreground",
-        // Only where there is a rule to open: the wash is what says a row
-        // leads somewhere, and a row that washes and goes nowhere is a
-        // promise the list does not keep.
-        row.rule && ROW_HOVER,
+        // Only where there is a rule to open: the wash and the pointer are
+        // what say a row leads somewhere, and a row that offers both and goes
+        // nowhere is a promise the list does not keep.
+        row.rule && cn("cursor-pointer", ROW_HOVER),
         // Reinforces the group heading above, rather than standing in for it:
         // two pixels of colour cannot carry a group on its own, which is what
         // it was being asked to do while the open rows had no heading. `pl`
@@ -194,7 +209,12 @@ function Row({
       </div>
       {/* Second in the markup so it lands beside the rule on a narrow list,
           last in the table once there are columns to be last of. */}
-      <div className="justify-self-end @[52rem]/list:order-last">
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: stops the row click when using the silence controls */}
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: stops the row click when using the silence controls */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="justify-self-end @[52rem]/list:order-last"
+      >
         <SilenceRowAction
           ref={action}
           record={row}
