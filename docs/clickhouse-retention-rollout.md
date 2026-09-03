@@ -65,6 +65,17 @@ active parts (`PartsActive` and the merge pool on the dashboard), not insert
 rejections. Larger collector batches (`send_batch_size`) are the lever that
 reduces it, since parts per partition per insert is what drives the cost.
 
+Over the whole life of a row the new layout does less merge work than the old
+one, because the old one paid at expiry. Measured with one day compressed to
+six seconds so that rows are inserted fresh, merged, and then expire during
+the run (two tenants, 14 and 30 days, mixed in every batch, 960k rows): the
+old layout (day partition, row TTL, no `ttl_only_drop_parts`) ran 139 TTL
+delete merges that read 613 MiB and wrote 42 MiB to remove the 14-day rows
+from parts that also held the 30-day rows, 3.4x write amplification overall.
+The new layout ran 70 TTL drops that wrote 29 KiB, 0.6x amplification, and
+half the merge CPU, with twice the regular merges from the split partitions.
+Expiry by drop is what makes the per-tier partition pay for itself.
+
 ## Follow-ups in this repo
 
 1. **Adding a retention value.** `upsertTenantRetention` takes a tier, so the
