@@ -164,8 +164,11 @@ export async function loadSilencesInWindow(
  * week; the closed ones are evidence, and the range is what bounds evidence
  * on every other screen here.
  *
- * Newest window first. The page regroups into what is open and what has
- * closed, so this order only settles ties within a group.
+ * Open first, then newest window first. The cap is what makes the first key
+ * load-bearing: ordered by window alone, a thirty-day silence started three
+ * weeks ago sorts below every shorter one written since, and the one silence
+ * actually muting is the row the cap drops. Sorting the open ones to the front
+ * means the cap can only ever cut into history, which the page can then say.
  */
 export async function loadSilencesForPage(
   organizationId: string,
@@ -184,7 +187,10 @@ export async function loadSilencesForPage(
         ),
       ),
     )
-    .orderBy(desc(alertSilences.startsAt))
+    .orderBy(
+      sql`(${alertSilences.endsAt} > now()) DESC`,
+      desc(alertSilences.startsAt),
+    )
     .limit(SILENCE_PAGE_LIMIT);
 }
 

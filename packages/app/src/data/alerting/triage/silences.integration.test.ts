@@ -42,9 +42,11 @@ const RULE_ID = "0e1c2b8f-4a3d-4c2b-9f11-5a7c9d2e8b41";
 
 /** What that id resolves to for the screens. */
 const RULE_PATH = "default/checkout-latency";
+const RULE_NAME = "Checkout latency";
 
-/** The lookup a screen hands the record builder. */
-const rulePathFor = (id: string) => (id === RULE_ID ? RULE_PATH : null);
+/** The lookup the server hands the record builder. */
+const ruleFor = (id: string) =>
+  id === RULE_ID ? { path: RULE_PATH, name: RULE_NAME } : null;
 
 /** Selects the whole Alert rule, the way the Triage screen writes a Silence. */
 const ruleMatcher = [{ label: "rule", op: "eq" as const, value: RULE_ID }];
@@ -218,7 +220,23 @@ describe("the Silences the Silences page lists", () => {
     );
   });
 
-  it("prints the rule as one matcher among the others, and names it for a repeat", async () => {
+  it("reads the open Silences first, so the cap can only cut into history", async () => {
+    // The one that is muting started long before every closed row here. By
+    // window alone it sorts last and a cap would drop it, which is the row the
+    // page exists to show.
+    const muting = await insertSilence(harness().db, {
+      startsAt: at(-24 * 20),
+      endsAt: at(24 * 10),
+    });
+    await insertSilence(harness().db, { startsAt: at(-3), endsAt: at(-2) });
+    await insertSilence(harness().db, { startsAt: at(-2), endsAt: at(-1) });
+
+    const silences = await loadSilencesForPage(TEST_ORG, at(-6), at(0));
+
+    expect(silences[0].id).toBe(muting.id);
+  });
+
+  it("resolves the stored rule id to the path it links by and the name it prints", async () => {
     const { id } = await insertSilence(harness().db, {
       matchers: [...ruleMatcher, { label: "region", op: "eq", value: "eu" }],
       startsAt: at(-2),
@@ -232,12 +250,12 @@ describe("the Silences the Silences page lists", () => {
       row,
       new Date(),
       { held: 2, dropped: 0 },
-      rulePathFor,
+      ruleFor,
     );
 
     expect(page.state).toBe("active");
-    expect(page.matchers).toBe(`rule=${RULE_ID} region=eu`);
     expect(page.rule).toBe(RULE_PATH);
+    expect(page.ruleName).toBe(RULE_NAME);
     expect(page.scope).toBe("region=eu");
     expect(page.impact).toBe("held 2");
   });
@@ -256,12 +274,37 @@ describe("the Silences the Silences page lists", () => {
       row,
       new Date(),
       { held: 0, dropped: 0 },
-      rulePathFor,
+      ruleFor,
     );
 
     expect(page.rule).toBeNull();
-    expect(page.matchers).toBe("environment=staging");
+    expect(page.ruleName).toBeNull();
     expect(page.scope).toBe("environment=staging");
     expect(page.impact).toBeNull();
+  });
+
+  it("keeps the stored rule id off the record when the rule is gone", async () => {
+    // Retention keeps a Silence for 90 days and the rule it named can be
+    // deleted inside that window. Nothing the record carries may then be the
+    // raw id: a row that printed it read `rule=0e1c2b8f-…` at the reader.
+    const { id } = await insertSilence(harness().db, {
+      matchers: [...ruleMatcher, { label: "region", op: "eq", value: "eu" }],
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    const rows = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error("silence not listed");
+
+    const page = silenceRecord(
+      row,
+      new Date(),
+      { held: 0, dropped: 0 },
+      () => null,
+    );
+
+    expect(page.rule).toBeNull();
+    expect(page.ruleName).toBeNull();
+    expect(JSON.stringify(page)).not.toContain(RULE_ID);
   });
 });

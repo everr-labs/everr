@@ -9,10 +9,7 @@ import {
 } from "@/components/alerts/alert-detail-shell";
 import { SilenceDialog } from "@/components/alerts/silence-dialog";
 import { SilencesPage } from "@/components/alerts/silences-page";
-import {
-  alertRuleNamesOptions,
-  alertSilencesOptions,
-} from "@/data/alerting/triage/options";
+import { alertSilencesOptions } from "@/data/alerting/triage/options";
 import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
@@ -24,16 +21,14 @@ export const Route = createFileRoute(
   component: AlertingSilencesPage,
 });
 
-const EMPTY_RULE_NAMES = new Map<string, string>();
-
 function AlertingSilencesPage() {
   const { silence, shellProps } = useAlertDetail();
   const { timeRange } = useTimeRange();
+  // Each record arrives with its rule's display name already resolved: the
+  // read had the organization's rules in hand to resolve the stored id at all,
+  // so the page does not fetch that list a second time to turn a path into a
+  // name.
   const silences = useQuery(alertSilencesOptions(timeRange));
-  // A silence stores its rule as a path; every other alerting surface calls
-  // that rule by name. The map is built by the query rather than in render, so
-  // it is rebuilt when the rules change and not on every poll of the list.
-  const ruleNames = useQuery(alertRuleNamesOptions());
 
   if (silences.isError) {
     return (
@@ -53,7 +48,6 @@ function AlertingSilencesPage() {
         <div className="min-h-0 min-w-0 overflow-auto overscroll-y-contain pb-6">
           <SilencesPage
             silences={silences.data ?? null}
-            ruleNames={ruleNames.data ?? EMPTY_RULE_NAMES}
             pending={silence.pending}
             onNew={() =>
               silence.openSilence({ rule: null, matchers: "", comment: "" })

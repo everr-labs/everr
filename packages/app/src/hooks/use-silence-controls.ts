@@ -30,7 +30,9 @@ export type SilenceCancelTarget = {
   /** Everything needed to write the same silence again, and the window this
    *  cancel is about to collapse. `null` where the caller cannot offer it: a
    *  triage row knows which silence is in force but not how it was written, and
-   *  an Undo that guessed the scope would mute more than the reader muted. */
+   *  an Undo that guessed the scope would mute more than the reader muted. Null
+   *  too for a silence that had not started, whose window this write cannot
+   *  reproduce: see `cancelTargetFor`. */
   restore:
     | (Omit<SilenceDraft, "durationMinutes"> & {
         /** Pre-cancel `endsAt`. What is left of it is the duration Undo

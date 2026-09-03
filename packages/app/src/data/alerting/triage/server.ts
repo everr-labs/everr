@@ -252,18 +252,20 @@ export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
     );
     // The page spans every rule, so a row's stored id means nothing until it
     // is resolved. The same read the picker uses, and it is cheap: two short
-    // columns per live rule.
+    // columns per live rule. Skipped outright when there is nothing to
+    // resolve, which is an org-wide scan a page of no silences was paying for
+    // every thirty seconds.
     const [impacts, rules] = await Promise.all([
       loadSilenceImpact(context.clickhouse.query, silences),
-      loadRuleOptions(organizationId),
+      silences.length > 0 ? loadRuleOptions(organizationId) : [],
     ]);
-    const paths = new Map(rules.map((rule) => [rule.id, rule.path]));
-    return silenceRecords(
-      silences,
-      now,
-      impacts,
-      (ruleId) => paths.get(ruleId) ?? null,
+    // Both names, resolved here: the record carries the path it links by and
+    // the name it prints, so the page does not read the organization's whole
+    // rule list a second time just to turn one into the other.
+    const byId = new Map(
+      rules.map((rule) => [rule.id, { path: rule.path, name: rule.name }]),
     );
+    return silenceRecords(silences, now, impacts, (id) => byId.get(id) ?? null);
   });
 
 /** The rules a silence may be pointed at, for the dialog that opens with none

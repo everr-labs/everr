@@ -73,7 +73,6 @@ function Row({
   row,
   now,
   pending,
-  ruleName,
   impact,
   focused,
   onFocused,
@@ -83,9 +82,6 @@ function Row({
   row: AlertSilenceRecord;
   now: number;
   pending: boolean;
-  /** The rule's display name, where the rules read has arrived and knows it.
-   *  Falls back to the path, which is always true if not always familiar. */
-  ruleName: (path: string) => string;
   /** Whether the list is drawing an impact column at all. */
   impact: boolean;
   /** This row was just cancelled and has moved down past the divider. It takes
@@ -123,7 +119,7 @@ function Row({
   // What names this row out loud. Every button on the page reads the same two
   // words, so the label has to carry the silence it belongs to. Derived in
   // `silence-state` so this screen and the detail panel say the same thing.
-  const spoken = spokenSilence(row, ruleName);
+  const spoken = spokenSilence(row);
   return (
     <li
       className={cn(
@@ -152,8 +148,10 @@ function Row({
           addressable on this route, so it still opens in a new tab and still
           copies as a URL.
 
-          A silence naming no single rule keeps its matchers as the lead: there
-          is nothing else to call it. */}
+          A silence naming no single rule keeps its scope as the lead: there is
+          nothing else to call it. Its matchers are not the lead, because the
+          rule matcher among them holds a definition's row id, and a row that
+          spelled them out printed that uuid at the reader. */}
       <div className="min-w-0">
         {row.rule ? (
           <Link
@@ -163,11 +161,11 @@ function Row({
             title={row.rule}
             className={cn(ROW_TARGET, "block text-sm font-medium")}
           >
-            {ruleName(row.rule)}
+            {row.ruleName ?? row.rule}
           </Link>
         ) : (
-          row.matchers && (
-            <div className="truncate font-mono text-xs">{row.matchers}</div>
+          row.scope && (
+            <div className="truncate font-mono text-xs">{row.scope}</div>
           )
         )}
         {/* What narrows the silence within its rule. Empty means the whole
@@ -190,7 +188,6 @@ function Row({
           ref={action}
           record={row}
           spoken={spoken}
-          ruleName={ruleName}
           seedRule={null}
           pending={pending}
           className="-my-1"
@@ -266,17 +263,14 @@ function LoadingRows() {
  */
 export function SilencesPage({
   silences,
-  ruleNames,
   pending,
   onNew,
   onCancel,
   onSilenceAgain,
 }: {
-  /** `null` while loading. */
+  /** `null` while loading. Each record already carries its rule's display
+   *  name, resolved by the read that fetched it. */
   silences: AlertSilenceRecord[] | null;
-  /** Rule path to display name. Empty while the rules read is in flight, which
-   *  the row survives by falling back to the path. */
-  ruleNames: Map<string, string>;
   /** A silence write is in flight; every silence control goes inert. */
   pending: boolean;
   onNew: () => void;
@@ -318,7 +312,6 @@ export function SilencesPage({
   // "starts in 4h" rather than falling out of the page.
   const open = rows.filter((row) => isOpen(row.state));
   const closed = rows.filter((row) => !isOpen(row.state));
-  const ruleName = (path: string) => ruleNames.get(path) ?? path;
   // One grid serves the whole list, so one row anywhere with an impact is
   // what earns the column.
   const impact = rows.some((row) => row.impact);
@@ -326,15 +319,17 @@ export function SilencesPage({
   // is the difference between a bounded answer and a wrong one.
   //
   // The cap is on the read, which returns both groups, so it is `rows` that
-  // reaches it. Only then is the closed count a floor rather than the answer:
-  // a page of 190 open and 12 closed knows both exactly.
+  // reaches it. Only then is either count a floor rather than the answer: a
+  // page of 190 open and 12 closed knows both exactly.
+  //
+  // Which group the cap cut is decided by the read's order: it sorts the open
+  // rows to the front, so it can only ever cut into history, unless the open
+  // rows filled the page on their own and left history nothing.
   const truncated = rows.length >= SILENCE_PAGE_LIMIT;
-  const activeCount = open.length || undefined;
-  const historyCount = !closed.length
-    ? undefined
-    : truncated
-      ? `${closed.length}+`
-      : closed.length;
+  const count = (group: AlertSilenceRecord[], atCap: boolean) =>
+    group.length === 0 ? undefined : `${group.length}${atCap ? "+" : ""}`;
+  const activeCount = count(open, truncated && closed.length === 0);
+  const historyCount = count(closed, truncated);
 
   const row = (record: AlertSilenceRecord) => (
     <Row
@@ -342,7 +337,6 @@ export function SilencesPage({
       row={record}
       now={now}
       pending={pending}
-      ruleName={ruleName}
       impact={impact}
       focused={focusSilenceId === record.id}
       onFocused={setFocusSilenceId}

@@ -50,7 +50,6 @@ const Separator = () => <span className="mx-1.5 opacity-60">·</span>;
 function SilenceRow({
   record,
   rulePath,
-  ruleLabel,
   inForce,
   pending,
   onCancel,
@@ -61,8 +60,6 @@ function SilenceRow({
    *  silence itself names no single rule: it matched this one by its labels,
    *  so this rule is what "the same again" can mean. */
   rulePath: string;
-  /** The rule's display name, for what the cancel toast calls this silence. */
-  ruleLabel: string;
   /** This is the silence the rule's `silenced` status is attributed to, and
    *  more than one silence is active, so saying which is worth a badge. */
   inForce: boolean;
@@ -135,7 +132,6 @@ function SilenceRow({
         <SilenceRowAction
           record={record}
           spoken={spoken}
-          ruleName={() => ruleLabel}
           seedRule={rulePath}
           pending={pending}
           className="-my-1 -mr-2 shrink-0"
@@ -160,7 +156,6 @@ function SilenceRow({
 export function SilenceHistory({
   silences,
   rulePath,
-  ruleLabel,
   activeSilenceId,
   pending,
   onSilence,
@@ -169,8 +164,6 @@ export function SilenceHistory({
   silences: AlertSilenceRecord[];
   /** The rule the panel is open on. */
   rulePath: string;
-  /** Its display name, for what the cancel toast calls the silence. */
-  ruleLabel: string;
   activeSilenceId: string | null;
   /** A silence mutation is in flight. Every button here writes to the same
    *  rule, so they go inert together rather than racing each other. */
@@ -236,7 +229,6 @@ export function SilenceHistory({
                 key={record.id}
                 record={record}
                 rulePath={rulePath}
-                ruleLabel={ruleLabel}
                 inForce={contested && record.id === activeSilenceId}
                 pending={pending}
                 onCancel={onCancel}

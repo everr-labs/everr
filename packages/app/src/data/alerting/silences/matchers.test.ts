@@ -56,6 +56,32 @@ describe("the Matchers a person types into the Silence dialog", () => {
     expect(parseMatchers(formatMatchers(matchers))).toEqual(matchers);
   });
 
+  it("round-trips the values a Silence written as code can hold", () => {
+    // Every one of these printed bare would read back as something else, and
+    // a Silence seeded from it would cover more or less than the one it was
+    // seeded from.
+    const matchers = [
+      { label: "service", op: "eq" as const, value: "checkout api" },
+      { label: "list", op: "eq" as const, value: "a," },
+      { label: "quote", op: "ne" as const, value: '"leading' },
+      { label: "escape", op: "eq" as const, value: 'a"b\\c' },
+      { label: "blank", op: "eq" as const, value: "" },
+      { label: "spaced label", op: "eq" as const, value: "x" },
+      { label: "bang!", op: "eq" as const, value: "y" },
+    ];
+    expect(parseMatchers(formatMatchers(matchers))).toEqual(matchers);
+  });
+
+  it("keeps a value with a space whole rather than reading it as two pairs", () => {
+    expect(parseMatchers('service="checkout api"')).toEqual([
+      { label: "service", op: "eq", value: "checkout api" },
+    ]);
+  });
+
+  it("refuses a quote nobody closed, rather than guessing where it ended", () => {
+    expect(() => parseMatchers('service="checkout')).toThrow(/unclosed quote/);
+  });
+
   it("accepts an empty value, which selects a label that is present and blank", () => {
     expect(parseMatchers("host=")).toEqual([
       { label: "host", op: "eq", value: "" },

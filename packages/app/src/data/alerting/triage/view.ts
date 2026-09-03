@@ -206,17 +206,17 @@ export type AlertSilenceRecord = {
   endsAt: string;
   /** `scheduled` has not started, `cancelled` was ended by a person. */
   state: "active" | "scheduled" | "expired" | "cancelled";
-  /** Every matcher, formatted and space-separated, the rule among them: on
-   *  a screen that spans rules it is the fact that tells two rows apart, and
-   *  it is one matcher like the others rather than a title the rest narrow.
-   *  Empty when the silence has none. */
-  matchers: string;
   /** The rule the silence names, as its `project/slug` path: the matcher
    *  holds a row id, and this is that id resolved back to the name the rest of
    *  the product uses. What "Silence again" opens the dialog on. `null` when
    *  the silence names no rule, names more than one, or names a rule that no
    *  longer exists. */
   rule: string | null;
+  /** The same rule by the display name every other alerting screen prints.
+   *  Resolved beside `rule`, on the server that read the rules anyway, so no
+   *  screen has to fetch the organization's whole rule list to print a row.
+   *  `null` exactly where `rule` is. */
+  ruleName: string | null;
   /** The matchers beyond the rule, formatted. Empty means the whole rule,
    *  and the difference between muting a rule and muting one instance of it
    *  is the single most consequential thing a row says. */

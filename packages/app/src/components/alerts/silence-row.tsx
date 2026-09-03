@@ -55,7 +55,6 @@ export function SilenceWindow({
 export function SilenceRowAction({
   record,
   spoken,
-  ruleName,
   seedRule,
   pending,
   className,
@@ -67,8 +66,6 @@ export function SilenceRowAction({
   /** What the button's label calls this silence out loud. Every row offers
    *  the same two words, so the label has to carry the silence it belongs to. */
   spoken: string;
-  /** The rule's display name, for what the cancel toast calls the silence. */
-  ruleName: (path: string) => string;
   /** The rule a repeat is written against when the silence itself names none.
    *  The detail panel is open on one, which is what "the same again" can mean
    *  there; the Silences page has none to assume, and the dialog offers the
@@ -97,7 +94,7 @@ export function SilenceRowAction({
           ? // Built in `silence-state`, so every list cancels the same silence
             // the same way, and Undo restores only the scope the silence
             // itself named.
-            onCancel(cancelTargetFor(record, ruleName))
+            onCancel(cancelTargetFor(record))
           : onSilence({
               rule: record.rule ?? seedRule,
               matchers: record.scope,

@@ -105,18 +105,23 @@ export const windowText = (bounds: WindowBounds) =>
 /**
  * What names one silence out loud, on either screen.
  *
- * The rule it names first, by the name the product calls that rule; its
- * matchers next; and its window when it has neither. Derived here rather than
- * at each call site because the two screens had drifted onto different answers,
- * and a silence that is called one thing in a button's label and another in the
+ * The rule it names first, by the name the product calls that rule; its scope
+ * next; and its window when it has neither. Derived here rather than at each
+ * call site because the two screens had drifted onto different answers, and a
+ * silence that is called one thing in a button's label and another in the
  * toast that confirms it is two silences to the reader.
+ *
+ * The scope, and not every matcher, because the rule matcher holds a
+ * definition's row id: on a silence whose rule did not resolve, spelling the
+ * matchers out read a raw uuid into the label and the toast.
  */
-export function spokenSilence(
-  record: AlertSilenceRecord,
-  ruleName?: (path: string) => string,
-): string {
-  const named = record.rule ? (ruleName?.(record.rule) ?? record.rule) : "";
-  return named || record.matchers || windowText(windowBounds(record));
+export function spokenSilence(record: AlertSilenceRecord): string {
+  return (
+    record.ruleName ||
+    record.rule ||
+    record.scope ||
+    windowText(windowBounds(record))
+  );
 }
 
 /**
@@ -127,11 +132,16 @@ export function spokenSilence(
  * The rule a panel happens to be open on is not that silence's scope: writing
  * it again under that rule would mute something the reader never muted, which
  * is the one thing an Undo must not do.
+ *
+ * Null for a scheduled silence too, for the same reason read off the clock
+ * rather than the scope. The only write available starts a silence at `now`
+ * and runs it for a duration, so undoing a cancelled window that had not
+ * opened yet would mute from this instant until that window's end: cancel a
+ * one-hour silence booked for next week and Undo would mute the next seven
+ * days. A silence still to start is a booking, and the model has no way to
+ * book one again.
  */
-export function cancelTargetFor(
-  record: AlertSilenceRecord,
-  ruleName?: (path: string) => string,
-): {
+export function cancelTargetFor(record: AlertSilenceRecord): {
   id: string;
   label: string;
   restore: {
@@ -143,15 +153,16 @@ export function cancelTargetFor(
 } {
   return {
     id: record.id,
-    label: spokenSilence(record, ruleName),
-    restore: record.rule
-      ? {
-          path: record.rule,
-          matchers: record.scope,
-          comment: record.comment,
-          endsAt: record.endsAt,
-        }
-      : null,
+    label: spokenSilence(record),
+    restore:
+      record.rule && record.state === "active"
+        ? {
+            path: record.rule,
+            matchers: record.scope,
+            comment: record.comment,
+            endsAt: record.endsAt,
+          }
+        : null,
   };
 }
 
