@@ -14,7 +14,7 @@
 // instrumentation throws an error, that is an error of the caller. This code
 // does not hide it.
 
-import type { TimeInput, Tracer } from "@opentelemetry/api";
+import type { Tracer } from "@opentelemetry/api";
 import type { AttrValue } from "../pipeline/emitter.js";
 import type { PageContext } from "../state/session.js";
 
@@ -29,15 +29,14 @@ export interface InstrumentationContext {
    * the context from `setAttributes`. Then it puts the record in the batch with
    * the other records. The SDK ignores an attribute value of null and an
    * attribute value of undefined. Thus an optional attribute needs no
-   * additional code. The optional timestamp says when the event happened. It
-   * accepts the OpenTelemetry `TimeInput` forms: epoch milliseconds, a DOM
-   * high-resolution timestamp, a `Date`, or `HrTime`. Without it, the SDK uses
-   * the instant that `emit` is called.
+   * additional code. The optional timestamp is integer epoch milliseconds.
+   * Normalize a browser timestamp with `epoch()` at the capture site. Without
+   * it, the SDK uses the instant that `emit` is called.
    */
   emit(
     name: string,
     attributes?: Record<string, AttrValue | null | undefined>,
-    timestamp?: TimeInput,
+    timestamp?: number,
   ): void;
   /**
    * The OTel tracer of the SDK. The traces pipeline sends a completed span.

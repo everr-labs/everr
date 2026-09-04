@@ -1,4 +1,5 @@
 import type { Emit } from "../../pipeline/emitter.js";
+import { epoch } from "../../time.js";
 import { elementAttrs, guardOf, targetOf } from "../element.js";
 
 // The interactions signal. It captures the data for the product analytics
@@ -51,7 +52,7 @@ export function startInteractions(emit: Emit): () => void {
 
     // The position and the time are always the values of this click: the
     // window follows the pointer. Only the count carries the history.
-    const now = event.timeStamp;
+    const now = epoch(event.timeStamp);
     let count = 1;
     let first = now;
     if (
@@ -72,7 +73,7 @@ export function startInteractions(emit: Emit): () => void {
     }
     // The rage click does not replace the click. Each click makes its own
     // record, and thus a count of the clicks on an element is correct.
-    emit("everr.browser.interaction.click", attributes, event.timeStamp);
+    emit("everr.browser.interaction.click", attributes, now);
   };
 
   // The listener uses the capture phase. Thus it receives a click also when a
@@ -88,7 +89,11 @@ export function startInteractions(emit: Emit): () => void {
     // The record carries no content of the DOM in the two conditions.
     const el = targetOf(event);
     if (!el) return;
-    emit("everr.browser.interaction.change", elementAttrs(el), event.timeStamp);
+    emit(
+      "everr.browser.interaction.change",
+      elementAttrs(el),
+      epoch(event.timeStamp),
+    );
   };
 
   const onSubmit = (event: Event) => {
@@ -100,7 +105,11 @@ export function startInteractions(emit: Emit): () => void {
     const submitter = (event as SubmitEvent).submitter;
     const el = submitter ? guardOf(submitter) : null;
     if (!el) return;
-    emit("everr.browser.interaction.submit", elementAttrs(el), event.timeStamp);
+    emit(
+      "everr.browser.interaction.submit",
+      elementAttrs(el),
+      epoch(event.timeStamp),
+    );
   };
 
   addEventListener("change", onChange, true);

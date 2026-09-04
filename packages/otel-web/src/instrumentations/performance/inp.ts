@@ -1,6 +1,7 @@
 /// <reference path="../../dom.d.ts" />
 import type { Tracer } from "@opentelemetry/api";
 import type { AttrValue, Emit } from "../../pipeline/emitter.js";
+import { epoch } from "../../time.js";
 import { elementAttrs, guardOf } from "../element.js";
 import { emitVital, scriptAttrs, whenIdleOrHidden } from "./shared.js";
 
@@ -298,7 +299,7 @@ export function startInp(
     // The span goes from the input to the next paint. The startTime value gives
     // its position on the trace timeline, and the latency is its duration. Thus
     // the span needs no attribute for the duration.
-    const start = Math.round(performance.timeOrigin + entry.startTime);
+    const start = epoch(entry.startTime);
     tracer
       .startSpan("slow_interaction", {
         startTime: start,
@@ -339,7 +340,7 @@ export function startInp(
         ...attrs,
         ...phaseAttrs(entry, frame, intersectingLoAFs),
       },
-      entry.startTime,
+      epoch(entry.startTime),
     );
   };
 

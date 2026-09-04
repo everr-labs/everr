@@ -23,13 +23,7 @@
 // span. The end() of a span removes it from the stack, in any sequence. The
 // tracer ignores the context argument of the two functions.
 
-import type {
-  Exception,
-  Span,
-  SpanOptions,
-  TimeInput,
-  Tracer,
-} from "@opentelemetry/api";
+import type { Exception, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
 import type { AttrValue, EmitSpan } from "./emitter.js";
 
@@ -51,7 +45,7 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
       traceFlags: 1, // always sampled
     };
     const attributes: Record<string, AttrValue> = {};
-    const start: TimeInput = options?.startTime ?? Date.now();
+    const start = (options?.startTime as number | undefined) ?? Date.now();
     let spanName = name;
     let ended = false;
     let errored = false;
@@ -105,7 +99,7 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
           spanContext.spanId,
           spanName,
           start,
-          endTime ?? Date.now(),
+          (endTime as number | undefined) ?? Date.now(),
           attributes,
           errored,
           parent?.spanId,

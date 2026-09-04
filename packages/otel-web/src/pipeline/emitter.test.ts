@@ -167,9 +167,9 @@ describe("createEmitter", () => {
   });
 
   it("sends each log batch in timestamp order, stable for equal times", async () => {
-    emit("later", {}, [10, 0]);
-    emit("earlier-a", {}, [2, 0]);
-    emit("earlier-b", {}, [2, 0]);
+    emit("later", {}, 10);
+    emit("earlier-a", {}, 2);
+    emit("earlier-b", {}, 2);
     await flush();
     expect(sentRecords().map((record) => record.eventName)).toEqual([
       "earlier-a",
@@ -264,14 +264,9 @@ describe("span pipeline", () => {
     [emit, flush, exitFlush, emitSpan] = makeEmitter(() => ({
       "session.id": "s1",
     }));
-    emitSpan(
-      "a".repeat(32),
-      "b".repeat(16),
-      "GET /api",
-      [1, 0],
-      [1, 400_000_000],
-      { "http.request.method": "GET" },
-    );
+    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1_000, 1_400, {
+      "http.request.method": "GET",
+    });
     await flush();
 
     expect(sent).toHaveLength(1);
@@ -315,9 +310,9 @@ describe("span pipeline", () => {
   });
 
   it("sends each trace batch in start-time order, stable for equal times", async () => {
-    emitSpan("a".repeat(32), "b".repeat(16), "later", [10, 0], [11, 0], {});
-    emitSpan("a".repeat(32), "c".repeat(16), "earlier-a", [2, 0], [3, 0], {});
-    emitSpan("a".repeat(32), "d".repeat(16), "earlier-b", [2, 0], [4, 0], {});
+    emitSpan("a".repeat(32), "b".repeat(16), "later", 10, 11, {});
+    emitSpan("a".repeat(32), "c".repeat(16), "earlier-a", 2, 3, {});
+    emitSpan("a".repeat(32), "d".repeat(16), "earlier-b", 2, 4, {});
     await flush();
     expect(wireSpans().map((span) => span.name)).toEqual([
       "earlier-a",

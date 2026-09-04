@@ -48,7 +48,12 @@ describe("instrumentation tracer", () => {
     parent.end();
     const after = tracer.startSpan("later");
     after.end();
-    const [childWire, parentWire, afterWire] = await spans();
+    const wire = await spans();
+    const by = (name: string) =>
+      wire.find((span) => span.name === name) as OtlpSpan;
+    const childWire = by("work");
+    const parentWire = by("pageLoad");
+    const afterWire = by("later");
     expect(parentWire.name).toBe("pageLoad");
     expect(parentWire.parentSpanId).toBeUndefined();
     expect(childWire.traceId).toBe(parentWire.traceId);
@@ -205,12 +210,12 @@ describe("instrumentation tracer", () => {
     expect(attrs(wire[2])["exception.message"]).toBeUndefined();
   });
 
-  it("honors every OpenTelemetry time input", async () => {
+  it("honors normalized epoch-millisecond times", async () => {
     start();
     const explicit = tracer.startSpan("explicit", {
-      startTime: new Date("2024-08-30T00:00:00.123Z"),
+      startTime: 1_724_976_000_123,
     });
-    explicit.end([1_725_004_801, 456_000_000]);
+    explicit.end(1_725_004_801_456);
     const wire = await spans();
     expect(wire[0].startTimeUnixNano).toBe("1724976000123000000");
     expect(wire[0].endTimeUnixNano).toBe("1725004801456000000");

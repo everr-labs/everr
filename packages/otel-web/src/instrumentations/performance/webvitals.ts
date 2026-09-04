@@ -1,6 +1,7 @@
 /// <reference path="../../dom.d.ts" />
 
 import type { AttrValue, Emit } from "../../pipeline/emitter.js";
+import { epoch } from "../../time.js";
 import { selectorOf } from "../element.js";
 import type { WebVitalName } from "./index.js";
 import { emitVital, whenIdleOrHidden } from "./shared.js";
@@ -134,7 +135,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
         connection_duration: connectEnd - connectStart,
         request_duration: value - connectEnd,
       },
-      nav.responseStart,
+      epoch(nav.responseStart),
     );
   };
   const onLoad = () => setTimeout(reportTtfb);
@@ -209,7 +210,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
       attribution.resource_load_duration = responseEnd - requestStart;
       attribution.element_render_delay = value - responseEnd;
     }
-    report("lcp", value, attribution, lcp.startTime);
+    report("lcp", value, attribution, epoch(lcp.startTime));
   };
 
   // An input from the code is not trusted, and it must not complete the record.
@@ -317,7 +318,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
             load_state: loadStateAt(clsLargest.time),
           }
         : {},
-      clsTime ?? firstHidden,
+      epoch(clsTime ?? firstHidden),
     );
   };
 
@@ -360,7 +361,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
           connection_duration: 0,
           request_duration: 0,
         },
-        event.timeStamp,
+        epoch(event.timeStamp),
       );
     }
     if (lcpPo) {
@@ -368,7 +369,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
         requestAnimationFrame(() => {
           if (!stopped) {
             const now = performance.now();
-            report("lcp", now - event.timeStamp, {}, now);
+            report("lcp", now - event.timeStamp, {}, epoch(now));
           }
         }),
       );

@@ -1,4 +1,3 @@
-import type { TimeInput } from "@opentelemetry/api";
 import type { AttrValue, Emit } from "../../pipeline/emitter.js";
 import { uniqueId } from "../../state/session.js";
 import type { WebVitalName } from "./index.js";
@@ -28,7 +27,7 @@ export function emitVital(
   value: number,
   restored: boolean,
   extra: Attrs,
-  timestamp?: TimeInput,
+  timestamp?: number,
 ): void {
   const [ni, poor] = THRESHOLDS[name];
   emit(

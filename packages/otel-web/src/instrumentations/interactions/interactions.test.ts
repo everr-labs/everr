@@ -1,4 +1,3 @@
-import type { TimeInput } from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Emit } from "../../pipeline/emitter.js";
 import { startInteractions } from "./interactions.js";
@@ -6,7 +5,7 @@ import { startInteractions } from "./interactions.js";
 let emitted: Array<{
   name: string;
   attrs?: Record<string, unknown>;
-  timestamp?: TimeInput;
+  timestamp?: number;
 }>;
 let stop: () => void;
 
@@ -81,7 +80,9 @@ describe("startInteractions", () => {
     it("timestamps a click at the DOM action", () => {
       document.body.innerHTML = "<button>Go</button>";
       click(document.querySelector("button") as Element, 10, 20, 123.5);
-      expect(emitted[0].timestamp).toBe(123.5);
+      expect(emitted[0].timestamp).toBe(
+        Math.round(performance.timeOrigin + 123.5),
+      );
     });
 
     it("a rage burst adds a rage_click, and it keeps the click of that third click", () => {
@@ -114,7 +115,7 @@ describe("startInteractions", () => {
       const rage = emitted.find(
         (event) => event.name === "everr.browser.interaction.rage_click",
       );
-      expect(rage?.timestamp).toBe(100);
+      expect(rage?.timestamp).toBe(Math.round(performance.timeOrigin + 100));
     });
 
     it("makes one rage_click for one continuous burst, whatever its length", () => {

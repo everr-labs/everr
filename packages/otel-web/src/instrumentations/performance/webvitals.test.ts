@@ -1,4 +1,3 @@
-import type { TimeInput } from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebSDK } from "../../client.js";
 import type { Emit } from "../../pipeline/emitter.js";
@@ -21,7 +20,7 @@ import { startWebVitals } from "./webvitals.js";
 let emitted: Array<{
   name: string;
   attrs?: Record<string, unknown>;
-  timestamp?: TimeInput;
+  timestamp?: number;
 }>;
 let stop: () => void;
 
@@ -211,7 +210,7 @@ describe("ttfb", () => {
     expect(a["everr.browser.web_vital.ttfb.dns_duration"]).toBe(5);
     expect(a["everr.browser.web_vital.ttfb.connection_duration"]).toBe(20);
     expect(a["everr.browser.web_vital.ttfb.request_duration"]).toBe(85.5);
-    expect(record.timestamp).toBe(120.5);
+    expect(record.timestamp).toBe(1_700_000_000_121);
   });
 
   it("counts service worker startup as cache time via workerStart", () => {
@@ -284,7 +283,7 @@ describe("lcp", () => {
     expect(a["everr.browser.web_vital.lcp.resource_load_delay"]).toBe(100);
     expect(a["everr.browser.web_vital.lcp.resource_load_duration"]).toBe(200);
     expect(a["everr.browser.web_vital.lcp.element_render_delay"]).toBe(600);
-    expect(record.timestamp).toBe(1_000);
+    expect(record.timestamp).toBe(1_700_000_001_000);
   });
 
   it("finalizes on the first trusted input and stops observing", () => {
@@ -367,7 +366,7 @@ describe("cls", () => {
     expect(a["everr.browser.web_vital.cls.largest_shift_time"]).toBe(800);
     expect(a["everr.browser.web_vital.cls.largest_shift_target"]).toBe("img");
     expect(a["everr.browser.web_vital.cls.load_state"]).toBe("complete");
-    expect(record.timestamp).toBe(1_200);
+    expect(record.timestamp).toBe(1_700_000_001_200);
   });
 
   it("starts a new session after a 1s gap and keeps the worst one", () => {
@@ -536,7 +535,7 @@ describe("through the client pipeline", () => {
     const a = attrs(records[0]);
     expect(a["browser.web_vital.name"]).toBe("ttfb");
     expect(a["browser.web_vital.value"]).toBe(120.5);
-    expect(records[0].timeUnixNano).toBe("1700000000120500000");
+    expect(records[0].timeUnixNano).toBe("1700000000121000000");
     expect(a["everr.browser.web_vital.ttfb.request_duration"]).toBe(85.5);
     expect(a["url.path"]).toBe("/pricing");
     // The landing url gives the page of the vital. It is on the resource, and

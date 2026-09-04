@@ -50,15 +50,17 @@ Wrap any instrumentation in `sampled(instrumentation, rate)` to capture a fracti
 
 ### Event and span timestamps
 
-Custom instrumentations can set the time when an event happened. The timestamp accepts the OpenTelemetry `TimeInput` forms: epoch milliseconds, a DOM high-resolution timestamp such as `Event.timeStamp` or `PerformanceEntry.startTime`, a `Date`, or an HrTime tuple. Without it, the timestamp is the instant `emit` is called.
+Custom instrumentations can set the time when an event happened as integer epoch milliseconds. Browser APIs expose values such as `Event.timeStamp` and `PerformanceEntry.startTime` relative to `performance.timeOrigin`; convert those values with `epoch()`. Without a timestamp, the SDK uses the instant `emit` is called.
 
 ```ts
+import { epoch, type Instrumentation } from "@everr/otel-web";
+
 const checkoutTiming: Instrumentation = ({ emit, tracer }) => {
   const onClick = (event: MouseEvent) => {
-    emit("checkout.started", {}, event.timeStamp);
+    emit("checkout.started", {}, epoch(event.timeStamp));
 
     const span = tracer.startSpan("prepare checkout", {
-      startTime: event.timeStamp,
+      startTime: epoch(event.timeStamp),
     });
     prepareCheckout().finally(() => span.end());
   };
@@ -68,7 +70,7 @@ const checkoutTiming: Instrumentation = ({ emit, tracer }) => {
 };
 ```
 
-The tracer follows the same OpenTelemetry contract through `startTime` and `span.end(endTime)`. Built-in instrumentations timestamp web vitals and interactions from their browser performance entries or DOM events, even when the SDK reports them later. Each logs payload is ordered by event timestamp, and each traces payload is ordered by span start time. Records with the same timestamp keep their capture order.
+The tracer uses the same epoch-millisecond contract through `startTime` and `span.end(endTime)`. Timestamp normalization belongs at the capture site; the pipeline does not guess the source or unit of a value. Built-in instrumentations normalize their browser performance entries and DOM events when they capture them, even when the SDK reports them later. Each logs payload is ordered by event timestamp, and each traces payload is ordered by span start time. Records with the same timestamp keep their capture order.
 
 ## Manual capture
 

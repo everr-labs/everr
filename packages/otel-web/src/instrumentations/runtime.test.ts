@@ -94,7 +94,7 @@ describe("instrumentation runtime", () => {
           ctx.emit(
             "everr.test.delayed_event",
             { "everr.test.delay_ms": 5_000 },
-            [1_725_000_000, 123_000_000],
+            1_725_000_000_123,
           );
         },
       ],

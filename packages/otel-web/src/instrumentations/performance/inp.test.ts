@@ -1,4 +1,3 @@
-import type { TimeInput } from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Emit } from "../../pipeline/emitter.js";
 import { createTracer } from "../../pipeline/tracer.js";
@@ -15,7 +14,7 @@ import { startInp } from "./inp.js";
 let emitted: Array<{
   name: string;
   attrs?: Record<string, unknown>;
-  timestamp?: TimeInput;
+  timestamp?: number;
 }>;
 let spans: Array<{
   name: string;
@@ -337,7 +336,9 @@ describe("INP vital", () => {
     expect(a["everr.browser.interaction.id"]).toBe(14);
     expect(a["everr.browser.interaction.input_delay"]).toBe(20);
     expect(a["everr.browser.interaction.type"]).toBe("pointer");
-    expect(vitals()[0].timestamp).toBe(2_000);
+    expect(vitals()[0].timestamp).toBe(
+      Math.round(performance.timeOrigin + 2_000),
+    );
   });
 
   it("carries the element payload of its candidate interaction", () => {

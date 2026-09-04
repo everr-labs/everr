@@ -37,7 +37,6 @@
 // program of this package. That program has no Node types, and this is
 // correct.
 import { capture } from "@everr/otel-errors/core";
-import type { TimeInput } from "@opentelemetry/api";
 import { context } from "@opentelemetry/api";
 import {
   type LogAttributes,
@@ -83,6 +82,7 @@ export type {
   Instrumentation,
   InstrumentationContext,
 } from "./instrumentations/runtime.js";
+export { epoch } from "./time.js";
 export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 export { logger };
 
@@ -204,7 +204,7 @@ const emitVia = (
     severityNumber: number,
     body: string,
     attributes: Record<string, AttrValue | null | undefined> | undefined,
-    timestamp?: TimeInput,
+    timestamp?: number,
   ): void =>
     otelLogger.emit({
       timestamp,

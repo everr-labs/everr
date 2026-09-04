@@ -57,4 +57,5 @@ export {
   revoke,
   setPersistence,
 } from "./state/session.js";
+export { epoch } from "./time.js";
 export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
