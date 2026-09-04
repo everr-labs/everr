@@ -3,6 +3,7 @@ import type {
   AlertDeliveryTargets,
 } from "@/data/alerts/delivery-settings";
 import { insertAdminRows } from "@/lib/clickhouse";
+import { retentionForOrg } from "@/lib/retention.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 export interface AlertEventRow {
@@ -37,8 +38,23 @@ export const OPERATIONAL_EVENT_TYPES = [
   "delivery_failed",
 ] as const;
 
-function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
-  return insertAdminRows("app.alert_events", rows, {
+// Alert history follows the tenant's logs retention, like its projection
+// into app.logs. One lookup per distinct tenant in the batch.
+async function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
+  const tenants = [...new Set(rows.map((row) => row.tenant_id))];
+  const retention = new Map(
+    await Promise.all(
+      tenants.map(
+        async (tenantId) =>
+          [tenantId, (await retentionForOrg(tenantId)).logsDays] as const,
+      ),
+    ),
+  );
+  const stamped = rows.map((row) => ({
+    ...row,
+    retention_days: retention.get(row.tenant_id),
+  }));
+  return insertAdminRows("app.alert_events", stamped, {
     async_insert: 1,
     wait_for_async_insert: 1,
     date_time_input_format: "best_effort",

@@ -5,6 +5,10 @@ vi.mock("@/lib/clickhouse", () => ({
   insertAdminRows: (...args: unknown[]) => insertAdminRows(...args),
 }));
 
+vi.mock("@/lib/retention.server", () => ({
+  retentionForOrg: vi.fn(),
+}));
+
 vi.mock("@/telemetry/logger", () => ({
   exceptionAttributes: (error: unknown) => ({
     "exception.message": error instanceof Error ? error.message : String(error),
@@ -12,6 +16,7 @@ vi.mock("@/telemetry/logger", () => ({
   serverLogger: { error: vi.fn() },
 }));
 
+import { retentionForOrg } from "@/lib/retention.server";
 import { serverLogger } from "@/telemetry/logger";
 import {
   boundEvidence,
@@ -181,6 +186,11 @@ describe("recordAlertEvents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     insertAdminRows.mockResolvedValue(undefined);
+    vi.mocked(retentionForOrg).mockResolvedValue({
+      logsDays: 30,
+      tracesDays: 30,
+      metricsDays: 395,
+    });
   });
 
   const row = buildEvaluationEvent({
@@ -194,10 +204,21 @@ describe("recordAlertEvents", () => {
 
     expect(insertAdminRows).toHaveBeenCalledWith(
       "app.alert_events",
-      [row],
+      [{ ...row, retention_days: 30 }],
       expect.anything(),
     );
     expect(vi.mocked(serverLogger.error)).not.toHaveBeenCalled();
+  });
+
+  it("stamps each row with the tenant's logs retention", async () => {
+    await recordAlertEvents(def, [row], "alerts.test.insert_failed");
+
+    expect(retentionForOrg).toHaveBeenCalledWith("org-1");
+    expect(insertAdminRows).toHaveBeenCalledWith(
+      "app.alert_events",
+      [expect.objectContaining({ tenant_id: "org-1", retention_days: 30 })],
+      expect.anything(),
+    );
   });
 
   it("skips the insert for an empty batch", async () => {
