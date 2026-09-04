@@ -3,7 +3,7 @@ title: CLI
 description: Reference for all Everr CLI commands.
 ---
 
-The Everr CLI queries local and Cloud telemetry, inspects GitHub Actions CI runs, manages bundled Skills, and reconciles resources as code. Run `everr --help` or `everr <command> --help` for the help included with your installed version.
+The Everr CLI queries local and Cloud telemetry, inspects GitHub Actions CI runs, manages bundled skills, and reconciles resources as code. Run `everr --help` or `everr <command> --help` for the help included with your installed version.
 
 ## Cloud
 
@@ -14,23 +14,23 @@ The Everr CLI queries local and Cloud telemetry, inspects GitHub Actions CI runs
 
 ## Setup and maintenance
 
-- `everr setup`: set up local telemetry, bundled Skills, and Everr Cloud
+- `everr setup`: set up local telemetry, bundled skills, and Everr Cloud
 - `everr init`: connect the current GitHub repository and import its CI history
 - `everr upgrade`: upgrade the CLI and, when installed, the Everr Desktop app
-- `everr uninstall`: remove local Everr state and globally installed Skills, then print the command that removes the CLI binary
+- `everr uninstall`: remove local Everr state and globally installed skills, then print the command that removes the CLI binary
 
 ## Skills
 
-- `everr skills list [--project|--global] [--agent <codex|claude-code|cursor|all>]`: list bundled Everr Skills for a scope and Agent
-- `everr skills install [--all] [--project|--global] [--agent <agent>] [--dry-run]`: install all bundled Skills. In an interactive terminal, omitted choices are prompted. In a non-interactive context, `--all` is required and the scope defaults to the project.
-- `everr skills update [SKILL]... [--project|--global] [--agent <agent>] [--dry-run]`: update bundled Skills already installed in the selected scope. With no scope, update matching installations in both project and global scopes.
-- `everr skills uninstall [SKILL]... [--all] [--project|--global] [--agent <agent>] [--yes] [--dry-run]`: uninstall named bundled Skills. `--all` requires `--yes`.
+- `everr skills list [--project|--global] [--agent <codex|claude-code|cursor|all>]`: list bundled Everr skills for a scope and Agent
+- `everr skills install [--all] [--project|--global] [--agent <agent>] [--dry-run]`: install all bundled skills. In an interactive terminal, omitted choices are prompted. In a non-interactive context, `--all` is required and the scope defaults to the project.
+- `everr skills update [SKILL]... [--project|--global] [--agent <agent>] [--dry-run]`: update bundled skills already installed in the selected scope. With no scope, update matching installations in both project and global scopes.
+- `everr skills uninstall [SKILL]... [--all] [--project|--global] [--agent <agent>] [--yes] [--dry-run]`: uninstall named bundled skills. `--all` requires `--yes`.
 
 The `--agent` option can be repeated. With no Agent filter, a command targets all supported Agents.
 
 ## CI
 
-- `everr ci status`: show CI runs for the current commit
+- `everr ci status`: show CI status for the current commit
   - `--commit <sha-or-ref>`: target another commit
   - `--run-id <id>`: target a GitHub Actions run ID
   - `--branch <name>` and `--repo <owner/name>`: override repository context
@@ -54,7 +54,7 @@ The `--agent` option can be repeated. With no Agent filter, a command targets al
 - `everr ci show <trace-id>`: show a CI run's jobs and steps
   - `--failed`: show only failed jobs and their failed steps
 
-- `everr ci logs <trace-id> --job-name <job> --step-number <n>`: print Logs for one CI step (the last 1000 lines by default)
+- `everr ci logs <trace-id> --job-name <job> --step-number <n>`: print logs for one CI step (the last 1000 lines by default)
   - `--job-name <job>` or `--job-id <id>`: select one job
   - `--step-number <n>` or `--log-failed`: select one step
   - `--tail <n>`: print lines from the bottom
@@ -69,7 +69,7 @@ The `--agent` option can be repeated. With no Agent filter, a command targets al
 - `everr local status`: show the local Collector status and its OTLP and SQL endpoints
 - `everr local query "<SQL>"`: run read-only SQL against local telemetry
   - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
-- `everr wrap -- <command>`: run a command and capture its stdout, stderr, and exit status as local Logs
+- `everr wrap -- <command>`: run a command and capture its stdout, stderr, and exit status as local logs
   - The command only starts when the local Collector is available.
   - The CLI preserves the command's exit code.
 

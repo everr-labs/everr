@@ -33,19 +33,19 @@ pub enum Commands {
     Ci(CiArgs),
     /// Run and query the local telemetry Collector
     Local(LocalArgs),
-    /// Run a command and capture its output as local Logs
+    /// Run a command and capture its output as local logs
     Wrap(WrapArgs),
-    /// Set up local telemetry, Skills, and Everr Cloud
+    /// Set up local telemetry, skills, and Everr Cloud
     #[command(name = "setup")]
     Setup,
     /// Connect the current repository and import its CI history
     Init,
-    /// Manage bundled Everr Skills
+    /// Manage bundled Everr skills
     #[command(name = "skills")]
     Skills(SkillsArgs),
     /// Reconcile a directory of as-code resources with Everr
     Apply(ApplyArgs),
-    /// Inspect and manage live Dashboards, Runbooks, and Alerts
+    /// Inspect and manage live dashboards, runbooks, and alerts
     Resources(ResourcesArgs),
 }
 
@@ -108,7 +108,7 @@ pub struct CiArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum CiSubcommand {
-    /// Show CI runs for a commit or run ID
+    /// Show CI status for a commit or run ID
     Status(StatusArgs),
     /// Watch CI runs for a commit or run ID until completion
     Watch(WatchArgs),
@@ -116,7 +116,7 @@ pub enum CiSubcommand {
     Runs(ListRunsArgs),
     /// Show a CI run's jobs and steps
     Show(ShowRunArgs),
-    /// Show step Logs for a CI run
+    /// Show step logs for a CI run
     Logs(GetLogsArgs),
 }
 
@@ -200,8 +200,8 @@ pub struct SkillScopeArgs {
 pub struct SkillsListArgs {
     #[command(flatten)]
     pub scope: SkillScopeArgs,
-    /// Provider to inspect
-    #[arg(long = "agent", value_enum)]
+    /// Agent to inspect
+    #[arg(long = "agent", value_enum, value_name = "AGENT")]
     pub agents: Vec<SkillAgentArg>,
 }
 
@@ -212,8 +212,8 @@ pub struct SkillsInstallArgs {
     pub all: bool,
     #[command(flatten)]
     pub scope: SkillScopeArgs,
-    /// Provider to install for
-    #[arg(long = "agent", value_enum)]
+    /// Agent to install for
+    #[arg(long = "agent", value_enum, value_name = "AGENT")]
     pub agents: Vec<SkillAgentArg>,
     /// Preview without writing files
     #[arg(long)]
@@ -226,8 +226,8 @@ pub struct SkillsUpdateArgs {
     pub skills: Vec<String>,
     #[command(flatten)]
     pub scope: SkillScopeArgs,
-    /// Provider to update for
-    #[arg(long = "agent", value_enum)]
+    /// Agent to update
+    #[arg(long = "agent", value_enum, value_name = "AGENT")]
     pub agents: Vec<SkillAgentArg>,
     /// Preview without writing files
     #[arg(long)]
@@ -246,8 +246,8 @@ pub struct SkillsUninstallArgs {
     pub yes: bool,
     #[command(flatten)]
     pub scope: SkillScopeArgs,
-    /// Provider to uninstall for
-    #[arg(long = "agent", value_enum)]
+    /// Agent to uninstall from
+    #[arg(long = "agent", value_enum, value_name = "AGENT")]
     pub agents: Vec<SkillAgentArg>,
     /// Preview without removing files
     #[arg(long)]
@@ -264,9 +264,9 @@ pub struct ApplyArgs {
     /// Skip the confirmation prompt (required in non-interactive contexts)
     #[arg(long, short = 'y')]
     pub yes: bool,
-    /// Apply into a preview namespace instead of the live state. With no
-    /// value the current git branch is used; pass a name where no branch is
-    /// available (CI, detached HEAD).
+    /// Reconcile into a preview instead of live state. With no value the
+    /// current git branch is used; pass a name where no branch is available
+    /// (CI, detached HEAD).
     #[arg(long, value_name = "NAME", num_args = 0..=1, default_missing_value = "")]
     pub preview: Option<String>,
     /// Adopt resources owned by another Repoid into this repository. Without
@@ -537,7 +537,7 @@ pub struct ResourcesShowArgs {
     pub kind: ResourceKindArg,
     /// Resource slug (metadata.name)
     pub slug: String,
-    /// Project namespace
+    /// Project name
     #[arg(long, default_value = "default")]
     pub project: String,
     /// Output raw JSON instead of YAML
@@ -552,7 +552,7 @@ pub struct ResourcesDeleteArgs {
     pub kind: ResourceKindArg,
     /// Resource slug (metadata.name)
     pub slug: String,
-    /// Project namespace
+    /// Project name
     #[arg(long, default_value = "default")]
     pub project: String,
 }
@@ -564,7 +564,7 @@ pub struct ResourcesTargetArgs {
     pub kind: ResourceKindArg,
     /// Resource slug (metadata.name)
     pub slug: String,
-    /// Project namespace
+    /// Project name
     #[arg(long, default_value = "default")]
     pub project: String,
     /// Skip the confirmation prompt (required in non-interactive contexts)

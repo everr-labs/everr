@@ -56,7 +56,7 @@ fn ci_help_lists_ci_subcommands() {
         .stdout(contains("runs"))
         .stdout(contains("show"))
         .stdout(contains("logs"))
-        .stdout(contains("Show CI runs for a commit or run ID"))
+        .stdout(contains("Show CI status for a commit or run ID"))
         .stdout(contains("List recent CI runs"));
 }
 
@@ -159,7 +159,7 @@ fn wrap_help_describes_command_capture() {
         .assert()
         .success()
         .stdout(contains("<COMMAND>"))
-        .stdout(contains("capture its output as local Logs"));
+        .stdout(contains("capture its output as local logs"));
 }
 
 #[test]
@@ -186,7 +186,7 @@ fn skills_help_describes_skill_management() {
         .args(["skills", "--help"])
         .assert()
         .success()
-        .stdout(contains("Manage bundled Everr Skills"))
+        .stdout(contains("Manage bundled Everr skills"))
         .stdout(contains("list"))
         .stdout(contains("install"))
         .stdout(contains("update"))
@@ -214,7 +214,7 @@ fn resource_help_describes_reconciliation_and_live_resource_management() {
         .assert()
         .success()
         .stdout(contains(
-            "Inspect and manage live Dashboards, Runbooks, and Alerts",
+            "Inspect and manage live dashboards, runbooks, and alerts",
         ))
         .stdout(contains("list"))
         .stdout(contains("show"))
