@@ -11,8 +11,8 @@ export type BuiltQuery = { sql: string; params: Record<string, unknown> };
 
 function timePredicateSql(): string {
   return `
-    TimestampTime >= toDateTime(parseDateTime64BestEffort({fromTs:String}, 9))
-    AND TimestampTime <= toDateTime(parseDateTime64BestEffort({toTs:String}, 9))
+    Timestamp >= parseDateTime64BestEffort({fromTs:String}, 9)
+    AND Timestamp <= parseDateTime64BestEffort({toTs:String}, 9)
     AND Timestamp >= parseDateTime64BestEffort({fromTs:String}, 9)
     AND Timestamp <= parseDateTime64BestEffort({toTs:String}, 9)
   `;

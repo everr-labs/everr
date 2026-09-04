@@ -1,21 +1,20 @@
 -- Per-row retention. Every app.* row is stamped with `retention_days` by its
 -- materialized view from the resource attribute the collector sets at
 -- authentication (everr.retention.days, one key holding the window for that
--- pipeline's signal), and the view strips it before storage. The table partitions by (day, retention_days) and the
--- TTL is `day + retention_days` with ttl_only_drop_parts = 1. Every row in a
--- partition expires on the same day, so ClickHouse drops whole parts and never
--- rewrites one to expire a single tenant. A retention change applies to rows
--- ingested from that point on. Every distinct retention value costs that many
--- live partitions per table; RETENTION_BY_TIER (packages/app/src/lib/retention.ts)
--- is the only source of values.
+-- pipeline's signal), and the view strips it before storage. The table
+-- partitions by (day, retention_days) and the TTL is `day + retention_days`
+-- with ttl_only_drop_parts = 1. Every row in a partition expires on the same
+-- day, so ClickHouse drops whole parts and never rewrites one to expire a
+-- single tenant. A retention change applies to rows ingested from that point
+-- on. Every distinct retention value costs that many live partitions per
+-- table; RETENTION_BY_TIER (packages/app/src/lib/retention.ts) is the only
+-- source of values.
 --
--- Only the views write these tables. A missing retention attribute would
--- stamp 0 and expire the row at insert with no error, so the views refuse
--- the row instead: `toUInt16OrZero(x) + throwIf(x = '', ...)`. Do not write
--- it as if(x = '', throwIf(true, ...), ...): the constant throwIf is folded
--- and fires on every row. The stamps are computed in an inner query because
--- the `mapFilter(...) AS ResourceAttributes` alias in the outer query shadows
--- the source column.
+-- Only the views write these tables. everrRetentionDays and
+-- everrStripRetention (05-create-retention-functions.sql) hold the stamp and
+-- the strip. The stamp is computed in an inner query because the
+-- `everrStripRetention(...) AS ResourceAttributes` alias in the outer query
+-- shadows the source column.
 
 -- Traces: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.traces
@@ -35,6 +34,17 @@ WHERE 1 = 0;
 -- Skip indexes mirrored from otel.otel_traces. CREATE TABLE ... AS SELECT copies
 -- columns but not indexes, so app.traces starts bare; add the same set the raw
 -- table carries so app-side queries prune the same way.
+--
+-- The map indexes stay bloom_filter on purpose, here and in every app.* table
+-- below. Upstream's exporter switches them to TYPE text(tokenizer = 'array')
+-- on ClickHouse 26.2 and later, so a diff against upstream shows a difference.
+-- Do not "fix" it. Measured on 1M rows with one match, both types read the
+-- same 8,192 rows for the two predicates the app emits, mapContains(map, key)
+-- and map[key] IN (...), but the text indexes cost 5.94 MiB against 11.71 KiB
+-- for bloom_filter on 7.81 MiB of data. That is 500 times the index storage
+-- for identical pruning, paid on every partition for the full retention
+-- window. Revisit only if we add substring or token search inside attribute
+-- values, which bloom_filter cannot serve and text() can.
 ALTER TABLE app.traces
   ADD INDEX IF NOT EXISTS idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
@@ -43,58 +53,70 @@ ALTER TABLE app.traces
   ADD INDEX IF NOT EXISTS idx_span_attr_value mapValues(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_duration Duration TYPE minmax GRANULARITY 1;
 
--- Codecs mirrored from otel.otel_traces. CREATE TABLE ... AS SELECT copies
--- types but not codecs, so without this every column falls back to LZ4 and the
--- table is about twice the size of the raw copy. Keep in step with
--- 03-create-otel-tables.sql; every app.* table below repeats this for its
--- own source.
+-- Codecs for app.traces. CREATE TABLE ... AS SELECT copies types but not
+-- codecs, so without this every column falls back to LZ4 and the table is
+-- about twice the size of the raw copy. MODIFY COLUMN without a type keeps
+-- the type the CTAS copied, so 03-create-otel-tables.sql stays the only place
+-- a column type is written. Every app.* table below repeats this for its own
+-- source.
 ALTER TABLE app.traces
-  MODIFY COLUMN `Timestamp` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TraceId` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `SpanId` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ParentSpanId` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `TraceState` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `SpanName` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `SpanKind` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `SpanAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Duration` UInt64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `StatusCode` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StatusMessage` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `Events.Timestamp` Array(DateTime64(9)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Events.Name` Array(LowCardinality(String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Events.Attributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Links.TraceId` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Links.SpanId` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Links.TraceState` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Links.Attributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+  MODIFY COLUMN `Timestamp` CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `TraceId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ParentSpanId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `TraceState` CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanKind` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Duration` CODEC(ZSTD(1)),
+  MODIFY COLUMN `StatusCode` CODEC(ZSTD(1)),
+  MODIFY COLUMN `StatusMessage` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Events.Timestamp` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Events.Name` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Events.Attributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Links.TraceId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Links.SpanId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Links.TraceState` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Links.Attributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_mv
 TO app.traces
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+  everrStripRetention(ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
-      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+    everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_traces
 );
 
 -- Logs: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.logs
 ENGINE = MergeTree
-PARTITION BY (toDate(TimestampTime), retention_days)
-ORDER BY (tenant_id, ServiceName, TimestampTime, Timestamp)
-TTL toDate(TimestampTime) + toIntervalDay(retention_days)
+PARTITION BY (toDate(Timestamp), retention_days)
+-- toStartOfFiveMinutes(Timestamp) is upstream's logs key. Timestamp is
+-- DateTime64(9), so it is unique per row and useless for granule pruning on
+-- its own; the truncation gives a run of equal values that a time filter can
+-- prune, and the raw column after it keeps rows ordered inside the bucket.
+--
+-- This replaced a stored TimestampTime DateTime column that used to hold the
+-- same position. A stored key column prunes a little tighter than a function
+-- of one: measured on 2M rows, a time-bounded count read 74,784 rows here
+-- against 42,016 with the old column. The gap is a fixed ~4 granules, not a
+-- proportional cost, so it shrinks against the result as the window widens
+-- (1.78x at ten minutes, 1.49x at six hours) and buys back a column on every
+-- row.
+ORDER BY (tenant_id, ServiceName, toStartOfFiveMinutes(Timestamp), Timestamp)
+TTL toDate(Timestamp) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
@@ -105,6 +127,22 @@ FROM otel.otel_logs
 WHERE 1 = 0;
 
 -- Skip indexes mirrored from otel.otel_logs (see the app.traces note above).
+--
+-- idx_lower_body indexes lower(Body), not Body, because upstream does: an
+-- index on the raw column cannot serve a case-insensitive lookup at all. No
+-- index serves positionCaseInsensitive, which is what the logs explorer emits
+-- today, so this one currently prunes nothing. It is upstream's shape so that
+-- a move to hasToken(lower(Body), ...) can use it: measured on 500k rows with
+-- one match, that predicate read 65,536 rows against a 500,000-row full scan.
+--
+-- It also stays tokenbf_v1 while upstream uses TYPE
+-- text(tokenizer = 'splitByNonAlpha') on ClickHouse 26.2 and later. This is
+-- the closer of the two calls. On 1M rows with one match, text() read 8,192
+-- rows against 65,536 for hasToken, 8 times better, but cost 7.05 MiB against
+-- 227.33 KiB on 17.45 MiB of data. We do not collect that 8 times today,
+-- because the explorer emits positionCaseInsensitive and not hasToken.
+-- Converting is a standalone DROP INDEX / ADD INDEX and is not gated on a
+-- table rebuild, so make the trade if body search becomes a hot path.
 ALTER TABLE app.logs
   ADD INDEX IF NOT EXISTS idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
@@ -113,40 +151,38 @@ ALTER TABLE app.logs
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_log_attr_key mapKeys(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_log_attr_value mapValues(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8;
+  ADD INDEX IF NOT EXISTS idx_lower_body lower(Body) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8;
 
 -- Codecs mirrored from otel.otel_logs (see the app.traces note above).
 ALTER TABLE app.logs
-  MODIFY COLUMN `Timestamp` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimestampTime` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `TraceId` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `SpanId` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `SeverityText` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Body` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ResourceSchemaUrl` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeSchemaUrl` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeVersion` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `LogAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `EventName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+  MODIFY COLUMN `Timestamp` CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `TraceId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `SeverityText` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Body` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `LogAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `EventName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.logs_mv
 TO app.logs
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+  everrStripRetention(ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
-      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+    everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_logs
 );
 
@@ -192,42 +228,41 @@ ALTER TABLE app.metrics_gauge
 
 -- Codecs mirrored from otel.otel_metrics_gauge (see the app.traces note above).
 ALTER TABLE app.metrics_gauge
-  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ResourceSchemaUrl` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeDroppedAttrCount` UInt32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeSchemaUrl` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `Value` Float64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+  MODIFY COLUMN `ResourceAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeDroppedAttrCount` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricDescription` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricUnit` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Attributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `Value` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Flags` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.FilteredAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.Value` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.SpanId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TraceId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_gauge_mv
 TO app.metrics_gauge
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+  everrStripRetention(ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
-      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+    everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_gauge
 );
 
@@ -258,44 +293,43 @@ ALTER TABLE app.metrics_sum
 
 -- Codecs mirrored from otel.otel_metrics_sum (see the app.traces note above).
 ALTER TABLE app.metrics_sum
-  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ResourceSchemaUrl` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeDroppedAttrCount` UInt32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeSchemaUrl` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `Value` Float64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `AggregationTemporality` Int32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `IsMonotonic` Bool CODEC(Delta(1), ZSTD(1)),
-  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+  MODIFY COLUMN `ResourceAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeDroppedAttrCount` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricDescription` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricUnit` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Attributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `Value` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Flags` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.FilteredAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.Value` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.SpanId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TraceId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `AggregationTemporality` CODEC(ZSTD(1)),
+  MODIFY COLUMN `IsMonotonic` CODEC(Delta(1), ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_sum_mv
 TO app.metrics_sum
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+  everrStripRetention(ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
-      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+    everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_sum
 );
 
@@ -326,48 +360,47 @@ ALTER TABLE app.metrics_histogram
 
 -- Codecs mirrored from otel.otel_metrics_histogram (see the app.traces note above).
 ALTER TABLE app.metrics_histogram
-  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ResourceSchemaUrl` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeDroppedAttrCount` UInt32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeSchemaUrl` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `BucketCounts` Array(UInt64) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ExplicitBounds` Array(Float64) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `Min` Float64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `Max` Float64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `AggregationTemporality` Int32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+  MODIFY COLUMN `ResourceAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeDroppedAttrCount` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricDescription` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricUnit` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Attributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `Count` CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Sum` CODEC(ZSTD(1)),
+  MODIFY COLUMN `BucketCounts` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ExplicitBounds` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.FilteredAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.Value` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.SpanId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TraceId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Flags` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Min` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Max` CODEC(ZSTD(1)),
+  MODIFY COLUMN `AggregationTemporality` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_histogram_mv
 TO app.metrics_histogram
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+  everrStripRetention(ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
-      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+    everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_histogram
 );
 
@@ -398,52 +431,51 @@ ALTER TABLE app.metrics_exponential_histogram
 
 -- Codecs mirrored from otel.otel_metrics_exponential_histogram (see the app.traces note above).
 ALTER TABLE app.metrics_exponential_histogram
-  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ResourceSchemaUrl` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeDroppedAttrCount` UInt32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeSchemaUrl` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `Scale` Int32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `ZeroCount` UInt64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `PositiveOffset` Int32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `PositiveBucketCounts` Array(UInt64) CODEC(ZSTD(1)),
-  MODIFY COLUMN `NegativeOffset` Int32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `NegativeBucketCounts` Array(UInt64) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `Min` Float64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `Max` Float64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `AggregationTemporality` Int32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+  MODIFY COLUMN `ResourceAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeDroppedAttrCount` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricDescription` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricUnit` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Attributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `Count` CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Sum` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Scale` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ZeroCount` CODEC(ZSTD(1)),
+  MODIFY COLUMN `PositiveOffset` CODEC(ZSTD(1)),
+  MODIFY COLUMN `PositiveBucketCounts` CODEC(ZSTD(1)),
+  MODIFY COLUMN `NegativeOffset` CODEC(ZSTD(1)),
+  MODIFY COLUMN `NegativeBucketCounts` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.FilteredAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.Value` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.SpanId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TraceId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Flags` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Min` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Max` CODEC(ZSTD(1)),
+  MODIFY COLUMN `AggregationTemporality` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_exponential_histogram_mv
 TO app.metrics_exponential_histogram
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+  everrStripRetention(ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
-      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+    everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_exponential_histogram
 );
 
@@ -474,39 +506,38 @@ ALTER TABLE app.metrics_summary
 
 -- Codecs mirrored from otel.otel_metrics_summary (see the app.traces note above).
 ALTER TABLE app.metrics_summary
-  MODIFY COLUMN `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ResourceSchemaUrl` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeVersion` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeDroppedAttrCount` UInt32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeSchemaUrl` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricName` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
-  MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
-  MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
-  MODIFY COLUMN `ValueAtQuantiles.Quantile` Array(Float64) CODEC(ZSTD(1)),
-  MODIFY COLUMN `ValueAtQuantiles.Value` Array(Float64) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
-  MODIFY COLUMN `tenant_id` String CODEC(ZSTD(1));
+  MODIFY COLUMN `ResourceAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeDroppedAttrCount` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricDescription` CODEC(ZSTD(1)),
+  MODIFY COLUMN `MetricUnit` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Attributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `Count` CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `Sum` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ValueAtQuantiles.Quantile` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ValueAtQuantiles.Value` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Flags` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_summary_mv
 TO app.metrics_summary
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+  everrStripRetention(ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
-      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+    everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_summary
 );

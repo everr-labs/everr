@@ -68,7 +68,7 @@ drop_landing_tables() {
 
 echo "1/3 guard: the collector must already stamp retention"
 run_sql "SELECT throwIf(
-  (SELECT count() FROM otel.otel_logs WHERE TimestampTime > now() - INTERVAL 10 MINUTE AND ResourceAttributes['everr.retention.days'] = '') > 0,
+  (SELECT count() FROM otel.otel_logs WHERE Timestamp > now() - INTERVAL 10 MINUTE AND ResourceAttributes['everr.retention.days'] = '') > 0,
   'rows without everr.retention.days arrived in the last 10 minutes: deploy the collector first')"
 
 echo "2/3 rebuild the tables, the landing tables and the views"
@@ -84,6 +84,7 @@ for t in "${TABLES[@]}"; do
 done
 run_sql "DROP TABLE IF EXISTS app.alert_events"
 run_file init/03-create-otel-tables.sql     # Null engines
+run_file init/05-create-retention-functions.sql  # the stamp and the strip the views call
 run_file init/10-create-mvs.sql             # app.* and their views
 run_file init/12-create-alert-events.sql    # app.alert_events and its view into app.logs
 trap - ERR
@@ -103,4 +104,4 @@ run_sql "REVOKE dictGet ON app.tenant_retention FROM collector_rw, web_app_admin
 
 echo "done"
 run_sql "SELECT name, engine FROM system.tables WHERE database = 'otel' ORDER BY name FORMAT PrettyCompact"
-run_sql "SELECT tenant_id, retention_days, count() FROM app.logs WHERE TimestampTime > now() - INTERVAL 5 MINUTE GROUP BY ALL FORMAT PrettyCompact"
+run_sql "SELECT tenant_id, retention_days, count() FROM app.logs WHERE Timestamp > now() - INTERVAL 5 MINUTE GROUP BY ALL FORMAT PrettyCompact"

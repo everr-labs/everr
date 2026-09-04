@@ -25,16 +25,16 @@ const METRIC_TABLES = [
 
 /**
  * The bounds arrive as one ClickHouse datetime string with milliseconds, but
- * the columns differ: `traces.Timestamp` is DateTime64(9) and accepts it,
- * while `logs.TimestampTime` and `metrics.TimeUnix` are plain DateTime and
- * reject the fraction outright. Each bound is parsed to its own column's type
- * rather than leaning on implicit comparison.
+ * the columns differ: `traces.Timestamp` and `logs.Timestamp` are DateTime64(9)
+ * and accept it, while `metrics.TimeUnix` is a plain DateTime and rejects the
+ * fraction outright. Each bound is parsed to its own column's type rather than
+ * leaning on implicit comparison.
  *
  * `{from}`/`{to}` are the same bound parameters every panel query gets, so the
  * probe and the previews it grades always look at one identical window.
  */
 const TRACES_WINDOW = `Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND Timestamp <= parseDateTime64BestEffort({to:String}, 9)`;
-const LOGS_WINDOW = `TimestampTime >= parseDateTimeBestEffort({from:String}) AND TimestampTime <= parseDateTimeBestEffort({to:String})`;
+const LOGS_WINDOW = `Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND Timestamp <= parseDateTime64BestEffort({to:String}, 9)`;
 const METRICS_WINDOW = `TimeUnix >= parseDateTimeBestEffort({from:String}) AND TimeUnix <= parseDateTimeBestEffort({to:String})`;
 
 /**

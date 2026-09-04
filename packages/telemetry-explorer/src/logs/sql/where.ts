@@ -19,8 +19,8 @@ export interface WhereResult {
 
 export function buildWhereClause(input: WhereInput): WhereResult {
   const clauses = [
-    "TimestampTime >= parseDateTimeBestEffort({fromTime:String})",
-    "TimestampTime <= parseDateTimeBestEffort({toTime:String})",
+    "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
+    "Timestamp <= parseDateTimeBestEffort({toTime:String})",
   ];
   const params: Record<string, unknown> = {};
 

@@ -5,10 +5,10 @@ describe("buildWhereClause", () => {
   it("starts with the time-range bounds", () => {
     const { clause } = buildWhereClause({ levels: [], services: [] });
     expect(clause).toContain(
-      "TimestampTime >= parseDateTimeBestEffort({fromTime:String})",
+      "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
     );
     expect(clause).toContain(
-      "TimestampTime <= parseDateTimeBestEffort({toTime:String})",
+      "Timestamp <= parseDateTimeBestEffort({toTime:String})",
     );
   });
 

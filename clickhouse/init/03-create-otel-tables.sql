@@ -2,8 +2,10 @@
 -- stores nothing: an insert only triggers the materialized views in
 -- 10-create-mvs.sql, which stamp tenant_id and retention_days from the
 -- resource attributes and write the row into app.*. Column lists follow the
--- upstream clickhouseexporter schema for v0.152.0; app.* copies its types
--- from here, so keep them in step with the exporter version.
+-- upstream clickhouseexporter schema for the version pinned in
+-- collector/config/manifest.yaml (v0.160.0); app.* copies its types from here,
+-- so keep them in step when that pin moves. The exporter's DDL is the
+-- reference: internal/sqltemplates/*.sql in that module.
 --
 -- Types only, no codecs. A Null table compresses nothing, and app.* is built
 -- with CREATE TABLE ... AS SELECT, which copies types but not codecs, so the
@@ -41,7 +43,6 @@ CREATE TABLE IF NOT EXISTS otel.otel_traces (
 
 CREATE TABLE IF NOT EXISTS otel.otel_logs (
     Timestamp DateTime64(9),
-    TimestampTime DateTime DEFAULT toDateTime(Timestamp),
     TraceId String,
     SpanId String,
     TraceFlags UInt8,
@@ -68,7 +69,7 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_gauge (
     ScopeDroppedAttrCount UInt32,
     ScopeSchemaUrl String,
     ServiceName LowCardinality(String),
-    MetricName String,
+    MetricName LowCardinality(String),
     MetricDescription String,
     MetricUnit String,
     Attributes Map(LowCardinality(String), String),
@@ -94,7 +95,7 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_sum (
     ScopeDroppedAttrCount UInt32,
     ScopeSchemaUrl String,
     ServiceName LowCardinality(String),
-    MetricName String,
+    MetricName LowCardinality(String),
     MetricDescription String,
     MetricUnit String,
     Attributes Map(LowCardinality(String), String),
@@ -122,7 +123,7 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_histogram (
     ScopeDroppedAttrCount UInt32,
     ScopeSchemaUrl String,
     ServiceName LowCardinality(String),
-    MetricName String,
+    MetricName LowCardinality(String),
     MetricDescription String,
     MetricUnit String,
     Attributes Map(LowCardinality(String), String),
@@ -154,7 +155,7 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_exponential_histogram (
     ScopeDroppedAttrCount UInt32,
     ScopeSchemaUrl String,
     ServiceName LowCardinality(String),
-    MetricName String,
+    MetricName LowCardinality(String),
     MetricDescription String,
     MetricUnit String,
     Attributes Map(LowCardinality(String), String),
@@ -190,7 +191,7 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_summary (
     ScopeDroppedAttrCount UInt32,
     ScopeSchemaUrl String,
     ServiceName LowCardinality(String),
-    MetricName String,
+    MetricName LowCardinality(String),
     MetricDescription String,
     MetricUnit String,
     Attributes Map(LowCardinality(String), String),

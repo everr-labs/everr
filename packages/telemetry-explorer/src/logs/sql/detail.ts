@@ -36,8 +36,7 @@ export function buildDetailQuery(
         LogAttributes AS logAttributes,
         ScopeAttributes AS scopeAttributes
       FROM ${tableName}
-      WHERE TimestampTime = toDateTime(parseDateTime64BestEffort({timestampRaw:String}, 9))
-        AND Timestamp = parseDateTime64BestEffort({timestampRaw:String}, 9)
+      WHERE Timestamp = parseDateTime64BestEffort({timestampRaw:String}, 9)
         AND ServiceName = {serviceName:String}
         AND TraceId = {traceId:String}
         AND SpanId = {spanId:String}

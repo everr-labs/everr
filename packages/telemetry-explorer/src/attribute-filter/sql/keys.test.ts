@@ -69,13 +69,13 @@ describe("buildAttributeKeysQuery", () => {
         tableName: "traces",
         sources: ["resource"],
         columnFor,
-        timeColumn: "Timestamp",
+        timeColumn: "TimeUnix",
       },
     );
     expect(sql).toContain(
-      "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
+      "TimeUnix >= parseDateTimeBestEffort({fromTime:String})",
     );
-    expect(sql).not.toContain("TimestampTime");
+    expect(sql).not.toContain("Timestamp >=");
   });
 
   it("uses an injected time-bound parser for both bounds", () => {

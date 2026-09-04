@@ -24,7 +24,12 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   instance_fingerprint String DEFAULT '',
   instance_labels_json String DEFAULT '{}',
   -- Written by the app from the tenant's plan (packages/app/src/lib/retention.server.ts).
+  -- The app.* views get the same guarantee from everrRetentionDays; this table
+  -- is written directly, so the constraint stands in for it. Without one, an
+  -- insert that omits the field stamps 0 and the row is dropped at the next TTL
+  -- pass with no error anywhere.
   retention_days UInt16,
+  CONSTRAINT retention_days_set CHECK retention_days > 0,
   INDEX alert_def_skip_idx alert_definition_id TYPE bloom_filter GRANULARITY 4
 )
 ENGINE = MergeTree
@@ -59,7 +64,6 @@ TO app.logs
 AS
 SELECT
   toDateTime64(event_time, 9) AS Timestamp,
-  toDateTime(event_time) AS TimestampTime,
   '' AS TraceId,
   '' AS SpanId,
   toUInt8(0) AS TraceFlags,

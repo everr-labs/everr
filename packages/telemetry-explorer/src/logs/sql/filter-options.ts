@@ -19,8 +19,8 @@ export function buildFilterOptionsQuery(
         (SELECT groupArray(v) FROM (
           SELECT DISTINCT ServiceName AS v
           FROM ${tableName}
-          WHERE TimestampTime >= parseDateTimeBestEffort({fromTime:String})
-            AND TimestampTime <= parseDateTimeBestEffort({toTime:String})
+          WHERE Timestamp >= parseDateTimeBestEffort({fromTime:String})
+            AND Timestamp <= parseDateTimeBestEffort({toTime:String})
             AND ServiceName != ''
           ORDER BY v
           LIMIT 100
