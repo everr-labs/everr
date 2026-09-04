@@ -49,8 +49,8 @@ CREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile SETTINGS
   allow_introspection_functions = 0 READONLY;          -- no addressToLine/demangle/etc.
 
 -- Role: SELECT only on the four tenant-scoped read tables. We deliberately
--- avoid `app.*` so future internal tables (and app.tenant_retention_source,
--- which is cross-tenant and has no RLS) don't auto-expand the surface area.
+-- avoid `app.*` so a future internal table with no row policy does not
+-- auto-expand the surface area.
 -- Per-org users `sql_api_org_<id>` are granted this role at provision time.
 CREATE ROLE IF NOT EXISTS sql_api_role SETTINGS PROFILE 'sql_api_profile';
 GRANT SELECT ON app.traces        TO sql_api_role;

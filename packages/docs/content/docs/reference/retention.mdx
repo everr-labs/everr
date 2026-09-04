@@ -17,7 +17,7 @@ Each signal type is governed by its own retention window. On the Pro plan, metri
 
 ## When retention changes take effect
 
-Retention is decided when data is ingested. Every event is stored with the retention window of your plan at that moment, and it is removed when that window ends. A plan change reaches the ingestion pipeline within a few minutes, and from then on new data carries the new window. There is no separate migration step.
+Retention is decided when data is ingested. Every event is stored with the retention window of your plan at that moment, and it is removed when that window ends. A plan change reaches the ingestion pipeline within about a minute, and from then on new data carries the new window. There is no separate migration step.
 
 Data ingested before the change keeps the window it was stored with:
 
@@ -30,8 +30,8 @@ We chose to stamp retention at ingestion (rather than re-evaluate all of your da
 
 Because retention is fixed at ingestion, it does not depend on background processes finding the right window later. The one moving part is the plan lookup during ingestion:
 
-- A new organization is on the Free window until its first plan is recorded, which happens at signup.
-- After a plan change, data ingested in the few minutes before the pipeline picks it up carries the previous plan's window.
+- Retention is looked up from your plan when the collector authenticates your API key, and cached for 30 seconds.
+- After a plan change, data ingested before the pipeline picks it up carries the previous plan's window.
 
 If the plan lookup itself is unavailable, ingestion stops rather than storing data with a wrong or missing window. Data waits in the collector and is delivered once the lookup is back. An internal failure can delay ingestion, but it cannot cause data to be deleted earlier than the window it was stored with.
 
