@@ -8,8 +8,11 @@ import (
 
 // authResult is what the verify endpoint tells us.
 type authResult struct {
-	tenantID string
-	keyID    string
+	tenantID    string
+	keyID       string
+	logsDays    uint16
+	tracesDays  uint16
+	metricsDays uint16
 }
 
 // cacheEntry stores one verification outcome.

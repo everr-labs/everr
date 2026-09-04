@@ -78,7 +78,7 @@ func TestAuthenticate_Success_StampsAuthData(t *testing.T) {
 			http.Error(w, "missing secret", http.StatusForbidden)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_42", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_42", KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14})
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -103,7 +103,7 @@ func TestAuthenticate_CacheHit_AvoidsSecondCall(t *testing.T) {
 	var calls int32
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&calls, 1)
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14})
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -148,7 +148,7 @@ func TestAuthenticate_Singleflight_Coalesces(t *testing.T) {
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&calls, 1)
 		<-release // block until all goroutines are queued behind singleflight
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14})
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -191,7 +191,7 @@ func TestAuthenticate_StaleFallback_OnTransientError(t *testing.T) {
 	var phase atomic.Int32 // 0 = succeed, 1 = transient 5xx
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if phase.Load() == 0 {
-			_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+			_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14})
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
@@ -228,7 +228,7 @@ func TestAuthenticate_ForwardsOrigin(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
 			t.Errorf("decode verify body: %v", err)
 		}
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14})
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -250,7 +250,7 @@ func TestAuthenticate_LowercaseOriginHeader(t *testing.T) {
 	}
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&got)
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14})
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -269,7 +269,7 @@ func TestAuthenticate_NoOrigin_OmitsField(t *testing.T) {
 	var raw map[string]any
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&raw)
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14})
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -288,7 +288,7 @@ func TestAuthenticate_CachePerOrigin(t *testing.T) {
 	var calls int32
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&calls, 1)
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14})
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -329,7 +329,7 @@ func TestAuthenticate_NegativeCachePerOrigin(t *testing.T) {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14})
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -360,5 +360,48 @@ func TestExtension_TimeoutWiring(t *testing.T) {
 	e := newExtension(cfg, extension.Settings{})
 	if e.httpClient.Timeout != 500*time.Millisecond {
 		t.Fatalf("got %v", e.httpClient.Timeout)
+	}
+}
+
+func TestAuthenticate_Success_StampsRetention(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(verifyResponse{
+			TenantID: "org_42", KeyID: "ak_1",
+			LogsDays: 30, TracesDays: 30, MetricsDays: 395,
+		})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	ctx, err := e.Authenticate(context.Background(), authHeaders("good"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cl := client.FromContext(ctx)
+	for name, want := range map[string]string{
+		"retention_logs_days":    "30",
+		"retention_traces_days":  "30",
+		"retention_metrics_days": "395",
+	} {
+		if got := cl.Auth.GetAttribute(name); got != want {
+			t.Errorf("%s: got %v want %s", name, got, want)
+		}
+	}
+	if names := cl.Auth.GetAttributeNames(); len(names) != 5 {
+		t.Errorf("attribute names: got %v", names)
+	}
+}
+
+// Fail closed: a row can only exist with a retention stamp, so an app that
+// does not return one (an old deploy) must not be allowed to ingest.
+func TestAuthenticate_RejectsResponseWithoutRetention(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_42", KeyID: "ak_1"})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	if _, err := e.Authenticate(context.Background(), authHeaders("good")); err == nil {
+		t.Fatal("expected error: a verify response without retention must not authenticate")
 	}
 }

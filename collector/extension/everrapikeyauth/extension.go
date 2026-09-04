@@ -28,8 +28,11 @@ var (
 
 // verifyResponse mirrors VerifyKeyResponse on the app side.
 type verifyResponse struct {
-	TenantID string `json:"tenantId"`
-	KeyID    string `json:"keyId"`
+	TenantID    string `json:"tenantId"`
+	KeyID       string `json:"keyId"`
+	LogsDays    uint16 `json:"logsDays"`
+	TracesDays  uint16 `json:"tracesDays"`
+	MetricsDays uint16 `json:"metricsDays"`
 }
 
 type ext struct {
@@ -80,9 +83,9 @@ func (e *ext) Shutdown(_ context.Context) error {
 }
 
 // Authenticate implements extensionauth.Server. It extracts the bearer token
-// from the request headers, verifies it (with caching), and stamps tenant
-// info into client.Info.Auth so downstream processors can read
-// `auth.tenant_id`.
+// from the request headers, verifies it (with caching), and stamps tenant and
+// retention into client.Info.Auth so downstream processors can read
+// `auth.tenant_id` and `auth.retention_<signal>_days`.
 func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (context.Context, error) {
 	token, err := bearerFrom(headers)
 	if err != nil {
@@ -96,7 +99,10 @@ func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (co
 	}
 
 	cl := client.FromContext(ctx)
-	cl.Auth = authData{tenantID: res.tenantID, keyID: res.keyID}
+	cl.Auth = authData{
+		tenantID: res.tenantID, keyID: res.keyID,
+		logsDays: res.logsDays, tracesDays: res.tracesDays, metricsDays: res.metricsDays,
+	}
 	return client.NewContext(ctx, cl), nil
 }
 
@@ -242,7 +248,15 @@ func (e *ext) verify(ctx context.Context, token, origin string) (*authResult, er
 			zap.String("key_id", vr.KeyID),
 			zap.String("tenant_id", vr.TenantID),
 		)
-		return &authResult{tenantID: vr.TenantID, keyID: vr.KeyID}, nil
+		if vr.LogsDays == 0 || vr.TracesDays == 0 || vr.MetricsDays == 0 {
+			// A zero retention would expire rows at insert. Refuse to
+			// authenticate rather than stamp it.
+			return nil, fmt.Errorf("verify response missing retention for tenant %s", vr.TenantID)
+		}
+		return &authResult{
+			tenantID: vr.TenantID, keyID: vr.KeyID,
+			logsDays: vr.LogsDays, tracesDays: vr.TracesDays, metricsDays: vr.MetricsDays,
+		}, nil
 	case http.StatusUnauthorized, http.StatusForbidden:
 		e.logger.Debug("verify endpoint rejected key")
 		return nil, errUnauthorized
