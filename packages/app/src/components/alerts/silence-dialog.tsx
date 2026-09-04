@@ -23,27 +23,12 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import type { AlertRuleOption } from "@/data/alerting/rules/read";
+import {
+  SILENCE_DURATIONS,
+  type SilenceDraft,
+  type SilenceSeed,
+} from "@/data/alerting/silences/commands";
 import { alertRuleOptionsOptions } from "@/data/alerting/triage/options";
-import { SILENCE_DURATIONS } from "@/data/alerting/triage/view";
-
-/** What a silence starts from. A rule when the row that opened the dialog is
- *  one; `null` where there is no rule to assume, and the dialog offers the
- *  choice itself. Matchers and comment are what a repeat of a closed silence
- *  carries over; a fresh silence leaves them empty. */
-export type SilenceSeed = {
-  rule: string | null;
-  matchers: string;
-  comment: string;
-};
-
-/** What the dialog hands back: the input of `silenceAlertRule`, so neither
- *  caller translates it. */
-export type SilenceDraft = {
-  path: string;
-  durationMinutes: number;
-  matchers: string;
-  comment: string;
-};
 
 type SilenceDuration = (typeof SILENCE_DURATIONS)[number];
 

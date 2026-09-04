@@ -5,14 +5,18 @@
  */
 import { Button } from "@everr/ui/components/button";
 import { cn } from "@everr/ui/lib/utils";
+import {
+  cancelSilenceTarget,
+  repeatSilenceSeed,
+  type SilenceCancelTarget,
+  type SilenceSeed,
+} from "@/data/alerting/silences/commands";
 import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
-import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
-import type { SilenceSeed } from "./silence-dialog";
 import {
   cancelLabel,
-  cancelTargetFor,
   isOpen,
   silenceAgainLabel,
+  spokenSilence,
   type WindowBounds,
 } from "./silence-state";
 
@@ -91,15 +95,11 @@ export function SilenceRowAction({
       )}
       onClick={() =>
         open
-          ? // Built in `silence-state`, so every list cancels the same silence
-            // the same way, and Undo restores only the scope the silence
+          ? // Built by the command module, so every list cancels the same silence
+            // the same way, and Undo recreates only the scope the silence
             // itself named.
-            onCancel(cancelTargetFor(record))
-          : onSilence({
-              rule: record.rule?.path ?? seedRule,
-              matchers: record.scope,
-              comment: record.comment,
-            })
+            onCancel(cancelSilenceTarget(record, spokenSilence(record)))
+          : onSilence(repeatSilenceSeed(record, seedRule))
       }
     >
       {open ? "Cancel" : "Silence again"}

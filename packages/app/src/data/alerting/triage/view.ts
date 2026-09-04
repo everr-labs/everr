@@ -297,16 +297,3 @@ export type AlertSilencePage = {
  * own copy in step by comment.
  */
 export const SILENCE_PAGE_LIMIT = 200;
-
-/** The durations the silence dialog offers. The label and what it means travel
- *  together, so the two cannot drift apart and nothing has to parse a label
- *  back into a number: the dialog holds one of these and hands on its
- *  `minutes`. */
-export const SILENCE_DURATIONS = [
-  { label: "30m", minutes: 30 },
-  { label: "1h", minutes: 60 },
-  { label: "2h", minutes: 120 },
-  { label: "4h", minutes: 240 },
-  { label: "12h", minutes: 720 },
-  { label: "24h", minutes: 1440 },
-] as const;

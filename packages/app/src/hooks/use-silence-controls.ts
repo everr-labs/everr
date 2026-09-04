@@ -1,70 +1,17 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import type {
-  SilenceDraft,
-  SilenceSeed,
-} from "@/components/alerts/silence-dialog";
 import {
-  expireAlertSilence,
-  silenceAlertRule,
-} from "@/data/alerting/triage/mutations";
+  recreateCancelledSilence,
+  type SilenceCancelTarget,
+  type SilenceDraft,
+  type SilenceSeed,
+} from "@/data/alerting/silences/commands";
+import {
+  cancelAlertSilence,
+  createAlertSilence,
+} from "@/data/alerting/silences/commands.server";
 import { invalidateAlertTriage } from "@/data/alerting/triage/options";
-
-/**
- * What a cancel needs to say, and to take back.
- *
- * Cancelling is the one act here that resumes paging, and it is irreversible
- * in the domain's own terms: a closed window cannot be reopened. So the caller
- * hands over enough to write the silence again, and `Undo` writes a new one
- * over what is left of the old window. That is not a restore and the toast does
- * not claim to be one; it is the same silence, made again, which is the only
- * move the model allows.
- */
-export type SilenceCancelTarget = {
-  id: string;
-  /** What the toast calls the silence: the rule's display name where the
-   *  caller knows it, its path otherwise. Never the silence's id, which names
-   *  nothing a reader recognizes. */
-  label: string;
-  /** Everything needed to write the same silence again, and the window this
-   *  cancel is about to collapse. `null` where the caller cannot offer it: a
-   *  triage row knows which silence is in force but not how it was written, and
-   *  an Undo that guessed the scope would mute more than the reader muted. */
-  restore:
-    | (Omit<SilenceDraft, "durationMinutes"> & {
-        /** The pre-cancel window. The write starts a silence at `now` and runs
-         *  it for a duration, so both bounds are needed to say whether it can
-         *  reproduce this one at all: `restorable` below is what decides, and
-         *  the draft's own duration is the field that decision produces. */
-        startsAt: string;
-        endsAt: string;
-      })
-    | null;
-};
-
-/**
- * What Undo would write, in whole minutes from now, or `null` where this write
- * cannot reproduce the window at all.
- *
- * `silenceAlertRule` always starts a silence at `now` and runs it for a
- * duration, so it can only ever reproduce a window that has already opened. A
- * silence still to start is a booking: undoing its cancel would mute from this
- * instant to that booking's end, and cancelling a one-hour silence booked for
- * next week would mute the next seven days. A window already spent has nothing
- * left to write. Both cases offer no Undo rather than a wrong one.
- *
- * Minutes are rounded up, so a window with seconds left still writes
- * something.
- */
-function restorableMinutes(
-  window: { startsAt: string; endsAt: string },
-  now: number,
-): number | null {
-  if (new Date(window.startsAt).getTime() > now) return null;
-  const minutes = Math.ceil((new Date(window.endsAt).getTime() - now) / 60_000);
-  return minutes > 0 ? minutes : null;
-}
 
 /**
  * Everything a screen needs to make and unmake silences: the two writes, and
@@ -80,7 +27,7 @@ export function useSilenceControls() {
   const [seed, setSeed] = useState<SilenceSeed | null>(null);
 
   const silence = useMutation({
-    mutationFn: silenceAlertRule,
+    mutationFn: createAlertSilence,
     onSuccess: async (_result, variables) => {
       await refresh();
       toast.success(`Silenced ${variables.data.path}`);
@@ -93,7 +40,7 @@ export function useSilenceControls() {
   // of silences, so the button that produces one must not be named after
   // the other.
   const cancelSilence = useMutation({
-    mutationFn: expireAlertSilence,
+    mutationFn: cancelAlertSilence,
     onError: (error: Error) => toast.error(error.message),
   });
 
@@ -114,15 +61,14 @@ export function useSilenceControls() {
         // it went in.
         onError: () => onFailed?.(),
         onSuccess: async () => {
-          const { restore } = target;
-          // Measured before the refetch, not after: the window Undo restores
+          // Measured before the refetch, not after: the window Undo recreates
           // is what was left when the reader cancelled, and awaiting the reads
           // first billed their latency to the silence.
-          const left = restore ? restorableMinutes(restore, Date.now()) : null;
+          const recreate = recreateCancelledSilence(target, Date.now());
           await refresh();
           toast.success(
             `Silence cancelled · ${target.label} resumes notifying`,
-            restore && left !== null
+            recreate
               ? {
                   // Bounded on purpose. Sonner keeps a toast that carries an
                   // action until it is dismissed, and an Undo that writes a
@@ -134,14 +80,7 @@ export function useSilenceControls() {
                   action: {
                     label: "Undo",
                     onClick: () => {
-                      const {
-                        startsAt: _opened,
-                        endsAt: _closed,
-                        ...draft
-                      } = restore;
-                      silence.mutate({
-                        data: { ...draft, durationMinutes: left },
-                      });
+                      silence.mutate({ data: recreate });
                     },
                   },
                 }
