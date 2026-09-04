@@ -1,7 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { orgSubscription } from "@/db/schema";
-import { upsertTenantRetention } from "@/lib/clickhouse";
 import type { Tier } from "@/lib/retention";
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
@@ -100,12 +99,4 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
     .where(eq(orgSubscription.orgId, input.orgId))
     .limit(1);
   if (!current) return;
-
-  await upsertTenantRetention({
-    tenantId: input.orgId,
-    tier: tierForSubscription(current),
-    // Version the ClickHouse row by the Postgres row the tier came from, so
-    // two webhooks racing on one org resolve the same way in both stores.
-    updatedAt: current.updatedAt,
-  });
 }
