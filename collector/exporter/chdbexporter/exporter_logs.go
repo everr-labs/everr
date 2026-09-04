@@ -68,9 +68,6 @@ func (e *logsExporter) start(ctx context.Context, _ component.Host) error {
 		if createTableErr := createLogsTable(ctx, e.cfg, e.db, e.logger); createTableErr != nil {
 			return createTableErr
 		}
-		if migrateErr := migrateLogsTable(ctx, e.cfg, e.db); migrateErr != nil {
-			return migrateErr
-		}
 	}
 
 	err = e.detectSchemaFeatures(ctx)
@@ -274,26 +271,6 @@ func createLogsTable(ctx context.Context, cfg *Config, db driver.Conn, logger *z
 
 	if err := db.Exec(ctx, sql); err != nil {
 		return fmt.Errorf("exec create logs table sql: %w", err)
-	}
-
-	return nil
-}
-
-// migrateLogsTable brings logs tables created by older collector versions up
-// to the current column set. TimestampTime mirrors the production schema,
-// which the explorer queries filter on; tables created before it exist both
-// under the legacy otel_* names and as freshly adopted cloud-named tables.
-// Safe to run on every startup: ADD COLUMN IF NOT EXISTS is a cheap metadata
-// no-op once the column is present.
-func migrateLogsTable(ctx context.Context, cfg *Config, db driver.Conn) error {
-	addColumn := fmt.Sprintf(
-		"ALTER TABLE %q.%q %s ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)",
-		cfg.database(),
-		cfg.LogsTableName,
-		cfg.clusterString(),
-	)
-	if err := db.Exec(ctx, addColumn); err != nil {
-		return fmt.Errorf("exec logs table migration: %w", err)
 	}
 
 	return nil

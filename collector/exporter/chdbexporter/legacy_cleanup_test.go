@@ -39,8 +39,7 @@ func cloudNamedConfig() *Config {
 }
 
 // seedLegacyLogsLayout recreates the pre-rename local schema: a raw legacy
-// table without TimestampTime and a plain view exposing it under the
-// cloud-facing name.
+// table and a plain view exposing it under the cloud-facing name.
 func seedLegacyLogsLayout(t *testing.T, ctx context.Context, db driver.Conn) {
 	mustExec(t, ctx, db,
 		`CREATE TABLE "default"."otel_logs" (Timestamp DateTime64(9), Body String) ENGINE = MergeTree ORDER BY Timestamp`)
@@ -50,25 +49,22 @@ func seedLegacyLogsLayout(t *testing.T, ctx context.Context, db driver.Conn) {
 		`CREATE VIEW "default"."logs" AS SELECT * FROM "default"."otel_logs"`)
 }
 
-func TestAdoptLegacyLogsTablePreservesDataAndAddsTimestampTime(t *testing.T) {
+func TestAdoptLegacyLogsTablePreservesData(t *testing.T) {
 	db := newRealChDBConn(t)
 	ctx := t.Context()
 	seedLegacyLogsLayout(t, ctx, db)
 
-	// Mirrors the exporter start sequence: adopt the legacy table, then run
-	// the column migration against it.
 	cfg := cloudNamedConfig()
 	require.NoError(t, adoptLegacyLogsTable(ctx, cfg, db))
-	require.NoError(t, migrateLogsTable(ctx, cfg, db))
 
 	legacyExists, err := tableExists(ctx, db, "default", "otel_logs")
 	require.NoError(t, err)
 	require.False(t, legacyExists)
 
 	// The legacy data survives under the cloud-facing name and is queryable
-	// through the TimestampTime filter the explorer uses.
+	// through the Timestamp filter the explorer uses.
 	rows, err := db.Query(ctx,
-		`SELECT Body AS name FROM "default"."logs" WHERE TimestampTime >= now() - INTERVAL 1 HOUR`)
+		`SELECT Body AS name FROM "default"."logs" WHERE Timestamp >= now() - INTERVAL 1 HOUR`)
 	require.NoError(t, err)
 	defer func() { _ = rows.Close() }()
 	require.True(t, rows.Next())

@@ -133,11 +133,9 @@ func TestFactoryAdoptsLegacyLocalSchemaOnStart(t *testing.T) {
 
 	queries := startAllExporters(t, session, handle, withCloudTableNamesConfig())
 
-	// Logs: view dropped, raw table renamed, TimestampTime backfilled.
+	// Logs: view dropped, raw table renamed.
 	require.Contains(t, queries, `DROP TABLE IF EXISTS "default"."logs"`)
 	require.Contains(t, queries, `RENAME TABLE "default"."otel_logs" TO "default"."logs"`)
-	require.Contains(t, queries, `ALTER TABLE "default"."logs"`)
-	require.Contains(t, queries, "ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
 	// Traces: view dropped, raw + lookup tables renamed, stale MV dropped.
 	require.Contains(t, queries, `RENAME TABLE "default"."otel_traces" TO "default"."traces"`)
 	require.Contains(t, queries, `DROP TABLE IF EXISTS "default"."otel_traces_trace_id_ts_mv"`)
@@ -163,32 +161,6 @@ func TestFactorySkipsLegacyAdoptionWhenNamesMatchLegacy(t *testing.T) {
 	require.NotContains(t, queries, "DROP TABLE")
 	require.NotContains(t, queries, "RENAME TABLE")
 	require.NotContains(t, queries, "CREATE VIEW ")
-}
-
-func TestFactoryRunsLogsSchemaMigrationOnStart(t *testing.T) {
-	t.Cleanup(chdb.ResetForTesting)
-	session := &fakeChDBSession{}
-	handle, err := chdb.Open(filepath.Join(t.TempDir(), "chdb"), chdb.WithSessionFactory(func(path string) (chdb.Session, error) {
-		session.path = path
-		return session, nil
-	}))
-	require.NoError(t, err)
-
-	factory := NewFactoryWithHandle(handle)
-	params := exportertest.NewNopSettings(metadata.Type)
-
-	logsExporter, err := factory.CreateLogs(t.Context(), params, withDefaultConfig())
-	require.NoError(t, err)
-	require.NoError(t, logsExporter.Start(t.Context(), nil))
-	require.NoError(t, logsExporter.Shutdown(t.Context()))
-
-	session.mu.Lock()
-	defer session.mu.Unlock()
-	queries := joinedQueries(session.queries)
-	// Logs tables created before TimestampTime existed — under any configured
-	// name — must gain the column the explorer queries filter on.
-	require.Contains(t, queries, `ALTER TABLE "default"."otel_logs"`)
-	require.Contains(t, queries, "ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
 }
 
 func withCloudTableNamesConfig() *Config {

@@ -304,6 +304,8 @@ go.opentelemetry.io/collector/consumer v1.66.0 h1:YcL8Y7jn0b9ko8hWKHIpilYnKNtp6p
 go.opentelemetry.io/collector/consumer v1.66.0/go.mod h1:CHUqFqerioBLb4usZEiHpzTKpEJH09a0CDyYECwQYFc=
 go.opentelemetry.io/collector/consumer/consumererror v0.160.0 h1:MCByq8RbEPzeXcU8DHCJ9QsGxuhyh1A8tNs28Oqx8RY=
 go.opentelemetry.io/collector/consumer/consumererror v0.160.0/go.mod h1:3sCDyUj55SUEnuVnPFBCS5mUl/yiB8J78cneqOUIjEQ=
+go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.160.0 h1:UQtWoxQ6OjGRPfdwQijUOkLvHXoXDnxKZjapz509Z8Q=
+go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.160.0/go.mod h1:13Hl4bTRKM38ngFBJsRhRY4/qrAHSLWnHQOnOIzZxG8=
 go.opentelemetry.io/collector/consumer/consumertest v0.160.0 h1:ClfAK9pW6Hdk1Lks59RcUfodtvOhTSkUJs8XA6NuHUc=
 go.opentelemetry.io/collector/consumer/consumertest v0.160.0/go.mod h1:tl5GPf6UdhI3kfonb46xTl7r017AhmvJM2uuJ+Z5NQ0=
 go.opentelemetry.io/collector/consumer/xconsumer v0.160.0 h1:pbyjZUlDxLuFDa23cAxtDU6J7tvdXKfuZCe0RlJQV9s=
@@ -312,6 +314,8 @@ go.opentelemetry.io/collector/exporter v1.66.0 h1:D69xYsoX/RBpL2ZOg22LLp3Jb7aBhw
 go.opentelemetry.io/collector/exporter v1.66.0/go.mod h1:jXFly200uQdAoaZQaY4dG/6j4RHCWuZ6vszd/qYSWss=
 go.opentelemetry.io/collector/exporter/exporterhelper v0.160.0 h1:RoLOGzNUi930v9JOE9kTJmJdoOd2SlStorg6A7xsjBo=
 go.opentelemetry.io/collector/exporter/exporterhelper v0.160.0/go.mod h1:tK8m0cSak6ooXxh2hESBgC5pWtfF83vGEDGtzGtTOAc=
+go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.160.0 h1:yFXXyO8fXqxnwCmOmjF6/KSfB+q2yv4gE9odpVX7hOc=
+go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.160.0/go.mod h1:dolEGQfJ5V5WgLKUy74gi5nefBT2xrmmaADVr/z2PO4=
 go.opentelemetry.io/collector/exporter/exportertest v0.160.0 h1:hvrPUksoqKPMp0nLLac8puNqos+T6w/IOpnoIAWBuho=
 go.opentelemetry.io/collector/exporter/exportertest v0.160.0/go.mod h1:Q4F0vY9nxf35juEs/9p11X839wdmJs3xUCIO8IF/Iho=
 go.opentelemetry.io/collector/exporter/xexporter v0.160.0 h1:RHRk4z8fzjH9YOTY2Yb/32sBqwkQPtd1YfxdiiIIaYs=

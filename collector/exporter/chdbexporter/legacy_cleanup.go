@@ -68,7 +68,7 @@ func adoptLegacyLocalTable(ctx context.Context, db driver.Conn, database, legacy
 }
 
 // adoptLegacyLogsTable renames the legacy logs table under the cloud-facing
-// name; migrateLogsTable then brings it up to the current column set.
+// name, preserving the telemetry it already holds.
 func adoptLegacyLogsTable(ctx context.Context, cfg *Config, db driver.Conn) error {
 	_, err := adoptLegacyLocalTable(ctx, db, cfg.database(), legacyLogsTableName, cfg.LogsTableName)
 	return err
