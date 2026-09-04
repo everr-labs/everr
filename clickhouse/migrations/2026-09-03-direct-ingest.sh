@@ -1,7 +1,9 @@
 #!/bin/bash
 # Cut the write path over to direct ingest: otel.* become Null landing
 # tables, the views stamp tenant_id and retention_days from the resource
-# attributes the collector sets, the dictionary goes away. app.* is untouched.
+# attributes the collector sets, the dictionary goes away.
+#
+# Every app.* table is rebuilt empty. There is no backfill.
 #
 # Run AFTER the app and the collector that stamp everr.retention.* are
 # deployed. Per table there is a sub-second window between dropping the old
@@ -33,15 +35,25 @@ CLIENT_ARGS=("$@")
 
 TABLES=(traces logs metrics_gauge metrics_sum metrics_histogram metrics_exponential_histogram metrics_summary)
 
-# The metrics tables are rebuilt, not altered. Their sort key becomes
-# (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix),
-# cityHash64(Attributes), TimeUnix) and TimeUnix narrows from DateTime64(9) to
-# DateTime. ALTER can do neither: a sort key cannot be rewritten, and the type
-# of a column the sort key uses cannot change. Stored metrics history goes;
-# app.logs and app.traces keep theirs. Row policies and grants survive the
-# drop because ClickHouse keys them by database and table name, not by the
-# table UUID, so tenant isolation and the per-org /sql API users are unharmed.
-REBUILD=(metrics_gauge metrics_sum metrics_histogram metrics_exponential_histogram metrics_summary)
+# The app.* tables are rebuilt, not altered, and app.alert_events with them.
+# Two reasons, either one enough on its own:
+#
+#   The tables that are live carry a TTL built from dictGetOrDefault. Any ALTER
+#   re-validates that expression and fails with "TTL expression cannot contain
+#   non-deterministic functions", so the codec and index blocks in init/10
+#   cannot run against them at all.
+#
+#   The metrics sort key becomes (tenant_id, ServiceName, MetricName,
+#   toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix) and TimeUnix
+#   narrows to DateTime. ALTER can do neither: a sort key cannot be rewritten,
+#   and the type of a column the sort key uses cannot change.
+#
+# CREATE TABLE IF NOT EXISTS is a no-op on a table that is already there, so
+# without the drop init/10 would silently leave the old shape in place.
+#
+# Row policies and grants survive the drop, because ClickHouse keys access
+# control by database and table name and not by the table UUID, so tenant
+# isolation and the per-org /sql API users need no repair.
 
 # After the landing tables become Null and before their views exist, an insert
 # is accepted and discarded. If the swap stops half way, drop the Null tables
@@ -54,42 +66,37 @@ drop_landing_tables() {
   done
 }
 
-echo "1/4 guard: the collector must already stamp retention"
+echo "1/3 guard: the collector must already stamp retention"
 run_sql "SELECT throwIf(
   (SELECT count() FROM otel.otel_logs WHERE TimestampTime > now() - INTERVAL 10 MINUTE AND ResourceAttributes['everr.retention.days'] = '') > 0,
   'rows without everr.retention.days arrived in the last 10 minutes: deploy the collector first')"
 
-echo "2/4 swap landing tables and views"
+echo "2/3 rebuild the tables, the landing tables and the views"
 # The stored otel.* copies go with the tables. They hold seven days of raw
 # rows that nothing reads: app.* is the read model.
 trap drop_landing_tables ERR
+# alert_events_logs_mv writes into app.logs, so it goes before app.logs does.
+run_sql "DROP VIEW IF EXISTS app.alert_events_logs_mv"
 for t in "${TABLES[@]}"; do
   run_sql "DROP VIEW IF EXISTS app.${t}_mv"
   run_sql "DROP TABLE IF EXISTS otel.otel_${t}"
-done
-for t in "${REBUILD[@]}"; do
   run_sql "DROP TABLE IF EXISTS app.${t}"
 done
-run_file init/03-create-otel-tables.sql   # Null engines
-run_file init/10-create-mvs.sql           # app.* CREATE IF NOT EXISTS rebuilds the metrics tables; views are recreated
+run_sql "DROP TABLE IF EXISTS app.alert_events"
+run_file init/03-create-otel-tables.sql     # Null engines
+run_file init/10-create-mvs.sql             # app.* and their views
+run_file init/12-create-alert-events.sql    # app.alert_events and its view into app.logs
 trap - ERR
 
 # Every landing table must have its view back before ingestion resumes.
 mv_names=$(printf ",'%s_mv'" "${TABLES[@]}")
 run_sql "SELECT throwIf(
   (SELECT count() FROM system.tables
-     WHERE database = 'app' AND engine = 'MaterializedView' AND name IN (${mv_names#,})) != ${#TABLES[@]},
-  'a landing table has no materialized view: rows would be discarded')"
+     WHERE database = 'app' AND engine = 'MaterializedView'
+       AND name IN (${mv_names#,}, 'alert_events_logs_mv')) != $(( ${#TABLES[@]} + 1 )),
+  'a table is missing its materialized view: rows would be discarded')"
 
-echo "3/4 alert events keep their retention from the app"
-# REMOVE DEFAULT, not MODIFY COLUMN ... UInt16: a modify that does not name a
-# default keeps the one the column has, and the dictionary then still has a
-# dependent table and cannot be dropped in step 4.
-# Safe in either order: the app deploy that writes retention_days explicitly
-# comes first, and the old DEFAULT still works until this runs.
-run_sql "ALTER TABLE app.alert_events MODIFY COLUMN retention_days REMOVE DEFAULT"
-
-echo "4/4 remove the dictionary"
+echo "3/3 remove the dictionary"
 run_sql "DROP DICTIONARY IF EXISTS app.tenant_retention"
 run_sql "DROP TABLE IF EXISTS app.tenant_retention_source"
 run_sql "REVOKE dictGet ON app.tenant_retention FROM collector_rw, web_app_admin" || true
