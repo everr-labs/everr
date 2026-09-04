@@ -1,8 +1,0 @@
-<!-- The materialized views in init/10-create-mvs.sql call dictGetOrDefault on
-     every insert. With lazy loading a dictionary whose source is broken (for
-     example a rotated web_app_admin password) only fails on the first insert,
-     which fails the collector's write into otel.*. Loading at startup makes
-     the failure visible in the server log before any insert arrives. -->
-<clickhouse>
-  <dictionaries_lazy_load>false</dictionaries_lazy_load>
-</clickhouse>

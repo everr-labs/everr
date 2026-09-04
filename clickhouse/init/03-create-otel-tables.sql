@@ -1,3 +1,10 @@
+-- Landing tables for the collector's ClickHouse exporter. ENGINE = Null
+-- stores nothing: an insert only triggers the materialized views in
+-- 10-create-mvs.sql, which stamp tenant_id and retention_days from the
+-- resource attributes and write the row into app.*. Column lists follow the
+-- upstream clickhouseexporter schema for v0.152.0; app.* copies its types
+-- from here, so keep them in step with the exporter version.
+
 CREATE TABLE IF NOT EXISTS otel.otel_traces (
     Timestamp DateTime64(9) CODEC(Delta, ZSTD(1)),
     TraceId String CODEC(ZSTD(1)),
@@ -24,20 +31,8 @@ CREATE TABLE IF NOT EXISTS otel.otel_traces (
         SpanId String,
         TraceState String,
         Attributes Map(LowCardinality(String), String)
-    ) CODEC(ZSTD(1)),
-    INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_span_attr_key mapKeys(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_span_attr_value mapValues(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_duration Duration TYPE minmax GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(Timestamp)
-ORDER BY (ServiceName, SpanName, toDateTime(Timestamp))
--- Raw landing table: the durable, tenant-scoped read model is app.traces
--- (populated at insert time by app.traces_mv), so keep only a short buffer here.
-TTL toDateTime(Timestamp) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    ) CODEC(ZSTD(1))
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_logs (
     Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
@@ -56,23 +51,8 @@ CREATE TABLE IF NOT EXISTS otel.otel_logs (
     ScopeVersion LowCardinality(String) CODEC(ZSTD(1)),
     ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
     LogAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    EventName String CODEC(ZSTD(1)),
-    INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_log_attr_key mapKeys(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_log_attr_value mapValues(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
-) ENGINE = MergeTree
-PARTITION BY toDate(TimestampTime)
-PRIMARY KEY (ServiceName, TimestampTime)
-ORDER BY (ServiceName, TimestampTime, Timestamp)
--- Raw landing table: the durable, tenant-scoped read model is app.logs
--- (populated at insert time by app.logs_mv), so keep only a short buffer here.
-TTL TimestampTime + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    EventName String CODEC(ZSTD(1))
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_gauge (
     ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
@@ -97,21 +77,8 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_gauge (
         Value Float64,
         SpanId String,
         TraceId String
-    ) CODEC(ZSTD(1)),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
-ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
--- Raw landing table: the durable, tenant-scoped read model is the matching
--- app.metrics_* table (populated at insert time by its MV), so keep only a
--- short buffer here.
-TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    ) CODEC(ZSTD(1))
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_sum (
     ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
@@ -138,21 +105,8 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_sum (
         TraceId String
     ) CODEC(ZSTD(1)),
     AggregationTemporality Int32 CODEC(ZSTD(1)),
-    IsMonotonic Boolean CODEC(Delta, ZSTD(1)),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
-ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
--- Raw landing table: the durable, tenant-scoped read model is the matching
--- app.metrics_* table (populated at insert time by its MV), so keep only a
--- short buffer here.
-TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    IsMonotonic Boolean CODEC(Delta, ZSTD(1))
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_histogram (
     ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
@@ -183,21 +137,8 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_histogram (
     Flags UInt32 CODEC(ZSTD(1)),
     Min Float64 CODEC(ZSTD(1)),
     Max Float64 CODEC(ZSTD(1)),
-    AggregationTemporality Int32 CODEC(ZSTD(1)),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
-ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
--- Raw landing table: the durable, tenant-scoped read model is the matching
--- app.metrics_* table (populated at insert time by its MV), so keep only a
--- short buffer here.
-TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    AggregationTemporality Int32 CODEC(ZSTD(1))
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_exponential_histogram (
     ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
@@ -232,21 +173,8 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_exponential_histogram (
     Flags UInt32 CODEC(ZSTD(1)),
     Min Float64 CODEC(ZSTD(1)),
     Max Float64 CODEC(ZSTD(1)),
-    AggregationTemporality Int32 CODEC(ZSTD(1)),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
-ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
--- Raw landing table: the durable, tenant-scoped read model is the matching
--- app.metrics_* table (populated at insert time by its MV), so keep only a
--- short buffer here.
-TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    AggregationTemporality Int32 CODEC(ZSTD(1))
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_summary (
     ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
@@ -269,18 +197,5 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_summary (
         Quantile Float64,
         Value Float64
     ) CODEC(ZSTD(1)),
-    Flags UInt32 CODEC(ZSTD(1)),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
-ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
--- Raw landing table: the durable, tenant-scoped read model is the matching
--- app.metrics_* table (populated at insert time by its MV), so keep only a
--- short buffer here.
-TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    Flags UInt32 CODEC(ZSTD(1))
+) ENGINE = Null;
