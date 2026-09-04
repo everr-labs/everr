@@ -67,9 +67,13 @@ export function channelConfigInput(
   }
 }
 
-/** Whether a send can be tried through this config from the client: a
- *  secret the server holds and the screen does not cannot be tested here. */
-export function channelConfigIsTestable(config: AlertingChannelConfig) {
+/** Whether a send can be tried through this config. An edited channel can use
+ *  its stored secret even though the screen only has the redaction marker. */
+export function channelConfigIsTestable(
+  config: AlertingChannelConfig,
+  hasStoredSecret = false,
+) {
+  if (hasStoredSecret) return true;
   return config.type === "telegram"
     ? config.bot_token !== ALERTING_REDACTED_SECRET
     : config.url !== ALERTING_REDACTED_SECRET;

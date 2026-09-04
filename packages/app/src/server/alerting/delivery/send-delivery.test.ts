@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => {
     set: vi.fn(),
     update: vi.fn(),
     where: vi.fn(),
+    returning: vi.fn(),
     send: vi.fn(),
     outcome: vi.fn(),
     ChannelSendError: MockChannelSendError,
@@ -78,6 +79,7 @@ describe("sendAlertDelivery missing channel", () => {
     mocks.send.mockReset().mockResolvedValue(undefined);
     mocks.outcome.mockReset().mockResolvedValue(undefined);
     mocks.where.mockReset().mockResolvedValue(undefined);
+    mocks.returning.mockReset().mockResolvedValue([]);
     mocks.set.mockReset().mockReturnValue({ where: mocks.where });
     mocks.update.mockReset().mockReturnValue({ set: mocks.set });
   });
@@ -119,6 +121,7 @@ describe("sendAlertDelivery send failure", () => {
     ];
     mocks.outcome.mockReset().mockResolvedValue(undefined);
     mocks.where.mockReset().mockResolvedValue(undefined);
+    mocks.returning.mockReset().mockResolvedValue([]);
     mocks.set.mockReset().mockReturnValue({ where: mocks.where });
     mocks.update.mockReset().mockReturnValue({ set: mocks.set });
   });
@@ -182,6 +185,7 @@ describe("sendAlertDelivery status write after a successful send", () => {
     mocks.send.mockReset().mockResolvedValue(undefined);
     mocks.outcome.mockReset().mockResolvedValue(undefined);
     mocks.where.mockReset().mockResolvedValue(undefined);
+    mocks.returning.mockReset().mockResolvedValue([]);
     mocks.set.mockReset().mockReturnValue({ where: mocks.where });
     mocks.update.mockReset().mockReturnValue({ set: mocks.set });
   });
@@ -203,5 +207,17 @@ describe("sendAlertDelivery status write after a successful send", () => {
     );
     // Retried once before giving up.
     expect(mocks.where).toHaveBeenCalledTimes(2);
+  });
+
+  it("records success at the timestamp committed by the sent transition", async () => {
+    const sentAt = new Date("2026-08-19T10:00:05Z");
+    mocks.returning.mockResolvedValue([{ sentAt }]);
+    mocks.where.mockReturnValue({ returning: mocks.returning });
+
+    await sendAlertDelivery({ dedupKey: "dk-1" });
+
+    expect(mocks.outcome).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "succeeded", outcomeAt: sentAt }),
+    );
   });
 });

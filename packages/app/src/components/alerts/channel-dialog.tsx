@@ -118,14 +118,17 @@ function ChannelForm({
   // the stored kind it keeps the stored secret.
   const keepsSecret = editing !== null && editing.config.type === draft.type;
   const urlField = CHANNEL_URL_FIELD[draft.type];
-  const testable = config !== null && channelConfigIsTestable(config);
+  const testable =
+    config !== null && channelConfigIsTestable(config, keepsSecret);
 
   const patch = (p: Partial<ChannelConfigDraft>) =>
     setDraft((d) => ({ ...d, ...p }));
 
   const test = useMutation({
     mutationFn: (config: AlertingChannelConfig) =>
-      testAlertingChannel({ data: { config } }),
+      testAlertingChannel({
+        data: { config, ...(editing ? { name: editing.name } : {}) },
+      }),
   });
   // The result is shown only while the config it tested is still the one on
   // screen: a verdict on an endpoint the reader has since retyped is worse

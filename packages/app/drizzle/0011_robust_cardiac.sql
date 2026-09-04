@@ -123,6 +123,11 @@ CREATE TABLE "alert_default_channels" (
 	CONSTRAINT "alert_default_channels_organization_id_tier_channel_id_pk" PRIMARY KEY("organization_id","tier","channel_id")
 );
 --> statement-breakpoint
+CREATE TABLE "alert_default_destinations" (
+	"organization_id" text PRIMARY KEY NOT NULL,
+	"split" boolean DEFAULT false NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "alert_instances" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" text NOT NULL,

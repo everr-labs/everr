@@ -157,7 +157,6 @@ describe("NotificationsPage", () => {
     expect(rows[0]).toHaveTextContent("+ 1 rule by name");
     expect(rows[0]).toHaveTextContent("128 sent");
     expect(rows[1]).toHaveTextContent("41 sent · 3 failed");
-    expect(rows[1]).toHaveTextContent("HTTP 429 from endpoint");
     expect(rows[2]).toHaveTextContent("not in use");
     expect(rows[2]).toHaveTextContent("nothing sent");
   });

@@ -157,6 +157,9 @@ export const AlertingChannelUpdateSchema = AlertingChannelInputSchema.partial();
 // never coexists with severity tiers; the repository enforces that, since a
 // record schema cannot.
 export const AlertingDefaultDestinationInputSchema = z.object({
+  // Optional for callers written before mode had its own record. Reads and the
+  // Notifications editor always carry it explicitly.
+  split: z.boolean().optional(),
   tiers: z
     .partialRecord(
       z.enum(ALERTING_DEFAULT_TIERS),

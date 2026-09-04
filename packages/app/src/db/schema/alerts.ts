@@ -458,6 +458,14 @@ export const alertDefaultChannels = pgTable(
   ],
 );
 
+// Mode is separate from the channel rows because an empty destination still
+// has a mode: either one empty list for every alert, or three empty severity
+// lists. Inferring it from present tiers loses that distinction.
+export const alertDefaultDestinations = pgTable("alert_default_destinations", {
+  organizationId: text("organization_id").primaryKey(),
+  split: boolean("split").notNull().default(false),
+});
+
 export const alertNotificationGroups = pgTable(
   "alert_notification_groups",
   {

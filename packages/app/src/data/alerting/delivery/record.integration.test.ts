@@ -80,8 +80,7 @@ function delivery(opts: {
     def: opts.def ?? definition(),
     notificationEventId: uuidv7(opts.at),
     dedupKey: opts.dedupKey,
-    deliveryCreatedAt: opts.at,
-    attemptAt: opts.at,
+    outcomeAt: opts.at,
     fingerprint: opts.fingerprint ?? "a",
     labels: { host: opts.fingerprint ?? "a" },
     deliveryTargets: { [opts.type ?? "slack"]: [opts.channel] },
@@ -176,6 +175,32 @@ describe("what each channel delivered in the window", () => {
       failed: 1,
       lastError: "HTTP 500",
     });
+  });
+
+  it("ranges a recovered send by when it succeeded, not when it was queued", async () => {
+    const failed = minutesAgo(20);
+    const succeeded = minutesAgo(10);
+    write(
+      delivery({
+        channel: "pager",
+        type: "webhook",
+        dedupKey: "d1",
+        at: failed,
+        outcome: "failed",
+        error: "HTTP 429",
+      }),
+      delivery({
+        channel: "pager",
+        type: "webhook",
+        dedupKey: "d1",
+        at: succeeded,
+        outcome: "succeeded",
+      }),
+    );
+
+    const [record] = (await loadDeliveryRecords(query, windowOf(60))).channels;
+    expect(record).toMatchObject({ channel: "pager", sent: 1, failed: 0 });
+    expect(record?.lastSentAt).toBe(succeeded.toISOString());
   });
 
   it("gives a channel that only failed no last-sent time", async () => {

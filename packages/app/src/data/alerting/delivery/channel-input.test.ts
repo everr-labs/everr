@@ -77,8 +77,9 @@ describe("channelConfigInput", () => {
 });
 
 describe("channelConfigIsTestable", () => {
-  it("cannot test through a secret the screen does not hold", () => {
+  it("can test a saved channel through the secret the server holds", () => {
     expect(channelConfigIsTestable(SLACK)).toBe(false);
+    expect(channelConfigIsTestable(SLACK, true)).toBe(true);
     expect(channelConfigIsTestable({ type: "slack", url: "https://x" })).toBe(
       true,
     );

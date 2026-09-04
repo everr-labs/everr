@@ -421,20 +421,18 @@ export function NotificationsPage({
               </span>
             </p>
           ) : (
-            <>
-              <ul aria-labelledby="channels">
-                {channels.map((channel) => (
-                  <ChannelRow
-                    key={channel.name}
-                    channel={channel}
-                    now={now}
-                    onOpen={() => {
-                      if (!pending) onEditChannel(channel);
-                    }}
-                  />
-                ))}
-              </ul>
-            </>
+            <ul aria-labelledby="channels">
+              {channels.map((channel) => (
+                <ChannelRow
+                  key={channel.name}
+                  channel={channel}
+                  now={now}
+                  onOpen={() => {
+                    if (!pending) onEditChannel(channel);
+                  }}
+                />
+              ))}
+            </ul>
           )}
         </GroupBand>
 

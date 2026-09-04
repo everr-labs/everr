@@ -152,7 +152,7 @@ function DeliveryForm({
     (names) => names.length > 0,
   );
   const clearsDelivery = Object.keys(tiers).length === 0 && hadChannels;
-  const save = () => onConfirm({ tiers });
+  const save = () => onConfirm({ split, tiers });
 
   const checklist = (tier: AlertingDefaultTier) => (
     <ChannelChecklist

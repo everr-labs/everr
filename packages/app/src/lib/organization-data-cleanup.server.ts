@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import {
   alertChannels,
   alertDefaultChannels,
+  alertDefaultDestinations,
   alertDefinitions,
   alertDeliveries,
   alertEvents,
@@ -35,6 +36,9 @@ export async function deletePostgresOrganizationData(
     await tx
       .delete(alertDefaultChannels)
       .where(eq(alertDefaultChannels.organizationId, organizationId));
+    await tx
+      .delete(alertDefaultDestinations)
+      .where(eq(alertDefaultDestinations.organizationId, organizationId));
     await tx
       .delete(alertChannels)
       .where(eq(alertChannels.organizationId, organizationId));

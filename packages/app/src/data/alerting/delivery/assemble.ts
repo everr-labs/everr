@@ -30,9 +30,11 @@ import type {
 export function destinationView(
   destination: AlertingDefaultDestination,
 ): NotificationDestinationView {
-  const split = ALERTING_SEVERITY_TIERS.some(
-    (tier) => destination.tiers[tier] !== undefined,
-  );
+  const split =
+    destination.split ??
+    ALERTING_SEVERITY_TIERS.some(
+      (tier) => destination.tiers[tier] !== undefined,
+    );
   return {
     split,
     tiers: {

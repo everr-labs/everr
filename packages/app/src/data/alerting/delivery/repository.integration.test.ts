@@ -26,7 +26,11 @@ vi.mock(
   async () => import("@/server/alerting/testing/test-clickhouse"),
 );
 
-import { listDefaultDestination, setDefaultDestination } from "./repository";
+import {
+  listDefaultDestination,
+  setDefaultDestination,
+  testChannel,
+} from "./repository";
 
 const harness = useAlertingHarness();
 const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };
@@ -48,6 +52,7 @@ describe("the default destination", () => {
     });
 
     expect(await listDefaultDestination(TEST_ORG)).toEqual({
+      split: true,
       tiers: { critical: ["#oncall", "pager"], warning: ["#oncall"] },
     });
   });
@@ -64,6 +69,7 @@ describe("the default destination", () => {
       tiers: { critical: ["pager"], info: ["#oncall", "pager"] },
     });
     expect(result).toEqual({
+      split: true,
       tiers: { critical: ["pager"], info: ["#oncall", "pager"] },
     });
     expect(await listDefaultDestination(TEST_ORG)).toEqual(result);
@@ -80,6 +86,7 @@ describe("the default destination", () => {
       setDefaultDestination(scope, { tiers: { all: ["#oncall", "#gone"] } }),
     ).rejects.toThrow(/Unknown channels: #gone/);
     expect(await listDefaultDestination(TEST_ORG)).toEqual({
+      split: false,
       tiers: { all: ["#oncall"] },
     });
   });
@@ -99,8 +106,49 @@ describe("the default destination", () => {
       tier: "all",
       channelIds: [oncall.id],
     });
-    expect(await setDefaultDestination(scope, { tiers: {} })).toEqual({
+    expect(
+      await setDefaultDestination(scope, { split: false, tiers: {} }),
+    ).toEqual({
+      split: false,
       tiers: {},
     });
+  });
+
+  it("keeps split mode when every severity tier is empty", async () => {
+    expect(
+      await setDefaultDestination(scope, { split: true, tiers: {} }),
+    ).toEqual({ split: true, tiers: {} });
+    expect(await listDefaultDestination(TEST_ORG)).toEqual({
+      split: true,
+      tiers: {},
+    });
+  });
+});
+
+describe("testing a saved channel", () => {
+  it("uses the stored secret with the draft's public fields", async () => {
+    await insertChannel(harness().db, {
+      name: "pager",
+      type: "telegram",
+      botToken: "stored-token",
+      chatIds: ["old-chat"],
+    });
+
+    await expect(
+      testChannel(TEST_ORG, {
+        name: "pager",
+        config: {
+          type: "telegram",
+          bot_token: "***",
+          chat_ids: ["new-chat"],
+        },
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(harness().fetchCalls()).toEqual([
+      expect.objectContaining({
+        url: "https://api.telegram.org/botstored-token/sendMessage",
+        body: expect.objectContaining({ chat_id: "new-chat" }),
+      }),
+    ]);
   });
 });
