@@ -92,6 +92,20 @@ Expiry by drop is what makes the per-tier partition pay for itself.
 Since the landing tables became `Null`, the stored `otel.*` copy is gone, so
 every row is written and merged once instead of twice.
 
+Batching moved from the standalone `batch` processor into the exporter's
+`sending_queue.batch`, which is what the exporter documents. Both are set to
+8192 rows, but the processor's own timeout fires first at any realistic rate
+and it batches per pipeline, so the inserts it produced were much smaller than
+the setting. Measured on one logs stream, 20 s at 4000 records per second per
+worker with four workers, about 315k rows either way: the processor wrote 101
+parts averaging 3133 rows; the exporter queue wrote 38 parts averaging 8200.
+Fewer, larger inserts is the same lever as `send_batch_size` and it applies to
+every retention value in the batch. The queue also holds the request until the
+insert succeeds, so a failed insert or a restart no longer loses it, which the
+processor could not offer because it acknowledges data before the write.
+`flush_timeout` (5 s) is the ingestion delay when traffic is too low to fill a
+batch; lower it to trade parts for freshness.
+
 ## Follow-ups in this repo
 
 1. **Adding a retention value.** `retentionForOrg` resolves a tier, so the only

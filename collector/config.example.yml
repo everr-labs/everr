@@ -40,7 +40,6 @@ receivers:
           authenticator: everr_apikey
 
 processors:
-  batch:
   # Internal pipeline (github webhook): tenant and retention come from trusted
   # headers the app sets when it forwards the webhook
   # (packages/app/src/server/github-events/collector.ts).
@@ -104,6 +103,20 @@ exporters:
     password: collector-dev
     database: otel
     create_schema: false
+    # Batching belongs here, not in a `batch` processor: the processor
+    # acknowledges data to the receiver before the insert happens, so a crash
+    # loses the batch and a failed insert cannot apply backpressure. The
+    # exporter's queue keeps the request until the insert succeeds.
+    # Size matters twice over: ClickHouse wants few large inserts, and every
+    # app.* table writes one part per retention value present in a batch, so
+    # small batches multiply parts (docs/clickhouse-retention-rollout.md,
+    # "Parts per insert"). flush_timeout is the ingestion delay when traffic
+    # is too low to fill a batch.
+    sending_queue:
+      num_consumers: 10
+      batch:
+        min_size: 8192
+        flush_timeout: 5s
 
 service:
   extensions: [everr_apikey]
@@ -111,15 +124,15 @@ service:
     # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.
     traces:
       receivers: [githubactions]
-      processors: [resource, batch]
+      processors: [resource]
       exporters: [clickhouse, debug]
     metrics:
       receivers: [githubactions]
-      processors: [resource, batch]
+      processors: [resource]
       exporters: [clickhouse, debug]
     logs:
       receivers: [githubactions]
-      processors: [resource, batch]
+      processors: [resource]
       exporters: [clickhouse, debug]
 
     # Public pipelines: untrusted clients, tenant from authenticated key.
@@ -128,15 +141,15 @@ service:
     # spoof their tenant.
     traces/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
+      processors: [attributes/strip_user_tenant, resource/public_tenant]
       exporters: [clickhouse, debug]
     metrics/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
+      processors: [attributes/strip_user_tenant, resource/public_tenant]
       exporters: [clickhouse, debug]
     logs/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
+      processors: [attributes/strip_user_tenant, resource/public_tenant]
       exporters: [clickhouse, debug]
 
   # Ship the collector's own telemetry (its logs, metrics, and internal
