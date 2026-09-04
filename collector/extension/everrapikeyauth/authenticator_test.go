@@ -219,6 +219,43 @@ func TestAuthenticate_StaleFallback_OnTransientError(t *testing.T) {
 	}
 }
 
+// TestAuthenticate_NoStaleFallback_OnMissingRetention covers an app that is
+// reachable but broken: it answers 200 without retention. The grace window is
+// for an unreachable app, so a warm cache must not paper over this.
+func TestAuthenticate_NoStaleFallback_OnMissingRetention(t *testing.T) {
+	var phase atomic.Int32 // 0 = complete answer, 1 = answer without retention
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		res := verifyResponse{TenantID: "org_1", KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14}
+		if phase.Load() == 1 {
+			res.LogsDays, res.TracesDays, res.MetricsDays = 0, 0, 0
+		}
+		_ = json.NewEncoder(w).Encode(res)
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	if _, err := e.Authenticate(context.Background(), authHeaders("known")); err != nil {
+		t.Fatalf("priming verify failed: %v", err)
+	}
+
+	// Expired for a normal get, but inside the stale-fallback grace window.
+	e.cache.pos.now = func() time.Time {
+		return time.Now().Add(e.cfg.CacheTTL + 1*time.Second)
+	}
+	e.cache.now = e.cache.pos.now
+
+	phase.Store(1)
+	if _, err := e.Authenticate(context.Background(), authHeaders("known")); err == nil {
+		t.Fatal("expected authentication to fail when the app reports no retention")
+	}
+
+	// Not cached as a failure either: the app recovers on the next request.
+	phase.Store(0)
+	if _, err := e.Authenticate(context.Background(), authHeaders("known")); err != nil {
+		t.Fatalf("expected recovery once the app answers correctly; got %v", err)
+	}
+}
+
 func TestAuthenticate_ForwardsOrigin(t *testing.T) {
 	var got struct {
 		Key    string `json:"key"`

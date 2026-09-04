@@ -24,6 +24,9 @@ var (
 	errMissingAuth   = errors.New("missing authorization header")
 	errInvalidScheme = errors.New("authorization scheme must be Bearer")
 	errUnauthorized  = errors.New("unauthorized")
+	// errInvalidResponse marks a verify endpoint that answered but
+	// answered wrongly. It is deliberately not treated as an outage.
+	errInvalidResponse = errors.New("invalid verify response")
 )
 
 // verifyResponse mirrors VerifyKeyResponse on the app side.
@@ -188,6 +191,16 @@ func (e *ext) lookup(ctx context.Context, token, origin string) (*authResult, er
 				e.cache.putFailure(cacheKey, err)
 				return nil, err
 			}
+			if errors.Is(err, errInvalidResponse) {
+				// The app answered, and the answer was unusable. That is
+				// not the outage the grace window exists for: serving a
+				// stale entry here would keep authenticating a tenant
+				// whose retention the app can no longer state. Fail, and
+				// do not cache it, so a fixed app recovers on the next
+				// request.
+				e.logger.Error("verify endpoint returned an unusable response", zap.Error(err))
+				return nil, err
+			}
 			// Transient (network, 5xx). OTel auth maps any error we return to
 			// 401 client-side, so fall back to the last-known-good cache entry
 			// within a grace window so brief verify outages don't translate
@@ -241,7 +254,7 @@ func (e *ext) verify(ctx context.Context, token, origin string) (*authResult, er
 	case http.StatusOK:
 		var vr verifyResponse
 		if err := json.NewDecoder(resp.Body).Decode(&vr); err != nil {
-			return nil, fmt.Errorf("decode verify response: %w", err)
+			return nil, fmt.Errorf("%w: decode: %w", errInvalidResponse, err)
 		}
 		e.logger.Debug(
 			"verified ingest key",
@@ -251,7 +264,7 @@ func (e *ext) verify(ctx context.Context, token, origin string) (*authResult, er
 		if vr.LogsDays == 0 || vr.TracesDays == 0 || vr.MetricsDays == 0 {
 			// A zero retention would expire rows at insert. Refuse to
 			// authenticate rather than stamp it.
-			return nil, fmt.Errorf("verify response missing retention for tenant %s", vr.TenantID)
+			return nil, fmt.Errorf("%w: missing retention for tenant %s", errInvalidResponse, vr.TenantID)
 		}
 		return &authResult{
 			tenantID: vr.TenantID, keyID: vr.KeyID,
