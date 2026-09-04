@@ -16,6 +16,10 @@ vi.mock("@/lib/auth.server", () => ({
   },
 }));
 
+vi.mock("@/lib/retention.server", () => ({
+  retentionForOrg: vi.fn(),
+}));
+
 type PostHandler = (args: { request: Request }) => Promise<Response>;
 
 function getHandler(): PostHandler {
@@ -44,7 +48,15 @@ async function mockVerify(result: unknown) {
   vi.mocked(auth.api.verifyApiKey).mockResolvedValueOnce(result as never);
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(async () => {
+  vi.clearAllMocks();
+  const { retentionForOrg } = await import("@/lib/retention.server");
+  vi.mocked(retentionForOrg).mockResolvedValue({
+    logsDays: 30,
+    tracesDays: 30,
+    metricsDays: 395,
+  });
+});
 
 describe("/api/internal/verify-key", () => {
   it("returns 403 when shared secret is missing", async () => {
@@ -108,7 +120,12 @@ describe("/api/internal/verify-key", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_3",
+      logsDays: 30,
+      tracesDays: 30,
+      metricsDays: 395,
     });
+    const { retentionForOrg } = await import("@/lib/retention.server");
+    expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 
     // The configId pin is the sole guarantee that a CLI/user-scoped key
     // can't be used for ingest — assert we still pass it.
@@ -182,6 +199,9 @@ describe("/api/internal/verify-key browser origin policy", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_public",
+      logsDays: 30,
+      tracesDays: 30,
+      metricsDays: 395,
     });
   });
 
@@ -247,6 +267,9 @@ describe("/api/internal/verify-key browser origin policy", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_secret",
+      logsDays: 30,
+      tracesDays: 30,
+      metricsDays: 395,
     });
   });
 
