@@ -36,8 +36,9 @@ table ships.
 Convergence is therefore a property of what is written:
 
 - A row with a derived `event_id` derives every other column, `event_time`
-  included. A success row takes the delivery's `created_at`; only a failed
-  row, whose id already hashes its attempt, carries an attempt clock.
+  included. A success row takes the stable `updated_at` stamped by the winning
+  PostgreSQL transition to `sent`. Racing writers read that committed value.
+  A failed row, whose id already hashes its attempt, carries its attempt clock.
 - Nothing that varies per attempt may be added to a success row. Send
   duration and attempt counts stay in PostgreSQL.
 - Any work here that adds per-recipient rows must give each one a derived id

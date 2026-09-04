@@ -420,14 +420,10 @@ export function deliveryHistoryRow(opts: {
   def: AlertHistoryDefinition;
   notificationEventId: string;
   dedupKey: string;
-  /** When the delivery was queued. Attempt-independent, and the success row's
-   * time for that reason: one success row stands for the whole delivery, so
-   * nothing on it may move between attempts. How long the send itself took
-   * lives in PostgreSQL, on the delivery row's own timestamps. */
-  deliveryCreatedAt: Date;
-  /** The attempt this row records. It reaches the row, and the id, on a
-   * failure only: failures keep one row per attempt. */
-  attemptAt: Date;
+  /** When this outcome was committed. For a success this is the stable time
+   * stamped by the winning sent transition, so concurrent writers rebuild the
+   * same row. Each failure gets the time of its own attempt. */
+  outcomeAt: Date;
   fingerprint: string;
   labels: Record<string, string>;
   deliveryTargets: AlertDeliveryTargets;
@@ -447,11 +443,11 @@ export function deliveryHistoryRow(opts: {
         notificationEventId: opts.notificationEventId,
         dedupKey: opts.dedupKey,
         outcome: opts.outcome,
-        attemptAt: opts.attemptAt,
+        attemptAt: opts.outcomeAt,
       }),
       notificationEventId: opts.notificationEventId,
       eventType: failed ? "delivery_failed" : "delivery_succeeded",
-      occurredAt: failed ? opts.attemptAt : opts.deliveryCreatedAt,
+      occurredAt: opts.outcomeAt,
     }),
     ...instanceRowFields(opts.fingerprint, opts.labels),
     delivery_targets: opts.deliveryTargets,

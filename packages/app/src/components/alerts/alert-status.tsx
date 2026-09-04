@@ -17,6 +17,7 @@ import {
   Pause,
   TriangleAlert,
 } from "lucide-react";
+import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
 import type { RuleInventoryState } from "@/data/alerting/triage/view";
 import type { AlertingSeverity } from "@/data/alerting/types";
 
@@ -145,6 +146,22 @@ const SEVERITY_TEXT: Record<AlertingSeverity, string> = {
   critical: "text-destructive",
   warning: "text-chart-2",
   info: "text-muted-foreground",
+};
+
+/** The same three tones as a dot beside text set in the row's own colour,
+ *  for the lists that name a severity as a heading rather than a tag. */
+export const SEVERITY_DOT: Record<AlertingSeverity, string> = {
+  critical: "bg-destructive",
+  warning: "bg-chart-2",
+  info: "bg-muted-foreground",
+};
+
+/** What the delivery screens call a default-destination tier. */
+export const TIER_LABEL: Record<AlertingDefaultTier, string> = {
+  all: "All alerts",
+  critical: "Critical",
+  warning: "Warning",
+  info: "Info",
 };
 
 /** Severity is routing, not urgency-of-the-moment, so it reads as a quiet

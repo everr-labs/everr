@@ -3,6 +3,10 @@
  * journal rather than from the rule's own state.
  */
 import { and, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import {
+  type AlertingDefaultTier,
+  defaultTierFor,
+} from "@/data/alerting/delivery/defaults";
 import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
 import type { SilenceRow } from "@/data/alerting/silences/repository";
 import { db } from "@/db/client";
@@ -123,7 +127,7 @@ export async function loadHeldCounts(
  */
 export async function loadDefaultTiers(
   organizationId: string,
-): Promise<Set<string>> {
+): Promise<Set<AlertingDefaultTier>> {
   const rows = await db
     .selectDistinct({ tier: alertDefaultChannels.tier })
     .from(alertDefaultChannels)
@@ -135,10 +139,10 @@ export async function loadDefaultTiers(
  *  declared channels, or a default tier that covers its severity. */
 export function hasDeliveryTarget(
   row: DefinitionRow,
-  tiers: Set<string>,
+  tiers: Set<AlertingDefaultTier>,
 ): boolean {
   if ((row.spec.notifications?.channels ?? []).length > 0) return true;
-  return tiers.has("all") || tiers.has(row.spec.severity);
+  return defaultTierFor(tiers, row.spec.severity) !== null;
 }
 
 /** Everything delivery knows about one rule right now, gathered once so the

@@ -42,9 +42,8 @@ export async function recordDeliveryOutcome(opts: {
   dedupKey: string;
   channelType: string;
   channelName: string;
-  /** The delivery row's own creation time, the same on every attempt. */
-  deliveryCreatedAt: Date;
-  attemptAt: Date;
+  /** Stable sent-transition time for success, attempt time for failure. */
+  outcomeAt: Date;
   outcome: "succeeded" | "failed";
   error?: string;
 }): Promise<void> {
@@ -70,8 +69,7 @@ export async function recordDeliveryOutcome(opts: {
           def: event.definition,
           notificationEventId: event.id,
           dedupKey: opts.dedupKey,
-          deliveryCreatedAt: opts.deliveryCreatedAt,
-          attemptAt: opts.attemptAt,
+          outcomeAt: opts.outcomeAt,
           fingerprint: event.fingerprint,
           labels: event.labels,
           deliveryTargets: targets,

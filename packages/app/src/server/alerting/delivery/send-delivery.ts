@@ -53,13 +53,14 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     // reaches Postgres, same as the identical string already does on the
     // ClickHouse path (deliveryHistoryRow).
     const error = sanitizeAlertError(rawError);
+    const failedAt = new Date();
     await db
       .update(alertDeliveries)
       .set({
         status: "failed",
         attempts,
         lastError: error,
-        updatedAt: new Date(),
+        updatedAt: failedAt,
       })
       // Guarded on status <> 'sent': a racing or duplicate run must never be
       // able to mark an already-delivered row failed, whatever this read of
@@ -75,8 +76,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       dedupKey,
       channelType,
       channelName: row.delivery.channelName,
-      deliveryCreatedAt: row.delivery.createdAt,
-      attemptAt: new Date(),
+      outcomeAt: failedAt,
       outcome: "failed",
       error,
     });
@@ -193,6 +193,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   // The send succeeded. Nothing from here on may run inside a try whose catch
   // reaches failDelivery: that would mark a delivered notification failed and
   // have Graphile send it a second time.
+  const sentAt = new Date();
   const markSent = () =>
     db
       .update(alertDeliveries)
@@ -200,19 +201,21 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
         status: "sent",
         attempts: sql`${alertDeliveries.attempts} + 1`,
         lastError: null,
-        updatedAt: new Date(),
+        updatedAt: sentAt,
       })
       .where(
         and(
           eq(alertDeliveries.dedupKey, dedupKey),
           ne(alertDeliveries.status, "sent"),
         ),
-      );
+      )
+      .returning({ sentAt: alertDeliveries.updatedAt });
+  let marked: { sentAt: Date }[];
   try {
-    await markSent();
+    marked = await markSent();
   } catch {
     try {
-      await markSent();
+      marked = await markSent();
     } catch (statusWriteError) {
       // The send went out but neither attempt to record it landed. Do not
       // classify this row failed: it was not a failed send. Leave it
@@ -225,6 +228,23 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       );
     }
   }
+  let outcomeAt = marked[0]?.sentAt;
+  if (!outcomeAt) {
+    // Another sender won the guarded transition. Reuse its committed stamp so
+    // both writers rebuild byte-identical ClickHouse success rows.
+    const [settled] = await db
+      .select({
+        status: alertDeliveries.status,
+        sentAt: alertDeliveries.updatedAt,
+      })
+      .from(alertDeliveries)
+      .where(eq(alertDeliveries.dedupKey, dedupKey))
+      .limit(1);
+    if (settled?.status !== "sent") {
+      throw new Error("alert delivery sent, but its status was not recorded");
+    }
+    outcomeAt = settled.sentAt;
+  }
   // Outside the write's own try on purpose. Recording history must never be
   // able to send this delivery down the failure path.
   await recordDeliveryOutcome({
@@ -232,8 +252,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     dedupKey,
     channelType,
     channelName: row.delivery.channelName,
-    deliveryCreatedAt: row.delivery.createdAt,
-    attemptAt: new Date(),
+    outcomeAt,
     outcome: "succeeded",
   });
   // Also outside any try that could reach failDelivery: a metric must never

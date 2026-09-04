@@ -1,6 +1,8 @@
 import type { z } from "zod";
 import type {
+  AlertingChannelConfigInputSchema,
   AlertingChannelConfigSchema,
+  AlertingDefaultDestinationInputSchema,
   AlertingMatcherSchema,
   AlertingRuleConditionSchema,
   AlertingRuleHealthStatusSchema,
@@ -35,4 +37,22 @@ export type AlertingEvaluationSample = {
 /** Evaluation history returned to the alert signal chart. */
 
 export type AlertingChannelConfig = z.infer<typeof AlertingChannelConfigSchema>;
+export type AlertingChannelConfigInput = z.infer<
+  typeof AlertingChannelConfigInputSchema
+>;
+
+/** A channel as the app reads it: the config comes back with its secrets
+ *  redacted, so this is never a value that can send anything. */
+export type AlertingChannel = {
+  id: string;
+  tenant: string;
+  name: string;
+  config: AlertingChannelConfig;
+};
 export type AlertingSilenceInput = z.infer<typeof AlertingSilenceInputSchema>;
+
+/** The default destination by tier, as channel names. A tier absent from
+ *  the record has no channels. The same shape going in and coming out. */
+export type AlertingDefaultDestination = z.infer<
+  typeof AlertingDefaultDestinationInputSchema
+>;

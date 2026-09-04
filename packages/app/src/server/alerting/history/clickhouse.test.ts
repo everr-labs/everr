@@ -305,18 +305,17 @@ describe("ClickHouse alert history", () => {
       def,
       notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       dedupKey: "group-1:slack:on-call",
-      deliveryCreatedAt,
-      attemptAt: occurredAt,
+      outcomeAt: occurredAt,
       fingerprint: "api",
       labels: { service: "api" },
       deliveryTargets: { slack: ["on-call"] },
       outcome: "succeeded" as const,
     };
     const sent = deliveryHistoryRow(opts);
-    // The retry after a failed status write: same delivery, later attempt.
+    // A racing sender reads the timestamp committed by the winning status
+    // transition, so it rebuilds the same success row.
     const sentAgain = deliveryHistoryRow({
       ...opts,
-      attemptAt: new Date(occurredAt.getTime() + 30_000),
     });
     const failed = deliveryHistoryRow({
       ...opts,
@@ -335,7 +334,8 @@ describe("ClickHouse alert history", () => {
     // A retry that re-records the same outcome converges on the same row,
     // every byte of it: one differing column is a second permanent row.
     expect(sentAgain).toEqual(sent);
-    expect(sent.event_time).toBe(deliveryCreatedAt.toISOString());
+    expect(sent.event_time).toBe(occurredAt.toISOString());
+    expect(sent.event_time).not.toBe(deliveryCreatedAt.toISOString());
     // A failure keeps its own row per attempt, so it keeps the attempt time.
     expect(failed.event_time).toBe(occurredAt.toISOString());
     expect(failed.event_type).toBe("delivery_failed");
@@ -352,8 +352,7 @@ describe("ClickHouse alert history", () => {
       def,
       notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       dedupKey: "group-1:slack:on-call",
-      deliveryCreatedAt,
-      attemptAt: occurredAt,
+      outcomeAt: occurredAt,
       fingerprint: "api",
       labels: { service: "api" },
       deliveryTargets: { slack: ["on-call"] },

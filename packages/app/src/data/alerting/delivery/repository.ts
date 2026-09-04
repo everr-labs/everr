@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, countDistinct, eq, sql } from "drizzle-orm";
+import { and, asc, countDistinct, eq, inArray, sql } from "drizzle-orm";
 import { deliveryIsInFlight } from "@/data/alerting/delivery/config";
+import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
 import { type DbExecutor, db } from "@/db/client";
-import { alertChannels, alertDeliveries } from "@/db/schema";
+import {
+  alertChannels,
+  alertDefaultChannels,
+  alertDeliveries,
+} from "@/db/schema";
 import { truncateWithEllipsis } from "@/lib/truncate";
 import { sanitizeAlertError } from "@/server/alerting/history/content";
 import {
@@ -11,26 +16,76 @@ import {
   translateAlertingConflict,
 } from "../persistence";
 import {
-  AlertingChannelConfigSchema,
   AlertingChannelInputSchema,
+  AlertingChannelTestInputSchema,
   AlertingChannelUpdateSchema,
+  AlertingDefaultDestinationInputSchema,
 } from "../schema";
 import type { AlertingMutationScope } from "../session";
-import type { AlertingChannelConfig } from "../types";
+import type {
+  AlertingChannel,
+  AlertingChannelConfig,
+  AlertingChannelConfigInput,
+  AlertingDefaultDestination,
+} from "../types";
 import {
   decryptChannelConfig,
   encryptChannelConfig,
-  redactChannelConfig,
-  retainRedactedChannelSecrets,
+  readRedactedChannelConfig,
 } from "./channel-secrets.server";
 
-function channelView(row: typeof alertChannels.$inferSelect) {
+/** Turn a write draft into a config that can actually send. Omission retains
+ *  a secret only when the saved transport has the same type. */
+function resolveChannelConfig(
+  input: AlertingChannelConfigInput,
+  previous: AlertingChannelConfig | null,
+): AlertingChannelConfig {
+  switch (input.type) {
+    case "webhook":
+    case "slack":
+    case "discord": {
+      const url =
+        input.url ?? (previous?.type === input.type ? previous.url : undefined);
+      if (!url) {
+        throwAlertingPersistenceError(
+          422,
+          "validation",
+          `${input.type} URL is required`,
+        );
+      }
+      return { type: input.type, url };
+    }
+    case "telegram": {
+      const botToken =
+        input.bot_token ??
+        (previous?.type === "telegram" ? previous.bot_token : undefined);
+      if (!botToken) {
+        throwAlertingPersistenceError(
+          422,
+          "validation",
+          "telegram bot token is required",
+        );
+      }
+      return {
+        type: "telegram",
+        bot_token: botToken,
+        chat_ids: input.chat_ids,
+      };
+    }
+  }
+}
+
+/** A channel as a screen reads it. The envelope carries the redacted copy,
+ *  so listing every channel touches no key. */
+function channelView(row: typeof alertChannels.$inferSelect): AlertingChannel {
   return {
     id: row.id,
     tenant: row.organizationId,
     name: row.name,
-    config: redactChannelConfig(
-      decryptChannelConfig(row.organizationId, row.id, row.encryptedConfig),
+    config: readRedactedChannelConfig(
+      row.organizationId,
+      row.id,
+      row.encryptedConfig,
     ),
   };
 }
@@ -52,6 +107,7 @@ export async function createChannel(
   rawInput: unknown,
 ) {
   const input = parseAlertingInput(AlertingChannelInputSchema, rawInput);
+  const config = resolveChannelConfig(input.config, null);
   const id = randomUUID();
   const [row] = await translateAlertingConflict(() =>
     db
@@ -60,7 +116,7 @@ export async function createChannel(
         id,
         organizationId,
         name: input.name,
-        encryptedConfig: encryptChannelConfig(organizationId, id, input.config),
+        encryptedConfig: encryptChannelConfig(organizationId, id, config),
       })
       .returning(),
   );
@@ -115,7 +171,7 @@ export async function updateChannel(
     previous.encryptedConfig,
   );
   const nextConfig = input.config
-    ? retainRedactedChannelSecrets(input.config, previousConfig)
+    ? resolveChannelConfig(input.config, previousConfig)
     : previousConfig;
   const [row] = await translateAlertingConflict(() =>
     db
@@ -207,14 +263,20 @@ function testChannelError(cause: unknown): string {
   );
 }
 
-export async function testChannel(
-  _organizationId: string,
-  body: { config: AlertingChannelConfig },
-) {
+export async function testChannel(organizationId: string, body: unknown) {
   const started = performance.now();
   try {
     const { sendChannelTest } = await import("./channel-sender.server");
-    await sendChannelTest(AlertingChannelConfigSchema.parse(body.config));
+    const input = parseAlertingInput(AlertingChannelTestInputSchema, body);
+    const stored =
+      input.source.kind === "saved"
+        ? await getChannelRow(organizationId, input.source.name)
+        : null;
+    const previous = stored
+      ? decryptChannelConfig(organizationId, stored.id, stored.encryptedConfig)
+      : null;
+    const config = resolveChannelConfig(input.config, previous);
+    await sendChannelTest(config);
     return { ok: true, latency_ms: Math.round(performance.now() - started) };
   } catch (cause) {
     return {
@@ -223,4 +285,98 @@ export async function testChannel(
       error: testChannelError(cause),
     };
   }
+}
+
+export async function listDefaultDestination(
+  organizationId: string,
+): Promise<AlertingDefaultDestination> {
+  const rows = await db
+    .select({
+      tier: alertDefaultChannels.tier,
+      channelName: alertChannels.name,
+    })
+    .from(alertDefaultChannels)
+    .innerJoin(
+      alertChannels,
+      and(
+        eq(alertDefaultChannels.organizationId, alertChannels.organizationId),
+        eq(alertDefaultChannels.channelId, alertChannels.id),
+      ),
+    )
+    .where(eq(alertDefaultChannels.organizationId, organizationId))
+    .orderBy(asc(alertDefaultChannels.tier), asc(alertChannels.name));
+  const tiers: AlertingDefaultDestination["tiers"] = {};
+  for (const row of rows) {
+    const list = tiers[row.tier] ?? [];
+    list.push(row.channelName);
+    tiers[row.tier] = list;
+  }
+  return { tiers };
+}
+
+/**
+ * Replace the default destination wholesale. The two modes are exclusive:
+ * "all" alone, or any of the severity tiers. Every named channel has to
+ * exist, because a default row is a foreign key to the channel and a name
+ * nobody has would otherwise fail deep in the insert with a message about
+ * ids.
+ */
+export async function setDefaultDestination(
+  { organizationId }: AlertingMutationScope,
+  rawInput: unknown,
+): Promise<AlertingDefaultDestination> {
+  const input = parseAlertingInput(
+    AlertingDefaultDestinationInputSchema,
+    rawInput,
+  );
+  const entries = Object.entries(input.tiers) as [
+    AlertingDefaultTier,
+    string[],
+  ][];
+  if ("all" in input.tiers && entries.length > 1) {
+    throwAlertingPersistenceError(
+      422,
+      "validation",
+      'the "all" tier cannot be combined with severity tiers',
+    );
+  }
+  const names = [...new Set(entries.flatMap(([, channels]) => channels))];
+  const resolved =
+    names.length === 0
+      ? []
+      : await db
+          .select({ id: alertChannels.id, name: alertChannels.name })
+          .from(alertChannels)
+          .where(
+            and(
+              eq(alertChannels.organizationId, organizationId),
+              inArray(alertChannels.name, names),
+            ),
+          );
+  const idByName = new Map(resolved.map((row) => [row.name, row.id]));
+  const missing = names.filter((name) => !idByName.has(name));
+  if (missing.length > 0) {
+    throwAlertingPersistenceError(
+      422,
+      "validation",
+      `Unknown channels: ${missing.join(", ")}`,
+    );
+  }
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(alertDefaultChannels)
+      .where(eq(alertDefaultChannels.organizationId, organizationId));
+    // Unique within a tier already: the schema refused duplicates.
+    const values = entries.flatMap(([tier, channels]) =>
+      channels.map((name) => ({
+        organizationId,
+        tier,
+        channelId: idByName.get(name) as string,
+      })),
+    );
+    if (values.length > 0) {
+      await tx.insert(alertDefaultChannels).values(values);
+    }
+  });
+  return listDefaultDestination(organizationId);
 }

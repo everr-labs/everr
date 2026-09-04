@@ -17,7 +17,7 @@ Your first channel automatically becomes the default destination, so creating on
 
 ## Channels
 
-A channel is a named delivery endpoint, created and deleted on the Notifications page. Channel types: **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **Discord** (a [channel webhook](https://support.discord.com/hc/en-us/articles/228383668) URL), **webhook** (any HTTPS endpoint), and **Telegram** (a bot token and chat IDs, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
+A channel is a named delivery endpoint, created on the Notifications page with **New channel** and edited or deleted from its row. Each row shows what the channel receives, how many notifications reached it in the selected time range, how many never got through, and when it last sent. Channel types: **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **Discord** (a [channel webhook](https://support.discord.com/hc/en-us/articles/228383668) URL), **webhook** (any HTTPS endpoint), and **Telegram** (a bot token and chat IDs, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
 
 Webhook URLs (generic, Slack, and Discord) and Telegram bot tokens are write-only: after saving, Everr shows them redacted (`***`). To rotate a redacted secret, edit the channel and enter the new value; the secret fields start blank on edit precisely because the stored values are never shown again. Names are editable labels.
 
@@ -25,13 +25,13 @@ Channels can always be deleted. A deleted channel drops out of the default desti
 
 ## The default destination
 
-The **Delivery** card on the Notifications page shows where alerts go. By default it is one row: **All alerts** and its channel list.
+The **Default targets** list on the Notifications page shows where alerts go. By default it is one row: **All alerts** and its channels. Each channel's row also says what it receives, and the **Not delivered** list names every tier or rule whose alerts had no channel in the selected time range, with the one action that closes the gap.
 
-**Split by severity** to send different severities different places: one channel list each for `critical`, `warning`, and `info`. `severity` is set on every alert rule (see [the AlertRule spec](/docs/reference/alert-spec#spec)). A tier with no channels is a delivery gap: those alerts are not delivered, and the Triage board says so. A rule that names a channel of its own is treated as delivered there, so the board does not catch a rule pointing at a name that no longer exists.
+Open **Edit delivery** and **Split by severity** to send different severities different places: one channel list each for `critical`, `warning`, and `info`. `severity` is set on every alert rule (see [the AlertRule spec](/docs/reference/alert-spec#spec)). A tier with no channels is a delivery gap: those alerts are not delivered, and the Triage board says so. A rule that names a channel of its own is treated as delivered there, so the board does not catch a rule pointing at a name that no longer exists.
 
 ## Rule overrides
 
-A rule that names `spec.notifications.channels` in its YAML delivers to exactly those channels and skips the default destination. The **Rule overrides** card lists these rules read-only; overrides are changed in the rule's YAML and applied as code. See [the AlertRule spec](/docs/reference/alert-spec#notification-destination).
+A rule that names `spec.notifications.channels` in its YAML delivers to exactly those channels and skips the default destination. The **Rule overrides** list shows these rules read-only; overrides are changed in the rule's YAML and applied as code. See [the AlertRule spec](/docs/reference/alert-spec#notification-destination).
 
 ## Grouping and timing
 

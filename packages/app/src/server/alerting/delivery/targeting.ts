@@ -3,6 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import {
   ALERTING_DEFAULT_GROUP_BY,
   type AlertingDefaultTier,
+  defaultTierFor,
 } from "@/data/alerting/delivery/defaults";
 import { db } from "@/db/client";
 import {
@@ -103,11 +104,10 @@ async function defaultDispatchTarget(
         inArray(alertDefaultChannels.tier, ["all", event.severity]),
       ),
     );
-  const tier = tiers.some((row) => row.tier === "all")
-    ? ("all" as const)
-    : tiers.length > 0
-      ? event.severity
-      : null;
+  const tier = defaultTierFor(
+    tiers.map((row) => row.tier),
+    event.severity,
+  );
   if (tier === null) return null;
 
   return {
