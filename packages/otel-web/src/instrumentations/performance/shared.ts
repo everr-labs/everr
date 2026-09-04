@@ -1,3 +1,4 @@
+import type { TimeInput } from "@opentelemetry/api";
 import type { AttrValue, Emit } from "../../pipeline/emitter.js";
 import { uniqueId } from "../../state/session.js";
 import type { WebVitalName } from "./index.js";
@@ -27,21 +28,26 @@ export function emitVital(
   value: number,
   restored: boolean,
   extra: Attrs,
+  timestamp?: TimeInput,
 ): void {
   const [ni, poor] = THRESHOLDS[name];
-  emit("browser.web_vital", {
-    "browser.web_vital.name": name,
-    "browser.web_vital.value": value,
-    "browser.web_vital.delta": value,
-    // The SDK sends a maximum of one record for each metric in each navigation
-    // period. Thus the code can make the id when it sends the record, and the
-    // result is the same as an id that it makes at the start of the period.
-    "browser.web_vital.id": uniqueId(),
-    "everr.browser.web_vital.rating":
-      value > poor ? "poor" : value > ni ? "needs-improvement" : "good",
-    "everr.browser.web_vital.navigation_type": navigationType(restored),
-    ...extra,
-  });
+  emit(
+    "browser.web_vital",
+    {
+      "browser.web_vital.name": name,
+      "browser.web_vital.value": value,
+      "browser.web_vital.delta": value,
+      // The SDK sends a maximum of one record for each metric in each navigation
+      // period. Thus the code can make the id when it sends the record, and the
+      // result is the same as an id that it makes at the start of the period.
+      "browser.web_vital.id": uniqueId(),
+      "everr.browser.web_vital.rating":
+        value > poor ? "poor" : value > ni ? "needs-improvement" : "good",
+      "everr.browser.web_vital.navigation_type": navigationType(restored),
+      ...extra,
+    },
+    timestamp,
+  );
 }
 
 /**

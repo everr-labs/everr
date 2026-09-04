@@ -48,6 +48,28 @@ Without a key or an endpoint, a production build resolves to an inert client tha
 
 Wrap any instrumentation in `sampled(instrumentation, rate)` to capture a fraction of sessions, for example `sampled(pageLoad(), 0.1)`.
 
+### Event and span timestamps
+
+Custom instrumentations can set the time when an event happened. The timestamp accepts the OpenTelemetry `TimeInput` forms: epoch milliseconds, a DOM high-resolution timestamp such as `Event.timeStamp` or `PerformanceEntry.startTime`, a `Date`, or an HrTime tuple. Without it, the timestamp is the instant `emit` is called.
+
+```ts
+const checkoutTiming: Instrumentation = ({ emit, tracer }) => {
+  const onClick = (event: MouseEvent) => {
+    emit("checkout.started", {}, event.timeStamp);
+
+    const span = tracer.startSpan("prepare checkout", {
+      startTime: event.timeStamp,
+    });
+    prepareCheckout().finally(() => span.end());
+  };
+
+  addEventListener("click", onClick);
+  return () => removeEventListener("click", onClick);
+};
+```
+
+The tracer follows the same OpenTelemetry contract through `startTime` and `span.end(endTime)`. Built-in instrumentations timestamp web vitals and interactions from their browser performance entries or DOM events, even when the SDK reports them later.
+
 ## Manual capture
 
 ```ts

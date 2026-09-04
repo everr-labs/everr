@@ -27,6 +27,8 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 
 ## Log Events (`EventName` column)
 
+`Timestamp` is the time the event occurred, not the time a delayed observer reported it or a batch sent it. TTFB uses `responseStart`, LCP uses the chosen paint, CLS uses the last contributing shift in the selected session window, and INP uses the initial input. Click, change, and submit use the DOM event time. A rage click uses the first click in its burst. A custom instrumentation can pass any OpenTelemetry time input with `ctx.emit(name, attributes, timestamp)`; omission defaults to the instant `emit` is called.
+
 | EventName | Meaning | Key attributes |
 | --- | --- | --- |
 | `everr.browser.page_view` | One per hard navigation and per SPA navigation | `everr.navigation.type` (`initial` or `history_change`) |

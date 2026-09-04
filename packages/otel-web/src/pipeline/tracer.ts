@@ -23,14 +23,15 @@
 // span. The end() of a span removes it from the stack, in any sequence. The
 // tracer ignores the context argument of the two functions.
 
-import type { Exception, Span, SpanOptions, Tracer } from "@opentelemetry/api";
+import type {
+  Exception,
+  Span,
+  SpanOptions,
+  TimeInput,
+  Tracer,
+} from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
 import type { AttrValue, EmitSpan } from "./emitter.js";
-
-// Changes an OTel TimeInput to milliseconds from the epoch. For an hrtime value
-// and a Date value, the code uses the current time.
-const toMs = (time: unknown): number | undefined =>
-  typeof time === "number" ? time : undefined;
 
 export function createTracer(emitSpan: EmitSpan): Tracer {
   // The active spans, the most recent last.
@@ -50,7 +51,7 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
       traceFlags: 1, // always sampled
     };
     const attributes: Record<string, AttrValue> = {};
-    const start = toMs(options?.startTime) ?? Date.now();
+    const start: TimeInput = options?.startTime ?? Date.now();
     let spanName = name;
     let ended = false;
     let errored = false;
@@ -104,7 +105,7 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
           spanContext.spanId,
           spanName,
           start,
-          toMs(endTime) ?? Date.now(),
+          endTime ?? Date.now(),
           attributes,
           errored,
           parent?.spanId,

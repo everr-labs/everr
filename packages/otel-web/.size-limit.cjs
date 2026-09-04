@@ -12,7 +12,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK }",
     gzip: true,
-    limit: "3.5 KB",
+    limit: "3.6 KB",
   },
   {
     // Raised for the parent span support in the tracer.
@@ -20,7 +20,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, errors }",
     gzip: true,
-    limit: "4.1 KB",
+    limit: "4.2 KB",
   },
   {
     // Raised for the exit-flush budget code (refer to pipeline/emitter.ts)
@@ -29,7 +29,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, pageviews }",
     gzip: true,
-    limit: "3.7 KB",
+    limit: "3.8 KB",
   },
   {
     // Raised for the naming attributes in the element selector.
@@ -64,7 +64,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, network }",
     gzip: true,
-    limit: "4 KB",
+    limit: "4.1 KB",
   },
   {
     // All instrumentation factories composed: verifies the sampled runtime is
@@ -75,6 +75,6 @@ module.exports = [
     import:
       "{ WebSDK, errors, pageviews, interactions, performance, pageLoad, network, sampled }",
     gzip: true,
-    limit: "9.8 KB",
+    limit: "10 KB",
   },
 ];

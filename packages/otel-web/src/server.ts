@@ -37,6 +37,7 @@
 // program of this package. That program has no Node types, and this is
 // correct.
 import { capture } from "@everr/otel-errors/core";
+import type { TimeInput } from "@opentelemetry/api";
 import { context } from "@opentelemetry/api";
 import {
   type LogAttributes,
@@ -203,8 +204,10 @@ const emitVia = (
     severityNumber: number,
     body: string,
     attributes: Record<string, AttrValue | null | undefined> | undefined,
+    timestamp?: TimeInput,
   ): void =>
     otelLogger.emit({
+      timestamp,
       severityNumber,
       // The code reads the enum with this index. Each emit path in this
       // package sets the severity. If the number is not in the enum, the
@@ -215,12 +218,18 @@ const emitVia = (
       context: context.active(),
     });
 
-  return (eventName, attributes, severityNumber = 9, body = eventName) => {
+  return (
+    eventName,
+    attributes,
+    timestamp,
+    severityNumber = 9,
+    body = eventName,
+  ) => {
     // Without a hook the code sends the attributes of the caller directly. The
     // copy below exists only to keep a hook that changes the item away from
     // the object of the caller.
     if (!beforeSend) {
-      write(severityNumber, body, attributes);
+      write(severityNumber, body, attributes, timestamp);
       return;
     }
     const item = applyBeforeSend({
@@ -231,7 +240,7 @@ const emitVia = (
       body,
     });
     if (item?.kind !== "log") return;
-    write(item.severityNumber, item.body, item.attributes);
+    write(item.severityNumber, item.body, item.attributes, timestamp);
   };
 };
 

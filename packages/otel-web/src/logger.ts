@@ -14,7 +14,7 @@ import { currentEmit } from "./state/emit.js";
 const level =
   (severityNumber: number) =>
   (body: string, attributes?: Record<string, AttrValue | null | undefined>) =>
-    currentEmit()?.("", attributes, severityNumber, body);
+    currentEmit()?.("", attributes, undefined, severityNumber, body);
 
 /** Sends a custom log on the SDK pipeline. The log carries the envelope, and
  * the SDK puts it in a batch. */

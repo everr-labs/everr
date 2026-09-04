@@ -25,6 +25,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- Events now carry the time they occurred instead of the later reporting time. `InstrumentationContext.emit` accepts an optional timestamp, and the tracer supports every OpenTelemetry `TimeInput` form. Web vitals and user interactions use their browser performance or DOM event timestamps.
+
 ### Breaking: capture is opt-in only
 
 `init` now wires pipeline, transport, and identity and captures nothing by

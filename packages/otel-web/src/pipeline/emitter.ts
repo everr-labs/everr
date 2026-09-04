@@ -9,6 +9,7 @@
 // an intValue is a decimal string. The other internal structures use tuples,
 // because minification keeps the property names but it does not keep the tuple
 // indexes.
+import type { TimeInput } from "@opentelemetry/api";
 import type { Send, Signal } from "./transport.js";
 
 export type AttrValue = string | number | boolean;
@@ -68,6 +69,7 @@ export type Emit = (
   // a cast, and an editor can still complete the EventName union.
   eventName: EventName | "" | (string & {}),
   attributes?: Record<string, AttrValue | null | undefined>,
+  timestamp?: TimeInput,
   severityNumber?: number,
   body?: string,
 ) => void;
@@ -82,8 +84,8 @@ export type EmitSpan = (
   traceId: string,
   spanId: string,
   name: string,
-  startEpochMs: number,
-  endEpochMs: number,
+  startTime: TimeInput,
+  endTime: TimeInput,
   attributes: Record<string, AttrValue | null | undefined>,
   error?: boolean,
   parentSpanId?: string,
@@ -211,6 +213,24 @@ function toKeyValues(
   // getter that returns null.
   return Object.entries(attributes).flatMap(([key, value]) =>
     value == null ? [] : [{ key, value: toAnyValue(value) }],
+  );
+}
+
+/** Converts the standard OTel time inputs to the decimal OTLP nanosecond form. */
+function toUnixNano(time: TimeInput): string {
+  if (Array.isArray(time)) {
+    return String(BigInt(time[0]) * 1_000_000_000n + BigInt(time[1]));
+  }
+  let milliseconds = typeof time === "number" ? time : time.getTime();
+  // A numeric OTel TimeInput before the document's time origin is a DOM
+  // high-resolution timestamp such as Event.timeStamp or an entry.startTime.
+  if (typeof time === "number" && time < performance.timeOrigin) {
+    milliseconds += performance.timeOrigin;
+  }
+  const whole = Math.trunc(milliseconds);
+  return String(
+    BigInt(whole) * 1_000_000n +
+      BigInt(Math.round((milliseconds - whole) * 1_000_000)),
   );
 }
 
@@ -388,11 +408,14 @@ export function createEmitter(
   const emit: Emit = (
     eventName,
     attributes,
+    time,
     severityNumber = 9, // INFO
-    // The default body is the event name. Thus a log viewer shows a line that
-    // the user can read.
     body = eventName,
   ) => {
+    // Read this before the hook. The default is the instant emit was called,
+    // even when a host hook does synchronous work before the item is queued.
+    const timestamp =
+      time === undefined ? `${Date.now()}000000` : toUnixNano(time);
     const item = applyBeforeSend({
       kind: "log",
       eventName,
@@ -405,7 +428,7 @@ export function createEmitter(
     // at run time.
     if (item?.kind !== "log") return;
     queue.push({
-      timeUnixNano: `${Date.now()}000000`,
+      timeUnixNano: timestamp,
       severityNumber: item.severityNumber,
       eventName: item.eventName,
       body: toAnyValue(item.body),
@@ -418,8 +441,8 @@ export function createEmitter(
     traceId,
     spanId,
     name,
-    startEpochMs,
-    endEpochMs,
+    startTime,
+    endTime,
     attributes,
     error,
     parentSpanId,
@@ -442,8 +465,8 @@ export function createEmitter(
       parentSpanId,
       name: item.name,
       kind: 3, // SPAN_KIND_CLIENT
-      startTimeUnixNano: `${startEpochMs}000000`,
-      endTimeUnixNano: `${endEpochMs}000000`,
+      startTimeUnixNano: toUnixNano(startTime),
+      endTimeUnixNano: toUnixNano(endTime),
       attributes: toKeyValues(item.attributes),
       // This is STATUS_CODE_ERROR. If not, the field is absent and thus Unset,
       // because JSON removes a value of undefined.

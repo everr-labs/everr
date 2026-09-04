@@ -34,7 +34,9 @@ const TEXT_SELECTION_TARGET =
 export function startInteractions(emit: Emit): () => void {
   // The limits for a rage click. Three clicks in an area of 30 px, with an
   // interval of a maximum of 1 s between them, make a rage click.
-  let rage: [x: number, y: number, at: number, count: number] | undefined;
+  let rage:
+    | [x: number, y: number, at: number, count: number, first: number]
+    | undefined;
 
   const onClick = (event: MouseEvent) => {
     const el = targetOf(event);
@@ -49,27 +51,28 @@ export function startInteractions(emit: Emit): () => void {
 
     // The position and the time are always the values of this click: the
     // window follows the pointer. Only the count carries the history.
-    const now = Date.now();
-    rage = [
-      x,
-      y,
-      now,
+    const now = event.timeStamp;
+    let count = 1;
+    let first = now;
+    if (
       rage &&
       now - rage[2] <= 1_000 &&
       Math.hypot(x - rage[0], y - rage[1]) <= 30
-        ? rage[3] + 1
-        : 1,
-    ];
+    ) {
+      count = rage[3] + 1;
+      first = rage[4];
+    }
+    rage = [x, y, now, count, first];
     // The test is on the count of exactly 3, and the code does not remove the
     // window after it sends the record. Thus one continuous burst makes one
     // rage click and not one for each three clicks: the count continues to 4,
     // to 5, and more, and it agrees with 3 no more.
     if (rage[3] === 3 && !el.closest(TEXT_SELECTION_TARGET)) {
-      emit("everr.browser.interaction.rage_click", attributes);
+      emit("everr.browser.interaction.rage_click", attributes, rage[4]);
     }
     // The rage click does not replace the click. Each click makes its own
     // record, and thus a count of the clicks on an element is correct.
-    emit("everr.browser.interaction.click", attributes);
+    emit("everr.browser.interaction.click", attributes, event.timeStamp);
   };
 
   // The listener uses the capture phase. Thus it receives a click also when a
@@ -85,7 +88,7 @@ export function startInteractions(emit: Emit): () => void {
     // The record carries no content of the DOM in the two conditions.
     const el = targetOf(event);
     if (!el) return;
-    emit("everr.browser.interaction.change", elementAttrs(el));
+    emit("everr.browser.interaction.change", elementAttrs(el), event.timeStamp);
   };
 
   const onSubmit = (event: Event) => {
@@ -97,7 +100,7 @@ export function startInteractions(emit: Emit): () => void {
     const submitter = (event as SubmitEvent).submitter;
     const el = submitter ? guardOf(submitter) : null;
     if (!el) return;
-    emit("everr.browser.interaction.submit", elementAttrs(el));
+    emit("everr.browser.interaction.submit", elementAttrs(el), event.timeStamp);
   };
 
   addEventListener("change", onChange, true);

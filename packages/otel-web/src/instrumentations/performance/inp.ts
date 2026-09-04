@@ -328,12 +328,19 @@ export function startInp(
     // including the element data. It does not use the key names from
     // web-vitals. Thus the vital and the slow record that it connects to give
     // the same information with the same keys.
-    emitVital(emit, "inp", latency, restored, {
-      "everr.browser.interaction.id": id,
-      "everr.browser.interaction.name": entry.name,
-      ...attrs,
-      ...phaseAttrs(entry, frame, intersectingLoAFs),
-    });
+    emitVital(
+      emit,
+      "inp",
+      latency,
+      restored,
+      {
+        "everr.browser.interaction.id": id,
+        "everr.browser.interaction.name": entry.name,
+        ...attrs,
+        ...phaseAttrs(entry, frame, intersectingLoAFs),
+      },
+      entry.startTime,
+    );
   };
 
   let po: PerformanceObserver | undefined;

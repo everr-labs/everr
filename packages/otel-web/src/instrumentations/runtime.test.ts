@@ -87,6 +87,22 @@ describe("instrumentation runtime", () => {
     expect(a["everr.visitor.id"]).toMatch(UNIQUE_ID);
   });
 
+  it("lets an instrumentation timestamp an event when it happened", async () => {
+    start({
+      instrumentations: [
+        (ctx) => {
+          ctx.emit(
+            "everr.test.delayed_event",
+            { "everr.test.delay_ms": 5_000 },
+            [1_725_000_000, 123_000_000],
+          );
+        },
+      ],
+    });
+    const [record] = await records();
+    expect(record.timeUnixNano).toBe("1725000000123000000");
+  });
+
   it("per-record attributes win over the envelope", async () => {
     start({
       instrumentations: [
