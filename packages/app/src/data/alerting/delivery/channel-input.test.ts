@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   channelConfigDraft,
   channelConfigInput,
-  channelConfigIsTestable,
   EMPTY_CHANNEL_DRAFT,
 } from "./channel-input";
 
@@ -37,22 +36,19 @@ describe("channelConfigInput", () => {
   });
 
   it("keeps the stored secret when the field is left blank on an edit", () => {
-    expect(channelConfigInput(channelConfigDraft(SLACK), SLACK)).toEqual({
+    expect(channelConfigInput(channelConfigDraft(SLACK), "slack")).toEqual({
       type: "slack",
-      url: "***",
     });
-    expect(channelConfigInput(channelConfigDraft(TELEGRAM), TELEGRAM)).toEqual({
-      type: "telegram",
-      bot_token: "***",
-      chat_ids: ["-100"],
-    });
+    expect(
+      channelConfigInput(channelConfigDraft(TELEGRAM), "telegram"),
+    ).toEqual({ type: "telegram", chat_ids: ["-100"] });
   });
 
   it("replaces the stored secret with what was typed", () => {
     expect(
       channelConfigInput(
         { ...channelConfigDraft(SLACK), url: "https://y" },
-        SLACK,
+        "slack",
       ),
     ).toEqual({ type: "slack", url: "https://y" });
   });
@@ -61,7 +57,7 @@ describe("channelConfigInput", () => {
     expect(
       channelConfigInput(
         { ...channelConfigDraft(SLACK), type: "webhook" },
-        SLACK,
+        "slack",
       ),
     ).toBeNull();
   });
@@ -74,15 +70,10 @@ describe("channelConfigInput", () => {
       ),
     ).toBeNull();
   });
-});
 
-describe("channelConfigIsTestable", () => {
-  it("can test a saved channel through the secret the server holds", () => {
-    expect(channelConfigIsTestable(SLACK)).toBe(false);
-    expect(channelConfigIsTestable(SLACK, true)).toBe(true);
-    expect(channelConfigIsTestable({ type: "slack", url: "https://x" })).toBe(
-      true,
-    );
-    expect(channelConfigIsTestable(TELEGRAM)).toBe(false);
+  it("does not turn the read-side marker into a write", () => {
+    expect(
+      channelConfigInput({ ...EMPTY_CHANNEL_DRAFT, url: "***" }, null),
+    ).toBeNull();
   });
 });

@@ -116,9 +116,8 @@ export const AlertingRuleViewSchema = AlertingRuleSchema.extend({
   previewStatus: PreviewStatusSchema.optional(),
 });
 
-// Secret fields come back redacted ("***") on read.
-/** What a read returns in place of a channel's secret, and what a write
- *  sends back to say "keep the stored one". */
+// Secret fields come back redacted ("***") on read. Writes never accept the
+// marker: an omitted secret is the only way to retain a saved one.
 export const ALERTING_REDACTED_SECRET = "***";
 
 export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
@@ -128,6 +127,35 @@ export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("telegram"),
     bot_token: z.string(),
+    chat_ids: z.array(z.string()),
+  }),
+]);
+
+const AlertingChannelSecretInputSchema = z
+  .string()
+  .min(1, { error: "channel secret is required" })
+  .refine((secret) => secret !== ALERTING_REDACTED_SECRET, {
+    error: "the redacted channel secret cannot be written",
+  });
+
+/** What create, update, and test accept. A saved channel may omit its secret;
+ *  the repository decides whether there is a same-type secret to retain. */
+export const AlertingChannelConfigInputSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("webhook"),
+    url: AlertingChannelSecretInputSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("slack"),
+    url: AlertingChannelSecretInputSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("discord"),
+    url: AlertingChannelSecretInputSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("telegram"),
+    bot_token: AlertingChannelSecretInputSchema.optional(),
     chat_ids: z.array(z.string()),
   }),
 ]);
@@ -145,13 +173,21 @@ export const AlertingChannelNameSchema = z
 
 export const AlertingChannelInputSchema = z.object({
   name: AlertingChannelNameSchema,
-  config: AlertingChannelConfigSchema,
+  config: AlertingChannelConfigInputSchema,
 });
 
 // Both halves are optional: an edit names only what it changes. Omitting the
 // config is what lets a rename leave the credential alone without the caller
 // having to read it back first, which it could not do anyway.
 export const AlertingChannelUpdateSchema = AlertingChannelInputSchema.partial();
+
+export const AlertingChannelTestInputSchema = z.object({
+  source: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("new") }),
+    z.object({ kind: z.literal("saved"), name: AlertingChannelNameSchema }),
+  ]),
+  config: AlertingChannelConfigInputSchema,
+});
 
 // The org default destination, keyed by tier. "all" is the unsplit mode and
 // never coexists with severity tiers; the repository enforces that, since a

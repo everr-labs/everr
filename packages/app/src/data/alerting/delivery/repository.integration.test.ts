@@ -120,10 +120,9 @@ describe("testing a saved channel", () => {
 
     await expect(
       testChannel(TEST_ORG, {
-        name: "pager",
+        source: { kind: "saved", name: "pager" },
         config: {
           type: "telegram",
-          bot_token: "***",
           chat_ids: ["new-chat"],
         },
       }),

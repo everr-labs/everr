@@ -153,32 +153,3 @@ function redactChannelConfig(
       return { ...config, url: REDACTED };
   }
 }
-
-export function retainRedactedChannelSecrets(
-  next: AlertingChannelConfig,
-  previous: AlertingChannelConfig,
-): AlertingChannelConfig {
-  if (next.type !== previous.type) return next;
-  switch (next.type) {
-    case "telegram":
-      return {
-        ...next,
-        bot_token:
-          next.bot_token === REDACTED
-            ? previous.type === "telegram"
-              ? previous.bot_token
-              : next.bot_token
-            : next.bot_token,
-      };
-    case "discord":
-    case "slack":
-    case "webhook":
-      return {
-        ...next,
-        url:
-          next.url === REDACTED && previous.type === next.type
-            ? previous.url
-            : next.url,
-      };
-  }
-}

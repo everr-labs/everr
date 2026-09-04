@@ -10,6 +10,7 @@ import {
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { OptionCombobox } from "@everr/ui/components/option-combobox";
+import { SecretInput } from "@everr/ui/components/secret-input";
 import { TagsInput } from "@everr/ui/components/tags-input";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation } from "@tanstack/react-query";
@@ -19,12 +20,11 @@ import {
   type ChannelType,
   channelConfigDraft,
   channelConfigInput,
-  channelConfigIsTestable,
   EMPTY_CHANNEL_DRAFT,
 } from "@/data/alerting/delivery/channel-input";
 import { testAlertingChannel } from "@/data/alerting/delivery/server";
 import type { NotificationChannelView } from "@/data/alerting/delivery/view";
-import type { AlertingChannelConfig } from "@/data/alerting/types";
+import type { AlertingChannelConfigInput } from "@/data/alerting/types";
 import { CHANNEL_OPTIONS, CHANNEL_URL_FIELD } from "./channel-mark";
 
 /** What the dialog is open on: a channel to make, seeded with a name when a
@@ -33,11 +33,11 @@ export type ChannelTarget =
   | { mode: "new"; name: string }
   | { mode: "edit"; channel: NotificationChannelView };
 
-/** What the dialog hands back on save. On an edit, a secret left blank is
- *  the redacted marker, so the server keeps the stored one. */
+/** What the dialog hands back on save. On a same-type edit, a secret left
+ *  blank is omitted so the server can retain the stored one. */
 export type ChannelDraft = {
   name: string;
-  config: AlertingChannelConfig;
+  config: AlertingChannelConfigInput;
 };
 
 export function ChannelDialog({
@@ -75,7 +75,6 @@ export function ChannelDialog({
           target={target}
           existingNames={channels.map((c) => c.name)}
           pending={pending}
-          onClose={onClose}
           onSave={onSave}
           onDelete={onDelete}
         />
@@ -88,14 +87,12 @@ function ChannelForm({
   target,
   existingNames,
   pending,
-  onClose,
   onSave,
   onDelete,
 }: {
   target: ChannelTarget;
   existingNames: string[];
   pending: boolean;
-  onClose: () => void;
   onSave: (draft: ChannelDraft) => void;
   onDelete: (name: string) => void;
 }) {
@@ -113,21 +110,25 @@ function ChannelForm({
   const trimmed = name.trim();
   const duplicate =
     existingNames.includes(trimmed) && trimmed !== editing?.name;
-  const config = channelConfigInput(draft, editing?.config ?? null);
-  // What a blank secret field means, said in the placeholder: on an edit of
-  // the stored kind it keeps the stored secret.
+  const config = channelConfigInput(draft, editing?.config.type ?? null);
+  // On an edit of the stored kind, the secret starts behind an explicit Edit
+  // action. A blank draft still means keep the stored secret.
   const keepsSecret = editing !== null && editing.config.type === draft.type;
   const urlField = CHANNEL_URL_FIELD[draft.type];
-  const testable =
-    config !== null && channelConfigIsTestable(config, keepsSecret);
+  const testable = config !== null;
 
   const patch = (p: Partial<ChannelConfigDraft>) =>
     setDraft((d) => ({ ...d, ...p }));
 
   const test = useMutation({
-    mutationFn: (config: AlertingChannelConfig) =>
+    mutationFn: (config: AlertingChannelConfigInput) =>
       testAlertingChannel({
-        data: { config, ...(editing ? { name: editing.name } : {}) },
+        data: {
+          config,
+          source: editing
+            ? { kind: "saved", name: editing.name }
+            : { kind: "new" },
+        },
       }),
   });
   // The result is shown only while the config it tested is still the one on
@@ -179,11 +180,8 @@ function ChannelForm({
       <DialogHeader>
         <DialogTitle>{editing ? "Edit channel" : "New channel"}</DialogTitle>
         <DialogDescription>
-          A channel is a named endpoint alerts deliver to. Its secret is
-          write-only:{" "}
-          {editing
-            ? "leave the field blank to keep the stored one."
-            : "it is never shown again after saving."}
+          A channel is a named endpoint alerts deliver to. Secrets are
+          write-only and never shown again after saving.
         </DialogDescription>
       </DialogHeader>
 
@@ -217,14 +215,16 @@ function ChannelForm({
         {urlField && (
           <div className="space-y-1.5">
             <Label htmlFor="channel-url">{urlField.label}</Label>
-            <Input
+            <SecretInput
+              key={draft.type}
               id="channel-url"
               type="url"
               className="font-mono"
               value={draft.url}
               disabled={busy}
-              onChange={(e) => patch({ url: e.target.value })}
-              placeholder={keepsSecret ? "unchanged" : urlField.placeholder}
+              hasStoredSecret={keepsSecret}
+              onValueChange={(url) => patch({ url })}
+              placeholder={urlField.placeholder}
             />
           </div>
         )}
@@ -232,13 +232,15 @@ function ChannelForm({
           <>
             <div className="space-y-1.5">
               <Label htmlFor="channel-bot-token">Bot token</Label>
-              <Input
+              <SecretInput
+                key={draft.type}
                 id="channel-bot-token"
                 className="font-mono"
                 value={draft.botToken}
                 disabled={busy}
-                onChange={(e) => patch({ botToken: e.target.value })}
-                placeholder={keepsSecret ? "unchanged" : "123456789:ABC..."}
+                hasStoredSecret={keepsSecret}
+                onValueChange={(botToken) => patch({ botToken })}
+                placeholder="123456789:ABC..."
               />
             </div>
             <div className="space-y-1.5">
@@ -271,29 +273,24 @@ function ChannelForm({
         )}
       </div>
 
-      <DialogFooter className="sm:justify-between">
-        <div className="flex items-center gap-2">
+      <DialogFooter className="flex-row flex-wrap items-center justify-start sm:justify-start">
+        {editing && (
+          <Button
+            variant="ghost"
+            disabled={busy}
+            className="text-destructive hover:text-destructive"
+            onClick={() => setConfirmingDelete(true)}
+          >
+            Delete
+          </Button>
+        )}
+        <div className="ml-auto flex items-center gap-2">
           <Button
             variant="outline"
             disabled={!testable || busy}
             onClick={() => config && test.mutate(config)}
           >
             {test.isPending ? "Sending…" : "Send test"}
-          </Button>
-          {editing && (
-            <Button
-              variant="ghost"
-              disabled={busy}
-              className="text-destructive hover:text-destructive"
-              onClick={() => setConfirmingDelete(true)}
-            >
-              Delete
-            </Button>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" disabled={pending} onClick={onClose}>
-            Cancel
           </Button>
           <Button
             disabled={!trimmed || duplicate || !config || busy}

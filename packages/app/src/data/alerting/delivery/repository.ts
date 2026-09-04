@@ -16,8 +16,8 @@ import {
   translateAlertingConflict,
 } from "../persistence";
 import {
-  AlertingChannelConfigSchema,
   AlertingChannelInputSchema,
+  AlertingChannelTestInputSchema,
   AlertingChannelUpdateSchema,
   AlertingDefaultDestinationInputSchema,
 } from "../schema";
@@ -25,14 +25,55 @@ import type { AlertingMutationScope } from "../session";
 import type {
   AlertingChannel,
   AlertingChannelConfig,
+  AlertingChannelConfigInput,
   AlertingDefaultDestination,
 } from "../types";
 import {
   decryptChannelConfig,
   encryptChannelConfig,
   readRedactedChannelConfig,
-  retainRedactedChannelSecrets,
 } from "./channel-secrets.server";
+
+/** Turn a write draft into a config that can actually send. Omission retains
+ *  a secret only when the saved transport has the same type. */
+function resolveChannelConfig(
+  input: AlertingChannelConfigInput,
+  previous: AlertingChannelConfig | null,
+): AlertingChannelConfig {
+  switch (input.type) {
+    case "webhook":
+    case "slack":
+    case "discord": {
+      const url =
+        input.url ?? (previous?.type === input.type ? previous.url : undefined);
+      if (!url) {
+        throwAlertingPersistenceError(
+          422,
+          "validation",
+          `${input.type} URL is required`,
+        );
+      }
+      return { type: input.type, url };
+    }
+    case "telegram": {
+      const botToken =
+        input.bot_token ??
+        (previous?.type === "telegram" ? previous.bot_token : undefined);
+      if (!botToken) {
+        throwAlertingPersistenceError(
+          422,
+          "validation",
+          "telegram bot token is required",
+        );
+      }
+      return {
+        type: "telegram",
+        bot_token: botToken,
+        chat_ids: input.chat_ids,
+      };
+    }
+  }
+}
 
 /** A channel as a screen reads it. The envelope carries the redacted copy,
  *  so listing every channel touches no key. */
@@ -66,6 +107,7 @@ export async function createChannel(
   rawInput: unknown,
 ) {
   const input = parseAlertingInput(AlertingChannelInputSchema, rawInput);
+  const config = resolveChannelConfig(input.config, null);
   const id = randomUUID();
   const [row] = await translateAlertingConflict(() =>
     db
@@ -74,7 +116,7 @@ export async function createChannel(
         id,
         organizationId,
         name: input.name,
-        encryptedConfig: encryptChannelConfig(organizationId, id, input.config),
+        encryptedConfig: encryptChannelConfig(organizationId, id, config),
       })
       .returning(),
   );
@@ -129,7 +171,7 @@ export async function updateChannel(
     previous.encryptedConfig,
   );
   const nextConfig = input.config
-    ? retainRedactedChannelSecrets(input.config, previousConfig)
+    ? resolveChannelConfig(input.config, previousConfig)
     : previousConfig;
   const [row] = await translateAlertingConflict(() =>
     db
@@ -221,22 +263,19 @@ function testChannelError(cause: unknown): string {
   );
 }
 
-export async function testChannel(
-  organizationId: string,
-  body: { name?: string; config: AlertingChannelConfig },
-) {
+export async function testChannel(organizationId: string, body: unknown) {
   const started = performance.now();
   try {
     const { sendChannelTest } = await import("./channel-sender.server");
-    const input = AlertingChannelConfigSchema.parse(body.config);
-    let config = input;
-    if (body.name) {
-      const stored = await getChannelRow(organizationId, body.name);
-      config = retainRedactedChannelSecrets(
-        input,
-        decryptChannelConfig(organizationId, stored.id, stored.encryptedConfig),
-      );
-    }
+    const input = parseAlertingInput(AlertingChannelTestInputSchema, body);
+    const stored =
+      input.source.kind === "saved"
+        ? await getChannelRow(organizationId, input.source.name)
+        : null;
+    const previous = stored
+      ? decryptChannelConfig(organizationId, stored.id, stored.encryptedConfig)
+      : null;
+    const config = resolveChannelConfig(input.config, previous);
     await sendChannelTest(config);
     return { ok: true, latency_ms: Math.round(performance.now() - started) };
   } catch (cause) {

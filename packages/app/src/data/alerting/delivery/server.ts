@@ -7,9 +7,10 @@ import { z } from "zod";
 import { loadRules } from "@/data/alerting/triage/rules";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
-  AlertingChannelConfigSchema,
+  AlertingChannelConfigInputSchema,
   AlertingChannelInputSchema,
   AlertingChannelNameSchema,
+  AlertingChannelTestInputSchema,
   AlertingDefaultDestinationInputSchema,
 } from "../schema";
 import { alertingMutationScope } from "../session";
@@ -60,7 +61,7 @@ export const updateAlertingChannel = createAuthenticatedServerFn({
       name: AlertingChannelNameSchema,
       newName: AlertingChannelNameSchema.optional(),
       // Optional: a rename alone leaves the stored secret as it is.
-      config: AlertingChannelConfigSchema.optional(),
+      config: AlertingChannelConfigInputSchema.optional(),
     }),
   )
   .handler(({ data, context: { session } }) =>
@@ -81,12 +82,7 @@ export const deleteAlertingChannel = createAuthenticatedServerFn({
 export const testAlertingChannel = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(
-    z.object({
-      name: AlertingChannelNameSchema.optional(),
-      config: AlertingChannelConfigSchema,
-    }),
-  )
+  .inputValidator(AlertingChannelTestInputSchema)
   .handler(({ data, context: { session } }) =>
     delivery.testChannel(session.session.activeOrganizationId, data),
   );

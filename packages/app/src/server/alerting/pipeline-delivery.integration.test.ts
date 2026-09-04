@@ -857,6 +857,7 @@ describe("the alerting pipeline's delivery", () => {
     });
 
     const result = await testChannel("test_org", {
+      source: { kind: "new" },
       config: { type: "webhook", url: "https://203.0.113.10/hook" },
     });
 

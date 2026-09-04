@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type {
+  AlertingChannelConfigInputSchema,
   AlertingChannelConfigSchema,
   AlertingDefaultDestinationInputSchema,
   AlertingMatcherSchema,
@@ -36,6 +37,9 @@ export type AlertingEvaluationSample = {
 /** Evaluation history returned to the alert signal chart. */
 
 export type AlertingChannelConfig = z.infer<typeof AlertingChannelConfigSchema>;
+export type AlertingChannelConfigInput = z.infer<
+  typeof AlertingChannelConfigInputSchema
+>;
 
 /** A channel as the app reads it: the config comes back with its secrets
  *  redacted, so this is never a value that can send anything. */

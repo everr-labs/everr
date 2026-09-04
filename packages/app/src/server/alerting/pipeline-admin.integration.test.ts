@@ -297,6 +297,27 @@ describe("the delivery channels the CLI manages", () => {
     expect(await storedConfig()).toEqual(slack);
   });
 
+  it("keeps a same-type secret omitted from a config edit", async () => {
+    await createChannel(scope, {
+      name: "oncall",
+      config: {
+        type: "telegram",
+        bot_token: "stored-token",
+        chat_ids: ["old-chat"],
+      },
+    });
+
+    await updateChannel(scope, "oncall", {
+      config: { type: "telegram", chat_ids: ["new-chat"] },
+    });
+
+    expect(await storedConfig()).toEqual({
+      type: "telegram",
+      bot_token: "stored-token",
+      chat_ids: ["new-chat"],
+    });
+  });
+
   it("replaces the secret when an edit supplies one", async () => {
     await createChannel(scope, { name: "oncall", config: slack });
 
@@ -323,6 +344,28 @@ describe("the delivery channels the CLI manages", () => {
       createChannel(scope, {
         name: "oncall",
         config: { type: "carrier-pigeon", url: "https://203.0.113.10/x" },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "validation" });
+  });
+
+  it("requires a secret for a new channel and after a type change", async () => {
+    await expect(
+      createChannel(scope, { name: "oncall", config: { type: "slack" } }),
+    ).rejects.toMatchObject({ status: 422, code: "validation" });
+
+    await createChannel(scope, { name: "oncall", config: slack });
+    await expect(
+      updateChannel(scope, "oncall", {
+        config: { type: "telegram", chat_ids: ["chat"] },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "validation" });
+  });
+
+  it("refuses the read-side redaction marker on writes", async () => {
+    await expect(
+      createChannel(scope, {
+        name: "oncall",
+        config: { type: "telegram", bot_token: "***", chat_ids: ["chat"] },
       }),
     ).rejects.toMatchObject({ status: 422, code: "validation" });
   });

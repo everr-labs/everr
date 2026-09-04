@@ -1,11 +1,14 @@
 /**
  * What a channel editor types, and what the write takes from it. The one
  * place that knows a stored secret is never shown again and how a blank
- * field says "keep it": the dialog draws fields, the server keeps secrets,
- * and neither has to know the marker the other reads.
+ * field says "keep it": the dialog omits that field and the server resolves
+ * it, so the read-side redaction marker never enters a write.
  */
-import { ALERTING_REDACTED_SECRET } from "../schema";
-import type { AlertingChannelConfig } from "../types";
+import { AlertingChannelConfigInputSchema } from "../schema";
+import type {
+  AlertingChannelConfig,
+  AlertingChannelConfigInput,
+} from "../types";
 
 export type ChannelType = AlertingChannelConfig["type"];
 
@@ -39,42 +42,39 @@ export function channelConfigDraft(
 
 /**
  * The config the draft describes, or `null` while it cannot be saved. On an
- * edit that keeps the stored kind, a blank secret stands for the stored one
- * and goes out as the redaction marker, which the server reads as "keep". A
- * Slack channel turned into a webhook has no stored URL to keep, so a blank
- * secret there is incomplete.
+ * edit that keeps the stored kind, a blank secret is omitted. A Slack channel
+ * turned into a webhook has no webhook URL to retain, so a blank secret there
+ * is incomplete.
  */
 export function channelConfigInput(
   draft: ChannelConfigDraft,
-  stored: AlertingChannelConfig | null,
-): AlertingChannelConfig | null {
-  const keepsSecret = stored !== null && stored.type === draft.type;
-  const secret = (typed: string) =>
-    typed || (keepsSecret ? ALERTING_REDACTED_SECRET : "");
+  storedType: ChannelType | null,
+): AlertingChannelConfigInput | null {
+  const keepsSecret = storedType === draft.type;
+  let config: AlertingChannelConfigInput | null;
   switch (draft.type) {
     case "webhook":
     case "slack":
     case "discord": {
-      const url = secret(draft.url);
-      return url ? { type: draft.type, url } : null;
+      if (!draft.url && !keepsSecret) return null;
+      config = {
+        type: draft.type,
+        ...(draft.url ? { url: draft.url } : {}),
+      };
+      break;
     }
     case "telegram": {
-      const botToken = secret(draft.botToken);
-      return botToken && draft.chatIds.length > 0
-        ? { type: draft.type, bot_token: botToken, chat_ids: draft.chatIds }
-        : null;
+      if ((!draft.botToken && !keepsSecret) || draft.chatIds.length === 0) {
+        return null;
+      }
+      config = {
+        type: draft.type,
+        ...(draft.botToken ? { bot_token: draft.botToken } : {}),
+        chat_ids: draft.chatIds,
+      };
+      break;
     }
   }
-}
-
-/** Whether a send can be tried through this config. An edited channel can use
- *  its stored secret even though the screen only has the redaction marker. */
-export function channelConfigIsTestable(
-  config: AlertingChannelConfig,
-  hasStoredSecret = false,
-) {
-  if (hasStoredSecret) return true;
-  return config.type === "telegram"
-    ? config.bot_token !== ALERTING_REDACTED_SECRET
-    : config.url !== ALERTING_REDACTED_SECRET;
+  const parsed = AlertingChannelConfigInputSchema.safeParse(config);
+  return parsed.success ? parsed.data : null;
 }

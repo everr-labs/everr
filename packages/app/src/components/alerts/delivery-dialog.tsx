@@ -78,6 +78,55 @@ function ChannelChecklist({
   );
 }
 
+function ChannelSeverityCard({
+  channel,
+  selected,
+  disabled,
+  onToggle,
+}: {
+  channel: NotificationChannelView;
+  selected: NotificationDestinationView["tiers"];
+  disabled: boolean;
+  onToggle: (tier: Exclude<AlertingDefaultTier, "all">) => void;
+}) {
+  return (
+    <fieldset className="overflow-hidden rounded-md border">
+      <legend className="sr-only">{channel.name}</legend>
+      <div className="flex items-center gap-2.5 px-4 py-3">
+        <ChannelMark type={channel.config.type} size="sm" />
+        <span className="min-w-0 flex-1 truncate font-mono text-sm">
+          {channel.name}
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {CHANNEL_LABEL[channel.config.type]}
+        </span>
+      </div>
+
+      <div className="grid divide-y border-t sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {ALERTING_SEVERITY_TIERS.map((tier) => (
+          <label
+            key={tier}
+            className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium hover:bg-muted/50 focus-within:bg-muted/50"
+          >
+            <span
+              className={cn("size-2 shrink-0 rounded-full", SEVERITY_DOT[tier])}
+            />
+            <span className="min-w-0 flex-1">{TIER_LABEL[tier]}</span>
+            <input
+              type="checkbox"
+              className="size-4 shrink-0 accent-primary"
+              checked={selected[tier].includes(channel.name)}
+              disabled={disabled}
+              aria-label={`${TIER_LABEL[tier]} to ${channel.name}`}
+              onChange={() => onToggle(tier)}
+            />
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 /**
  * Where every alert goes unless its rule says otherwise. One list for all
  * alerts, or one per severity once split. Saving an empty selection stops
@@ -197,7 +246,7 @@ function DeliveryForm({
   }
 
   return (
-    <DialogContent className="sm:max-w-md">
+    <DialogContent className={cn("sm:max-w-md", split && "sm:max-w-2xl")}>
       <DialogHeader>
         <DialogTitle>Edit delivery</DialogTitle>
         <DialogDescription>
@@ -217,17 +266,17 @@ function DeliveryForm({
           Split by severity
         </Label>
         {split ? (
-          ALERTING_SEVERITY_TIERS.map((tier) => (
-            <div key={tier} className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-sm font-medium">
-                <span
-                  className={cn("size-1.5 rounded-full", SEVERITY_DOT[tier])}
-                />
-                {TIER_LABEL[tier]}
-              </div>
-              {checklist(tier)}
-            </div>
-          ))
+          <div className="space-y-4">
+            {channels.map((channel) => (
+              <ChannelSeverityCard
+                key={channel.name}
+                channel={channel}
+                selected={draft}
+                disabled={pending}
+                onToggle={(tier) => toggle(tier, channel.name)}
+              />
+            ))}
+          </div>
         ) : (
           <div className="space-y-1.5">
             <div className="text-sm font-medium">{TIER_LABEL.all}</div>
