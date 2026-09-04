@@ -34,6 +34,10 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 - Writes two placeholders, not three, for the JSON traces attribute-keys
   feature columns. Upstream writes two column names and three placeholders, so
   the insert list does not match the column list. Report this upstream.
+- Keeps `tests.skip_lifecycle: true` in `metadata.yaml`, which upstream does not
+  carry. The lifecycle test mdatagen generates starts an exporter built by
+  `NewFactory()`, and those fail with `chdb handle is required` by design, so
+  the test cannot pass here.
 - Upstream switches the map skip indexes to `TYPE text(...)` on ClickHouse 26.2
   and later, and the local store runs chDB 26.5, so the local tables get text
   indexes. The cloud tables in `clickhouse/init/10-create-mvs.sql` keep

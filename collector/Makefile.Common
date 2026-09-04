@@ -39,6 +39,7 @@ LINT := $(TOOLS_BIN_DIR)/golangci-lint
 SEC := $(TOOLS_BIN_DIR)/gosec
 STATICCHECK := $(TOOLS_BIN_DIR)/staticcheck
 MDATAGEN := $(TOOLS_BIN_DIR)/mdatagen
+GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
 OCB := $(TOOLS_BIN_DIR)/builder
 CROSSLINK := $(TOOLS_BIN_DIR)/crosslink
 
@@ -52,8 +53,12 @@ tidy:
 	go mod tidy
 
 .PHONY: gen
+# mdatagen imports exporter/xexporter for any exporter that declares profiles
+# but never uses it, so the generated file does not compile until the imports
+# are tidied. Upstream runs the same pass after generating.
 gen:
 	go generate ./...
+	$(GOIMPORTS) -w .
 
 .PHONY: test
 TEST_PREP ?=
