@@ -68,7 +68,7 @@ const checkoutTiming: Instrumentation = ({ emit, tracer }) => {
 };
 ```
 
-The tracer follows the same OpenTelemetry contract through `startTime` and `span.end(endTime)`. Built-in instrumentations timestamp web vitals and interactions from their browser performance entries or DOM events, even when the SDK reports them later.
+The tracer follows the same OpenTelemetry contract through `startTime` and `span.end(endTime)`. Built-in instrumentations timestamp web vitals and interactions from their browser performance entries or DOM events, even when the SDK reports them later. Each logs payload is ordered by event timestamp, and each traces payload is ordered by span start time. Records with the same timestamp keep their capture order.
 
 ## Manual capture
 

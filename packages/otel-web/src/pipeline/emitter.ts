@@ -325,9 +325,19 @@ export function createEmitter(
     }
   };
 
+  const sortBy = <T, K extends keyof T>(items: T[], key: K) =>
+    items.sort((a, b) =>
+      Number(BigInt(a[key] as string) - BigInt(b[key] as string)),
+    );
+
   const flush = (keepalive?: boolean): Promise<void> => {
     clearTimeout(timer);
     timer = undefined;
+    // Array.sort is stable, so records with the same timestamp keep their
+    // capture order. The exit path truncates before this sort, preserving its
+    // rule that records emitted by hide handlers stay in the constrained batch.
+    sortBy(queue, "timeUnixNano");
+    sortBy(spanQueue, "startTimeUnixNano");
     const posts: Promise<void>[] = [];
     if (queue.length) {
       posts.push(post("logs", buildLogs(), keepalive));
