@@ -83,7 +83,6 @@ describe("channelViews", () => {
         tiers: { warning: ["#oncall"], critical: ["#oncall", "pager"] },
       }),
       overrides,
-      [],
     );
     expect(oncall).toMatchObject({ tiers: ["critical", "warning"], rules: [] });
     expect(pager).toMatchObject({
@@ -98,33 +97,8 @@ describe("channelViews", () => {
       [channel("#oncall")],
       destinationView({ tiers: { all: ["#oncall"] } }),
       [],
-      [],
     );
     expect(oncall?.tiers).toEqual(["all"]);
-  });
-
-  it("gives a channel nothing delivered to an empty record", () => {
-    const [quiet, busy] = channelViews(
-      [channel("quiet"), channel("busy")],
-      destinationView({ tiers: {} }),
-      [],
-      [
-        {
-          channel: "busy",
-          sent: 41,
-          failed: 3,
-          lastSentAt: "2026-09-03T10:00:00.000Z",
-          lastError: "HTTP 429",
-        },
-      ],
-    );
-    expect(quiet).toMatchObject({
-      sent: 0,
-      failed: 0,
-      lastSentAt: null,
-      lastError: null,
-    });
-    expect(busy).toMatchObject({ sent: 41, failed: 3, lastError: "HTTP 429" });
   });
 });
 

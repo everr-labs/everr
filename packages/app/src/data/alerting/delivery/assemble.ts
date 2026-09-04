@@ -12,7 +12,7 @@ import {
 import type { DefinitionRow } from "@/data/alerting/triage/rules";
 import { rulePath, ruleTitle } from "@/data/alerting/triage/rules";
 import type { AlertingChannel, AlertingDefaultDestination } from "../types";
-import type { DeliveryRecords, UndeliveredRecord } from "./record";
+import type { UndeliveredRecord } from "./record";
 import type {
   AlertNotificationsData,
   NotificationChannelView,
@@ -81,11 +81,8 @@ export function channelViews(
   channels: AlertingChannel[],
   destination: NotificationDestinationView,
   overrides: NotificationOverrideView[],
-  records: DeliveryRecords["channels"],
 ): NotificationChannelView[] {
-  const byName = new Map(records.map((r) => [r.channel, r]));
   return channels.map((channel) => {
-    const record = byName.get(channel.name);
     return {
       name: channel.name,
       config: channel.config,
@@ -93,10 +90,6 @@ export function channelViews(
       rules: overrides
         .filter((rule) => rule.channels.includes(channel.name))
         .map((rule) => rule.path),
-      sent: record?.sent ?? 0,
-      failed: record?.failed ?? 0,
-      lastSentAt: record?.lastSentAt ?? null,
-      lastError: record?.lastError ?? null,
     };
   });
 }
@@ -166,21 +159,16 @@ export function assembleNotifications(input: {
   channels: AlertingChannel[];
   destination: AlertingDefaultDestination;
   rules: DefinitionRow[];
-  records: DeliveryRecords;
+  undelivered: UndeliveredRecord[];
 }): AlertNotificationsData {
   const destination = destinationView(input.destination);
   const overrides = overrideViews(input.rules);
   return {
-    channels: channelViews(
-      input.channels,
-      destination,
-      overrides,
-      input.records.channels,
-    ),
+    channels: channelViews(input.channels, destination, overrides),
     destination,
     overrides,
     gaps: deriveGaps(
-      input.records.undelivered,
+      input.undelivered,
       overrides,
       destination,
       input.channels.map((c) => c.name),

@@ -1,10 +1,5 @@
 import { Button } from "@everr/ui/components/button";
 import { GroupBand } from "@everr/ui/components/group-band";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { Pencil, Plus, TriangleAlert } from "lucide-react";
@@ -19,7 +14,6 @@ import type {
   NotificationGap,
   NotificationOverrideView,
 } from "@/data/alerting/delivery/view";
-import { formatAgoPhrase } from "@/data/alerting/triage/format";
 import type { AlertingSeverity } from "@/data/alerting/types";
 import { SEVERITY_DOT, TIER_LABEL } from "./alert-status";
 import { ChannelMark, channelDetail } from "./channel-mark";
@@ -29,13 +23,13 @@ const DOCS_HREF = "https://everr.dev/docs/guides/set-up-notifications";
 
 /**
  * Narrow, the row is the channel with its facts wrapped on a line beneath;
- * at full width it is the table. Only the identity column flexes: the other
- * three print content of a known width. The two routing lists share the
+ * at full width it is the table. Only the identity column flexes. The two
+ * routing lists share the
  * second track, so a tier's or a rule's channels sit under the channels'
  * Receives column.
  */
 const COLUMNS =
-  "grid grid-cols-1 items-center gap-x-4 gap-y-1.5 @[52rem]/list:grid-cols-[minmax(0,1fr)_13rem_10rem_6rem]";
+  "grid grid-cols-1 items-center gap-x-4 gap-y-1.5 @[52rem]/list:grid-cols-[minmax(0,1fr)_13rem]";
 
 const ROUTE_COLUMNS =
   "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 @[52rem]/list:grid-cols-[minmax(0,1fr)_13rem_minmax(0,1fr)]";
@@ -80,42 +74,17 @@ function Receives({ channel }: { channel: NotificationChannelView }) {
 }
 
 /**
- * The failure count, with the reason behind it. The reason is a sentence and
- * the column is narrow, so the count is the whole of the row's failure line
- * and hovering it says why; a truncated sentence in the list would cost a
- * line and still send the reader here.
- */
-function Failed({ channel }: { channel: NotificationChannelView }) {
-  const count = <> · {channel.failed} failed</>;
-  if (!channel.lastError)
-    return <span className="text-destructive">{count}</span>;
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={<span className="cursor-default text-destructive" />}
-      >
-        {count}
-      </TooltipTrigger>
-      <TooltipContent className="font-mono">{channel.lastError}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-/**
  * A channel row opens its editor the way a triage row opens its rule: the
  * row washes under the pointer and the name is the control, so there is one
  * way in for a mouse and one for a keyboard.
  */
 function ChannelRow({
   channel,
-  now,
   onOpen,
 }: {
   channel: NotificationChannelView;
-  now: number;
   onOpen: () => void;
 }) {
-  const sent = channel.sent + channel.failed > 0;
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only row convenience, the name inside is the real button
     <li
@@ -145,23 +114,6 @@ function ChannelRow({
           table's own columns once it is not. */}
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1 pl-10 @[52rem]/list:contents">
         <Receives channel={channel} />
-        <div className="min-w-0 font-mono text-xs tabular-nums">
-          {sent ? (
-            <span>
-              {channel.sent} sent
-              {channel.failed > 0 && <Failed channel={channel} />}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">nothing sent</span>
-          )}
-        </div>
-        {/* Nothing stands in for a send that never happened: the column is
-            read for when, and a dash on a silent row answers a question the
-            row already answered. */}
-        <div className="font-mono text-xs text-muted-foreground tabular-nums">
-          {channel.lastSentAt &&
-            formatAgoPhrase(now - new Date(channel.lastSentAt).getTime())}
-        </div>
       </div>
     </li>
   );
@@ -374,7 +326,6 @@ export function NotificationsPage({
   onEditChannel: (channel: NotificationChannelView) => void;
   onEditDelivery: () => void;
 }) {
-  const now = Date.now();
   const channels = data?.channels ?? [];
   const overrides = data?.overrides ?? [];
   const gaps = data?.gaps ?? [];
@@ -426,7 +377,6 @@ export function NotificationsPage({
                 <ChannelRow
                   key={channel.name}
                   channel={channel}
-                  now={now}
                   onOpen={() => {
                     if (!pending) onEditChannel(channel);
                   }}

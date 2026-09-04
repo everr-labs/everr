@@ -21,10 +21,6 @@ function channel(
     config: { type: "slack", url: "***" },
     tiers: [],
     rules: [],
-    sent: 0,
-    failed: 0,
-    lastSentAt: null,
-    lastError: null,
     ...overrides,
   };
 }
@@ -34,15 +30,10 @@ const DATA: AlertNotificationsData = {
     channel("#oncall", {
       tiers: ["critical", "warning"],
       rules: ["checkout/api-latency"],
-      sent: 128,
-      lastSentAt: new Date().toISOString(),
     }),
     channel("pager", {
       config: { type: "webhook", url: "***" },
       tiers: ["critical"],
-      sent: 41,
-      failed: 3,
-      lastError: "HTTP 429 from endpoint",
     }),
     channel("ops-telegram", {
       config: { type: "telegram", bot_token: "***", chat_ids: ["-100"] },
@@ -155,10 +146,8 @@ describe("NotificationsPage", () => {
     expect(rows[0]).toHaveTextContent("Critical");
     expect(rows[0]).toHaveTextContent("Warning");
     expect(rows[0]).toHaveTextContent("+ 1 rule by name");
-    expect(rows[0]).toHaveTextContent("128 sent");
-    expect(rows[1]).toHaveTextContent("41 sent · 3 failed");
     expect(rows[2]).toHaveTextContent("not in use");
-    expect(rows[2]).toHaveTextContent("nothing sent");
+    expect(channels).not.toHaveTextContent(/\bsent\b|\bfailed\b/);
   });
 
   it("opens a channel from its name", async () => {

@@ -15,7 +15,7 @@ import {
 } from "../schema";
 import { alertingMutationScope } from "../session";
 import { assembleNotifications } from "./assemble";
-import { loadDeliveryRecords } from "./record";
+import { loadUndeliveredRecords } from "./record";
 import * as delivery from "./repository";
 import type { AlertNotificationsData } from "./view";
 
@@ -26,15 +26,15 @@ export const getAlertNotifications = createAuthenticatedServerFn({
   .handler(async ({ data, context }): Promise<AlertNotificationsData> => {
     const organizationId = context.session.session.activeOrganizationId;
     const window = resolveTimeRange(data);
-    const [channels, destination, rules, records] = await Promise.all([
+    const [channels, destination, rules, undelivered] = await Promise.all([
       delivery.listChannels(organizationId),
       delivery.listDefaultDestination(organizationId),
       loadRules(organizationId),
       // The one ClickHouse read in the set, so the one that overlaps the
       // three PostgreSQL ones.
-      loadDeliveryRecords(context.clickhouse.query, window),
+      loadUndeliveredRecords(context.clickhouse.query, window),
     ]);
-    return assembleNotifications({ channels, destination, rules, records });
+    return assembleNotifications({ channels, destination, rules, undelivered });
   });
 
 export const setAlertingDefaultDestination = createAuthenticatedServerFn({

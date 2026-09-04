@@ -10,8 +10,6 @@ import { describe, expect, it, vi } from "vitest";
 import { uuidv7 } from "@/data/alerting/history/ids";
 import {
   type AlertHistoryDefinition,
-  type AlertHistoryRow,
-  deliveryHistoryRow,
   journalTerminalRow,
 } from "@/server/alerting/history/clickhouse";
 import { TEST_ORG } from "@/server/alerting/testing/fixtures";
@@ -29,7 +27,7 @@ vi.mock(
   async () => import("@/server/alerting/testing/test-clickhouse"),
 );
 
-import { loadDeliveryRecords } from "./record";
+import { loadUndeliveredRecords } from "./record";
 
 const harness = useAlertingHarness();
 
@@ -65,30 +63,6 @@ function definition(
   };
 }
 
-/** One delivery outcome row, for one notification riding in one send. */
-function delivery(opts: {
-  channel: string;
-  type?: string;
-  dedupKey: string;
-  at: Date;
-  outcome: "succeeded" | "failed";
-  error?: string;
-  fingerprint?: string;
-  def?: AlertHistoryDefinition;
-}): AlertHistoryRow {
-  return deliveryHistoryRow({
-    def: opts.def ?? definition(),
-    notificationEventId: uuidv7(opts.at),
-    dedupKey: opts.dedupKey,
-    outcomeAt: opts.at,
-    fingerprint: opts.fingerprint ?? "a",
-    labels: { host: opts.fingerprint ?? "a" },
-    deliveryTargets: { [opts.type ?? "slack"]: [opts.channel] },
-    outcome: opts.outcome,
-    ...(opts.error === undefined ? {} : { error: opts.error }),
-  });
-}
-
 /** The chain a terminal points back at; its stamp places the row in time. */
 function chain(at: Date, overrides: { slug?: string; severity?: string } = {}) {
   return {
@@ -105,159 +79,13 @@ function chain(at: Date, overrides: { slug?: string; severity?: string } = {}) {
   };
 }
 
-function write(...rows: AlertHistoryRow[]) {
+function write(...rows: ReturnType<typeof journalTerminalRow>[]) {
   harness().clickhouse.write(rows);
 }
-
-describe("what each channel delivered in the window", () => {
-  it("counts sends, not the instances that rode in them", async () => {
-    const at = minutesAgo(10);
-    const later = minutesAgo(5);
-    write(
-      delivery({
-        channel: "#oncall",
-        dedupKey: "d1",
-        at,
-        fingerprint: "a",
-        outcome: "succeeded",
-      }),
-      delivery({
-        channel: "#oncall",
-        dedupKey: "d1",
-        at,
-        fingerprint: "b",
-        outcome: "succeeded",
-      }),
-      delivery({
-        channel: "#oncall",
-        dedupKey: "d2",
-        at: later,
-        outcome: "succeeded",
-      }),
-    );
-
-    const [record] = (await loadDeliveryRecords(query, windowOf(60))).channels;
-    expect(record).toMatchObject({ channel: "#oncall", sent: 2, failed: 0 });
-    expect(record?.lastSentAt).toBe(later.toISOString());
-  });
-
-  it("counts a send that got through after a failed attempt as sent", async () => {
-    write(
-      delivery({
-        channel: "pager",
-        type: "webhook",
-        dedupKey: "d1",
-        at: minutesAgo(10),
-        outcome: "failed",
-        error: "HTTP 429",
-      }),
-      delivery({
-        channel: "pager",
-        type: "webhook",
-        dedupKey: "d1",
-        at: minutesAgo(9),
-        outcome: "succeeded",
-      }),
-      delivery({
-        channel: "pager",
-        type: "webhook",
-        dedupKey: "d2",
-        at: minutesAgo(8),
-        outcome: "failed",
-        error: "HTTP 500",
-      }),
-    );
-
-    const [record] = (await loadDeliveryRecords(query, windowOf(60))).channels;
-    expect(record).toMatchObject({
-      channel: "pager",
-      sent: 1,
-      failed: 1,
-      lastError: "HTTP 500",
-    });
-  });
-
-  it("ranges a recovered send by when it succeeded, not when it was queued", async () => {
-    const failed = minutesAgo(20);
-    const succeeded = minutesAgo(10);
-    write(
-      delivery({
-        channel: "pager",
-        type: "webhook",
-        dedupKey: "d1",
-        at: failed,
-        outcome: "failed",
-        error: "HTTP 429",
-      }),
-      delivery({
-        channel: "pager",
-        type: "webhook",
-        dedupKey: "d1",
-        at: succeeded,
-        outcome: "succeeded",
-      }),
-    );
-
-    const [record] = (await loadDeliveryRecords(query, windowOf(60))).channels;
-    expect(record).toMatchObject({ channel: "pager", sent: 1, failed: 0 });
-    expect(record?.lastSentAt).toBe(succeeded.toISOString());
-  });
-
-  it("gives a channel that only failed no last-sent time", async () => {
-    write(
-      delivery({
-        channel: "pager",
-        type: "webhook",
-        dedupKey: "d1",
-        at: minutesAgo(8),
-        outcome: "failed",
-        error: "HTTP 500",
-      }),
-    );
-    const [record] = (await loadDeliveryRecords(query, windowOf(60))).channels;
-    expect(record).toMatchObject({ sent: 0, failed: 1, lastSentAt: null });
-  });
-
-  it("reads only the window, and every channel a send reached", async () => {
-    write(
-      delivery({
-        channel: "#oncall",
-        dedupKey: "old",
-        at: minutesAgo(120),
-        outcome: "succeeded",
-      }),
-      delivery({
-        channel: "#oncall",
-        dedupKey: "d1",
-        at: minutesAgo(10),
-        outcome: "succeeded",
-      }),
-      delivery({
-        channel: "pager",
-        type: "webhook",
-        dedupKey: "d2",
-        at: minutesAgo(10),
-        outcome: "succeeded",
-      }),
-    );
-    const records = (await loadDeliveryRecords(query, windowOf(60))).channels;
-    expect(records.map((r) => [r.channel, r.sent])).toEqual([
-      ["#oncall", 1],
-      ["pager", 1],
-    ]);
-  });
-});
 
 describe("what reached delivery with nothing to carry it", () => {
   it("counts no-channel terminals per rule and severity, once per chain", async () => {
     write(
-      // A delivery on the same rule: the rule grain must not count it.
-      delivery({
-        channel: "#oncall",
-        dedupKey: "d1",
-        at: minutesAgo(11),
-        outcome: "succeeded",
-      }),
       journalTerminalRow(chain(minutesAgo(10)), { reason: "no_channels" }),
       journalTerminalRow(chain(minutesAgo(9)), { reason: "no_channels" }),
       journalTerminalRow(
@@ -270,8 +98,7 @@ describe("what reached delivery with nothing to carry it", () => {
       journalTerminalRow(chain(minutesAgo(120)), { reason: "no_channels" }),
     );
 
-    const records = (await loadDeliveryRecords(query, windowOf(60)))
-      .undelivered;
+    const records = await loadUndeliveredRecords(query, windowOf(60));
     expect(records).toEqual([
       { path: PATH, severity: "warning", count: 2 },
       { path: "default/other", severity: "info", count: 1 },

@@ -1,9 +1,8 @@
 /**
- * What the Notifications page reads: every channel with what reaches it and
- * its delivery record over the selected window, the default destination, the
- * rules that name channels of their own, and every way an alert went
- * nowhere. Shared by the server function that builds it and the screen that
- * draws it; the screen only draws.
+ * What the Notifications page reads: every channel with what reaches it, the
+ * default destination, the rules that name channels of their own, and every
+ * way an alert went nowhere. Shared by the server function that builds it and
+ * the screen that draws it; the screen only draws.
  */
 import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
 import type { AlertingChannelConfig, AlertingSeverity } from "../types";
@@ -18,13 +17,6 @@ export type NotificationChannelView = {
   tiers: AlertingDefaultTier[];
   /** The paths of the rules that name this channel directly. */
   rules: string[];
-  /** Deliveries in the window that reached the endpoint. */
-  sent: number;
-  /** Deliveries in the window that never did. */
-  failed: number;
-  lastSentAt: string | null;
-  /** What the endpoint answered on the latest failed attempt in the window. */
-  lastError: string | null;
 };
 
 export type NotificationDestinationView = {
