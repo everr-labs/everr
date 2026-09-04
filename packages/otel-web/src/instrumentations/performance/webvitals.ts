@@ -84,11 +84,20 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   let restored = false;
 
   // Each caller examines `stopped` before it sends a record.
-  const report = (name: Classic, value: number, attribution: Attrs) => {
+  const report = (
+    name: Classic,
+    value: number,
+    attribution: Attrs,
+    occurrenceTime?: number,
+  ) => {
     const extra: Attrs = {};
     for (const [key, v] of Object.entries(attribution)) {
       extra[`everr.browser.web_vital.${name}.${key}`] = v;
     }
+    if (occurrenceTime !== undefined)
+      extra["everr.navigation.time"] = Math.round(
+        performance.timeOrigin + occurrenceTime,
+      );
     emitVital(emit, name, value, restored, extra);
   };
 
@@ -119,13 +128,18 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
     const dnsStart = Math.max(nav.domainLookupStart - start, 0);
     const connectStart = Math.max(nav.connectStart - start, 0);
     const connectEnd = Math.max(nav.connectEnd - start, 0);
-    report("ttfb", value, {
-      waiting_duration: waitEnd,
-      cache_duration: dnsStart - waitEnd,
-      dns_duration: connectStart - dnsStart,
-      connection_duration: connectEnd - connectStart,
-      request_duration: value - connectEnd,
-    });
+    report(
+      "ttfb",
+      value,
+      {
+        waiting_duration: waitEnd,
+        cache_duration: dnsStart - waitEnd,
+        dns_duration: connectStart - dnsStart,
+        connection_duration: connectEnd - connectStart,
+        request_duration: value - connectEnd,
+      },
+      nav.responseStart,
+    );
   };
   const onLoad = () => setTimeout(reportTtfb);
   if (vitals.includes("ttfb")) {
@@ -199,7 +213,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
       attribution.resource_load_duration = responseEnd - requestStart;
       attribution.element_render_delay = value - responseEnd;
     }
-    report("lcp", value, attribution);
+    report("lcp", value, attribution, lcp.startTime);
   };
 
   // An input from the code is not trusted, and it must not complete the record.

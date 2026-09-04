@@ -111,6 +111,7 @@ function stubTiming() {
   }
   vi.stubGlobal("PerformanceObserver", PO);
   vi.stubGlobal("performance", {
+    timeOrigin: 1_700_000_000_000,
     now: () => nowMs,
     getEntriesByType: (type: string) => perfEntries[type] ?? [],
   });
@@ -205,6 +206,7 @@ describe("ttfb", () => {
     expect(a["everr.browser.web_vital.ttfb.dns_duration"]).toBe(5);
     expect(a["everr.browser.web_vital.ttfb.connection_duration"]).toBe(20);
     expect(a["everr.browser.web_vital.ttfb.request_duration"]).toBe(85.5);
+    expect(a["everr.navigation.time"]).toBe(1_700_000_000_121);
   });
 
   it("counts service worker startup as cache time via workerStart", () => {
@@ -277,6 +279,7 @@ describe("lcp", () => {
     expect(a["everr.browser.web_vital.lcp.resource_load_delay"]).toBe(100);
     expect(a["everr.browser.web_vital.lcp.resource_load_duration"]).toBe(200);
     expect(a["everr.browser.web_vital.lcp.element_render_delay"]).toBe(600);
+    expect(a["everr.navigation.time"]).toBe(1_700_000_001_000);
   });
 
   it("finalizes on the first trusted input and stops observing", () => {

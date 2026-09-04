@@ -44,6 +44,8 @@ Element attributes, shared by everything that names a DOM element: `everr.elemen
 
 Semconv names stay bare: `browser.web_vital.name` (`lcp`, `cls`, `ttfb`, `inp`), `browser.web_vital.value` (ms, except cls which is unitless), `browser.web_vital.delta` (always equal to value: one record per metric per navigation), `browser.web_vital.id`. Everr additions on every vital: `everr.browser.web_vital.rating` (`good`, `needs-improvement`, `poor`) and `everr.browser.web_vital.navigation_type`.
 
+For an initial navigation, TTFB and LCP carry `everr.navigation.time` as integer epoch milliseconds. TTFB uses the navigation response start and LCP uses the accepted largest-contentful-paint entry time. The log record timestamp remains the report time.
+
 Attribution for LCP, CLS, and TTFB rides under `everr.browser.web_vital.<metric>.*`:
 
 | Metric | Attribution attributes (`everr.browser.web_vital.<metric>.` prefix) |
