@@ -3,82 +3,99 @@ title: CLI
 description: Reference for all Everr CLI commands.
 ---
 
+The Everr CLI queries local and Cloud telemetry, inspects GitHub Actions CI runs, manages bundled Skills, and reconciles resources as code. Run `everr --help` or `everr <command> --help` for the help included with your installed version.
+
 ## Cloud
 
-- `everr cloud login` — authenticate with your Everr account
-- `everr cloud logout` — sign out
-- `everr cloud query "<SQL>"` — run a read-only SQL query against your cloud telemetry and CI data
-  - `--format <json|ndjson|table>` output format (default: `table` in a terminal, `ndjson` otherwise)
+- `everr cloud login`: authenticate with Everr Cloud and save the local session
+- `everr cloud logout`: clear the saved Everr Cloud session
+- `everr cloud query "<SQL>"`: run read-only SQL against CI and Production telemetry stored in Everr Cloud
+  - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
 
-## Setup
+## Setup and maintenance
 
-- `everr setup` — run the guided setup wizard, including optional skills installation
-- `everr init` — import runs for the current repository
+- `everr setup`: set up local telemetry, bundled Skills, and Everr Cloud
+- `everr init`: connect the current GitHub repository and import its CI history
+- `everr upgrade`: upgrade the CLI and, when installed, the Everr Desktop app
+- `everr uninstall`: remove local Everr state and globally installed Skills, then print the command that removes the CLI binary
 
 ## Skills
 
-- `everr skills list [--project|--global] [--agent <codex|claude-code|cursor|all>]` — list bundled Everr skills
-- `everr skills install [--all] [--project|--global] [--agent ...] [--force] [--dry-run]` — install all bundled skills; omitting `--all` in a terminal asks for confirmation
-- `everr skills update [SKILL]... [--project|--global] [--agent ...] [--dry-run]` — update installed bundled skills
-- `everr skills uninstall [SKILL]... [--all] [--project|--global] [--agent ...] [--yes] [--dry-run]` — uninstall bundled skills
+- `everr skills list [--project|--global] [--agent <codex|claude-code|cursor|all>]`: list bundled Everr Skills for a scope and Agent
+- `everr skills install [--all] [--project|--global] [--agent <agent>] [--dry-run]`: install all bundled Skills. In an interactive terminal, omitted choices are prompted. In a non-interactive context, `--all` is required and the scope defaults to the project.
+- `everr skills update [SKILL]... [--project|--global] [--agent <agent>] [--dry-run]`: update bundled Skills already installed in the selected scope. With no scope, update matching installations in both project and global scopes.
+- `everr skills uninstall [SKILL]... [--all] [--project|--global] [--agent <agent>] [--yes] [--dry-run]`: uninstall named bundled Skills. `--all` requires `--yes`.
 
-## CI/CD status
+The `--agent` option can be repeated. With no Agent filter, a command targets all supported Agents.
 
-- `everr ci status` — show the current commit's pipeline state (`state`, `active`, `completed`)
-  - `--commit <sha>` target a specific commit
-  - `--run-id <id>` target a specific run
-  - `--branch <name>` / `--repo <repo>` override repository context
+## CI
 
-- `everr ci watch` — wait until the current `HEAD` commit finishes; exits non-zero if any run fails
-  - `--commit <sha>` target a specific commit
-  - `--attempt <n>` target a specific retry attempt
-  - `--run-id <id>` target a specific run
-  - `--fail-fast` exit immediately when any run fails
+- `everr ci status`: show CI runs for the current commit
+  - `--commit <sha-or-ref>`: target another commit
+  - `--run-id <id>`: target a GitHub Actions run ID
+  - `--branch <name>` and `--repo <owner/name>`: override repository context
 
-- `everr ci runs` — list recent runs
-  - `--branch <name>` / `--current-branch` filter by branch
-  - `--conclusion <success|failure|cancellation>` filter by outcome
-  - `--workflow-name <name>` filter by workflow
-  - `--run-id <id>` fetch a specific run
-  - `--from <expr>` / `--to <expr>` restrict to a time range (accepts [date math](/docs/reference/datemath), e.g. `now-7d`)
+- `everr ci watch`: watch the current commit's CI runs until completion, then exit non-zero if any run was unsuccessful
+  - `--commit <sha-or-ref>`: target another commit
+  - `--run-id <id>`: target a GitHub Actions run ID
+  - `--attempt <n>`: target a specific run attempt
+  - `--branch <name>` and `--repo <owner/name>`: override repository context
+  - `--fail-fast`: exit as soon as a CI run completes unsuccessfully
 
-- `everr ci show <trace_id>` — show jobs and steps for a run
-  - `--failed` show only failed jobs and their failed steps
+- `everr ci runs`: list recent CI runs
+  - `--repo <owner/name>`: filter by repository
+  - `--branch <name>` or `--current-branch`: filter by branch
+  - `--conclusion <value>`: filter by conclusion
+  - `--workflow-name <name>`: filter by workflow
+  - `--run-id <id>`: filter by GitHub Actions run ID
+  - `--from <expr>` and `--to <expr>`: restrict the start time using [date math](/docs/reference/datemath), for example `now-7d`
+  - `--limit <n>` and `--offset <n>`: paginate results (`--limit` defaults to 20 and accepts 1 through 100)
 
-- `everr ci logs <trace_id> --job-name <job> --step-number <n>` — print step logs (last 1000 lines by default)
-  - `--job-name <job>` / `--job-id <id>` select a job (required)
-  - `--step-number <n>` / `--log-failed` select a step (exactly one required)
-  - `--tail <n>` how many lines from the bottom
-  - `--limit <n>` / `--offset <n>` raw paging
-  - `--egrep <pattern>` keep only lines matching a re2 regex (exits non-zero if none match)
-  - `--color` preserve ANSI color codes (stripped by default)
+- `everr ci show <trace-id>`: show a CI run's jobs and steps
+  - `--failed`: show only failed jobs and their failed steps
 
-Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination.
+- `everr ci logs <trace-id> --job-name <job> --step-number <n>`: print Logs for one CI step (the last 1000 lines by default)
+  - `--job-name <job>` or `--job-id <id>`: select one job
+  - `--step-number <n>` or `--log-failed`: select one step
+  - `--tail <n>`: print lines from the bottom
+  - `--limit <n>` and `--offset <n>`: fetch a raw page from the top
+  - `--egrep <pattern>`: keep only lines matching a RE2 regex, exiting non-zero when no lines match
+  - `--color`: preserve ANSI color codes (stripped by default)
 
 ## Local telemetry
 
-- `everr local start` — start the local OpenTelemetry collector
-  - `--quiet` suppress the collector URL output after startup
-- `everr local status` — check whether the local OpenTelemetry collector is running and print local OTLP/SQL URLs
-- `everr local query "<SQL>"` — query local telemetry with read-only SQL
-  - `--format <json|ndjson|table>` output format (default: `table` in a terminal, `ndjson` otherwise)
-- `everr wrap -- <command>` — run a command normally and mirror stdout/stderr into local telemetry
-  - Requires a running collector; if unavailable, the command is not run
-  - Preserves the wrapped command's non-zero exit code
+- `everr local start`: start the local Collector in the foreground
+  - `--quiet`: suppress endpoint output after startup
+- `everr local status`: show the local Collector status and its OTLP and SQL endpoints
+- `everr local query "<SQL>"`: run read-only SQL against local telemetry
+  - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
+- `everr wrap -- <command>`: run a command and capture its stdout, stderr, and exit status as local Logs
+  - The command only starts when the local Collector is available.
+  - The CLI preserves the command's exit code.
 
-## Dashboards (gitops)
+## Resources as code
 
-- `everr apply <dir>` — reconcile a directory of resource definitions (`.yaml`/`.yml`/`.json`) into Everr. By convention the directory is `everr/` at your repo root, holding flat, kind-suffixed files: `*.dashboard.yaml`, `*.alert.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). Apply discovers `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` documents under the directory, routing by the `kind:` field (the suffix is a naming convention only). The `repoid` is inferred from the repository's `origin` remote, normalized to the slug `host/owner/repo` (for example `git@github.com:Acme/API.git` becomes `github.com/acme/api`). No manifest is needed. An optional `everr.yaml` (or `everr.yml`) at the apply root overrides the inferred identity; it accepts exactly one key, `repoid`, a non-empty string. Apply errors only when there is neither a usable `origin` remote nor an `everr.yaml` manifest. The repoid is the authoritative reconcile scope, the apply ownership boundary. Within that repoid it makes the live resources match the tree: new files are created, changed files updated, and removed files **deleted**. Dashboards may set an optional `metadata.project` (defaults to `default`) to namespace identity and URL. See [Observability as code](/docs/concepts/observability-as-code).
-  - `<dir>` directory to read resource files from (recursively), e.g. `./everr`; any subdirectories become folder paths
-  - `--preview [NAME]` apply into a preview namespace instead of the live state and print a shareable link; `NAME` defaults to the current git branch (pass it explicitly in CI or on a detached HEAD). Previews apply without confirmation, alert rules in them evaluate but never notify, and each preview expires automatically 7 days after its last apply
-  - `--dry-run` compute and print the diff without writing
-  - `--yes`, `-y` skip the confirmation prompt (required in non-interactive contexts such as CI or pipes)
-  - `--adopt` take ownership of resources another repoid currently owns when deliberately moving them between repos. Only the resources in the applied tree transfer; anything else stays with its current owner. Use with `--dry-run` first to preview the transfer.
+### Apply
 
-  Authentication: apply uses your `everr cloud login` session by default, and prints the destination organization. In GitHub Actions, install the CLI with `everr-action` before calling `everr apply`. For CI or non-interactive use, set `EVERR_API_KEY` to an organization API key with the `apply` scope. With changes to apply, it shows a confirmation prompt before writing; pass `--yes` (or run with `EVERR_API_KEY` in a non-interactive context) to skip it.
-  - `EVERR_API_KEY` an organization API key (prefix `ek_`) with the `apply` scope, used as a bearer token; when set it takes precedence over the session. The legacy `EVERR_API_TOKEN` is accepted as a deprecated alias.
-  - `EVERR_API_URL` API base URL (falls back to the URL persisted by a prior `everr cloud login`)
+`everr apply <dir>` reconciles the Dashboard, Alert, and Runbook definitions under a directory with Everr. Files can use `.yaml`, `.yml`, or `.json` and are discovered recursively. Apply creates and updates definitions present in the directory and deletes live resources that were previously applied by the same Repoid but are now absent.
 
-## Other
+By convention, use an `everr/` directory with files such as `*.dashboard.yaml`, `*.alert.yaml`, and `*.runbook.yaml`. The `kind` field, not the filename suffix, determines the resource kind. `kind: Notebook` and the `*.notebook.yaml` suffix remain supported for compatibility, but Runbook is the current name.
 
-- `everr uninstall` — remove all config files, log out, and print the command to remove the CLI binary
+The Repoid is inferred from the repository's `origin` remote and normalized to `host/owner/repo`. An optional `everr.yaml` or `everr.yml` Manifest at the apply root can override it with a single non-empty `repoid` key. See [Observability as code](/docs/concepts/observability-as-code).
+
+- `<dir>`: directory to read recursively, for example `./everr`
+- `--preview [NAME]`: reconcile into a preview instead of live state and print a shareable link. `NAME` defaults to the current branch and must be explicit in CI or a detached HEAD. Previews do not prompt, never send alert notifications, and expire seven days after their latest apply.
+- `--dry-run`: compute and print the diff without writing
+- `--yes`, `-y`: skip confirmation for a live apply (required in non-interactive contexts)
+- `--adopt`: adopt resources in the applied directory that another Repoid currently owns. Use `--dry-run` first to review the ownership changes.
+
+Apply uses the saved `everr cloud login` session by default. In CI, set `EVERR_API_KEY` to an Organization API Key with the `apply` capability. `EVERR_API_TOKEN` remains available as a deprecated alias. When either variable is set, `EVERR_API_URL` can override the API base URL.
+
+### Inspect and manage live resources
+
+- `everr resources list [--kind <dashboard|runbook|alert>] [--repoid <id>] [--json]`: list live resources across the active Organization. Pass an empty `--repoid` value to select UI-created resources.
+- `everr resources show <kind> <slug> [--project <name>] [--json]`: print a resource's stored YAML, or raw JSON with `--json`
+- `everr resources delete <kind> <slug> [--project <name>]`: delete a live resource immediately, without prompting
+- `everr resources adopt <kind> <slug> [--project <name>] [--yes]`: adopt a live resource into the current repository's Repoid. Interactive terminals prompt for confirmation; non-interactive contexts require `--yes`.
+
+`--project` defaults to `default`. These commands require a saved `everr cloud login` session and do not accept `EVERR_API_KEY`.

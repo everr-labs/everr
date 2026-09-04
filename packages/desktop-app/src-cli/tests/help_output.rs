@@ -12,6 +12,9 @@ fn root_help_lists_main_commands() {
         .arg("--help")
         .assert()
         .success()
+        .stdout(contains(
+            "Query telemetry, inspect CI, and manage resources as code in Everr",
+        ))
         .stdout(contains("Usage: everr <COMMAND>"))
         .stdout(predicates::str::contains("\n  install").not())
         .stdout(predicates::str::contains("\n  login").not())
@@ -32,11 +35,16 @@ fn root_help_lists_main_commands() {
         .stdout(predicates::str::contains("\n  logs").not())
         .stdout(contains("wrap"))
         .stdout(contains("skills"))
-        .stdout(contains("upgrade"));
+        .stdout(contains("upgrade"))
+        .stdout(contains("apply"))
+        .stdout(contains("resources"))
+        .stdout(contains("Authenticate with and query Everr Cloud"))
+        .stdout(contains("Run and query the local telemetry Collector"))
+        .stdout(contains("Reconcile a directory of as-code resources"));
 }
 
 #[test]
-fn ci_help_lists_pipeline_subcommands() {
+fn ci_help_lists_ci_subcommands() {
     let env = CliTestEnv::new();
 
     env.command()
@@ -47,7 +55,9 @@ fn ci_help_lists_pipeline_subcommands() {
         .stdout(contains("watch"))
         .stdout(contains("runs"))
         .stdout(contains("show"))
-        .stdout(contains("logs"));
+        .stdout(contains("logs"))
+        .stdout(contains("Show CI runs for a commit or run ID"))
+        .stdout(contains("List recent CI runs"));
 }
 
 #[test]
@@ -83,6 +93,9 @@ fn cloud_query_help_lists_format_option() {
         .args(["cloud", "query", "--help"])
         .assert()
         .success()
+        .stdout(contains(
+            "Run read-only SQL against CI and Production telemetry",
+        ))
         .stdout(contains("<SQL>"))
         .stdout(contains("--format <FORMAT>"));
 }
@@ -111,11 +124,14 @@ fn runs_logs_help_lists_paging_flags_and_default_page_size() {
         .stdout(contains("--limit <LIMIT>"))
         .stdout(contains("--offset <OFFSET>"))
         .stdout(contains("default: 1000"))
-        .stdout(contains("--egrep"));
+        .stdout(contains("--egrep"))
+        .stdout(contains("Trace ID of the CI run"))
+        .stdout(contains("Job name"))
+        .stdout(contains("Step number"));
 }
 
 #[test]
-fn telemetry_help_lists_start_command() {
+fn local_help_lists_collector_commands() {
     let env = CliTestEnv::new();
 
     env.command()
@@ -125,7 +141,7 @@ fn telemetry_help_lists_start_command() {
         .stdout(contains("start"))
         .stdout(contains("query"))
         .stdout(contains("status"))
-        .stdout(predicates::str::contains("endpoint").not());
+        .stdout(predicates::str::contains("\n  endpoint").not());
 
     env.command()
         .args(["local", "start", "--help"])
@@ -143,9 +159,7 @@ fn wrap_help_describes_command_capture() {
         .assert()
         .success()
         .stdout(contains("<COMMAND>"))
-        .stdout(contains(
-            "send its stdout/stderr logs to the local collector",
-        ));
+        .stdout(contains("capture its output as local Logs"));
 }
 
 #[test]
@@ -172,12 +186,40 @@ fn skills_help_describes_skill_management() {
         .args(["skills", "--help"])
         .assert()
         .success()
-        .stdout(contains("Manage bundled Everr agent skills"))
+        .stdout(contains("Manage bundled Everr Skills"))
         .stdout(contains("list"))
         .stdout(contains("install"))
         .stdout(contains("update"))
         .stdout(contains("uninstall"))
         .stdout(predicates::str::contains("--json").not());
+}
+
+#[test]
+fn resource_help_describes_reconciliation_and_live_resource_management() {
+    let env = CliTestEnv::new();
+
+    env.command()
+        .args(["apply", "--help"])
+        .assert()
+        .success()
+        .stdout(contains(
+            "Reconcile a directory of as-code resources with Everr",
+        ))
+        .stdout(contains("--preview [<NAME>]"))
+        .stdout(contains("--dry-run"))
+        .stdout(contains("--adopt"));
+
+    env.command()
+        .args(["resources", "--help"])
+        .assert()
+        .success()
+        .stdout(contains(
+            "Inspect and manage live Dashboards, Runbooks, and Alerts",
+        ))
+        .stdout(contains("list"))
+        .stdout(contains("show"))
+        .stdout(contains("delete"))
+        .stdout(contains("adopt"));
 }
 
 #[test]
