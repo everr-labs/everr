@@ -102,10 +102,7 @@ func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (co
 	}
 
 	cl := client.FromContext(ctx)
-	cl.Auth = authData{
-		tenantID: res.tenantID, keyID: res.keyID,
-		logsDays: res.logsDays, tracesDays: res.tracesDays, metricsDays: res.metricsDays,
-	}
+	cl.Auth = res
 	return client.NewContext(ctx, cl), nil
 }
 
@@ -156,13 +153,13 @@ func firstNonEmpty(slices ...[]string) string {
 	return ""
 }
 
-// lookup returns the authResult for the given token, consulting the cache
+// lookup returns the authData for the given token, consulting the cache
 // first and falling back to the verify endpoint. Concurrent misses for the
 // same token coalesce into a single verify call via singleflight; the rest
 // wait for that one answer. The shared verify call uses a detached context
 // with its own timeout so one caller's cancellation does not fail all the
 // waiters.
-func (e *ext) lookup(ctx context.Context, token, origin string) (*authResult, error) {
+func (e *ext) lookup(ctx context.Context, token, origin string) (*authData, error) {
 	// \x00 cannot appear in a bearer token or an Origin header, so the
 	// composite is unambiguous.
 	cacheKey := token + "\x00" + origin
@@ -226,11 +223,11 @@ func (e *ext) lookup(ctx context.Context, token, origin string) (*authResult, er
 		if r.Err != nil {
 			return nil, r.Err
 		}
-		return r.Val.(*authResult), nil
+		return r.Val.(*authData), nil
 	}
 }
 
-func (e *ext) verify(ctx context.Context, token, origin string) (*authResult, error) {
+func (e *ext) verify(ctx context.Context, token, origin string) (*authData, error) {
 	payload := map[string]string{"key": token}
 	if origin != "" {
 		payload["origin"] = origin
@@ -266,10 +263,7 @@ func (e *ext) verify(ctx context.Context, token, origin string) (*authResult, er
 			// authenticate rather than stamp it.
 			return nil, fmt.Errorf("%w: missing retention for tenant %s", errInvalidResponse, vr.TenantID)
 		}
-		return &authResult{
-			tenantID: vr.TenantID, keyID: vr.KeyID,
-			logsDays: vr.LogsDays, tracesDays: vr.TracesDays, metricsDays: vr.MetricsDays,
-		}, nil
+		return newAuthData(vr), nil
 	case http.StatusUnauthorized, http.StatusForbidden:
 		e.logger.Debug("verify endpoint rejected key")
 		return nil, errUnauthorized

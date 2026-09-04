@@ -13,18 +13,20 @@ const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 // storage; under-granting deletes data the customer paid to keep.
 const PAID_THROUGH_STATUSES = new Set(["past_due", "unpaid", "canceled"]);
 
-function tierForSubscription(args: {
-  status: string | null | undefined;
-  currentPeriodEnd: Date | null | undefined;
-  cancelAtPeriodEnd: boolean | null | undefined;
-}): Tier {
-  if (!args.status) return "free";
-  if (ACTIVE_STATUSES.has(args.status)) return "pro";
-  if (!PAID_THROUGH_STATUSES.has(args.status)) return "free";
+type SubscriptionTierInput = {
+  status: string | null;
+  currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean | null;
+};
+
+function tierForSubscription(row: SubscriptionTierInput | undefined): Tier {
+  if (!row?.status) return "free";
+  if (ACTIVE_STATUSES.has(row.status)) return "pro";
+  if (!PAID_THROUGH_STATUSES.has(row.status)) return "free";
   // A cancellation scheduled for the period end keeps the paid period;
   // an immediate revoke leaves cancelAtPeriodEnd false and ends it now.
-  if (args.status === "canceled" && !args.cancelAtPeriodEnd) return "free";
-  return args.currentPeriodEnd && args.currentPeriodEnd > new Date()
+  if (row.status === "canceled" && !row.cancelAtPeriodEnd) return "free";
+  return row.currentPeriodEnd && row.currentPeriodEnd > new Date()
     ? "pro"
     : "free";
 }
@@ -46,11 +48,7 @@ export async function readOrgEntitlement(
     .limit(1);
 
   return {
-    tier: tierForSubscription({
-      status: row?.status,
-      currentPeriodEnd: row?.currentPeriodEnd,
-      cancelAtPeriodEnd: row?.cancelAtPeriodEnd,
-    }),
+    tier: tierForSubscription(row),
     status: row?.status ?? null,
     currentPeriodEnd: row?.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: row?.cancelAtPeriodEnd ?? false,

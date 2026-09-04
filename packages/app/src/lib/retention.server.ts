@@ -1,3 +1,4 @@
+import QuickLRU from "quick-lru";
 import { readOrgEntitlement } from "@/lib/billing-data.server";
 import { resolveRetention, type TenantRetention } from "@/lib/retention";
 
@@ -9,19 +10,24 @@ import { resolveRetention, type TenantRetention } from "@/lib/retention";
 // once per GitHub event, and the verify endpoint once per collector cache
 // miss. The collector caches its own answer for 30 seconds, so this window
 // keeps the documented "within about a minute" for a tier change.
-const CACHE_TTL_MS = 30_000;
-const cache = new Map<
-  string,
-  { retention: TenantRetention; expiresAt: number }
->();
+//
+// The entry is the in-flight promise, so concurrent misses for one org share a
+// single query instead of each issuing their own. A rejection is dropped
+// rather than cached: a failed lookup must not deny the tenant its retention
+// for the rest of the window.
+const cache = new QuickLRU<string, Promise<TenantRetention>>({
+  maxSize: 1_000,
+  maxAge: 30_000,
+});
 
-export async function retentionForOrg(orgId: string): Promise<TenantRetention> {
-  const now = Date.now();
+export function retentionForOrg(orgId: string): Promise<TenantRetention> {
   const cached = cache.get(orgId);
-  if (cached && cached.expiresAt > now) return cached.retention;
+  if (cached) return cached;
 
-  const { tier } = await readOrgEntitlement(orgId);
-  const retention = resolveRetention(tier);
-  cache.set(orgId, { retention, expiresAt: now + CACHE_TTL_MS });
-  return retention;
+  const pending = readOrgEntitlement(orgId).then(({ tier }) =>
+    resolveRetention(tier),
+  );
+  pending.catch(() => cache.delete(orgId));
+  cache.set(orgId, pending);
+  return pending;
 }

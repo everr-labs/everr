@@ -39,21 +39,11 @@ export const OPERATIONAL_EVENT_TYPES = [
 ] as const;
 
 // Alert history follows the tenant's logs retention, like its projection
-// into app.logs. One lookup per distinct tenant in the batch.
+// into app.logs. Every caller builds its rows from one alert definition, so
+// the batch is a single tenant and one lookup covers it.
 async function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
-  const tenants = [...new Set(rows.map((row) => row.tenant_id))];
-  const retention = new Map(
-    await Promise.all(
-      tenants.map(
-        async (tenantId) =>
-          [tenantId, (await retentionForOrg(tenantId)).logsDays] as const,
-      ),
-    ),
-  );
-  const stamped = rows.map((row) => ({
-    ...row,
-    retention_days: retention.get(row.tenant_id),
-  }));
+  const { logsDays } = await retentionForOrg(rows[0].tenant_id);
+  const stamped = rows.map((row) => ({ ...row, retention_days: logsDays }));
   return insertAdminRows("app.alert_events", stamped, {
     async_insert: 1,
     wait_for_async_insert: 1,
