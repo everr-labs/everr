@@ -1,15 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, countDistinct, eq, inArray, sql } from "drizzle-orm";
 import { deliveryIsInFlight } from "@/data/alerting/delivery/config";
-import {
-  ALERTING_SEVERITY_TIERS,
-  type AlertingDefaultTier,
-} from "@/data/alerting/delivery/defaults";
+import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
 import { type DbExecutor, db } from "@/db/client";
 import {
   alertChannels,
   alertDefaultChannels,
-  alertDefaultDestinations,
   alertDeliveries,
 } from "@/db/schema";
 import { truncateWithEllipsis } from "@/lib/truncate";
@@ -87,27 +83,15 @@ export async function createChannel(
   // statement, so the race window is a concurrent create's uncommitted row;
   // if two firsts both slip through, the default just holds both, which the
   // model allows.
-  await db.transaction(async (tx) => {
-    const inserted = await tx.execute<{ organization_id: string }>(sql`
-      INSERT INTO alert_default_channels (organization_id, tier, channel_id)
-      SELECT ${organizationId}, 'all', ${id}
-      WHERE NOT EXISTS (
-        SELECT 1 FROM alert_default_channels
-        WHERE organization_id = ${organizationId}
-      )
-      ON CONFLICT DO NOTHING
-      RETURNING organization_id
-    `);
-    if (inserted.rows.length > 0) {
-      await tx
-        .insert(alertDefaultDestinations)
-        .values({ organizationId, split: false })
-        .onConflictDoUpdate({
-          target: alertDefaultDestinations.organizationId,
-          set: { split: false },
-        });
-    }
-  });
+  await db.execute(sql`
+    INSERT INTO alert_default_channels (organization_id, tier, channel_id)
+    SELECT ${organizationId}, 'all', ${id}
+    WHERE NOT EXISTS (
+      SELECT 1 FROM alert_default_channels
+      WHERE organization_id = ${organizationId}
+    )
+    ON CONFLICT DO NOTHING
+  `);
   return channelView(row);
 }
 
@@ -267,38 +251,28 @@ export async function testChannel(
 export async function listDefaultDestination(
   organizationId: string,
 ): Promise<AlertingDefaultDestination> {
-  const [rows, [settings]] = await Promise.all([
-    db
-      .select({
-        tier: alertDefaultChannels.tier,
-        channelName: alertChannels.name,
-      })
-      .from(alertDefaultChannels)
-      .innerJoin(
-        alertChannels,
-        and(
-          eq(alertDefaultChannels.organizationId, alertChannels.organizationId),
-          eq(alertDefaultChannels.channelId, alertChannels.id),
-        ),
-      )
-      .where(eq(alertDefaultChannels.organizationId, organizationId))
-      .orderBy(asc(alertDefaultChannels.tier), asc(alertChannels.name)),
-    db
-      .select({ split: alertDefaultDestinations.split })
-      .from(alertDefaultDestinations)
-      .where(eq(alertDefaultDestinations.organizationId, organizationId))
-      .limit(1),
-  ]);
+  const rows = await db
+    .select({
+      tier: alertDefaultChannels.tier,
+      channelName: alertChannels.name,
+    })
+    .from(alertDefaultChannels)
+    .innerJoin(
+      alertChannels,
+      and(
+        eq(alertDefaultChannels.organizationId, alertChannels.organizationId),
+        eq(alertDefaultChannels.channelId, alertChannels.id),
+      ),
+    )
+    .where(eq(alertDefaultChannels.organizationId, organizationId))
+    .orderBy(asc(alertDefaultChannels.tier), asc(alertChannels.name));
   const tiers: AlertingDefaultDestination["tiers"] = {};
   for (const row of rows) {
     const list = tiers[row.tier] ?? [];
     list.push(row.channelName);
     tiers[row.tier] = list;
   }
-  return {
-    split: settings?.split ?? rows.some((row) => row.tier !== ("all" as const)),
-    tiers,
-  };
+  return { tiers };
 }
 
 /**
@@ -320,27 +294,11 @@ export async function setDefaultDestination(
     AlertingDefaultTier,
     string[],
   ][];
-  const split =
-    input.split ?? ALERTING_SEVERITY_TIERS.some((tier) => tier in input.tiers);
   if ("all" in input.tiers && entries.length > 1) {
     throwAlertingPersistenceError(
       422,
       "validation",
       'the "all" tier cannot be combined with severity tiers',
-    );
-  }
-  if (split && "all" in input.tiers) {
-    throwAlertingPersistenceError(
-      422,
-      "validation",
-      'the "all" tier cannot be used while delivery is split',
-    );
-  }
-  if (!split && entries.length > 0 && !("all" in input.tiers)) {
-    throwAlertingPersistenceError(
-      422,
-      "validation",
-      "severity tiers require split delivery",
     );
   }
   const names = [...new Set(entries.flatMap(([, channels]) => channels))];
@@ -366,13 +324,6 @@ export async function setDefaultDestination(
     );
   }
   await db.transaction(async (tx) => {
-    await tx
-      .insert(alertDefaultDestinations)
-      .values({ organizationId, split })
-      .onConflictDoUpdate({
-        target: alertDefaultDestinations.organizationId,
-        set: { split },
-      });
     await tx
       .delete(alertDefaultChannels)
       .where(eq(alertDefaultChannels.organizationId, organizationId));

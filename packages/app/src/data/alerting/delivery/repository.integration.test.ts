@@ -52,7 +52,6 @@ describe("the default destination", () => {
     });
 
     expect(await listDefaultDestination(TEST_ORG)).toEqual({
-      split: true,
       tiers: { critical: ["#oncall", "pager"], warning: ["#oncall"] },
     });
   });
@@ -69,7 +68,6 @@ describe("the default destination", () => {
       tiers: { critical: ["pager"], info: ["#oncall", "pager"] },
     });
     expect(result).toEqual({
-      split: true,
       tiers: { critical: ["pager"], info: ["#oncall", "pager"] },
     });
     expect(await listDefaultDestination(TEST_ORG)).toEqual(result);
@@ -86,7 +84,6 @@ describe("the default destination", () => {
       setDefaultDestination(scope, { tiers: { all: ["#oncall", "#gone"] } }),
     ).rejects.toThrow(/Unknown channels: #gone/);
     expect(await listDefaultDestination(TEST_ORG)).toEqual({
-      split: false,
       tiers: { all: ["#oncall"] },
     });
   });
@@ -106,20 +103,7 @@ describe("the default destination", () => {
       tier: "all",
       channelIds: [oncall.id],
     });
-    expect(
-      await setDefaultDestination(scope, { split: false, tiers: {} }),
-    ).toEqual({
-      split: false,
-      tiers: {},
-    });
-  });
-
-  it("keeps split mode when every severity tier is empty", async () => {
-    expect(
-      await setDefaultDestination(scope, { split: true, tiers: {} }),
-    ).toEqual({ split: true, tiers: {} });
-    expect(await listDefaultDestination(TEST_ORG)).toEqual({
-      split: true,
+    expect(await setDefaultDestination(scope, { tiers: {} })).toEqual({
       tiers: {},
     });
   });
