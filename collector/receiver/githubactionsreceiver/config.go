@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
 )
 
@@ -46,6 +47,19 @@ type Config struct {
 }
 
 var _ component.Config = (*Config)(nil)
+var _ confmap.Unmarshaler = (*Config)(nil)
+
+// Unmarshal decodes the whole Config. It must exist: the embedded
+// confighttp.ServerConfig carries its own Unmarshal method, which Go promotes
+// to Config, and that promoted method only fills the ServerConfig fields. Left
+// to it, `path`, `secret` and every `gh_api` setting are dropped without an
+// error. The second call gives ServerConfig the decoding it defines for itself.
+func (cfg *Config) Unmarshal(conf *confmap.Conf) error {
+	if err := conf.Unmarshal(cfg); err != nil {
+		return err
+	}
+	return cfg.ServerConfig.Unmarshal(conf)
+}
 
 // Validate checks the receiver configuration is valid
 func (cfg *Config) Validate() error {
