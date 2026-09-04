@@ -2,13 +2,13 @@ UNAME_S ?= $(shell uname -s)
 UNAME_M ?= $(shell uname -m)
 REPO_ROOT := $(shell git rev-parse --show-toplevel)
 
-CHDB_RELEASE_VERSION ?= v4.0.2
+CHDB_RELEASE_VERSION ?= v26.5.0
 CHDB_CACHE_DIR ?= $(REPO_ROOT)/target/chdb
 
 ifeq ($(UNAME_S),Darwin)
 ifeq ($(UNAME_M),arm64)
 CHDB_LIB_ASSET_NAME ?= macos-arm64-libchdb.tar.gz
-CHDB_LIB_ARCHIVE_SHA256 ?= 54b4da9c4d71f09b8a37e823a7addba392c4789a7034192a4863a1edd452f9e8
+CHDB_LIB_ARCHIVE_SHA256 ?= 86a77d5aa775902740d312153eddfbdc641b8fd5a2e028ddfd18d002ade9ec38
 CHDB_EXTRACT_DIR ?= $(CHDB_CACHE_DIR)/$(CHDB_RELEASE_VERSION)-extract
 endif
 endif
@@ -16,7 +16,7 @@ endif
 ifeq ($(UNAME_S),Linux)
 ifeq ($(UNAME_M),x86_64)
 CHDB_LIB_ASSET_NAME ?= linux-x86_64-libchdb.tar.gz
-CHDB_LIB_ARCHIVE_SHA256 ?= fb722f81c61c1fb2eb3511f17a5adc85b231f6bbc2415de6aea3ad9b73bb272e
+CHDB_LIB_ARCHIVE_SHA256 ?= 8dc5155d80b20a27d3e7322bb49ce003807ebd2b8cbd43896c829d16d24b0cdf
 CHDB_EXTRACT_DIR ?= $(CHDB_CACHE_DIR)/$(CHDB_RELEASE_VERSION)-linux-x86_64
 endif
 endif
