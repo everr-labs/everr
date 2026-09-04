@@ -47,15 +47,12 @@ REBUILD=(metrics_gauge metrics_sum metrics_histogram metrics_exponential_histogr
 # is accepted and discarded. If the swap stops half way, drop the Null tables
 # that have no view: the exporter then gets an error it retries instead of
 # losing the data quietly.
-swap_started=0
-on_error() {
-  [ "$swap_started" = 1 ] || return 0
+drop_landing_tables() {
   echo "swap failed: dropping landing tables that have no view, so ingestion fails loudly" >&2
   for t in "${TABLES[@]}"; do
     run_sql "DROP TABLE IF EXISTS otel.otel_${t}" || true
   done
 }
-trap on_error ERR
 
 echo "1/4 guard: the collector must already stamp retention"
 run_sql "SELECT throwIf(
@@ -65,7 +62,7 @@ run_sql "SELECT throwIf(
 echo "2/4 swap landing tables and views"
 # The stored otel.* copies go with the tables. They hold seven days of raw
 # rows that nothing reads: app.* is the read model.
-swap_started=1
+trap drop_landing_tables ERR
 for t in "${TABLES[@]}"; do
   run_sql "DROP VIEW IF EXISTS app.${t}_mv"
   run_sql "DROP TABLE IF EXISTS otel.otel_${t}"
@@ -75,11 +72,13 @@ for t in "${REBUILD[@]}"; do
 done
 run_file init/03-create-otel-tables.sql   # Null engines
 run_file init/10-create-mvs.sql           # app.* CREATE IF NOT EXISTS rebuilds the metrics tables; views are recreated
-swap_started=0
+trap - ERR
 
 # Every landing table must have its view back before ingestion resumes.
+mv_names=$(printf ",'%s_mv'" "${TABLES[@]}")
 run_sql "SELECT throwIf(
-  (SELECT count() FROM system.tables WHERE database = 'app' AND engine = 'MaterializedView' AND name IN ('traces_mv','logs_mv','metrics_gauge_mv','metrics_sum_mv','metrics_histogram_mv','metrics_exponential_histogram_mv','metrics_summary_mv')) != 7,
+  (SELECT count() FROM system.tables
+     WHERE database = 'app' AND engine = 'MaterializedView' AND name IN (${mv_names#,})) != ${#TABLES[@]},
   'a landing table has no materialized view: rows would be discarded')"
 
 echo "3/4 alert events keep their retention from the app"
