@@ -7,6 +7,7 @@ vi.mock("@/lib/retention.server", () => ({
   retentionForOrg: vi.fn(),
 }));
 
+import { resolveRetention } from "@/lib/retention";
 import { retentionForOrg } from "@/lib/retention.server";
 import { replayWebhookToCollector } from "./collector";
 
@@ -14,11 +15,7 @@ describe("replayWebhookToCollector", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("sends tenant and retention headers to the collector", async () => {
-    vi.mocked(retentionForOrg).mockResolvedValueOnce({
-      logsDays: 14,
-      tracesDays: 14,
-      metricsDays: 14,
-    });
+    vi.mocked(retentionForOrg).mockResolvedValueOnce(resolveRetention("free"));
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(null, { status: 204 }));

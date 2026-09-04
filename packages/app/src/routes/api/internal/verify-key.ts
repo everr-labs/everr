@@ -4,19 +4,17 @@ import { env } from "@/env";
 import { hasApiKeyScope } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
 import { originPolicyAllows } from "@/lib/public-ingest-keys";
+import type { TenantRetention } from "@/lib/retention";
 import { retentionForOrg } from "@/lib/retention.server";
 
 const INGEST_CONFIG_ID = "ingest";
 
-type VerifyKeyResponse = {
+// The retention days come straight from TenantRetention. The collector stamps
+// them on every resource it ingests with this key and the views write them
+// into app.*, so this is the only place retention enters the pipeline.
+type VerifyKeyResponse = TenantRetention & {
   tenantId: string;
   keyId: string;
-  // Retention in days per signal. The collector stamps these on every
-  // resource it ingests with this key and the views write them into
-  // app.*, so this is the only place retention enters the pipeline.
-  logsDays: number;
-  tracesDays: number;
-  metricsDays: number;
 };
 
 type VerifyBody = {
@@ -75,13 +73,10 @@ export const Route = createFileRoute("/api/internal/verify-key")({
           return new Response(null, { status: 403 });
         }
 
-        const retention = await retentionForOrg(result.key.referenceId);
         const payload: VerifyKeyResponse = {
           tenantId: result.key.referenceId,
           keyId: result.key.id,
-          logsDays: retention.logsDays,
-          tracesDays: retention.tracesDays,
-          metricsDays: retention.metricsDays,
+          ...(await retentionForOrg(result.key.referenceId)),
         };
 
         return Response.json(payload);

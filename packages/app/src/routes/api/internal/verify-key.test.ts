@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveRetention } from "@/lib/retention";
 import { Route } from "./verify-key";
 
 vi.mock("@/env", () => ({
@@ -51,11 +52,7 @@ async function mockVerify(result: unknown) {
 beforeEach(async () => {
   vi.clearAllMocks();
   const { retentionForOrg } = await import("@/lib/retention.server");
-  vi.mocked(retentionForOrg).mockResolvedValue({
-    logsDays: 30,
-    tracesDays: 30,
-    metricsDays: 395,
-  });
+  vi.mocked(retentionForOrg).mockResolvedValue(resolveRetention("pro"));
 });
 
 describe("/api/internal/verify-key", () => {
@@ -120,9 +117,7 @@ describe("/api/internal/verify-key", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_3",
-      logsDays: 30,
-      tracesDays: 30,
-      metricsDays: 395,
+      ...resolveRetention("pro"),
     });
     const { retentionForOrg } = await import("@/lib/retention.server");
     expect(retentionForOrg).toHaveBeenCalledWith("org_42");
@@ -199,9 +194,7 @@ describe("/api/internal/verify-key browser origin policy", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_public",
-      logsDays: 30,
-      tracesDays: 30,
-      metricsDays: 395,
+      ...resolveRetention("pro"),
     });
   });
 
@@ -267,9 +260,7 @@ describe("/api/internal/verify-key browser origin policy", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_secret",
-      logsDays: 30,
-      tracesDays: 30,
-      metricsDays: 395,
+      ...resolveRetention("pro"),
     });
   });
 

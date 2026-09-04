@@ -16,6 +16,7 @@ vi.mock("@/telemetry/logger", () => ({
   serverLogger: { error: vi.fn() },
 }));
 
+import { resolveRetention } from "@/lib/retention";
 import { retentionForOrg } from "@/lib/retention.server";
 import { serverLogger } from "@/telemetry/logger";
 import {
@@ -186,11 +187,7 @@ describe("recordAlertEvents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     insertAdminRows.mockResolvedValue(undefined);
-    vi.mocked(retentionForOrg).mockResolvedValue({
-      logsDays: 30,
-      tracesDays: 30,
-      metricsDays: 395,
-    });
+    vi.mocked(retentionForOrg).mockResolvedValue(resolveRetention("pro"));
   });
 
   const row = buildEvaluationEvent({

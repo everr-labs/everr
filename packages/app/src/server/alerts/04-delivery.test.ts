@@ -26,13 +26,12 @@ vi.mock("./03-events", async (importOriginal) => {
 
 // Cuts the import chain 03-events -> retention.server -> billing-data.server,
 // which reaches the Postgres client and its server-only env.
-vi.mock("@/lib/retention.server", () => ({
-  retentionForOrg: vi.fn().mockResolvedValue({
-    logsDays: 30,
-    tracesDays: 30,
-    metricsDays: 395,
-  }),
-}));
+vi.mock("@/lib/retention.server", async () => {
+  const { resolveRetention } = await import("@/lib/retention");
+  return {
+    retentionForOrg: vi.fn().mockResolvedValue(resolveRetention("pro")),
+  };
+});
 
 vi.mock("@/env", () => ({
   env: { BETTER_AUTH_URL: "https://app.example.com" },
