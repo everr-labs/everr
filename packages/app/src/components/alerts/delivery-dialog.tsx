@@ -246,7 +246,12 @@ function DeliveryForm({
   }
 
   return (
-    <DialogContent className={cn("sm:max-w-md", split && "sm:max-w-2xl")}>
+    <DialogContent
+      className={cn(
+        "max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain sm:max-w-md",
+        split && "sm:max-w-2xl",
+      )}
+    >
       <DialogHeader>
         <DialogTitle>Edit delivery</DialogTitle>
         <DialogDescription>
