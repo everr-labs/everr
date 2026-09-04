@@ -7,12 +7,12 @@ import {
   type AlertingDefaultTier,
   defaultTierFor,
 } from "@/data/alerting/delivery/defaults";
+import type { AlertRuleRead } from "@/data/alerting/rules/read";
 import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
 import type { SilenceRow } from "@/data/alerting/silences/repository";
 import { db } from "@/db/client";
 import { alertDefaultChannels, alertEvents } from "@/db/schema";
 import { formatClock, formatElapsed } from "./format";
-import type { DefinitionRow } from "./rules";
 
 export type NotificationFact = {
   eventType: string;
@@ -138,7 +138,7 @@ export async function loadDefaultTiers(
 /** Whether anything at all would carry this rule's notifications: its own
  *  declared channels, or a default tier that covers its severity. */
 export function hasDeliveryTarget(
-  row: DefinitionRow,
+  row: AlertRuleRead,
   tiers: Set<AlertingDefaultTier>,
 ): boolean {
   if ((row.spec.notifications?.channels ?? []).length > 0) return true;
@@ -166,7 +166,7 @@ export type DeliveryFacts = {
  * the silence already, and this is the phrase that follows the name.
  */
 export function notificationText(
-  row: DefinitionRow,
+  row: AlertRuleRead,
   delivery: DeliveryFacts,
   now: Date,
 ): string {

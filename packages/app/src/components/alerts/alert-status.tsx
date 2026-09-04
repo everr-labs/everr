@@ -18,7 +18,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
-import type { RuleInventoryState } from "@/data/alerting/triage/view";
+import type { RuleInventoryState } from "@/data/alerting/rules/read";
 import type { AlertingSeverity } from "@/data/alerting/types";
 
 type StatusMeta = {

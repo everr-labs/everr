@@ -6,19 +6,12 @@
  * timestamps are, so a component never has to re-derive alerting semantics it
  * cannot see the inputs for.
  */
+
+import type {
+  RuleInventoryState,
+  TriageStatus,
+} from "@/data/alerting/rules/read";
 import type { AlertingSeverity } from "@/data/alerting/types";
-
-/** How a rule presents in triage. `degraded` is health, not instance status:
- *  a rule we cannot evaluate has no trustworthy status to show. */
-export type TriageStatus = "degraded" | "firing" | "pending";
-
-/** The inventory widens triage with the states that never need attention:
- *  quiet, silenced, and switched off. */
-export type RuleInventoryState =
-  | TriageStatus
-  | "inactive"
-  | "silenced"
-  | "paused";
 
 /** What a state chart can paint. Spelled out rather than derived from
  *  `RuleInventoryState`: `inactive` is the empty track, and `paused` is a
@@ -304,27 +297,6 @@ export type AlertSilencePage = {
  * own copy in step by comment.
  */
 export const SILENCE_PAGE_LIMIT = 200;
-
-/**
- * One rule as a screen that does not load rules refers to it: the `project/slug`
- * the silence row stores, and the name every other alerting surface prints.
- *
- * Both travel together because a silence knows its rule only by path, and a
- * path is not what the reader recognizes. The picker offers the name and
- * commits the path; the Silences list stores the path and prints the name.
- */
-export type AlertRuleOption = {
-  /** The definition's row id, which is what a silence matcher holds. Travels
-   *  with the path so a stored silence can be resolved back to a rule the
-   *  reader recognizes. */
-  id: string;
-  path: string;
-  /** Groups the picker. Every path is `project/slug`, so this is free. */
-  project: string;
-  /** `everr.display.name`, falling back to the slug, exactly as `ruleTitle`
-   *  resolves it. */
-  name: string;
-};
 
 /** The durations the silence dialog offers. The label and what it means travel
  *  together, so the two cannot drift apart and nothing has to parse a label

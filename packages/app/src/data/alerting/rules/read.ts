@@ -1,7 +1,7 @@
 /**
- * Alert rules as the triage screen reads them: the PostgreSQL rows, the
- * identity a reader recognizes a rule by, and the state a row can answer for
- * on its own.
+ * Alert rules as the app reads them: the facts its screens consume, the
+ * identity a reader recognizes a rule by, and the state a rule can answer for
+ * on its own. PostgreSQL row shapes stay behind this module.
  */
 import { notFound } from "@tanstack/react-router";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -14,11 +14,60 @@ import type {
 import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
 import { db } from "@/db/client";
 import { alertDefinitions, alertInstances } from "@/db/schema";
-import { compareRuleLabels } from "./format";
-import type { AlertRuleOption, RuleInventoryState, TriageStatus } from "./view";
 
-export type DefinitionRow = typeof alertDefinitions.$inferSelect;
-export type InstanceRow = typeof alertInstances.$inferSelect;
+/** How a rule presents when its state needs attention. */
+export type TriageStatus = "degraded" | "firing" | "pending";
+
+/** Every state the rule inventory can present. */
+export type RuleInventoryState =
+  | TriageStatus
+  | "inactive"
+  | "silenced"
+  | "paused";
+
+/**
+ * One rule as a screen that does not load rules refers to it: the
+ * `project/slug` a silence stores, and the display name every alerting surface
+ * prints. The row id travels with them because silence matchers hold it.
+ */
+export type AlertRuleOption = {
+  id: string;
+  path: string;
+  /** Groups the picker. */
+  project: string;
+  /** `everr.display.name`, falling back to the slug. */
+  name: string;
+};
+
+/** The Alert rule facts consumed by the alerting screens. */
+export type AlertRuleRead = {
+  id: string;
+  repoid: string;
+  slug: string;
+  project: string;
+  spec: AlertingRuleSpec;
+  active: boolean;
+  pausedAt: Date | null;
+  pausedBy: string | null;
+  lastError: string | null;
+  currentState: "unknown" | "resolved" | "pending" | "firing";
+  consecutiveFailures: number;
+  degradedSince: Date | null;
+  lastErrorAt: Date | null;
+  lastFiredAt: Date | null;
+  lastSeenAt: Date | null;
+  lastRowCount: number;
+};
+
+/** The Alert instance facts consumed by the alerting screens. */
+export type AlertInstanceRead = {
+  alertDefinitionId: string;
+  fingerprint: string;
+  status: "inactive" | "pending" | "firing";
+  value: number | null;
+  pendingSince: Date | null;
+  activeSince: Date | null;
+};
 
 /** `link.runbook` is a full URL. The last two path segments are the runbook's
  *  own `project/slug`, and the slug alone is what a reader recognizes. */
@@ -27,7 +76,7 @@ export function runbookLabel(href: string): string {
   return segments[segments.length - 1] || href;
 }
 
-export function rulePath(row: Pick<DefinitionRow, "project" | "slug">): string {
+export function rulePath(row: Pick<AlertRuleRead, "project" | "slug">): string {
   return formatResourceName(row.project, row.slug);
 }
 
@@ -38,7 +87,7 @@ export function rulePath(row: Pick<DefinitionRow, "project" | "slug">): string {
  * wrote for the rule itself.
  */
 export function ruleTitle(
-  row: Pick<DefinitionRow, "slug"> & {
+  row: Pick<AlertRuleRead, "slug"> & {
     spec: { annotations?: Record<string, string> | null };
   },
 ): string {
@@ -47,6 +96,22 @@ export function ruleTitle(
 
 export function conditionText(spec: AlertingRuleSpec): string {
   return `value ${alertingConditionOperatorLabel(spec.condition.operator)} ${spec.condition.threshold}`;
+}
+
+/**
+ * The order the rule list is read in: display label, then unique path.
+ * Numeric labels keep shard-2 before shard-10, while base sensitivity keeps
+ * case and accents from splitting a run of names apart.
+ */
+export function compareRuleLabels(
+  a: { label: string; path: string },
+  b: { label: string; path: string },
+): number {
+  const byLabel = a.label.localeCompare(b.label, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+  return byLabel !== 0 ? byLabel : a.path.localeCompare(b.path);
 }
 
 /**
@@ -75,7 +140,7 @@ function liveRulesFilter(organizationId: string) {
  */
 export async function loadRules(
   organizationId: string,
-): Promise<DefinitionRow[]> {
+): Promise<AlertRuleRead[]> {
   const rows = await db
     .select()
     .from(alertDefinitions)
@@ -143,7 +208,7 @@ export async function loadRuleOptions(
 export async function loadRule(
   organizationId: string,
   path: string,
-): Promise<DefinitionRow> {
+): Promise<AlertRuleRead> {
   const { project, slug } = parseResourceName(path);
   const [row] = await db
     .select()
@@ -163,7 +228,7 @@ export async function loadRule(
 export async function loadInstances(
   organizationId: string,
   definitionIds: string[],
-): Promise<InstanceRow[]> {
+): Promise<AlertInstanceRead[]> {
   if (definitionIds.length === 0) return [];
   return db
     .select()
@@ -180,7 +245,7 @@ export async function loadInstances(
 export async function loadRuleInstances(
   organizationId: string,
   definitionId: string,
-): Promise<InstanceRow[]> {
+): Promise<AlertInstanceRead[]> {
   return db
     .select()
     .from(alertInstances)
@@ -199,7 +264,7 @@ export async function loadRuleInstances(
  * `firing` and `pending` are instance rollups; `degraded` is health, and it
  * wins, because a rule that cannot evaluate has no trustworthy rollup.
  */
-function ruleState(row: DefinitionRow): TriageStatus | "paused" | "inactive" {
+function ruleState(row: AlertRuleRead): TriageStatus | "paused" | "inactive" {
   // Paused wins over everything: a rule that is not being evaluated has no
   // current state, only the one it had when it stopped.
   if (!row.active) return "paused";
@@ -212,7 +277,7 @@ function ruleState(row: DefinitionRow): TriageStatus | "paused" | "inactive" {
 /** Silenced is a label on firing, not a state of its own: the rule is still
  *  firing, nobody is being told about it. */
 export function inventoryState(
-  row: DefinitionRow,
+  row: AlertRuleRead,
   silenced: boolean,
 ): RuleInventoryState {
   const state = ruleState(row);
@@ -223,7 +288,7 @@ export function inventoryState(
  *  an inactive one has nothing to answer for. Silencing is not asked about
  *  here, because a silenced rule keeps the band its state earns and is dimmed
  *  in place rather than moved. */
-export function triageStatus(row: DefinitionRow): TriageStatus | null {
+export function triageStatus(row: AlertRuleRead): TriageStatus | null {
   const state = ruleState(row);
   return state === "paused" || state === "inactive" ? null : state;
 }
@@ -245,16 +310,18 @@ function byWorstInstance(
 
 /** The instance a responder should look at: the worst breaching one, or the
  *  highest value seen when nothing breaches. */
-export function worstInstance(instances: InstanceRow[]): InstanceRow | null {
-  return instances.reduce<InstanceRow | null>(
+export function worstInstance(
+  instances: AlertInstanceRead[],
+): AlertInstanceRead | null {
+  return instances.reduce<AlertInstanceRead | null>(
     (worst, row) => (worst && byWorstInstance(worst, row) <= 0 ? worst : row),
     null,
   );
 }
 
 export function measuredText(
-  row: DefinitionRow,
-  instances: InstanceRow[],
+  row: AlertRuleRead,
+  instances: AlertInstanceRead[],
 ): string {
   if (row.degradedSince !== null) {
     return `no rows · ${row.consecutiveFailures} consecutive ${row.consecutiveFailures === 1 ? "failure" : "failures"}`;
@@ -284,7 +351,7 @@ export function measuredText(
  * before the engine retires it.
  */
 export function instanceSummary(
-  rows: InstanceRow[],
+  rows: AlertInstanceRead[],
   samples: AlertingEvaluationSample[],
 ): string {
   const fingerprints = new Set(samples.map((sample) => sample.fingerprint));

@@ -8,7 +8,7 @@ vi.mock("@/db/client", () => ({
   runInTransaction: () => Promise.resolve(),
 }));
 
-import type { DefinitionRow } from "@/data/alerting/triage/rules";
+import type { AlertRuleRead } from "@/data/alerting/rules/read";
 import {
   channelViews,
   deriveGaps,
@@ -17,8 +17,8 @@ import {
 } from "./assemble";
 
 function rule(
-  overrides: Partial<DefinitionRow> & { channels?: string[] },
-): DefinitionRow {
+  overrides: Partial<AlertRuleRead> & { channels?: string[] },
+): AlertRuleRead {
   const { channels, ...rest } = overrides;
   return {
     project: "checkout",
@@ -29,7 +29,7 @@ function rule(
       ...(channels ? { notifications: { channels } } : {}),
     },
     ...rest,
-  } as DefinitionRow;
+  } as AlertRuleRead;
 }
 
 const channel = (name: string) => ({

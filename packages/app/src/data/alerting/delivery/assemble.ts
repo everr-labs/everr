@@ -9,8 +9,11 @@ import {
   type AlertingDefaultTier,
   defaultTierFor,
 } from "@/data/alerting/delivery/defaults";
-import type { DefinitionRow } from "@/data/alerting/triage/rules";
-import { rulePath, ruleTitle } from "@/data/alerting/triage/rules";
+import {
+  type AlertRuleRead,
+  rulePath,
+  ruleTitle,
+} from "@/data/alerting/rules/read";
 import type { AlertingChannel, AlertingDefaultDestination } from "../types";
 import type { UndeliveredRecord } from "./record";
 import type {
@@ -47,7 +50,7 @@ export function destinationView(
 /** The rules that name channels of their own, by the name the rest of the
  *  product calls them. Live rules only: a preview never notifies. */
 export function overrideViews(
-  rules: DefinitionRow[],
+  rules: AlertRuleRead[],
 ): NotificationOverrideView[] {
   return rules.flatMap((rule) => {
     const channels = rule.spec.notifications?.channels ?? [];
@@ -158,7 +161,7 @@ export function deriveGaps(
 export function assembleNotifications(input: {
   channels: AlertingChannel[];
   destination: AlertingDefaultDestination;
-  rules: DefinitionRow[];
+  rules: AlertRuleRead[];
   undelivered: UndeliveredRecord[];
 }): AlertNotificationsData {
   const destination = destinationView(input.destination);

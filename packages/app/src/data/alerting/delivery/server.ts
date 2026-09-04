@@ -4,7 +4,7 @@
  */
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { z } from "zod";
-import { loadRules } from "@/data/alerting/triage/rules";
+import { loadRules } from "@/data/alerting/rules/read";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   AlertingChannelConfigInputSchema,

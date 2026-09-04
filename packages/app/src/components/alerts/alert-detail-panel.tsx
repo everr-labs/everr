@@ -7,10 +7,8 @@ import {
 } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowUpRight, NotebookText, X } from "lucide-react";
-import type {
-  AlertDetail,
-  RuleInventoryState,
-} from "@/data/alerting/triage/view";
+import type { RuleInventoryState } from "@/data/alerting/rules/read";
+import type { AlertDetail } from "@/data/alerting/triage/view";
 import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { AlertInstanceChart } from "./alert-instance-chart";
 import { STATUS_META, StatusIcon } from "./alert-status";

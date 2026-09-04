@@ -16,6 +16,21 @@ import {
   ANN_ALERTING_SUMMARY,
   ANN_DISPLAY_DESCRIPTION,
 } from "@/data/alerting/resource-annotations";
+import {
+  type AlertInstanceRead,
+  type AlertRuleRead,
+  conditionText,
+  instanceSummary,
+  inventoryState,
+  measuredText,
+  type RuleInventoryState,
+  rulePath,
+  ruleTitle,
+  runbookLabel,
+  type TriageStatus,
+  triageStatus,
+  worstInstance,
+} from "@/data/alerting/rules/read";
 import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
 import type { SilenceRow } from "@/data/alerting/silences/repository";
 import type {
@@ -42,19 +57,6 @@ import {
   type NotificationFact,
   notificationText,
 } from "./notifications";
-import {
-  conditionText,
-  type DefinitionRow,
-  type InstanceRow,
-  instanceSummary,
-  inventoryState,
-  measuredText,
-  rulePath,
-  ruleTitle,
-  runbookLabel,
-  triageStatus,
-  worstInstance,
-} from "./rules";
 import { type LifecycleRow, ruleStateSegments } from "./segments";
 import {
   type SilenceImpactCounts,
@@ -69,11 +71,9 @@ import type {
   ChartWindow,
   LifecycleEvent,
   RuleInventoryRow,
-  RuleInventoryState,
   RuleStateHistory,
   RuleStateHistoryData,
   TriageAlert,
-  TriageStatus,
 } from "./view";
 
 /** The window the reads were bounded to. */
@@ -100,7 +100,7 @@ export type DeliverySource = {
 };
 
 function deliveryFor(
-  row: DefinitionRow,
+  row: AlertRuleRead,
   source: DeliverySource,
 ): DeliveryFacts {
   return {
@@ -121,8 +121,8 @@ function deliveryFor(
  */
 function stateSince(
   state: RuleInventoryState,
-  row: DefinitionRow,
-  worst: InstanceRow | null,
+  row: AlertRuleRead,
+  worst: AlertInstanceRead | null,
   silence: SilenceRow | null,
 ): Date | null {
   switch (state) {
@@ -141,9 +141,9 @@ function stateSince(
 }
 
 function groupByDefinition(
-  instances: InstanceRow[],
-): Map<string, InstanceRow[]> {
-  const byDefinition = new Map<string, InstanceRow[]>();
+  instances: AlertInstanceRead[],
+): Map<string, AlertInstanceRead[]> {
+  const byDefinition = new Map<string, AlertInstanceRead[]>();
   for (const instance of instances) {
     const list = byDefinition.get(instance.alertDefinitionId);
     if (list) list.push(instance);
@@ -155,8 +155,8 @@ function groupByDefinition(
 export type TriageInput = DeliverySource & {
   window: Window;
   /** Every live rule, in the order the inventory prints them. */
-  definitions: DefinitionRow[];
-  instances: InstanceRow[];
+  definitions: AlertRuleRead[];
+  instances: AlertInstanceRead[];
   values: InstanceValues;
 };
 
@@ -262,7 +262,7 @@ export function assembleTriage(input: TriageInput): AlertTriageData {
 export type RuleStateHistoryInput = {
   now: Date;
   window: Window;
-  definitions: DefinitionRow[];
+  definitions: AlertRuleRead[];
   /** Silences whose window covers `now`. */
   silences: SilenceRow[];
   /** Every live rule's lifecycle events inside the window. */
@@ -332,9 +332,9 @@ export function assembleRuleStateHistory(
 
 export type AlertDetailInput = DeliverySource & {
   window: Window;
-  definition: DefinitionRow;
+  definition: AlertRuleRead;
   /** The rule's instances, highest value first. */
-  instances: InstanceRow[];
+  instances: AlertInstanceRead[];
   /** Silences for this rule whose window overlaps the queried one. */
   windowSilences: SilenceRow[];
   silenceImpacts: Map<string, SilenceImpactCounts>;
@@ -351,7 +351,7 @@ export type AlertDetailInput = DeliverySource & {
  * paused, so the line adds only the trail. Rules paused before the trail
  * columns existed carry none, and say nothing rather than guess.
  */
-function pauseTrail(definition: DefinitionRow, now: Date): string {
+function pauseTrail(definition: AlertRuleRead, now: Date): string {
   const when = formatSincePhrase(definition.pausedAt, now);
   if (!when) return "";
   const who = definition.pausedBy?.trim();
