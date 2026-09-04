@@ -151,10 +151,25 @@ FROM
 );
 
 -- Metrics (Gauge): tenant-enriched read table + MV
+--
+-- The five metrics tables order by the hour before the attributes, which is
+-- what the upstream exporter does since v0.160.0. Dashboard panels all filter
+-- ServiceName + MetricName + a time range and aggregate across series, and
+-- with the attributes ahead of the time column every granule of a metric held
+-- points from the whole day, so a time filter pruned nothing and a 15-minute
+-- panel read the same rows as a 24-hour one.
+--
+-- cityHash64(Attributes) groups without ordering: rows of one series share a
+-- hash so they stay adjacent inside the hour and the Attributes column still
+-- compresses by run, but the primary index (held in memory) stores 8 bytes per
+-- granule instead of a whole map. Dropping the attributes from the key instead
+-- nearly doubles that column. The cost is that an attribute predicate can no
+-- longer prune granules, which only matters when reading one high-cardinality
+-- series over a long range; no built-in dashboard does that.
 CREATE TABLE IF NOT EXISTS app.metrics_gauge
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -172,7 +187,8 @@ ALTER TABLE app.metrics_gauge
   ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1;
 
 -- Codecs mirrored from otel.otel_metrics_gauge (see the app.traces note above).
 ALTER TABLE app.metrics_gauge
@@ -188,12 +204,12 @@ ALTER TABLE app.metrics_gauge
   MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
   MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
   MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
   MODIFY COLUMN `Value` Float64 CODEC(ZSTD(1)),
   MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
@@ -219,7 +235,7 @@ FROM
 CREATE TABLE IF NOT EXISTS app.metrics_sum
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -237,7 +253,8 @@ ALTER TABLE app.metrics_sum
   ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1;
 
 -- Codecs mirrored from otel.otel_metrics_sum (see the app.traces note above).
 ALTER TABLE app.metrics_sum
@@ -253,12 +270,12 @@ ALTER TABLE app.metrics_sum
   MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
   MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
   MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
   MODIFY COLUMN `Value` Float64 CODEC(ZSTD(1)),
   MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
@@ -286,7 +303,7 @@ FROM
 CREATE TABLE IF NOT EXISTS app.metrics_histogram
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -304,7 +321,8 @@ ALTER TABLE app.metrics_histogram
   ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1;
 
 -- Codecs mirrored from otel.otel_metrics_histogram (see the app.traces note above).
 ALTER TABLE app.metrics_histogram
@@ -320,14 +338,14 @@ ALTER TABLE app.metrics_histogram
   MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
   MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
   MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
   MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
   MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
   MODIFY COLUMN `BucketCounts` Array(UInt64) CODEC(ZSTD(1)),
   MODIFY COLUMN `ExplicitBounds` Array(Float64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
@@ -357,7 +375,7 @@ FROM
 CREATE TABLE IF NOT EXISTS app.metrics_exponential_histogram
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -375,7 +393,8 @@ ALTER TABLE app.metrics_exponential_histogram
   ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1;
 
 -- Codecs mirrored from otel.otel_metrics_exponential_histogram (see the app.traces note above).
 ALTER TABLE app.metrics_exponential_histogram
@@ -391,8 +410,8 @@ ALTER TABLE app.metrics_exponential_histogram
   MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
   MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
   MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
   MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
   MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
   MODIFY COLUMN `Scale` Int32 CODEC(ZSTD(1)),
@@ -402,7 +421,7 @@ ALTER TABLE app.metrics_exponential_histogram
   MODIFY COLUMN `NegativeOffset` Int32 CODEC(ZSTD(1)),
   MODIFY COLUMN `NegativeBucketCounts` Array(UInt64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
@@ -432,7 +451,7 @@ FROM
 CREATE TABLE IF NOT EXISTS app.metrics_summary
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -450,7 +469,8 @@ ALTER TABLE app.metrics_summary
   ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1;
 
 -- Codecs mirrored from otel.otel_metrics_summary (see the app.traces note above).
 ALTER TABLE app.metrics_summary
@@ -466,8 +486,8 @@ ALTER TABLE app.metrics_summary
   MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
   MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
   MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
   MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
   MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
   MODIFY COLUMN `ValueAtQuantiles.Quantile` Array(Float64) CODEC(ZSTD(1)),

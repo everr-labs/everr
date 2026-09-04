@@ -106,6 +106,52 @@ processor could not offer because it acknowledges data before the write.
 `flush_timeout` (5 s) is the ingestion delay when traffic is too low to fill a
 batch; lower it to trade parts for freshness.
 
+## Metrics sort key
+
+The five `app.metrics_*` tables order by
+`(tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)`,
+which is the upstream exporter's key since v0.160.0 with `tenant_id` kept in
+front for the row policy. `TimeUnix` and `StartTimeUnix` are `DateTime`, not
+`DateTime64(9)`, and a `minmax` index on `TimeUnix` sits with the skip indexes.
+
+Every dashboard panel filters `ServiceName` + `MetricName` + a time range and
+aggregates across series. With the attributes ahead of the time column, every
+granule of a metric held points from the whole day, so the time filter pruned
+nothing and a 15-minute panel read as much as a 24-hour one. Measured on 864k
+rows, one metric, 100 series, a day at 10 s, in one merged part, reading a
+15-minute window:
+
+| | rows read | bytes read |
+|---|---|---|
+| old key | 864,000 (the whole day) | 30.67 MiB |
+| old key plus the minmax index | 860,160 | 30.48 MiB |
+| new key without the index | 342,613 | 2.90 MiB |
+| new key with the index | 40,960 | 1.91 MiB |
+
+Both parts are needed. The index alone does nothing, because under the old key
+every granule spanned the whole day and its min and max could never exclude
+one. The key alone prunes to about an hour; the index prunes inside it.
+
+`cityHash64(Attributes)` groups without ordering. Rows of one series share a
+hash, so they stay adjacent inside the hour bucket and the `Attributes` column
+still compresses by run, while the primary index (held in memory) stores 8
+bytes per granule instead of a whole map: 59 bytes per mark against 178.
+Dropping the attributes out of the key instead costs more than it saves, that
+column going from 378 KiB to 848 KiB where the hash holds it at 492 KiB.
+
+What it costs: an attribute predicate can no longer prune granules, so reading
+one high-cardinality series over a long range reads 820k rows where the old key
+read 326k. No built-in dashboard does that; all 232 metric reads aggregate
+across series.
+
+`DateTime` instead of `DateTime64(9)` drops sub-second precision that nothing
+reads: every query buckets with `toStartOfInterval`. On the same data the
+column falls from 4.66 MiB to 1.76 MiB from the type alone, and to 135 KiB once
+the new key makes it near-monotonic. `parseDateTimeBestEffort` replaces
+`parseDateTime64BestEffort` for the metrics window in
+`packages/app/src/data/dashboards/built-in/capabilities.ts`; all three bound
+forms the app uses prune identically, this one just matches the column.
+
 ## Follow-ups in this repo
 
 1. **Adding a retention value.** `retentionForOrg` resolves a tier, so the only
