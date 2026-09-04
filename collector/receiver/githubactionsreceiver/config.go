@@ -11,7 +11,6 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
 )
 
@@ -37,35 +36,28 @@ type GitHubAPIConfig struct {
 
 // Config defines configuration for GitHub Actions receiver
 type Config struct {
-	confighttp.ServerConfig `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct
-	Path                    string                   `mapstructure:"path"`                // path for data collection. Default is <host>:<port>/events
-	Secret                  string                   `mapstructure:"secret"`              // github webhook hash signature. Default is empty
-	CustomServiceName       string                   `mapstructure:"custom_service_name"` // deprecated: ignored; service.name is github-actions
-	ServiceNamePrefix       string                   `mapstructure:"service_name_prefix"` // deprecated: ignored; service.name is github-actions
-	ServiceNameSuffix       string                   `mapstructure:"service_name_suffix"` // deprecated: ignored; service.name is github-actions
-	GitHubAPIConfig         GitHubAPIConfig          `mapstructure:"gh_api"`              // github api configuration
+	// Named, not embedded: an anonymous confighttp.ServerConfig promotes its
+	// own Unmarshal method to Config, which then satisfies
+	// confmap.Unmarshaler by accident. confmap calls that promoted method
+	// and stops, so every field below is dropped without an error. A named
+	// squash field takes the confmap hook for embedded structs instead,
+	// which is what the contrib receivers do.
+	ServerConfig      confighttp.ServerConfig `mapstructure:",squash"`
+	Path              string                  `mapstructure:"path"`                // path for data collection. Default is <host>:<port>/events
+	Secret            string                  `mapstructure:"secret"`              // github webhook hash signature. Default is empty
+	CustomServiceName string                  `mapstructure:"custom_service_name"` // deprecated: ignored; service.name is github-actions
+	ServiceNamePrefix string                  `mapstructure:"service_name_prefix"` // deprecated: ignored; service.name is github-actions
+	ServiceNameSuffix string                  `mapstructure:"service_name_suffix"` // deprecated: ignored; service.name is github-actions
+	GitHubAPIConfig   GitHubAPIConfig         `mapstructure:"gh_api"`              // github api configuration
 }
 
 var _ component.Config = (*Config)(nil)
-var _ confmap.Unmarshaler = (*Config)(nil)
-
-// Unmarshal decodes the whole Config. It must exist: the embedded
-// confighttp.ServerConfig carries its own Unmarshal method, which Go promotes
-// to Config, and that promoted method only fills the ServerConfig fields. Left
-// to it, `path`, `secret` and every `gh_api` setting are dropped without an
-// error. The second call gives ServerConfig the decoding it defines for itself.
-func (cfg *Config) Unmarshal(conf *confmap.Conf) error {
-	if err := conf.Unmarshal(cfg); err != nil {
-		return err
-	}
-	return cfg.ServerConfig.Unmarshal(conf)
-}
 
 // Validate checks the receiver configuration is valid
 func (cfg *Config) Validate() error {
 	var errs error
 
-	if cfg.NetAddr.Endpoint == "" {
+	if cfg.ServerConfig.NetAddr.Endpoint == "" {
 		errs = multierr.Append(errs, errMissingEndpointFromConfig)
 	}
 
