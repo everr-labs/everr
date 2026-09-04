@@ -144,6 +144,10 @@ one high-cardinality series over a long range reads 820k rows where the old key
 read 326k. No built-in dashboard does that; all 232 metric reads aggregate
 across series.
 
+On an existing install the cut-over rebuilds these five tables empty rather
+than altering them, which is where the stored metrics history goes. See
+"Production rollout".
+
 `DateTime` instead of `DateTime64(9)` drops sub-second precision that nothing
 reads: every query buckets with `toStartOfInterval`. On the same data the
 column falls from 4.66 MiB to 1.76 MiB from the type alone, and to 135 KiB once
@@ -259,11 +263,19 @@ because a new view needs the attributes to already be on the wire.
 
    What it does: refuses to start if rows without the attribute arrived in the
    last 10 minutes, then per table drops the view and the stored landing
-   table, re-runs `init/03` (Null engines) and `init/10` (views), removes the
-   `app.alert_events` default, and drops the dictionary and its source table.
+   table, drops the five `app.metrics_*` tables, re-runs `init/03` (Null
+   engines) and `init/10` (which rebuilds the metrics tables and recreates the
+   views), removes the `app.alert_events` default, and drops the dictionary and
+   its source table. It then checks that all seven views are back.
 
    Effects to expect:
-   - **`app.*` keeps every row.** Only the write path changes.
+   - **`app.logs` and `app.traces` keep every row.**
+   - **The five `app.metrics_*` tables are rebuilt empty.** Stored metrics
+     history goes. The new sort key cannot be reached with `ALTER`: a sort key
+     cannot be rewritten, and `TimeUnix` cannot change type while the old key
+     uses it. Row policies and grants survive the drop, because ClickHouse
+     keys them by database and table name and not by the table UUID, so tenant
+     isolation and the per-org `/sql` users need no repair.
    - The stored `otel.*` copies are dropped, up to seven days of raw rows
      that nothing reads.
    - Per table there is a sub-second window between the view drop and the
@@ -271,6 +283,10 @@ because a new view needs the attributes to already be on the wire.
    - Rows ingested between step 2 and step 3 keep `everr.retention.*` in
      their `ResourceAttributes`. They expire on their own schedule; nothing
      rewrites them.
+   - If the swap stops part way, the script drops the landing tables it had
+     already replaced. Those tables are `Null`: with no view behind them they
+     accept an insert and discard it, so leaving them in place would lose data
+     silently. Without them the exporter gets an error and retries.
 
 ## Verification
 

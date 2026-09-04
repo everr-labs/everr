@@ -12,7 +12,7 @@
 #   clickhouse/migrations/2026-09-03-direct-ingest.sh --host <h> --secure --user default --password '<pw>'
 # CLICKHOUSE_CLIENT overrides the client binary, e.g. for a container:
 #   CLICKHOUSE_CLIENT='docker exec -i everr-clickhouse-1 clickhouse-client' ...
-set -euo pipefail
+set -Eeuo pipefail
 
 cd "$(dirname "$0")/.."
 
@@ -33,6 +33,30 @@ CLIENT_ARGS=("$@")
 
 TABLES=(traces logs metrics_gauge metrics_sum metrics_histogram metrics_exponential_histogram metrics_summary)
 
+# The metrics tables are rebuilt, not altered. Their sort key becomes
+# (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix),
+# cityHash64(Attributes), TimeUnix) and TimeUnix narrows from DateTime64(9) to
+# DateTime. ALTER can do neither: a sort key cannot be rewritten, and the type
+# of a column the sort key uses cannot change. Stored metrics history goes;
+# app.logs and app.traces keep theirs. Row policies and grants survive the
+# drop because ClickHouse keys them by database and table name, not by the
+# table UUID, so tenant isolation and the per-org /sql API users are unharmed.
+REBUILD=(metrics_gauge metrics_sum metrics_histogram metrics_exponential_histogram metrics_summary)
+
+# After the landing tables become Null and before their views exist, an insert
+# is accepted and discarded. If the swap stops half way, drop the Null tables
+# that have no view: the exporter then gets an error it retries instead of
+# losing the data quietly.
+swap_started=0
+on_error() {
+  [ "$swap_started" = 1 ] || return 0
+  echo "swap failed: dropping landing tables that have no view, so ingestion fails loudly" >&2
+  for t in "${TABLES[@]}"; do
+    run_sql "DROP TABLE IF EXISTS otel.otel_${t}" || true
+  done
+}
+trap on_error ERR
+
 echo "1/4 guard: the collector must already stamp retention"
 run_sql "SELECT throwIf(
   (SELECT count() FROM otel.otel_logs WHERE TimestampTime > now() - INTERVAL 10 MINUTE AND ResourceAttributes['everr.retention.logs_days'] = '') > 0,
@@ -41,12 +65,22 @@ run_sql "SELECT throwIf(
 echo "2/4 swap landing tables and views"
 # The stored otel.* copies go with the tables. They hold seven days of raw
 # rows that nothing reads: app.* is the read model.
+swap_started=1
 for t in "${TABLES[@]}"; do
   run_sql "DROP VIEW IF EXISTS app.${t}_mv"
   run_sql "DROP TABLE IF EXISTS otel.otel_${t}"
 done
+for t in "${REBUILD[@]}"; do
+  run_sql "DROP TABLE IF EXISTS app.${t}"
+done
 run_file init/03-create-otel-tables.sql   # Null engines
-run_file init/10-create-mvs.sql           # app.* CREATE IF NOT EXISTS are no-ops; views are recreated
+run_file init/10-create-mvs.sql           # app.* CREATE IF NOT EXISTS rebuilds the metrics tables; views are recreated
+swap_started=0
+
+# Every landing table must have its view back before ingestion resumes.
+run_sql "SELECT throwIf(
+  (SELECT count() FROM system.tables WHERE database = 'app' AND engine = 'MaterializedView' AND name IN ('traces_mv','logs_mv','metrics_gauge_mv','metrics_sum_mv','metrics_histogram_mv','metrics_exponential_histogram_mv','metrics_summary_mv')) != 7,
+  'a landing table has no materialized view: rows would be discarded')"
 
 echo "3/4 alert events keep their retention from the app"
 # REMOVE DEFAULT, not MODIFY COLUMN ... UInt16: a modify that does not name a
