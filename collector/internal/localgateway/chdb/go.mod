@@ -1,6 +1,6 @@
 module github.com/everr-labs/everr/collector/internal/localgateway/chdb
 
-go 1.25.6
+go 1.26.0
 
 require github.com/chdb-io/chdb-go v1.11.0
 

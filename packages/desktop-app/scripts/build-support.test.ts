@@ -184,7 +184,7 @@ describe("build-support version helpers", () => {
 
 describe("build-support chDB helpers", () => {
   it("pins official chDB release assets per platform", () => {
-    expect(CHDB_RELEASE_VERSION).toBe("v4.0.2");
+    expect(CHDB_RELEASE_VERSION).toBe("v26.5.0");
     for (const [key, asset] of Object.entries(CHDB_PLATFORM_ASSETS)) {
       expect(asset.assetName, key).toMatch(/libchdb\.tar\.gz$/);
       expect(asset.sha256, key).toMatch(/^[a-f0-9]{64}$/);
@@ -196,7 +196,7 @@ describe("build-support chDB helpers", () => {
     expect(() => resolveChdbAsset("win32", "x64")).toThrow(/No bundled chDB release asset/);
 
     expect(chdbReleaseAssetUrl("macos-arm64-libchdb.tar.gz")).toBe(
-      "https://github.com/chdb-io/chdb/releases/download/v4.0.2/macos-arm64-libchdb.tar.gz",
+      "https://github.com/chdb-io/chdb-core/releases/download/v26.5.0/macos-arm64-libchdb.tar.gz",
     );
   });
 

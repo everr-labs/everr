@@ -1,18 +1,14 @@
 export type Tier = "free" | "pro";
 
-// Dictionary key of the free-tier row the ClickHouse views fall back to for
-// tenants without a row of their own (see clickhouse/init/10-create-mvs.sql).
-export const DEFAULT_RETENTION_TENANT_ID = "";
-
 export type TenantRetention = {
   tracesDays: number;
   logsDays: number;
   metricsDays: number;
 };
 
-// These are the only retention values that reach ClickHouse:
-// upsertTenantRetention takes a tier, not days. That matters because the
-// app.* tables partition by (day, retention_days), so a table holds one live
+// The only retention values that exist. retentionForOrg (retention.server.ts)
+// hands them to the collector, which stamps them on every resource, and the
+// app.* tables partition by (day, retention_days). A table holds one live
 // partition per day per distinct value in its column below: 14 + 30 = 44 for
 // logs and traces, 14 + 395 = 409 for each metrics table. A new tier or a new
 // value adds its days to that budget; keep it under about 1,000 per table.

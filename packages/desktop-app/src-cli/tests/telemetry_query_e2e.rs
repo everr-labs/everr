@@ -91,7 +91,7 @@ fn resolve_collector_binary() -> Option<PathBuf> {
 
 fn resolve_chdb_lib() -> Option<PathBuf> {
     let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../target/chdb/v4.0.2-extract/libchdb.so");
+        .join("../../../target/chdb/v26.5.0-extract/libchdb.so");
     candidate.exists().then_some(candidate)
 }
 

@@ -40,9 +40,9 @@ receivers:
           authenticator: everr_apikey
 
 processors:
-  batch:
-  # Internal pipeline (github webhook): tenant comes from a trusted header
-  # populated by the githubactions receiver after webhook-secret validation.
+  # Internal pipeline (github webhook): tenant comes from a trusted header the
+  # app sets when it forwards the webhook
+  # (packages/app/src/server/github-events/collector.ts).
   resource:
     attributes:
       - action: upsert
@@ -52,30 +52,86 @@ processors:
         key: everr.tenant.id
         converted_type: int
 
-  # Public pipeline: strip any client-supplied tenant attr from spans/logs/
-  # metric points so only the auth-derived value can land downstream.
+  # Retention is one key, everr.retention.days, and each pipeline stamps the
+  # window for its own signal. A span never needs the logs window, so stamping
+  # all three would put two dead keys on every row: on the wire, in the landing
+  # table, and in the map the view has to filter before storage. The processor
+  # is separate from the tenant one above so the pipelines can compose them
+  # instead of repeating the tenant block per signal.
+  resource/retention_traces:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: metadata.x-everr-retention-traces-days
+  resource/retention_logs:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: metadata.x-everr-retention-logs-days
+  resource/retention_metrics:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: metadata.x-everr-retention-metrics-days
+
+  # Public pipeline: strip any client-supplied tenant or retention attr from
+  # spans/logs/metric points so only the auth-derived values land downstream.
   attributes/strip_user_tenant:
     actions:
       - action: delete
         key: everr.tenant.id
+      - action: delete
+        key: everr.retention.days
 
-  # Public pipeline: stamp tenant from the auth context onto the resource.
+  # Public pipeline: stamp tenant and retention from the auth context onto the
+  # resource. upsert overwrites any client-supplied resource value.
   resource/public_tenant:
     attributes:
       - action: upsert
         key: everr.tenant.id
         from_context: auth.tenant_id
+  resource/public_retention_traces:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_traces_days
+  resource/public_retention_logs:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_logs_days
+  resource/public_retention_metrics:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_metrics_days
 
 exporters:
   debug:
     verbosity: detailed
+  # Writes into otel.* landing tables (ENGINE = Null). Nothing is stored there;
+  # the views in clickhouse/init/10-create-mvs.sql stamp tenant and retention
+  # and write app.*. `ttl` is unused with create_schema: false.
   clickhouse:
     endpoint: http://clickhouse:8123
     username: collector_rw
     password: collector-dev
     database: otel
     create_schema: false
-    ttl: 72h
+    # Batching belongs here, not in a `batch` processor: the processor
+    # acknowledges data to the receiver before the insert happens, so a crash
+    # loses the batch and a failed insert cannot apply backpressure. The
+    # exporter's queue keeps the request until the insert succeeds.
+    # Size matters twice over: ClickHouse wants few large inserts, and every
+    # app.* table writes one part per retention value present in a batch, so
+    # small batches multiply parts (docs/clickhouse-retention-rollout.md,
+    # "Parts per insert"). flush_timeout is the ingestion delay when traffic
+    # is too low to fill a batch.
+    sending_queue:
+      num_consumers: 10
+      batch:
+        min_size: 8192
+        flush_timeout: 5s
 
 service:
   extensions: [everr_apikey]
@@ -83,32 +139,32 @@ service:
     # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.
     traces:
       receivers: [githubactions]
-      processors: [resource, batch]
+      processors: [resource, resource/retention_traces]
       exporters: [clickhouse, debug]
     metrics:
       receivers: [githubactions]
-      processors: [resource, batch]
+      processors: [resource, resource/retention_metrics]
       exporters: [clickhouse, debug]
     logs:
       receivers: [githubactions]
-      processors: [resource, batch]
+      processors: [resource, resource/retention_logs]
       exporters: [clickhouse, debug]
 
     # Public pipelines: untrusted clients, tenant from authenticated key.
-    # Must NOT share the `resource` processor with the internal pipelines —
+    # Must NOT share the `resource` processor with the internal pipelines:
     # that one trusts the x-everr-tenant-id header and would let OTLP clients
     # spoof their tenant.
     traces/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_traces]
       exporters: [clickhouse, debug]
     metrics/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_metrics]
       exporters: [clickhouse, debug]
     logs/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_logs]
       exporters: [clickhouse, debug]
 
   # Ship the collector's own telemetry (its logs, metrics, and internal

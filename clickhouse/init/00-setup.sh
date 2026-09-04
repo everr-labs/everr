@@ -12,9 +12,9 @@ CREATE DATABASE IF NOT EXISTS app;
 CREATE USER IF NOT EXISTS collector_rw IDENTIFIED WITH sha256_password BY '${COLLECTOR_RW_PASSWORD}';
 CREATE USER IF NOT EXISTS app_ro IDENTIFIED WITH sha256_password BY '${APP_RO_PASSWORD}';
 -- web_app_admin holds every privilege the web-app process needs that goes
--- beyond app_ro's read-only data access: writing per-tenant retention rows,
--- and provisioning per-org access entities (users + row policies) for the
--- /sql API. See the GRANT block below for the exact split.
+-- beyond app_ro's read-only data access: writing alert history, and
+-- provisioning per-org access entities (users + row policies) for the /sql
+-- API. See the GRANT block below for the exact split.
 CREATE USER IF NOT EXISTS web_app_admin IDENTIFIED WITH sha256_password BY '${WEB_APP_ADMIN_PASSWORD}';
 
 -- Collector writes raw telemetry into otel schema.
@@ -22,18 +22,6 @@ GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;
 
 -- App reads only curated read-model tables.
 GRANT SELECT ON app.* TO app_ro;
-
--- App writes per-tenant retention rows; the dictionary refreshes itself via
--- LIFETIME(MIN 60 MAX 120), so a plan change reaches new rows within two
--- minutes. Tables and the dictionary are created in 10-create-mvs.sql.
--- SELECT is granted so the dictionary source can authenticate as web_app_admin.
-GRANT INSERT, SELECT ON app.tenant_retention_source TO web_app_admin;
-
--- dictGet is needed wherever a row gets its retention_days stamped:
--- collector_rw inserts trigger the materialized views which call dictGet during
--- the cascading INSERT into app.*. web_app_admin gets it in
--- 12-create-alert-events.sql for the app.alert_events DEFAULT.
-GRANT dictGet ON app.tenant_retention TO collector_rw;
 
 -- Access-management grants for /sql API per-org provisioning:
 --   CREATE/ALTER/DROP USER: needed to make per-org users \`sql_api_org_<id>\`.

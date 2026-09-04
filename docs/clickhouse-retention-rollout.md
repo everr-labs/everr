@@ -7,44 +7,42 @@ a `retention_days` column stamped on every row. Tables partition by
 rewriting parts. A retention change applies to rows ingested after the change;
 existing rows keep the retention they were stamped with.
 
-Schema: `clickhouse/init/10-create-mvs.sql`,
+The stamp comes from the collector. The app returns the tenant's retention when
+it authenticates an API key (`/api/internal/verify-key`) or forwards a GitHub
+webhook, the collector puts it on every resource as `everr.retention.days`,
+and the materialized views read it, write `retention_days`, and strip the key
+before storage. One key, not one per signal: each pipeline stamps the window
+for the signal it carries, so a span never carries the logs window. The `otel.*` tables are
+`ENGINE = Null`: an insert stores nothing and only triggers the views, so every
+row is written and merged once.
+
+Schema: `clickhouse/init/03-create-otel-tables.sql`,
+`clickhouse/init/10-create-mvs.sql`,
 `clickhouse/init/12-create-alert-events.sql`.
-Rebuild for existing clusters: `clickhouse/migrations/2026-09-01-retention-days-partitions.sh`.
-The rebuild drops the existing `app.*` rows; there is no backfill. The raw
-`otel.*` tables are untouched and keep their own 7-day TTL.
+Cut-over for existing clusters: `clickhouse/migrations/2026-09-03-direct-ingest.sh`.
 
 ## Where the numbers live
 
-The SQL holds no retention values. Each tenant's retention is a row in
-`app.tenant_retention_source`, written by the app on every plan change. The
-free tier is the row with the empty tenant id: the views and the
-`app.alert_events` default fall back to it with
-`dictGet('app.tenant_retention', '<signal>_days', '')` for tenants without
-a row. The app rewrites that row from `RETENTION_BY_TIER.free` in
-`packages/app/src/lib/retention.ts` at every start, so a free-tier change is
-one edit there. `init/10` seeds the same row so a fresh cluster ingests before
-the app starts; those literals only bootstrap.
+The SQL holds no retention values and ClickHouse holds no per-tenant state.
+`RETENTION_BY_TIER` in `packages/app/src/lib/retention.ts` is the only source:
+free 14/14/14, pro 30/30/395. `retentionForOrg`
+(`packages/app/src/lib/retention.server.ts`) reads the organization's tier and
+resolves it, and three callers hand the result to the pipeline:
 
-### Which write wins
+- `/api/internal/verify-key` returns `logsDays`, `tracesDays` and
+  `metricsDays` with the tenant id. The `everr_apikey` extension refuses to
+  authenticate a response without them, so a key can never ingest unstamped.
+- The GitHub webhook forwarder sets `x-everr-retention-<signal>-days` next to
+  `x-everr-tenant-id` on every replay.
+- Alert history inserts stamp `retention_days` on each row from the tenant's
+  logs retention.
 
-`app.tenant_retention_source` is a `ReplacingMergeTree` keyed by `tenant_id`
-and versioned by `updated_at`, and the dictionary reads it with `FINAL`, so a
-tenant's row is whichever write carries the highest version. The app sends the
-`updated_at` of the `org_subscription` row the tier was read off rather than
-the current time: two webhooks racing on one org then resolve the same way in
-Postgres and in ClickHouse, whatever order the two inserts land in.
+There is no dictionary, no free-tier row and no reconciliation: nothing can
+drift because nothing is stored.
 
-The version is `DateTime64(3)`. At the original second precision two writes for
-one tenant tied, and ClickHouse breaks a tie by part order, which has nothing
-to do with which state is current: a free to pro to free sequence inside one
-second could settle on either. `ALTER` cannot widen a version column
-(`Cannot alter version column ... will change sort order`, code 524), so the
-rebuild script recreates the table and copies the rows through `FINAL`.
-
-The fallback lookup has a constant key, so ClickHouse evaluates it once per
-insert block. Measured on the real logs schema with 600k rows, the per-row
-dictionary lookup is not distinguishable from a constant stamp; the view's
-cost is the second table write and its skip indexes.
+A plan change reaches new rows once the collector's auth cache expires,
+`cache_ttl` in the `everr_apikey` extension, 30 s by default. Webhooks read the
+plan on every forward.
 
 ## Column codecs
 
@@ -55,8 +53,8 @@ plain LZ4 while the raw `otel.*` copy had `Delta, ZSTD(1)` on timestamps and
 times the size of the raw ones for the same rows (traces 549 vs 273 MiB, logs
 126 vs 65 MiB). `init/10` now mirrors the codecs with one `MODIFY COLUMN`
 block per table after the index block; keep those blocks in step with
-`init/03` when the exporter schema changes. The rebuild applies them to
-production because it recreates the tables.
+`init/03` when the exporter schema changes. Production got them from the
+rebuild that recreated the tables, one release before this one.
 
 ## Parts per insert
 
@@ -92,52 +90,97 @@ The new layout ran 70 TTL drops that wrote 29 KiB, 0.6x amplification, and
 half the merge CPU, with twice the regular merges from the split partitions.
 Expiry by drop is what makes the per-tier partition pay for itself.
 
+Since the landing tables became `Null`, the stored `otel.*` copy is gone, so
+every row is written and merged once instead of twice.
+
+Batching moved from the standalone `batch` processor into the exporter's
+`sending_queue.batch`, which is what the exporter documents. Both are set to
+8192 rows, but the processor's own timeout fires first at any realistic rate
+and it batches per pipeline, so the inserts it produced were much smaller than
+the setting. Measured on one logs stream, 20 s at 4000 records per second per
+worker with four workers, about 315k rows either way: the processor wrote 101
+parts averaging 3133 rows; the exporter queue wrote 38 parts averaging 8200.
+Fewer, larger inserts is the same lever as `send_batch_size` and it applies to
+every retention value in the batch. The queue also holds the request until the
+insert succeeds, so a failed insert or a restart no longer loses it, which the
+processor could not offer because it acknowledges data before the write.
+`flush_timeout` (5 s) is the ingestion delay when traffic is too low to fill a
+batch; lower it to trade parts for freshness.
+
+## Metrics sort key
+
+The five `app.metrics_*` tables order by
+`(tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)`,
+which is the upstream exporter's key since v0.160.0 with `tenant_id` kept in
+front for the row policy. `TimeUnix` and `StartTimeUnix` are `DateTime`, not
+`DateTime64(9)`, and a `minmax` index on `TimeUnix` sits with the skip indexes.
+
+Every dashboard panel filters `ServiceName` + `MetricName` + a time range and
+aggregates across series. With the attributes ahead of the time column, every
+granule of a metric held points from the whole day, so the time filter pruned
+nothing and a 15-minute panel read as much as a 24-hour one. Measured on 864k
+rows, one metric, 100 series, a day at 10 s, in one merged part, reading a
+15-minute window:
+
+| | rows read | bytes read |
+|---|---|---|
+| old key | 864,000 (the whole day) | 30.67 MiB |
+| old key plus the minmax index | 860,160 | 30.48 MiB |
+| new key without the index | 342,613 | 2.90 MiB |
+| new key with the index | 40,960 | 1.91 MiB |
+
+Both parts are needed. The index alone does nothing, because under the old key
+every granule spanned the whole day and its min and max could never exclude
+one. The key alone prunes to about an hour; the index prunes inside it.
+
+`cityHash64(Attributes)` groups without ordering. Rows of one series share a
+hash, so they stay adjacent inside the hour bucket and the `Attributes` column
+still compresses by run, while the primary index (held in memory) stores 8
+bytes per granule instead of a whole map: 59 bytes per mark against 178.
+Dropping the attributes out of the key instead costs more than it saves, that
+column going from 378 KiB to 848 KiB where the hash holds it at 492 KiB.
+
+What it costs: an attribute predicate can no longer prune granules, so reading
+one high-cardinality series over a long range reads 820k rows where the old key
+read 326k. No built-in dashboard does that; all 232 metric reads aggregate
+across series.
+
+On an existing install the cut-over rebuilds these five tables empty rather
+than altering them, which is where the stored metrics history goes. See
+"Production rollout".
+
+`DateTime` instead of `DateTime64(9)` drops sub-second precision that nothing
+reads: every query buckets with `toStartOfInterval`. On the same data the
+column falls from 4.66 MiB to 1.76 MiB from the type alone, and to 135 KiB once
+the new key makes it near-monotonic. `parseDateTimeBestEffort` replaces
+`parseDateTime64BestEffort` for the metrics window in
+`packages/app/src/data/dashboards/built-in/capabilities.ts`; all three bound
+forms the app uses prune identically, this one just matches the column.
+
 ## Follow-ups in this repo
 
-1. **Adding a retention value.** `upsertTenantRetention` takes a tier, so the
-   only values that reach ClickHouse are those in `RETENTION_BY_TIER`
+1. **Adding a retention value.** `retentionForOrg` resolves a tier, so the only
+   values that reach ClickHouse are those in `RETENTION_BY_TIER`
    (`packages/app/src/lib/retention.ts`): free 14/14/14, pro 30/30/395.
    Every value costs that many daily partitions per table, so the sum of the
    distinct values per signal is the partition budget, 44 per logs and
    traces table and 409 per metrics table. A new tier adds its days to it.
-2. **Optional: shorten `otel.*` retention.** The raw tables keep 7 days with
-   their own TTL, and nothing reads them except the views at insert time.
-   A shorter window halves the storage of every row. Separate decision.
 
 ## Changes in `everr-deploy`
 
-In `infra-v2/clickhouse_dbops.tf`, at any time:
+In `infra-v2/clickhouse_dbops.tf`:
 
-- **Remove** `app_ro_dictget_tenant_retention`. `app_ro` never reads the
-  dictionary. `collector_rw` keeps `dictGet` (the views run under its inserts)
-  and `web_app_admin` needs it for the `app.alert_events` `DEFAULT`; check
-  that the `web_app_admin` grant exists in Terraform, the dev init script
-  grants it in `12-create-alert-events.sql`.
-
-- **Recreate the dictionary from `init/10`.** Two changes: `traces_days`,
-  `logs_days` and `metrics_days` are `UInt16`, and the source query carries
-  the `throwIf` guard that refuses to load without the free-tier row. A
-  cluster created before this change has neither. `dictGetOrDefault` accepts
-  a `UInt16` default against a `UInt32` attribute, so nothing breaks in the
-  meantime, but without the guard a deleted free-tier row stamps 0 and
-  deletes data silently, so do this before relying on the rebuild.
-- **Match `app.tenant_retention_source` to `init/10`.** `updated_at` is
-  `DateTime64(3)`; a cluster created before this change has `DateTime`. The
-  rebuild script converts it (see "Which write wins"), so Terraform only needs
-  to stop declaring the old type.
-- **Add a dictionary check to the deploy.** Run
-  `SYSTEM RELOAD DICTIONARY app.tenant_retention` after every change to the
-  `web_app_admin` credentials or the dictionary definition, and fail the
-  deploy if it errors. The views call the dictionary on every insert, so a
-  dictionary that cannot load fails the collector's writes into `otel.*`
-  (see "Failure modes" below). The dev image loads dictionaries at startup
-  (`clickhouse/config.d/dictionaries.xml`) so a broken source shows in the
-  server log; ClickHouse Cloud does not expose that setting, which is why
-  the deploy check exists.
-
-A plan change reaches new rows once the dictionary refreshes, within 120 s
-(`LIFETIME(MIN 60 MAX 120)`). Rows ingested in that window keep the previous
-plan's retention.
+- **Remove** `app_ro_dictget_tenant_retention` and every other `dictGet` grant.
+  There is no dictionary any more.
+- **Remove** the `app.tenant_retention` dictionary and the
+  `app.tenant_retention_source` table with their grants. The cut-over script
+  drops both; Terraform only needs to stop declaring them.
+- **Remove** `dictionaries_lazy_load` if it was added. Nothing loads a
+  dictionary at startup.
+- `collector_rw` keeps its `otel.*` grant. It still inserts there; the tables
+  only stopped storing.
+- The exporter config keeps its table names and database. Only the processors
+  change (`collector/config.example.yml`).
 
 Optional, `everr/clickhouse-cloud.yaml`: a retention row. The existing panels
 (`MaxPartCountForPartition`, `PartsActive`, `Merge`, `DelayedInserts`,
@@ -157,8 +200,8 @@ The consequences:
 
 - **Upgrade (free to pro).** Rows ingested before the upgrade keep the
   free-tier retention and expire on that schedule. At most the last 14 days
-  are affected. Rows ingested
-  after the dictionary refresh get the pro retention.
+  are affected. Rows ingested after the collector's auth cache expires get the
+  pro retention.
 - **Downgrade (pro to free).** Rows ingested before the downgrade keep the
   pro retention and stay up to 30 days (395 for metrics). Storage for that
   tenant shrinks over the following 30 days, not at once.
@@ -179,58 +222,72 @@ step and not part of the upgrade flow.
 
 ## Failure modes
 
-- **Free-tier row missing.** `dictGet` on a missing key returns 0, not an
-  error, and a 0 stamp expires the row at insert with no error anywhere. To
-  make that impossible the dictionary's source query refuses to load when the
-  empty-tenant row is absent (`throwIf` in `init/10`). A dictionary that never
-  loaded makes every view throw, so the collector's insert fails loudly. On a
-  cluster where it had loaded before, a failed refresh keeps the last good
-  copy, which still holds the row, and `system.dictionaries.last_exception`
-  names the problem. `init/10` seeds the row and the app rewrites it at start.
-- **Dictionary cannot load.** ClickHouse keeps the last good copy when a
-  refresh fails, so a broken source only matters when the dictionary has
-  never loaded on this server: after a restart with a rotated
-  `web_app_admin` password, or on a fresh cluster. Then `dictGetOrDefault`
-  throws inside the views, and the collector's insert into `otel.*` fails
-  with it. Ingestion stops until the dictionary loads. Do not set
-  `materialized_views_ignore_errors`: it keeps the collector insert alive
-  but drops the `app.*` rows silently. The deploy check above is the guard.
-- **Dictionary stale.** A plan change written to the source table reaches
-  the views within 120 s. Rows in that window carry the previous plan.
+Every path that produces the stamp fails closed:
+
+- **verify-key without retention.** The `everr_apikey` extension rejects a
+  response that carries no `logsDays`, `tracesDays` and `metricsDays`, so an
+  app older than this change cannot make the collector ingest unstamped rows.
+  Clients get 401 until the app is deployed.
+- **Resource without the attribute.** The view refuses the row with
+  `everr.retention.days resource attribute missing` instead of
+  stamping 0, which would expire it at insert with no error anywhere. The
+  exporter's insert fails and it retries. Do not set
+  `materialized_views_ignore_errors`: it keeps the collector insert alive but
+  drops the `app.*` rows silently.
+- **Plan lookup unavailable.** `retentionForOrg` reads Postgres, so an
+  unreachable database fails verify-key. The extension serves its last good
+  answer for a grace window (`cache_ttl`) and rejects after that. Ingestion
+  stops rather than storing a wrong window.
+- **Stale auth cache.** A plan change reaches new rows once the entry expires,
+  30 s by default. Rows in that window carry the previous plan.
 
 ## Production rollout
 
-The app needs no change for the rebuild, so the order is: schema, then app
-(the app change is the removal of the signup seed only).
+Three ordered steps. The app first, because the collector refuses to
+authenticate against an app that does not return retention; the script last,
+because a new view needs the attributes to already be on the wire.
 
-1. Run the rebuild from a checkout of the merged commit, with an admin user:
+1. **Deploy the app.** verify-key returns retention, the webhook forwarder
+   sends the headers, alert inserts stamp `retention_days`, and the
+   dictionary write path is gone. The old dictionary still stamps rows in the
+   meantime, so nothing changes for ingestion yet.
+2. **Deploy the collector.** It stamps `everr.retention.days` on every resource.
+   The old views ignore the attributes and keep reading the dictionary, and
+   the attributes are stored in `ResourceAttributes` until step 3 strips them.
+3. **Run the cut-over**, from a checkout of the merged commit, as an admin
+   user:
 
    ```sh
-   clickhouse/migrations/2026-09-01-retention-days-partitions.sh \
+   clickhouse/migrations/2026-09-03-direct-ingest.sh \
      --host <cloud-host> --secure --user default --password '<ADMIN_PASSWORD>'
    ```
 
-   What it does: drops the materialized views, drops every `app.*` data
-   table, re-runs `init/10`, `init/12` and `init/20` (new partition key,
-   codecs, views), reloads the dictionary, and prints the partition key of
-   every table.
+   What it does: refuses to start if rows without the attribute arrived in the
+   last 10 minutes, then per table drops the view and the stored landing
+   table, drops the five `app.metrics_*` tables, re-runs `init/03` (Null
+   engines) and `init/10` (which rebuilds the metrics tables and recreates the
+   views), removes the `app.alert_events` default, and drops the dictionary and
+   its source table. It then checks that all seven views are back.
 
    Effects to expect:
-   - **All `app.*` rows are gone.** Traces, logs, metrics and alert history
-     start empty and fill from the collector. The raw `otel.*` tables keep
-     their last 7 days but nothing re-projects them into `app.*`. Tell the
-     tenants, or run it before the first paying customer.
-   - Rows the collector writes into `otel.*` between the view drop and the
-     view recreate (well under a second) are not projected into `app.*`.
-     Inserts into `app.alert_events` fail in the same window.
-   - `init/10` contains `CREATE DICTIONARY IF NOT EXISTS app.tenant_retention`
-     with the dev password. It is a no-op on a cluster where the dictionary
-     exists. Do not drop the dictionary before running the script.
-   - Row policies and grants are bound to table names and are recreated by
-     `init/20`; the `app_ro` and `web_app_admin` grants on `app.alert_events`
-     come back with `init/12`.
-2. Verify with the queries below.
-3. Deploy the app.
+   - **`app.logs` and `app.traces` keep every row.**
+   - **The five `app.metrics_*` tables are rebuilt empty.** Stored metrics
+     history goes. The new sort key cannot be reached with `ALTER`: a sort key
+     cannot be rewritten, and `TimeUnix` cannot change type while the old key
+     uses it. Row policies and grants survive the drop, because ClickHouse
+     keys them by database and table name and not by the table UUID, so tenant
+     isolation and the per-org `/sql` users need no repair.
+   - The stored `otel.*` copies are dropped, up to seven days of raw rows
+     that nothing reads.
+   - Per table there is a sub-second window between the view drop and the
+     view create in which the exporter's insert fails; it retries.
+   - Rows ingested between step 2 and step 3 keep `everr.retention.days` in
+     their `ResourceAttributes`. They expire on their own schedule; nothing
+     rewrites them.
+   - If the swap stops part way, the script drops the landing tables it had
+     already replaced. Those tables are `Null`: with no view behind them they
+     accept an insert and discard it, so leaving them in place would lose data
+     silently. Without them the exporter gets an error and retries.
 
 ## Verification
 
@@ -252,25 +309,27 @@ SELECT table,
        uniq(partition) AS partitions, count() AS parts, sum(rows) AS rows,
        dateDiff('day', min(toDate(extract(partition, '\\d{4}-\\d{2}-\\d{2}'))), today()) AS oldest_days
 FROM system.parts
-WHERE active AND database = 'app' AND table != 'tenant_retention_source'
+WHERE active AND database = 'app'
 GROUP BY table, retention_days
 ORDER BY table, retention_days;
 ```
 
-Rows are stamped with the value the dictionary holds for the tenant:
+The landing tables store nothing and the views strip the retention keys:
 
 ```sql
+SELECT name, engine FROM system.tables WHERE database = 'otel';
+
 SELECT tenant_id, retention_days,
-       dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt16(0)) AS logs_days,
+       countIf(mapContains(ResourceAttributes, 'everr.retention.days')) AS leaked,
        count()
 FROM app.logs
 WHERE TimestampTime > now() - INTERVAL 1 HOUR
 GROUP BY ALL;
 ```
 
-Unknown tenants show `logs_days = 0` and `retention_days` equal to the
-free-tier row (`SELECT * FROM app.tenant_retention WHERE tenant_id = ''`).
-Any other mismatch means the dictionary was stale when the rows arrived.
+Every engine must be `Null` and `leaked` must be 0. Each tenant's
+`retention_days` is the value its plan resolves to; a tenant with two values
+in the same hour changed plan in it.
 
 Part pressure, on the ClickHouse Cloud dashboard: `MaxPartCountForPartition`
 under 50 on the hottest day, merge pool not saturated all day, no

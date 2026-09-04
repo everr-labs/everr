@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS "%s"."%s" %s (
     MetricDescription String CODEC(ZSTD(1)),
     MetricUnit String CODEC(ZSTD(1)),
     Attributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    StartTimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    TimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
+    StartTimeUnix DateTime CODEC(Delta(4), ZSTD(1)),
+    TimeUnix DateTime CODEC(Delta(4), ZSTD(1)),
     Count UInt64 CODEC(Delta, ZSTD(1)),
     Sum Float64 CODEC(ZSTD(1)),
     BucketCounts Array(UInt64) CODEC(ZSTD(1)),
@@ -33,9 +33,10 @@ CREATE TABLE IF NOT EXISTS "%s"."%s" %s (
     INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
+    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1
     ) ENGINE = %s
     %s
     PARTITION BY toDate(TimeUnix)
-    ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+    ORDER BY (ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
     SETTINGS index_granularity=8192, ttl_only_drop_parts = 1

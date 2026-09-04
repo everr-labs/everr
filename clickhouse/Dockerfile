@@ -1,3 +1,2 @@
-FROM clickhouse/clickhouse-server:26.2
-COPY config.d/ /etc/clickhouse-server/config.d/
+FROM clickhouse/clickhouse-server:26.5
 COPY init/ /docker-entrypoint-initdb.d/

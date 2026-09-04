@@ -23,6 +23,26 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 - Validation no longer requires a ClickHouse endpoint; endpoint/DSN helpers remain only for compatibility with upstream config tests and table-name/database helpers.
 - The test Makefile now prepares `libchdb.so` before running tests.
 
+## Metrics table schema
+
+- The five metrics tables order by
+  `(ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)`,
+  which is upstream's key from `v0.160.0`. `TimeUnix` and `StartTimeUnix` are
+  `DateTime`, and a `minmax` index on `TimeUnix` sits with the skip indexes.
+  This keeps the local tables in step with the cloud schema
+  (`clickhouse/init/10-create-mvs.sql`), which the shared explorer queries read
+  the same way.
+- With the attributes ahead of the time column, every granule of a metric held
+  points from the whole day, so a time filter pruned nothing and a 15-minute
+  panel read as much as a 24-hour one. Measured on the cloud schema, 864k rows
+  over a day: 864,000 rows read before, 40,960 after. The key and the index are
+  both needed, the key pruning to the hour and the index inside it. See
+  `docs/clickhouse-retention-rollout.md`, "Metrics sort key", for why the
+  attributes are hashed rather than dropped from the key.
+- `CREATE TABLE IF NOT EXISTS` leaves an existing local database on the old
+  shape. A local store picks the new one up when it is recreated, or as the
+  7-day TTL ages the old parts out and the store is next rebuilt.
+
 ## Planned local changes
 
 - Remove remote ClickHouse runtime options that do not apply to local chDB.

@@ -1,65 +1,21 @@
 -- Per-row retention. Every app.* row is stamped with `retention_days` by its
--- materialized view from the app.tenant_retention dictionary. A tenant without
--- a row gets the free tier, which is the dictionary row with tenant_id ''.
--- The table partitions by (day, retention_days) and the TTL is
--- `day + retention_days` with ttl_only_drop_parts = 1. Every row in a partition
--- expires on the same day, so ClickHouse drops whole parts and never rewrites
--- one to expire a single tenant. A retention change applies to rows ingested
--- from that point on. Every distinct retention value costs that many live
--- partitions per table, so the app only writes the values of a tier
--- (RETENTION_BY_TIER in packages/app/src/lib/retention.ts).
+-- materialized view from the resource attribute the collector sets at
+-- authentication (everr.retention.days, one key holding the window for that
+-- pipeline's signal), and the view strips it before storage. The table partitions by (day, retention_days) and the
+-- TTL is `day + retention_days` with ttl_only_drop_parts = 1. Every row in a
+-- partition expires on the same day, so ClickHouse drops whole parts and never
+-- rewrites one to expire a single tenant. A retention change applies to rows
+-- ingested from that point on. Every distinct retention value costs that many
+-- live partitions per table; RETENTION_BY_TIER (packages/app/src/lib/retention.ts)
+-- is the only source of values.
 --
--- Only the views write these tables. A direct INSERT that omits retention_days
--- gets 0, and `day + 0` is already past, so the TTL drops the rows at insert.
-
--- Per-tenant retention source + dictionary. The app writes to the source
--- table; the materialized views below read the dictionary with
--- dictGetOrDefault to stamp retention_days on every inserted row. A plan
--- change reaches new rows once the dictionary refreshes (LIFETIME below).
-CREATE TABLE IF NOT EXISTS app.tenant_retention_source
-(
-  tenant_id String,
-  traces_days UInt16,
-  logs_days UInt16,
-  metrics_days UInt16,
-  -- ReplacingMergeTree version. The app writes it from the Postgres row the
-  -- tier was read off, so the write carrying the newer subscription state wins
-  -- whatever order the two arrive in. Milliseconds, not seconds: at second
-  -- precision two writes for one tenant tie, and a tie is resolved by part
-  -- order, which is unrelated to which state is current.
-  updated_at DateTime64(3) DEFAULT now64(3)
-)
-ENGINE = ReplacingMergeTree(updated_at)
-ORDER BY tenant_id;
-
--- Free-tier row, keyed by the empty tenant id. The views fall back to it for
--- tenants without a row, and the dictionary below refuses to load without it,
--- so it is written before the dictionary is created. The app rewrites it from
--- RETENTION_BY_TIER.free (packages/app/src/lib/retention.ts) at every start,
--- so that file is the source of truth and these values only bootstrap a fresh
--- cluster.
-INSERT INTO app.tenant_retention_source (tenant_id, traces_days, logs_days, metrics_days) VALUES ('', 14, 14, 14);
-
-CREATE DICTIONARY IF NOT EXISTS app.tenant_retention
-(
-  tenant_id String,
-  traces_days UInt16,
-  logs_days UInt16,
-  metrics_days UInt16
-)
-PRIMARY KEY tenant_id
-SOURCE(CLICKHOUSE(
-  user 'web_app_admin'
-  password 'web-app-admin-dev'
-  -- Refuses to load without the free-tier row (tenant_id ''), so the views
-  -- either see that row or fail every insert: dictGet on a missing key
-  -- returns 0, not an error, and a 0 stamp would expire rows at insert. The
-  -- throwIf sits inside a scalar subquery so it runs even when the source
-  -- table is empty; a WHERE on the rows would be skipped in that case.
-  query 'SELECT tenant_id, traces_days, logs_days, metrics_days FROM app.tenant_retention_source FINAL WHERE (SELECT throwIf(count() = 0, \'app.tenant_retention_source has no free-tier row (tenant_id = empty string)\') FROM app.tenant_retention_source FINAL WHERE tenant_id = \'\') = 0'
-))
-LAYOUT(HASHED())
-LIFETIME(MIN 60 MAX 120);
+-- Only the views write these tables. A missing retention attribute would
+-- stamp 0 and expire the row at insert with no error, so the views refuse
+-- the row instead: `toUInt16OrZero(x) + throwIf(x = '', ...)`. Do not write
+-- it as if(x = '', throwIf(true, ...), ...): the constant throwIf is folded
+-- and fires on every row. The stamps are computed in an inner query because
+-- the `mapFilter(...) AS ResourceAttributes` alias in the outer query shadows
+-- the source column.
 
 -- Traces: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.traces
@@ -121,10 +77,17 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_mv
 TO app.traces
 AS
 SELECT
-  *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'traces_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'traces_days', '')) AS retention_days
-FROM otel.otel_traces;
+  * EXCEPT (ResourceAttributes),
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+FROM
+(
+  SELECT
+    *,
+    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+  FROM otel.otel_traces
+);
 
 -- Logs: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.logs
@@ -175,16 +138,38 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.logs_mv
 TO app.logs
 AS
 SELECT
-  *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'logs_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'logs_days', '')) AS retention_days
-FROM otel.otel_logs;
+  * EXCEPT (ResourceAttributes),
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+FROM
+(
+  SELECT
+    *,
+    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+  FROM otel.otel_logs
+);
 
 -- Metrics (Gauge): tenant-enriched read table + MV
+--
+-- The five metrics tables order by the hour before the attributes, which is
+-- what the upstream exporter does since v0.160.0. Dashboard panels all filter
+-- ServiceName + MetricName + a time range and aggregate across series, and
+-- with the attributes ahead of the time column every granule of a metric held
+-- points from the whole day, so a time filter pruned nothing and a 15-minute
+-- panel read the same rows as a 24-hour one.
+--
+-- cityHash64(Attributes) groups without ordering: rows of one series share a
+-- hash so they stay adjacent inside the hour and the Attributes column still
+-- compresses by run, but the primary index (held in memory) stores 8 bytes per
+-- granule instead of a whole map. Dropping the attributes from the key instead
+-- nearly doubles that column. The cost is that an attribute predicate can no
+-- longer prune granules, which only matters when reading one high-cardinality
+-- series over a long range; no built-in dashboard does that.
 CREATE TABLE IF NOT EXISTS app.metrics_gauge
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -202,7 +187,8 @@ ALTER TABLE app.metrics_gauge
   ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1;
 
 -- Codecs mirrored from otel.otel_metrics_gauge (see the app.traces note above).
 ALTER TABLE app.metrics_gauge
@@ -218,12 +204,12 @@ ALTER TABLE app.metrics_gauge
   MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
   MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
   MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
   MODIFY COLUMN `Value` Float64 CODEC(ZSTD(1)),
   MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
@@ -233,16 +219,23 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_gauge_mv
 TO app.metrics_gauge
 AS
 SELECT
-  *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'metrics_days', '')) AS retention_days
-FROM otel.otel_metrics_gauge;
+  * EXCEPT (ResourceAttributes),
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+FROM
+(
+  SELECT
+    *,
+    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+  FROM otel.otel_metrics_gauge
+);
 
 -- Metrics (Sum): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_sum
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -260,7 +253,8 @@ ALTER TABLE app.metrics_sum
   ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1;
 
 -- Codecs mirrored from otel.otel_metrics_sum (see the app.traces note above).
 ALTER TABLE app.metrics_sum
@@ -276,12 +270,12 @@ ALTER TABLE app.metrics_sum
   MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
   MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
   MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
   MODIFY COLUMN `Value` Float64 CODEC(ZSTD(1)),
   MODIFY COLUMN `Flags` UInt32 CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
@@ -293,16 +287,23 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_sum_mv
 TO app.metrics_sum
 AS
 SELECT
-  *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'metrics_days', '')) AS retention_days
-FROM otel.otel_metrics_sum;
+  * EXCEPT (ResourceAttributes),
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+FROM
+(
+  SELECT
+    *,
+    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+  FROM otel.otel_metrics_sum
+);
 
 -- Metrics (Histogram): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_histogram
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -320,7 +321,8 @@ ALTER TABLE app.metrics_histogram
   ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1;
 
 -- Codecs mirrored from otel.otel_metrics_histogram (see the app.traces note above).
 ALTER TABLE app.metrics_histogram
@@ -336,14 +338,14 @@ ALTER TABLE app.metrics_histogram
   MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
   MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
   MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
   MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
   MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
   MODIFY COLUMN `BucketCounts` Array(UInt64) CODEC(ZSTD(1)),
   MODIFY COLUMN `ExplicitBounds` Array(Float64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
@@ -357,16 +359,23 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_histogram_mv
 TO app.metrics_histogram
 AS
 SELECT
-  *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'metrics_days', '')) AS retention_days
-FROM otel.otel_metrics_histogram;
+  * EXCEPT (ResourceAttributes),
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+FROM
+(
+  SELECT
+    *,
+    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+  FROM otel.otel_metrics_histogram
+);
 
 -- Metrics (Exponential Histogram): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_exponential_histogram
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -384,7 +393,8 @@ ALTER TABLE app.metrics_exponential_histogram
   ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1;
 
 -- Codecs mirrored from otel.otel_metrics_exponential_histogram (see the app.traces note above).
 ALTER TABLE app.metrics_exponential_histogram
@@ -400,8 +410,8 @@ ALTER TABLE app.metrics_exponential_histogram
   MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
   MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
   MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
   MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
   MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
   MODIFY COLUMN `Scale` Int32 CODEC(ZSTD(1)),
@@ -411,7 +421,7 @@ ALTER TABLE app.metrics_exponential_histogram
   MODIFY COLUMN `NegativeOffset` Int32 CODEC(ZSTD(1)),
   MODIFY COLUMN `NegativeBucketCounts` Array(UInt64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.FilteredAttributes` Array(Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime64(9)) CODEC(ZSTD(1)),
+  MODIFY COLUMN `Exemplars.TimeUnix` Array(DateTime) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.Value` Array(Float64) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.SpanId` Array(String) CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.TraceId` Array(String) CODEC(ZSTD(1)),
@@ -425,16 +435,23 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_exponential_histogram_mv
 TO app.metrics_exponential_histogram
 AS
 SELECT
-  *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'metrics_days', '')) AS retention_days
-FROM otel.otel_metrics_exponential_histogram;
+  * EXCEPT (ResourceAttributes),
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+FROM
+(
+  SELECT
+    *,
+    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+  FROM otel.otel_metrics_exponential_histogram
+);
 
 -- Metrics (Summary): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_summary
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY (tenant_id, ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -452,7 +469,8 @@ ALTER TABLE app.metrics_summary
   ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1;
+  ADD INDEX IF NOT EXISTS idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_time_minmax TimeUnix TYPE minmax GRANULARITY 1;
 
 -- Codecs mirrored from otel.otel_metrics_summary (see the app.traces note above).
 ALTER TABLE app.metrics_summary
@@ -468,8 +486,8 @@ ALTER TABLE app.metrics_summary
   MODIFY COLUMN `MetricDescription` String CODEC(ZSTD(1)),
   MODIFY COLUMN `MetricUnit` String CODEC(ZSTD(1)),
   MODIFY COLUMN `Attributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  MODIFY COLUMN `StartTimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-  MODIFY COLUMN `TimeUnix` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `StartTimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
+  MODIFY COLUMN `TimeUnix` DateTime CODEC(Delta(4), ZSTD(1)),
   MODIFY COLUMN `Count` UInt64 CODEC(Delta(8), ZSTD(1)),
   MODIFY COLUMN `Sum` Float64 CODEC(ZSTD(1)),
   MODIFY COLUMN `ValueAtQuantiles.Quantile` Array(Float64) CODEC(ZSTD(1)),
@@ -481,7 +499,14 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_summary_mv
 TO app.metrics_summary
 AS
 SELECT
-  *,
-  ResourceAttributes['everr.tenant.id'] AS tenant_id,
-  dictGetOrDefault('app.tenant_retention', 'metrics_days', ResourceAttributes['everr.tenant.id'], dictGet('app.tenant_retention', 'metrics_days', '')) AS retention_days
-FROM otel.otel_metrics_summary;
+  * EXCEPT (ResourceAttributes),
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
+FROM
+(
+  SELECT
+    *,
+    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
+  FROM otel.otel_metrics_summary
+);

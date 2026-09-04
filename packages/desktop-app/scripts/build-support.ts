@@ -32,7 +32,7 @@ const desktopTauriCargoTomlPath = path.join(packageDir, "src-tauri", "Cargo.toml
 const desktopResourceDir = path.join(repoDir, "target", "desktop-resources");
 export const desktopReleaseDir = path.join(repoDir, "target", "desktop-release");
 const cliEmbeddedAssetsDir = path.join(repoDir, "target", "cli-embedded-assets");
-export const CHDB_RELEASE_VERSION = "v4.0.2";
+export const CHDB_RELEASE_VERSION = "v26.5.0";
 
 export type ChdbAsset = { assetName: string; sha256: string };
 
@@ -43,15 +43,15 @@ export type ChdbAsset = { assetName: string; sha256: string };
 export const CHDB_PLATFORM_ASSETS: Record<string, ChdbAsset> = {
   "darwin-arm64": {
     assetName: "macos-arm64-libchdb.tar.gz",
-    sha256: "54b4da9c4d71f09b8a37e823a7addba392c4789a7034192a4863a1edd452f9e8",
+    sha256: "86a77d5aa775902740d312153eddfbdc641b8fd5a2e028ddfd18d002ade9ec38",
   },
   "linux-arm64": {
     assetName: "linux-aarch64-libchdb.tar.gz",
-    sha256: "ed43e29314f8337f858420354d88d5db4cce9c38155aff43f7816d1112cd7465",
+    sha256: "ba590a475ff8824bdf7d463dded08a4f987ea4687cfb0a1de262b7e7d7bf2554",
   },
   "linux-x64": {
     assetName: "linux-x86_64-libchdb.tar.gz",
-    sha256: "fb722f81c61c1fb2eb3511f17a5adc85b231f6bbc2415de6aea3ad9b73bb272e",
+    sha256: "8dc5155d80b20a27d3e7322bb49ce003807ebd2b8cbd43896c829d16d24b0cdf",
   },
 };
 
@@ -101,7 +101,7 @@ export function chdbReleaseAssetUrl(
   assetName = resolveChdbAsset().assetName,
   version = CHDB_RELEASE_VERSION,
 ) {
-  return `https://github.com/chdb-io/chdb/releases/download/${version}/${assetName}`;
+  return `https://github.com/chdb-io/chdb-core/releases/download/${version}/${assetName}`;
 }
 
 export async function sha256File(filePath: string) {

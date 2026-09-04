@@ -52,10 +52,7 @@ import {
   query,
   querySqlApi,
   querySqlApiWithMeta,
-  seedDefaultRetention,
-  upsertTenantRetention,
 } from "./clickhouse";
-import { resolveRetention } from "./retention";
 
 const ORG = "org42";
 const ORG_USER = `sql_api_org_${ORG}`;
@@ -149,53 +146,6 @@ describe("querySqlApiWithMeta", () => {
       auth: { username: ORG_USER, password: ORG_PASSWORD },
       http_headers: { "X-ClickHouse-Quota": ORG_USER },
     });
-  });
-});
-
-describe("upsertTenantRetention", () => {
-  it("writes the tier's retention row through the admin client", async () => {
-    const pro = resolveRetention("pro");
-    const updatedAt = new Date("2026-09-03T10:00:00.123Z");
-    await upsertTenantRetention({ tenantId: ORG, tier: "pro", updatedAt });
-
-    expect(mockInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        table: "app.tenant_retention_source",
-        values: [
-          {
-            tenant_id: ORG,
-            traces_days: pro.tracesDays,
-            logs_days: pro.logsDays,
-            metrics_days: pro.metricsDays,
-            // Epoch milliseconds: the row's version keeps the sub-second
-            // precision that decides which of two concurrent writes wins.
-            updated_at: updatedAt.getTime(),
-          },
-        ],
-      }),
-    );
-  });
-});
-
-describe("seedDefaultRetention", () => {
-  it("writes the free tier under the empty tenant id", async () => {
-    const free = resolveRetention("free");
-    await seedDefaultRetention();
-
-    expect(mockInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        table: "app.tenant_retention_source",
-        values: [
-          {
-            tenant_id: "",
-            traces_days: free.tracesDays,
-            logs_days: free.logsDays,
-            metrics_days: free.metricsDays,
-            updated_at: expect.any(Number),
-          },
-        ],
-      }),
-    );
   });
 });
 

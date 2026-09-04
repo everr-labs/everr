@@ -86,8 +86,8 @@ describe("buildCapabilitiesQuery", () => {
     ]) {
       expect(sql).toContain(
         `SELECT 'metrics:redis' AS key FROM ${table} WHERE ` +
-          "TimeUnix >= parseDateTime64BestEffort({from:String}, 9) AND " +
-          "TimeUnix <= parseDateTime64BestEffort({to:String}, 9) AND " +
+          "TimeUnix >= parseDateTimeBestEffort({from:String}) AND " +
+          "TimeUnix <= parseDateTimeBestEffort({to:String}) AND " +
           "(MetricName = 'redis' OR startsWith(MetricName, 'redis.')) LIMIT 1",
       );
     }

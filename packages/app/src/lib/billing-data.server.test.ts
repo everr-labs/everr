@@ -10,8 +10,6 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
-vi.mock("@/lib/clickhouse", () => ({ upsertTenantRetention: vi.fn() }));
-
 import { readOrgEntitlement } from "./billing-data.server";
 
 const IN_THE_PERIOD = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);

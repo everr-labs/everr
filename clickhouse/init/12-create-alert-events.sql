@@ -4,8 +4,7 @@
 CREATE TABLE IF NOT EXISTS app.alert_events
 (
   event_id UUID DEFAULT generateUUIDv4(),
-  -- String, not UUID: application organization ids are text and the retention
-  -- dictionary is keyed by tenant_id String.
+  -- String, not UUID: application organization ids are text.
   tenant_id String,
   alert_definition_id String,
   repoid String,
@@ -24,9 +23,8 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   silence_id String DEFAULT '',
   instance_fingerprint String DEFAULT '',
   instance_labels_json String DEFAULT '{}',
-  -- Stamped at insert time from the dictionary; see 10-create-mvs.sql for the
-  -- per-row retention model. Alert history follows the tenant's logs retention.
-  retention_days UInt16 DEFAULT dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, dictGet('app.tenant_retention', 'logs_days', '')),
+  -- Written by the app from the tenant's plan (packages/app/src/lib/retention.server.ts).
+  retention_days UInt16,
   INDEX alert_def_skip_idx alert_definition_id TYPE bloom_filter GRANULARITY 4
 )
 ENGINE = MergeTree
@@ -46,7 +44,6 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
 GRANT SELECT ON app.alert_events TO app_ro;
 GRANT INSERT, SELECT ON app.alert_events TO web_app_admin;
-GRANT dictGet ON app.tenant_retention TO web_app_admin;
 
 DROP ROW POLICY IF EXISTS tenant_filter_alert_events ON app.alert_events;
 CREATE ROW POLICY tenant_filter_alert_events
