@@ -84,19 +84,4 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
       },
       setWhere: sql`${orgSubscription.polarModifiedAt} < ${input.polarModifiedAt}`,
     });
-
-  // Sync retention from the persisted PG state (not from `input`) so webhook
-  // retries after a transient ClickHouse failure still converge — including
-  // the case where the staleness guard above blocks the PG update on retry.
-  const [current] = await db
-    .select({
-      status: orgSubscription.status,
-      currentPeriodEnd: orgSubscription.currentPeriodEnd,
-      cancelAtPeriodEnd: orgSubscription.cancelAtPeriodEnd,
-      updatedAt: orgSubscription.updatedAt,
-    })
-    .from(orgSubscription)
-    .where(eq(orgSubscription.orgId, input.orgId))
-    .limit(1);
-  if (!current) return;
 }
