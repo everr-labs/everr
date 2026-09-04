@@ -145,9 +145,9 @@ one high-cardinality series over a long range reads 820k rows where the old key
 read 326k. No built-in dashboard does that; all 232 metric reads aggregate
 across series.
 
-On an existing install the cut-over rebuilds these five tables empty rather
-than altering them, which is where the stored metrics history goes. See
-"Production rollout".
+The cut-over rebuilds these tables rather than altering them: a sort key
+cannot be rewritten, and `TimeUnix` cannot change type while the old key uses
+it. See "Production rollout".
 
 `DateTime` instead of `DateTime64(9)` drops sub-second precision that nothing
 reads: every query buckets with `toStartOfInterval`. On the same data the
@@ -263,19 +263,22 @@ because a new view needs the attributes to already be on the wire.
    ```
 
    What it does: refuses to start if rows without the attribute arrived in the
-   last 10 minutes, then per table drops the view and the stored landing
-   table, drops the five `app.metrics_*` tables, re-runs `init/03` (Null
-   engines) and `init/10` (which rebuilds the metrics tables and recreates the
-   views), removes the `app.alert_events` default, and drops the dictionary and
-   its source table. It then checks that all seven views are back.
+   last 10 minutes, then drops every view, every stored landing table and
+   every `app.*` table including `app.alert_events`, and re-runs `init/03`
+   (Null engines), `init/10` (`app.*` and their views) and `init/12`
+   (`app.alert_events` and its projection into `app.logs`). It then drops the
+   dictionary and its source table, and checks that all eight views are back.
 
    Effects to expect:
-   - **`app.logs` and `app.traces` keep every row.**
-   - **The five `app.metrics_*` tables are rebuilt empty.** Stored metrics
-     history goes. The new sort key cannot be reached with `ALTER`: a sort key
-     cannot be rewritten, and `TimeUnix` cannot change type while the old key
-     uses it. Row policies and grants survive the drop, because ClickHouse
-     keys them by database and table name and not by the table UUID, so tenant
+   - **Every `app.*` table is rebuilt empty. There is no backfill.** The
+     tables that are live carry a TTL built from `dictGetOrDefault`, and any
+     `ALTER` re-validates that expression and fails with `TTL expression
+     cannot contain non-deterministic functions`, so they cannot be altered
+     into the new shape at all. `CREATE TABLE IF NOT EXISTS` is a no-op on a
+     table that is already there, so without the drop the old shape would
+     stay in place silently.
+   - Row policies and grants survive the drop, because ClickHouse keys access
+     control by database and table name and not by the table UUID, so tenant
      isolation and the per-org `/sql` users need no repair.
    - The stored `otel.*` copies are dropped, up to seven days of raw rows
      that nothing reads.
