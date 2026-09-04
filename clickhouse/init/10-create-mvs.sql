@@ -1,7 +1,7 @@
 -- Per-row retention. Every app.* row is stamped with `retention_days` by its
--- materialized view from the resource attributes the collector sets at
--- authentication (everr.retention.<signal>_days), and the view strips those
--- keys before storage. The table partitions by (day, retention_days) and the
+-- materialized view from the resource attribute the collector sets at
+-- authentication (everr.retention.days, one key holding the window for that
+-- pipeline's signal), and the view strips it before storage. The table partitions by (day, retention_days) and the
 -- TTL is `day + retention_days` with ttl_only_drop_parts = 1. Every row in a
 -- partition expires on the same day, so ClickHouse drops whole parts and never
 -- rewrites one to expire a single tenant. A retention change applies to rows
@@ -78,14 +78,14 @@ TO app.traces
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k NOT LIKE 'everr.retention.%', ResourceAttributes) AS ResourceAttributes
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.traces_days'])
-      + throwIf(ResourceAttributes['everr.retention.traces_days'] = '', 'everr.retention.traces_days resource attribute missing') AS retention_days
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
   FROM otel.otel_traces
 );
 
@@ -139,14 +139,14 @@ TO app.logs
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k NOT LIKE 'everr.retention.%', ResourceAttributes) AS ResourceAttributes
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.logs_days'])
-      + throwIf(ResourceAttributes['everr.retention.logs_days'] = '', 'everr.retention.logs_days resource attribute missing') AS retention_days
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
   FROM otel.otel_logs
 );
 
@@ -220,14 +220,14 @@ TO app.metrics_gauge
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k NOT LIKE 'everr.retention.%', ResourceAttributes) AS ResourceAttributes
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.metrics_days'])
-      + throwIf(ResourceAttributes['everr.retention.metrics_days'] = '', 'everr.retention.metrics_days resource attribute missing') AS retention_days
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
   FROM otel.otel_metrics_gauge
 );
 
@@ -288,14 +288,14 @@ TO app.metrics_sum
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k NOT LIKE 'everr.retention.%', ResourceAttributes) AS ResourceAttributes
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.metrics_days'])
-      + throwIf(ResourceAttributes['everr.retention.metrics_days'] = '', 'everr.retention.metrics_days resource attribute missing') AS retention_days
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
   FROM otel.otel_metrics_sum
 );
 
@@ -360,14 +360,14 @@ TO app.metrics_histogram
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k NOT LIKE 'everr.retention.%', ResourceAttributes) AS ResourceAttributes
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.metrics_days'])
-      + throwIf(ResourceAttributes['everr.retention.metrics_days'] = '', 'everr.retention.metrics_days resource attribute missing') AS retention_days
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
   FROM otel.otel_metrics_histogram
 );
 
@@ -436,14 +436,14 @@ TO app.metrics_exponential_histogram
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k NOT LIKE 'everr.retention.%', ResourceAttributes) AS ResourceAttributes
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.metrics_days'])
-      + throwIf(ResourceAttributes['everr.retention.metrics_days'] = '', 'everr.retention.metrics_days resource attribute missing') AS retention_days
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
   FROM otel.otel_metrics_exponential_histogram
 );
 
@@ -500,13 +500,13 @@ TO app.metrics_summary
 AS
 SELECT
   * EXCEPT (ResourceAttributes),
-  mapFilter((k, v) -> k NOT LIKE 'everr.retention.%', ResourceAttributes) AS ResourceAttributes
+  mapFilter((k, v) -> k != 'everr.retention.days', ResourceAttributes) AS ResourceAttributes
 FROM
 (
   SELECT
     *,
     ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    toUInt16OrZero(ResourceAttributes['everr.retention.metrics_days'])
-      + throwIf(ResourceAttributes['everr.retention.metrics_days'] = '', 'everr.retention.metrics_days resource attribute missing') AS retention_days
+    toUInt16OrZero(ResourceAttributes['everr.retention.days'])
+      + throwIf(ResourceAttributes['everr.retention.days'] = '', 'everr.retention.days resource attribute missing') AS retention_days
   FROM otel.otel_metrics_summary
 );

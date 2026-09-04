@@ -56,8 +56,8 @@ drop_landing_tables() {
 
 echo "1/4 guard: the collector must already stamp retention"
 run_sql "SELECT throwIf(
-  (SELECT count() FROM otel.otel_logs WHERE TimestampTime > now() - INTERVAL 10 MINUTE AND ResourceAttributes['everr.retention.logs_days'] = '') > 0,
-  'rows without everr.retention.logs_days arrived in the last 10 minutes: deploy the collector first')"
+  (SELECT count() FROM otel.otel_logs WHERE TimestampTime > now() - INTERVAL 10 MINUTE AND ResourceAttributes['everr.retention.days'] = '') > 0,
+  'rows without everr.retention.days arrived in the last 10 minutes: deploy the collector first')"
 
 echo "2/4 swap landing tables and views"
 # The stored otel.* copies go with the tables. They hold seven days of raw

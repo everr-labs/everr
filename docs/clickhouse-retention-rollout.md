@@ -9,9 +9,10 @@ existing rows keep the retention they were stamped with.
 
 The stamp comes from the collector. The app returns the tenant's retention when
 it authenticates an API key (`/api/internal/verify-key`) or forwards a GitHub
-webhook, the collector puts it on every resource as
-`everr.retention.<signal>_days`, and the materialized views read it, write
-`retention_days`, and strip the keys before storage. The `otel.*` tables are
+webhook, the collector puts it on every resource as `everr.retention.days`,
+and the materialized views read it, write `retention_days`, and strip the key
+before storage. One key, not one per signal: each pipeline stamps the window
+for the signal it carries, so a span never carries the logs window. The `otel.*` tables are
 `ENGINE = Null`: an insert stores nothing and only triggers the views, so every
 row is written and merged once.
 
@@ -228,7 +229,7 @@ Every path that produces the stamp fails closed:
   app older than this change cannot make the collector ingest unstamped rows.
   Clients get 401 until the app is deployed.
 - **Resource without the attribute.** The view refuses the row with
-  `everr.retention.<signal>_days resource attribute missing` instead of
+  `everr.retention.days resource attribute missing` instead of
   stamping 0, which would expire it at insert with no error anywhere. The
   exporter's insert fails and it retries. Do not set
   `materialized_views_ignore_errors`: it keeps the collector insert alive but
@@ -250,7 +251,7 @@ because a new view needs the attributes to already be on the wire.
    sends the headers, alert inserts stamp `retention_days`, and the
    dictionary write path is gone. The old dictionary still stamps rows in the
    meantime, so nothing changes for ingestion yet.
-2. **Deploy the collector.** It stamps `everr.retention.*` on every resource.
+2. **Deploy the collector.** It stamps `everr.retention.days` on every resource.
    The old views ignore the attributes and keep reading the dictionary, and
    the attributes are stored in `ResourceAttributes` until step 3 strips them.
 3. **Run the cut-over**, from a checkout of the merged commit, as an admin
@@ -280,7 +281,7 @@ because a new view needs the attributes to already be on the wire.
      that nothing reads.
    - Per table there is a sub-second window between the view drop and the
      view create in which the exporter's insert fails; it retries.
-   - Rows ingested between step 2 and step 3 keep `everr.retention.*` in
+   - Rows ingested between step 2 and step 3 keep `everr.retention.days` in
      their `ResourceAttributes`. They expire on their own schedule; nothing
      rewrites them.
    - If the swap stops part way, the script drops the landing tables it had
@@ -319,7 +320,7 @@ The landing tables store nothing and the views strip the retention keys:
 SELECT name, engine FROM system.tables WHERE database = 'otel';
 
 SELECT tenant_id, retention_days,
-       countIf(mapContains(ResourceAttributes, 'everr.retention.logs_days')) AS leaked,
+       countIf(mapContains(ResourceAttributes, 'everr.retention.days')) AS leaked,
        count()
 FROM app.logs
 WHERE TimestampTime > now() - INTERVAL 1 HOUR
