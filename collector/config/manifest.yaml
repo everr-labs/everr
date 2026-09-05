@@ -9,6 +9,9 @@ dist:
 exporters:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter v0.160.0
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.160.0
+  # Dev self-telemetry is forwarded to the developer's local everr instance as
+  # well as the dev ClickHouse, so a distributed trace assembles whole there.
+  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.160.0
 
 connectors: []
 
