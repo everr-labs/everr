@@ -10,7 +10,7 @@ import {
 import {
   cancelAlertSilence,
   createAlertSilence,
-} from "@/data/alerting/silences/commands.server";
+} from "@/data/alerting/silences/server";
 import { invalidateAlertTriage } from "@/data/alerting/triage/options";
 
 /**

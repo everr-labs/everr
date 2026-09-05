@@ -30,7 +30,7 @@ vi.mock(
   async () => import("@/server/alerting/testing/test-clickhouse"),
 );
 
-import { createAlertSilence } from "./commands.server";
+import { createAlertSilence } from "./server";
 
 const harness = useAlertingHarness();
 
