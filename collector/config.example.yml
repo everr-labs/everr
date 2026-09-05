@@ -123,9 +123,8 @@ exporters:
     # exporter's queue keeps the request until the insert succeeds.
     # Size matters twice over: ClickHouse wants few large inserts, and every
     # app.* table writes one part per retention value present in a batch, so
-    # small batches multiply parts (docs/clickhouse-retention-rollout.md,
-    # "Parts per insert"). flush_timeout is the ingestion delay when traffic
-    # is too low to fill a batch.
+    # small batches multiply parts. flush_timeout is the ingestion delay when
+    # traffic is too low to fill a batch.
     sending_queue:
       num_consumers: 10
       batch:

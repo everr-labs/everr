@@ -58,9 +58,11 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   points from the whole day, so a time filter pruned nothing and a 15-minute
   panel read as much as a 24-hour one. Measured on the cloud schema, 864k rows
   over a day: 864,000 rows read before, 40,960 after. The key and the index are
-  both needed, the key pruning to the hour and the index inside it. See
-  `docs/clickhouse-retention-rollout.md`, "Metrics sort key", for why the
-  attributes are hashed rather than dropped from the key.
+  both needed, the key pruning to the hour and the index inside it. The
+  attributes are hashed rather than dropped from the key because
+  `cityHash64(Attributes)` groups without ordering: rows of one series stay
+  adjacent inside the hour, so the Attributes column still compresses by run,
+  while the primary index holds 8 bytes per granule instead of a whole map.
 - `CREATE TABLE IF NOT EXISTS` leaves an existing local database on the old
   shape. A local store picks the new one up when it is recreated, or as the
   7-day TTL ages the old parts out and the store is next rebuilt.
