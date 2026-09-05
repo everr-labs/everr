@@ -3,7 +3,7 @@ title: Data Retention
 description: How long Everr keeps your traces, logs, and metrics, and how retention behaves when your plan changes.
 ---
 
-Everr stores your telemetry for a fixed window based on your plan. Once data falls outside that window it is removed automatically and cannot be recovered.
+Everr keeps your telemetry for a fixed window based on your plan. Once data falls outside that window it is removed automatically and cannot be recovered.
 
 ## How long we keep your data
 
@@ -13,28 +13,17 @@ Everr stores your telemetry for a fixed window based on your plan. Once data fal
 | Logs | 14 days | 1 year |
 | Metrics | 14 days | 1 year |
 
-One window per plan, the same for all three signals. On the Pro plan every signal is kept for a year, which is long enough to compare current behavior against the same week or month last year, and it means you never have to remember which signal rolls off first.
+One window per plan, the same for traces, logs and metrics. No signal rolls off before the others.
 
-## When retention changes take effect
+## When your plan changes
 
-Retention is decided when data is ingested. Every event is stored with the retention window of your plan at that moment, and it is removed when that window ends. A plan change reaches the ingestion pipeline within about a minute, and from then on new data carries the new window. There is no separate migration step.
+Each event is kept for the window of your plan **at the time we receive it**. Retention is not retroactive, so a plan change only affects data that arrives after it. A new window takes effect within about a minute.
 
-Data ingested before the change keeps the window it was stored with:
+- **Upgrading.** Data that arrives after the upgrade is kept for the longer window. Data you already have still expires on the old schedule, which on the Free plan is at most the last 14 days.
+- **Downgrading.** Data you already have keeps its original window, up to a year. Data that arrives after the downgrade follows the shorter window. Nothing is deleted early.
 
-- **Upgrading.** Data ingested after the upgrade is kept for the longer window. Data ingested before it still expires on the previous plan's schedule. On the Free plan that is at most the last 14 days.
-- **Downgrading.** Data ingested before the downgrade stays until its original window ends, up to a year. Data ingested after the downgrade follows the shorter window. Nothing is removed early.
-
-We chose to stamp retention at ingestion (rather than re-evaluate all of your data on every plan change) because it lets us expire data by dropping whole storage segments at once. That keeps the system predictable under load and keeps deletion independent of how many tenants share a cluster. Existing data is never rewritten, so a plan change cannot cause a spike in storage work that slows down queries.
-
-## How we handle failures
-
-Because retention is fixed at ingestion, it does not depend on background processes finding the right window later. The one moving part is the plan lookup during ingestion:
-
-- Retention is looked up from your plan when the collector authenticates your API key, and cached for 30 seconds.
-- After a plan change, data ingested before the pipeline picks it up carries the previous plan's window.
-
-If the plan lookup itself is unavailable, ingestion stops rather than storing data with a wrong or missing window. Data waits in the collector and is delivered once the lookup is back. An internal failure can delay ingestion, but it cannot cause data to be deleted earlier than the window it was stored with.
+We never delete your data before the window it was stored with, even when something goes wrong on our side.
 
 ## Custom retention
 
-Custom per-tenant retention is not currently exposed. If you have a compliance, audit, or contractual requirement that needs a non-standard window, [get in touch](mailto:hello@everr.dev) and we'll work something out.
+Custom retention is not currently available. If you have a compliance, audit, or contractual requirement that needs a different window, [get in touch](mailto:hello@everr.dev) and we'll work something out.
