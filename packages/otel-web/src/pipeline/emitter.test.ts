@@ -152,6 +152,32 @@ describe("createEmitter", () => {
     });
   });
 
+  it("defaults the timestamp to the instant emit is called", async () => {
+    vi.setSystemTime(new Date("2024-08-30T00:00:00.123Z"));
+    [emit, flush, exitFlush] = makeEmitter(
+      () => ({}),
+      (item) => {
+        vi.setSystemTime(new Date("2024-08-30T00:00:05.123Z"));
+        return item;
+      },
+    );
+    emit("everr.browser.page_view");
+    await flush();
+    expect(sentRecords()[0].timeUnixNano).toBe("1724976000123000000");
+  });
+
+  it("sends each log batch in timestamp order, stable for equal times", async () => {
+    emit("later", {}, 10);
+    emit("earlier-a", {}, 2);
+    emit("earlier-b", {}, 2);
+    await flush();
+    expect(sentRecords().map((record) => record.eventName)).toEqual([
+      "earlier-a",
+      "earlier-b",
+      "later",
+    ]);
+  });
+
   it("never drops a record on the normal flush path, whatever the burst size", async () => {
     // The queue has no limit until the sampling exists. Thus a large number of
     // records, much more than the batch size, must all go to the server. The
@@ -238,7 +264,7 @@ describe("span pipeline", () => {
     [emit, flush, exitFlush, emitSpan] = makeEmitter(() => ({
       "session.id": "s1",
     }));
-    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1000, 1400, {
+    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1_000, 1_400, {
       "http.request.method": "GET",
     });
     await flush();
@@ -281,6 +307,18 @@ describe("span pipeline", () => {
     const [root, child] = wireSpans();
     expect(root.parentSpanId).toBeUndefined();
     expect(child.parentSpanId).toBe("b".repeat(16));
+  });
+
+  it("sends each trace batch in start-time order, stable for equal times", async () => {
+    emitSpan("a".repeat(32), "b".repeat(16), "later", 10, 11, {});
+    emitSpan("a".repeat(32), "c".repeat(16), "earlier-a", 2, 3, {});
+    emitSpan("a".repeat(32), "d".repeat(16), "earlier-b", 2, 4, {});
+    await flush();
+    expect(wireSpans().map((span) => span.name)).toEqual([
+      "earlier-a",
+      "earlier-b",
+      "later",
+    ]);
   });
 
   it("marks error spans with OTLP status ERROR", async () => {
@@ -379,7 +417,13 @@ describe("beforeSend on the log path", () => {
         };
       },
     );
-    emit("exception", { "exception.type": "Error" }, 17, "Error: tok_abc");
+    emit(
+      "exception",
+      { "exception.type": "Error" },
+      undefined,
+      17,
+      "Error: tok_abc",
+    );
     await flush();
 
     const record = sentRecords()[0];
@@ -399,7 +443,7 @@ describe("beforeSend on the log path", () => {
       (item) =>
         item.kind === "log" && item.eventName === "exception" ? null : item,
     );
-    emit("exception", {}, 17, "boom");
+    emit("exception", {}, undefined, 17, "boom");
     emit("everr.browser.page_view");
     await flush();
 
@@ -418,7 +462,7 @@ describe("beforeSend on the log path", () => {
       },
     );
     // This is the shape that logger.info() sends.
-    emit("", { feature: "billing" }, 9, "checkout started");
+    emit("", { feature: "billing" }, undefined, 9, "checkout started");
     await flush();
     expect(seen).toEqual([""]);
     expect(sentRecords()[0].body).toEqual({ stringValue: "checkout started" });

@@ -11,7 +11,11 @@ import { startInp } from "./inp.js";
 // period, which uses setTimeout here, and a slow record waits on a timer of
 // 1 s.
 
-let emitted: Array<{ name: string; attrs?: Record<string, unknown> }>;
+let emitted: Array<{
+  name: string;
+  attrs?: Record<string, unknown>;
+  timestamp?: number;
+}>;
 let spans: Array<{
   name: string;
   duration: number;
@@ -19,14 +23,18 @@ let spans: Array<{
 }>;
 let stop: () => void;
 
-const emit: Emit = (name, attrs) => {
-  emitted.push({ name, attrs });
+const emit: Emit = (name, attrs, timestamp) => {
+  emitted.push({ name, attrs, timestamp });
 };
 
 // The true tracer that sends its spans to a test function. A slow interaction
 // is a span. Its duration is the latency, and the latency is not an attribute.
 const tracer = createTracer((_traceId, _spanId, name, start, end, attrs) => {
-  spans.push({ name, duration: end - start, attrs });
+  spans.push({
+    name,
+    duration: (end as number) - (start as number),
+    attrs,
+  });
 });
 
 const slow = () => spans.filter((s) => s.name === "slow_interaction");
@@ -310,7 +318,7 @@ describe("INP vital", () => {
     document.body.innerHTML = '<button id="b">Go</button>';
     feed([
       { duration: 250, interactionId: 7, target: document.getElementById("b") },
-      { duration: 620, interactionId: 14 },
+      { duration: 620, interactionId: 14, startTime: 2_000 },
       { duration: 90, interactionId: 21 },
     ]);
     settle();
@@ -328,6 +336,9 @@ describe("INP vital", () => {
     expect(a["everr.browser.interaction.id"]).toBe(14);
     expect(a["everr.browser.interaction.input_delay"]).toBe(20);
     expect(a["everr.browser.interaction.type"]).toBe("pointer");
+    expect(vitals()[0].timestamp).toBe(
+      Math.round(performance.timeOrigin + 2_000),
+    );
   });
 
   it("carries the element payload of its candidate interaction", () => {

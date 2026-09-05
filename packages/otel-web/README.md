@@ -48,6 +48,30 @@ Without a key or an endpoint, a production build resolves to an inert client tha
 
 Wrap any instrumentation in `sampled(instrumentation, rate)` to capture a fraction of sessions, for example `sampled(pageLoad(), 0.1)`.
 
+### Event and span timestamps
+
+Custom instrumentations can set the time when an event happened as integer epoch milliseconds. Browser APIs expose values such as `Event.timeStamp` and `PerformanceEntry.startTime` relative to `performance.timeOrigin`; convert those values with `epoch()`. Without a timestamp, the SDK uses the instant `emit` is called.
+
+```ts
+import { epoch, type Instrumentation } from "@everr/otel-web";
+
+const checkoutTiming: Instrumentation = ({ emit, tracer }) => {
+  const onClick = (event: MouseEvent) => {
+    emit("checkout.started", {}, epoch(event.timeStamp));
+
+    const span = tracer.startSpan("prepare checkout", {
+      startTime: epoch(event.timeStamp),
+    });
+    prepareCheckout().finally(() => span.end());
+  };
+
+  addEventListener("click", onClick);
+  return () => removeEventListener("click", onClick);
+};
+```
+
+The tracer uses the same epoch-millisecond contract through `startTime` and `span.end(endTime)`. Timestamp normalization belongs at the capture site; the pipeline does not guess the source or unit of a value. Built-in instrumentations normalize their browser performance entries and DOM events when they capture them, even when the SDK reports them later. Each logs payload is ordered by event timestamp, and each traces payload is ordered by span start time. Records with the same timestamp keep their capture order.
+
 ## Manual capture
 
 ```ts

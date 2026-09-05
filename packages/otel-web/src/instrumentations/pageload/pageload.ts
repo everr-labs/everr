@@ -1,5 +1,6 @@
 /// <reference path="../../dom.d.ts" />
 import type { Tracer } from "@opentelemetry/api";
+import { epoch } from "../../time.js";
 import { scriptAttrs } from "../performance/shared.js";
 
 // The window of the page load. The code makes one `pageLoad` root span for the
@@ -67,9 +68,6 @@ export function startPageLoad(
   settleMs: number,
   ceilingMs: number,
 ): () => void {
-  // The timestamps of an entry are relative to the time origin, but a span uses
-  // milliseconds from the epoch.
-  const epoch = (time: number) => Math.round(performance.timeOrigin + time);
   // The root is the active span until its end. The function gives the span
   // back, because the observers below start later, and the span stays active
   // for them.

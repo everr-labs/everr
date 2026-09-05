@@ -1,6 +1,7 @@
 /// <reference path="../../dom.d.ts" />
 
 import type { AttrValue, Emit } from "../../pipeline/emitter.js";
+import { epoch } from "../../time.js";
 import { selectorOf } from "../element.js";
 import type { WebVitalName } from "./index.js";
 import { emitVital, whenIdleOrHidden } from "./shared.js";
@@ -84,12 +85,17 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   let restored = false;
 
   // Each caller examines `stopped` before it sends a record.
-  const report = (name: Classic, value: number, attribution: Attrs) => {
+  const report = (
+    name: Classic,
+    value: number,
+    attribution: Attrs,
+    timestamp?: number,
+  ) => {
     const extra: Attrs = {};
     for (const [key, v] of Object.entries(attribution)) {
       extra[`everr.browser.web_vital.${name}.${key}`] = v;
     }
-    emitVital(emit, name, value, restored, extra);
+    emitVital(emit, name, value, restored, extra, timestamp);
   };
 
   // The first time in the life of the page when the page was hidden. The code
@@ -119,13 +125,18 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
     const dnsStart = Math.max(nav.domainLookupStart - start, 0);
     const connectStart = Math.max(nav.connectStart - start, 0);
     const connectEnd = Math.max(nav.connectEnd - start, 0);
-    report("ttfb", value, {
-      waiting_duration: waitEnd,
-      cache_duration: dnsStart - waitEnd,
-      dns_duration: connectStart - dnsStart,
-      connection_duration: connectEnd - connectStart,
-      request_duration: value - connectEnd,
-    });
+    report(
+      "ttfb",
+      value,
+      {
+        waiting_duration: waitEnd,
+        cache_duration: dnsStart - waitEnd,
+        dns_duration: connectStart - dnsStart,
+        connection_duration: connectEnd - connectStart,
+        request_duration: value - connectEnd,
+      },
+      epoch(nav.responseStart),
+    );
   };
   const onLoad = () => setTimeout(reportTtfb);
   if (vitals.includes("ttfb")) {
@@ -199,7 +210,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
       attribution.resource_load_duration = responseEnd - requestStart;
       attribution.element_render_delay = value - responseEnd;
     }
-    report("lcp", value, attribution);
+    report("lcp", value, attribution, epoch(lcp.startTime));
   };
 
   // An input from the code is not trusted, and it must not complete the record.
@@ -238,6 +249,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   };
   let clsValue = 0;
   let clsLargest: Shift | undefined;
+  let clsTime: number | undefined;
   let clsDone = !vitals.includes("cls");
   let clsPo: PerformanceObserver | undefined;
 
@@ -278,6 +290,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
       if (session.value > clsValue) {
         clsValue = session.value;
         clsLargest = session.largest;
+        clsTime = session.last;
       }
     }
   };
@@ -305,6 +318,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
             load_state: loadStateAt(clsLargest.time),
           }
         : {},
+      epoch(clsTime ?? firstHidden),
     );
   };
 
@@ -337,18 +351,26 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
     if (!event.persisted || stopped) return;
     restored = true;
     if (vitals.includes("ttfb") && navEntry()) {
-      report("ttfb", 0, {
-        waiting_duration: 0,
-        cache_duration: 0,
-        dns_duration: 0,
-        connection_duration: 0,
-        request_duration: 0,
-      });
+      report(
+        "ttfb",
+        0,
+        {
+          waiting_duration: 0,
+          cache_duration: 0,
+          dns_duration: 0,
+          connection_duration: 0,
+          request_duration: 0,
+        },
+        epoch(event.timeStamp),
+      );
     }
     if (lcpPo) {
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
-          if (!stopped) report("lcp", performance.now() - event.timeStamp, {});
+          if (!stopped) {
+            const now = performance.now();
+            report("lcp", now - event.timeStamp, {}, epoch(now));
+          }
         }),
       );
     }
@@ -356,6 +378,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
       session = { value: 0, first: 0, last: 0, largest: undefined };
       clsValue = 0;
       clsLargest = undefined;
+      clsTime = undefined;
       clsDone = !clsPo;
     }
   };
