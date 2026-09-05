@@ -67,9 +67,18 @@ drop_landing_tables() {
 }
 
 echo "1/3 guard: the collector must already stamp retention"
-run_sql "SELECT throwIf(
-  (SELECT count() FROM otel.otel_logs WHERE Timestamp > now() - INTERVAL 10 MINUTE AND ResourceAttributes['everr.retention.days'] = '') > 0,
-  'rows without everr.retention.days arrived in the last 10 minutes: deploy the collector first')"
+# One check per signal, not just logs: each pipeline has its own retention
+# processor, so a config that stamps logs can still miss traces or metrics.
+# After the cut-over an unstamped signal throws in its view and that signal
+# stops ingesting, so catch it here while the tables still hold rows to read.
+guard_signal() {
+  run_sql "SELECT throwIf(
+    (SELECT count() FROM otel.otel_${1} WHERE ${2} > now() - INTERVAL 10 MINUTE AND ResourceAttributes['everr.retention.days'] = '') > 0,
+    '${1}: rows without everr.retention.days arrived in the last 10 minutes: deploy the collector first')"
+}
+guard_signal logs TimestampTime
+guard_signal traces Timestamp
+guard_signal metrics_gauge TimeUnix
 
 echo "2/3 rebuild the tables, the landing tables and the views"
 # The stored otel.* copies go with the tables. They hold seven days of raw
@@ -87,20 +96,22 @@ run_file init/03-create-otel-tables.sql     # Null engines
 run_file init/05-create-retention-functions.sql  # the stamp and the strip the views call
 run_file init/10-create-mvs.sql             # app.* and their views
 run_file init/12-create-alert-events.sql    # app.alert_events and its view into app.logs
-trap - ERR
 
-# Every landing table must have its view back before ingestion resumes.
+# Every landing table must have its view back before ingestion resumes. Still
+# under the trap: a landing table left Null with no view is the silent-discard
+# state the trap exists to clear, so this check must not run outside it.
 mv_names=$(printf ",'%s_mv'" "${TABLES[@]}")
 run_sql "SELECT throwIf(
   (SELECT count() FROM system.tables
      WHERE database = 'app' AND engine = 'MaterializedView'
        AND name IN (${mv_names#,}, 'alert_events_logs_mv')) != $(( ${#TABLES[@]} + 1 )),
   'a table is missing its materialized view: rows would be discarded')"
+trap - ERR
 
 echo "3/3 remove the dictionary"
 run_sql "DROP DICTIONARY IF EXISTS app.tenant_retention"
 run_sql "DROP TABLE IF EXISTS app.tenant_retention_source"
-run_sql "REVOKE dictGet ON app.tenant_retention FROM collector_rw, web_app_admin" || true
+run_sql "REVOKE dictGet ON app.tenant_retention FROM collector_rw, app_ro, web_app_admin" || true
 
 echo "done"
 run_sql "SELECT name, engine FROM system.tables WHERE database = 'otel' ORDER BY name FORMAT PrettyCompact"
