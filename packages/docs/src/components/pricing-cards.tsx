@@ -54,7 +54,7 @@ const CARDS: PlanCard[] = [
       { signal: "Users", included: "3", overage: "then $8 per seat" },
     ],
     features: [
-      "1-year retention on every signal",
+      "30-day retention",
       "Unlimited alerts",
       "Priority support",
       "Configurable spending limits",
