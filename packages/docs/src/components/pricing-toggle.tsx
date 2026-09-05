@@ -35,7 +35,7 @@ const SELF_HOST_FEATURES = [
 
 const CLOUD_FEATURES = [
   "Zero-ops ingestion — we run the collectors",
-  "Automatic scaling and 30-day hot retention",
+  "Automatic scaling and 1-year hot retention",
   "SSO, audit logs, and role-based access",
   "Backups, upgrades, and on-call handled for you",
 ] as const;
@@ -48,7 +48,7 @@ const SELF_HOST_SPECS = [
 
 const CLOUD_INCLUDED = [
   { label: "Events / mo", value: "50M" },
-  { label: "Retention", value: "30 days" },
+  { label: "Retention", value: "1 year" },
   { label: "Seats", value: "Unlimited" },
 ] as const;
 

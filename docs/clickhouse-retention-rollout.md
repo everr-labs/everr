@@ -25,7 +25,7 @@ Cut-over for existing clusters: `clickhouse/migrations/2026-09-03-direct-ingest.
 
 The SQL holds no retention values and ClickHouse holds no per-tenant state.
 `RETENTION_BY_TIER` in `packages/app/src/lib/retention.ts` is the only source:
-free 14/14/14, pro 30/30/395. `retentionForOrg`
+free 14/14/14, pro 365/365/365. `retentionForOrg`
 (`packages/app/src/lib/retention.server.ts`) reads the organization's tier and
 resolves it, and three callers hand the result to the pipeline:
 
@@ -161,10 +161,11 @@ forms the app uses prune identically, this one just matches the column.
 
 1. **Adding a retention value.** `retentionForOrg` resolves a tier, so the only
    values that reach ClickHouse are those in `RETENTION_BY_TIER`
-   (`packages/app/src/lib/retention.ts`): free 14/14/14, pro 30/30/395.
+   (`packages/app/src/lib/retention.ts`): free 14/14/14, pro 365/365/365.
    Every value costs that many daily partitions per table, so the sum of the
-   distinct values per signal is the partition budget, 44 per logs and
-   traces table and 409 per metrics table. A new tier adds its days to it.
+   distinct values per signal is the partition budget, 379 per table. A new
+   tier adds its days to it, and a tier that gives one signal its own window
+   adds them to that signal's table only.
 
 ## Changes in `everr-deploy`
 
@@ -203,8 +204,8 @@ The consequences:
   are affected. Rows ingested after the collector's auth cache expires get the
   pro retention.
 - **Downgrade (pro to free).** Rows ingested before the downgrade keep the
-  pro retention and stay up to 30 days (395 for metrics). Storage for that
-  tenant shrinks over the following 30 days, not at once.
+  pro retention and stay up to a year. Storage for that tenant shrinks over
+  the following year, not at once.
 
 This is the accepted behaviour. If a customer needs the pre-upgrade rows
 kept, the rescue is one insert-select per signal table that copies the
@@ -336,6 +337,5 @@ in the same hour changed plan in it.
 
 Part pressure, on the ClickHouse Cloud dashboard: `MaxPartCountForPartition`
 under 50 on the hottest day, merge pool not saturated all day, no
-`TOO_MANY_PARTS`. Expected steady state with the current tiers: about 44 live
-partitions per logs and traces table, about 409 per metrics table, one to
-three parts per settled partition.
+`TOO_MANY_PARTS`. Expected steady state with the current tiers: about 379 live
+partitions per table, one to three parts per settled partition.

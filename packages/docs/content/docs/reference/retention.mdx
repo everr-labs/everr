@@ -9,11 +9,11 @@ Everr stores your telemetry for a fixed window based on your plan. Once data fal
 
 | Signal | Free | Pro |
 |---|---|---|
-| Traces | 14 days | 30 days |
-| Logs | 14 days | 30 days |
-| Metrics | 14 days | 13 months |
+| Traces | 14 days | 1 year |
+| Logs | 14 days | 1 year |
+| Metrics | 14 days | 1 year |
 
-Each signal type is governed by its own retention window. On the Pro plan, metrics stick around for 13 months, long enough to compare current behavior against the same week or month last year. Traces and logs roll off at 30 days, where the per-event volume is much higher and the long-tail value is lower.
+One window per plan, the same for all three signals. On the Pro plan every signal is kept for a year, which is long enough to compare current behavior against the same week or month last year, and it means you never have to remember which signal rolls off first.
 
 ## When retention changes take effect
 
@@ -22,7 +22,7 @@ Retention is decided when data is ingested. Every event is stored with the reten
 Data ingested before the change keeps the window it was stored with:
 
 - **Upgrading.** Data ingested after the upgrade is kept for the longer window. Data ingested before it still expires on the previous plan's schedule. On the Free plan that is at most the last 14 days.
-- **Downgrading.** Data ingested before the downgrade stays until its original window ends, up to 30 days (13 months for metrics). Data ingested after the downgrade follows the shorter window. Nothing is removed early.
+- **Downgrading.** Data ingested before the downgrade stays until its original window ends, up to a year. Data ingested after the downgrade follows the shorter window. Nothing is removed early.
 
 We chose to stamp retention at ingestion (rather than re-evaluate all of your data on every plan change) because it lets us expire data by dropping whole storage segments at once. That keeps the system predictable under load and keeps deletion independent of how many tenants share a cluster. Existing data is never rewritten, so a plan change cannot cause a spike in storage work that slows down queries.
 
