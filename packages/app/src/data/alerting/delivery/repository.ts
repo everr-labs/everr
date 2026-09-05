@@ -82,11 +82,7 @@ function channelView(row: typeof alertChannels.$inferSelect): AlertingChannel {
     id: row.id,
     tenant: row.organizationId,
     name: row.name,
-    config: readRedactedChannelConfig(
-      row.organizationId,
-      row.id,
-      row.encryptedConfig,
-    ),
+    config: readRedactedChannelConfig(row.encryptedConfig),
   };
 }
 

@@ -21,6 +21,9 @@ CREATE TABLE "alert_definitions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"active" boolean DEFAULT true NOT NULL,
+	"paused_at" timestamp with time zone,
+	"paused_by_principal" text,
+	"paused_by" text,
 	"last_error" text,
 	"current_state" "alert_state" DEFAULT 'unknown' NOT NULL,
 	"consecutive_failures" integer DEFAULT 0 NOT NULL,
@@ -37,7 +40,8 @@ CREATE TABLE "alert_definitions" (
 	CONSTRAINT "alert_definitions_version_positive" CHECK ("alert_definitions"."version" > 0),
 	CONSTRAINT "alert_definitions_failures_nonnegative" CHECK ("alert_definitions"."consecutive_failures" >= 0),
 	CONSTRAINT "alert_definitions_row_count_nonnegative" CHECK ("alert_definitions"."last_row_count" >= 0),
-	CONSTRAINT "alert_definitions_firing_count_nonnegative" CHECK ("alert_definitions"."firing_instance_count" >= 0)
+	CONSTRAINT "alert_definitions_firing_count_nonnegative" CHECK ("alert_definitions"."firing_instance_count" >= 0),
+	CONSTRAINT "alert_definitions_pause_trail_complete" CHECK (("alert_definitions"."paused_at" IS NULL) = ("alert_definitions"."paused_by_principal" IS NULL))
 );
 --> statement-breakpoint
 CREATE TABLE "alert_silences" (
@@ -204,3 +208,4 @@ CREATE UNIQUE INDEX "alert_definitions_preview_project_slug_uq" ON "alert_defini
 CREATE INDEX "alert_definitions_due_idx" ON "alert_definitions" USING btree ("active","next_evaluation_at");--> statement-breakpoint
 CREATE INDEX "alert_silences_cleanup_idx" ON "alert_silences" USING btree ("ends_at","id");--> statement-breakpoint
 CREATE INDEX "alert_silences_active_lookup_idx" ON "alert_silences" USING btree ("organization_id","ends_at");--> statement-breakpoint
+CREATE INDEX "alert_events_org_definition_kind_idx" ON "alert_events" USING btree ("organization_id","source_definition_id","kind",occurred_at DESC);

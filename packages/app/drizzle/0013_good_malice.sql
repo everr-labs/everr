@@ -1,1 +1,0 @@
-ALTER TABLE "alert_definitions" ADD COLUMN "paused_by" text;
