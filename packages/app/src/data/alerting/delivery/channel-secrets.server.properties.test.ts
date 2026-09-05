@@ -72,9 +72,7 @@ describe("a channel config's encrypted envelope", () => {
         expect(sealed).not.toContain(
           Buffer.from(secret, "utf8").toString("base64url"),
         );
-        expect(secretOf(readRedactedChannelConfig(ORG, ID, sealed))).toBe(
-          REDACTED,
-        );
+        expect(secretOf(readRedactedChannelConfig(sealed))).toBe(REDACTED);
       }),
     );
   });
@@ -83,7 +81,7 @@ describe("a channel config's encrypted envelope", () => {
     fc.assert(
       fc.property(configArb, (stored) => {
         const sealed = encryptChannelConfig(ORG, ID, stored);
-        const redacted = readRedactedChannelConfig(ORG, ID, sealed);
+        const redacted = readRedactedChannelConfig(sealed);
         expect(redacted.type).toBe(stored.type);
         if (redacted.type === "telegram" && stored.type === "telegram") {
           expect(redacted.chat_ids).toEqual(stored.chat_ids);
