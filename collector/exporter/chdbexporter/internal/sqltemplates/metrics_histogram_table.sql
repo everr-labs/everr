@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS "%s"."%s" %s (
     Min Float64 CODEC(ZSTD(1)),
     Max Float64 CODEC(ZSTD(1)),
     AggregationTemporality Int32 CODEC(ZSTD(1)),
+    RowBytes UInt64 MATERIALIZED %s,
     INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS {{ident .Database}}.{{ident .TableName}} {{.ClusterSt
     `LogAttributes` JSON CODEC(ZSTD(1)),
     `LogAttributesKeys` Array(LowCardinality(String)) CODEC(ZSTD(1)),
     `EventName` String CODEC(ZSTD(1)),
+    `RowBytes` UInt64 MATERIALIZED {{.RowBytesExpression}},
 
     INDEX idx_res_attr_keys ResourceAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_scope_attr_keys ScopeAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,

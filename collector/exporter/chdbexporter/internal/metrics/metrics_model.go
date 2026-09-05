@@ -19,15 +19,36 @@ import (
 	conventions "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.uber.org/zap"
 
+	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
 )
 
-var supportedMetricTypes = map[pmetric.MetricType]string{
-	pmetric.MetricTypeGauge:                sqltemplates.MetricsGaugeCreateTable,
-	pmetric.MetricTypeSum:                  sqltemplates.MetricsSumCreateTable,
-	pmetric.MetricTypeHistogram:            sqltemplates.MetricsHistogramCreateTable,
-	pmetric.MetricTypeExponentialHistogram: sqltemplates.MetricsExpHistogramCreateTable,
-	pmetric.MetricTypeSummary:              sqltemplates.MetricsSummaryCreateTable,
+type metricTableSchema struct {
+	createTable        string
+	rowBytesExpression string
+}
+
+var supportedMetricTypes = map[pmetric.MetricType]metricTableSchema{
+	pmetric.MetricTypeGauge: {
+		createTable:        sqltemplates.MetricsGaugeCreateTable,
+		rowBytesExpression: sqltemplates.MetricsGaugeRowBytesExpression,
+	},
+	pmetric.MetricTypeSum: {
+		createTable:        sqltemplates.MetricsSumCreateTable,
+		rowBytesExpression: sqltemplates.MetricsSumRowBytesExpression,
+	},
+	pmetric.MetricTypeHistogram: {
+		createTable:        sqltemplates.MetricsHistogramCreateTable,
+		rowBytesExpression: sqltemplates.MetricsHistogramRowBytesExpression,
+	},
+	pmetric.MetricTypeExponentialHistogram: {
+		createTable:        sqltemplates.MetricsExpHistogramCreateTable,
+		rowBytesExpression: sqltemplates.MetricsExpHistogramRowBytesExpression,
+	},
+	pmetric.MetricTypeSummary: {
+		createTable:        sqltemplates.MetricsSummaryCreateTable,
+		rowBytesExpression: sqltemplates.MetricsSummaryRowBytesExpression,
+	},
 }
 
 var logger *zap.Logger
@@ -63,10 +84,30 @@ func SetLogger(l *zap.Logger) {
 
 // NewMetricsTable create metric tables with an expiry time to storage metric telemetry data
 func NewMetricsTable(ctx context.Context, tablesConfig MetricTablesConfigMapper, database, cluster, engine, ttlExpr string, db driver.Conn) error {
-	for key, ddlTemplate := range supportedMetricTypes {
-		query := fmt.Sprintf(ddlTemplate, database, tablesConfig[key].Name, cluster, engine, ttlExpr)
+	for key, schema := range supportedMetricTypes {
+		table := tablesConfig[key].Name
+		query := fmt.Sprintf(
+			schema.createTable,
+			database,
+			table,
+			cluster,
+			schema.rowBytesExpression,
+			engine,
+			ttlExpr,
+		)
 		if err := db.Exec(ctx, query); err != nil {
 			return fmt.Errorf("exec create metrics table sql: %w", err)
+		}
+
+		if err := internal.EnsureRowBytesColumn(
+			ctx,
+			db,
+			database,
+			table,
+			cluster,
+			schema.rowBytesExpression,
+		); err != nil {
+			return err
 		}
 	}
 	return nil

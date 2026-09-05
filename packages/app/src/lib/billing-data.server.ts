@@ -2,19 +2,20 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { orgSubscription } from "@/db/schema";
 import { upsertTenantRetention } from "@/lib/clickhouse";
-import { resolveRetention, type Tier } from "@/lib/retention";
+import {
+  isActiveSubscriptionStatus,
+  resolveRetention,
+  type Tier,
+} from "@/lib/retention";
 
-const ACTIVE_STATUSES = new Set(["active", "trialing"]);
-
-function tierForSubscription(args: {
-  status: string | null | undefined;
-}): Tier {
-  return args.status && ACTIVE_STATUSES.has(args.status) ? "pro" : "free";
+function tierForSubscription(status: string | null | undefined): Tier {
+  return isActiveSubscriptionStatus(status) ? "pro" : "free";
 }
 
 export type OrgEntitlement = {
   tier: "free" | "pro";
   status: string | null;
+  currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
 };
@@ -29,8 +30,9 @@ export async function readOrgEntitlement(
     .limit(1);
 
   return {
-    tier: tierForSubscription({ status: row?.status }),
+    tier: tierForSubscription(row?.status),
     status: row?.status ?? null,
+    currentPeriodStart: row?.currentPeriodStart ?? null,
     currentPeriodEnd: row?.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: row?.cancelAtPeriodEnd ?? false,
   };
@@ -41,6 +43,7 @@ type SubscriptionUpsert = {
   polarSubscriptionId: string;
   polarProductId: string;
   status: string;
+  currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
   polarModifiedAt: Date;
@@ -56,6 +59,7 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
         polarSubscriptionId: input.polarSubscriptionId,
         polarProductId: input.polarProductId,
         status: input.status,
+        currentPeriodStart: input.currentPeriodStart,
         currentPeriodEnd: input.currentPeriodEnd,
         cancelAtPeriodEnd: input.cancelAtPeriodEnd,
         polarModifiedAt: input.polarModifiedAt,
@@ -74,9 +78,7 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
     .limit(1);
   if (!current) return;
 
-  const retention = resolveRetention(
-    tierForSubscription({ status: current.status }),
-  );
+  const retention = resolveRetention(tierForSubscription(current.status));
 
   await upsertTenantRetention({
     tenantId: input.orgId,

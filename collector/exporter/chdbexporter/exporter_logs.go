@@ -71,6 +71,16 @@ func (e *logsExporter) start(ctx context.Context, _ component.Host) error {
 		if migrateErr := migrateLogsTable(ctx, e.cfg, e.db); migrateErr != nil {
 			return migrateErr
 		}
+		if migrateErr := internal.EnsureRowBytesColumn(
+			ctx,
+			e.db,
+			e.cfg.database(),
+			e.cfg.LogsTableName,
+			e.cfg.clusterString(),
+			sqltemplates.LogsRowBytesExpression,
+		); migrateErr != nil {
+			return migrateErr
+		}
 	}
 
 	err = e.detectSchemaFeatures(ctx)
@@ -242,12 +252,13 @@ var versionFullTextSearch = proto.Version{Major: 26, Minor: 2}
 func renderCreateLogsTableSQL(cfg *Config, hasFullTextSearch bool) (string, error) {
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	data := sqltemplates.CreateTableData{
-		Database:          cfg.database(),
-		TableName:         cfg.LogsTableName,
-		ClusterString:     cfg.clusterString(),
-		Engine:            cfg.tableEngineString(),
-		TTL:               ttlExpr,
-		HasFullTextSearch: hasFullTextSearch,
+		Database:           cfg.database(),
+		TableName:          cfg.LogsTableName,
+		ClusterString:      cfg.clusterString(),
+		Engine:             cfg.tableEngineString(),
+		TTL:                ttlExpr,
+		HasFullTextSearch:  hasFullTextSearch,
+		RowBytesExpression: sqltemplates.LogsRowBytesExpression,
 	}
 
 	var buf bytes.Buffer
@@ -280,20 +291,32 @@ func createLogsTable(ctx context.Context, cfg *Config, db driver.Conn, logger *z
 }
 
 // migrateLogsTable brings logs tables created by older collector versions up
-// to the current column set. TimestampTime mirrors the production schema,
-// which the explorer queries filter on; tables created before it exist both
-// under the legacy otel_* names and as freshly adopted cloud-named tables.
+// to the current column set. TimestampTime supports explorer filters, while
+// EventName is part of the RowBytes billing expression. Tables created before
+// either column exist under legacy otel_* and adopted cloud names.
 // Safe to run on every startup: ADD COLUMN IF NOT EXISTS is a cheap metadata
 // no-op once the column is present.
 func migrateLogsTable(ctx context.Context, cfg *Config, db driver.Conn) error {
-	addColumn := fmt.Sprintf(
-		"ALTER TABLE %q.%q %s ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)",
-		cfg.database(),
-		cfg.LogsTableName,
-		cfg.clusterString(),
-	)
-	if err := db.Exec(ctx, addColumn); err != nil {
-		return fmt.Errorf("exec logs table migration: %w", err)
+	columns := []struct {
+		name       string
+		definition string
+	}{
+		{name: "TimestampTime", definition: "DateTime DEFAULT toDateTime(Timestamp)"},
+		{name: "EventName", definition: "String CODEC(ZSTD(1))"},
+	}
+
+	for _, column := range columns {
+		addColumn := fmt.Sprintf(
+			"ALTER TABLE %q.%q %s ADD COLUMN IF NOT EXISTS `%s` %s",
+			cfg.database(),
+			cfg.LogsTableName,
+			cfg.clusterString(),
+			column.name,
+			column.definition,
+		)
+		if err := db.Exec(ctx, addColumn); err != nil {
+			return fmt.Errorf("add logs column %s: %w", column.name, err)
+		}
 	}
 
 	return nil

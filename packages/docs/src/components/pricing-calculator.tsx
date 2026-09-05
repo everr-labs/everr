@@ -636,7 +636,9 @@ export function PricingCalculator() {
             Estimates based on published pricing as of 2026. Actual costs vary
             with contract terms, volume discounts, and features. Everr figure
             uses the Pro plan: $39/mo + $8/user (first 3 free), with 100 GB
-            included per signal, then $0.40/GB. Hosts are never billed.
+            included per signal, then $0.40/GB. One GB is 1,000,000,000 bytes,
+            and data volume is measured as the uncompressed size of the
+            telemetry rows Everr stores. Hosts are never billed.
           </p>
         </div>
       </section>

@@ -8,6 +8,7 @@ export const orgSubscription = pgTable("org_subscription", {
   polarSubscriptionId: text("polar_subscription_id").notNull(),
   polarProductId: text("polar_product_id").notNull(),
   status: text("status").notNull(),
+  currentPeriodStart: timestamp("current_period_start"),
   currentPeriodEnd: timestamp("current_period_end"),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
   polarModifiedAt: timestamp("polar_modified_at").notNull(),

@@ -14,7 +14,7 @@ CREATE USER IF NOT EXISTS app_ro IDENTIFIED WITH sha256_password BY '${APP_RO_PA
 -- web_app_admin holds every privilege the web-app process needs that goes
 -- beyond app_ro's read-only data access: writing per-tenant retention rows,
 -- and provisioning per-org access entities (users + row policies) for the
--- /sql API. See the GRANT block below for the exact split.
+-- /sql API. Feature init files add any table-scoped grants they own.
 CREATE USER IF NOT EXISTS web_app_admin IDENTIFIED WITH sha256_password BY '${WEB_APP_ADMIN_PASSWORD}';
 
 -- Collector writes raw telemetry into otel schema.

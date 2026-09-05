@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS %q.%q %s (
         TraceState String,
         Attributes JSON
     ) CODEC(ZSTD(1)),
+    RowBytes UInt64 MATERIALIZED %s,
 
     INDEX idx_res_attr_keys ResourceAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_span_attr_keys SpanAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,

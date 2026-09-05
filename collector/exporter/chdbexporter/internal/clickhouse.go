@@ -90,6 +90,22 @@ func CreateDatabase(ctx context.Context, db driver.Conn, database, clusterStr st
 	return nil
 }
 
+// EnsureRowBytesColumn adds RowBytes to pre-feature tables and converges stale
+// expressions for subsequent inserts.
+func EnsureRowBytesColumn(ctx context.Context, db driver.Conn, database, table, cluster, expression string) error {
+	addColumn := sqltemplates.AddRowBytesColumnSQL(database, table, cluster, expression)
+	if err := db.Exec(ctx, addColumn); err != nil {
+		return fmt.Errorf("add RowBytes column to %s.%s: %w", database, table, err)
+	}
+
+	modifyColumn := sqltemplates.ModifyRowBytesColumnSQL(database, table, cluster, expression)
+	if err := db.Exec(ctx, modifyColumn); err != nil {
+		return fmt.Errorf("modify RowBytes column on %s.%s: %w", database, table, err)
+	}
+
+	return nil
+}
+
 // GetTableColumns returns the column names on a table for schema detection
 func GetTableColumns(ctx context.Context, db driver.Conn, database, table string) ([]string, error) {
 	descTable := fmt.Sprintf("DESC TABLE %q.%q", database, table)

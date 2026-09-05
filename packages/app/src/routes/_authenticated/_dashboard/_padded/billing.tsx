@@ -21,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { UsageSection } from "@/components/billing/usage-section";
 import {
   ensureOrgBillingAdmin,
   getOrgEntitlement,
@@ -28,14 +29,11 @@ import {
   NotBillingAdminError,
   startOrgCheckout,
 } from "@/data/billing";
+import { getOrgUsage, getOrgUsageSeries } from "@/data/usage";
 import { authClient } from "@/lib/auth-client";
+import { resolveUsagePeriod } from "@/lib/usage-period";
 
-type Entitlement = {
-  tier: "free" | "pro";
-  status: string | null;
-  currentPeriodEnd: Date | null;
-  cancelAtPeriodEnd: boolean;
-};
+type Entitlement = Awaited<ReturnType<typeof getOrgEntitlement>>;
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_padded/billing",
@@ -89,22 +87,80 @@ const PRO_FEATURES = [
 function BillingPage() {
   const { data: activeOrg } = authClient.useActiveOrganization();
 
-  const { data: entitlement } = useQuery({
+  const entitlementQuery = useQuery({
     queryKey: ["billing", "entitlement", activeOrg?.id],
     enabled: Boolean(activeOrg?.id),
     queryFn: () => getOrgEntitlement(),
   });
+  const entitlement = entitlementQuery.data;
+  const period =
+    !entitlementQuery.isError && entitlement
+      ? resolveUsagePeriod(entitlement, new Date(entitlement.serverNow))
+      : null;
+  const from = period?.from.toISOString();
+  const to = period?.to.toISOString();
+  const usageEnabled = Boolean(
+    !entitlementQuery.isError && activeOrg?.id && from && to,
+  );
+
+  const totalsQuery = useQuery({
+    queryKey: ["billing", "usage", "totals", activeOrg?.id, from, to],
+    enabled: usageEnabled,
+    queryFn: async () => {
+      if (!from || !to) return [];
+      return getOrgUsage({ data: { from, to } });
+    },
+  });
+
+  const seriesQuery = useQuery({
+    queryKey: ["billing", "usage", "series", activeOrg?.id, from, to],
+    enabled: usageEnabled,
+    queryFn: async () => {
+      if (!from || !to) return [];
+      return getOrgUsageSeries({ data: { from, to } });
+    },
+  });
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    // `pb-6` on top of the layout's `p-3`: this page scrolls, and the last card
+    // (Daily usage) otherwise ends flush against the viewport bottom.
+    <div className="mx-auto w-full max-w-4xl space-y-6 pb-6">
       <Header orgName={activeOrg?.name} />
-      <Body entitlement={entitlement} />
+      {entitlementQuery.isError ? (
+        <EntitlementError />
+      ) : entitlement && period ? (
+        <>
+          <Body entitlement={entitlement} />
+          <UsageSection
+            tier={entitlement.tier}
+            period={period}
+            totals={totalsQuery.data}
+            series={seriesQuery.data}
+            totalsStatus={totalsQuery.status}
+            seriesStatus={seriesQuery.status}
+          />
+        </>
+      ) : (
+        <Skeleton className="h-40 w-full rounded-xl" />
+      )}
     </div>
   );
 }
 
-function Body({ entitlement }: { entitlement: Entitlement | undefined }) {
-  if (!entitlement) return <Skeleton className="h-40 w-full rounded-xl" />;
+function EntitlementError() {
+  return (
+    <Card role="alert">
+      <CardContent className="py-8 text-center">
+        <p className="font-medium text-sm">Billing details are unavailable</p>
+        <p className="text-muted-foreground text-sm">
+          Try this page again in a moment.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Body({ entitlement }: { entitlement: Entitlement }) {
   if (entitlement.tier === "pro") {
     return (
       <>

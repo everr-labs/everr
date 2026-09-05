@@ -77,6 +77,16 @@ func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
 		if migrateErr := migrateLogsTable(ctx, e.cfg, e.db); migrateErr != nil {
 			return migrateErr
 		}
+		if migrateErr := internal.EnsureRowBytesColumn(
+			ctx,
+			e.db,
+			e.cfg.database(),
+			e.cfg.LogsTableName,
+			e.cfg.clusterString(),
+			sqltemplates.LogsRowBytesExpression,
+		); migrateErr != nil {
+			return migrateErr
+		}
 	}
 
 	err = e.detectSchemaFeatures(ctx)
@@ -293,11 +303,12 @@ func (e *logsJSONExporter) renderInsertLogsJSONSQL() error {
 func renderCreateLogsJSONTableSQL(cfg *Config) (string, error) {
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	data := sqltemplates.CreateTableData{
-		Database:      cfg.database(),
-		TableName:     cfg.LogsTableName,
-		ClusterString: cfg.clusterString(),
-		Engine:        cfg.tableEngineString(),
-		TTL:           ttlExpr,
+		Database:           cfg.database(),
+		TableName:          cfg.LogsTableName,
+		ClusterString:      cfg.clusterString(),
+		Engine:             cfg.tableEngineString(),
+		TTL:                ttlExpr,
+		RowBytesExpression: sqltemplates.LogsRowBytesExpression,
 	}
 
 	var buf bytes.Buffer
