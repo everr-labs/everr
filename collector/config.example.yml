@@ -42,15 +42,14 @@ receivers:
 processors:
   # Internal pipeline (github webhook): tenant comes from a trusted header the
   # app sets when it forwards the webhook
-  # (packages/app/src/server/github-events/collector.ts).
+  # (packages/app/src/server/github-events/collector.ts). Never convert it to
+  # an int: it is a better-auth organization id, a string like "org_abc123",
+  # and app.* stores tenant_id as String.
   resource:
     attributes:
       - action: upsert
         key: everr.tenant.id
         from_context: metadata.x-everr-tenant-id
-      - action: convert
-        key: everr.tenant.id
-        converted_type: int
 
   # Retention is one key, everr.retention.days, and each pipeline stamps the
   # window for its own signal. A span never needs the logs window, so stamping
@@ -105,6 +104,20 @@ processors:
       - action: upsert
         key: everr.retention.days
         from_context: auth.retention_metrics_days
+
+  # A pipeline whose tenant is a literal has no auth context and no header to
+  # read, so it has to carry a literal window too. Every app.* view throws on a
+  # resource with no everr.retention.days, so a static-tenant pipeline that
+  # stamps only the tenant fails every insert. Use this shape for dev
+  # self-telemetry and anything else that is not an authenticated client.
+  resource/static_tenant:
+    attributes:
+      - action: upsert
+        key: everr.tenant.id
+        value: ${env:DEV_SELF_TENANT_ID}
+      - action: upsert
+        key: everr.retention.days
+        value: "14"
 
 exporters:
   debug:
