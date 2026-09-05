@@ -326,7 +326,7 @@ SELECT tenant_id, retention_days,
        countIf(mapContains(ResourceAttributes, 'everr.retention.days')) AS leaked,
        count()
 FROM app.logs
-WHERE TimestampTime > now() - INTERVAL 1 HOUR
+WHERE Timestamp > now() - INTERVAL 1 HOUR
 GROUP BY ALL;
 ```
 

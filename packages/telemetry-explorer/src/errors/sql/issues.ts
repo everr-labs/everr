@@ -13,8 +13,6 @@ function timePredicateSql(): string {
   return `
     Timestamp >= parseDateTime64BestEffort({fromTs:String}, 9)
     AND Timestamp <= parseDateTime64BestEffort({toTs:String}, 9)
-    AND Timestamp >= parseDateTime64BestEffort({fromTs:String}, 9)
-    AND Timestamp <= parseDateTime64BestEffort({toTs:String}, 9)
   `;
 }
 

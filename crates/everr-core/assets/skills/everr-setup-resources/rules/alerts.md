@@ -69,7 +69,7 @@ the selected time range. Useful columns are
 
 ```sql
 SELECT
-  TimestampTime AS event_time,
+  Timestamp AS event_time,
   LogAttributes['alert.event_type'] AS event_type,
   LogAttributes['alert.row_count'] AS row_count,
   LogAttributes['alert.silenced'] AS silenced,
