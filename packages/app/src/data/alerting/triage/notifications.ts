@@ -73,7 +73,9 @@ export async function loadLatestNotifications(
        WHERE e.organization_id = ${organizationId}
          AND e.source_definition_id = definition_id
          AND e.kind = 'notifying'
-       ORDER BY e.occurred_at DESC
+       -- Transitions from one evaluation share a timestamp. The id settles
+       -- those ties without changing which timestamp wins.
+       ORDER BY e.occurred_at DESC, e.id DESC
        LIMIT 1
     ) AS latest
     LEFT JOIN alert_notification_group_events m

@@ -7,7 +7,7 @@
  * The delivery story on a row is read from the Journal, not from the Alert
  * rule's own state, and three things decide what it says: which Journal row
  * is the latest one, whether that row joined a Notification group, and
- * whether a flush carried the group out. The first is a DISTINCT ON, the
+ * whether a flush carried the group out. The first is a LATERAL query, the
  * other two are a LEFT JOIN. All three are answerable only by a database.
  */
 import { describe, expect, it, vi } from "vitest";
@@ -55,6 +55,7 @@ function minutesAgo(minutes: number): Date {
 /** One Journal row. `kind` follows the event type, the way the CHECK on the
  *  table requires: a Closed instance is never a delivery candidate. */
 async function journal(overrides: {
+  id?: string;
   definitionId: string;
   slug?: string;
   eventType?: "instance_fired" | "instance_resolved" | "instance_closed";
@@ -65,7 +66,7 @@ async function journal(overrides: {
   title?: string;
 }): Promise<string> {
   const eventType = overrides.eventType ?? "instance_fired";
-  const id = uuidv7(overrides.occurredAt);
+  const id = overrides.id ?? uuidv7(overrides.occurredAt);
   await harness()
     .db.insert(alertEvents)
     .values({
@@ -126,6 +127,27 @@ describe("what the Journal says delivery did", () => {
     const latest = await loadLatestNotifications(TEST_ORG, [rule.id]);
 
     expect(latest.get(rule.id)?.title).toBe("newest");
+  });
+
+  it("settles equal timestamps by descending event id", async () => {
+    const rule = await insertRule(harness().db, { slug: "same-evaluation" });
+    const occurredAt = minutesAgo(5);
+    await journal({
+      id: "01990000-0000-7000-8000-000000000001",
+      definitionId: rule.id,
+      occurredAt,
+      title: "lower id",
+    });
+    await journal({
+      id: "01990000-0000-7000-8000-000000000002",
+      definitionId: rule.id,
+      occurredAt,
+      title: "higher id",
+    });
+
+    const latest = await loadLatestNotifications(TEST_ORG, [rule.id]);
+
+    expect(latest.get(rule.id)?.title).toBe("higher id");
   });
 
   it("keeps one row for each Alert rule, not one row for the set", async () => {
