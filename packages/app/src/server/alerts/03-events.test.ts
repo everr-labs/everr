@@ -201,7 +201,7 @@ describe("recordAlertEvents", () => {
 
     expect(insertAdminRows).toHaveBeenCalledWith(
       "app.alert_events",
-      [{ ...row, retention_days: 30 }],
+      [{ ...row, retention_days: resolveRetention("pro").logsDays }],
       expect.anything(),
     );
     expect(vi.mocked(serverLogger.error)).not.toHaveBeenCalled();
@@ -213,7 +213,12 @@ describe("recordAlertEvents", () => {
     expect(retentionForOrg).toHaveBeenCalledWith("org-1");
     expect(insertAdminRows).toHaveBeenCalledWith(
       "app.alert_events",
-      [expect.objectContaining({ tenant_id: "org-1", retention_days: 30 })],
+      [
+        expect.objectContaining({
+          tenant_id: "org-1",
+          retention_days: resolveRetention("pro").logsDays,
+        }),
+      ],
       expect.anything(),
     );
   });

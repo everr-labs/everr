@@ -1,5 +1,14 @@
 # ClickHouse Direct Ingest Implementation Plan
 
+> **Historical snapshot. Do not follow it and do not copy SQL out of it.**
+> This is the plan as written before the work landed, kept for the reasoning
+> behind the design. The implementation diverged from it in at least two
+> places that matter: retention travels as one `everr.retention.days` key,
+> not three per-signal keys, and `app.logs` keys off `Timestamp` because
+> `TimestampTime` is gone. `docs/clickhouse-retention-rollout.md` is the
+> document that describes what actually shipped, and
+> `clickhouse/migrations/2026-09-03-direct-ingest.sh` is the script to run.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Telemetry is written to disk once, into the `app.*` tables, stamped with tenant and retention resolved at authentication, so the stored `otel.*` copy, the retention dictionary and everything that keeps the dictionary correct disappear.

@@ -256,10 +256,20 @@ func TestAuthenticate_NoStaleFallback_OnMissingRetention(t *testing.T) {
 		t.Fatal("expected authentication to fail when the app reports no retention")
 	}
 
-	// Not cached as a failure either: the app recovers on the next request.
+	// Held for the negative window, so a broken app does not take one verify
+	// call per ingest request.
 	phase.Store(0)
+	if _, err := e.Authenticate(context.Background(), authHeaders("known")); err == nil {
+		t.Fatal("expected the unusable answer to be held for the negative window")
+	}
+
+	// Released once that window passes, so a fixed app recovers on its own.
+	recovered := time.Now().Add(e.cfg.CacheTTL + e.cfg.NegativeCacheTTL + 1*time.Second)
+	e.cache.pos.now = func() time.Time { return recovered }
+	e.cache.neg.now = e.cache.pos.now
+	e.cache.now = e.cache.pos.now
 	if _, err := e.Authenticate(context.Background(), authHeaders("known")); err != nil {
-		t.Fatalf("expected recovery once the app answers correctly; got %v", err)
+		t.Fatalf("expected recovery once the negative entry expired; got %v", err)
 	}
 }
 
@@ -411,7 +421,7 @@ func TestAuthenticate_Success_StampsRetention(t *testing.T) {
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(verifyResponse{
 			TenantID: "org_42", KeyID: "ak_1",
-			LogsDays: 30, TracesDays: 30, MetricsDays: 395,
+			LogsDays: 7, TracesDays: 14, MetricsDays: 21,
 		})
 	})
 	defer srv.Close()
@@ -423,9 +433,9 @@ func TestAuthenticate_Success_StampsRetention(t *testing.T) {
 	}
 	cl := client.FromContext(ctx)
 	for name, want := range map[string]string{
-		"retention_logs_days":    "30",
-		"retention_traces_days":  "30",
-		"retention_metrics_days": "395",
+		"retention_logs_days":    "7",
+		"retention_traces_days":  "14",
+		"retention_metrics_days": "21",
 	} {
 		if got := cl.Auth.GetAttribute(name); got != want {
 			t.Errorf("%s: got %v want %s", name, got, want)

@@ -193,9 +193,13 @@ func (e *ext) lookup(ctx context.Context, token, origin string) (*authData, erro
 				// not the outage the grace window exists for: serving a
 				// stale entry here would keep authenticating a tenant
 				// whose retention the app can no longer state. Fail, and
-				// do not cache it, so a fixed app recovers on the next
-				// request.
+				// hold it for the negative window like any other definitive
+				// rejection, so a bad app deploy does not turn every ingest
+				// request into a verify call. The window is short
+				// (negative_cache_ttl, 5s by default), so a fixed app
+				// recovers within it.
 				e.logger.Error("verify endpoint returned an unusable response", zap.Error(err))
+				e.cache.putFailure(cacheKey, err)
 				return nil, err
 			}
 			// Transient (network, 5xx). OTel auth maps any error we return to

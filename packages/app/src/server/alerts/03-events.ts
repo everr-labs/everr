@@ -39,10 +39,14 @@ export const OPERATIONAL_EVENT_TYPES = [
 ] as const;
 
 // Alert history follows the tenant's logs retention, like its projection
-// into app.logs. Every caller builds its rows from one alert definition, so
-// the batch is a single tenant and one lookup covers it.
-async function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
-  const { logsDays } = await retentionForOrg(rows[0].tenant_id);
+// into app.logs. The window comes from the definition's organization, which is
+// also where every row's tenant_id comes from, so a batch cannot mix tenants
+// and there is no invariant left for a future caller to break.
+async function insertAlertEvents(
+  organizationId: string,
+  rows: AlertEventRow[],
+): Promise<void> {
+  const { logsDays } = await retentionForOrg(organizationId);
   const stamped = rows.map((row) => ({ ...row, retention_days: logsDays }));
   return insertAdminRows("app.alert_events", stamped, {
     async_insert: 1,
@@ -54,13 +58,13 @@ async function insertAlertEvents(rows: AlertEventRow[]): Promise<void> {
 // Best-effort insert: recording history must never fail the operation that
 // produced it. Failures are logged under the caller's event name.
 export async function recordAlertEvents(
-  def: { id: string },
+  def: { id: string; organizationId: string },
   events: AlertEventRow[],
   logEvent: string,
 ): Promise<void> {
   if (events.length === 0) return;
   try {
-    await insertAlertEvents(events);
+    await insertAlertEvents(def.organizationId, events);
   } catch (error) {
     serverLogger.error(logEvent, {
       ...exceptionAttributes(error),
