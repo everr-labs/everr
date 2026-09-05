@@ -145,6 +145,24 @@ describe("the Alert rules the app reads", () => {
     expect(instances.map((row) => row.fingerprint)).toEqual(["wanted"]);
   });
 
+  it("returns only the instance facts needed by the screens", async () => {
+    const rule = await insertRule(harness().db);
+    await insertInstance(rule.id, { fingerprint: "instance", value: 42 });
+    const expected = [
+      {
+        alertDefinitionId: rule.id,
+        fingerprint: "instance",
+        status: "firing",
+        value: 42,
+        pendingSince: null,
+        activeSince: null,
+      },
+    ];
+
+    expect(await loadInstances(TEST_ORG, [rule.id])).toEqual(expected);
+    expect(await loadRuleInstances(TEST_ORG, rule.id)).toEqual(expected);
+  });
+
   it("asks the database nothing when it was given no rules", async () => {
     expect(await loadInstances(TEST_ORG, [])).toEqual([]);
   });

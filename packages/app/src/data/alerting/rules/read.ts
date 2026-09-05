@@ -225,13 +225,24 @@ export async function loadRule(
   return row;
 }
 
+// Both instance reads serve the same screen shape. Keep evidence and other
+// evaluator-only fields out of the result sent back by PostgreSQL.
+const instanceReadColumns = {
+  alertDefinitionId: alertInstances.alertDefinitionId,
+  fingerprint: alertInstances.fingerprint,
+  status: alertInstances.status,
+  value: alertInstances.value,
+  pendingSince: alertInstances.pendingSince,
+  activeSince: alertInstances.activeSince,
+};
+
 export async function loadInstances(
   organizationId: string,
   definitionIds: string[],
 ): Promise<AlertInstanceRead[]> {
   if (definitionIds.length === 0) return [];
   return db
-    .select()
+    .select(instanceReadColumns)
     .from(alertInstances)
     .where(
       and(
@@ -247,7 +258,7 @@ export async function loadRuleInstances(
   definitionId: string,
 ): Promise<AlertInstanceRead[]> {
   return db
-    .select()
+    .select(instanceReadColumns)
     .from(alertInstances)
     .where(
       and(
