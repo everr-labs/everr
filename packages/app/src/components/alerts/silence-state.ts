@@ -132,44 +132,6 @@ export function spokenSilence(record: AlertSilenceRecord): string {
 }
 
 /**
- * What a cancel hands the toast so it can name what it closed and write it
- * again.
- *
- * `restore` is null for a silence that names no single rule, on every screen.
- * The rule a panel happens to be open on is not that silence's scope: writing
- * it again under that rule would mute something the reader never muted, which
- * is the one thing an Undo must not do. That is the whole of what this decides:
- * whether there is one rule here to write the silence against again.
- *
- * Whether the *window* can be written again is not this module's call. Both
- * bounds go over, and `useSilenceControls` decides from them, beside the
- * arithmetic that turns them into the write's duration.
- */
-export function cancelTargetFor(record: AlertSilenceRecord): {
-  id: string;
-  label: string;
-  restore: {
-    path: string;
-    matchers: string;
-    comment: string;
-    startsAt: string;
-    endsAt: string;
-  } | null;
-} {
-  return {
-    id: record.id,
-    label: spokenSilence(record),
-    restore: record.rule && {
-      path: record.rule.path,
-      matchers: record.scope,
-      comment: record.comment,
-      startsAt: record.startsAt,
-      endsAt: record.endsAt,
-    },
-  };
-}
-
-/**
  * What the row's one button is called out loud. Every silence on both screens
  * offers the same two words, so the label has to carry the silence it belongs
  * to.

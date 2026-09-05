@@ -8,12 +8,14 @@ import {
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowUpRight, NotebookText, X } from "lucide-react";
 import type { RuleInventoryState } from "@/data/alerting/rules/read";
+import type {
+  SilenceCancelTarget,
+  SilenceSeed,
+} from "@/data/alerting/silences/commands";
 import type { AlertDetail } from "@/data/alerting/triage/view";
-import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { AlertInstanceChart } from "./alert-instance-chart";
 import { STATUS_META, StatusIcon } from "./alert-status";
 import { Section } from "./detail-section";
-import type { SilenceSeed } from "./silence-dialog";
 import { SilenceHistory } from "./silence-history";
 
 /** One label/value line of the definition table. The label column is sized in

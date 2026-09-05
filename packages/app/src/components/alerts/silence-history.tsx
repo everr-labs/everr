@@ -3,10 +3,13 @@ import { Button } from "@everr/ui/components/button";
 import { cn } from "@everr/ui/lib/utils";
 import { BellOff } from "lucide-react";
 import { Fragment, useState } from "react";
+import {
+  ruleSilenceSeed,
+  type SilenceCancelTarget,
+  type SilenceSeed,
+} from "@/data/alerting/silences/commands";
 import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
-import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { Section } from "./detail-section";
-import type { SilenceSeed } from "./silence-dialog";
 import { SilenceRowAction, SilenceWindow } from "./silence-row";
 import { isOpen, STATE_META, windowBounds, windowText } from "./silence-state";
 
@@ -208,9 +211,7 @@ export function SilenceHistory({
           variant="ghost"
           disabled={pending}
           className="-my-1 -mr-2"
-          onClick={() =>
-            onSilence({ rule: rulePath, matchers: "", comment: "" })
-          }
+          onClick={() => onSilence(ruleSilenceSeed(rulePath))}
         >
           <BellOff data-icon="inline-start" />
           Silence rule

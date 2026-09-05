@@ -1,55 +1,9 @@
-/**
- * The writes the triage screen makes. Each parses its input and hands the act
- * to the repository that owns it: releasing held events, resetting a rule's
- * instances and re-enqueueing its evaluation are the engine's business, not
- * the screen's.
- */
+/** The Alert rule state command the triage screen makes. */
 import * as z from "zod";
 import { loadRule } from "@/data/alerting/rules/read";
 import { pauseRule, resumeRule } from "@/data/alerting/rules/repository";
 import { alertingMutationScope } from "@/data/alerting/session";
-import { parseMatchers } from "@/data/alerting/silences/matchers";
-import {
-  createSilence,
-  expireSilence,
-} from "@/data/alerting/silences/repository";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-
-export const silenceAlertRule = createAuthenticatedServerFn({ method: "POST" })
-  .inputValidator(
-    z.object({
-      path: z.string(),
-      durationMinutes: z
-        .number()
-        .int()
-        .positive()
-        .max(60 * 24 * 30),
-      matchers: z.string().default(""),
-      comment: z.string().max(500).default(""),
-    }),
-  )
-  .handler(async ({ data, context }) => {
-    const scope = alertingMutationScope(context.session);
-    // The rule has to exist in this org before anything is muted by its name,
-    // and the path has to be one before it reaches the database. Same
-    // resolution as pausing: the two must not disagree about what a path is.
-    const rule = await loadRule(scope.organizationId, data.path);
-    const now = new Date();
-    const silence = await createSilence(scope, {
-      // The rule matcher is always present: a silence with only instance
-      // matchers would mute that label across every rule in the org.
-      matchers: [
-        { label: "rule", op: "eq", value: rule.id },
-        ...parseMatchers(data.matchers),
-      ],
-      starts_at: now.toISOString(),
-      ends_at: new Date(
-        now.getTime() + data.durationMinutes * 60_000,
-      ).toISOString(),
-      comment: data.comment,
-    });
-    return { id: silence.id };
-  });
 
 /**
  * Pausing and silencing are different acts and the surface must not blur them:
@@ -66,12 +20,4 @@ export const setAlertRulePaused = createAuthenticatedServerFn({
     const { id } = await loadRule(scope.organizationId, data.path);
     await (data.paused ? pauseRule(scope, id) : resumeRule(scope, id));
     return { paused: data.paused };
-  });
-
-export const expireAlertSilence = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(z.object({ id: z.string() }))
-  .handler(async ({ data, context }) => {
-    return expireSilence(alertingMutationScope(context.session), data.id);
   });

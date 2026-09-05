@@ -4,14 +4,16 @@ import { cn } from "@everr/ui/lib/utils";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type {
+  SilenceCancelTarget,
+  SilenceSeed,
+} from "@/data/alerting/silences/commands";
 import { formatElapsed } from "@/data/alerting/triage/format";
 import type {
   AlertSilenceRecord,
   SilenceCut,
 } from "@/data/alerting/triage/view";
-import type { SilenceCancelTarget } from "@/hooks/use-silence-controls";
 import { LoadingRows, ROW_HOVER, ROW_TARGET } from "./list-row";
-import type { SilenceSeed } from "./silence-dialog";
 import { SilenceRowAction, SilenceWindow } from "./silence-row";
 import {
   isOpen,

@@ -9,6 +9,7 @@ import {
 } from "@/components/alerts/alert-detail-shell";
 import { SilenceDialog } from "@/components/alerts/silence-dialog";
 import { SilencesPage } from "@/components/alerts/silences-page";
+import { newSilenceSeed } from "@/data/alerting/silences/commands";
 import { alertSilencesOptions } from "@/data/alerting/triage/options";
 import { useTimeRange } from "@/hooks/use-time-range";
 
@@ -50,9 +51,7 @@ function AlertingSilencesPage() {
             silences={silences.data?.silences ?? null}
             cut={silences.data?.cut ?? null}
             pending={silence.pending}
-            onNew={() =>
-              silence.openSilence({ rule: null, matchers: "", comment: "" })
-            }
+            onNew={() => silence.openSilence(newSilenceSeed())}
             onCancel={silence.cancel}
             onSilenceAgain={silence.openSilence}
           />

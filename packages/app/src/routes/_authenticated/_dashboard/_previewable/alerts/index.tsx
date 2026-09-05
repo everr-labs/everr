@@ -13,6 +13,10 @@ import { SilenceDialog } from "@/components/alerts/silence-dialog";
 import { TriageList } from "@/components/alerts/triage-list";
 import { ResourceEmptyState } from "@/components/resource-empty-state";
 import {
+  cancelSilenceById,
+  ruleSilenceSeed,
+} from "@/data/alerting/silences/commands";
+import {
   alertTriageOptions,
   ruleStateHistoryOptions,
 } from "@/data/alerting/triage/options";
@@ -102,20 +106,16 @@ function AlertingTriagePage() {
                 alerts={alerts}
                 openPath={openPath}
                 onOpen={openAlert}
-                onSilence={(path) =>
-                  silence.openSilence({ rule: path, matchers: "", comment: "" })
-                }
+                onSilence={(path) => silence.openSilence(ruleSilenceSeed(path))}
                 onExpireSilence={(path) => {
                   const alert = alerts.find((a) => a.path === path);
-                  // No `restore`: the row knows which silence is in force but
+                  // No recreation: the row knows which silence is in force but
                   // not how it was written, and an Undo that guessed the scope
                   // would mute more than the reader muted.
                   if (alert?.silence)
-                    silence.cancel({
-                      id: alert.silence.id,
-                      label: alert.name,
-                      restore: null,
-                    });
+                    silence.cancel(
+                      cancelSilenceById(alert.silence.id, alert.name),
+                    );
                 }}
               />
             )
