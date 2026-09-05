@@ -122,7 +122,7 @@ Runbooks reconcile through the same apply tree as dashboards and alerts:
 repoid: "2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1"
 ```
 
-Declarations sit flat in `everr/` as `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized; apply routes by the `kind:` field). `everr apply ./everr` makes the live runbooks for that repoid exactly match the tree, delete-by-default. Use `--preview` to review first without touching the live state. See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
+Declarations sit flat in `everr/` as `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized; apply routes by the `kind:` field). `everr apply ./everr` makes the live runbooks for that repoid exactly match the tree, delete-by-default. Use `--preview` to review first without touching the live state. See the [`everr apply` reference](/docs/reference/cli#apply).
 
 ## Constraints and errors
 

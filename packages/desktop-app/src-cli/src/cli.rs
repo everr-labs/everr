@@ -14,7 +14,7 @@ pub const MAX_LOG_PAGE_SIZE: u32 = 5000;
     name = "everr",
     version = VERSION_OUTPUT,
     long_version = VERSION_OUTPUT,
-    about = "CLI for observability in Everr, designed for humans and agent skills"
+    about = "Query telemetry, inspect CI, and manage resources as code in Everr"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -23,29 +23,29 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Remove local Everr setup artifacts
+    /// Remove local Everr state and globally installed skills
     Uninstall,
     /// Upgrade the Everr CLI (and the Everr app, if installed) to the latest version
     Upgrade,
-    /// Manage Everr Cloud authentication
+    /// Authenticate with and query Everr Cloud
     Cloud(CloudArgs),
     /// Inspect GitHub Actions CI runs
     Ci(CiArgs),
-    /// Inspect local diagnostic telemetry recorded by the Everr Desktop app
+    /// Run and query the local telemetry Collector
     Local(LocalArgs),
-    /// Run a command and send its stdout/stderr logs to the local collector
+    /// Run a command and capture its output as local logs
     Wrap(WrapArgs),
-    /// Run the full setup wizard (login + org + import + skills installation)
+    /// Set up local telemetry, skills, and Everr Cloud
     #[command(name = "setup")]
     Setup,
-    /// Initialize the current repository by importing recent runs
+    /// Connect the current repository and import its CI history
     Init,
-    /// Manage bundled Everr agent skills
+    /// Manage bundled Everr skills
     #[command(name = "skills")]
     Skills(SkillsArgs),
-    /// Apply a directory of resource definitions (gitops)
+    /// Reconcile a directory of as-code resources with Everr
     Apply(ApplyArgs),
-    /// Inspect and manage live Cloud resources (dashboards, runbooks, alerts)
+    /// Inspect and manage live dashboards, runbooks, and alerts
     Resources(ResourcesArgs),
 }
 
@@ -81,11 +81,11 @@ pub struct CloudArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum CloudSubcommand {
-    /// Log in and persist a local session
+    /// Authenticate with Everr Cloud and save the session
     Login(LoginArgs),
-    /// Log out and clear the local session
+    /// Clear the saved Everr Cloud session
     Logout,
-    /// Run a read-only SQL query against cloud telemetry data
+    /// Run read-only SQL against CI and Production telemetry in Everr Cloud
     Query(TelemetryQueryArgs),
 }
 
@@ -108,15 +108,15 @@ pub struct CiArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum CiSubcommand {
-    /// Show all pipeline runs for a specific commit
+    /// Show CI status for a commit or run ID
     Status(StatusArgs),
-    /// Watch the current commit until pipeline runs complete
+    /// Watch CI runs for a commit or run ID until completion
     Watch(WatchArgs),
-    /// List recent runs
+    /// List recent CI runs
     Runs(ListRunsArgs),
-    /// Show run details
+    /// Show a CI run's jobs and steps
     Show(ShowRunArgs),
-    /// Show step logs for a run
+    /// Show step logs for a CI run
     Logs(GetLogsArgs),
 }
 
@@ -140,11 +140,11 @@ pub struct LocalArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum LocalSubcommand {
-    /// Start the local collector in the foreground.
+    /// Start the local Collector in the foreground
     Start(TelemetryStartArgs),
-    /// Run a SQL query against local telemetry.
+    /// Run read-only SQL against local telemetry
     Query(TelemetryQueryArgs),
-    /// Check whether the local collector is running.
+    /// Show the local Collector status and endpoints
     Status,
 }
 
@@ -200,8 +200,8 @@ pub struct SkillScopeArgs {
 pub struct SkillsListArgs {
     #[command(flatten)]
     pub scope: SkillScopeArgs,
-    /// Provider to inspect
-    #[arg(long = "agent", value_enum)]
+    /// Agent to inspect
+    #[arg(long = "agent", value_enum, value_name = "AGENT")]
     pub agents: Vec<SkillAgentArg>,
 }
 
@@ -212,8 +212,8 @@ pub struct SkillsInstallArgs {
     pub all: bool,
     #[command(flatten)]
     pub scope: SkillScopeArgs,
-    /// Provider to install for
-    #[arg(long = "agent", value_enum)]
+    /// Agent to install for
+    #[arg(long = "agent", value_enum, value_name = "AGENT")]
     pub agents: Vec<SkillAgentArg>,
     /// Preview without writing files
     #[arg(long)]
@@ -226,8 +226,8 @@ pub struct SkillsUpdateArgs {
     pub skills: Vec<String>,
     #[command(flatten)]
     pub scope: SkillScopeArgs,
-    /// Provider to update for
-    #[arg(long = "agent", value_enum)]
+    /// Agent to update
+    #[arg(long = "agent", value_enum, value_name = "AGENT")]
     pub agents: Vec<SkillAgentArg>,
     /// Preview without writing files
     #[arg(long)]
@@ -246,8 +246,8 @@ pub struct SkillsUninstallArgs {
     pub yes: bool,
     #[command(flatten)]
     pub scope: SkillScopeArgs,
-    /// Provider to uninstall for
-    #[arg(long = "agent", value_enum)]
+    /// Agent to uninstall from
+    #[arg(long = "agent", value_enum, value_name = "AGENT")]
     pub agents: Vec<SkillAgentArg>,
     /// Preview without removing files
     #[arg(long)]
@@ -264,30 +264,29 @@ pub struct ApplyArgs {
     /// Skip the confirmation prompt (required in non-interactive contexts)
     #[arg(long, short = 'y')]
     pub yes: bool,
-    /// Apply into a preview namespace instead of the live state. With no
-    /// value the current git branch is used; pass a name where no branch is
-    /// available (CI, detached HEAD).
+    /// Reconcile into a preview instead of live state. With no value the
+    /// current git branch is used; pass a name where no branch is available
+    /// (CI, detached HEAD).
     #[arg(long, value_name = "NAME", num_args = 0..=1, default_missing_value = "")]
     pub preview: Option<String>,
-    /// Take over resources whose (project, slug) another repo already owns,
-    /// transferring ownership to this repo. Without it, such a collision aborts
-    /// the apply.
+    /// Adopt resources owned by another Repoid into this repository. Without
+    /// it, ownership collisions abort the apply.
     #[arg(long)]
     pub adopt: bool,
 }
 
 #[derive(Args, Debug, Default)]
 pub struct TelemetryStartArgs {
-    /// Suppress collector URL output after the collector is ready.
+    /// Suppress endpoint output after the Collector is ready
     #[arg(long)]
     pub quiet: bool,
 }
 
 #[derive(Args, Debug, Default)]
 pub struct TelemetryQueryArgs {
-    /// The SQL query to run. Keep it quoted. Include LIMIT yourself.
+    /// SQL query to run. Keep it quoted and include LIMIT yourself.
     pub sql: String,
-    /// Output format. Default: table on TTY, ndjson otherwise.
+    /// Output format. Default: table on a TTY, ndjson otherwise.
     #[arg(long, value_enum)]
     pub format: Option<TelemetryFormat>,
 }
@@ -315,59 +314,79 @@ pub struct LoginArgs {}
 
 #[derive(Args, Debug, Default)]
 pub struct StatusArgs {
+    /// Repository in owner/name form (default: inferred from origin)
     #[arg(long)]
     pub repo: Option<String>,
+    /// Branch name (default: current branch)
     #[arg(long)]
     pub branch: Option<String>,
+    /// Commit SHA or ref (default: HEAD)
     #[arg(long)]
     pub commit: Option<String>,
+    /// GitHub Actions run ID
     #[arg(long)]
     pub run_id: Option<String>,
 }
 
 #[derive(Args, Debug, Default)]
 pub struct WatchArgs {
+    /// Repository in owner/name form (default: inferred from origin)
     #[arg(long)]
     pub repo: Option<String>,
+    /// Branch name (default: current branch when watching HEAD)
     #[arg(long)]
     pub branch: Option<String>,
+    /// Commit SHA or ref (default: HEAD)
     #[arg(long)]
     pub commit: Option<String>,
+    /// CI run attempt number
     #[arg(long)]
     pub attempt: Option<u32>,
+    /// GitHub Actions run ID
     #[arg(long)]
     pub run_id: Option<String>,
+    /// Exit as soon as a CI run completes unsuccessfully
     #[arg(long)]
     pub fail_fast: bool,
 }
 
 #[derive(Args, Debug, Default)]
 pub struct ListRunsArgs {
+    /// Filter by repository in owner/name form
     #[arg(long)]
     pub repo: Option<String>,
+    /// Filter by branch name
     #[arg(long)]
     pub branch: Option<String>,
     /// Use the current git branch as the branch filter
     #[arg(long)]
     pub current_branch: bool,
+    /// Filter by conclusion
     #[arg(long)]
     pub conclusion: Option<String>,
+    /// Filter by workflow name
     #[arg(long)]
     pub workflow_name: Option<String>,
+    /// Filter by GitHub Actions run ID
     #[arg(long)]
     pub run_id: Option<String>,
+    /// Maximum number of runs to return
     #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u32).range(1..=100))]
     pub limit: u32,
+    /// Number of runs to skip
     #[arg(long, default_value_t = 0)]
     pub offset: u32,
+    /// Earliest run start time (date math, for example: now-7d)
     #[arg(long)]
     pub from: Option<String>,
+    /// Latest run start time (date math, for example: now)
     #[arg(long)]
     pub to: Option<String>,
 }
 
 #[derive(Args, Debug)]
 pub struct ShowRunArgs {
+    /// Trace ID of the CI run
     pub trace_id: String,
 
     /// Show only failed jobs and their failed steps
@@ -377,15 +396,19 @@ pub struct ShowRunArgs {
 
 #[derive(Args, Debug)]
 pub struct GetLogsArgs {
+    /// Trace ID of the CI run
     pub trace_id: String,
+    /// Job name
     #[arg(long, required_unless_present = "job_id", conflicts_with = "job_id")]
     pub job_name: Option<String>,
+    /// Job ID
     #[arg(
         long,
         required_unless_present = "job_name",
         conflicts_with = "job_name"
     )]
     pub job_id: Option<String>,
+    /// Step number
     #[arg(
         long,
         required_unless_present = "log_failed",
@@ -413,7 +436,7 @@ pub struct GetLogsArgs {
     /// Preserve ANSI color codes (stripped by default)
     #[arg(long)]
     pub color: bool,
-    /// Filter output to lines matching a re2 regex pattern; exits 1 if no lines match
+    /// Filter output to lines matching a RE2 regex pattern; exits 1 if no lines match
     #[arg(long)]
     pub egrep: Option<String>,
 }
@@ -478,9 +501,9 @@ pub enum ResourcesSubcommand {
     List(ResourcesListArgs),
     /// Print a resource's stored configuration
     Show(ResourcesShowArgs),
-    /// Delete a live resource
+    /// Delete a live resource without prompting
     Delete(ResourcesDeleteArgs),
-    /// Take ownership of a resource for this repository
+    /// Adopt a resource into this repository's ownership boundary
     Adopt(ResourcesTargetArgs),
 }
 
@@ -499,7 +522,7 @@ pub struct ResourcesListArgs {
     /// Only resources of this kind
     #[arg(long, value_enum)]
     pub kind: Option<ResourceKindArg>,
-    /// Only resources owned by this repoid (pass an empty string for UI-created)
+    /// Only resources owned by this Repoid (pass an empty string for UI-created)
     #[arg(long)]
     pub repoid: Option<String>,
     /// Output raw JSON instead of a table
@@ -514,7 +537,7 @@ pub struct ResourcesShowArgs {
     pub kind: ResourceKindArg,
     /// Resource slug (metadata.name)
     pub slug: String,
-    /// Project namespace
+    /// Project name
     #[arg(long, default_value = "default")]
     pub project: String,
     /// Output raw JSON instead of YAML
@@ -529,7 +552,7 @@ pub struct ResourcesDeleteArgs {
     pub kind: ResourceKindArg,
     /// Resource slug (metadata.name)
     pub slug: String,
-    /// Project namespace
+    /// Project name
     #[arg(long, default_value = "default")]
     pub project: String,
 }
@@ -541,7 +564,7 @@ pub struct ResourcesTargetArgs {
     pub kind: ResourceKindArg,
     /// Resource slug (metadata.name)
     pub slug: String,
-    /// Project namespace
+    /// Project name
     #[arg(long, default_value = "default")]
     pub project: String,
     /// Skip the confirmation prompt (required in non-interactive contexts)
