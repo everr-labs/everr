@@ -29,8 +29,19 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   (`internal.CreateErrorFingerprintFunction`), so `everr local query` and the
   desktop app group Errors the way the cloud does. Kept in step with
   `clickhouse/init/04-create-error-fingerprint-function.sql`.
-- Adopts legacy local table names at start (`legacy_cleanup.go`), so a store
-  written by an older build keeps its rows when a table is renamed.
+- Rebuilds the local store when its schema version changes
+  (`schema_version.go`). The store carries the version it was built at in an
+  `_everr_schema` table; when that differs from `localSchemaVersion` in the
+  binary, every table is dropped and recreated. `CREATE TABLE IF NOT EXISTS`
+  is the only other schema step, so without this a table created by an older
+  build kept its columns, types, sort key, partition key and indexes for ever,
+  and ClickHouse can rewrite none of those. Local telemetry is a rolling cache
+  bounded by `ttl` and never a system of record, so a rebuild costs at most one
+  ttl window. This replaced the legacy table adoption, which renamed the
+  pre-rename `otel_*` tables into place to carry their rows forward; a rebuild
+  drops them instead. `TestSchemaTemplatesMatchVersion` fails when a table's
+  DDL changes without a version bump, because a store is only rebuilt when the
+  version differs.
 - Writes two placeholders, not three, for the JSON traces attribute-keys
   feature columns. Upstream writes two column names and three placeholders, so
   the insert list does not match the column list. Report this upstream.
@@ -44,6 +55,13 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   `bloom_filter` on purpose; the note there carries the measurement. Index type
   changes cost and speed, not results, so the shared explorer queries still read
   both stores the same way.
+
+- The chDB adapter writes every timestamp as an RFC 3339 string in UTC with
+  nanoseconds. ClickHouse reads a bare JSON number as the column's own unit,
+  so the earlier `UnixNano` integer was right only for `DateTime64(9)` and
+  wrapped in the `DateTime` metric columns. The round-trip tests in
+  `exporter_chdb_roundtrip_test.go` push one row per signal through the real
+  exporter into the shipped tables and read the stored timestamps back.
 
 ## Metrics table schema
 
@@ -63,9 +81,10 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   `cityHash64(Attributes)` groups without ordering: rows of one series stay
   adjacent inside the hour, so the Attributes column still compresses by run,
   while the primary index holds 8 bytes per granule instead of a whole map.
-- `CREATE TABLE IF NOT EXISTS` leaves an existing local database on the old
-  shape. A local store picks the new one up when it is recreated, or as the
-  7-day TTL ages the old parts out and the store is next rebuilt.
+- An existing store picks this shape up on the first startup after the schema
+  version is bumped, which drops and recreates its tables. The TTL does not do
+  it: it ages out rows, and leaves the sort key, the partition key and the
+  column types exactly as they were.
 
 ## Merge to v0.160.0
 
