@@ -85,20 +85,6 @@
       "when": 1786019329557,
       "tag": "0011_robust_cardiac",
       "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1787764292707,
-      "tag": "0012_rapid_agent_zero",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1787766069660,
-      "tag": "0013_good_malice",
-      "breakpoints": true
     }
   ]
 }

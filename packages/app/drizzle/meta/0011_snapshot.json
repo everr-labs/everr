@@ -1,5 +1,5 @@
 {
-  "id": "d08841d4-55be-4588-ac48-7cdc483e4510",
+  "id": "afff6cea-751e-411b-8a95-a2427c187bfe",
   "prevId": "c797da5f-ae44-43e3-9318-b1536d6688d9",
   "version": "7",
   "dialect": "postgresql",
@@ -259,6 +259,24 @@
           "notNull": true,
           "default": true
         },
+        "paused_at": {
+          "name": "paused_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paused_by_principal": {
+          "name": "paused_by_principal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paused_by": {
+          "name": "paused_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "last_error": {
           "name": "last_error",
           "type": "text",
@@ -502,6 +520,10 @@
         "alert_definitions_firing_count_nonnegative": {
           "name": "alert_definitions_firing_count_nonnegative",
           "value": "\"alert_definitions\".\"firing_instance_count\" >= 0"
+        },
+        "alert_definitions_pause_trail_complete": {
+          "name": "alert_definitions_pause_trail_complete",
+          "value": "(\"alert_definitions\".\"paused_at\" IS NULL) = (\"alert_definitions\".\"paused_by_principal\" IS NULL)"
         }
       },
       "isRLSEnabled": false
@@ -1102,6 +1124,39 @@
           ],
           "isUnique": false,
           "where": "\"alert_events\".\"processed_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "alert_events_org_definition_kind_idx": {
+          "name": "alert_events_org_definition_kind_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_definition_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at DESC",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
