@@ -54,6 +54,10 @@ func (e *tracesExporter) start(ctx context.Context, _ component.Host) error {
 			return err
 		}
 
+		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
+			return schemaErr
+		}
+
 		if err := createTraceTables(ctx, e.cfg, e.db); err != nil {
 			return err
 		}
@@ -231,9 +235,6 @@ func renderTraceIDTsMaterializedViewSQL(cfg *Config) string {
 }
 
 func createTraceTables(ctx context.Context, cfg *Config, db driver.Conn) error {
-	if err := adoptLegacyTraceTables(ctx, cfg, db); err != nil {
-		return err
-	}
 	if err := db.Exec(ctx, renderCreateTracesTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create traces table sql: %w", err)
 	}

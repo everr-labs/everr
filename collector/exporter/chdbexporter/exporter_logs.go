@@ -62,8 +62,8 @@ func (e *logsExporter) start(ctx context.Context, _ component.Host) error {
 			return fnErr
 		}
 
-		if adoptErr := adoptLegacyLogsTable(ctx, e.cfg, e.db); adoptErr != nil {
-			return adoptErr
+		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
+			return schemaErr
 		}
 		if createTableErr := createLogsTable(ctx, e.cfg, e.db, e.logger); createTableErr != nil {
 			return createTableErr

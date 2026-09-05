@@ -27,6 +27,10 @@ import (
 type Config struct {
 	// collectorVersion is the build version of the collector. This is overridden when an exporter is initialized.
 	collectorVersion string
+	// schema serialises the local schema-version check across the exporters
+	// that share this config, which is every signal of one exporter component.
+	// See ensureLocalSchema.
+	schema *schemaGuard
 
 	TimeoutSettings exporterhelper.TimeoutConfig                             `mapstructure:",squash"`
 	BackOffConfig   configretry.BackOffConfig                                `mapstructure:"retry_on_failure"`
@@ -116,6 +120,7 @@ var (
 func createDefaultConfig() component.Config {
 	return &Config{
 		collectorVersion: "unknown",
+		schema:           &schemaGuard{},
 
 		TimeoutSettings:   exporterhelper.NewDefaultTimeoutConfig(),
 		QueueSettings:     configoptional.Some(exporterhelper.NewDefaultQueueConfig()),

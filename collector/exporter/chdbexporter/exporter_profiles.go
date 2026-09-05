@@ -56,6 +56,10 @@ func (e *profilesExporter) start(ctx context.Context, _ component.Host) error {
 			return err
 		}
 
+		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
+			return schemaErr
+		}
+
 		if err := createProfilesTable(ctx, e.cfg, e.db); err != nil {
 			return err
 		}
