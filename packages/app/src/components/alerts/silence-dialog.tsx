@@ -22,11 +22,9 @@ import {
 } from "@everr/ui/components/select";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import type { AlertRuleOption } from "@/data/alerting/rules/read";
 import { alertRuleOptionsOptions } from "@/data/alerting/triage/options";
-import {
-  type AlertRuleOption,
-  SILENCE_DURATIONS,
-} from "@/data/alerting/triage/view";
+import { SILENCE_DURATIONS } from "@/data/alerting/triage/view";
 
 /** What a silence starts from. A rule when the row that opened the dialog is
  *  one; `null` where there is no rule to assume, and the dialog offers the

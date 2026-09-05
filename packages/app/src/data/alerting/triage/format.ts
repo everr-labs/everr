@@ -83,24 +83,3 @@ export function silenceImpact(counts: {
   if (counts.dropped > 0) parts.push(`dropped ${counts.dropped}`);
   return parts.length > 0 ? parts.join(" \u00b7 ") : null;
 }
-
-/**
- * The order the rule list is read in: by the label on the row, then by the
- * rule's path.
- *
- * The path is not decoration. Two rules in different projects may carry the
- * same display name, and a comparator that returned 0 for them would leave
- * their order to the array it was handed, which is the arbitrary order this
- * sort exists to replace. `numeric` so `shard-2` precedes `shard-10`, and
- * `base` sensitivity so case and accents do not split a run of names apart.
- */
-export function compareRuleLabels(
-  a: { label: string; path: string },
-  b: { label: string; path: string },
-): number {
-  const byLabel = a.label.localeCompare(b.label, undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
-  return byLabel !== 0 ? byLabel : a.path.localeCompare(b.path);
-}

@@ -1,19 +1,22 @@
 import fc from "fast-check";
 import { describe, expect, it, vi } from "vitest";
 
-// Only so that importing the assembler for its comparator does not build a
-// real database pool.
+// Importing the Alert rule module for its pure ordering function and the
+// assembler for its board order must not build a real database pool.
 vi.mock("@/db/client", () => ({
   db: {},
   pool: {},
   runInTransaction: () => Promise.resolve(),
 }));
 
+import {
+  compareRuleLabels,
+  type TriageStatus,
+} from "@/data/alerting/rules/read";
 import type { AlertingSeverity } from "@/data/alerting/types";
 import { ALERTING_SEVERITIES } from "@/data/alerting/vocabulary";
 import { byTriageOrder } from "./assemble";
-import { compareRuleLabels } from "./format";
-import type { TriageAlert, TriageStatus } from "./view";
+import type { TriageAlert } from "./view";
 
 /**
  * Both orders on this screen are comparators handed to `Array.prototype.sort`,

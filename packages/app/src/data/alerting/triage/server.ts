@@ -8,6 +8,17 @@
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import {
+  type AlertRuleOption,
+  type AlertRuleRead,
+  loadInstances,
+  loadRule,
+  loadRuleInstances,
+  loadRuleOptions,
+  loadRules,
+  rulePath,
+  triageStatus,
+} from "@/data/alerting/rules/read";
+import {
   loadOpenSilences,
   loadSilencesForPage,
   loadSilencesInWindow,
@@ -32,27 +43,16 @@ import {
   loadHeldCounts,
   loadLatestNotifications,
 } from "./notifications";
-import {
-  type DefinitionRow,
-  loadInstances,
-  loadRule,
-  loadRuleInstances,
-  loadRuleOptions,
-  loadRules,
-  rulePath,
-  triageStatus,
-} from "./rules";
 import { silenceRecords } from "./silences";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 import type {
   AlertDetail,
-  AlertRuleOption,
   AlertSilencePage,
   AlertTriageData,
   RuleStateHistoryData,
 } from "./view";
 
-const valueRule = (row: DefinitionRow): ValueRule => ({
+const valueRule = (row: AlertRuleRead): ValueRule => ({
   path: rulePath(row),
   condition: row.spec.condition,
   intervalSecs: row.spec.interval_secs,

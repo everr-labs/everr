@@ -5,6 +5,8 @@
  * Which silences to fetch is a separate question, and every version of it
  * lives together in the silences repository.
  */
+
+import type { AlertRuleOption } from "@/data/alerting/rules/read";
 import { formatMatchers } from "@/data/alerting/silences/matchers";
 import {
   ruleSubject,
@@ -14,11 +16,7 @@ import {
 import type { SilenceRow } from "@/data/alerting/silences/repository";
 import type { AlertingMatcher } from "@/data/alerting/types";
 import { formatElapsed, silenceImpact } from "./format";
-import type {
-  AlertRuleOption,
-  AlertSilenceRecord,
-  AlertSilenceView,
-} from "./view";
+import type { AlertSilenceRecord, AlertSilenceView } from "./view";
 
 /** What a silence did to delivery: notifications it is still sitting on, and
  *  ones it dropped for good. */

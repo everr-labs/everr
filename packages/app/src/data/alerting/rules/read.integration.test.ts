@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 /**
- * The Triage screen's PostgreSQL reads of Alert rules, against a real engine.
+ * The app's PostgreSQL reads of Alert rules, against a real engine.
  *
  * The pure half of this module is covered by the unit suites beside it. What
  * only a real database can answer is what the queries select and in what
@@ -37,7 +37,7 @@ import {
   loadRuleInstances,
   loadRules,
   rulePath,
-} from "./rules";
+} from "./read";
 
 const harness = useAlertingHarness();
 
@@ -62,7 +62,7 @@ async function insertInstance(
     });
 }
 
-describe("the Alert rules the Triage screen reads", () => {
+describe("the Alert rules the app reads", () => {
   it("leaves out a Preview copy", async () => {
     const preview = await insertPreview(harness().db);
     await insertRule(harness().db, { slug: "live-rule" });

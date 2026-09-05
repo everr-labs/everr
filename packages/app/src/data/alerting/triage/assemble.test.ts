@@ -9,6 +9,10 @@ vi.mock("@/db/client", () => ({
   runInTransaction: () => Promise.resolve(),
 }));
 
+import type {
+  AlertInstanceRead,
+  AlertRuleRead,
+} from "@/data/alerting/rules/read";
 import type { SilenceRow } from "@/data/alerting/silences/repository";
 import type { AlertingRuleSpec } from "@/data/alerting/types";
 import {
@@ -21,7 +25,6 @@ import {
 } from "./assemble";
 import { formatClock } from "./format";
 import type { NotificationFact } from "./notifications";
-import type { DefinitionRow, InstanceRow } from "./rules";
 import type { InstanceValues } from "./values";
 import type { InstanceValueSeries } from "./view";
 
@@ -48,23 +51,15 @@ function spec(overrides: Partial<AlertingRuleSpec> = {}): AlertingRuleSpec {
 }
 
 function definition(
-  overrides: Partial<DefinitionRow> & { slug: string },
-): DefinitionRow {
+  overrides: Partial<AlertRuleRead> & { slug: string },
+): AlertRuleRead {
   return {
     id: `id-${overrides.slug}`,
-    organizationId: "org",
     repoid: "acme/repo",
-    previewId: null,
     project: "demo",
     spec: spec(),
-    version: 1,
-    nextEvaluationAt: null,
-    lastEnqueuedAt: null,
-    createdAt: NOW,
-    updatedAt: NOW,
     active: true,
     pausedAt: null,
-    pausedByPrincipal: null,
     pausedBy: null,
     lastError: null,
     currentState: "unknown",
@@ -72,33 +67,23 @@ function definition(
     degradedSince: null,
     lastErrorAt: null,
     lastFiredAt: null,
-    lastResolvedAt: null,
     lastSeenAt: null,
     lastRowCount: 0,
-    firingInstanceCount: 0,
     ...overrides,
   };
 }
 
 function instance(
   alertDefinitionId: string,
-  overrides: Partial<InstanceRow> = {},
-): InstanceRow {
+  overrides: Partial<AlertInstanceRead> = {},
+): AlertInstanceRead {
   return {
-    id: `${alertDefinitionId}-${overrides.fingerprint ?? "fp"}`,
-    organizationId: "org",
     alertDefinitionId,
     fingerprint: "fp",
     status: "firing",
-    labels: {},
-    evidence: {},
     value: 120,
     pendingSince: null,
     activeSince: minutesAgo(12),
-    lastSeenAt: NOW,
-    absentCount: 0,
-    episodeId: null,
-    updatedAt: NOW,
     ...overrides,
   };
 }
@@ -547,7 +532,6 @@ describe("assembleAlertDetail", () => {
         slug: "latency",
         active: false,
         pausedAt: minutesAgo(14),
-        pausedByPrincipal: "user:u1",
         pausedBy: "Ada",
       }),
     });

@@ -5,6 +5,7 @@
  * the screen's.
  */
 import * as z from "zod";
+import { loadRule } from "@/data/alerting/rules/read";
 import { pauseRule, resumeRule } from "@/data/alerting/rules/repository";
 import { alertingMutationScope } from "@/data/alerting/session";
 import { parseMatchers } from "@/data/alerting/silences/matchers";
@@ -13,7 +14,6 @@ import {
   expireSilence,
 } from "@/data/alerting/silences/repository";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { loadRule } from "./rules";
 
 export const silenceAlertRule = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(
