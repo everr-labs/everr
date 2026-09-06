@@ -297,6 +297,10 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 	reader := bufio.NewReader(ff)
 	firstLine := true
 	var lastTime time.Time
+	// Lines that come before the first timestamped line. They take that
+	// line's time once it appears. A zero time is exported as the year 1754
+	// and stored as 1900-01-01, which falls outside every run window.
+	var leading []string
 	for {
 		lineText, err := readLogLine(reader)
 		if err != nil {
@@ -316,15 +320,33 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 		if ts, line, ok := strings.Cut(lineText, " "); ok {
 			if parsedTime, err := time.Parse(time.RFC3339, ts); err == nil {
 				lastTime = parsedTime
+				for _, body := range leading {
+					emit(parsedLine{time: parsedTime, body: body})
+				}
+				leading = nil
 				emit(parsedLine{time: parsedTime, body: line})
 				continue
 			}
 		}
 
-		// No leading timestamp — this is a continuation of multi-line step
-		// output, not an error. Keep the full text and attribute it to the
-		// previous line's timestamp (zero if it's the very first line).
+		if lastTime.IsZero() {
+			leading = append(leading, lineText)
+			continue
+		}
+		// No leading timestamp: a continuation of multi-line step output,
+		// not an error. Keep the full text and give it the previous line's
+		// time.
 		emit(parsedLine{time: lastTime, body: lineText})
+	}
+
+	// No line in the file carried a timestamp. The time the archive was read
+	// is the only time there is; the OTel log model falls back to the
+	// observed time in the same way.
+	if len(leading) > 0 {
+		now := time.Now().UTC()
+		for _, body := range leading {
+			emit(parsedLine{time: now, body: body})
+		}
 	}
 }
 
