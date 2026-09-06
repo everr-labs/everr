@@ -130,3 +130,9 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   local store never reaches, so every explorer query read whole parts.
   Upstream's logs key also puts the bucket before `ServiceName`, so a service
   filter could not prune either. The measurements are in the cloud DDL notes.
+- `traces_trace_id_ts` has no skip index on `TraceId`; upstream adds a bloom
+  filter there. The sort key starts with `TraceId`, so a lookup by id is a
+  primary-key read and the index only cost insert work. The cloud carries the
+  same table as `app.traces_trace_id_ts`, with `tenant_id` in front of the
+  key, and the `everr-use-telemetry` skill teaches the two-step trace lookup
+  against both.
