@@ -56,8 +56,8 @@ func TestRenderCreateLogsTableSQL(t *testing.T) {
 		c.TTL = 72 * time.Hour
 	})
 
-	t.Run("bloom filter indexes for CH < 26.2", func(t *testing.T) {
-		sql, err := renderCreateLogsTableSQL(cfg, false)
+	t.Run("bloom filter indexes and the cloud sort key", func(t *testing.T) {
+		sql, err := renderCreateLogsTableSQL(cfg)
 		require.NoError(t, err)
 
 		require.Contains(t, sql, "TYPE bloom_filter")
@@ -74,30 +74,13 @@ func TestRenderCreateLogsTableSQL(t *testing.T) {
 		require.Contains(t, sql, "toDateTime(Timestamp)")
 	})
 
-	t.Run("full text search indexes for CH >= 26.2", func(t *testing.T) {
-		sql, err := renderCreateLogsTableSQL(cfg, true)
-		require.NoError(t, err)
-
-		require.Contains(t, sql, "TYPE text(tokenizer = 'array')")
-		require.Contains(t, sql, "TYPE text(tokenizer = 'splitByNonAlpha')")
-		require.NotContains(t, sql, "TYPE bloom_filter")
-		require.NotContains(t, sql, "tokenbf_v1")
-
-		require.Contains(t, sql, "ORDER BY (ServiceName, Timestamp)")
-		require.NotContains(t, sql, "toStartOfFiveMinutes")
-		require.Contains(t, sql, "`test_db`.`otel_logs`")
-		require.NotContains(t, sql, "TimestampTime")
-		require.Contains(t, sql, "EventName")
-		require.Contains(t, sql, "__otel_materialized_k8s.namespace.name")
-	})
-
 	t.Run("no TTL when zero", func(t *testing.T) {
 		noTTLCfg := withDefaultConfig(func(c *Config) {
 			c.Endpoint = defaultEndpoint
 			c.Database = "test_db"
 			c.TTL = 0
 		})
-		sql, err := renderCreateLogsTableSQL(noTTLCfg, false)
+		sql, err := renderCreateLogsTableSQL(noTTLCfg)
 		require.NoError(t, err)
 		require.NotContains(t, sql, "TTL")
 	})

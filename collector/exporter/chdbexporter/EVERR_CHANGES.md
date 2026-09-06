@@ -49,12 +49,15 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   carry. The lifecycle test mdatagen generates starts an exporter built by
   `NewFactory()`, and those fail with `chdb handle is required` by design, so
   the test cannot pass here.
-- Upstream switches the map skip indexes to `TYPE text(...)` on ClickHouse 26.2
-  and later, and the local store runs chDB 26.5, so the local tables get text
-  indexes. The cloud tables in `clickhouse/init/10-create-mvs.sql` keep
-  `bloom_filter` on purpose; the note there carries the measurement. Index type
-  changes cost and speed, not results, so the shared explorer queries still read
-  both stores the same way.
+- Keeps `bloom_filter` map indexes and `tokenbf_v1` on `lower(Body)` for the
+  logs table on every ClickHouse version. Upstream switches them to
+  `TYPE text(...)` on 26.2 and later, and the local store runs chDB 26.5, so
+  upstream's server-version gate gave the local logs table text indexes.
+  Measured on the cloud schema (the note in `clickhouse/init/10-create-mvs.sql`
+  carries the numbers), both types read the same rows for the two predicates
+  the app emits, `mapContains(map, key)` and `map[key] IN (...)`, and the text
+  indexes cost 500 times the storage. The gate and its server-version check are
+  gone. The profiles table still uses text indexes, as upstream does.
 
 - The chDB adapter writes every timestamp as an RFC 3339 string in UTC with
   nanoseconds. ClickHouse reads a bare JSON number as the column's own unit,

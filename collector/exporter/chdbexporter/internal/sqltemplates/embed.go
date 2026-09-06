@@ -54,12 +54,11 @@ var (
 
 // CreateTableData contains the template parameters for creating a logs table.
 type CreateTableData struct {
-	Database          string
-	TableName         string
-	ClusterString     string
-	Engine            string
-	TTL               string
-	HasFullTextSearch bool
+	Database      string
+	TableName     string
+	ClusterString string
+	Engine        string
+	TTL           string
 }
 
 // InsertData contains the template parameters for a logs INSERT statement.

@@ -25,6 +25,10 @@ func testProfilesExporter(t *testing.T, endpoint string) {
 	verifyExportProfiles(t, exporter)
 }
 
+// versionFullTextSearch is the first ClickHouse release with TYPE text()
+// indexes, which the profiles table uses.
+var versionFullTextSearch = proto.Version{Major: 26, Minor: 2}
+
 func requireFullTextSearch(t *testing.T, endpoint string) {
 	cfg := withTestExporterConfig()(endpoint)
 

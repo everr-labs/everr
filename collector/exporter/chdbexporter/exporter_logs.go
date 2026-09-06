@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
@@ -65,7 +64,7 @@ func (e *logsExporter) start(ctx context.Context, _ component.Host) error {
 		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
 			return schemaErr
 		}
-		if createTableErr := createLogsTable(ctx, e.cfg, e.db, e.logger); createTableErr != nil {
+		if createTableErr := createLogsTable(ctx, e.cfg, e.db); createTableErr != nil {
 			return createTableErr
 		}
 	}
@@ -233,18 +232,14 @@ func (e *logsExporter) renderInsertLogsSQL() error {
 	return nil
 }
 
-// versionFullTextSearch is the minimum ClickHouse version that supports TYPE text() indexes.
-var versionFullTextSearch = proto.Version{Major: 26, Minor: 2}
-
-func renderCreateLogsTableSQL(cfg *Config, hasFullTextSearch bool) (string, error) {
+func renderCreateLogsTableSQL(cfg *Config) (string, error) {
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	data := sqltemplates.CreateTableData{
-		Database:          cfg.database(),
-		TableName:         cfg.LogsTableName,
-		ClusterString:     cfg.clusterString(),
-		Engine:            cfg.tableEngineString(),
-		TTL:               ttlExpr,
-		HasFullTextSearch: hasFullTextSearch,
+		Database:      cfg.database(),
+		TableName:     cfg.LogsTableName,
+		ClusterString: cfg.clusterString(),
+		Engine:        cfg.tableEngineString(),
+		TTL:           ttlExpr,
 	}
 
 	var buf bytes.Buffer
@@ -255,16 +250,11 @@ func renderCreateLogsTableSQL(cfg *Config, hasFullTextSearch bool) (string, erro
 	return buf.String(), nil
 }
 
-func createLogsTable(ctx context.Context, cfg *Config, db driver.Conn, logger *zap.Logger) error {
-	hasFullTextSearch := false
-	sv, err := db.ServerVersion()
-	if err != nil {
-		logger.Warn("failed to get ClickHouse server version, falling back to bloom filter indexes", zap.Error(err))
-	} else {
-		hasFullTextSearch = proto.CheckMinVersion(versionFullTextSearch, sv.Version)
-	}
-
-	sql, err := renderCreateLogsTableSQL(cfg, hasFullTextSearch)
+// The logs table keeps bloom_filter map indexes on every ClickHouse version.
+// Upstream switches to TYPE text(...) on 26.2 and later; the cloud DDL in
+// clickhouse/init/10-create-mvs.sql carries the measurement for keeping bloom.
+func createLogsTable(ctx context.Context, cfg *Config, db driver.Conn) error {
+	sql, err := renderCreateLogsTableSQL(cfg)
 	if err != nil {
 		return fmt.Errorf("render create logs table sql: %w", err)
 	}
