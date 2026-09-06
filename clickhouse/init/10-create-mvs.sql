@@ -20,7 +20,17 @@
 CREATE TABLE IF NOT EXISTS app.traces
 ENGINE = MergeTree
 PARTITION BY (toDate(Timestamp), retention_days)
-ORDER BY (tenant_id, ServiceName, SpanName, toDateTime(Timestamp))
+-- Upstream sorts traces by (ServiceName, SpanName, toDateTime(Timestamp)).
+-- Nothing here filters SpanName by equality (the explorer only substring
+-- matches it) and every query carries a time window, so a span name ahead of
+-- the time column made a 15-minute window read a whole day's part: measured
+-- on 15M spans, 500,000 rows against 49,152 with the time column directly
+-- after the service. Time order also keeps a trace's spans adjacent, which
+-- took the table from 724 to 505 MiB (Timestamp 47 to 0.9 MiB, TraceId 232
+-- to 93 MiB) and the by-id lookup from 8 granules to 3. The raw DateTime64
+-- is the key column on purpose; the app.logs note below says why no bucket
+-- goes in front of it.
+ORDER BY (tenant_id, ServiceName, Timestamp)
 TTL toDate(Timestamp) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -103,19 +113,21 @@ FROM
 CREATE TABLE IF NOT EXISTS app.logs
 ENGINE = MergeTree
 PARTITION BY (toDate(Timestamp), retention_days)
--- toStartOfFiveMinutes(Timestamp) is upstream's logs key. Timestamp is
--- DateTime64(9), so it is unique per row and useless for granule pruning on
--- its own; the truncation gives a run of equal values that a time filter can
--- prune, and the raw column after it keeps rows ordered inside the bucket.
---
--- This replaced a stored TimestampTime DateTime column that used to hold the
--- same position. A stored key column prunes a little tighter than a function
--- of one: measured on 2M rows, a time-bounded count read 74,784 rows here
--- against 42,016 with the old column. The gap is a fixed ~4 granules, not a
--- proportional cost, so it shrinks against the result as the window widens
--- (1.78x at ten minutes, 1.49x at six hours) and buys back a column on every
--- row.
-ORDER BY (tenant_id, ServiceName, toStartOfFiveMinutes(Timestamp), Timestamp)
+-- The raw Timestamp sits directly after ServiceName. Do not put a bucket
+-- such as toStartOfFiveMinutes(Timestamp) in front of it, which is what
+-- upstream's (ServiceName, TimestampTime) key becomes once TimestampTime is
+-- gone. ClickHouse binds a `Timestamp >= x` predicate to the key column that
+-- is Timestamp, never to a function of it that sits earlier, and it can only
+-- exclude a granule on that column when every earlier column is constant
+-- inside the granule. Below about 8192 rows per service per bucket the
+-- bucket changes inside every granule and nothing is excluded: measured on
+-- this table at 694 rows per five-minute bucket, a 15-minute window read 25
+-- of 25 granules, and 2 of 25 once the bucket predicate was added to the
+-- query by hand. The flat key prunes with the query as the explorer emits it
+-- (6 of 1,840 granules on a 15M-row part) and orders the rows exactly as the
+-- bucketed key would, so it costs nothing in compression. Range pruning on a
+-- sorted DateTime64 does not need runs of equal values.
+ORDER BY (tenant_id, ServiceName, Timestamp)
 TTL toDate(Timestamp) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
@@ -202,6 +214,14 @@ FROM
 -- nearly doubles that column. The cost is that an attribute predicate can no
 -- longer prune granules, which only matters when reading one high-cardinality
 -- series over a long range; no built-in dashboard does that.
+--
+-- idx_time_minmax below does the time pruning, not the primary key. A
+-- `TimeUnix >= x` predicate binds to the trailing TimeUnix column, and a
+-- granule is only excluded on it when the hour and the hash are constant
+-- across the granule, which at a few thousand rows per hour they never are:
+-- measured on this table at 4,800 rows per hour, the primary key read 15 of
+-- 15 granules for a 15-minute window and the minmax index took it to 2 of
+-- 15. The index is load-bearing, not a mirrored decoration.
 CREATE TABLE IF NOT EXISTS app.metrics_gauge
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
