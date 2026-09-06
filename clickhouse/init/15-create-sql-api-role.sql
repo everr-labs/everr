@@ -60,6 +60,7 @@ GRANT SELECT ON app.metrics_sum       TO sql_api_role;
 GRANT SELECT ON app.metrics_histogram              TO sql_api_role;
 GRANT SELECT ON app.metrics_exponential_histogram TO sql_api_role;
 GRANT SELECT ON app.metrics_summary              TO sql_api_role;
+GRANT SELECT ON app.traces_trace_id_ts           TO sql_api_role;
 
 -- Clean up accidental/manual system grants. SHOW TABLES handles schema
 -- discovery without exposing storage counters from system.tables or the
@@ -109,3 +110,5 @@ CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_exponential_histogr
   ON app.metrics_exponential_histogram FOR SELECT USING 0 TO sql_api_role;
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_summary
   ON app.metrics_summary               FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces_trace_id_ts
+  ON app.traces_trace_id_ts            FOR SELECT USING 0 TO sql_api_role;

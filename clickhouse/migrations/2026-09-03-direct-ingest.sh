@@ -33,7 +33,10 @@ run_file() {
 
 CLIENT_ARGS=("$@")
 
-TABLES=(traces logs metrics_gauge metrics_sum metrics_histogram metrics_exponential_histogram metrics_summary)
+# traces_trace_id_ts goes first: its view reads app.traces, so it is dropped
+# before the table it reads. It has no landing table; the otel.* drop for it
+# is a no-op.
+TABLES=(traces_trace_id_ts traces logs metrics_gauge metrics_sum metrics_histogram metrics_exponential_histogram metrics_summary)
 
 # The app.* tables are rebuilt, not altered, and app.alert_events with them.
 # Two reasons, either one enough on its own:
@@ -66,7 +69,7 @@ drop_landing_tables() {
   done
 }
 
-echo "1/3 guard: the collector must already stamp retention"
+echo "1/4 guard: the collector must already stamp retention"
 # One check per signal, not just logs: each pipeline has its own retention
 # processor, so a config that stamps logs can still miss traces or metrics.
 # After the cut-over an unstamped signal throws in its view and that signal
@@ -80,7 +83,7 @@ guard_signal logs TimestampTime
 guard_signal traces Timestamp
 guard_signal metrics_gauge TimeUnix
 
-echo "2/3 rebuild the tables, the landing tables and the views"
+echo "2/4 rebuild the tables, the landing tables and the views"
 # The stored otel.* copies go with the tables. They hold seven days of raw
 # rows that nothing reads: app.* is the read model.
 trap drop_landing_tables ERR
@@ -108,7 +111,19 @@ run_sql "SELECT throwIf(
   'a table is missing its materialized view: rows would be discarded')"
 trap - ERR
 
-echo "3/3 remove the dictionary"
+echo "3/4 row policies for the per-org /sql users on app.traces_trace_id_ts"
+# provisionSqlApiOrgUser (packages/app/src/lib/clickhouse.ts) writes one row
+# policy per table when an organization is created, so every org that exists
+# today has none on the new table and sql_api_default_deny_traces_trace_id_ts
+# would show it nothing. Same policy name and predicate as the app writes, so
+# deprovisioning still finds it.
+run_sql "SELECT name FROM system.users WHERE name LIKE 'sql_api_org_%' FORMAT TSVRaw" | while read -r user; do
+  [ -z "$user" ] && continue
+  org=${user#sql_api_org_}
+  run_sql "CREATE ROW POLICY IF NOT EXISTS \`${user}_traces_trace_id_ts\` ON app.traces_trace_id_ts FOR SELECT USING tenant_id = '${org}' TO \`${user}\`"
+done
+
+echo "4/4 remove the dictionary"
 run_sql "DROP DICTIONARY IF EXISTS app.tenant_retention"
 run_sql "DROP TABLE IF EXISTS app.tenant_retention_source"
 run_sql "REVOKE dictGet ON app.tenant_retention FROM collector_rw, app_ro, web_app_admin" || true

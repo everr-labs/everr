@@ -112,7 +112,8 @@ describe("/api/cli/sql", () => {
   const SCHEMA_PROBE_MESSAGE =
     "Query references a table that doesn't exist or isn't available to you. " +
     "Readable tables: traces, logs, metrics_gauge, metrics_sum, " +
-    "metrics_histogram, metrics_exponential_histogram, metrics_summary.";
+    "metrics_histogram, metrics_exponential_histogram, metrics_summary, " +
+    "traces_trace_id_ts.";
 
   async function postSql(body: string) {
     return getHandler()({

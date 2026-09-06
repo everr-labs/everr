@@ -58,6 +58,7 @@ export const SQL_API_TENANT_TABLES = [
   "metrics_histogram",
   "metrics_exponential_histogram",
   "metrics_summary",
+  "traces_trace_id_ts",
 ] as const;
 
 function sqlApiOrgUserName(organizationId: string): string {

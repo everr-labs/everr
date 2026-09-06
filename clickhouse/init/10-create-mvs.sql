@@ -109,6 +109,46 @@ FROM
   FROM otel.otel_traces
 );
 
+-- Trace id to time range. app.traces sorts by service and time, so a lookup
+-- by TraceId alone has no key prefix to use and reads the TraceId bloom
+-- filter of every part in the table. This table sorts by the id: a reader
+-- takes min(Start) and max(End) + 1 for one TraceId here, then reads
+-- app.traces or app.logs with that window, and both prune parts. The view
+-- fires once per inserted block, so a trace whose spans arrive in several
+-- batches has several rows, which is why readers aggregate. Start and End are
+-- whole seconds; the + 1 covers the truncation of End. Same shape as the
+-- local store's traces_trace_id_ts, so one query serves both. The explorer
+-- and the run views do not use it, they already know their window. No skip
+-- index on TraceId: the key starts with it.
+CREATE TABLE IF NOT EXISTS app.traces_trace_id_ts
+(
+  tenant_id String CODEC(ZSTD(1)),
+  TraceId String CODEC(ZSTD(1)),
+  Start DateTime CODEC(Delta(4), ZSTD(1)),
+  End DateTime CODEC(Delta(4), ZSTD(1)),
+  retention_days UInt16
+)
+ENGINE = MergeTree
+PARTITION BY (toDate(Start), retention_days)
+ORDER BY (tenant_id, TraceId, Start)
+TTL toDate(Start) + toIntervalDay(retention_days)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+
+-- Chained off app.traces rather than otel.otel_traces so tenant_id and
+-- retention_days come from the row app.traces_mv already stamped.
+CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_trace_id_ts_mv
+TO app.traces_trace_id_ts
+AS
+SELECT
+  tenant_id,
+  TraceId,
+  min(Timestamp) AS Start,
+  max(Timestamp) AS End,
+  retention_days
+FROM app.traces
+WHERE TraceId != ''
+GROUP BY tenant_id, retention_days, TraceId;
+
 -- Logs: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.logs
 ENGINE = MergeTree
