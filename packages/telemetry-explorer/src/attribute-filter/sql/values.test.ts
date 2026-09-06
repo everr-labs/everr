@@ -96,12 +96,12 @@ describe("buildAttributeValuesQuery", () => {
         source: "span",
         key: "http.route",
       },
-      { tableName: "traces", columnFor, timeColumn: "Timestamp" },
+      { tableName: "metrics_gauge", columnFor, timeColumn: "TimeUnix" },
     );
     expect(sql).toContain(
-      "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
+      "TimeUnix >= parseDateTimeBestEffort({fromTime:String})",
     );
-    expect(sql).not.toContain("TimestampTime");
+    expect(sql).not.toContain("Timestamp");
   });
 
   it("uses an injected time-bound parser for both bounds", () => {

@@ -66,16 +66,16 @@ describe("buildAttributeKeysQuery", () => {
     const { sql } = buildAttributeKeysQuery(
       { timeRange: { from: "now-1h", to: "now" } },
       {
-        tableName: "traces",
+        tableName: "metrics_gauge",
         sources: ["resource"],
         columnFor,
-        timeColumn: "Timestamp",
+        timeColumn: "TimeUnix",
       },
     );
     expect(sql).toContain(
-      "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
+      "TimeUnix >= parseDateTimeBestEffort({fromTime:String})",
     );
-    expect(sql).not.toContain("TimestampTime");
+    expect(sql).not.toContain("Timestamp");
   });
 
   it("uses an injected time-bound parser for both bounds", () => {

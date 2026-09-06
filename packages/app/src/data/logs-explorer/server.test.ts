@@ -53,7 +53,7 @@ describe("getLogsExplorer", () => {
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
     expect(sql).toContain("FROM logs");
     expect(sql).toContain(
-      "TimestampTime >= parseDateTimeBestEffort({fromTime:String})",
+      "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
     );
     expect(sql).toContain("positionCaseInsensitive(Body, {query:String}) > 0");
     expect(sql).toContain("ServiceName IN {services:Array(String)}");
@@ -257,7 +257,7 @@ describe("getLogsHistogram", () => {
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
     expect(sql).toContain("toStartOfInterval");
     expect(sql).toContain("INTERVAL 300 SECOND");
-    expect(sql).toContain("TimestampTime >=");
+    expect(sql).toContain("Timestamp >=");
     expect(sql).toContain("positionCaseInsensitive(Body, {query:String}) > 0");
     expect(sql).toContain("IN {levels:Array(String)}");
     expect(sql).not.toContain("LIMIT {limit:UInt32}");

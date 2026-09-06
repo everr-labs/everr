@@ -35,26 +35,30 @@ func TestNormalizeJSONValuePreservesRawMessage(t *testing.T) {
 	require.JSONEq(t, `{"attrs":["first","second"]}`, string(encoded))
 }
 
-func TestFormatTimestampReturnsUnixNanos(t *testing.T) {
+func TestFormatTimestampReturnsRFC3339NanosInUTC(t *testing.T) {
 	localTime := time.Date(2024, 3, 4, 5, 6, 7, 890123456, time.FixedZone("plus-two", 2*60*60))
 
-	require.Equal(t, localTime.UTC().UnixNano(), formatTimestamp(localTime))
+	require.Equal(t, "2024-03-04T03:06:07.890123456Z", formatTimestamp(localTime))
 }
 
-func TestFormatTimestampInsertsAsUTCInChDBJSONEachRow(t *testing.T) {
+// One encoding has to land correctly in every time column the templates
+// use: nanoseconds for DateTime64(9), seconds for DateTime, and the
+// Array(DateTime) form the metric exemplars use.
+func TestFormatTimestampInsertsIntoEveryTimeColumnType(t *testing.T) {
 	t.Cleanup(chdb.ResetForTesting)
 
 	handle, err := chdb.Open(filepath.Join(t.TempDir(), "chdb"))
 	require.NoError(t, err)
 
 	localTime := time.Date(2024, 3, 4, 5, 6, 7, 890123456, time.FixedZone("plus-two", 2*60*60))
-	row, err := json.Marshal(map[string]any{"ts": formatTimestamp(localTime)})
+	encoded := formatTimestamp(localTime)
+	row, err := json.Marshal(map[string]any{"nanos": encoded, "seconds": encoded, "list": []any{encoded}})
 	require.NoError(t, err)
 
 	var buf []byte
 	err = handle.Do(t.Context(), func(_ context.Context, session chdb.Session) error {
 		for _, query := range []string{
-			"CREATE TABLE timestamp_insert_test (ts DateTime64(9)) ENGINE = Memory",
+			"CREATE TABLE timestamp_insert_test (nanos DateTime64(9), seconds DateTime, list Array(DateTime)) ENGINE = Memory",
 			"INSERT INTO timestamp_insert_test FORMAT JSONEachRow\n" + string(row) + "\n",
 		} {
 			result, err := session.Query(query, "")
@@ -67,7 +71,7 @@ func TestFormatTimestampInsertsAsUTCInChDBJSONEachRow(t *testing.T) {
 		}
 
 		result, err := session.Query(
-			"SELECT toString(toUnixTimestamp64Nano(ts)) AS nanos FROM timestamp_insert_test",
+			"SELECT toString(toUnixTimestamp64Nano(nanos)) AS nanos, toString(toUnixTimestamp(seconds)) AS seconds, arrayMap(x -> toString(toUnixTimestamp(x)), list) AS list FROM timestamp_insert_test",
 			"JSONEachRow",
 		)
 		if err != nil {
@@ -82,5 +86,7 @@ func TestFormatTimestampInsertsAsUTCInChDBJSONEachRow(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.JSONEq(t, fmt.Sprintf(`{"nanos":"%d"}`, localTime.UTC().UnixNano()), string(bytes.TrimSpace(buf)))
+	require.JSONEq(t,
+		fmt.Sprintf(`{"nanos":"%d","seconds":"%d","list":["%d"]}`, localTime.UnixNano(), localTime.Unix(), localTime.Unix()),
+		string(bytes.TrimSpace(buf)))
 }

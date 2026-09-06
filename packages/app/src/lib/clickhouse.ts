@@ -58,6 +58,7 @@ export const SQL_API_TENANT_TABLES = [
   "metrics_histogram",
   "metrics_exponential_histogram",
   "metrics_summary",
+  "traces_trace_id_ts",
 ] as const;
 
 function sqlApiOrgUserName(organizationId: string): string {
@@ -171,30 +172,6 @@ type AdminCommandOptions = Omit<
   Parameters<typeof clickhouseAdmin.command>[0],
   "query"
 >;
-
-export async function upsertTenantRetention(row: {
-  tenantId: string;
-  tracesDays: number;
-  logsDays: number;
-  metricsDays: number;
-}): Promise<void> {
-  await instrumentClickhouseOperation(
-    { client: "admin", operation: "INSERT" },
-    () =>
-      clickhouseAdmin.insert({
-        table: "app.tenant_retention_source",
-        values: [
-          {
-            tenant_id: row.tenantId,
-            traces_days: row.tracesDays,
-            logs_days: row.logsDays,
-            metrics_days: row.metricsDays,
-          },
-        ],
-        format: "JSONEachRow",
-      }),
-  );
-}
 
 type AdminInsertSettings = Parameters<
   typeof clickhouseAdmin.insert

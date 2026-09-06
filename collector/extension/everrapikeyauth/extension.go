@@ -24,12 +24,18 @@ var (
 	errMissingAuth   = errors.New("missing authorization header")
 	errInvalidScheme = errors.New("authorization scheme must be Bearer")
 	errUnauthorized  = errors.New("unauthorized")
+	// errInvalidResponse marks a verify endpoint that answered but
+	// answered wrongly. It is deliberately not treated as an outage.
+	errInvalidResponse = errors.New("invalid verify response")
 )
 
 // verifyResponse mirrors VerifyKeyResponse on the app side.
 type verifyResponse struct {
-	TenantID string `json:"tenantId"`
-	KeyID    string `json:"keyId"`
+	TenantID    string `json:"tenantId"`
+	KeyID       string `json:"keyId"`
+	LogsDays    uint16 `json:"logsDays"`
+	TracesDays  uint16 `json:"tracesDays"`
+	MetricsDays uint16 `json:"metricsDays"`
 }
 
 type ext struct {
@@ -80,9 +86,9 @@ func (e *ext) Shutdown(_ context.Context) error {
 }
 
 // Authenticate implements extensionauth.Server. It extracts the bearer token
-// from the request headers, verifies it (with caching), and stamps tenant
-// info into client.Info.Auth so downstream processors can read
-// `auth.tenant_id`.
+// from the request headers, verifies it (with caching), and stamps tenant and
+// retention into client.Info.Auth so downstream processors can read
+// `auth.tenant_id` and `auth.retention_<signal>_days`.
 func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (context.Context, error) {
 	token, err := bearerFrom(headers)
 	if err != nil {
@@ -96,7 +102,7 @@ func (e *ext) Authenticate(ctx context.Context, headers map[string][]string) (co
 	}
 
 	cl := client.FromContext(ctx)
-	cl.Auth = authData{tenantID: res.tenantID, keyID: res.keyID}
+	cl.Auth = res
 	return client.NewContext(ctx, cl), nil
 }
 
@@ -147,13 +153,13 @@ func firstNonEmpty(slices ...[]string) string {
 	return ""
 }
 
-// lookup returns the authResult for the given token, consulting the cache
+// lookup returns the authData for the given token, consulting the cache
 // first and falling back to the verify endpoint. Concurrent misses for the
 // same token coalesce into a single verify call via singleflight; the rest
 // wait for that one answer. The shared verify call uses a detached context
 // with its own timeout so one caller's cancellation does not fail all the
 // waiters.
-func (e *ext) lookup(ctx context.Context, token, origin string) (*authResult, error) {
+func (e *ext) lookup(ctx context.Context, token, origin string) (*authData, error) {
 	// \x00 cannot appear in a bearer token or an Origin header, so the
 	// composite is unambiguous.
 	cacheKey := token + "\x00" + origin
@@ -182,6 +188,20 @@ func (e *ext) lookup(ctx context.Context, token, origin string) (*authResult, er
 				e.cache.putFailure(cacheKey, err)
 				return nil, err
 			}
+			if errors.Is(err, errInvalidResponse) {
+				// The app answered, and the answer was unusable. That is
+				// not the outage the grace window exists for: serving a
+				// stale entry here would keep authenticating a tenant
+				// whose retention the app can no longer state. Fail, and
+				// hold it for the negative window like any other definitive
+				// rejection, so a bad app deploy does not turn every ingest
+				// request into a verify call. The window is short
+				// (negative_cache_ttl, 5s by default), so a fixed app
+				// recovers within it.
+				e.logger.Error("verify endpoint returned an unusable response", zap.Error(err))
+				e.cache.putFailure(cacheKey, err)
+				return nil, err
+			}
 			// Transient (network, 5xx). OTel auth maps any error we return to
 			// 401 client-side, so fall back to the last-known-good cache entry
 			// within a grace window so brief verify outages don't translate
@@ -207,11 +227,11 @@ func (e *ext) lookup(ctx context.Context, token, origin string) (*authResult, er
 		if r.Err != nil {
 			return nil, r.Err
 		}
-		return r.Val.(*authResult), nil
+		return r.Val.(*authData), nil
 	}
 }
 
-func (e *ext) verify(ctx context.Context, token, origin string) (*authResult, error) {
+func (e *ext) verify(ctx context.Context, token, origin string) (*authData, error) {
 	payload := map[string]string{"key": token}
 	if origin != "" {
 		payload["origin"] = origin
@@ -235,14 +255,19 @@ func (e *ext) verify(ctx context.Context, token, origin string) (*authResult, er
 	case http.StatusOK:
 		var vr verifyResponse
 		if err := json.NewDecoder(resp.Body).Decode(&vr); err != nil {
-			return nil, fmt.Errorf("decode verify response: %w", err)
+			return nil, fmt.Errorf("%w: decode: %w", errInvalidResponse, err)
 		}
 		e.logger.Debug(
 			"verified ingest key",
 			zap.String("key_id", vr.KeyID),
 			zap.String("tenant_id", vr.TenantID),
 		)
-		return &authResult{tenantID: vr.TenantID, keyID: vr.KeyID}, nil
+		if vr.LogsDays == 0 || vr.TracesDays == 0 || vr.MetricsDays == 0 {
+			// A zero retention would expire rows at insert. Refuse to
+			// authenticate rather than stamp it.
+			return nil, fmt.Errorf("%w: missing retention for tenant %s", errInvalidResponse, vr.TenantID)
+		}
+		return newAuthData(vr), nil
 	case http.StatusUnauthorized, http.StatusForbidden:
 		e.logger.Debug("verify endpoint rejected key")
 		return nil, errUnauthorized

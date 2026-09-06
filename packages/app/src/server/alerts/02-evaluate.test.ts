@@ -89,7 +89,7 @@ const baseDef = {
   slug: "high-5xx",
   active: true,
   parsedQuery:
-    "SELECT route FROM logs WHERE TimestampTime >= now() - INTERVAL 5 MINUTE",
+    "SELECT route FROM logs WHERE Timestamp >= now() - INTERVAL 5 MINUTE",
   notificationTitleTemplate: `\${route} bad`,
   notificationDescriptionTemplate: "",
   currentState: "resolved",

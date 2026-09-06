@@ -122,7 +122,6 @@ function topServices(
  * same expression the errors surface counts issues with.
  *
  * Both time filters are bound through `{fromTime:String}` / `{toTime:String}`.
- * `logs` timestamps its rows with `TimestampTime`, `traces` with `Timestamp`.
  */
 function buildHomeQueries(granularity: BucketGranularity): {
   logsSql: string;
@@ -131,14 +130,14 @@ function buildHomeQueries(granularity: BucketGranularity): {
 } {
   const logsSql = `
       SELECT
-        ${bucketExpr("TimestampTime", granularity)} AS bucket,
+        ${bucketExpr("Timestamp", granularity)} AS bucket,
         ServiceName AS service,
         multiIf(grouping(bucket) = 0, 'bucket', grouping(service) = 0, 'service', 'total') AS kind,
         count() AS logCount,
         ${errorIssueCountExpr()} AS issueCount
       FROM logs
-      WHERE TimestampTime >= parseDateTimeBestEffort({fromTime:String})
-        AND TimestampTime <= parseDateTimeBestEffort({toTime:String})
+      WHERE Timestamp >= parseDateTimeBestEffort({fromTime:String})
+        AND Timestamp <= parseDateTimeBestEffort({toTime:String})
       GROUP BY GROUPING SETS ((bucket), (service), ())
     `;
 

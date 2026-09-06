@@ -36,13 +36,19 @@ type GitHubAPIConfig struct {
 
 // Config defines configuration for GitHub Actions receiver
 type Config struct {
-	confighttp.ServerConfig `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct
-	Path                    string                   `mapstructure:"path"`                // path for data collection. Default is <host>:<port>/events
-	Secret                  string                   `mapstructure:"secret"`              // github webhook hash signature. Default is empty
-	CustomServiceName       string                   `mapstructure:"custom_service_name"` // deprecated: ignored; service.name is github-actions
-	ServiceNamePrefix       string                   `mapstructure:"service_name_prefix"` // deprecated: ignored; service.name is github-actions
-	ServiceNameSuffix       string                   `mapstructure:"service_name_suffix"` // deprecated: ignored; service.name is github-actions
-	GitHubAPIConfig         GitHubAPIConfig          `mapstructure:"gh_api"`              // github api configuration
+	// Named, not embedded: an anonymous confighttp.ServerConfig promotes its
+	// own Unmarshal method to Config, which then satisfies
+	// confmap.Unmarshaler by accident. confmap calls that promoted method
+	// and stops, so every field below is dropped without an error. A named
+	// squash field takes the confmap hook for embedded structs instead,
+	// which is what the contrib receivers do.
+	ServerConfig      confighttp.ServerConfig `mapstructure:",squash"`
+	Path              string                  `mapstructure:"path"`                // path for data collection. Default is <host>:<port>/events
+	Secret            string                  `mapstructure:"secret"`              // github webhook hash signature. Default is empty
+	CustomServiceName string                  `mapstructure:"custom_service_name"` // deprecated: ignored; service.name is github-actions
+	ServiceNamePrefix string                  `mapstructure:"service_name_prefix"` // deprecated: ignored; service.name is github-actions
+	ServiceNameSuffix string                  `mapstructure:"service_name_suffix"` // deprecated: ignored; service.name is github-actions
+	GitHubAPIConfig   GitHubAPIConfig         `mapstructure:"gh_api"`              // github api configuration
 }
 
 var _ component.Config = (*Config)(nil)
@@ -51,7 +57,7 @@ var _ component.Config = (*Config)(nil)
 func (cfg *Config) Validate() error {
 	var errs error
 
-	if cfg.NetAddr.Endpoint == "" {
+	if cfg.ServerConfig.NetAddr.Endpoint == "" {
 		errs = multierr.Append(errs, errMissingEndpointFromConfig)
 	}
 

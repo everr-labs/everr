@@ -49,6 +49,7 @@ If an Everr command fails, investigate why: collector stopped, stale app, wrong 
 
 - **Always include a time window and LIMIT** for diagnostic queries. Cloud enforces a 1000-row hard limit and 30s timeout — queries without time windows will hit these limits. Local queries without windows are wasteful.
 - Freshness checks and schema discovery (`DESCRIBE`, `SHOW TABLES`) may omit the time window.
+- **Trace by id**: `traces` and `logs` are sorted by service and time, not by `TraceId`, so a bare `TraceId = '...'` reads every part. Take the trace's window from `traces_trace_id_ts` first; the "Full trace" query below shows the shape.
 - Use read-only SQL only: `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`, `DESC`, `SHOW`.
 
 ## Tables And Columns
@@ -62,6 +63,7 @@ SQL starts with the same query-facing table names for local and cloud:
 - `metrics_histogram`
 - `metrics_exponential_histogram`
 - `metrics_summary`
+- `traces_trace_id_ts`: `TraceId`, `Start`, `End`. The time window of each trace in whole seconds, one row per trace per ingested batch. Aggregate with `min(Start)` and `max(End)`.
 
 Useful trace columns: `Timestamp`, `TraceId`, `SpanId`, `ParentSpanId`, `ServiceName`, `ScopeName`, `SpanName`, `SpanKind`, `Duration`, `StatusCode`, `StatusMessage`, `SpanAttributes`, `ResourceAttributes`.
 
@@ -107,21 +109,27 @@ ORDER BY Duration DESC
 LIMIT 20
 ```
 
-Full trace:
+Full trace, from its id. The window comes from `traces_trace_id_ts`; the `+ 1` covers the truncation of `End` to whole seconds:
 ```sql
+WITH
+  (SELECT min(Start) FROM traces_trace_id_ts WHERE TraceId = '<trace-id>') AS start,
+  (SELECT max(End) + 1 FROM traces_trace_id_ts WHERE TraceId = '<trace-id>') AS end
 SELECT Timestamp, ServiceName, SpanName, Duration, StatusCode, StatusMessage
 FROM traces
-WHERE Timestamp > now() - INTERVAL 1 HOUR
+WHERE Timestamp >= start AND Timestamp <= end
   AND TraceId = '<trace-id>'
 ORDER BY Timestamp ASC
 LIMIT 200
 ```
 
-Correlated logs for a trace:
+Correlated logs for a trace, same window:
 ```sql
+WITH
+  (SELECT min(Start) FROM traces_trace_id_ts WHERE TraceId = '<trace-id>') AS start,
+  (SELECT max(End) + 1 FROM traces_trace_id_ts WHERE TraceId = '<trace-id>') AS end
 SELECT Timestamp, SeverityText, Body
 FROM logs
-WHERE Timestamp > now() - INTERVAL 1 HOUR
+WHERE Timestamp >= start AND Timestamp <= end
   AND TraceId = '<trace-id>'
 ORDER BY Timestamp ASC
 LIMIT 200

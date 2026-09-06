@@ -2,6 +2,7 @@ package chdbexporter
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -24,17 +25,21 @@ func (r fakeChDBResult) Free()       {}
 type fakeChDBSession struct {
 	path    string
 	queries []string
-	mu      sync.Mutex
+	// storedVersion is what the schema marker reports. The zero value answers
+	// with no row, which is a store that was never stamped.
+	storedVersion string
+	mu            sync.Mutex
 }
 
 func (s *fakeChDBSession) Query(query string, _ ...string) (chdb.Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.queries = append(s.queries, query)
-	// Engine lookups against system.tables see a legacy view occupying every
-	// name, which steers cloud-named configs onto the adoption path.
-	if strings.Contains(query, "system.tables") {
-		return fakeChDBResult{buf: []byte(`{"name":"View"}` + "\n")}, nil
+	if strings.Contains(query, schemaVersionTable) && strings.HasPrefix(query, "SELECT") {
+		if s.storedVersion == "" {
+			return fakeChDBResult{}, nil
+		}
+		return fakeChDBResult{buf: []byte(`{"name":"` + s.storedVersion + `"}` + "\n")}, nil
 	}
 	return fakeChDBResult{buf: []byte(`{"name":"EventName","type":"String"}` + "\n")}, nil
 }
@@ -119,76 +124,57 @@ func TestFactoryCreatesCloudNamedTablesWithoutViews(t *testing.T) {
 	require.NotContains(t, queries, "CREATE VIEW ")
 }
 
-func TestFactoryAdoptsLegacyLocalSchemaOnStart(t *testing.T) {
-	t.Cleanup(chdb.ResetForTesting)
-	// The canned non-empty response makes the legacy-table existence check
-	// report the pre-rename layout, so startup must rename it under the
-	// cloud-facing names before creating tables.
-	session := &fakeChDBSession{}
-	handle, err := chdb.Open(filepath.Join(t.TempDir(), "chdb"), chdb.WithSessionFactory(func(path string) (chdb.Session, error) {
-		session.path = path
-		return session, nil
-	}))
-	require.NoError(t, err)
+func TestStartRebuildsAStoreThatWasNeverStamped(t *testing.T) {
+	session, handle := newFakeChDBHandle(t, "")
 
 	queries := startAllExporters(t, session, handle, withCloudTableNamesConfig())
 
-	// Logs: view dropped, raw table renamed, TimestampTime backfilled.
+	// The names this config writes to.
 	require.Contains(t, queries, `DROP TABLE IF EXISTS "default"."logs"`)
-	require.Contains(t, queries, `RENAME TABLE "default"."otel_logs" TO "default"."logs"`)
-	require.Contains(t, queries, `ALTER TABLE "default"."logs"`)
-	require.Contains(t, queries, "ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
-	// Traces: view dropped, raw + lookup tables renamed, stale MV dropped.
-	require.Contains(t, queries, `RENAME TABLE "default"."otel_traces" TO "default"."traces"`)
-	require.Contains(t, queries, `DROP TABLE IF EXISTS "default"."otel_traces_trace_id_ts_mv"`)
-	require.Contains(t, queries, `RENAME TABLE "default"."otel_traces_trace_id_ts" TO "default"."traces_trace_id_ts"`)
-	// Metrics: raw tables renamed.
-	require.Contains(t, queries, `RENAME TABLE "default"."otel_metrics_gauge" TO "default"."metrics_gauge"`)
-	require.Contains(t, queries, `RENAME TABLE "default"."otel_metrics_summary" TO "default"."metrics_summary"`)
+	require.Contains(t, queries, `DROP TABLE IF EXISTS "default"."traces"`)
+	require.Contains(t, queries, `DROP TABLE IF EXISTS "default"."metrics_gauge"`)
+	// The names a store from before the rename still holds.
+	require.Contains(t, queries, `DROP TABLE IF EXISTS "default"."otel_logs"`)
+	require.Contains(t, queries, `DROP TABLE IF EXISTS "default"."otel_metrics_summary"`)
+	// The view goes before the table it writes into.
+	require.Less(t,
+		strings.Index(queries, `DROP TABLE IF EXISTS "default"."traces_trace_id_ts_mv"`),
+		strings.Index(queries, `DROP TABLE IF EXISTS "default"."traces_trace_id_ts"`),
+	)
+	require.Contains(t, queries, `INSERT INTO "default"."_everr_schema" (version) VALUES (1)`)
 }
 
-func TestFactorySkipsLegacyAdoptionWhenNamesMatchLegacy(t *testing.T) {
-	t.Cleanup(chdb.ResetForTesting)
-	session := &fakeChDBSession{}
-	handle, err := chdb.Open(filepath.Join(t.TempDir(), "chdb"), chdb.WithSessionFactory(func(path string) (chdb.Session, error) {
-		session.path = path
-		return session, nil
-	}))
-	require.NoError(t, err)
+func TestStartRebuildsOnceForEverySignal(t *testing.T) {
+	session, handle := newFakeChDBHandle(t, "")
 
-	// With the legacy otel_* names still configured (the exporter defaults),
-	// the configured tables ARE the legacy tables and must be left alone.
-	queries := startAllExporters(t, session, handle, withDefaultConfig())
+	// Logs, traces and metrics are three exporters with three start() calls
+	// against one store. A second rebuild would drop the tables the first one
+	// had already created.
+	queries := startAllExporters(t, session, handle, withCloudTableNamesConfig())
+
+	require.Equal(t, 1, strings.Count(queries, `DROP TABLE IF EXISTS "default"."logs"`))
+	require.Equal(t, 1, strings.Count(queries, `INSERT INTO "default"."_everr_schema" (version) VALUES (1)`))
+}
+
+func TestStartLeavesAStoreOnTheCurrentVersionAlone(t *testing.T) {
+	session, handle := newFakeChDBHandle(t, strconv.Itoa(localSchemaVersion))
+
+	queries := startAllExporters(t, session, handle, withCloudTableNamesConfig())
 
 	require.NotContains(t, queries, "DROP TABLE")
-	require.NotContains(t, queries, "RENAME TABLE")
-	require.NotContains(t, queries, "CREATE VIEW ")
+	require.NotContains(t, queries, "TRUNCATE TABLE")
 }
 
-func TestFactoryRunsLogsSchemaMigrationOnStart(t *testing.T) {
+func newFakeChDBHandle(t *testing.T, storedVersion string) (*fakeChDBSession, *chdb.Handle) {
+	t.Helper()
 	t.Cleanup(chdb.ResetForTesting)
-	session := &fakeChDBSession{}
+	session := &fakeChDBSession{storedVersion: storedVersion}
 	handle, err := chdb.Open(filepath.Join(t.TempDir(), "chdb"), chdb.WithSessionFactory(func(path string) (chdb.Session, error) {
 		session.path = path
 		return session, nil
 	}))
 	require.NoError(t, err)
-
-	factory := NewFactoryWithHandle(handle)
-	params := exportertest.NewNopSettings(metadata.Type)
-
-	logsExporter, err := factory.CreateLogs(t.Context(), params, withDefaultConfig())
-	require.NoError(t, err)
-	require.NoError(t, logsExporter.Start(t.Context(), nil))
-	require.NoError(t, logsExporter.Shutdown(t.Context()))
-
-	session.mu.Lock()
-	defer session.mu.Unlock()
-	queries := joinedQueries(session.queries)
-	// Logs tables created before TimestampTime existed — under any configured
-	// name — must gain the column the explorer queries filter on.
-	require.Contains(t, queries, `ALTER TABLE "default"."otel_logs"`)
-	require.Contains(t, queries, "ADD COLUMN IF NOT EXISTS `TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
+	return session, handle
 }
 
 func withCloudTableNamesConfig() *Config {

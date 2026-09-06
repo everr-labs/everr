@@ -51,12 +51,12 @@ func newReceiver(
 	settings receiver.Settings,
 	config *Config,
 ) (*githubActionsReceiver, error) {
-	if config.NetAddr.Endpoint == "" {
+	if config.ServerConfig.NetAddr.Endpoint == "" {
 		return nil, errMissingEndpoint
 	}
 
 	transport := "http"
-	if config.TLS.HasValue() {
+	if config.ServerConfig.TLS.HasValue() {
 		transport = "https"
 	}
 

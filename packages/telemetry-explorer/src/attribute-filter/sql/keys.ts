@@ -31,7 +31,7 @@ export function buildAttributeKeysQuery(
   },
 ): BuiltQuery {
   validateTableName(opts.tableName);
-  const timeColumn = opts.timeColumn ?? "TimestampTime";
+  const timeColumn = opts.timeColumn ?? "Timestamp";
   const timeBound =
     opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
   const scope = opts.rowPredicate

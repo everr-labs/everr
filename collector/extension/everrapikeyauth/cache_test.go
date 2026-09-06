@@ -13,7 +13,7 @@ func TestCache_PositiveTTL(t *testing.T) {
 	c := newTokenCache(10, 10, time.Second, time.Second)
 	c.setNow(func() time.Time { return now })
 
-	res := &authResult{tenantID: "org_1", keyID: "k_1"}
+	res := newAuthData(verifyResponse{TenantID: "org_1", KeyID: "k_1"})
 	c.putSuccess("tok", res)
 
 	got, ok := c.get("tok")
@@ -47,9 +47,9 @@ func TestCache_NegativeTTL(t *testing.T) {
 
 func TestCache_EvictsWhenFull(t *testing.T) {
 	c := newTokenCache(2, 2, time.Minute, time.Minute)
-	c.putSuccess("a", &authResult{})
-	c.putSuccess("b", &authResult{})
-	c.putSuccess("c", &authResult{})
+	c.putSuccess("a", newAuthData(verifyResponse{}))
+	c.putSuccess("b", newAuthData(verifyResponse{}))
+	c.putSuccess("c", newAuthData(verifyResponse{}))
 	if c.posLen() > 2 {
 		t.Fatalf("pos size %d > 2", c.posLen())
 	}
@@ -60,9 +60,9 @@ func TestCache_EvictsWhenFull(t *testing.T) {
 // the cache past its bound.
 func TestCache_LRU_PreservesRecentlyUsed(t *testing.T) {
 	c := newTokenCache(3, 3, time.Minute, time.Minute)
-	a := &authResult{keyID: "a"}
-	b := &authResult{keyID: "b"}
-	cc := &authResult{keyID: "c"}
+	a := newAuthData(verifyResponse{KeyID: "a"})
+	b := newAuthData(verifyResponse{KeyID: "b"})
+	cc := newAuthData(verifyResponse{KeyID: "c"})
 	c.putSuccess("a", a)
 	c.putSuccess("b", b)
 	c.putSuccess("c", cc)
@@ -73,7 +73,7 @@ func TestCache_LRU_PreservesRecentlyUsed(t *testing.T) {
 	}
 
 	// Insert a 4th entry — "b" should be evicted, "a" must survive.
-	c.putSuccess("d", &authResult{keyID: "d"})
+	c.putSuccess("d", newAuthData(verifyResponse{KeyID: "d"}))
 
 	if _, ok := c.get("a"); !ok {
 		t.Fatal("most-recently-used entry was evicted")
@@ -94,7 +94,7 @@ func TestCache_LRU_PreservesRecentlyUsed(t *testing.T) {
 // negative cache but must not push out cached positives for real keys.
 func TestCache_NegativeFloodDoesNotEvictPositives(t *testing.T) {
 	c := newTokenCache(100, 50, time.Minute, time.Minute)
-	good := &authResult{tenantID: "org_1", keyID: "k_good"}
+	good := newAuthData(verifyResponse{TenantID: "org_1", KeyID: "k_good"})
 	c.putSuccess("good", good)
 
 	for i := 0; i < 5000; i++ {
@@ -126,7 +126,7 @@ func TestCache_Concurrent(t *testing.T) {
 				if i%5 == 0 {
 					c.putFailure(key, errUnauthorized)
 				} else {
-					c.putSuccess(key, &authResult{keyID: key})
+					c.putSuccess(key, newAuthData(verifyResponse{KeyID: key}))
 				}
 			}
 		}(w)

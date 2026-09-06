@@ -42,6 +42,10 @@ services:
       - "8080:8080"
       - "4317:4317"
       - "4318:4318"
+      # Dev self-telemetry ingest (otlp/dev), unauthenticated and dev-only.
+      # Separate ports from the public 4317/4318 so the two cannot be confused.
+      - "4319:4319"
+      - "4320:4320"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

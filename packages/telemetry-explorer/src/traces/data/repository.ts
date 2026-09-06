@@ -263,9 +263,10 @@ export class TracesRepository {
   // fallow-ignore-next-line unused-class-member
   async getTrace(input: GetTraceInput): Promise<Span[]> {
     validateTableName(this.tableName);
-    // The order key on the traces table is (ServiceName, SpanName,
-    // toDateTime(Timestamp)) — a bare `TraceId =` is bloom-filter-only and
-    // scans broadly. The Timestamp BETWEEN predicate lets parts prune.
+    // Neither traces table sorts by TraceId (cloud: tenant, service, time;
+    // local: service, span name, time), so a bare `TraceId =` is
+    // bloom-filter-only and scans broadly. The Timestamp BETWEEN predicate
+    // lets parts prune.
     const sql = /* sql */ `
       SELECT
         TraceId      AS traceId,

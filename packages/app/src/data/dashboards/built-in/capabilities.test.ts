@@ -63,8 +63,8 @@ describe("buildCapabilitiesQuery", () => {
     ).toBe(
       "SELECT DISTINCT key FROM (\n  " +
         "SELECT 'logs:browser.web_vital.value' AS key FROM logs WHERE " +
-        "TimestampTime >= parseDateTimeBestEffort({from:String}) AND " +
-        "TimestampTime <= parseDateTimeBestEffort({to:String}) AND " +
+        "Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND " +
+        "Timestamp <= parseDateTime64BestEffort({to:String}, 9) AND " +
         "mapContains(LogAttributes, 'browser.web_vital.value') LIMIT 1\n)",
     );
   });
@@ -86,8 +86,8 @@ describe("buildCapabilitiesQuery", () => {
     ]) {
       expect(sql).toContain(
         `SELECT 'metrics:redis' AS key FROM ${table} WHERE ` +
-          "TimeUnix >= parseDateTime64BestEffort({from:String}, 9) AND " +
-          "TimeUnix <= parseDateTime64BestEffort({to:String}, 9) AND " +
+          "TimeUnix >= parseDateTimeBestEffort({from:String}) AND " +
+          "TimeUnix <= parseDateTimeBestEffort({to:String}) AND " +
           "(MetricName = 'redis' OR startsWith(MetricName, 'redis.')) LIMIT 1",
       );
     }

@@ -9,8 +9,15 @@ else
 	.SHELLFLAGS = -o pipefail -c
 endif
 
-# SRC_ROOT is the top of the source tree.
-SRC_ROOT := $(shell git rev-parse --show-toplevel)
+# SRC_ROOT is the top of the source tree, derived from this file's own
+# location rather than from git. `git rev-parse --show-toplevel` answers with
+# the current directory whenever GIT_DIR is set and GIT_WORK_TREE is not, which
+# is exactly how lefthook runs these targets: it exports GIT_DIR and the hook
+# does `cd collector` first, so SRC_ROOT came back as <repo>/collector and every
+# path built from it doubled up. TOOLS_PKG_NAMES then read an empty list, so
+# install-tools built nothing and $(LINT) pointed at a binary that could not
+# exist. This also lets the targets run with no .git at all.
+SRC_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
 # A lot of the following install tools commands were leveraged from the
 # Open Telemetry Contributor Makefile following the Go Paradigm for Third Party Tools
@@ -39,6 +46,7 @@ LINT := $(TOOLS_BIN_DIR)/golangci-lint
 SEC := $(TOOLS_BIN_DIR)/gosec
 STATICCHECK := $(TOOLS_BIN_DIR)/staticcheck
 MDATAGEN := $(TOOLS_BIN_DIR)/mdatagen
+GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
 OCB := $(TOOLS_BIN_DIR)/builder
 CROSSLINK := $(TOOLS_BIN_DIR)/crosslink
 
@@ -52,8 +60,12 @@ tidy:
 	go mod tidy
 
 .PHONY: gen
+# mdatagen imports exporter/xexporter for any exporter that declares profiles
+# but never uses it, so the generated file does not compile until the imports
+# are tidied. Upstream runs the same pass after generating.
 gen:
 	go generate ./...
+	$(GOIMPORTS) -w .
 
 .PHONY: test
 TEST_PREP ?=

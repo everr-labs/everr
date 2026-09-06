@@ -1,6 +1,5 @@
 CREATE TABLE IF NOT EXISTS {{ident .Database}}.{{ident .TableName}} {{.ClusterString}} (
     `Timestamp` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-    `TimestampTime` DateTime DEFAULT toDateTime(Timestamp),
     `TraceId` String CODEC(ZSTD(1)),
     `SpanId` String CODEC(ZSTD(1)),
     `TraceFlags` UInt8,
@@ -26,7 +25,6 @@ CREATE TABLE IF NOT EXISTS {{ident .Database}}.{{ident .TableName}} {{.ClusterSt
     INDEX idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
 ) ENGINE = {{.Engine}}
 PARTITION BY toDate(Timestamp)
-PRIMARY KEY (toStartOfFiveMinutes(Timestamp), ServiceName)
-ORDER BY (toStartOfFiveMinutes(Timestamp), ServiceName, Timestamp)
+ORDER BY (ServiceName, Timestamp)
 {{.TTL}}
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1

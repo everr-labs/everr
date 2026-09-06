@@ -1,13 +1,10 @@
 -- Alert event history. Canonical alert events live in app.alert_events and are
 -- projected into app.logs so `everr cloud query` can query them via the
 -- existing logs surface.
-SET allow_suspicious_ttl_expressions = 1;
-
 CREATE TABLE IF NOT EXISTS app.alert_events
 (
   event_id UUID DEFAULT generateUUIDv4(),
-  -- String, not UUID: application organization ids are text and the retention
-  -- dictionary is keyed by tenant_id String.
+  -- String, not UUID: application organization ids are text.
   tenant_id String,
   alert_definition_id String,
   repoid String,
@@ -26,10 +23,20 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   silence_id String DEFAULT '',
   instance_fingerprint String DEFAULT '',
   instance_labels_json String DEFAULT '{}',
+  -- Written by the app from the tenant's plan (packages/app/src/lib/retention.server.ts).
+  -- The app.* views get the same guarantee from everrRetentionDays; this table
+  -- is written directly, so the constraint stands in for it. Without one, an
+  -- insert that omits the field stamps 0 and the row is dropped at the next TTL
+  -- pass with no error anywhere.
+  retention_days UInt16,
+  CONSTRAINT retention_days_set CHECK retention_days > 0,
   INDEX alert_def_skip_idx alert_definition_id TYPE bloom_filter GRANULARITY 4
 )
 ENGINE = MergeTree
-PARTITION BY toYYYYMM(event_date)
+-- Monthly buckets: the volume is small, so the partition count matters more
+-- than dropping on the exact day. A partition is dropped once its last row
+-- expires, up to a month after the first one.
+PARTITION BY (toStartOfMonth(event_date), retention_days)
 -- Dominant read: per-alert history by tenant + repoid + slug over a time range.
 -- ORDER BY is immutable, so this intentionally prioritizes alert filters over
 -- date-only scans; monthly partitions handle lifecycle pruning. event_type is
@@ -37,12 +44,11 @@ PARTITION BY toYYYYMM(event_date)
 -- the time column. alert_definition_id is always filtered but higher
 -- cardinality; a bloom skip index covers it.
 ORDER BY (tenant_id, repoid, slug, event_type, event_time, event_id)
-TTL toDateTime(event_time) + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192;
+TTL event_date + toIntervalDay(retention_days)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
 
 GRANT SELECT ON app.alert_events TO app_ro;
 GRANT INSERT, SELECT ON app.alert_events TO web_app_admin;
-GRANT dictGet ON app.tenant_retention TO web_app_admin;
 
 DROP ROW POLICY IF EXISTS tenant_filter_alert_events ON app.alert_events;
 CREATE ROW POLICY tenant_filter_alert_events
@@ -58,7 +64,6 @@ TO app.logs
 AS
 SELECT
   toDateTime64(event_time, 9) AS Timestamp,
-  toDateTime(event_time) AS TimestampTime,
   '' AS TraceId,
   '' AS SpanId,
   toUInt8(0) AS TraceFlags,
@@ -91,6 +96,8 @@ SELECT
     'alert.instance_labels', instance_labels_json
   ) AS LogAttributes,
   concat('alert.', slug, '.', event_type) AS EventName,
-  -- Required for app.logs RLS and TTL; ResourceAttributes alone is not enough.
-  tenant_id AS tenant_id
+  -- Required for app.logs RLS and partitioning; ResourceAttributes alone is
+  -- not enough.
+  tenant_id AS tenant_id,
+  retention_days
 FROM app.alert_events;

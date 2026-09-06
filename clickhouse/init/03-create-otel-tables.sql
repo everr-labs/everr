@@ -1,286 +1,207 @@
+-- Landing tables for the collector's ClickHouse exporter. ENGINE = Null
+-- stores nothing: an insert only triggers the materialized views in
+-- 10-create-mvs.sql, which stamp tenant_id and retention_days from the
+-- resource attributes and write the row into app.*. Column lists follow the
+-- upstream clickhouseexporter schema for the version pinned in
+-- collector/config/manifest.yaml (v0.160.0); app.* copies its types from here,
+-- so keep them in step when that pin moves. The exporter's DDL is the
+-- reference: internal/sqltemplates/*.sql in that module.
+--
+-- Types only, no codecs. A Null table compresses nothing, and app.* is built
+-- with CREATE TABLE ... AS SELECT, which copies types but not codecs, so the
+-- codecs that matter are the MODIFY COLUMN blocks in 10-create-mvs.sql.
+-- Declaring them here as well only gave the two files something to drift on.
+
 CREATE TABLE IF NOT EXISTS otel.otel_traces (
-    Timestamp DateTime64(9) CODEC(Delta, ZSTD(1)),
-    TraceId String CODEC(ZSTD(1)),
-    SpanId String CODEC(ZSTD(1)),
-    ParentSpanId String CODEC(ZSTD(1)),
-    TraceState String CODEC(ZSTD(1)),
-    SpanName LowCardinality(String) CODEC(ZSTD(1)),
-    SpanKind LowCardinality(String) CODEC(ZSTD(1)),
-    ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-    ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ScopeName String CODEC(ZSTD(1)),
-    ScopeVersion String CODEC(ZSTD(1)),
-    SpanAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    Duration UInt64 CODEC(ZSTD(1)),
-    StatusCode LowCardinality(String) CODEC(ZSTD(1)),
-    StatusMessage String CODEC(ZSTD(1)),
+    Timestamp DateTime64(9),
+    TraceId String,
+    SpanId String,
+    ParentSpanId String,
+    TraceState String,
+    SpanName LowCardinality(String),
+    SpanKind LowCardinality(String),
+    ServiceName LowCardinality(String),
+    ResourceAttributes Map(LowCardinality(String), String),
+    ScopeName String,
+    ScopeVersion String,
+    SpanAttributes Map(LowCardinality(String), String),
+    Duration UInt64,
+    StatusCode LowCardinality(String),
+    StatusMessage String,
     Events Nested (
         Timestamp DateTime64(9),
         Name LowCardinality(String),
         Attributes Map(LowCardinality(String), String)
-    ) CODEC(ZSTD(1)),
+    ),
     Links Nested (
         TraceId String,
         SpanId String,
         TraceState String,
         Attributes Map(LowCardinality(String), String)
-    ) CODEC(ZSTD(1)),
-    INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_span_attr_key mapKeys(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_span_attr_value mapValues(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_duration Duration TYPE minmax GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(Timestamp)
-ORDER BY (ServiceName, SpanName, toDateTime(Timestamp))
--- Raw landing table: the durable, tenant-scoped read model is app.traces
--- (populated at insert time by app.traces_mv), so keep only a short buffer here.
-TTL toDateTime(Timestamp) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    )
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_logs (
-    Timestamp DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-    TimestampTime DateTime DEFAULT toDateTime(Timestamp),
-    TraceId String CODEC(ZSTD(1)),
-    SpanId String CODEC(ZSTD(1)),
+    Timestamp DateTime64(9),
+    TraceId String,
+    SpanId String,
     TraceFlags UInt8,
-    SeverityText LowCardinality(String) CODEC(ZSTD(1)),
+    SeverityText LowCardinality(String),
     SeverityNumber UInt8,
-    ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-    Body String CODEC(ZSTD(1)),
-    ResourceSchemaUrl LowCardinality(String) CODEC(ZSTD(1)),
-    ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ScopeSchemaUrl LowCardinality(String) CODEC(ZSTD(1)),
-    ScopeName String CODEC(ZSTD(1)),
-    ScopeVersion LowCardinality(String) CODEC(ZSTD(1)),
-    ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    LogAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    EventName String CODEC(ZSTD(1)),
-    INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_log_attr_key mapKeys(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_log_attr_value mapValues(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
-) ENGINE = MergeTree
-PARTITION BY toDate(TimestampTime)
-PRIMARY KEY (ServiceName, TimestampTime)
-ORDER BY (ServiceName, TimestampTime, Timestamp)
--- Raw landing table: the durable, tenant-scoped read model is app.logs
--- (populated at insert time by app.logs_mv), so keep only a short buffer here.
-TTL TimestampTime + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    ServiceName LowCardinality(String),
+    Body String,
+    ResourceSchemaUrl LowCardinality(String),
+    ResourceAttributes Map(LowCardinality(String), String),
+    ScopeSchemaUrl LowCardinality(String),
+    ScopeName String,
+    ScopeVersion LowCardinality(String),
+    ScopeAttributes Map(LowCardinality(String), String),
+    LogAttributes Map(LowCardinality(String), String),
+    EventName String
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_gauge (
-    ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ResourceSchemaUrl String CODEC(ZSTD(1)),
-    ScopeName String CODEC(ZSTD(1)),
-    ScopeVersion String CODEC(ZSTD(1)),
-    ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ScopeDroppedAttrCount UInt32 CODEC(ZSTD(1)),
-    ScopeSchemaUrl String CODEC(ZSTD(1)),
-    ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-    MetricName String CODEC(ZSTD(1)),
-    MetricDescription String CODEC(ZSTD(1)),
-    MetricUnit String CODEC(ZSTD(1)),
-    Attributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    StartTimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    TimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    Value Float64 CODEC(ZSTD(1)),
-    Flags UInt32 CODEC(ZSTD(1)),
+    ResourceAttributes Map(LowCardinality(String), String),
+    ResourceSchemaUrl String,
+    ScopeName String,
+    ScopeVersion String,
+    ScopeAttributes Map(LowCardinality(String), String),
+    ScopeDroppedAttrCount UInt32,
+    ScopeSchemaUrl String,
+    ServiceName LowCardinality(String),
+    MetricName LowCardinality(String),
+    MetricDescription String,
+    MetricUnit String,
+    Attributes Map(LowCardinality(String), String),
+    StartTimeUnix DateTime,
+    TimeUnix DateTime,
+    Value Float64,
+    Flags UInt32,
     Exemplars Nested (
         FilteredAttributes Map(LowCardinality(String), String),
-        TimeUnix DateTime64(9),
+        TimeUnix DateTime,
         Value Float64,
         SpanId String,
         TraceId String
-    ) CODEC(ZSTD(1)),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
-ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
--- Raw landing table: the durable, tenant-scoped read model is the matching
--- app.metrics_* table (populated at insert time by its MV), so keep only a
--- short buffer here.
-TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    )
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_sum (
-    ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ResourceSchemaUrl String CODEC(ZSTD(1)),
-    ScopeName String CODEC(ZSTD(1)),
-    ScopeVersion String CODEC(ZSTD(1)),
-    ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ScopeDroppedAttrCount UInt32 CODEC(ZSTD(1)),
-    ScopeSchemaUrl String CODEC(ZSTD(1)),
-    ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-    MetricName String CODEC(ZSTD(1)),
-    MetricDescription String CODEC(ZSTD(1)),
-    MetricUnit String CODEC(ZSTD(1)),
-    Attributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    StartTimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    TimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    Value Float64 CODEC(ZSTD(1)),
-    Flags UInt32 CODEC(ZSTD(1)),
+    ResourceAttributes Map(LowCardinality(String), String),
+    ResourceSchemaUrl String,
+    ScopeName String,
+    ScopeVersion String,
+    ScopeAttributes Map(LowCardinality(String), String),
+    ScopeDroppedAttrCount UInt32,
+    ScopeSchemaUrl String,
+    ServiceName LowCardinality(String),
+    MetricName LowCardinality(String),
+    MetricDescription String,
+    MetricUnit String,
+    Attributes Map(LowCardinality(String), String),
+    StartTimeUnix DateTime,
+    TimeUnix DateTime,
+    Value Float64,
+    Flags UInt32,
     Exemplars Nested (
         FilteredAttributes Map(LowCardinality(String), String),
-        TimeUnix DateTime64(9),
+        TimeUnix DateTime,
         Value Float64,
         SpanId String,
         TraceId String
-    ) CODEC(ZSTD(1)),
-    AggregationTemporality Int32 CODEC(ZSTD(1)),
-    IsMonotonic Boolean CODEC(Delta, ZSTD(1)),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
-ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
--- Raw landing table: the durable, tenant-scoped read model is the matching
--- app.metrics_* table (populated at insert time by its MV), so keep only a
--- short buffer here.
-TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    ),
+    AggregationTemporality Int32,
+    IsMonotonic Boolean
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_histogram (
-    ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ResourceSchemaUrl String CODEC(ZSTD(1)),
-    ScopeName String CODEC(ZSTD(1)),
-    ScopeVersion String CODEC(ZSTD(1)),
-    ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ScopeDroppedAttrCount UInt32 CODEC(ZSTD(1)),
-    ScopeSchemaUrl String CODEC(ZSTD(1)),
-    ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-    MetricName String CODEC(ZSTD(1)),
-    MetricDescription String CODEC(ZSTD(1)),
-    MetricUnit String CODEC(ZSTD(1)),
-    Attributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    StartTimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    TimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    Count UInt64 CODEC(Delta, ZSTD(1)),
-    Sum Float64 CODEC(ZSTD(1)),
-    BucketCounts Array(UInt64) CODEC(ZSTD(1)),
-    ExplicitBounds Array(Float64) CODEC(ZSTD(1)),
+    ResourceAttributes Map(LowCardinality(String), String),
+    ResourceSchemaUrl String,
+    ScopeName String,
+    ScopeVersion String,
+    ScopeAttributes Map(LowCardinality(String), String),
+    ScopeDroppedAttrCount UInt32,
+    ScopeSchemaUrl String,
+    ServiceName LowCardinality(String),
+    MetricName LowCardinality(String),
+    MetricDescription String,
+    MetricUnit String,
+    Attributes Map(LowCardinality(String), String),
+    StartTimeUnix DateTime,
+    TimeUnix DateTime,
+    Count UInt64,
+    Sum Float64,
+    BucketCounts Array(UInt64),
+    ExplicitBounds Array(Float64),
     Exemplars Nested (
         FilteredAttributes Map(LowCardinality(String), String),
-        TimeUnix DateTime64(9),
+        TimeUnix DateTime,
         Value Float64,
         SpanId String,
         TraceId String
-    ) CODEC(ZSTD(1)),
-    Flags UInt32 CODEC(ZSTD(1)),
-    Min Float64 CODEC(ZSTD(1)),
-    Max Float64 CODEC(ZSTD(1)),
-    AggregationTemporality Int32 CODEC(ZSTD(1)),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
-ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
--- Raw landing table: the durable, tenant-scoped read model is the matching
--- app.metrics_* table (populated at insert time by its MV), so keep only a
--- short buffer here.
-TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    ),
+    Flags UInt32,
+    Min Float64,
+    Max Float64,
+    AggregationTemporality Int32
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_exponential_histogram (
-    ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ResourceSchemaUrl String CODEC(ZSTD(1)),
-    ScopeName String CODEC(ZSTD(1)),
-    ScopeVersion String CODEC(ZSTD(1)),
-    ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ScopeDroppedAttrCount UInt32 CODEC(ZSTD(1)),
-    ScopeSchemaUrl String CODEC(ZSTD(1)),
-    ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-    MetricName String CODEC(ZSTD(1)),
-    MetricDescription String CODEC(ZSTD(1)),
-    MetricUnit String CODEC(ZSTD(1)),
-    Attributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    StartTimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    TimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    Count UInt64 CODEC(Delta, ZSTD(1)),
-    Sum Float64 CODEC(ZSTD(1)),
-    Scale Int32 CODEC(ZSTD(1)),
-    ZeroCount UInt64 CODEC(ZSTD(1)),
-    PositiveOffset Int32 CODEC(ZSTD(1)),
-    PositiveBucketCounts Array(UInt64) CODEC(ZSTD(1)),
-    NegativeOffset Int32 CODEC(ZSTD(1)),
-    NegativeBucketCounts Array(UInt64) CODEC(ZSTD(1)),
+    ResourceAttributes Map(LowCardinality(String), String),
+    ResourceSchemaUrl String,
+    ScopeName String,
+    ScopeVersion String,
+    ScopeAttributes Map(LowCardinality(String), String),
+    ScopeDroppedAttrCount UInt32,
+    ScopeSchemaUrl String,
+    ServiceName LowCardinality(String),
+    MetricName LowCardinality(String),
+    MetricDescription String,
+    MetricUnit String,
+    Attributes Map(LowCardinality(String), String),
+    StartTimeUnix DateTime,
+    TimeUnix DateTime,
+    Count UInt64,
+    Sum Float64,
+    Scale Int32,
+    ZeroCount UInt64,
+    PositiveOffset Int32,
+    PositiveBucketCounts Array(UInt64),
+    NegativeOffset Int32,
+    NegativeBucketCounts Array(UInt64),
     Exemplars Nested (
         FilteredAttributes Map(LowCardinality(String), String),
-        TimeUnix DateTime64(9),
+        TimeUnix DateTime,
         Value Float64,
         SpanId String,
         TraceId String
-    ) CODEC(ZSTD(1)),
-    Flags UInt32 CODEC(ZSTD(1)),
-    Min Float64 CODEC(ZSTD(1)),
-    Max Float64 CODEC(ZSTD(1)),
-    AggregationTemporality Int32 CODEC(ZSTD(1)),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
-ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
--- Raw landing table: the durable, tenant-scoped read model is the matching
--- app.metrics_* table (populated at insert time by its MV), so keep only a
--- short buffer here.
-TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    ),
+    Flags UInt32,
+    Min Float64,
+    Max Float64,
+    AggregationTemporality Int32
+) ENGINE = Null;
 
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_summary (
-    ResourceAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ResourceSchemaUrl String CODEC(ZSTD(1)),
-    ScopeName String CODEC(ZSTD(1)),
-    ScopeVersion String CODEC(ZSTD(1)),
-    ScopeAttributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    ScopeDroppedAttrCount UInt32 CODEC(ZSTD(1)),
-    ScopeSchemaUrl String CODEC(ZSTD(1)),
-    ServiceName LowCardinality(String) CODEC(ZSTD(1)),
-    MetricName String CODEC(ZSTD(1)),
-    MetricDescription String CODEC(ZSTD(1)),
-    MetricUnit String CODEC(ZSTD(1)),
-    Attributes Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    StartTimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    TimeUnix DateTime64(9) CODEC(Delta, ZSTD(1)),
-    Count UInt64 CODEC(Delta, ZSTD(1)),
-    Sum Float64 CODEC(ZSTD(1)),
+    ResourceAttributes Map(LowCardinality(String), String),
+    ResourceSchemaUrl String,
+    ScopeName String,
+    ScopeVersion String,
+    ScopeAttributes Map(LowCardinality(String), String),
+    ScopeDroppedAttrCount UInt32,
+    ScopeSchemaUrl String,
+    ServiceName LowCardinality(String),
+    MetricName LowCardinality(String),
+    MetricDescription String,
+    MetricUnit String,
+    Attributes Map(LowCardinality(String), String),
+    StartTimeUnix DateTime,
+    TimeUnix DateTime,
+    Count UInt64,
+    Sum Float64,
     ValueAtQuantiles Nested (
         Quantile Float64,
         Value Float64
-    ) CODEC(ZSTD(1)),
-    Flags UInt32 CODEC(ZSTD(1)),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_key mapKeys(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_attr_value mapValues(Attributes) TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(TimeUnix)
-ORDER BY (ServiceName, MetricName, Attributes, toUnixTimestamp64Nano(TimeUnix))
--- Raw landing table: the durable, tenant-scoped read model is the matching
--- app.metrics_* table (populated at insert time by its MV), so keep only a
--- short buffer here.
-TTL toDateTime(TimeUnix) + INTERVAL 7 DAY
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+    ),
+    Flags UInt32
+) ENGINE = Null;

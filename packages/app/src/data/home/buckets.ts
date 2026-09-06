@@ -13,7 +13,7 @@ import type { BucketGranularity } from "@/lib/time-range";
  * The bucket key a row falls into, as ClickHouse SQL.
  *
  * The rounding and the formatting both follow the server timezone, matching
- * `cost-analysis/server.ts`. `Timestamp` and `TimestampTime` carry no
+ * `cost-analysis/server.ts`. `Timestamp` carries no
  * timezone, and `bucketGrid` builds its keys in UTC, so both modules assume a
  * ClickHouse server set to UTC. On a server set to anything else the keys here
  * would carry local time under a literal `Z`, miss every entry in
