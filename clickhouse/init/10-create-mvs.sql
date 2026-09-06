@@ -111,15 +111,26 @@ FROM
 
 -- Trace id to time range. app.traces sorts by service and time, so a lookup
 -- by TraceId alone has no key prefix to use and reads the TraceId bloom
--- filter of every part in the table. This table sorts by the id: a reader
--- takes min(Start) and max(End) + 1 for one TraceId here, then reads
--- app.traces or app.logs with that window, and both prune parts. The view
--- fires once per inserted block, so a trace whose spans arrive in several
--- batches has several rows, which is why readers aggregate. Start and End are
--- whole seconds; the + 1 covers the truncation of End. Same shape as the
--- local store's traces_trace_id_ts, so one query serves both. The explorer
--- and the run views do not use it, they already know their window. No skip
--- index on TraceId: the key starts with it.
+-- filter of every granule the tenant has. This table sorts by the id: a
+-- reader takes min(Start) and max(End) + 1 for one TraceId here, then reads
+-- app.traces or app.logs with that window, and both prune to the trace's own
+-- partition and granules. The view fires once per inserted block, so a trace
+-- whose spans arrive in several batches has several rows, which is why
+-- readers aggregate. Start and End are whole seconds; the + 1 covers the
+-- truncation of End. Same shape as the local store's traces_trace_id_ts, so
+-- one query serves both. The run views and the everr-use-telemetry skill
+-- read it; the explorer already knows its window. No skip index on TraceId:
+-- the key starts with it.
+--
+-- Partitioned by month, unlike the other tables. A point lookup reads one
+-- granule from every part whose id range covers the id, and with random ids
+-- that is every part, so the cost is the part count. Measured at 365 daily
+-- partitions, one lookup read 552 parts, 93 MiB, 70 ms; at 13 monthly
+-- partitions, 13 parts, 3.7 MiB, 4 ms. index_granularity 256 keeps each of
+-- those reads to a few KiB rather than a full 8192-row granule: 113 KiB for
+-- the same 13 parts. A monthly part drops once its newest row has expired,
+-- so a lookup row can outlive its spans by up to a month; it holds an id and
+-- two timestamps, nothing else.
 CREATE TABLE IF NOT EXISTS app.traces_trace_id_ts
 (
   tenant_id String CODEC(ZSTD(1)),
@@ -129,10 +140,10 @@ CREATE TABLE IF NOT EXISTS app.traces_trace_id_ts
   retention_days UInt16
 )
 ENGINE = MergeTree
-PARTITION BY (toDate(Start), retention_days)
+PARTITION BY (toStartOfMonth(Start), retention_days)
 ORDER BY (tenant_id, TraceId, Start)
 TTL toDate(Start) + toIntervalDay(retention_days)
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1;
+SETTINGS index_granularity = 256, ttl_only_drop_parts = 1;
 
 -- Chained off app.traces rather than otel.otel_traces so tenant_id and
 -- retention_days come from the row app.traces_mv already stamped.
