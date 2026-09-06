@@ -44,6 +44,6 @@ CREATE TABLE IF NOT EXISTS {{ident .Database}}.{{ident .TableName}} {{.ClusterSt
 {{- end}}
 ) ENGINE = {{.Engine}}
 PARTITION BY toDate(Timestamp)
-ORDER BY (toStartOfFiveMinutes(Timestamp), ServiceName, Timestamp)
+ORDER BY (ServiceName, Timestamp)
 {{.TTL}}
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1

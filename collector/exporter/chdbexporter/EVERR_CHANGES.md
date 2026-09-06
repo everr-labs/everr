@@ -110,3 +110,20 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 - Remove remote ClickHouse runtime options that do not apply to local chDB.
 - Keep upstream table schema and OTLP row conversion behavior where chDB supports it.
 - Keep the upstream `v0.160.0` table schemas unless chDB rejects a specific DDL feature.
+
+## Logs and traces sort keys
+
+- `logs` and `logs_json` order by `(ServiceName, Timestamp)`; upstream orders
+  by `(toStartOfFiveMinutes(Timestamp), ServiceName, Timestamp)`. `traces` and
+  `traces_json` order by `(ServiceName, Timestamp)`; upstream orders by
+  `(ServiceName, SpanName, toDateTime(Timestamp))`. These are the cloud keys in
+  `clickhouse/init/10-create-mvs.sql` without the `tenant_id` prefix, which the
+  local store does not have.
+- ClickHouse binds a `Timestamp >= x` predicate to the key column that is
+  `Timestamp`, never to a function of it that sits earlier, and can only skip a
+  granule on that column when every earlier column is constant inside the
+  granule. With a five-minute bucket or a span name in front of `Timestamp`
+  that holds only above about 8192 rows per bucket or per span name, which a
+  local store never reaches, so every explorer query read whole parts.
+  Upstream's logs key also puts the bucket before `ServiceName`, so a service
+  filter could not prune either. The measurements are in the cloud DDL notes.

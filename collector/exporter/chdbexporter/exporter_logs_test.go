@@ -64,7 +64,8 @@ func TestRenderCreateLogsTableSQL(t *testing.T) {
 		require.Contains(t, sql, "TYPE tokenbf_v1")
 		require.NotContains(t, sql, "TYPE text(")
 
-		require.Contains(t, sql, "toStartOfFiveMinutes(Timestamp)")
+		require.Contains(t, sql, "ORDER BY (ServiceName, Timestamp)")
+		require.NotContains(t, sql, "toStartOfFiveMinutes")
 		require.Contains(t, sql, "`test_db`.`otel_logs`")
 		require.NotContains(t, sql, "TimestampTime")
 		require.Contains(t, sql, "EventName")
@@ -82,7 +83,8 @@ func TestRenderCreateLogsTableSQL(t *testing.T) {
 		require.NotContains(t, sql, "TYPE bloom_filter")
 		require.NotContains(t, sql, "tokenbf_v1")
 
-		require.Contains(t, sql, "toStartOfFiveMinutes(Timestamp)")
+		require.Contains(t, sql, "ORDER BY (ServiceName, Timestamp)")
+		require.NotContains(t, sql, "toStartOfFiveMinutes")
 		require.Contains(t, sql, "`test_db`.`otel_logs`")
 		require.NotContains(t, sql, "TimestampTime")
 		require.Contains(t, sql, "EventName")
@@ -117,7 +119,8 @@ func TestRenderCreateLogsJSONTableSQL(t *testing.T) {
 	require.Contains(t, sql, "`LogAttributes` JSON")
 	require.NotContains(t, sql, "TimestampTime")
 
-	require.Contains(t, sql, "toStartOfFiveMinutes(Timestamp)")
+	require.Contains(t, sql, "ORDER BY (ServiceName, Timestamp)")
+	require.NotContains(t, sql, "toStartOfFiveMinutes")
 	require.Contains(t, sql, "`test_db`.`otel_logs_json`")
 
 	require.Contains(t, sql, "TYPE bloom_filter")
