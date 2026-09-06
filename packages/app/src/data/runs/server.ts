@@ -14,6 +14,31 @@ function normalizeConclusion(conclusion: string | null): string {
 }
 const MAX_LOG_PAGE_SIZE = 5000;
 
+// Every ClickHouse query in this file looks a run up by TraceId. traces and
+// logs sort by tenant, service and time, not by TraceId, so a bare TraceId
+// predicate reads the TraceId bloom filter of every granule the tenant has,
+// which grows with the tenant's data. traces_trace_id_ts sorts by TraceId and
+// holds min(Timestamp) and max(Timestamp) per trace per inserted block, so
+// the window is one primary-key read there, and the traces and logs reads
+// prune to the run's own partition and granules. ClickHouse folds the scalar
+// subqueries to constants before it plans the outer read, which is what lets
+// them drive the primary key; a later subquery may use an earlier alias.
+//
+// The window is exact for spans: every span's Timestamp sits between
+// min(Start) and max(End) + 1, the + 1 covering End's truncation to whole
+// seconds. Logs need the run's end, which the lookup table does not hold
+// because End is the start of the latest span, so the log queries take
+// max(Timestamp + Duration) from the run's spans and allow an hour on each
+// side for the second rounding of GitHub's step times. A trace with no spans
+// yet has an empty window and no rows.
+const TRACE_WINDOW = `WITH
+      (SELECT (min(Start), max(End) + 1) FROM traces_trace_id_ts WHERE TraceId = {traceId:String}) AS traceWindow`;
+const SPAN_IN_WINDOW = "Timestamp BETWEEN traceWindow.1 AND traceWindow.2";
+const RUN_WINDOW = `${TRACE_WINDOW},
+      (SELECT max(Timestamp + toIntervalNanosecond(Duration)) FROM traces WHERE TraceId = {traceId:String} AND ${SPAN_IN_WINDOW}) AS runEnd`;
+const LOG_IN_WINDOW =
+  "Timestamp BETWEEN traceWindow.1 - INTERVAL 1 HOUR AND runEnd + INTERVAL 1 HOUR";
+
 function mapLogRow(row: { timestamp: string; body: string | null }): LogEntry {
   return {
     timestamp: normalizeTimestampToUtc(row.timestamp),
@@ -60,9 +85,11 @@ async function countStepLogs(
     ? "\n      AND match(Body, {egrep:String})"
     : "";
   const sql = `
+    ${RUN_WINDOW}
     SELECT count() as cnt
     FROM logs
     WHERE TraceId = {traceId:String}
+      AND ${LOG_IN_WINDOW}
       ${jobClause}
       AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}${egrepClause}
   `;
@@ -99,11 +126,13 @@ async function getRawStepLogs(
     ? "\n\t\t\tAND match(Body, {egrep:String})"
     : "";
   const sql = `
+		${RUN_WINDOW}
 		SELECT
 			Timestamp as timestamp,
 			Body as body
 		FROM logs
 		WHERE TraceId = {traceId:String}
+			AND ${LOG_IN_WINDOW}
 			${jobClause}
 			AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}${egrepClause}
 		ORDER BY Timestamp ${order}
@@ -204,7 +233,8 @@ export const getRunJobs = createAuthenticatedServerFn({
         duration: string;
         firstFailingStep: string;
       }>(
-        `SELECT
+        `${TRACE_WINDOW}
+          SELECT
             ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
             anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
             anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
@@ -216,6 +246,7 @@ export const getRunJobs = createAuthenticatedServerFn({
             ) as firstFailingStep
           FROM traces
           WHERE TraceId = {traceId:String}
+            AND ${SPAN_IN_WINDOW}
             AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
           GROUP BY jobId
           ORDER BY min(Timestamp)`,
@@ -277,6 +308,7 @@ export const getAllJobsSteps = createAuthenticatedServerFn({
 
     const result: Record<string, Step[]> = {};
     const sql = `
+      ${TRACE_WINDOW}
       SELECT
         ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
         SpanName as name,
@@ -287,6 +319,7 @@ export const getAllJobsSteps = createAuthenticatedServerFn({
         toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) as endTime
       FROM traces
       WHERE TraceId = {traceId:String}
+        AND ${SPAN_IN_WINDOW}
         AND ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}
         AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
       ORDER BY jobId, toUInt32OrZero(stepNumber)
@@ -386,6 +419,7 @@ export const getRunSpans = createAuthenticatedServerFn({
   .inputValidator(z.string())
   .handler(async ({ data: traceId, context: { clickhouse } }) => {
     const sql = `
+			${TRACE_WINDOW}
 			SELECT
 				SpanId as spanId,
 				ParentSpanId as parentSpanId,
@@ -408,6 +442,7 @@ export const getRunSpans = createAuthenticatedServerFn({
 				ResourceAttributes['cicd.pipeline.task.run.url.full'] as htmlUrl
 			FROM traces
 			WHERE TraceId = {traceId:String}
+			AND ${SPAN_IN_WINDOW}
 			ORDER BY startTime ASC
 		`;
 

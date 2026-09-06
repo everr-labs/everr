@@ -10,6 +10,7 @@ vi.mock("@/lib/clickhouse", () => ({
   query: vi.fn(),
 }));
 
+import { pool } from "@/db/client";
 import { query } from "@/lib/clickhouse";
 import { getRunJobs, getRunSpans, getStepLogs } from "./runs/server";
 
@@ -51,6 +52,20 @@ describe("getRunJobs", () => {
 });
 
 describe("getRunSpans", () => {
+  it("takes the run's window from the trace id lookup table", async () => {
+    mockedQuery.mockResolvedValue([]);
+
+    await getRunSpans({ data: "trace-1" });
+
+    const [sql, , params] = mockedQuery.mock.calls[0] ?? [];
+    expect(sql).toContain(
+      "FROM traces_trace_id_ts WHERE TraceId = {traceId:String}",
+    );
+    expect(sql).toContain("Timestamp BETWEEN traceWindow.1 AND traceWindow.2");
+    expect(params).toEqual({ traceId: "trace-1" });
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
   it("maps a step span from the query result", async () => {
     mockedQuery.mockResolvedValue([
       {
@@ -105,6 +120,23 @@ describe("getRunSpans", () => {
 });
 
 describe("getStepLogs", () => {
+  it("bounds the log reads by the run's end, taken from its spans", async () => {
+    mockedQuery.mockResolvedValueOnce([{ cnt: "0" }]).mockResolvedValueOnce([]);
+
+    await getStepLogs({
+      data: { traceId: "trace-1", jobName: "build", stepNumber: "2" },
+    });
+
+    expect(mockedQuery).toHaveBeenCalledTimes(2);
+    for (const [sql] of mockedQuery.mock.calls) {
+      expect(sql).toContain(
+        "FROM traces_trace_id_ts WHERE TraceId = {traceId:String}",
+      );
+      expect(sql).toContain("runEnd + INTERVAL 1 HOUR");
+    }
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
   it("normalizes full log timestamps to timezone-aware UTC ISO strings", async () => {
     mockedQuery.mockResolvedValueOnce([{ cnt: "2" }]).mockResolvedValueOnce([
       {
