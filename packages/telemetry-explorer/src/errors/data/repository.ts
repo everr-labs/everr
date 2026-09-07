@@ -13,6 +13,7 @@ import {
   buildAttributeValuesQuery,
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
+import { flattenAttributes } from "../../sql/json-attributes";
 import {
   ERRORS_ATTRIBUTE_SOURCES,
   errorsAttributeColumn,
@@ -44,11 +45,14 @@ type ErrorIssueSummaryRow = Omit<
   traceCount: string | number;
 };
 
-type ErrorOccurrenceRow = Omit<ErrorOccurrence, "timestampRank"> & {
+type ErrorOccurrenceRow = Omit<
+  ErrorOccurrence,
+  "timestampRank" | "resourceAttributes" | "logAttributes" | "scopeAttributes"
+> & {
   timestampRank?: string | number;
-  resourceAttributes: Record<string, string> | null;
-  logAttributes: Record<string, string> | null;
-  scopeAttributes: Record<string, string> | null;
+  resourceAttributes: unknown;
+  logAttributes: unknown;
+  scopeAttributes: unknown;
 };
 
 type ServiceRow = { serviceName: string };
@@ -66,9 +70,9 @@ function mapOccurrence(row: ErrorOccurrenceRow): ErrorOccurrence {
     ...row,
     timestampRank:
       row.timestampRank === undefined ? 1 : Number(row.timestampRank),
-    resourceAttributes: row.resourceAttributes ?? {},
-    logAttributes: row.logAttributes ?? {},
-    scopeAttributes: row.scopeAttributes ?? {},
+    resourceAttributes: flattenAttributes(row.resourceAttributes),
+    logAttributes: flattenAttributes(row.logAttributes),
+    scopeAttributes: flattenAttributes(row.scopeAttributes),
   };
 }
 

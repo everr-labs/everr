@@ -1,7 +1,9 @@
+import { attributeExists, attributeText } from "./json-attributes";
+
 export function resourceAttribute(key: string): string {
-  return `ResourceAttributes['${key}']`;
+  return attributeText("ResourceAttributes", key);
 }
 
 export function resourceAttributeKeyExists(key: string): string {
-  return `mapContains(ResourceAttributes, '${key}')`;
+  return attributeExists("ResourceAttributes", key);
 }

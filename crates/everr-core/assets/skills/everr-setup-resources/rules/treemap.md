@@ -29,11 +29,11 @@ One row per tile: a label column + a **positive** numeric column, optionally a g
 ```sql
 -- requests per route, grouped (colored) by service
 SELECT ServiceName AS service,
-       SpanAttributes['http.route'] AS route,
+       toString(SpanAttributes.`http.route`) AS route,
        count() AS value
 FROM traces
 WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
-  AND SpanAttributes['http.route'] != ''
+  AND toString(SpanAttributes.`http.route`) != ''
 GROUP BY service, route
 ORDER BY value DESC
 LIMIT 50

@@ -7,6 +7,13 @@
 -- so keep them in step when that pin moves. The exporter's DDL is the
 -- reference: internal/sqltemplates/*.sql in that module.
 --
+-- Logs and traces carry the JSON column set the exporter writes with
+-- `json: true`, typed values and one keys array per attribute column; the
+-- metrics tables keep their maps because the attribute map is the series key
+-- there. `max_dynamic_paths = 256` is the guard against a tenant with
+-- thousands of distinct keys, the same value on every JSON column here, in
+-- 10-create-mvs.sql and in the local store's templates.
+--
 -- Types only, no codecs. A Null table compresses nothing, and app.* is built
 -- with CREATE TABLE ... AS SELECT, which copies types but not codecs, so the
 -- codecs that matter are the MODIFY COLUMN blocks in 10-create-mvs.sql.
@@ -21,23 +28,25 @@ CREATE TABLE IF NOT EXISTS otel.otel_traces (
     SpanName LowCardinality(String),
     SpanKind LowCardinality(String),
     ServiceName LowCardinality(String),
-    ResourceAttributes Map(LowCardinality(String), String),
+    ResourceAttributes JSON(max_dynamic_paths = 256),
+    ResourceAttributesKeys Array(LowCardinality(String)),
     ScopeName String,
     ScopeVersion String,
-    SpanAttributes Map(LowCardinality(String), String),
+    SpanAttributes JSON(max_dynamic_paths = 256),
+    SpanAttributesKeys Array(LowCardinality(String)),
     Duration UInt64,
     StatusCode LowCardinality(String),
     StatusMessage String,
     Events Nested (
         Timestamp DateTime64(9),
         Name LowCardinality(String),
-        Attributes Map(LowCardinality(String), String)
+        Attributes JSON(max_dynamic_paths = 256)
     ),
     Links Nested (
         TraceId String,
         SpanId String,
         TraceState String,
-        Attributes Map(LowCardinality(String), String)
+        Attributes JSON(max_dynamic_paths = 256)
     )
 ) ENGINE = Null;
 
@@ -51,12 +60,15 @@ CREATE TABLE IF NOT EXISTS otel.otel_logs (
     ServiceName LowCardinality(String),
     Body String,
     ResourceSchemaUrl LowCardinality(String),
-    ResourceAttributes Map(LowCardinality(String), String),
+    ResourceAttributes JSON(max_dynamic_paths = 256),
+    ResourceAttributesKeys Array(LowCardinality(String)),
     ScopeSchemaUrl LowCardinality(String),
     ScopeName String,
     ScopeVersion LowCardinality(String),
-    ScopeAttributes Map(LowCardinality(String), String),
-    LogAttributes Map(LowCardinality(String), String),
+    ScopeAttributes JSON(max_dynamic_paths = 256),
+    ScopeAttributesKeys Array(LowCardinality(String)),
+    LogAttributes JSON(max_dynamic_paths = 256),
+    LogAttributesKeys Array(LowCardinality(String)),
     EventName String
 ) ENGINE = Null;
 

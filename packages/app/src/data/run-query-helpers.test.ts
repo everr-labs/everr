@@ -10,9 +10,11 @@ describe("runSummarySubquery", () => {
     });
 
     expect(sql).toContain("TraceId as trace_id");
-    expect(sql).toContain("ResourceAttributes['cicd.pipeline.result']");
     expect(sql).toContain(
-      "ResourceAttributes['cicd.pipeline.task.run.result']",
+      "toString(ResourceAttributes.`cicd.pipeline.result`)",
+    );
+    expect(sql).toContain(
+      "toString(ResourceAttributes.`cicd.pipeline.task.run.result`)",
     );
     expect(sql).toContain("GROUP BY trace_id");
   });
@@ -20,7 +22,7 @@ describe("runSummarySubquery", () => {
   it("includes optional columns when requested", () => {
     const sql = runSummarySubquery({
       whereClause: "1 = 1",
-      groupByExpr: "ResourceAttributes['cicd.pipeline.run.id']",
+      groupByExpr: "toString(ResourceAttributes.`cicd.pipeline.run.id`)",
       groupByAlias: "run_id",
       includeRunAttempt: true,
       includeDuration: true,

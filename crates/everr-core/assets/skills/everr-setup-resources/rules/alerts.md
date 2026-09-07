@@ -62,23 +62,23 @@ The link appears on the alert's detail page and list row, and in the Telegram an
 
 Runbooks can also show the alert's own status by querying the alert service
 events projected into `logs`. Add a small Table panel that filters
-`ServiceName = 'alert'`, `LogAttributes['alert.slug'] = '<alert-slug>'`, and
+`ServiceName = 'alert'`, `` toString(LogAttributes.`alert.slug`) = '<alert-slug>' ``, and
 the selected time range. Useful columns are
-`LogAttributes['alert.event_type']`, `alert.row_count`, `alert.silenced`,
+`` toString(LogAttributes.`alert.event_type`) ``, `alert.row_count`, `alert.silenced`,
 `alert.delivery_targets`, and `alert.instance_labels`.
 
 ```sql
 SELECT
   Timestamp AS event_time,
-  LogAttributes['alert.event_type'] AS event_type,
-  LogAttributes['alert.row_count'] AS row_count,
-  LogAttributes['alert.silenced'] AS silenced,
-  LogAttributes['alert.delivery_targets'] AS delivery_targets,
-  LogAttributes['alert.instance_labels'] AS instance_labels
+  toString(LogAttributes.`alert.event_type`) AS event_type,
+  toString(LogAttributes.`alert.row_count`) AS row_count,
+  toString(LogAttributes.`alert.silenced`) AS silenced,
+  toString(LogAttributes.`alert.delivery_targets`) AS delivery_targets,
+  toString(LogAttributes.`alert.instance_labels`) AS instance_labels
 FROM logs
 WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
   AND ServiceName = 'alert'
-  AND LogAttributes['alert.slug'] = '<alert-slug>'
+  AND toString(LogAttributes.`alert.slug`) = '<alert-slug>'
 ORDER BY event_time DESC
 LIMIT 50
 ```

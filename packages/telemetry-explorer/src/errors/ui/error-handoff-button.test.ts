@@ -30,7 +30,9 @@ describe("buildErrorHandoffPrompt", () => {
     expect(prompt).toContain("everr cloud query");
     // The embedded query calls the shared fingerprint UDF, narrowed to this
     // Fingerprint.
-    expect(prompt).toContain("errorFingerprint(ServiceName, LogAttributes)");
+    expect(prompt).toContain(
+      "errorFingerprint(ServiceName, toString(LogAttributes.`error.fingerprint`), toString(LogAttributes.`exception.type`), toString(LogAttributes.`exception.message`))",
+    );
     expect(prompt).toContain("= 'fp-1'");
   });
 

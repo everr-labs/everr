@@ -7,24 +7,29 @@
 -- service, exception type, and a normalized exception message (UUIDs, long
 -- ids/hex, and long quoted literals collapsed so noisy variants group together).
 --
+-- Callers pass the three attributes as text: `` toString(LogAttributes.`error.fingerprint`) ``
+-- and the two exception paths. A query built this way reads three
+-- subcolumns of the JSON document and never the whole column. `toString` of
+-- a missing path gives '', the same empty value the map form gave.
+--
 -- Keep in step with the collector's copy at
 -- collector/exporter/chdbexporter/internal/sqltemplates/create_error_fingerprint_function.sql
 --
 -- init/ runs only on a fresh server. Apply to an existing cluster with:
 --   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
 --     < clickhouse/init/04-create-error-fingerprint-function.sql
-CREATE OR REPLACE FUNCTION errorFingerprint AS (serviceName, logAttributes) ->
+CREATE OR REPLACE FUNCTION errorFingerprint AS (serviceName, fingerprint, exceptionType, exceptionMessage) ->
   if(
-    logAttributes['error.fingerprint'] != '',
-    logAttributes['error.fingerprint'],
+    fingerprint != '',
+    fingerprint,
     toString(cityHash64(
       serviceName,
-      logAttributes['exception.type'],
+      exceptionType,
       substring(
         replaceRegexpAll(
           replaceRegexpAll(
             replaceRegexpAll(
-              trim(BOTH ' ' FROM logAttributes['exception.message']),
+              trim(BOTH ' ' FROM exceptionMessage),
               '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
               '<uuid>'
             ),

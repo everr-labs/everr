@@ -71,7 +71,7 @@ Useful log columns: `Timestamp`, `TraceId`, `SpanId`, `ServiceName`, `ScopeName`
 
 `Duration` is nanoseconds (`UInt64`): divide by `1e9` for seconds, `1e6` for milliseconds.
 
-`SpanAttributes`, `LogAttributes`, and `ResourceAttributes` are key/value maps; read a key with `Column['key']`. **Before assuming attribute names** (like `SpanAttributes['http.route']` or `SpanAttributes['db.statement']`), discover what exists with `DESCRIBE TABLE <table>` or by sampling a few rows. OTel attribute naming conventions vary across languages and frameworks.
+`SpanAttributes`, `LogAttributes`, and `ResourceAttributes` are JSON columns with typed values. Read a key as text with `` toString(Column.`key`) `` (backticks around the key, dots included): a missing key gives `''`. Read a number with `` toFloat64OrZero(toString(Column.`key`)) ``. Test presence with `has(ColumnKeys, 'key')`, which is indexed. Never compare the raw `` Column.`key` `` without a conversion: it is a `Dynamic` value, refused in `GROUP BY` and in a comparison across mixed types. The `metrics_*` tables keep maps: `Attributes['key']`. **Before assuming attribute names** (like `` SpanAttributes.`http.route` `` or `` SpanAttributes.`db.statement` ``), discover what exists with `SELECT DISTINCT arrayJoin(SpanAttributesKeys)` over a short window, or by sampling a few rows. OTel attribute naming conventions vary across languages and frameworks.
 
 ## Useful Queries
 
@@ -158,27 +158,27 @@ LIMIT 20
 
 ## Group Errors By Fingerprint
 
-Everr groups error logs into Errors by a *fingerprint*: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The fingerprint is a ClickHouse UDF, `errorFingerprint(ServiceName, LogAttributes)`, available on both cloud and local telemetry, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint.
+Everr groups error logs into Errors by a *fingerprint*: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The fingerprint is a ClickHouse UDF, `` errorFingerprint(ServiceName, toString(LogAttributes.`error.fingerprint`), toString(LogAttributes.`exception.type`), toString(LogAttributes.`exception.message`)) ``, available on both cloud and local telemetry, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint.
 
 An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message:
 ```sql
-mapContains(ResourceAttributes, 'service.name')
+has(ResourceAttributesKeys, 'service.name')
 AND SeverityNumber >= 17
 AND (
-  mapContains(LogAttributes, 'exception.type')
-  OR mapContains(LogAttributes, 'exception.message')
+  has(LogAttributesKeys, 'exception.type')
+  OR has(LogAttributesKeys, 'exception.message')
 )
 ```
 
 Occurrences of one Fingerprint (widen the window if the Error is older):
 ```sql
 SELECT toString(Timestamp) AS timestamp, ServiceName, TraceId,
-  LogAttributes['exception.stacktrace'] AS stacktrace
+  toString(LogAttributes.`exception.stacktrace`) AS stacktrace
 FROM logs
 WHERE Timestamp > now() - INTERVAL 7 DAY
-  AND mapContains(ResourceAttributes, 'service.name')
+  AND has(ResourceAttributesKeys, 'service.name')
   AND SeverityNumber >= 17
-  AND errorFingerprint(ServiceName, LogAttributes) = '<fingerprint>'
+  AND errorFingerprint(ServiceName, toString(LogAttributes.`error.fingerprint`), toString(LogAttributes.`exception.type`), toString(LogAttributes.`exception.message`)) = '<fingerprint>'
 ORDER BY Timestamp DESC
 LIMIT 50
 ```

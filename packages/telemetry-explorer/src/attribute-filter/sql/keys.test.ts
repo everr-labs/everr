@@ -14,10 +14,11 @@ describe("buildAttributeKeysQuery", () => {
       { timeRange: { from: "now-1h", to: "now" } },
       { tableName: "traces", sources: ["resource", "span"], columnFor },
     );
-    expect(sql).toContain("mapKeys(ResourceAttributes)");
+    expect(sql).toContain("arrayJoin(ResourceAttributesKeys)");
     expect(sql).toContain("'resource' AS source");
-    expect(sql).toContain("mapKeys(SpanAttributes)");
+    expect(sql).toContain("arrayJoin(SpanAttributesKeys)");
     expect(sql).toContain("'span' AS source");
+    expect(sql).not.toContain("mapKeys(");
     expect(sql).toContain("UNION ALL");
     expect(params.fromTime).toBeDefined();
     expect(params.toTime).toBeDefined();

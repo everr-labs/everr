@@ -23,9 +23,12 @@ import (
 // touching. Local telemetry is a rolling cache bounded by `ttl` and never a
 // system of record, so a rebuild costs at most one ttl window of local data.
 //
-// Version 1 is the first stamped shape. Every store built before it reads as 0
-// and rebuilds once.
-const localSchemaVersion = 1
+// Version 2 is the JSON attribute columns. A store built at version 1 holds
+// Map `logs` and `traces` tables under the same names the JSON templates use.
+// `CREATE TABLE IF NOT EXISTS` would keep them, so without this bump the
+// rebuild would not fire. The rebuild replaces them at the cost of one 7-day
+// cache.
+const localSchemaVersion = 2
 
 // schemaVersionTable holds exactly one row: the version the store was built
 // at. It lives inside the store rather than in a file beside it so that it

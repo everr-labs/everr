@@ -58,7 +58,7 @@ spec:
                   query: |
                     SELECT
                       formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS started,
-                      SpanAttributes['github.event.type'] AS event_type,
+                      toString(SpanAttributes.`github.event.type`) AS event_type,
                       round(Duration / 1e6, 1) AS duration_ms,
                       TraceId AS trace_id
                     FROM traces
@@ -113,7 +113,7 @@ spec:
                 spec:
                   query: |
                     SELECT
-                      SpanAttributes['github.event.type'] AS event_type,
+                      toString(SpanAttributes.`github.event.type`) AS event_type,
                       count() AS replays,
                       round(quantile(0.5)(Duration) / 1e6, 1) AS p50_ms,
                       round(quantile(0.95)(Duration) / 1e6, 1) AS p95_ms,
@@ -223,7 +223,7 @@ spec:
                   query: |
                     SELECT
                       formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS started,
-                      SpanAttributes['github.event.type'] AS event_type,
+                      toString(SpanAttributes.`github.event.type`) AS event_type,
                       round(Duration / 1e6, 1) AS duration_ms,
                       TraceId AS trace_id
                     FROM traces
@@ -305,7 +305,7 @@ spec:
                   query: |
                     SELECT
                       formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS started,
-                      SpanAttributes['github.event.type'] AS event_type,
+                      toString(SpanAttributes.`github.event.type`) AS event_type,
                       round(Duration / 1e6, 1) AS duration_ms,
                       StatusCode AS status,
                       TraceId AS trace_id

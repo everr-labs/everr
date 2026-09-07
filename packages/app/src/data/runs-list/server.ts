@@ -317,11 +317,11 @@ export const searchRuns = createAuthenticatedServerFn({
       FROM (
         ${runSummarySubquery({
           whereClause: `Timestamp >= now() - INTERVAL 90 DAY
-            AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-            AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
-            AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-            AND (ResourceAttributes['cicd.pipeline.run.id'] LIKE {pattern:String}
-              OR ResourceAttributes['cicd.pipeline.name'] ILIKE {pattern:String})`,
+            AND toString(ResourceAttributes.\`cicd.pipeline.run.id\`) != ''
+            AND toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`) != ''
+            AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''
+            AND (toString(ResourceAttributes.\`cicd.pipeline.run.id\`) LIKE {pattern:String}
+              OR toString(ResourceAttributes.\`cicd.pipeline.name\`) ILIKE {pattern:String})`,
           groupByExpr: "TraceId",
           groupByAlias: "trace_id",
         })}

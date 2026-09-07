@@ -73,17 +73,17 @@ Recent run history:
 SELECT
   max(Timestamp) AS last_seen,
   TraceId,
-  anyLast(ResourceAttributes['cicd.pipeline.run.id']) AS run_id,
-  anyLast(ResourceAttributes['cicd.pipeline.name']) AS workflow,
-  anyLast(ResourceAttributes['vcs.ref.head.name']) AS branch,
-  anyLast(ResourceAttributes['vcs.ref.head.revision']) AS sha,
-  anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) AS result
+  anyLast(toString(ResourceAttributes.`cicd.pipeline.run.id`)) AS run_id,
+  anyLast(toString(ResourceAttributes.`cicd.pipeline.name`)) AS workflow,
+  anyLast(toString(ResourceAttributes.`vcs.ref.head.name`)) AS branch,
+  anyLast(toString(ResourceAttributes.`vcs.ref.head.revision`)) AS sha,
+  anyLast(toString(ResourceAttributes.`cicd.pipeline.task.run.result`)) AS result
 FROM traces
 WHERE Timestamp > now() - INTERVAL 7 DAY
   AND ServiceName = 'github-actions'
-  AND ResourceAttributes['vcs.repository.name'] = '<owner/repo>'
-  AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-  AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+  AND toString(ResourceAttributes.`vcs.repository.name`) = '<owner/repo>'
+  AND toString(ResourceAttributes.`cicd.pipeline.run.id`) != ''
+  AND toString(SpanAttributes.`everr.github.workflow_job_step.number`) = ''
 GROUP BY TraceId
 ORDER BY last_seen DESC
 LIMIT 20
@@ -93,16 +93,16 @@ Repeated failure log lines:
 
 ```sql
 SELECT
-  anyLast(ResourceAttributes['cicd.pipeline.name']) AS workflow,
-  anyLast(ScopeAttributes['cicd.pipeline.task.name']) AS job,
-  anyLast(LogAttributes['everr.github.workflow_job_step.number']) AS step,
+  anyLast(toString(ResourceAttributes.`cicd.pipeline.name`)) AS workflow,
+  anyLast(toString(ScopeAttributes.`cicd.pipeline.task.name`)) AS job,
+  anyLast(toString(LogAttributes.`everr.github.workflow_job_step.number`)) AS step,
   uniqExact(TraceId) AS runs,
   count() AS lines,
   max(Timestamp) AS last_seen,
   anyLast(Body) AS sample
 FROM logs
 WHERE Timestamp > now() - INTERVAL 14 DAY
-  AND ResourceAttributes['vcs.repository.name'] = '<owner/repo>'
+  AND toString(ResourceAttributes.`vcs.repository.name`) = '<owner/repo>'
   AND startsWith(Body, '##[error]')
 GROUP BY cityHash64(Body)
 ORDER BY runs DESC, lines DESC, last_seen DESC

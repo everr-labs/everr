@@ -166,6 +166,57 @@ describe("ErrorsRepository.getIssue", () => {
     expect(detail.latest.resourceAttributes).toEqual({});
     expect(detail.occurrences).toHaveLength(1);
   });
+
+  it("flattens the nested JSON attributes of an occurrence into dotted keys", async () => {
+    execute
+      .mockResolvedValueOnce([
+        {
+          fingerprint: "fp-1",
+          exceptionType: "TypeError",
+          exceptionMessage: "boom",
+          body: "boom",
+          latestServiceName: "web",
+          services: ["web"],
+          occurrenceCount: "1",
+          traceCount: "1",
+          firstSeen: "2026-05-26 10:00:00.000000000",
+          lastSeen: "2026-05-26 10:05:00.000000000",
+          latestTraceId: "trace-1",
+          latestSpanId: "span-1",
+          latestTimestamp: "2026-05-26 10:05:00.000000000",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          fingerprint: "fp-1",
+          timestamp: "2026-05-26 10:05:00.000000000",
+          serviceName: "web",
+          traceId: "trace-1",
+          spanId: "span-1",
+          body: "boom",
+          exceptionType: "TypeError",
+          exceptionMessage: "boom",
+          exceptionStacktrace: "at x",
+          resourceAttributes: { service: { name: "web" } },
+          logAttributes: { exception: { type: "E" } },
+          scopeAttributes: null,
+        },
+      ]);
+
+    const detail = await makeRepo().getIssue({
+      fingerprint: "fp-1",
+      fromTs: "2026-05-26 10:00:00",
+      toTs: "2026-05-26 11:00:00",
+      service: [],
+      occurrenceLimit: 50,
+    });
+
+    expect(detail.latest.resourceAttributes).toEqual({
+      "service.name": "web",
+    });
+    expect(detail.latest.logAttributes).toEqual({ "exception.type": "E" });
+    expect(detail.latest.scopeAttributes).toEqual({});
+  });
 });
 
 describe("ErrorsRepository.listServices", () => {
