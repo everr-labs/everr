@@ -151,3 +151,5 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   neither.
 - `errorFingerprint` takes the three attributes as text arguments instead of
   the map, so a query reads three subcolumns and not the whole column.
+- `localSchemaVersion` is 2. A store built at version 1 holds Map `logs` and
+  `traces` tables under the same names, and the rebuild replaces them.

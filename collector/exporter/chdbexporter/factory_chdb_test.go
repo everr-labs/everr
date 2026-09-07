@@ -141,7 +141,7 @@ func TestStartRebuildsAStoreThatWasNeverStamped(t *testing.T) {
 		strings.Index(queries, `DROP TABLE IF EXISTS "default"."traces_trace_id_ts_mv"`),
 		strings.Index(queries, `DROP TABLE IF EXISTS "default"."traces_trace_id_ts"`),
 	)
-	require.Contains(t, queries, `INSERT INTO "default"."_everr_schema" (version) VALUES (1)`)
+	require.Contains(t, queries, `INSERT INTO "default"."_everr_schema" (version) VALUES (`+strconv.Itoa(localSchemaVersion)+`)`)
 }
 
 func TestStartRebuildsOnceForEverySignal(t *testing.T) {
@@ -153,7 +153,7 @@ func TestStartRebuildsOnceForEverySignal(t *testing.T) {
 	queries := startAllExporters(t, session, handle, withCloudTableNamesConfig())
 
 	require.Equal(t, 1, strings.Count(queries, `DROP TABLE IF EXISTS "default"."logs"`))
-	require.Equal(t, 1, strings.Count(queries, `INSERT INTO "default"."_everr_schema" (version) VALUES (1)`))
+	require.Equal(t, 1, strings.Count(queries, `INSERT INTO "default"."_everr_schema" (version) VALUES (`+strconv.Itoa(localSchemaVersion)+`)`))
 }
 
 func TestStartLeavesAStoreOnTheCurrentVersionAlone(t *testing.T) {
