@@ -24,3 +24,20 @@ CREATE OR REPLACE FUNCTION everrRetentionDays AS (resourceAttributes) ->
 
 CREATE OR REPLACE FUNCTION everrStripRetention AS (resourceAttributes) ->
   mapFilter((k, v) -> k != 'everr.retention.days', resourceAttributes);
+
+-- The JSON forms for app.logs and app.traces. getSubcolumn on a block that
+-- is already in memory costs nothing on disk, and it avoids the question of
+-- how `x.`path`` resolves against a lambda parameter. toString accepts the
+-- stamp as a string or as a number and gives '' for a missing path, so the
+-- guard below is the same test as in everrRetentionDays. The strip of the
+-- document itself is the SKIP on the app table's column type; only the keys
+-- array needs a filter.
+CREATE OR REPLACE FUNCTION everrRetentionDaysJson AS (resourceAttributes) ->
+  toUInt16OrZero(toString(getSubcolumn(resourceAttributes, 'everr.retention.days')))
+    + throwIf(
+        toUInt16OrZero(toString(getSubcolumn(resourceAttributes, 'everr.retention.days'))) = 0,
+        'everr.retention.days resource attribute missing or not a positive number of days'
+      );
+
+CREATE OR REPLACE FUNCTION everrStripRetentionKeys AS (keys) ->
+  arrayFilter(k -> k != 'everr.retention.days', keys);

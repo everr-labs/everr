@@ -75,15 +75,20 @@ SELECT
   '' AS ResourceSchemaUrl,
   -- Env facet ('deployment.environment' resource attr): the preview name for
   -- preview alerts, 'production' for live.
-  map(
+  --
+  -- The keys arrays list the same keys as the documents above them, because
+  -- the filter UI and the exists index read them.
+  CAST(map(
     'everr.tenant.id', tenant_id,
     'deployment.environment', if(preview = '', 'production', preview)
-  ) AS ResourceAttributes,
+  ), 'JSON(max_dynamic_paths = 256)') AS ResourceAttributes,
+  CAST(['everr.tenant.id', 'deployment.environment'], 'Array(LowCardinality(String))') AS ResourceAttributesKeys,
   '' AS ScopeSchemaUrl,
   'everr.alerting' AS ScopeName,
   '' AS ScopeVersion,
-  map() AS ScopeAttributes,
-  map(
+  CAST(map(), 'JSON(max_dynamic_paths = 256)') AS ScopeAttributes,
+  CAST([], 'Array(LowCardinality(String))') AS ScopeAttributesKeys,
+  CAST(map(
     'alert.slug', slug,
     'alert.preview', preview,
     'alert.event_type', event_type,
@@ -94,7 +99,8 @@ SELECT
     'alert.evidence_json', evidence_json,
     'alert.instance_fingerprint', instance_fingerprint,
     'alert.instance_labels', instance_labels_json
-  ) AS LogAttributes,
+  ), 'JSON(max_dynamic_paths = 256)') AS LogAttributes,
+  CAST(['alert.slug', 'alert.preview', 'alert.event_type', 'alert.delivery_targets', 'alert.silenced', 'alert.row_count', 'alert.evidence_truncated', 'alert.evidence_json', 'alert.instance_fingerprint', 'alert.instance_labels'], 'Array(LowCardinality(String))') AS LogAttributesKeys,
   concat('alert.', slug, '.', event_type) AS EventName,
   -- Required for app.logs RLS and partitioning; ResourceAttributes alone is
   -- not enough.

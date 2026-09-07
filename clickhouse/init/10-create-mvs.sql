@@ -15,6 +15,13 @@
 -- the strip. The stamp is computed in an inner query because the
 -- `everrStripRetention(...) AS ResourceAttributes` alias in the outer query
 -- shadows the source column.
+--
+-- On app.logs and app.traces the attributes are JSON columns. The strip of
+-- `everr.retention.days` from the document is the SKIP on the column type,
+-- applied when the view's rows land in the table, so the view only filters
+-- the keys array, and the stamp reads the path with getSubcolumn.
+-- `everr.tenant.id` stays in the document and in the keys, as it does with
+-- the maps.
 
 -- Traces: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.traces
@@ -36,7 +43,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_traces
 WHERE 1 = 0;
@@ -45,30 +52,27 @@ WHERE 1 = 0;
 -- columns but not indexes, so app.traces starts bare; add the same set the raw
 -- table carries so app-side queries prune the same way.
 --
--- The map indexes stay bloom_filter on purpose, here and in every app.* table
--- below. Upstream's exporter switches them to TYPE text(tokenizer = 'array')
--- on ClickHouse 26.2 and later, so a diff against upstream shows a difference.
--- Do not "fix" it. Measured on 1M rows with one match, both types read the
--- same 8,192 rows for the two predicates the app emits, mapContains(map, key)
--- and map[key] IN (...), but the text indexes cost 5.94 MiB against 11.71 KiB
--- for bloom_filter on 7.81 MiB of data. That is 500 times the index storage
--- for identical pruning, paid on every partition for the full retention
--- window. Revisit only if we add substring or token search inside attribute
--- values, which bloom_filter cannot serve and text() can.
+-- The keys arrays carry the only skip indexes on attributes. A filter on one
+-- key reads that key's own subcolumn, so a value index has nothing to add;
+-- the keys index serves the exists filter and the key list of the filter UI.
+-- The metrics tables below keep their map indexes, measured in PR #426:
+-- bloom_filter reads the same rows as upstream's text() for the two
+-- predicates the app emits at 500 times less storage.
 ALTER TABLE app.traces
   ADD INDEX IF NOT EXISTS idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_span_attr_key mapKeys(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_span_attr_value mapValues(SpanAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_res_attr_keys ResourceAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_span_attr_keys SpanAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_duration Duration TYPE minmax GRANULARITY 1;
 
 -- Codecs for app.traces. CREATE TABLE ... AS SELECT copies types but not
 -- codecs, so without this every column falls back to LZ4 and the table is
 -- about twice the size of the raw copy. MODIFY COLUMN without a type keeps
 -- the type the CTAS copied, so 03-create-otel-tables.sql stays the only place
--- a column type is written. Every app.* table below repeats this for its own
--- source.
+-- a column type is written, with one exception: the attribute columns of
+-- app.traces and app.logs, because the SKIP of everr.retention.days is part
+-- of the column type and belongs to the app table only, so it is written
+-- here instead. The landing table keeps the path so the view can read it.
+-- Every app.* table below repeats this for its own source.
 ALTER TABLE app.traces
   MODIFY COLUMN `Timestamp` CODEC(Delta(8), ZSTD(1)),
   MODIFY COLUMN `TraceId` CODEC(ZSTD(1)),
@@ -78,10 +82,12 @@ ALTER TABLE app.traces
   MODIFY COLUMN `SpanName` CODEC(ZSTD(1)),
   MODIFY COLUMN `SpanKind` CODEC(ZSTD(1)),
   MODIFY COLUMN `ServiceName` CODEC(ZSTD(1)),
-  MODIFY COLUMN `ResourceAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceAttributes` JSON(max_dynamic_paths = 256, SKIP `everr.retention.days`) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceAttributesKeys` CODEC(ZSTD(1)),
   MODIFY COLUMN `ScopeName` CODEC(ZSTD(1)),
   MODIFY COLUMN `ScopeVersion` CODEC(ZSTD(1)),
-  MODIFY COLUMN `SpanAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanAttributes` JSON(max_dynamic_paths = 256) CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanAttributesKeys` CODEC(ZSTD(1)),
   MODIFY COLUMN `Duration` CODEC(ZSTD(1)),
   MODIFY COLUMN `StatusCode` CODEC(ZSTD(1)),
   MODIFY COLUMN `StatusMessage` CODEC(ZSTD(1)),
@@ -98,14 +104,14 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_mv
 TO app.traces
 AS
 SELECT
-  * EXCEPT (ResourceAttributes),
-  everrStripRetention(ResourceAttributes) AS ResourceAttributes
+  * EXCEPT (ResourceAttributesKeys),
+  everrStripRetentionKeys(ResourceAttributesKeys) AS ResourceAttributesKeys
 FROM
 (
   SELECT
     *,
-    ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    everrRetentionDays(ResourceAttributes) AS retention_days
+    toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')) AS tenant_id,
+    everrRetentionDaysJson(ResourceAttributes) AS retention_days
   FROM otel.otel_traces
 );
 
@@ -150,16 +156,16 @@ SETTINGS index_granularity = 256, ttl_only_drop_parts = 1;
 -- chained off app.traces would need the inserting user to hold SELECT on
 -- app.traces, because ClickHouse checks that user against every view in the
 -- chain, and the collector user stays on otel.* only. The guard in
--- everrRetentionDays fires here too, which refuses the same rows.
+-- everrRetentionDaysJson fires here too, which refuses the same rows.
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_trace_id_ts_mv
 TO app.traces_trace_id_ts
 AS
 SELECT
-  ResourceAttributes['everr.tenant.id'] AS tenant_id,
+  toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')) AS tenant_id,
   TraceId,
   min(Timestamp) AS Start,
   max(Timestamp) AS End,
-  everrRetentionDays(ResourceAttributes) AS retention_days
+  everrRetentionDaysJson(ResourceAttributes) AS retention_days
 FROM otel.otel_traces
 WHERE TraceId != ''
 GROUP BY tenant_id, retention_days, TraceId;
@@ -188,7 +194,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_logs
 WHERE 1 = 0;
@@ -212,12 +218,9 @@ WHERE 1 = 0;
 -- table rebuild, so make the trade if body search becomes a hot path.
 ALTER TABLE app.logs
   ADD INDEX IF NOT EXISTS idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_scope_attr_key mapKeys(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_scope_attr_value mapValues(ScopeAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_log_attr_key mapKeys(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
-  ADD INDEX IF NOT EXISTS idx_log_attr_value mapValues(LogAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_res_attr_keys ResourceAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_scope_attr_keys ScopeAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_log_attr_keys LogAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_lower_body lower(Body) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8;
 
 -- Codecs mirrored from otel.otel_logs (see the app.traces note above).
@@ -229,12 +232,15 @@ ALTER TABLE app.logs
   MODIFY COLUMN `ServiceName` CODEC(ZSTD(1)),
   MODIFY COLUMN `Body` CODEC(ZSTD(1)),
   MODIFY COLUMN `ResourceSchemaUrl` CODEC(ZSTD(1)),
-  MODIFY COLUMN `ResourceAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceAttributes` JSON(max_dynamic_paths = 256, SKIP `everr.retention.days`) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceAttributesKeys` CODEC(ZSTD(1)),
   MODIFY COLUMN `ScopeSchemaUrl` CODEC(ZSTD(1)),
   MODIFY COLUMN `ScopeName` CODEC(ZSTD(1)),
   MODIFY COLUMN `ScopeVersion` CODEC(ZSTD(1)),
-  MODIFY COLUMN `ScopeAttributes` CODEC(ZSTD(1)),
-  MODIFY COLUMN `LogAttributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` JSON(max_dynamic_paths = 256) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributesKeys` CODEC(ZSTD(1)),
+  MODIFY COLUMN `LogAttributes` JSON(max_dynamic_paths = 256) CODEC(ZSTD(1)),
+  MODIFY COLUMN `LogAttributesKeys` CODEC(ZSTD(1)),
   MODIFY COLUMN `EventName` CODEC(ZSTD(1)),
   MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
@@ -242,14 +248,14 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.logs_mv
 TO app.logs
 AS
 SELECT
-  * EXCEPT (ResourceAttributes),
-  everrStripRetention(ResourceAttributes) AS ResourceAttributes
+  * EXCEPT (ResourceAttributesKeys),
+  everrStripRetentionKeys(ResourceAttributesKeys) AS ResourceAttributesKeys
 FROM
 (
   SELECT
     *,
-    ResourceAttributes['everr.tenant.id'] AS tenant_id,
-    everrRetentionDays(ResourceAttributes) AS retention_days
+    toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')) AS tenant_id,
+    everrRetentionDaysJson(ResourceAttributes) AS retention_days
   FROM otel.otel_logs
 );
 
