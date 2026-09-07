@@ -117,6 +117,12 @@ exporters:
     password: collector-dev
     database: otel
     create_schema: false
+    # Logs and traces write JSON attribute columns with typed values and one
+    # keys array per attribute column; the landing tables in
+    # clickhouse/init/03 declare that column set. A Map exporter against those
+    # tables fails every insert, and the reverse too, so this flag and the
+    # schema move together.
+    json: true
     # Batching belongs here, not in a `batch` processor: the processor
     # acknowledges data to the receiver before the insert happens, so a crash
     # loses the batch and a failed insert cannot apply backpressure. The
