@@ -1,4 +1,5 @@
 import "./lib/telemetry";
+import { TooltipProvider } from "@everr/ui/components/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import React from "react";
@@ -18,14 +19,16 @@ const isNotification = resolveWindowLabel() === NOTIFICATION_WINDOW_LABEL;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <ReactTelemetryErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        {isNotification ? (
-          <NotificationWindow />
-        ) : (
-          <RouterProvider router={router} />
-        )}
-      </QueryClientProvider>
-    </ReactTelemetryErrorBoundary>
+    <TooltipProvider>
+      <ReactTelemetryErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          {isNotification ? (
+            <NotificationWindow />
+          ) : (
+            <RouterProvider router={router} />
+          )}
+        </QueryClientProvider>
+      </ReactTelemetryErrorBoundary>
+    </TooltipProvider>
   </React.StrictMode>,
 );

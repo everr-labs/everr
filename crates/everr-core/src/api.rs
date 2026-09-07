@@ -180,24 +180,13 @@ impl ApiClient {
             http.request.method = "POST",
         );
         async move {
-            let response = self
+            let request = self
                 .http
                 .post(format!("{}/sql", self.base_endpoint))
                 .header(CONTENT_TYPE, "text/plain")
                 .headers(current_trace_headers())
-                .body(sql.to_string())
-                .send()
-                .await
-                .context("CLI SQL request failed")?;
-
-            if !response.status().is_success() {
-                let status = response.status();
-                let text = response
-                    .text()
-                    .await
-                    .unwrap_or_else(|_| "<failed to read body>".to_string());
-                return Err(http_status_error(status, text, "CLI SQL request"));
-            }
+                .body(sql.to_string());
+            let response = self.send_checked(request, "CLI SQL").await?;
 
             response
                 .text()

@@ -82,6 +82,30 @@ describe("query", () => {
       expect.any(Function),
     );
   });
+
+  it("forwards caller-supplied settings alongside the tenant scope", async () => {
+    await query("SELECT 1", ORG, undefined, { max_execution_time: 30 });
+
+    expect(mockQuery).toHaveBeenCalledWith({
+      query: "SELECT 1",
+      query_params: undefined,
+      format: "JSONEachRow",
+      clickhouse_settings: {
+        max_execution_time: 30,
+        SQL_everr_tenant_id: ORG,
+      },
+    });
+  });
+
+  it("never lets a caller-supplied setting override the tenant scope", async () => {
+    await query("SELECT 1", ORG, undefined, {
+      SQL_everr_tenant_id: "someone-elses-org",
+    });
+
+    expect(mockQuery.mock.calls[0][0].clickhouse_settings).toEqual({
+      SQL_everr_tenant_id: ORG,
+    });
+  });
 });
 
 describe("querySqlApi", () => {
@@ -130,13 +154,17 @@ describe("querySqlApi", () => {
 describe("querySqlApiWithMeta", () => {
   it("uses JSON format so column metadata is available for empty results", async () => {
     mockJson.mockResolvedValueOnce({
-      meta: [{ name: "route" }, { name: "n" }],
+      meta: [
+        { name: "route", type: "String" },
+        { name: "n", type: "UInt64" },
+      ],
       data: [],
     });
 
     await expect(querySqlApiWithMeta("SELECT 1", ORG)).resolves.toEqual({
       rows: [],
       columns: ["route", "n"],
+      columnTypes: ["String", "UInt64"],
     });
 
     expect(mockQuery).toHaveBeenCalledWith({
@@ -152,28 +180,24 @@ describe("querySqlApiWithMeta", () => {
 describe("insertAdminRows", () => {
   it("writes rows through the admin client with the given settings", async () => {
     await insertAdminRows(
-      "app.alert_events",
+      "app.logs",
       [
         {
-          tenant_id: ORG,
-          alert_definition_id: "alert-1",
-          repoid: "repo-1",
-          slug: "high-5xx",
-          event_type: "firing",
+          organization_id: ORG,
+          service_name: "everr",
+          body: "hello",
         },
       ],
       { async_insert: 1, wait_for_async_insert: 1 },
     );
 
     expect(mockInsert).toHaveBeenCalledWith({
-      table: "app.alert_events",
+      table: "app.logs",
       values: [
         {
-          tenant_id: ORG,
-          alert_definition_id: "alert-1",
-          repoid: "repo-1",
-          slug: "high-5xx",
-          event_type: "firing",
+          organization_id: ORG,
+          service_name: "everr",
+          body: "hello",
         },
       ],
       format: "JSONEachRow",
@@ -185,7 +209,7 @@ describe("insertAdminRows", () => {
   });
 
   it("does not issue an insert for an empty batch", async () => {
-    await insertAdminRows("app.alert_events", []);
+    await insertAdminRows("app.logs", []);
 
     expect(mockInsert).not.toHaveBeenCalled();
   });
@@ -208,6 +232,7 @@ describe("provisionSqlApiOrgUser", () => {
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_histogram\` ON app.\`metrics_histogram\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_exponential_histogram\` ON app.\`metrics_exponential_histogram\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_summary\` ON app.\`metrics_summary\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_alert_events\` ON app.\`alert_events\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
     ]);
 
     const setRoleCall = mockCommand.mock.calls[1][0];
@@ -236,6 +261,7 @@ describe("deprovisionSqlApiOrgUser", () => {
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_histogram\` ON app.\`metrics_histogram\``,
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_exponential_histogram\` ON app.\`metrics_exponential_histogram\``,
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_summary\` ON app.\`metrics_summary\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_alert_events\` ON app.\`alert_events\``,
       `DROP USER IF EXISTS \`${ORG_USER}\``,
     ]);
   });

@@ -1,3 +1,4 @@
+import { formatResourceName } from "./identity";
 import { identityKey } from "./reconcile";
 
 /** A create that collides with a live resource owned by a different repo. */
@@ -20,7 +21,7 @@ export interface OwnershipPartition<T> {
   freshCreates: T[];
   /** Creates whose identity another repo owns — transferred when adopting. */
   takenCreates: T[];
-  /** Slugs taken over from another repo (only when adopting; else empty). */
+  /** Qualified names taken over from another repo (only when adopting). */
   adopted: string[];
   /** Conflicts to fail-fast on (only when NOT adopting; else empty). */
   conflicts: OwnershipConflict[];
@@ -54,7 +55,9 @@ export function partitionByOwnership<
   return {
     freshCreates,
     takenCreates,
-    adopted: adopt ? takenCreates.map((c) => c.slug) : [],
+    adopted: adopt
+      ? takenCreates.map((c) => formatResourceName(c.project, c.slug))
+      : [],
     conflicts: adopt
       ? []
       : takenCreates.map((c) => ({

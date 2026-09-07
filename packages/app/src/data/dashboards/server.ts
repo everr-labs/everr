@@ -3,6 +3,7 @@ import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { notFound } from "@tanstack/react-router";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
+import { identityKey } from "@/data/as-code/reconcile";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
 import { getCoveredRepoids } from "@/data/previews/repoids";
 import {
@@ -98,7 +99,14 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
         .leftJoin(previews, previewJoin(dashboards))
         .where(and(identity, liveOrPreview(dashboards, preview))),
     ]);
-    const overlaid = overlayPreview({ rows, coveredRepoids: covered });
+    const overlaid = overlayPreview({
+      rows,
+      coveredRepoids: covered,
+      identity: identityKey,
+      // A dashboard's declared content is its document plus where the tree puts
+      // it, so a pure move still reads as changed.
+      content: (row) => [row.folderPath, row.document],
+    });
     // Prefer a surviving row; a shadowed-by-deletion live row still renders,
     // marked "removed", instead of 404ing mid-review.
     const row =
@@ -179,7 +187,14 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
           ),
         ),
     ]);
-    return overlayPreview({ rows, coveredRepoids: covered }).map(toItem);
+    return overlayPreview({
+      rows,
+      coveredRepoids: covered,
+      identity: identityKey,
+      // A dashboard's declared content is its document plus where the tree puts
+      // it, so a pure move still reads as changed.
+      content: (row) => [row.folderPath, row.document],
+    }).map(toItem);
   });
 
 /**

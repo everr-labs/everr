@@ -82,3 +82,24 @@ export const AllVariants: Story = {
     </div>
   ),
 };
+
+export const Sizes: Story = {
+  render: () => (
+    <div className="flex flex-col gap-3 text-xs">
+      <p className="flex items-center gap-2">
+        Default: a pill beside a heading or in a toolbar
+        <Badge variant="outline">
+          <CheckIcon data-icon="inline-start" />
+          checkout-api
+        </Badge>
+      </p>
+      <p className="flex items-center gap-2">
+        Medium: a chip set in a row at the row's own text size
+        <Badge variant="outline" size="md">
+          <AlertTriangleIcon data-icon="inline-start" />
+          silenced · 14m left
+        </Badge>
+      </p>
+    </div>
+  ),
+};

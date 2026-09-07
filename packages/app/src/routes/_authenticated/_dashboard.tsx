@@ -121,7 +121,7 @@ function RouteComponent() {
         >
           <div className="flex items-center justify-between flex-1">
             <div className="flex items-center gap-2">
-              <SidebarTrigger className="-ml-1" />
+              <SidebarTrigger className="-ml-1 size-11 md:size-8" />
               <Separator orientation="vertical" className="mr-2" />
               <DashboardBreadcrumb />
             </div>

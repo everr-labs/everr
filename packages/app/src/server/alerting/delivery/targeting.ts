@@ -1,0 +1,131 @@
+import { createHash } from "node:crypto";
+import { and, eq, inArray } from "drizzle-orm";
+import {
+  ALERTING_DEFAULT_GROUP_BY,
+  type AlertingDefaultTier,
+  defaultTierFor,
+} from "@/data/alerting/delivery/defaults";
+import { db } from "@/db/client";
+import {
+  alertDefaultChannels,
+  alertDefinitions,
+  type alertEvents,
+} from "@/db/schema";
+
+function stableJson(value: Record<string, string>) {
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(value).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  );
+}
+
+export function alertDeliveryHash(...parts: string[]) {
+  return createHash("sha256").update(parts.join("\0")).digest("hex");
+}
+
+type DispatchTarget = {
+  defaultTier: AlertingDefaultTier | null;
+  directAlertDefinitionId: string | null;
+  groupKey: string;
+};
+
+/**
+ * The labels a notification batches by. `rule` is the definition's row id,
+ * because a group key has to be unique and a live rule and a preview of it
+ * legitimately share `project/slug`.
+ *
+ * `eventSubject` reaches the same value for its own reason, and the two stay
+ * separate anyway. They answer different questions, and only one of them picks
+ * a subset of the labels; a single function serving both is what let them
+ * drift apart before, and agreeing today is a decision each states for itself
+ * rather than a coupling.
+ */
+function groupLabelsFor(event: typeof alertEvents.$inferSelect) {
+  const labels: Record<string, string> = {
+    ...event.instanceLabels,
+    rule: event.sourceDefinitionId,
+    severity: event.severity,
+    status: event.eventType === "instance_resolved" ? "resolved" : "firing",
+  };
+  return Object.fromEntries(
+    ALERTING_DEFAULT_GROUP_BY.map((key) => [key, labels[key] ?? ""]),
+  );
+}
+
+async function directDispatchTarget(
+  event: typeof alertEvents.$inferSelect,
+): Promise<DispatchTarget | null> {
+  // Declared, not resolved: a rule that names channels is a direct target
+  // even while none of those names exist yet. The flush resolves the names
+  // and records a no-channel terminal when nothing matches, rather than the
+  // rule silently rejoining the default destination.
+  const [definition] = await db
+    .select({ spec: alertDefinitions.spec })
+    .from(alertDefinitions)
+    .where(
+      and(
+        eq(alertDefinitions.organizationId, event.organizationId),
+        eq(alertDefinitions.id, event.sourceDefinitionId),
+      ),
+    )
+    .limit(1);
+  if ((definition?.spec.notifications?.channels ?? []).length === 0)
+    return null;
+
+  return {
+    defaultTier: null,
+    directAlertDefinitionId: event.sourceDefinitionId,
+    groupKey: alertDeliveryHash(
+      "direct",
+      event.sourceDefinitionId,
+      stableJson(groupLabelsFor(event)),
+    ),
+  };
+}
+
+/**
+ * The default-destination tier this event delivers to: the "all" tier when
+ * the org has not split by severity, else the event's own severity tier. A
+ * tier is only its channel rows, so a tier with no channels does not resolve
+ * and the event gets no target at all. `processAlertEvent` ends such a chain
+ * with a `no_channels` terminal itself, because no group and no flush ever
+ * run to end it.
+ */
+async function defaultDispatchTarget(
+  event: typeof alertEvents.$inferSelect,
+): Promise<DispatchTarget | null> {
+  const tiers = await db
+    .selectDistinct({ tier: alertDefaultChannels.tier })
+    .from(alertDefaultChannels)
+    .where(
+      and(
+        eq(alertDefaultChannels.organizationId, event.organizationId),
+        inArray(alertDefaultChannels.tier, ["all", event.severity]),
+      ),
+    );
+  const tier = defaultTierFor(
+    tiers.map((row) => row.tier),
+    event.severity,
+  );
+  if (tier === null) return null;
+
+  return {
+    defaultTier: tier,
+    directAlertDefinitionId: null,
+    groupKey: alertDeliveryHash(
+      "default",
+      tier,
+      stableJson(groupLabelsFor(event)),
+    ),
+  };
+}
+
+export async function dispatchTargetForEvent(
+  event: typeof alertEvents.$inferSelect,
+): Promise<DispatchTarget | null> {
+  // A rule naming its own channels opts out of the default destination.
+  const direct = await directDispatchTarget(event);
+  if (direct) return direct;
+  return await defaultDispatchTarget(event);
+}

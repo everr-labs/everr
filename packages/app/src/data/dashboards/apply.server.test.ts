@@ -105,7 +105,7 @@ describe("applyDashboardSpecs", () => {
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
-    expect(result.created).toEqual(["cpu"]);
+    expect(result.created).toEqual(["default/cpu"]);
   });
 
   it("prunes the last dashboard of a repo with no files", async () => {
@@ -125,7 +125,7 @@ describe("applyDashboardSpecs", () => {
     expect(result).toEqual({
       created: [],
       updated: [],
-      deleted: ["old"],
+      deleted: ["team/old"],
       adopted: [],
       conflicts: [],
     });
@@ -145,8 +145,8 @@ describe("applyDashboardSpecs", () => {
       dryRun: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu", "platform") }],
     });
-    expect(result.created).toEqual(["cpu"]);
-    expect(result.deleted).toEqual(["cpu"]);
+    expect(result.created).toEqual(["platform/cpu"]);
+    expect(result.deleted).toEqual(["default/cpu"]);
   });
 
   it("scopes existing rows by repoid so same slugs in different repos do not collide", async () => {
@@ -173,7 +173,7 @@ describe("applyDashboardSpecs", () => {
     });
 
     expect(first.deleted).toEqual([]);
-    expect(second.created).toEqual(["cpu"]);
+    expect(second.created).toEqual(["default/cpu"]);
     expect(second.deleted).toEqual([]);
     expect(eq).toHaveBeenCalledWith("repoid", "repo-1");
     expect(eq).toHaveBeenCalledWith("repoid", "repo-2");
@@ -193,7 +193,7 @@ describe("applyDashboardSpecs", () => {
       },
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
-    expect(result.created).toEqual(["cpu"]);
+    expect(result.created).toEqual(["default/cpu"]);
     // Preview rows hang off the registry id; repoid stays null (schema CHECK).
     expect(mockedDb.insert).toHaveBeenCalled();
     const insertChain = mockedDb.insert.mock.results[0]?.value as {
@@ -212,7 +212,7 @@ describe("applyDashboardSpecs", () => {
       ...base,
       resources: [{ path: "a.yaml", resource: dash("a", "team") }],
     });
-    expect(result.created).toEqual(["a"]);
+    expect(result.created).toEqual(["team/a"]);
     expect(mockedDb.insert).toHaveBeenCalledOnce();
     // Live creates carry the repoid and a null previewId (schema CHECK).
     const insertChain = mockedDb.insert.mock.results[0]?.value as {
@@ -259,7 +259,7 @@ describe("applyDashboardSpecs", () => {
       adopt: true,
       resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
     });
-    expect(result.adopted).toEqual(["cpu"]);
+    expect(result.adopted).toEqual(["default/cpu"]);
     expect(result.conflicts).toEqual([]);
     expect(result.created).toEqual([]);
     // Ownership transfer is an update setting the new repoid, not an insert.

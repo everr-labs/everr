@@ -1,15 +1,10 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
-import { useMediaQuery } from "@everr/ui/hooks/use-media-query";
+import { useIsNarrow } from "@everr/ui/hooks/use-mobile";
 import { ListFilter } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { FilterSidebar } from "./filter-sidebar";
-
-// The same width as the `lg:` column rules on the three Explore grids. Below
-// this width there is no space for a 260px rail next to the results. The rail
-// then moves into a sheet.
-const NARROW_QUERY = "(max-width: 1023px)";
 
 /**
  * Puts the Explore filter rail in position.
@@ -41,7 +36,8 @@ export function ExploreFilterRail({
   onClear: () => void;
   children: ReactNode;
 }) {
-  const isNarrow = useMediaQuery(NARROW_QUERY);
+  // Below `lg` there is no space for a 260px rail next to the results.
+  const isNarrow = useIsNarrow();
   const [open, setOpen] = useState(false);
 
   const rail = (

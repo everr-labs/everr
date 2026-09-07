@@ -1,7 +1,12 @@
 import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import type { QueryResultRow } from "@/components/dashboards/visualizations";
-import type { GeoSpec, RandomWalkSpec, TableSpec, TestDataSpec } from "./spec";
+import type {
+  GeoSpec,
+  RandomWalkSpec,
+  TableScenarioSpec,
+  TestDataSpec,
+} from "./spec";
 
 export interface TestDataParams {
   /** ClickHouse DateTime string (start of range). */
@@ -132,7 +137,7 @@ function generateRandomWalk(
 }
 
 function generateTable(
-  spec: TableSpec,
+  spec: TableScenarioSpec,
   params: TestDataParams,
 ): QueryResultRow[] {
   if (spec.rows === 0) return [];

@@ -2,7 +2,6 @@ import { Button } from "@everr/ui/components/button";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -80,21 +79,19 @@ export function AppUpdateButton() {
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger
-          aria-label={`Restart to update to version ${pending.version}`}
-          disabled={installMutation.isPending}
-          onClick={() => void installMutation.mutateAsync()}
-          className="flex size-9 cursor-pointer items-center justify-center rounded-md text-emerald-400 transition-colors hover:bg-white/[0.06] disabled:pointer-events-none disabled:opacity-50"
-        >
-          <ArrowUpCircle className="size-[18px]" />
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          Restart now to update to v{pending.version}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger
+        aria-label={`Restart to update to version ${pending.version}`}
+        disabled={installMutation.isPending}
+        onClick={() => void installMutation.mutateAsync()}
+        className="flex size-9 cursor-pointer items-center justify-center rounded-md text-emerald-400 transition-colors hover:bg-white/[0.06] disabled:pointer-events-none disabled:opacity-50"
+      >
+        <ArrowUpCircle className="size-[18px]" />
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        Restart now to update to v{pending.version}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

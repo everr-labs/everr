@@ -14,6 +14,11 @@ declare module "@tanstack/react-router" {
       | ((match: AnyRouteMatch) => string | BreadcrumbSegment[] | undefined);
     hideTimeRangePicker?: boolean;
     hideExploreBar?: boolean;
+    // Suppresses the `PreviewFrame` banner in `_previewable.tsx`. Set on pages
+    // that show live/operational state rather than an as-code resource a
+    // preview branch could change, so the banner doesn't imply a preview
+    // overlay that isn't actually there.
+    hidePreviewFrame?: boolean;
     /**
      * The route owns its scroll and touches the content edges (explorer-style
      * split panes): the `_previewable` layout skips PageContainer and its

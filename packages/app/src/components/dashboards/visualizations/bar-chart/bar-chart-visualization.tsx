@@ -3,6 +3,8 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@everr/ui/components/chart";
+import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
+import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { BarChart3 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -14,9 +16,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CursorTooltip } from "@/components/cursor-tooltip";
 import type { VisualizationProps } from "../index";
-import { SeriesTooltipContent } from "../series-tooltip";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
 

@@ -27,6 +27,7 @@ The ONLY query command is `everr cloud query "<SQL>"` or `everr local query "<SQ
 | --- | --- |
 | Production, deployed services, customer reports, cloud CI history | `everr cloud query "<SQL>"` |
 | Local app, dev server, local tests, wrapped command output | `everr local query "<SQL>"` |
+| What alerts fired, why, and whether the notification went out | Read `rules/alert-history.md`, then `everr cloud query "<SQL>"` |
 | Current CI run, branch status, failed jobs, workflow logs | Use the `everr-working-with-ci` skill |
 | Browser or web-app behavior: page views, clicks, web vitals, frontend errors | Read `rules/browser-events.md` for the event and attribute catalog, then query as usual |
 | Missing or stale local telemetry | Use the `everr-setup-telemetry` skill |
@@ -62,6 +63,12 @@ SQL starts with the same query-facing table names for local and cloud:
 - `metrics_histogram`
 - `metrics_exponential_histogram`
 - `metrics_summary`
+
+Cloud has one more table, `alert_events`, holding alert history:
+evaluations, state transitions, withheld notifications, and delivery
+attempts. Read `rules/alert-history.md` before querying it, and never guess
+its columns from this section. It is cloud only, because alerting does not
+run locally.
 
 Useful trace columns: `Timestamp`, `TraceId`, `SpanId`, `ParentSpanId`, `ServiceName`, `ScopeName`, `SpanName`, `SpanKind`, `Duration`, `StatusCode`, `StatusMessage`, `SpanAttributes`, `ResourceAttributes`.
 

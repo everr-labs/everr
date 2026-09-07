@@ -1,5 +1,16 @@
 -- Settings profile: hard caps for the /sql API. All READONLY so per-query
 -- SETTINGS ... clauses cannot loosen them.
+--
+-- init/ runs only on a fresh server, and IF NOT EXISTS skips an existing
+-- profile, so editing a value here does NOT reach a running cluster. Apply a
+-- change there with ALTER, and pass EVERY setting: ALTER ... SETTINGS
+-- replaces the profile's element list wholesale rather than merging, so a
+-- partial statement silently drops readonly = 1 and every cap with it.
+--   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --query \
+--     "ALTER SETTINGS PROFILE sql_api_profile SETTINGS <all of the below>"
+-- Then confirm nothing was lost:
+--   SELECT setting_name, value, writability
+--   FROM system.settings_profile_elements WHERE profile_name = 'sql_api_profile';
 CREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile SETTINGS
   -- Read-only mode. 1 = no writes AND no setting changes; 2 = writes blocked but settings can change.
   -- Prefer 1 if your client doesn't need to override anything.
@@ -15,16 +26,18 @@ CREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile SETTINGS
   max_bytes_to_read = 100000000000 READONLY,           -- 100 GB scanned per query
   read_overflow_mode = 'throw' READONLY,               -- error out (don't truncate) when scan caps hit
 
-  -- Result size returned to the client. Tuned for LLM consumption: an LLM
-  -- with a 1M-token context can comfortably absorb ~1 MB of NDJSON (~250k
-  -- tokens) without saturating its working set. 'throw' (not 'break') gives
-  -- the caller a clear error to retry with LIMIT or a narrower WHERE rather
-  -- than silently-truncated rows that look complete. Note: 'break' only
-  -- breaks at block boundaries (default max_block_size=65536), so for small
-  -- caps it is essentially advisory — 'throw' is the only way to enforce a
-  -- hard row count.
-  max_result_rows = 1000 READONLY,                     -- 1k rows returned to the client
-  max_result_bytes = 1048576 READONLY,                 -- 1 MB returned to the client (~250k tokens)
+  -- Result size returned to the client. Rows are sized for time-series
+  -- panels (~500 points/series x ~50 series, ~40-80B each). Bytes stay tight
+  -- on purpose: they are the cap that binds for wide rows (traces, profiles),
+  -- and 4 MB clears 25k series rows either way. An LLM reading the same API
+  -- is bounded by the byte cap, not the row cap (~1M tokens of NDJSON).
+  -- 'throw' (not 'break') gives the caller a clear error to retry with LIMIT
+  -- or a narrower WHERE rather than silently-truncated rows that look
+  -- complete. Note: 'break' only breaks at block boundaries (default
+  -- max_block_size=65536), so for small caps it is essentially advisory —
+  -- 'throw' is the only way to enforce a hard row count.
+  max_result_rows = 25000 READONLY,                    -- 25k rows returned to the client
+  max_result_bytes = 4194304 READONLY,                 -- 4 MB returned to the client
   result_overflow_mode = 'throw' READONLY,             -- hard error when result caps hit (not silent truncation)
 
   -- Concurrency and CPU per query
@@ -48,11 +61,38 @@ CREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile SETTINGS
   allow_ddl = 0 READONLY,                              -- no CREATE/ALTER/DROP
   allow_introspection_functions = 0 READONLY;          -- no addressToLine/demangle/etc.
 
--- Role: SELECT only on the four tenant-scoped read tables. We deliberately
+-- Role: SELECT only on the tenant-scoped read tables. We deliberately
 -- avoid `app.*` so future internal tables (and app.tenant_retention_source,
 -- which is cross-tenant and has no RLS) don't auto-expand the surface area.
 -- Per-org users `sql_api_org_<id>` are granted this role at provision time.
 CREATE ROLE IF NOT EXISTS sql_api_role SETTINGS PROFILE 'sql_api_profile';
+-- Default-deny row policies for sql_api_role. Per-org row policies attached
+-- to each `sql_api_org_<id>` user OR-combine with these to expose exactly
+-- one tenant's rows per query. Defense in depth: if provisioning ever skips
+-- the per-org policy step, the user sees zero rows rather than all rows.
+--
+-- They come before every grant below, and the order is load-bearing:
+-- ClickHouse returns every row when no row policy applies to a user for a
+-- table, so a grant that stands without its policy is a cross-tenant read for
+-- as long as it stands. In this order a run that stops part way leaves the
+-- table unreadable rather than readable by everyone.
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces
+  ON app.traces        FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_logs
+  ON app.logs          FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_gauge
+  ON app.metrics_gauge FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_sum
+  ON app.metrics_sum       FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_histogram
+  ON app.metrics_histogram              FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_exponential_histogram
+  ON app.metrics_exponential_histogram FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_summary
+  ON app.metrics_summary               FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_alert_events
+  ON app.alert_events  FOR SELECT USING 0 TO sql_api_role;
+
 GRANT SELECT ON app.traces        TO sql_api_role;
 GRANT SELECT ON app.logs          TO sql_api_role;
 GRANT SELECT ON app.metrics_gauge TO sql_api_role;
@@ -60,6 +100,15 @@ GRANT SELECT ON app.metrics_sum       TO sql_api_role;
 GRANT SELECT ON app.metrics_histogram              TO sql_api_role;
 GRANT SELECT ON app.metrics_exponential_histogram TO sql_api_role;
 GRANT SELECT ON app.metrics_summary              TO sql_api_role;
+-- Tenancy template, copy all three parts for every future alerting object: the
+-- default-deny row policy above, the SELECT grant here, and the table name in
+-- SQL_API_TENANT_TABLES
+-- (packages/app/src/lib/sql-api-tables.ts), which provisions the per-
+-- organization row policy and advertises the table to callers. If any one of
+-- the three is missing, the table is either unreachable or readable across
+-- tenants. Organizations provisioned before the new entry also need a policy
+-- backfill; see clickhouse/migrate-alert-events-sql-api-access.sql.
+GRANT SELECT ON app.alert_events  TO sql_api_role;
 
 -- Clean up accidental/manual system grants. SHOW TABLES handles schema
 -- discovery without exposing storage counters from system.tables or the
@@ -91,21 +140,3 @@ CREATE QUOTA OR REPLACE sql_api_quota
   FOR INTERVAL 1 hour   MAX queries = 2400, read_rows = 20000000000, execution_time = 1200
   TO sql_api_role EXCEPT web_app_admin;
 
--- Default-deny row policies for sql_api_role. Per-org row policies attached
--- to each `sql_api_org_<id>` user OR-combine with these to expose exactly
--- one tenant's rows per query. Defense in depth: if provisioning ever skips
--- the per-org policy step, the user sees zero rows rather than all rows.
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces
-  ON app.traces        FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_logs
-  ON app.logs          FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_gauge
-  ON app.metrics_gauge FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_sum
-  ON app.metrics_sum       FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_histogram
-  ON app.metrics_histogram              FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_exponential_histogram
-  ON app.metrics_exponential_histogram FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_summary
-  ON app.metrics_summary               FOR SELECT USING 0 TO sql_api_role;

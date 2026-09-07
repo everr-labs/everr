@@ -1,53 +1,60 @@
 // @vitest-environment node
+import { StringChunk } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  addJob: vi.fn(),
-  makeWorkerUtils: vi.fn(),
-  pool: {},
-}));
-
-vi.mock("graphile-worker", () => ({
-  makeWorkerUtils: mocks.makeWorkerUtils,
+  execute: vi.fn(),
 }));
 
 vi.mock("@/db/client", () => ({
-  pool: mocks.pool,
+  db: { execute: mocks.execute },
 }));
-
-async function loadJobs() {
-  // resetModules drops the module-level WorkerUtils handle so each import starts
-  // from an uninitialized slate.
-  vi.resetModules();
-  return import("./jobs");
-}
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.addJob.mockResolvedValue(undefined);
-  mocks.makeWorkerUtils.mockResolvedValue({ addJob: mocks.addJob });
+  mocks.execute.mockResolvedValue({ rows: [] });
 });
 
 describe("addWorkerJob", () => {
-  it("reuses one WorkerUtils across calls and forwards the job", async () => {
-    const { addWorkerJob } = await loadJobs();
+  it("enqueues through the same statement the transactional path uses", async () => {
+    const { addWorkerJob, addWorkerJobInTransaction } = await import("./jobs");
+    const tx = { execute: vi.fn().mockResolvedValue({ rows: [] }) };
 
-    await addWorkerJob("task", { a: 1 });
-    await addWorkerJob("task", { a: 2 }, { jobKey: "k" });
-
-    expect(mocks.makeWorkerUtils).toHaveBeenCalledOnce();
-    expect(mocks.makeWorkerUtils).toHaveBeenCalledWith({ pgPool: mocks.pool });
-    expect(mocks.addJob).toHaveBeenNthCalledWith(
-      1,
+    await addWorkerJob("task", { a: 1 }, { jobKey: "k" });
+    await addWorkerJobInTransaction(
+      tx as never,
       "task",
       { a: 1 },
-      undefined,
+      {
+        jobKey: "k",
+      },
     );
-    expect(mocks.addJob).toHaveBeenNthCalledWith(
-      2,
+
+    const viaPool = mocks.execute.mock.calls[0][0];
+    const viaTx = tx.execute.mock.calls[0][0];
+    expect(viaPool.queryChunks).toEqual(viaTx.queryChunks);
+  });
+
+  it("fills an unset spec with graphile's own add_job defaults", async () => {
+    const { addWorkerJob } = await import("./jobs");
+
+    await addWorkerJob("task", { a: 1 });
+
+    // The statement's bound values, in the order add_job takes them: every
+    // chunk that is not a literal fragment of SQL text.
+    const bound = (
+      mocks.execute.mock.calls[0][0].queryChunks as unknown[]
+    ).filter((chunk) => !(chunk instanceof StringChunk));
+    expect(bound).toEqual([
       "task",
-      { a: 2 },
-      { jobKey: "k" },
-    );
+      JSON.stringify({ a: 1 }),
+      null, // queue_name
+      null, // run_at, left for the database's now()
+      25, // max_attempts
+      null, // job_key
+      0, // priority
+      null, // flags
+      "replace", // job_key_mode
+    ]);
   });
 });

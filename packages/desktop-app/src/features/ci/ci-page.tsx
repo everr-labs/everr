@@ -15,7 +15,6 @@ import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
 import { DEFAULT_TIME_RANGE, type TimeRange } from "@everr/ui/lib/time-range";
@@ -284,26 +283,24 @@ function CopyFixPromptButton({ traceId }: { traceId: string }) {
   });
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger
-          className="flex size-6 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
-          disabled={copyMutation.isPending}
-          onClick={() => void copyMutation.mutateAsync()}
-        >
-          <span className="relative grid size-3.5 place-items-center">
-            <Clipboard
-              className={`col-start-1 row-start-1 size-3.5 transition-all duration-200 ${copied ? "scale-0 opacity-0" : "scale-100 opacity-100"}`}
-            />
-            <Check
-              className={`col-start-1 row-start-1 size-3.5 text-emerald-400 transition-all duration-200 ${copied ? "scale-100 opacity-100" : "scale-0 opacity-0"}`}
-            />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="top">
-          {copied ? "Copied!" : "Copy auto-fix prompt"}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger
+        className="flex size-6 cursor-pointer items-center justify-center rounded text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.08] hover:text-[var(--settings-text)] disabled:pointer-events-none disabled:opacity-50"
+        disabled={copyMutation.isPending}
+        onClick={() => void copyMutation.mutateAsync()}
+      >
+        <span className="relative grid size-3.5 place-items-center">
+          <Clipboard
+            className={`col-start-1 row-start-1 size-3.5 transition-all duration-200 ${copied ? "scale-0 opacity-0" : "scale-100 opacity-100"}`}
+          />
+          <Check
+            className={`col-start-1 row-start-1 size-3.5 text-emerald-400 transition-all duration-200 ${copied ? "scale-100 opacity-100" : "scale-0 opacity-0"}`}
+          />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        {copied ? "Copied!" : "Copy auto-fix prompt"}
+      </TooltipContent>
+    </Tooltip>
   );
 }

@@ -1,5 +1,4 @@
-import { applyAlertSpecs } from "@/data/alerts/apply.server";
-import { validateAlertRunbookLinks } from "@/data/alerts/runbook-links.server";
+import { applyAlertSpecs } from "@/data/alerting/rules/resource/apply.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
 import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
 import type { Namespace } from "@/data/previews/scope";
@@ -7,6 +6,10 @@ import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
 import { type DbExecutor, db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
 import type { OwnershipConflict } from "./ownership";
+import {
+  collectOrphanWarnings,
+  validateRunbookLinks,
+} from "./runbook-links.server";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
 
 export type { OwnershipConflict } from "./ownership";
@@ -18,12 +21,23 @@ export interface KindResult {
   deleted: string[];
   /** Live resources taken over from another owning repo (only with `adopt`). */
   adopted: string[];
+  /** Non-fatal advisory about how this kind was reconciled. */
+  note?: string;
 }
 
 export interface ApplyResourcesResult {
   dryRun: boolean;
   results: KindResult[];
 }
+
+/**
+ * Scratch space shared by the validation pass and the write pass of one apply.
+ * A reconciler runs twice per apply (see `applyResources`), so work that only
+ * depends on the submitted documents can be done once and reused. Keys are
+ * namespaced by the reconciler that owns them; values are whatever that
+ * reconciler stored, including in-flight promises.
+ */
+export type ApplyCache = Map<string, unknown>;
 
 /** A reconciler makes the repo's resources of one kind match the given entries. */
 export type Reconciler = (opts: {
@@ -39,6 +53,9 @@ export type Reconciler = (opts: {
   /** Runs queries: the shared apply transaction for real runs, base db for
    * dry-run reads. */
   db: DbExecutor;
+  /** Shared across this apply's two passes. Absent when a reconciler is called
+   * on its own, which just means nothing is reused. */
+  cache?: ApplyCache;
 }) => Promise<{
   created: string[];
   updated: string[];
@@ -46,6 +63,8 @@ export type Reconciler = (opts: {
   adopted: string[];
   /** Creates colliding with another repo's live resource; empty when adopting. */
   conflicts: OwnershipConflict[];
+  /** Optional non-fatal advisory surfaced in the per-kind result. */
+  note?: string;
 }>;
 
 /**
@@ -117,6 +136,7 @@ export async function applyResources(opts: {
       updated: string[];
       deleted: string[];
       adopted: string[];
+      note?: string;
     },
   ): KindResult => ({
     kind,
@@ -124,6 +144,7 @@ export async function applyResources(opts: {
     updated: r.updated,
     deleted: r.deleted,
     adopted: r.adopted,
+    ...(r.note ? { note: r.note } : {}),
   });
 
   // Live, or the preview resolved to its registry id via the given resolver.
@@ -147,6 +168,9 @@ export async function applyResources(opts: {
   // is also the result.
   const validated: KindResult[] = [];
   const conflicts: (OwnershipConflict & { kind: string })[] = [];
+  // Both passes see the same submitted documents, so document-only work (the
+  // per-rule ClickHouse schema check, above all) runs once instead of twice.
+  const cache: ApplyCache = new Map();
   for (const { key, kind, reconcile } of REGISTRY) {
     validateResourceKind(state[key], kind);
     const r = await reconcile({
@@ -156,6 +180,7 @@ export async function applyResources(opts: {
       dryRun: true,
       adopt,
       db,
+      cache,
     });
     validated.push(summarize(kind, r));
     for (const c of r.conflicts) conflicts.push({ kind, ...c });
@@ -175,26 +200,49 @@ export async function applyResources(opts: {
     );
   }
 
-  // Cross-kind: a linked runbook must exist in this batch or already in the
-  // DB. Runs after every kind validated, before any kind writes.
-  await validateAlertRunbookLinks({
+  // Cross-kind: every alert's linked runbook must exist in this batch or
+  // already be owned by another repo. Runs after every kind validated, before
+  // any kind writes.
+  await validateRunbookLinks({
     namespace,
     alerts: state.alerts,
     runbooks: state.runbooks,
   });
 
-  if (dryRun) return { dryRun: true, results: validated };
+  // Reverse check, still before any write: a runbook this apply is about to
+  // prune (in the DB, absent from the batch) may be linked from another
+  // repo's live alert. Non-fatal: surfaced as a note on the Runbook
+  // kind's result rather than failing the apply.
+  const orphanWarnings = await collectOrphanWarnings({
+    namespace,
+    runbooks: state.runbooks,
+  });
+  const withOrphanWarnings = (results: KindResult[]): KindResult[] =>
+    orphanWarnings.length === 0
+      ? results
+      : results.map((r) =>
+          r.kind === "Runbook"
+            ? {
+                ...r,
+                note: [r.note, ...orphanWarnings].filter(Boolean).join("; "),
+              }
+            : r,
+        );
 
-  // Real apply: one transaction so registration + every kind commit or roll
-  // back together. Register the preview FIRST — its row is the parent every
-  // preview resource row references (FK), and a rollback removes the row along
-  // with any partial writes, so the switcher never lists a half-applied
-  // preview. Live is not registered.
+  if (dryRun) return { dryRun: true, results: withOrphanWarnings(validated) };
+
+  // Real apply. The preview registration commits first on the base executor:
+  // every preview-owned definition has a foreign key to this row, and a
+  // registered-but-empty preview is the safe failure mode (the next apply
+  // upserts the same row). Live is not registered.
+  const applied = await resolveNamespace((name) =>
+    upsertPreview(db, { orgId, repoid, name }),
+  );
+  // One transaction for the reconcile loop: every reconciler writes through
+  // the supplied executor, so a later kind's failure rolls back earlier
+  // kinds' mutations and apply never half-changes live state.
   const results: KindResult[] = [];
   await db.transaction(async (tx) => {
-    const applied = await resolveNamespace((name) =>
-      upsertPreview(tx, { orgId, repoid, name }),
-    );
     for (const { key, kind, reconcile } of REGISTRY) {
       const r = await reconcile({
         namespace: applied,
@@ -203,10 +251,11 @@ export async function applyResources(opts: {
         dryRun: false,
         adopt,
         db: tx,
+        cache,
       });
       results.push(summarize(kind, r));
     }
   });
 
-  return { dryRun: false, results };
+  return { dryRun: false, results: withOrphanWarnings(results) };
 }
