@@ -145,18 +145,22 @@ ORDER BY (tenant_id, TraceId, Start)
 TTL toDate(Start) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 256, ttl_only_drop_parts = 1;
 
--- Chained off app.traces rather than otel.otel_traces so tenant_id and
--- retention_days come from the row app.traces_mv already stamped.
+-- Reads the landing table, like every other view here, and stamps tenant_id
+-- and retention_days again with the expressions app.traces_mv uses. A view
+-- chained off app.traces would need the inserting user to hold SELECT on
+-- app.traces, because ClickHouse checks that user against every view in the
+-- chain, and the collector user stays on otel.* only. The guard in
+-- everrRetentionDays fires here too, which refuses the same rows.
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_trace_id_ts_mv
 TO app.traces_trace_id_ts
 AS
 SELECT
-  tenant_id,
+  ResourceAttributes['everr.tenant.id'] AS tenant_id,
   TraceId,
   min(Timestamp) AS Start,
   max(Timestamp) AS End,
-  retention_days
-FROM app.traces
+  everrRetentionDays(ResourceAttributes) AS retention_days
+FROM otel.otel_traces
 WHERE TraceId != ''
 GROUP BY tenant_id, retention_days, TraceId;
 
