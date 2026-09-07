@@ -1,5 +1,6 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import * as z from "zod";
 
 /**
@@ -28,19 +29,25 @@ export const railFrameRouteOptions = {
  * as the first grid column, and what is open as a pane that scrolls itself, so
  * the page never scrolls.
  *
- * `children` is the pane, an element of the surface's own choosing, because
- * that is the half the two surfaces genuinely differ on.
+ * `children` is what goes in that pane, because that is the half the two
+ * surfaces genuinely differ on.
  */
 export function RailFrame({
   label,
   full,
   rail,
+  paneClassName,
+  paneProps,
   children,
 }: {
   /** Names the rail for assistive technology, e.g. "Dashboards". */
   label: string;
   full: boolean;
   rail: ReactNode;
+  /** Extra layout for the scrolling pane, e.g. its padding or a container name. */
+  paneClassName?: string;
+  /** Attributes for the pane itself, e.g. the router's scroll-to-top marker. */
+  paneProps?: ComponentProps<typeof ScrollArea>["viewportProps"];
   children: ReactNode;
 }) {
   return (
@@ -74,7 +81,14 @@ export function RailFrame({
           {rail}
         </div>
       </aside>
-      {children}
+      <ScrollArea
+        render={<main />}
+        className="min-h-0 min-w-0"
+        viewportClassName={cn("overscroll-y-contain", paneClassName)}
+        viewportProps={paneProps}
+      >
+        {children}
+      </ScrollArea>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   DetailItem,
   DetailSection,
 } from "@everr/ui/components/detail-panel";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
@@ -258,12 +259,15 @@ export function LogInspectorPanel({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      <ScrollArea className="min-h-0 flex-1" viewportClassName="p-3">
         <div className="group relative mb-4 rounded-md border bg-background p-3">
           <div className="text-muted-foreground mb-2 text-xs font-medium">
             Message
           </div>
-          <div className="font-mono text-xs leading-5">
+          {/* Same treatment as a row in the list: keep the log's own line
+              breaks, wrap the long lines, and break a run that has nowhere to
+              wrap (a long path, an id, a base64 blob). */}
+          <div className="font-mono text-xs leading-5 whitespace-pre-wrap break-words">
             <Ansi useClasses>{log.body}</Ansi>
           </div>
           <CopyValueButton
@@ -292,7 +296,7 @@ export function LogInspectorPanel({
         ) : showSkeleton ? (
           <LogInspectorSkeleton />
         ) : null}
-      </div>
+      </ScrollArea>
     </div>
   );
 }

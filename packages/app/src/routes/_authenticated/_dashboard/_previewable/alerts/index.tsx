@@ -1,4 +1,5 @@
 import { RetryError } from "@everr/ui/components/retry-error";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -64,13 +65,13 @@ function AlertingTriagePage() {
 
   if (triage.isError) {
     return (
-      <div className="h-full overflow-auto p-3">
+      <ScrollArea className="h-full" viewportClassName="p-3">
         <RetryError
           title="Could not load alerts"
           message={triage.error.message}
           onRetry={() => void triage.refetch()}
         />
-      </div>
+      </ScrollArea>
     );
   }
 
@@ -80,14 +81,14 @@ function AlertingTriagePage() {
 
   if (!triage.isPending && rules.length === 0) {
     return (
-      <div className="h-full overflow-auto p-3">
+      <ScrollArea className="h-full" viewportClassName="p-3">
         <ResourceEmptyState
           title="No alert rules yet"
           description="Paste this into your coding assistant. It writes the YAML, applies it, and the rule shows up here."
           assistantPrompt={ASSISTANT_ALERT_PROMPT}
           docsHref="https://everr.dev/docs/learn/first-alert"
         />
-      </div>
+      </ScrollArea>
     );
   }
 
@@ -97,7 +98,10 @@ function AlertingTriagePage() {
         {/* The lists inside measure themselves against this column rather than
           the window: opening the panel takes width away from them, and a
           viewport breakpoint cannot see that happen. */}
-        <div className="@container/list min-h-0 min-w-0 space-y-5 overflow-auto overscroll-y-contain pb-6">
+        <ScrollArea
+          className="min-h-0 min-w-0"
+          viewportClassName="@container/list space-y-5 overscroll-y-contain pb-6"
+        >
           {triage.isPending ? (
             <TriageSkeleton />
           ) : (
@@ -132,7 +136,7 @@ function AlertingTriagePage() {
               onOpen={openAlert}
             />
           )}
-        </div>
+        </ScrollArea>
       </AlertDetailShell>
       <SilenceDialog
         {...silence.dialogProps}

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Mail, Webhook } from "lucide-react";
 import { useState } from "react";
@@ -85,7 +85,11 @@ it("commits a picked option and closes", async () => {
   await user.click(await screen.findByRole("option", { name: /Email/ }));
 
   expect(onChange).toHaveBeenCalledWith("email");
-  expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  // Base UI keeps the popover mounted for its closing animation, so the rows
+  // go one frame after the click, not with it.
+  await waitFor(() =>
+    expect(screen.queryByRole("option")).not.toBeInTheDocument(),
+  );
   expect(
     screen.getByRole("combobox", { name: "Channel type" }),
   ).toHaveTextContent("Email");

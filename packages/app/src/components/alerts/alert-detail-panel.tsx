@@ -1,4 +1,6 @@
 import { Button } from "@everr/ui/components/button";
+import { CodeBlock } from "@everr/ui/components/code-block";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import {
   Tooltip,
@@ -214,7 +216,10 @@ export function AlertDetailPanel({
       {!detail ? (
         <DetailSkeleton />
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="overscroll-contain"
+        >
           <div className="space-y-3 px-3 py-3.5">
             <p className="max-w-prose text-xs text-muted-foreground text-pretty">
               {detail.description}
@@ -375,13 +380,16 @@ export function AlertDetailPanel({
               {/* The query is the rule. It gets a real code block rather than
                   a one-line value, because reading it is how anyone decides
                   whether the alert is measuring the right thing. */}
-              <pre className="overflow-x-auto rounded-md border bg-background/70 p-3 font-mono text-xs leading-relaxed">
+              <CodeBlock
+                className="rounded-md border bg-background/70"
+                codeClassName="font-mono"
+              >
                 <code>{detail.definition.query}</code>
-              </pre>
+              </CodeBlock>
             </div>
           </Section>
           <div className="pb-8" />
-        </div>
+        </ScrollArea>
       )}
     </div>
   );

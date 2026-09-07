@@ -38,6 +38,90 @@ afterEach(async () => {
 });
 
 describe("instrumentation tracer", () => {
+  it("parents a span to the active span, from startActiveSpan until its end", async () => {
+    start();
+    const parent = tracer.startActiveSpan("pageLoad", (span) => span);
+    // The function returned. In OTel the span is then not active. In this
+    // SDK, it is active until its end.
+    const child = tracer.startSpan("work");
+    child.end();
+    parent.end();
+    const after = tracer.startSpan("later");
+    after.end();
+    const wire = await spans();
+    const by = (name: string) =>
+      wire.find((span) => span.name === name) as OtlpSpan;
+    const childWire = by("work");
+    const parentWire = by("pageLoad");
+    const afterWire = by("later");
+    expect(parentWire.name).toBe("pageLoad");
+    expect(parentWire.parentSpanId).toBeUndefined();
+    expect(childWire.traceId).toBe(parentWire.traceId);
+    expect(childWire.spanId).not.toBe(parentWire.spanId);
+    expect(childWire.parentSpanId).toBe(parentWire.spanId);
+    expect(afterWire.parentSpanId).toBeUndefined();
+    expect(afterWire.traceId).not.toBe(parentWire.traceId);
+  });
+
+  it("stacks the active spans", async () => {
+    start();
+    const outer = tracer.startActiveSpan("outer", (span) => span);
+    const inner = tracer.startActiveSpan(
+      "inner",
+      { attributes: {} },
+      (span) => span,
+    );
+    tracer.startSpan("in-inner").end();
+    inner.end();
+    tracer.startSpan("in-outer").end();
+    outer.end();
+    const wire = await spans();
+    const by = (name: string) => wire.find((s) => s.name === name) as OtlpSpan;
+    expect(by("inner").parentSpanId).toBe(by("outer").spanId);
+    expect(by("in-inner").parentSpanId).toBe(by("inner").spanId);
+    expect(by("in-outer").parentSpanId).toBe(by("outer").spanId);
+    expect(by("in-outer").traceId).toBe(by("outer").traceId);
+  });
+
+  it("drops an active span that ends before its child", async () => {
+    // The parent ends first. The child is then the only active span, and a
+    // new span is its child. When the child ends, no span is active.
+    start();
+    const outer = tracer.startActiveSpan("outer", (span) => span);
+    const inner = tracer.startActiveSpan("inner", (span) => span);
+    outer.end();
+    tracer.startSpan("in-inner").end();
+    inner.end();
+    tracer.startSpan("alone").end();
+    const wire = await spans();
+    const by = (name: string) => wire.find((s) => s.name === name) as OtlpSpan;
+    expect(by("in-inner").parentSpanId).toBe(by("inner").spanId);
+    expect(by("alone").parentSpanId).toBeUndefined();
+  });
+
+  it("accepts no attribute after the end", async () => {
+    start();
+    const span = tracer.startSpan("work", { attributes: { a: 1 } });
+    span.end();
+    span.setAttribute("late", true);
+    span.setAttributes({ later: true });
+    const [wire] = await spans();
+    const a = attrs(wire);
+    expect(a.a).toBe("1");
+    expect(a.late).toBeUndefined();
+    expect(a.later).toBeUndefined();
+  });
+
+  it("returns the value of the function and ends nothing by itself", async () => {
+    start();
+    const value = tracer.startActiveSpan("work", (span) => {
+      span.end();
+      return 42;
+    });
+    expect(value).toBe(42);
+    expect(await spans()).toHaveLength(1);
+  });
+
   it("ships an ended span with its own sampled trace, CLIENT kind, and attributes", async () => {
     start();
     const span = tracer.startSpan("work", {
@@ -51,6 +135,7 @@ describe("instrumentation tracer", () => {
     expect(wire.kind).toBe(3); // CLIENT
     expect(wire.traceId).toMatch(/^[0-9a-f]{32}$/);
     expect(wire.spanId).toMatch(/^[0-9a-f]{16}$/);
+    expect(wire.parentSpanId).toBeUndefined();
     const a = attrs(wire);
     expect(a["everr.step"]).toBe("one");
     expect(a["everr.count"]).toBe("2");
@@ -125,21 +210,15 @@ describe("instrumentation tracer", () => {
     expect(attrs(wire[2])["exception.message"]).toBeUndefined();
   });
 
-  it("honors epoch-millis start/end times and falls back to now otherwise", async () => {
+  it("honors normalized epoch-millisecond times", async () => {
     start();
-    const explicit = tracer.startSpan("explicit", { startTime: 1_000 });
-    explicit.end(2_000);
-    const fallback = tracer.startSpan("fallback", { startTime: new Date() });
-    fallback.end(new Date());
+    const explicit = tracer.startSpan("explicit", {
+      startTime: 1_724_976_000_123,
+    });
+    explicit.end(1_725_004_801_456);
     const wire = await spans();
-    expect(wire[0].startTimeUnixNano).toBe("1000000000");
-    expect(wire[0].endTimeUnixNano).toBe("2000000000");
-    // For a Date input, the code uses the current time. That time is the same
-    // as the times in this test, or later.
-    expect(Number(wire[1].startTimeUnixNano)).toBeGreaterThan(2_000_000_000);
-    expect(Number(wire[1].endTimeUnixNano)).toBeGreaterThanOrEqual(
-      Number(wire[1].startTimeUnixNano),
-    );
+    expect(wire[0].startTimeUnixNano).toBe("1724976000123000000");
+    expect(wire[0].endTimeUnixNano).toBe("1725004801456000000");
   });
 
   it("startActiveSpan runs the callback with the span, options collapsed", async () => {

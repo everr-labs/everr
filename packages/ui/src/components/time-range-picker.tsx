@@ -1,4 +1,5 @@
 import { isValid, resolve } from "@everr/datemath";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { ChevronDownIcon, Clock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { DEFAULT_TIME_RANGE, type TimeRange } from "../lib/time-range";
@@ -191,7 +192,7 @@ export function TimeRangePicker({
                 className="rounded-none bg-transparent border-none h-10 px-3 focus:ring-0 focus-visible:ring-0"
               />
             </div>
-            <div className="max-h-[320px] overflow-y-auto p-1">
+            <ScrollArea className="max-h-[320px]" viewportClassName="p-1">
               {filteredGroups.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-muted-foreground text-center">
                   No matches
@@ -228,7 +229,7 @@ export function TimeRangePicker({
                   </div>
                 ))
               )}
-            </div>
+            </ScrollArea>
           </div>
 
           {/* Right panel: custom range */}

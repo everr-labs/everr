@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import {
   Tabs,
@@ -164,13 +165,15 @@ function RunDetailLayout() {
                   {(jobs ?? []).length} jobs in this run
                 </CardDescription>
               </CardHeader>
-              <CardContent className="min-h-0 flex-1 overflow-auto">
-                <JobTreeNav
-                  jobs={jobs ?? []}
-                  stepsByJobId={stepsByJobId ?? {}}
-                  traceId={traceId}
-                  selectedJobId={(params as { jobId?: string }).jobId}
-                />
+              <CardContent className="min-h-0 flex-1">
+                <ScrollArea orientation="both" className="size-full">
+                  <JobTreeNav
+                    jobs={jobs ?? []}
+                    stepsByJobId={stepsByJobId ?? {}}
+                    traceId={traceId}
+                    selectedJobId={(params as { jobId?: string }).jobId}
+                  />
+                </ScrollArea>
               </CardContent>
             </Card>
 
@@ -201,10 +204,16 @@ function RunDetailSkeleton() {
             <Skeleton className="h-4 w-16" />
             <Skeleton className="h-3 w-32" />
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 space-y-2 overflow-auto">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full" />
-            ))}
+          <CardContent className="min-h-0 flex-1">
+            <ScrollArea
+              orientation="both"
+              className="size-full"
+              viewportClassName="space-y-2"
+            >
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
+            </ScrollArea>
           </CardContent>
         </Card>
         <Card size="sm" className="h-full">

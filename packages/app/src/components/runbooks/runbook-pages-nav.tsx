@@ -1,3 +1,4 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import type { CSSProperties, ReactNode } from "react";
@@ -30,15 +31,14 @@ interface PagesNavProps {
 export function RunbookPagesNav(props: PagesNavProps) {
   return (
     <>
-      <nav
-        aria-label="Runbook pages"
-        className={cn(
-          "-mx-1 mb-5 flex items-center gap-0.5 overflow-x-auto pb-1",
-          noMarginClass,
-        )}
+      <ScrollArea
+        render={<nav aria-label="Runbook pages" />}
+        orientation="horizontal"
+        className={cn("-mx-1 mb-5", noMarginClass)}
+        viewportClassName="flex items-center gap-0.5 pb-1"
       >
         <PageLinks {...props} inline />
-      </nav>
+      </ScrollArea>
       <FloatingMarginNav label="Pages" ariaLabel="Runbook pages">
         <PageLinks {...props} />
       </FloatingMarginNav>

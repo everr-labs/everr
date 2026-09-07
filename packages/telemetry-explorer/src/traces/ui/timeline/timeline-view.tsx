@@ -1,3 +1,4 @@
+import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { Span } from "../../data/types";
@@ -26,6 +27,7 @@ export function TimelineView({ spans, focusedSpan, onSelectSpan }: Props) {
       <Virtuoso
         className="flex-1"
         data={rows}
+        components={virtuosoScrollAreaComponents}
         computeItemKey={(_, row) => row.span.spanId}
         itemContent={(_, row) => (
           <SpanRow

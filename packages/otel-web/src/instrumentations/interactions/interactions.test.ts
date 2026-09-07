@@ -2,11 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Emit } from "../../pipeline/emitter.js";
 import { startInteractions } from "./interactions.js";
 
-let emitted: Array<{ name: string; attrs?: Record<string, unknown> }>;
+let emitted: Array<{
+  name: string;
+  attrs?: Record<string, unknown>;
+  timestamp?: number;
+}>;
 let stop: () => void;
 
-const emit: Emit = (name, attrs) => {
-  emitted.push({ name, attrs });
+const emit: Emit = (name, attrs, timestamp) => {
+  emitted.push({ name, attrs, timestamp });
 };
 
 function names() {
@@ -21,10 +25,15 @@ function countOf(name: string) {
 const rageClicks = () => countOf("everr.browser.interaction.rage_click");
 const clicks = () => countOf("everr.browser.interaction.click");
 
-function click(el: Element, x = 10, y = 20) {
-  el.dispatchEvent(
-    new MouseEvent("click", { bubbles: true, clientX: x, clientY: y }),
-  );
+function click(el: Element, x = 10, y = 20, at?: number) {
+  const event = new MouseEvent("click", {
+    bubbles: true,
+    clientX: x,
+    clientY: y,
+  });
+  if (at !== undefined)
+    Object.defineProperty(event, "timeStamp", { value: at });
+  el.dispatchEvent(event);
 }
 
 /** Three clicks in the area and in the interval for a rage click. */
@@ -68,6 +77,14 @@ describe("startInteractions", () => {
       expect(a).not.toHaveProperty("everr.browser.interaction.duration");
     });
 
+    it("timestamps a click at the DOM action", () => {
+      document.body.innerHTML = "<button>Go</button>";
+      click(document.querySelector("button") as Element, 10, 20, 123.5);
+      expect(emitted[0].timestamp).toBe(
+        Math.round(performance.timeOrigin + 123.5),
+      );
+    });
+
     it("a rage burst adds a rage_click, and it keeps the click of that third click", () => {
       document.body.innerHTML = "<button>broken</button>";
       const button = document.querySelector("button") as Element;
@@ -87,6 +104,18 @@ describe("startInteractions", () => {
       expect(rage["everr.element.tag"]).toBe("button");
       // The two records of the third click carry the same data.
       expect(emitted[3].attrs).toEqual(rage);
+    });
+
+    it("timestamps a rage click at the first click in its burst", () => {
+      document.body.innerHTML = "<button>broken</button>";
+      const button = document.querySelector("button") as Element;
+      click(button, 10, 20, 100);
+      click(button, 12, 21, 200);
+      click(button, 13, 22, 300);
+      const rage = emitted.find(
+        (event) => event.name === "everr.browser.interaction.rage_click",
+      );
+      expect(rage?.timestamp).toBe(Math.round(performance.timeOrigin + 100));
     });
 
     it("makes one rage_click for one continuous burst, whatever its length", () => {

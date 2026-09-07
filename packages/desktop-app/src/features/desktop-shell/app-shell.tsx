@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import {
   Bug,
@@ -93,8 +94,13 @@ export function AppShell() {
                 <AuthStatusIndicator />
               </div>
             </nav>
-            <CardContent className="min-w-0 flex-1 overflow-y-auto overscroll-none p-0">
-              <Outlet />
+            <CardContent className="min-w-0 flex-1 p-0">
+              {/* No overscroll-none: the ancestor main and Card are both
+                  h-screen/overflow-hidden, so there is no window scroll to
+                  chain to and nothing for it to guard. */}
+              <ScrollArea className="size-full">
+                <Outlet />
+              </ScrollArea>
             </CardContent>
           </div>
         </TitleBarSlotsContext.Provider>

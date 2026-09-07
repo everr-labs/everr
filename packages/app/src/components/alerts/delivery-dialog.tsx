@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@everr/ui/components/dialog";
 import { Label } from "@everr/ui/components/label";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Switch } from "@everr/ui/components/switch";
 import { cn } from "@everr/ui/lib/utils";
 import { useState } from "react";
@@ -52,29 +53,31 @@ function ChannelChecklist({
   onToggle: (name: string) => void;
 }) {
   return (
-    <ul className="max-h-56 divide-y overflow-y-auto rounded-md border">
-      {channels.map((channel) => (
-        <li key={channel.name}>
-          <label className="flex w-full cursor-pointer items-center gap-2.5 px-2.5 py-2 text-sm hover:bg-muted/50">
-            <input
-              type="checkbox"
-              className="size-4 shrink-0 accent-primary"
-              checked={selected.includes(channel.name)}
-              disabled={disabled}
-              aria-label={`${TIER_LABEL[tier]} to ${channel.name}`}
-              onChange={() => onToggle(channel.name)}
-            />
-            <ChannelMark type={channel.config.type} size="sm" />
-            <span className="min-w-0 flex-1 truncate font-mono text-xs">
-              {channel.name}
-            </span>
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {CHANNEL_LABEL[channel.config.type]}
-            </span>
-          </label>
-        </li>
-      ))}
-    </ul>
+    <ScrollArea className="max-h-56 rounded-md border">
+      <ul className="divide-y">
+        {channels.map((channel) => (
+          <li key={channel.name}>
+            <label className="flex w-full cursor-pointer items-center gap-2.5 px-2.5 py-2 text-sm hover:bg-muted/50">
+              <input
+                type="checkbox"
+                className="size-4 shrink-0 accent-primary"
+                checked={selected.includes(channel.name)}
+                disabled={disabled}
+                aria-label={`${TIER_LABEL[tier]} to ${channel.name}`}
+                onChange={() => onToggle(channel.name)}
+              />
+              <ChannelMark type={channel.config.type} size="sm" />
+              <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                {channel.name}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {CHANNEL_LABEL[channel.config.type]}
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </ScrollArea>
   );
 }
 
@@ -248,60 +251,65 @@ function DeliveryForm({
   return (
     <DialogContent
       className={cn(
-        "max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain sm:max-w-md",
+        "flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-md",
         split && "sm:max-w-2xl",
       )}
     >
-      <DialogHeader>
-        <DialogTitle>Edit delivery</DialogTitle>
-        <DialogDescription>
-          Every alert delivers here unless its rule names channels of its own.
-          Split by severity to send critical alerts one place and the rest
-          another.
-        </DialogDescription>
-      </DialogHeader>
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportClassName="flex flex-col gap-4 overscroll-contain"
+      >
+        <DialogHeader>
+          <DialogTitle>Edit delivery</DialogTitle>
+          <DialogDescription>
+            Every alert delivers here unless its rule names channels of its own.
+            Split by severity to send critical alerts one place and the rest
+            another.
+          </DialogDescription>
+        </DialogHeader>
 
-      <div className="space-y-4">
-        <Label className="flex w-fit cursor-pointer items-center gap-2">
-          <Switch
-            checked={split}
+        <div className="space-y-4">
+          <Label className="flex w-fit cursor-pointer items-center gap-2">
+            <Switch
+              checked={split}
+              disabled={pending}
+              onCheckedChange={setSplit}
+            />
+            Split by severity
+          </Label>
+          {split ? (
+            <div className="space-y-4">
+              {channels.map((channel) => (
+                <ChannelSeverityCard
+                  key={channel.name}
+                  channel={channel}
+                  selected={draft}
+                  disabled={pending}
+                  onToggle={(tier) => toggle(tier, channel.name)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="text-sm font-medium">{TIER_LABEL.all}</div>
+              {checklist("all")}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" disabled={pending} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
             disabled={pending}
-            onCheckedChange={setSplit}
-          />
-          Split by severity
-        </Label>
-        {split ? (
-          <div className="space-y-4">
-            {channels.map((channel) => (
-              <ChannelSeverityCard
-                key={channel.name}
-                channel={channel}
-                selected={draft}
-                disabled={pending}
-                onToggle={(tier) => toggle(tier, channel.name)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            <div className="text-sm font-medium">{TIER_LABEL.all}</div>
-            {checklist("all")}
-          </div>
-        )}
-      </div>
-
-      <DialogFooter>
-        <Button variant="outline" disabled={pending} onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          disabled={pending}
-          aria-busy={pending}
-          onClick={clearsDelivery ? () => setConfirmingClear(true) : save}
-        >
-          Save delivery
-        </Button>
-      </DialogFooter>
+            aria-busy={pending}
+            onClick={clearsDelivery ? () => setConfirmingClear(true) : save}
+          >
+            Save delivery
+          </Button>
+        </DialogFooter>
+      </ScrollArea>
     </DialogContent>
   );
 }

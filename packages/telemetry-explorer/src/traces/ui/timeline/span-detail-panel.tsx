@@ -4,6 +4,7 @@ import {
   DetailItem,
   DetailSection,
 } from "@everr/ui/components/detail-panel";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { Clock3, Fingerprint, Server, X } from "lucide-react";
 import type { Span } from "../../data/types";
@@ -36,7 +37,7 @@ export function SpanDetailPanel({ span, traceStartNs, onClose }: Props) {
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      <ScrollArea className="min-h-0 flex-1" viewportClassName="p-3">
         <DetailSection title="Overview">
           <DetailItem
             icon={<Server />}
@@ -122,7 +123,7 @@ export function SpanDetailPanel({ span, traceStartNs, onClose }: Props) {
             ))}
           </DetailSection>
         ) : null}
-      </div>
+      </ScrollArea>
     </aside>
   );
 }

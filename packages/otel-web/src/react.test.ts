@@ -64,6 +64,7 @@ describe("ErrorBoundary", () => {
         "everr.error.mechanism": "react",
         "everr.react.component_stack": expect.stringContaining("Bomb"),
       }),
+      undefined,
       17,
       "Error: render boom",
     );

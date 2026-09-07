@@ -30,12 +30,9 @@ function DashboardsLayout() {
       label="Dashboards"
       full={full ?? false}
       rail={<DashboardsList preview={preview} />}
+      paneClassName="p-3"
     >
-      <main className="min-h-0 min-w-0 overflow-auto overscroll-y-contain">
-        <div className="p-3">
-          <Outlet />
-        </div>
-      </main>
+      <Outlet />
     </RailFrame>
   );
 }

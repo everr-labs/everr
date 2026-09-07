@@ -1,4 +1,5 @@
 import { RetryError } from "@everr/ui/components/retry-error";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ChannelDialog } from "@/components/alerts/channel-dialog";
@@ -34,19 +35,22 @@ function AlertingNotificationsPage() {
 
   if (notifications.isError) {
     return (
-      <div className="h-full overflow-auto p-3">
+      <ScrollArea className="h-full" viewportClassName="p-3">
         <RetryError
           title="Could not load notifications"
           message={notifications.error.message}
           onRetry={() => void notifications.refetch()}
         />
-      </div>
+      </ScrollArea>
     );
   }
 
   return (
     <>
-      <div className="h-full min-h-0 overflow-auto overscroll-y-contain pb-6">
+      <ScrollArea
+        className="h-full min-h-0"
+        viewportClassName="overscroll-y-contain pb-6"
+      >
         <NotificationsPage
           data={data}
           pending={controls.pending}
@@ -54,7 +58,7 @@ function AlertingNotificationsPage() {
           onEditChannel={controls.channel.openEdit}
           onEditDelivery={controls.delivery.show}
         />
-      </div>
+      </ScrollArea>
       <ChannelDialog
         target={controls.channel.target}
         channels={data?.channels ?? []}

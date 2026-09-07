@@ -29,13 +29,24 @@ export interface InstrumentationContext {
    * the context from `setAttributes`. Then it puts the record in the batch with
    * the other records. The SDK ignores an attribute value of null and an
    * attribute value of undefined. Thus an optional attribute needs no
-   * additional code.
+   * additional code. The optional timestamp is integer epoch milliseconds.
+   * Normalize a browser timestamp with `epoch()` at the capture site. Without
+   * it, the SDK uses the instant that `emit` is called.
    */
   emit(
     name: string,
     attributes?: Record<string, AttrValue | null | undefined>,
+    timestamp?: number,
   ): void;
-  /** The OTel tracer of the SDK. The traces pipeline sends a completed span. */
+  /**
+   * The OTel tracer of the SDK. The traces pipeline sends a completed span.
+   * The SDK has no context manager, and thus its rule for the active span is
+   * the time: a span from `startActiveSpan` is active from that call until its
+   * `end()`, and a span from `startSpan` in that interval is its child. The
+   * tracer ignores a context argument. During the first load, `pageLoad()`
+   * keeps its root active, and thus a span of a custom instrumentation joins
+   * the trace of the load.
+   */
   tracer: Tracer;
   /** The current visitor id and session id. The code reads them at each call. */
   ids(): { visitorId: string; sessionId: string };
@@ -54,6 +65,14 @@ export interface InstrumentationContext {
    * function returns the function that removes the listener.
    */
   onNavigation(listener: () => void): () => void;
+  /**
+   * Adds a listener for the hidden state: the `pagehide` event and the
+   * `visibilitychange` event with the hidden state. The SDK calls the listener
+   * before its exit flush. Thus a record that the listener sends goes in the
+   * batch of that flush. This function returns the function that removes the
+   * listener.
+   */
+  onHide(listener: () => void): () => void;
   /** The `dev` option of the WebSDK. */
   dev: boolean;
 }

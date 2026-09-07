@@ -2,7 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { PreviewFrame } from "@everr/ui/components/preview-frame";
 import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";
 import { GitBranch, LogOut } from "lucide-react";
-import { PageContainer } from "@/components/page-container";
+import { ScrollingPageContainer } from "@/components/page-container";
 import { previewMessage } from "@/components/preview-message";
 import type { PreviewStatus } from "@/data/previews/overlay";
 import { usePreview } from "@/hooks/use-preview";
@@ -47,18 +47,9 @@ function PreviewableLayout() {
       <Outlet />
     </div>
   ) : (
-    // `lg:flex lg:flex-col` (matching `ScrollPage`'s wrapper) is what lets
-    // `PageContainer`'s own `flex-1 min-h-0` resolve to a real height here: a
-    // block box doesn't hand a percentage/flex height down to its children, so
-    // without this, PageContainer (and anything under it, like the alerting
-    // section rail) has no definite height to fill and falls back to sizing
-    // from its content. Scoped to `lg:` so mobile, which never asked for a
-    // definite height here, is unaffected.
-    <div className="min-h-0 flex-1 overflow-auto overscroll-y-contain lg:flex lg:flex-col">
-      <PageContainer>
-        <Outlet />
-      </PageContainer>
-    </div>
+    <ScrollingPageContainer>
+      <Outlet />
+    </ScrollingPageContainer>
   );
 
   if (!name || hidePreviewFrame) return content;

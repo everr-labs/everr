@@ -25,6 +25,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- Events now carry the time they occurred instead of the later reporting time. `InstrumentationContext.emit` and the tracer accept epoch milliseconds. The exported `epoch()` helper converts standard browser timestamps at their capture site. Web vitals and user interactions use their browser performance or DOM event timestamps. Logs and traces are ordered by occurrence time within each payload.
+
 ### Breaking: capture is opt-in only
 
 `init` now wires pipeline, transport, and identity and captures nothing by

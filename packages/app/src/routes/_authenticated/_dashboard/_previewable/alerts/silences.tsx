@@ -1,4 +1,5 @@
 import { RetryError } from "@everr/ui/components/retry-error";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -33,20 +34,23 @@ function AlertingSilencesPage() {
 
   if (silences.isError) {
     return (
-      <div className="h-full overflow-auto p-3">
+      <ScrollArea className="h-full" viewportClassName="p-3">
         <RetryError
           title="Could not load silences"
           message={silences.error.message}
           onRetry={() => void silences.refetch()}
         />
-      </div>
+      </ScrollArea>
     );
   }
 
   return (
     <>
       <AlertDetailShell {...shellProps}>
-        <div className="min-h-0 min-w-0 overflow-auto overscroll-y-contain pb-6">
+        <ScrollArea
+          className="min-h-0 min-w-0"
+          viewportClassName="overscroll-y-contain pb-6"
+        >
           <SilencesPage
             silences={silences.data?.silences ?? null}
             cut={silences.data?.cut ?? null}
@@ -55,7 +59,7 @@ function AlertingSilencesPage() {
             onCancel={silence.cancel}
             onSilenceAgain={silence.openSilence}
           />
-        </div>
+        </ScrollArea>
       </AlertDetailShell>
       <SilenceDialog {...silence.dialogProps} />
     </>

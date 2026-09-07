@@ -33,6 +33,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-scrollbar-thumb: var(--scrollbar-thumb);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -68,6 +69,8 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  --scrollbar-thumb: oklch(1 0 0 / 18%);
+  --scrollbar-thumb-hover: oklch(1 0 0 / 32%);
   --chart-1: oklch(0.905 0.182 98.111);
   --chart-2: oklch(0.795 0.184 86.047);
   --chart-3: oklch(0.681 0.162 75.834);
@@ -86,7 +89,34 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+
+    scrollbar-width: thin;
   }
+
+  /* scrollbar-color inherits, so the root is the only element that needs it. */
+  :root {
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  /* WebKit ignores scrollbar-color, so the thumb is restyled separately.
+     Setting ::-webkit-scrollbar opts the whole scrollbar out of the native
+     look, so every part below has to be given back explicitly. */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+
   body {
     @apply font-sans bg-background text-foreground;
   }

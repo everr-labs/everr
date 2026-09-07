@@ -110,6 +110,7 @@ export class WebSDK {
     // full list. Thus a ctx.onNavigation subscription from each instrumentation
     // goes into the same dispatch.
     const navigationListeners = new Set<NavigationListener>();
+    const hideListeners = new Set<() => void>();
     const ctx: InstrumentationContext = {
       emit,
       tracer: createTracer(emitSpan),
@@ -120,6 +121,12 @@ export class WebSDK {
         navigationListeners.add(listener);
         return () => {
           navigationListeners.delete(listener);
+        };
+      },
+      onHide: (listener) => {
+        hideListeners.add(listener);
+        return () => {
+          hideListeners.delete(listener);
         };
       },
       dev: options.dev === true,
@@ -135,15 +142,15 @@ export class WebSDK {
     // subscribes.
     const stopWatching = watchNavigation(rotate, navigationListeners);
 
-    // The delivery at exit. All the records in the batch queue go on the
-    // keepalive path. This includes the records from the hide path of an
-    // instrumentation, because those listeners registered before this one and
-    // thus operated first.
+    // The delivery at exit. The hide listeners of the instrumentations come
+    // first, and thus their records are in the batch queue. Then all the
+    // records in the queue go on the keepalive path.
     //
     // The SDK uses the pagehide event and the visibilitychange event with the
     // hidden state. It does not use beforeunload, because beforeunload does not
     // occur on a mobile device and it prevents the bfcache.
     const onHide = () => {
+      for (const listener of hideListeners) listener();
       // The write of the activity of the session is on a delay. Thus the code
       // writes it now, while the page can still use the store.
       persistSession();

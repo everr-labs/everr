@@ -16,8 +16,8 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
+import { RailList } from "@/components/rail/rail-list";
 import { groupLabelClass, RailRow } from "@/components/rail/rail-row";
-import { RailSearch } from "@/components/rail/rail-search";
 import {
   evaluateBuiltin,
   type TelemetryCapabilities,
@@ -139,113 +139,111 @@ export function DashboardsList({ preview }: { preview?: string }) {
   const visibleNeedsData = showNeedsData ? needsData : pinnedActive(needsData);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-      <RailSearch label="dashboards" value={search} onChange={setSearch} />
+    <RailList
+      label="dashboards"
+      search={search}
+      onSearchChange={setSearch}
+      className="gap-4"
+    >
+      <section aria-label="Your dashboards">
+        <GroupLabel label="Your dashboards" />
+        {listQuery.isLoading && (
+          <p className="px-1 py-1 text-muted-foreground text-xs">Loading...</p>
+        )}
+        {listQuery.isError && (
+          <p className="px-1 py-1 text-amber-400 text-xs">
+            Couldn't load your dashboards
+          </p>
+        )}
+        {!listQuery.isLoading &&
+          !listQuery.isError &&
+          dashboards.length === 0 && (
+            <RailRow
+              label="Create your first dashboard"
+              icon={CirclePlus}
+              to="/dashboards/get-started"
+            />
+          )}
+        {dashboards.length > 0 && (
+          <DashboardTree dashboards={dashboards} search={search} />
+        )}
+      </section>
 
-      {/* Only the rows scroll; the search stays pinned above. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 pb-3">
-        <section aria-label="Your dashboards">
-          <GroupLabel label="Your dashboards" />
-          {listQuery.isLoading && (
-            <p className="px-1 py-1 text-muted-foreground text-xs">
-              Loading...
-            </p>
-          )}
-          {listQuery.isError && (
-            <p className="px-1 py-1 text-amber-400 text-xs">
-              Couldn't load your dashboards
-            </p>
-          )}
-          {!listQuery.isLoading &&
-            !listQuery.isError &&
-            dashboards.length === 0 && (
-              <RailRow
-                label="Create your first dashboard"
-                icon={CirclePlus}
-                to="/dashboards/get-started"
-              />
+      <section aria-label="Built-in dashboards">
+        <GroupLabel
+          label="Built-in dashboards"
+          open={!builtinsCollapsed}
+          onToggle={() => {
+            const next = !builtinsCollapsed;
+            setBuiltinsCollapsed(next);
+            writeBuiltinsCollapsed(next);
+          }}
+        />
+
+        {builtinsCollapsed ? (
+          pinnedActive(matching).map((builtin) => (
+            <BuiltinRow key={builtin.id} builtin={builtin} />
+          ))
+        ) : (
+          <>
+            {capabilitiesQuery.isError && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-1 text-xs">
+                <span className="inline-flex items-center gap-1.5 text-amber-400">
+                  <TriangleAlert className="size-3.5" />
+                  Couldn't check what you send
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => void capabilitiesQuery.refetch()}
+                >
+                  <RotateCw className="size-3" />
+                  Retry
+                </Button>
+              </div>
             )}
-          {dashboards.length > 0 && (
-            <DashboardTree dashboards={dashboards} search={search} />
-          )}
-        </section>
 
-        <section aria-label="Built-in dashboards">
-          <GroupLabel
-            label="Built-in dashboards"
-            open={!builtinsCollapsed}
-            onToggle={() => {
-              const next = !builtinsCollapsed;
-              setBuiltinsCollapsed(next);
-              writeBuiltinsCollapsed(next);
-            }}
-          />
+            {matching.length === 0 && (
+              <p className="px-1 py-1 text-muted-foreground text-xs">
+                No built-in matches that search.
+              </p>
+            )}
 
-          {builtinsCollapsed ? (
-            pinnedActive(matching).map((builtin) => (
+            {ready.map((builtin) => (
               <BuiltinRow key={builtin.id} builtin={builtin} />
-            ))
-          ) : (
-            <>
-              {capabilitiesQuery.isError && (
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-1 text-xs">
-                  <span className="inline-flex items-center gap-1.5 text-amber-400">
-                    <TriangleAlert className="size-3.5" />
-                    Couldn't check what you send
+            ))}
+
+            {needsData.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNeedsDataDisclosure(showNeedsData ? "closed" : "open")
+                  }
+                  aria-expanded={showNeedsData}
+                  title="Nothing sent in the last 7 days"
+                  className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
+                >
+                  {showNeedsData ? (
+                    <ChevronDown className="size-3 shrink-0" />
+                  ) : (
+                    <ChevronRight className="size-3 shrink-0" />
+                  )}
+                  Needs data
+                  <span className="ml-1 tabular-nums opacity-80">
+                    {needsData.length}
                   </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => void capabilitiesQuery.refetch()}
-                  >
-                    <RotateCw className="size-3" />
-                    Retry
-                  </Button>
-                </div>
-              )}
-
-              {matching.length === 0 && (
-                <p className="px-1 py-1 text-muted-foreground text-xs">
-                  No built-in matches that search.
-                </p>
-              )}
-
-              {ready.map((builtin) => (
-                <BuiltinRow key={builtin.id} builtin={builtin} />
-              ))}
-
-              {needsData.length > 0 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNeedsDataDisclosure(showNeedsData ? "closed" : "open")
-                    }
-                    aria-expanded={showNeedsData}
-                    title="Nothing sent in the last 7 days"
-                    className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
-                  >
-                    {showNeedsData ? (
-                      <ChevronDown className="size-3 shrink-0" />
-                    ) : (
-                      <ChevronRight className="size-3 shrink-0" />
-                    )}
-                    Needs data
-                    <span className="ml-1 tabular-nums opacity-80">
-                      {needsData.length}
-                    </span>
-                  </button>
-                  {visibleNeedsData.map((builtin) => (
-                    <BuiltinRow key={builtin.id} builtin={builtin} />
-                  ))}
-                </>
-              )}
-            </>
-          )}
-        </section>
-      </div>
-    </div>
+                </button>
+                {visibleNeedsData.map((builtin) => (
+                  <BuiltinRow key={builtin.id} builtin={builtin} />
+                ))}
+              </>
+            )}
+          </>
+        )}
+      </section>
+    </RailList>
   );
 }
 

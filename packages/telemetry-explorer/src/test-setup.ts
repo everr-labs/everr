@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import "@everr/ui/testing/jsdom-shims";
 
 // jsdom lacks a few browser APIs that base-ui (popover positioning) and cmdk
 // (command list highlighting) call during render. Provide noop polyfills so
