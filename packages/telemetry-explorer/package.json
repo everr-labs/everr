@@ -7,6 +7,7 @@
     "./filters": "./src/filters/index.ts",
     "./logs": "./src/logs/index.ts",
     "./runs": "./src/runs/index.ts",
+    "./sql": "./src/sql/index.ts",
     "./styles.css": "./src/styles.css",
     "./traces": "./src/traces/index.ts"
   },
