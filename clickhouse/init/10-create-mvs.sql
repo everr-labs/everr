@@ -12,9 +12,10 @@
 --
 -- Only the views write these tables. everrRetentionDays and
 -- everrStripRetention (05-create-retention-functions.sql) hold the stamp and
--- the strip. The stamp is computed in an inner query because the
--- `everrStripRetention(...) AS ResourceAttributes` alias in the outer query
--- shadows the source column.
+-- the strip. On the metrics views the stamp is computed in an inner query
+-- because the `everrStripRetention(...) AS ResourceAttributes` alias in the
+-- outer query shadows the source column. The logs and traces views keep the
+-- same inner query, so all five views read alike.
 --
 -- On app.logs and app.traces the attributes are JSON columns. The strip of
 -- `everr.retention.days` from the document is the SKIP on the column type,

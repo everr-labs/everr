@@ -75,13 +75,12 @@ SELECT
   '' AS ResourceSchemaUrl,
   -- Env facet ('deployment.environment' resource attr): the preview name for
   -- preview alerts, 'production' for live.
-  --
-  -- The keys arrays list the same keys as the documents above them, because
-  -- the filter UI and the exists index read them.
   CAST(map(
     'everr.tenant.id', tenant_id,
     'deployment.environment', if(preview = '', 'production', preview)
   ), 'JSON(max_dynamic_paths = 256)') AS ResourceAttributes,
+  -- Each keys array lists the same keys as the document it follows: the
+  -- filter UI and the exists index read the array.
   CAST(['everr.tenant.id', 'deployment.environment'], 'Array(LowCardinality(String))') AS ResourceAttributesKeys,
   '' AS ScopeSchemaUrl,
   'everr.alerting' AS ScopeName,

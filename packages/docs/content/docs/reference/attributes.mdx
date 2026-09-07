@@ -5,6 +5,8 @@ description: How to read span, log and resource attributes in SQL.
 
 Logs and traces store their attributes in JSON columns: `LogAttributes`, `ScopeAttributes` and `ResourceAttributes` on `logs`, and `SpanAttributes` and `ResourceAttributes` on `traces`. Each column keeps the type the SDK sent, so an integer attribute is a number and a boolean is a boolean. Next to each column, an array named after it with the suffix `Keys` lists the keys present on the row, for example `LogAttributesKeys`.
 
+A `SELECT` of a whole attribute column returns a nested object, `{"http":{"route":"/x"}}` for the key `http.route`, not a flat map.
+
 The metrics tables keep their maps: read `Attributes['key']` there.
 
 ## Reading a key

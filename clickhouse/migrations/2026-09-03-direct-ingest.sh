@@ -16,6 +16,12 @@
 # retries what falls in between. The guard below reads the Map form on purpose:
 # it runs against the old tables.
 #
+# Between the app deploy and the end of this script the app's reads fail,
+# because its queries use the JSON form against the Map columns: the runs list
+# and detail, workflows, repo detail, cost analysis, the home CI panel, the
+# explorers and the built-in dashboards. Run the three steps, app, this script,
+# collector, back to back in one window.
+#
 # Usage (from the repo root, as an admin user):
 #   clickhouse/migrations/2026-09-03-direct-ingest.sh --host <h> --secure --user default --password '<pw>'
 # CLICKHOUSE_CLIENT overrides the client binary, e.g. for a container:
