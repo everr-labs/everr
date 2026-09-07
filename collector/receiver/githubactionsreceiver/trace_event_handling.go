@@ -307,6 +307,16 @@ func generateStepSpanID(runID int64, runAttempt int, jobName string, stepNumber 
 
 func processSteps(scopeSpans ptrace.ScopeSpans, steps []*github.TaskStep, job *github.WorkflowJob, traceID pcommon.TraceID, parentSpanID pcommon.SpanID, logger *zap.Logger) {
 	for _, step := range steps {
+		// A completed job's webhook can still list a trailing step as
+		// "pending" with null started_at and completed_at. A span built from
+		// those carries the zero time, which the exporter serialises as the
+		// year 1754 and ClickHouse stores as 1900-01-01, where it never
+		// expires and sorts first in every run view. A step that never
+		// started has no span.
+		if step.GetStartedAt().Time.IsZero() && step.GetCompletedAt().Time.IsZero() {
+			logger.Debug("Skipping step without timestamps", zap.String("step_name", step.GetName()), zap.String("step_status", step.GetStatus()))
+			continue
+		}
 		if _, err := createSpan(scopeSpans, step, job, traceID, parentSpanID, logger); err != nil {
 			logger.Error("Failed to create span for step", zap.String("step_name", step.GetName()), zap.Error(err))
 		}

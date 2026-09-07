@@ -568,6 +568,22 @@ func TestEventToLogsNoLogArchive(t *testing.T) {
 	})
 }
 
+func TestLogFallbackTime(t *testing.T) {
+	runStart := time.Date(2023, 10, 13, 10, 0, 0, 0, time.UTC)
+	steps := []stepTiming{
+		{Number: 1, StartedAt: runStart.Add(10 * time.Second)},
+		{Number: 2, StartedAt: runStart.Add(40 * time.Second)},
+	}
+
+	require.Equal(t, runStart.Add(40*time.Second), logFallbackTime(steps, 2, runStart), "a known step gives its start")
+	require.Equal(t, runStart, logFallbackTime(steps, 7, runStart), "an unknown step gives the run's start")
+	require.Equal(t, runStart, logFallbackTime(nil, 1, runStart), "no step timings give the run's start")
+
+	got := logFallbackTime(nil, 1, time.Time{})
+	require.False(t, got.IsZero(), "a run with no start time still never gives the zero time")
+	require.WithinDuration(t, time.Now(), got, time.Minute)
+}
+
 // TestScanLogFileContinuationLines verifies that multi-line step output —
 // where continuation lines have no leading timestamp — is preserved with the
 // previous line's timestamp and doesn't produce error-level logs.
@@ -581,11 +597,12 @@ func TestScanLogFileContinuationLines(t *testing.T) {
 		return reader.File[0]
 	}
 
+	fallback := time.Date(2023, 10, 13, 10, 11, 30, 0, time.UTC)
 	scan := func(t *testing.T, content string) ([]parsedLine, *observer.ObservedLogs) {
 		t.Helper()
 		core, observed := observer.New(zap.ErrorLevel)
 		var lines []parsedLine
-		scanLogFile(newZipFile(t, content), zap.New(core), func(pl parsedLine) {
+		scanLogFile(newZipFile(t, content), fallback, zap.New(core), func(pl parsedLine) {
 			lines = append(lines, pl)
 		})
 		return lines, observed
@@ -607,15 +624,26 @@ func TestScanLogFileContinuationLines(t *testing.T) {
 		require.Equal(t, 0, observed.Len(), "continuation lines must not log at error level")
 	})
 
-	t.Run("leading line without timestamp", func(t *testing.T) {
+	t.Run("leading line takes the first timestamp", func(t *testing.T) {
 		lines, observed := scan(t, ""+
-			"no timestamp at all\n"+
+			"before any timestamp\n"+
 			"2023-10-13T10:11:33Z line one\n")
 
 		require.Len(t, lines, 2)
-		require.Equal(t, "no timestamp at all", lines[0].body)
-		require.True(t, lines[0].time.IsZero(), "line before any timestamp should have zero time")
+		require.Equal(t, "before any timestamp", lines[0].body)
+		require.Equal(t, lines[1].time, lines[0].time, "a leading line takes the time of the first timestamped line")
 		require.Equal(t, "line one", lines[1].body)
+
+		require.Equal(t, 0, observed.Len(), "lines without timestamps must not log at error level")
+	})
+
+	t.Run("file without any timestamp", func(t *testing.T) {
+		lines, observed := scan(t, "first\nsecond\n")
+
+		require.Len(t, lines, 2)
+		require.Equal(t, fallback, lines[0].time, "a file with no timestamp takes the caller's time, not the time of the scan")
+		require.Equal(t, fallback, lines[1].time)
+		require.Equal(t, []string{"first", "second"}, []string{lines[0].body, lines[1].body})
 
 		require.Equal(t, 0, observed.Len(), "lines without timestamps must not log at error level")
 	})

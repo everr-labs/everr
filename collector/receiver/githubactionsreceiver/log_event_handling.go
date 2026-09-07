@@ -202,6 +202,7 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 	// GitHub sanitizes "/" to "_" in ZIP paths, causing span ID mismatches
 	// for matrix/sharded jobs like "test (1/2)" → "test (1_2)".
 	resolvedNames := resolveJobNames(ctx, jobs, jobNamesCache, ghClient, e, logger)
+	runStart := e.GetWorkflowRun().GetRunStartedAt().Time
 
 	for _, zipJobName := range jobs {
 		// Use the original (unsanitized) name for scope attributes and span IDs.
@@ -213,9 +214,11 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 			}
 		}
 		jobID := int64(0)
+		var steps []stepTiming
 		if metadata, ok := jobMetadataByZipName[zipJobName]; ok {
 			jobName = metadata.jobName
 			jobID = metadata.jobID
+			steps = metadata.steps
 		}
 
 		jobLogsScope := allLogs.ScopeLogs().AppendEmpty()
@@ -242,7 +245,8 @@ func eventToLogs(ctx context.Context, event interface{}, config *Config, ghClien
 				continue
 			}
 
-			emitLogRecords(logFile, jobLogsScope, traceID, spanID, stepNumber, withTraceInfo, logger)
+			fallback := logFallbackTime(steps, int64(stepNumber), runStart)
+			emitLogRecords(logFile, jobLogsScope, traceID, spanID, stepNumber, fallback, withTraceInfo, logger)
 		}
 	}
 
@@ -285,8 +289,10 @@ func readLogLine(r *bufio.Reader) (string, error) {
 	}
 }
 
-// scanLogFile reads a zip log file and calls emit for each parsed line.
-func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
+// scanLogFile reads a zip log file and calls emit for each parsed line. A
+// line with no timestamp takes the previous line's time. A file with no
+// timestamp at all takes fallback.
+func scanLogFile(f *zip.File, fallback time.Time, logger *zap.Logger, emit func(parsedLine)) {
 	ff, err := f.Open()
 	if err != nil {
 		logger.Error("Failed to open file", zap.Error(err))
@@ -297,6 +303,10 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 	reader := bufio.NewReader(ff)
 	firstLine := true
 	var lastTime time.Time
+	// Lines that come before the first timestamped line. They take that
+	// line's time once it appears. A zero time is exported as the year 1754
+	// and stored as 1900-01-01, which falls outside every run window.
+	var leading []string
 	for {
 		lineText, err := readLogLine(reader)
 		if err != nil {
@@ -316,21 +326,53 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 		if ts, line, ok := strings.Cut(lineText, " "); ok {
 			if parsedTime, err := time.Parse(time.RFC3339, ts); err == nil {
 				lastTime = parsedTime
+				for _, body := range leading {
+					emit(parsedLine{time: parsedTime, body: body})
+				}
+				leading = nil
 				emit(parsedLine{time: parsedTime, body: line})
 				continue
 			}
 		}
 
-		// No leading timestamp — this is a continuation of multi-line step
-		// output, not an error. Keep the full text and attribute it to the
-		// previous line's timestamp (zero if it's the very first line).
+		if lastTime.IsZero() {
+			leading = append(leading, lineText)
+			continue
+		}
+		// No leading timestamp: a continuation of multi-line step output,
+		// not an error. Keep the full text and give it the previous line's
+		// time.
 		emit(parsedLine{time: lastTime, body: lineText})
+	}
+
+	// No line in the file carried a timestamp. The caller passes a time that
+	// belongs to the run, so the lines stay inside the run's window however
+	// late the archive is processed. The observed time records when the
+	// archive was read.
+	for _, body := range leading {
+		emit(parsedLine{time: fallback, body: body})
 	}
 }
 
+// logFallbackTime is the event time for a log file that has no timestamp of
+// its own: the start of its step, else the start of the run. A run with no
+// start time at all leaves only the current time, which is still not the
+// zero time.
+func logFallbackTime(steps []stepTiming, stepNumber int64, runStart time.Time) time.Time {
+	for _, s := range steps {
+		if s.Number == stepNumber && !s.StartedAt.IsZero() {
+			return s.StartedAt
+		}
+	}
+	if !runStart.IsZero() {
+		return runStart
+	}
+	return time.Now().UTC()
+}
+
 // emitLogRecords reads a zip log file and emits one log record per line.
-func emitLogRecords(logFile *zip.File, scope plog.ScopeLogs, traceID pcommon.TraceID, spanID pcommon.SpanID, stepNumber int, withTraceInfo bool, logger *zap.Logger) {
-	scanLogFile(logFile, logger, func(pl parsedLine) {
+func emitLogRecords(logFile *zip.File, scope plog.ScopeLogs, traceID pcommon.TraceID, spanID pcommon.SpanID, stepNumber int, fallback time.Time, withTraceInfo bool, logger *zap.Logger) {
+	scanLogFile(logFile, fallback, logger, func(pl parsedLine) {
 		record := scope.LogRecords().AppendEmpty()
 		if withTraceInfo {
 			record.SetSpanID(spanID)
@@ -358,6 +400,7 @@ func processCombinedLogs(
 ) {
 	runID := e.GetWorkflowRun().GetID()
 	runAttempt := e.GetWorkflowRun().GetRunAttempt()
+	runStart := e.GetWorkflowRun().GetRunStartedAt().Time
 
 	// Build a lookup from sanitized job name → jobStepTimings.
 	// Combined file names are "0_<jobName>.txt" where jobName matches the
@@ -406,7 +449,14 @@ func processCombinedLogs(
 			})
 		}
 
-		scanLogFile(cf, logger, func(pl parsedLine) {
+		// A file with no timestamp at all goes to the first step.
+		var firstStep int64
+		if len(jst.steps) > 0 {
+			firstStep = jst.steps[0].Number
+		}
+		fallback := logFallbackTime(jst.steps, firstStep, runStart)
+
+		scanLogFile(cf, fallback, logger, func(pl parsedLine) {
 			// Find which step this line belongs to based on timestamp
 			step := assignLineToStep(pl.time, steps)
 			if step == nil {
@@ -511,11 +561,6 @@ func minDuration(a, b time.Duration) time.Duration {
 	return b
 }
 
-type logJobMetadata struct {
-	jobID   int64
-	jobName string
-}
-
 func setJobScopeAttributes(scopeLogs plog.ScopeLogs, jobName string, jobID int64) {
 	attrs := scopeLogs.Scope().Attributes()
 	attrs.PutStr(string(conventions.CICDPipelineTaskNameKey), jobName)
@@ -524,8 +569,8 @@ func setJobScopeAttributes(scopeLogs plog.ScopeLogs, jobName string, jobID int64
 	}
 }
 
-func resolveLogJobMetadata(ctx context.Context, zipJobNames []string, stepTimingsCache *stepTimingCache, ghClient *github.Client, e *github.WorkflowRunEvent, logger *zap.Logger) map[string]logJobMetadata {
-	result := make(map[string]logJobMetadata)
+func resolveLogJobMetadata(ctx context.Context, zipJobNames []string, stepTimingsCache *stepTimingCache, ghClient *github.Client, e *github.WorkflowRunEvent, logger *zap.Logger) map[string]jobStepTimings {
+	result := make(map[string]jobStepTimings)
 	key := runKey{
 		repoID:     e.GetRepo().GetID(),
 		runID:      e.GetWorkflowRun().GetID(),
@@ -538,7 +583,7 @@ func resolveLogJobMetadata(ctx context.Context, zipJobNames []string, stepTiming
 	// ListWorkflowJobs provides the same ID/name mapping before we emit logs.
 	if stepTimingsCache != nil {
 		if cachedJobs := stepTimingsCache.GetSteps(key); cachedJobs != nil {
-			addJobTimingsMetadata(result, cachedJobs)
+			addJobMetadata(result, cachedJobs)
 			stepTimingsCache.Delete(key)
 		}
 	}
@@ -551,7 +596,7 @@ func resolveLogJobMetadata(ctx context.Context, zipJobNames []string, stepTiming
 	return result
 }
 
-func hasMetadataForAllJobs(metadata map[string]logJobMetadata, zipJobNames []string) bool {
+func hasMetadataForAllJobs(metadata map[string]jobStepTimings, zipJobNames []string) bool {
 	for _, jobName := range zipJobNames {
 		if _, ok := metadata[jobName]; !ok {
 			return false
@@ -560,18 +605,7 @@ func hasMetadataForAllJobs(metadata map[string]logJobMetadata, zipJobNames []str
 	return true
 }
 
-func addJobTimingsMetadata(dst map[string]logJobMetadata, jobs []jobStepTimings) {
-	metadata := make([]logJobMetadata, 0, len(jobs))
-	for _, job := range jobs {
-		metadata = append(metadata, logJobMetadata{
-			jobID:   job.jobID,
-			jobName: job.jobName,
-		})
-	}
-	addJobMetadata(dst, metadata)
-}
-
-func addJobMetadata(dst map[string]logJobMetadata, jobs []logJobMetadata) {
+func addJobMetadata(dst map[string]jobStepTimings, jobs []jobStepTimings) {
 	for _, job := range jobs {
 		if job.jobName == "" {
 			continue
@@ -606,18 +640,7 @@ func fetchStepTimingsFromAPI(ctx context.Context, ghClient *github.Client, e *gi
 			if job.GetStatus() != "completed" {
 				continue
 			}
-			var timings []stepTiming
-			for _, s := range job.Steps {
-				if s.StartedAt == nil || s.CompletedAt == nil {
-					continue
-				}
-				timings = append(timings, stepTiming{
-					Number:      s.GetNumber(),
-					Name:        s.GetName(),
-					StartedAt:   s.GetStartedAt().Time,
-					CompletedAt: s.GetCompletedAt().Time,
-				})
-			}
+			timings := stepTimingsOf(job)
 			if len(timings) > 0 {
 				result = append(result, jobStepTimings{
 					jobID:   job.GetID(),
@@ -636,7 +659,24 @@ func fetchStepTimingsFromAPI(ctx context.Context, ghClient *github.Client, e *gi
 	return result
 }
 
-func listWorkflowJobMetadata(ctx context.Context, ghClient *github.Client, e *github.WorkflowRunEvent, logger *zap.Logger) []logJobMetadata {
+// stepTimingsOf keeps the steps of a job that have both of their times.
+func stepTimingsOf(job *github.WorkflowJob) []stepTiming {
+	var timings []stepTiming
+	for _, s := range job.Steps {
+		if s.StartedAt == nil || s.CompletedAt == nil {
+			continue
+		}
+		timings = append(timings, stepTiming{
+			Number:      s.GetNumber(),
+			Name:        s.GetName(),
+			StartedAt:   s.GetStartedAt().Time,
+			CompletedAt: s.GetCompletedAt().Time,
+		})
+	}
+	return timings
+}
+
+func listWorkflowJobMetadata(ctx context.Context, ghClient *github.Client, e *github.WorkflowRunEvent, logger *zap.Logger) []jobStepTimings {
 	owner := e.GetRepo().GetOwner().GetLogin()
 	repo := e.GetRepo().GetName()
 	runID := e.GetWorkflowRun().GetID()
@@ -644,7 +684,7 @@ func listWorkflowJobMetadata(ctx context.Context, ghClient *github.Client, e *gi
 
 	opts := &github.ListOptions{PerPage: 100}
 
-	var result []logJobMetadata
+	var result []jobStepTimings
 	for {
 		jobsResp, resp, err := ghClient.Actions.ListWorkflowJobsAttempt(ctx, owner, repo, runID, runAttempt, opts)
 		if err != nil {
@@ -656,9 +696,10 @@ func listWorkflowJobMetadata(ctx context.Context, ghClient *github.Client, e *gi
 			if job.GetStatus() != "completed" {
 				continue
 			}
-			result = append(result, logJobMetadata{
+			result = append(result, jobStepTimings{
 				jobID:   job.GetID(),
 				jobName: job.GetName(),
+				steps:   stepTimingsOf(job),
 			})
 		}
 

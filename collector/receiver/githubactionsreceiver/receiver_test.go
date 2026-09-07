@@ -152,6 +152,9 @@ func TestEventToTracesTraces(t *testing.T) {
 }
 
 func TestProcessSteps(t *testing.T) {
+	at := func(hour int) *github.Timestamp {
+		return &github.Timestamp{Time: time.Date(2024, 1, 1, hour, 0, 0, 0, time.UTC)}
+	}
 	tests := []struct {
 		desc             string
 		givenSteps       []*github.TaskStep
@@ -162,9 +165,9 @@ func TestProcessSteps(t *testing.T) {
 			desc: "Multiple steps with mixed status",
 
 			givenSteps: []*github.TaskStep{
-				{Name: getPtr("Checkout"), Status: getPtr("completed"), Conclusion: getPtr("success")},
-				{Name: getPtr("Build"), Status: getPtr("completed"), Conclusion: getPtr("failure")},
-				{Name: getPtr("Test"), Status: getPtr("completed"), Conclusion: getPtr("success")},
+				{Name: getPtr("Checkout"), Status: getPtr("completed"), Conclusion: getPtr("success"), StartedAt: at(12), CompletedAt: at(13)},
+				{Name: getPtr("Build"), Status: getPtr("completed"), Conclusion: getPtr("failure"), StartedAt: at(13), CompletedAt: at(14)},
+				{Name: getPtr("Test"), Status: getPtr("completed"), Conclusion: getPtr("success"), StartedAt: at(14), CompletedAt: at(15)},
 			},
 			expectedSpans: 4, // Includes parent span
 			expectedStatuses: []ptrace.StatusCode{
@@ -178,6 +181,15 @@ func TestProcessSteps(t *testing.T) {
 			givenSteps:       []*github.TaskStep{},
 			expectedSpans:    1, // Only the parent span should be created
 			expectedStatuses: nil,
+		},
+		{
+			desc: "A step the webhook lists as pending, with no timestamps, gets no span",
+			givenSteps: []*github.TaskStep{
+				{Name: getPtr("Checkout"), Status: getPtr("completed"), Conclusion: getPtr("success"), StartedAt: at(12), CompletedAt: at(13)},
+				{Name: getPtr("Complete runner"), Status: getPtr("pending")},
+			},
+			expectedSpans:    2, // Parent span and the completed step
+			expectedStatuses: []ptrace.StatusCode{ptrace.StatusCodeOk},
 		},
 	}
 

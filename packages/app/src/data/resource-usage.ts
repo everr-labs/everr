@@ -44,11 +44,22 @@ interface RawMetricRow {
   networkInterface: string;
 }
 
+// Runner metrics sit inside the job's span. The hour of slack covers the
+// runner's clock and the scrape interval; the metrics tables sort by hour and
+// carry a minmax index on TimeUnix, and without a time predicate neither one
+// prunes anything.
+const METRICS_WINDOW_SLACK_SECONDS = 60 * 60;
+
 function resolveJobIdentifiers(
-  rows: { runId: string; jobName: string }[],
-): { runId: string; jobName: string } | null {
+  rows: { runId: string; jobName: string; jobStart: string; jobEnd: string }[],
+): { runId: string; jobName: string; jobStart: number; jobEnd: number } | null {
   if (rows.length === 0) return null;
-  return { runId: rows[0].runId, jobName: rows[0].jobName };
+  return {
+    runId: rows[0].runId,
+    jobName: rows[0].jobName,
+    jobStart: Number(rows[0].jobStart),
+    jobEnd: Number(rows[0].jobEnd),
+  };
 }
 
 function aggregatePoints(rows: RawMetricRow[]): ResourceUsagePoint[] {
@@ -219,18 +230,28 @@ const getJobResourceUsage = createAuthenticatedServerFn({
       data: { traceId, jobId },
       context: { clickhouse },
     }): Promise<JobResourceUsage | null> => {
+      // The window comes from traces_trace_id_ts, as in runs/server.ts:
+      // traces sorts by tenant, service and time, so a bare TraceId predicate
+      // reads the bloom filter of every granule the tenant has.
       const identifierSql = `
+      WITH
+        (SELECT (min(Start), max(End) + 1) FROM traces_trace_id_ts WHERE TraceId = {traceId:String}) AS traceWindow
       SELECT
         anyLast(ResourceAttributes['cicd.pipeline.run.id']) as runId,
-        anyLast(ResourceAttributes['cicd.pipeline.task.name']) as jobName
+        anyLast(ResourceAttributes['cicd.pipeline.task.name']) as jobName,
+        toUnixTimestamp(min(Timestamp)) as jobStart,
+        toUnixTimestamp(max(Timestamp + toIntervalNanosecond(Duration))) as jobEnd
       FROM traces
       WHERE TraceId = {traceId:String}
+        AND Timestamp BETWEEN traceWindow.1 AND traceWindow.2
         AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
     `;
 
       const identifierRows = await clickhouse.query<{
         runId: string;
         jobName: string;
+        jobStart: string;
+        jobEnd: string;
       }>(identifierSql, { traceId, jobId });
 
       const ids = resolveJobIdentifiers(identifierRows);
@@ -252,6 +273,7 @@ const getJobResourceUsage = createAuthenticatedServerFn({
       WHERE ResourceAttributes['cicd.pipeline.run.id'] = {runId:String}
         AND Attributes['cicd.pipeline.task.name'] = {jobName:String}
         AND MetricName IN ('system.cpu.utilization', 'system.memory.utilization', 'system.filesystem.utilization')
+        AND TimeUnix BETWEEN toDateTime({metricsFrom:UInt32}) AND toDateTime({metricsTo:UInt32})
 
       UNION ALL
 
@@ -268,6 +290,7 @@ const getJobResourceUsage = createAuthenticatedServerFn({
       WHERE ResourceAttributes['cicd.pipeline.run.id'] = {runId:String}
         AND Attributes['cicd.pipeline.task.name'] = {jobName:String}
         AND MetricName IN ('system.memory.limit', 'system.memory.usage', 'system.filesystem.limit', 'system.filesystem.usage', 'system.network.io')
+        AND TimeUnix BETWEEN toDateTime({metricsFrom:UInt32}) AND toDateTime({metricsTo:UInt32})
 
       ORDER BY timestamp
     `;
@@ -275,6 +298,8 @@ const getJobResourceUsage = createAuthenticatedServerFn({
       const metricRows = await clickhouse.query<RawMetricRow>(metricsSql, {
         runId: ids.runId,
         jobName: ids.jobName,
+        metricsFrom: ids.jobStart - METRICS_WINDOW_SLACK_SECONDS,
+        metricsTo: ids.jobEnd + METRICS_WINDOW_SLACK_SECONDS,
       });
 
       if (metricRows.length === 0) return null;
