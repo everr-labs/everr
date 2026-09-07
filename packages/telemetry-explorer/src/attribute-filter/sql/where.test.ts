@@ -24,7 +24,7 @@ describe("buildAttributeClauses", () => {
       columnFor,
     );
     expect(clauses[0]).toBe(
-      "mapContains(ResourceAttributes, {attrKey0:String}) AND ResourceAttributes[{attrKey0:String}] IN {attrVals0:Array(String)}",
+      "has(ResourceAttributesKeys, {attrKey0:String}) AND toString(ResourceAttributes.`deployment.environment`) IN {attrVals0:Array(String)}",
     );
     expect(params).toEqual({
       attrKey0: "deployment.environment",
@@ -38,7 +38,7 @@ describe("buildAttributeClauses", () => {
       columnFor,
     );
     expect(clauses[0]).toBe(
-      "(mapContains(LogAttributes, {attrKey0:String}) AND LogAttributes[{attrKey0:String}] NOT IN {attrVals0:Array(String)})",
+      "(has(LogAttributesKeys, {attrKey0:String}) AND toString(LogAttributes.`http.method`) NOT IN {attrVals0:Array(String)})",
     );
   });
 
@@ -48,7 +48,7 @@ describe("buildAttributeClauses", () => {
       columnFor,
     );
     expect(exists.clauses[0]).toBe(
-      "mapContains(ScopeAttributes, {attrKey0:String})",
+      "has(ScopeAttributesKeys, {attrKey0:String})",
     );
     expect(exists.params).toEqual({ attrKey0: "k" });
 
@@ -57,7 +57,7 @@ describe("buildAttributeClauses", () => {
       columnFor,
     );
     expect(missing.clauses[0]).toBe(
-      "NOT mapContains(SpanAttributes, {attrKey0:String})",
+      "NOT has(SpanAttributesKeys, {attrKey0:String})",
     );
   });
 
@@ -76,9 +76,18 @@ describe("buildAttributeClauses", () => {
       columnFor,
       3,
     );
-    expect(clauses[0]).toBe(
-      "mapContains(ResourceAttributes, {attrKey3:String})",
-    );
+    expect(clauses[0]).toBe("has(ResourceAttributesKeys, {attrKey3:String})");
     expect(params).toEqual({ attrKey3: "k" });
+  });
+
+  it("escapes the key in the identifier and leaves the param as typed", () => {
+    const { clauses, params } = buildAttributeClauses(
+      [{ source: "log", key: "a`b", op: "in", values: ["x"] }],
+      columnFor,
+    );
+    expect(clauses[0]).toBe(
+      "has(LogAttributesKeys, {attrKey0:String}) AND toString(LogAttributes.`a\\`b`) IN {attrVals0:Array(String)}",
+    );
+    expect(params.attrKey0).toBe("a`b");
   });
 });

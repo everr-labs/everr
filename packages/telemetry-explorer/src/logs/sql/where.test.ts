@@ -55,11 +55,9 @@ describe("buildWhereClause", () => {
         },
       ],
     });
+    expect(clause).toContain("has(ResourceAttributesKeys, {attrKey0:String})");
     expect(clause).toContain(
-      "mapContains(ResourceAttributes, {attrKey0:String})",
-    );
-    expect(clause).toContain(
-      "ResourceAttributes[{attrKey0:String}] IN {attrVals0:Array(String)}",
+      "toString(ResourceAttributes.`deployment.environment`) IN {attrVals0:Array(String)}",
     );
     expect(params).toEqual({
       attrKey0: "deployment.environment",
@@ -76,7 +74,7 @@ describe("buildWhereClause", () => {
       ],
     });
     expect(clause).toContain(
-      "(mapContains(LogAttributes, {attrKey0:String}) AND LogAttributes[{attrKey0:String}] NOT IN {attrVals0:Array(String)})",
+      "(has(LogAttributesKeys, {attrKey0:String}) AND toString(LogAttributes.`http.method`) NOT IN {attrVals0:Array(String)})",
     );
   });
 
@@ -87,7 +85,7 @@ describe("buildWhereClause", () => {
       attributes: [{ source: "scope", key: "lib", op: "exists", values: [] }],
     });
     expect(exists.clause).toContain(
-      "mapContains(ScopeAttributes, {attrKey0:String})",
+      "has(ScopeAttributesKeys, {attrKey0:String})",
     );
     expect(exists.params).toEqual({ attrKey0: "lib" });
 
@@ -99,7 +97,7 @@ describe("buildWhereClause", () => {
       ],
     });
     expect(missing.clause).toContain(
-      "NOT mapContains(ResourceAttributes, {attrKey0:String})",
+      "NOT has(ResourceAttributesKeys, {attrKey0:String})",
     );
   });
 
@@ -166,7 +164,7 @@ describe("buildWhereClause", () => {
     // first filter (index 0) is skipped; second keeps its index-1 names
     expect(params).toEqual({ attrKey1: "b", attrVals1: ["x"] });
     expect(clause).toContain(
-      "LogAttributes[{attrKey1:String}] IN {attrVals1:Array(String)}",
+      "toString(LogAttributes.`b`) IN {attrVals1:Array(String)}",
     );
   });
 });

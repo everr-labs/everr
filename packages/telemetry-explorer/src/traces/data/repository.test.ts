@@ -417,7 +417,7 @@ describe("trace search attribute filtering", () => {
 
     const [sql, params] = query.mock.calls[0] ?? [];
     expect(sql).toContain("SELECT DISTINCT TraceId");
-    expect(sql).toContain("mapContains(SpanAttributes, {attrKey0:String})");
+    expect(sql).toContain("has(SpanAttributesKeys, {attrKey0:String})");
     expect(params.attrKey0).toBe("http.route");
     expect(params.attrVals0).toEqual(["/x"]);
   });
@@ -439,7 +439,7 @@ describe("trace search attribute filtering", () => {
     // A trace is excluded when *any* span has the key, rather than matched when
     // any span lacks it — otherwise every trace with a keyless DB span matches.
     expect(sql).toContain("TraceId NOT IN (");
-    expect(sql).toContain("mapContains(SpanAttributes,");
+    expect(sql).toContain("has(SpanAttributesKeys,");
     // No "any-span" candidate IN subquery, since there is no positive operator.
     expect(sql).not.toContain("AND TraceId IN (");
     expect(Object.values(params)).toContain("http.route");

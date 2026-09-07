@@ -29,7 +29,7 @@ describe("error attribute filtering", () => {
       },
       "logs",
     );
-    expect(sql).toContain("mapContains(ResourceAttributes, {attrKey0:String})");
+    expect(sql).toContain("has(ResourceAttributesKeys, {attrKey0:String})");
     expect(params.attrKey0).toBe("deployment.environment");
     expect(params.attrVals0).toEqual(["prod"]);
   });
@@ -44,7 +44,7 @@ describe("error attribute filtering", () => {
       },
       "logs",
     );
-    expect(sql).toContain("mapContains(LogAttributes, {attrKey0:String})");
+    expect(sql).toContain("has(LogAttributesKeys, {attrKey0:String})");
   });
 
   it("omits attribute clauses when none are given", () => {
