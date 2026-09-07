@@ -127,13 +127,13 @@ function prefixTest(column: string, match: string): string {
  *   SELECT DISTINCT key FROM (
  *     SELECT 'traces' AS key FROM traces WHERE <time range> LIMIT 1
  *     UNION ALL
- *     SELECT 'traces:http.request.method' AS key FROM traces WHERE <time range> AND mapContains(SpanAttributes, 'http.request.method') LIMIT 1
+ *     SELECT 'traces:http.request.method' AS key FROM traces WHERE <time range> AND has(SpanAttributesKeys, 'http.request.method') LIMIT 1
  *     UNION ALL
- *     SELECT 'traces:rpc.system.name' AS key FROM traces WHERE <time range> AND mapContains(SpanAttributes, 'rpc.system.name') LIMIT 1
+ *     SELECT 'traces:rpc.system.name' AS key FROM traces WHERE <time range> AND has(SpanAttributesKeys, 'rpc.system.name') LIMIT 1
  *     UNION ALL
- *     SELECT 'traces:everr.server_function.name' AS key FROM traces WHERE <time range> AND mapContains(SpanAttributes, 'everr.server_function.name') LIMIT 1
+ *     SELECT 'traces:everr.server_function.name' AS key FROM traces WHERE <time range> AND has(SpanAttributesKeys, 'everr.server_function.name') LIMIT 1
  *     UNION ALL
- *     SELECT 'traces:faas.trigger' AS key FROM traces WHERE <time range> AND mapContains(SpanAttributes, 'faas.trigger') LIMIT 1
+ *     SELECT 'traces:faas.trigger' AS key FROM traces WHERE <time range> AND has(SpanAttributesKeys, 'faas.trigger') LIMIT 1
  *     UNION ALL
  *     SELECT 'logs' AS key FROM logs WHERE <time range> LIMIT 1
  *     UNION ALL
@@ -217,9 +217,9 @@ function prefixTest(column: string, match: string): string {
  *     UNION ALL
  *     SELECT 'metrics:k8s.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
  *     UNION ALL
- *     SELECT 'logs:browser.web_vital.value' AS key FROM logs WHERE <time range> AND mapContains(LogAttributes, 'browser.web_vital.value') LIMIT 1
+ *     SELECT 'logs:browser.web_vital.value' AS key FROM logs WHERE <time range> AND has(LogAttributesKeys, 'browser.web_vital.value') LIMIT 1
  *     UNION ALL
- *     SELECT 'logs:everr.page_view.id' AS key FROM logs WHERE <time range> AND mapContains(LogAttributes, 'everr.page_view.id') LIMIT 1
+ *     SELECT 'logs:everr.page_view.id' AS key FROM logs WHERE <time range> AND has(LogAttributesKeys, 'everr.page_view.id') LIMIT 1
  *   )
  */
 export function buildCapabilitiesQuery(
@@ -268,7 +268,7 @@ export function buildCapabilitiesQuery(
 
     if (match) {
       branches.push(
-        `SELECT ${key} AS key FROM ${signal} WHERE ${window} AND mapContains(${attributes}, '${match}') LIMIT 1`,
+        `SELECT ${key} AS key FROM ${signal} WHERE ${window} AND has(${attributes}Keys, '${match}') LIMIT 1`,
       );
     } else {
       branches.push(

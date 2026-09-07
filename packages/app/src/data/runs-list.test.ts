@@ -264,10 +264,10 @@ describe("getRunsList", () => {
     expect(mockedClickhouseQuery).toHaveBeenCalledTimes(1);
     expect(mockedClickhouseQuery.mock.calls[0]?.[0]).toContain("FROM (");
     expect(mockedClickhouseQuery.mock.calls[0]?.[0]).toContain(
-      "ResourceAttributes['cicd.pipeline.run.id'] LIKE {pattern:String}",
+      "toString(ResourceAttributes.`cicd.pipeline.run.id`) LIKE {pattern:String}",
     );
     expect(mockedClickhouseQuery.mock.calls[0]?.[0]).toContain(
-      "ResourceAttributes['cicd.pipeline.name'] ILIKE {pattern:String}",
+      "toString(ResourceAttributes.`cicd.pipeline.name`) ILIKE {pattern:String}",
     );
     expect(mockedClickhouseQuery.mock.calls[0]?.[2]).toEqual({
       pattern: "%Build%",

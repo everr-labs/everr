@@ -51,7 +51,7 @@ describe("buildCapabilitiesQuery", () => {
         "SELECT 'traces:faas.trigger' AS key FROM traces WHERE " +
         "Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND " +
         "Timestamp <= parseDateTime64BestEffort({to:String}, 9) AND " +
-        "mapContains(SpanAttributes, 'faas.trigger') LIMIT 1\n)",
+        "has(SpanAttributesKeys, 'faas.trigger') LIMIT 1\n)",
     );
   });
 
@@ -65,7 +65,7 @@ describe("buildCapabilitiesQuery", () => {
         "SELECT 'logs:browser.web_vital.value' AS key FROM logs WHERE " +
         "Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND " +
         "Timestamp <= parseDateTime64BestEffort({to:String}, 9) AND " +
-        "mapContains(LogAttributes, 'browser.web_vital.value') LIMIT 1\n)",
+        "has(LogAttributesKeys, 'browser.web_vital.value') LIMIT 1\n)",
     );
   });
 

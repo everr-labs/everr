@@ -66,7 +66,7 @@ export const getCostOverview = createAuthenticatedServerFn({
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.runnerLabels)}
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.jobId)}
         AND lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'
-        AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+        AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''
       GROUP BY labels
     `;
 
@@ -136,13 +136,13 @@ export const getCostByWorkflow = createAuthenticatedServerFn({
         count(*) as totalJobs,
         sum(Duration) / 1000000 as totalDurationMs,
         sum(ceil(Duration / 60000000000.0)) as roundedMinutes,
-        uniqExact(ResourceAttributes['cicd.pipeline.run.id']) as uniqueRuns
+        uniqExact(toString(ResourceAttributes.\`cicd.pipeline.run.id\`)) as uniqueRuns
       FROM traces
       WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.runnerLabels)}
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.jobId)}
         AND lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'
-        AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+        AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.repo)}
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.workflow)}
       GROUP BY repo, workflow, labels
@@ -239,7 +239,7 @@ export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.runnerLabels)}
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.jobId)}
         AND lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'
-        AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+        AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''
         ${dimensionFilter}
       GROUP BY date, series, labels
       ORDER BY date ASC

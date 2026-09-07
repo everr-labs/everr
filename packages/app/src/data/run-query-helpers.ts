@@ -1,3 +1,5 @@
+import { attributeExists, attributeText } from "@everr/telemetry-explorer/sql";
+
 interface RunSummarySubqueryOptions {
   whereClause: string;
   groupByExpr: string;
@@ -9,26 +11,28 @@ interface RunSummarySubqueryOptions {
   includeJobCount?: boolean;
 }
 
-export const CONCLUSION_EXPR =
-  "coalesce(nullIf(argMaxIf(ResourceAttributes['cicd.pipeline.result'], Timestamp, ResourceAttributes['cicd.pipeline.result'] != ''), ''), argMaxIf(ResourceAttributes['cicd.pipeline.task.run.result'], Timestamp, ResourceAttributes['cicd.pipeline.task.run.result'] != ''))";
-
-/** `ResourceAttributes['key']` accessor. */
+/** Text of a resource attribute: `toString(ResourceAttributes.`key`)`. */
 export function resourceAttribute(key: string): string {
-  return `ResourceAttributes['${key}']`;
+  return attributeText("ResourceAttributes", key);
 }
+
+const PIPELINE_RESULT = resourceAttribute("cicd.pipeline.result");
+const TASK_RESULT = resourceAttribute("cicd.pipeline.task.run.result");
+
+export const CONCLUSION_EXPR = `coalesce(nullIf(argMaxIf(${PIPELINE_RESULT}, Timestamp, ${PIPELINE_RESULT} != ''), ''), argMaxIf(${TASK_RESULT}, Timestamp, ${TASK_RESULT} != ''))`;
 
 /**
- * Presence + non-empty check for a resource attribute. The `mapContains` term
- * lets the `idx_res_attr_key` bloom skip index prune granules that lack the key
- * before the value is read.
+ * Presence + non-empty check for a resource attribute. The `has` term on the
+ * keys array lets the `idx_res_attr_keys` bloom skip index prune granules
+ * that lack the key before the value is read.
  */
 export function nonEmptyResourceAttribute(key: string): string {
-  return `mapContains(ResourceAttributes, '${key}') AND ${resourceAttribute(key)} != ''`;
+  return `${attributeExists("ResourceAttributes", key)} AND ${resourceAttribute(key)} != ''`;
 }
 
-/** Equality on a resource attribute, key-index-prunable via `mapContains`. */
+/** Equality on a resource attribute, key-index-prunable via the keys array. */
 export function resourceAttributeEquals(key: string, param: string): string {
-  return `mapContains(ResourceAttributes, '${key}') AND ${resourceAttribute(key)} = {${param}:String}`;
+  return `${attributeExists("ResourceAttributes", key)} AND ${resourceAttribute(key)} = {${param}:String}`;
 }
 
 /**
@@ -47,17 +51,17 @@ export function runSummarySubquery({
 }: RunSummarySubqueryOptions): string {
   const selects: string[] = [
     `${groupByExpr} as ${groupByAlias}`,
-    "anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id",
-    "anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName",
-    "anyLast(ResourceAttributes['vcs.repository.name']) as repo",
-    "anyLast(ResourceAttributes['vcs.ref.head.name']) as branch",
+    `anyLast(${resourceAttribute("cicd.pipeline.run.id")}) as run_id`,
+    `anyLast(${resourceAttribute("cicd.pipeline.name")}) as workflowName`,
+    `anyLast(${resourceAttribute("vcs.repository.name")}) as repo`,
+    `anyLast(${resourceAttribute("vcs.ref.head.name")}) as branch`,
     `${CONCLUSION_EXPR} as conclusion`,
     "max(Timestamp) as timestamp",
   ];
 
   if (includeRunAttempt) {
     selects.push(
-      "anyLast(toUInt32OrZero(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt",
+      `anyLast(toUInt32OrZero(${resourceAttribute("everr.github.workflow_job.run_attempt")})) as run_attempt`,
     );
   }
   if (includeDuration) {
@@ -65,12 +69,12 @@ export function runSummarySubquery({
   }
   if (includeSender) {
     selects.push(
-      "max(ResourceAttributes['cicd.pipeline.task.run.sender.login']) as sender",
+      `max(${resourceAttribute("cicd.pipeline.task.run.sender.login")}) as sender`,
     );
   }
   if (includeHeadSha) {
     selects.push(
-      "anyLast(ResourceAttributes['vcs.ref.head.revision']) as headSha",
+      `anyLast(${resourceAttribute("vcs.ref.head.revision")}) as headSha`,
     );
   }
   if (includeJobCount) {

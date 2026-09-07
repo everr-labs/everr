@@ -221,11 +221,11 @@ const getJobResourceUsage = createAuthenticatedServerFn({
     }): Promise<JobResourceUsage | null> => {
       const identifierSql = `
       SELECT
-        anyLast(ResourceAttributes['cicd.pipeline.run.id']) as runId,
-        anyLast(ResourceAttributes['cicd.pipeline.task.name']) as jobName
+        anyLast(toString(ResourceAttributes.\`cicd.pipeline.run.id\`)) as runId,
+        anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.name\`)) as jobName
       FROM traces
       WHERE TraceId = {traceId:String}
-        AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
+        AND toString(ResourceAttributes.\`cicd.pipeline.task.run.id\`) = {jobId:String}
     `;
 
       const identifierRows = await clickhouse.query<{

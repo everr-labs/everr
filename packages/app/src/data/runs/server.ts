@@ -38,12 +38,13 @@ function buildJobFilterClause(params: StepLogsJobFilter): {
   if (params.jobName !== undefined) {
     return {
       clause:
-        "AND ScopeAttributes['cicd.pipeline.task.name'] = {jobName:String}",
+        "AND toString(ScopeAttributes.`cicd.pipeline.task.name`) = {jobName:String}",
       queryParam: { jobName: params.jobName },
     };
   }
   return {
-    clause: "AND ScopeAttributes['cicd.pipeline.task.run.id'] = {jobId:String}",
+    clause:
+      "AND toString(ScopeAttributes.`cicd.pipeline.task.run.id`) = {jobId:String}",
     queryParam: { jobId: params.jobId },
   };
 }
@@ -64,7 +65,7 @@ async function countStepLogs(
     FROM logs
     WHERE TraceId = {traceId:String}
       ${jobClause}
-      AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}${egrepClause}
+      AND toString(LogAttributes.\`everr.github.workflow_job_step.number\`) = {stepNumber:String}${egrepClause}
   `;
   const queryParams: Record<string, string> = {
     traceId: params.traceId,
@@ -105,7 +106,7 @@ async function getRawStepLogs(
 		FROM logs
 		WHERE TraceId = {traceId:String}
 			${jobClause}
-			AND LogAttributes['everr.github.workflow_job_step.number'] = {stepNumber:String}${egrepClause}
+			AND toString(LogAttributes.\`everr.github.workflow_job_step.number\`) = {stepNumber:String}${egrepClause}
 		ORDER BY Timestamp ${order}
 		${limitClause}
 		${offsetClause}
@@ -205,18 +206,18 @@ export const getRunJobs = createAuthenticatedServerFn({
         firstFailingStep: string;
       }>(
         `SELECT
-            ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
-            anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
-            anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
+            toString(ResourceAttributes.\`cicd.pipeline.task.run.id\`) as jobId,
+            anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.name\`)) as name,
+            anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`)) as conclusion,
             max(Duration) / 1000000 as duration,
             minIf(
-              toUInt32OrZero(SpanAttributes['everr.github.workflow_job_step.number']),
-              SpanAttributes['everr.github.workflow_job_step.number'] != ''
+              toUInt32OrZero(toString(SpanAttributes.\`everr.github.workflow_job_step.number\`)),
+              toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) != ''
                 AND lowerUTF8(StatusMessage) IN ('failure', 'failed')
             ) as firstFailingStep
           FROM traces
           WHERE TraceId = {traceId:String}
-            AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
+            AND toString(ResourceAttributes.\`cicd.pipeline.task.run.id\`) != ''
           GROUP BY jobId
           ORDER BY min(Timestamp)`,
         { traceId },
@@ -278,17 +279,17 @@ export const getAllJobsSteps = createAuthenticatedServerFn({
     const result: Record<string, Step[]> = {};
     const sql = `
       SELECT
-        ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
+        toString(ResourceAttributes.\`cicd.pipeline.task.run.id\`) as jobId,
         SpanName as name,
-        SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
+        toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) as stepNumber,
         StatusMessage as conclusion,
         Duration / 1000000 as duration,
         toUnixTimestamp64Milli(Timestamp) as startTime,
         toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) as endTime
       FROM traces
       WHERE TraceId = {traceId:String}
-        AND ResourceAttributes['cicd.pipeline.task.run.id'] IN {jobIds:Array(String)}
-        AND SpanAttributes['everr.github.workflow_job_step.number'] != ''
+        AND toString(ResourceAttributes.\`cicd.pipeline.task.run.id\`) IN {jobIds:Array(String)}
+        AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) != ''
       ORDER BY jobId, toUInt32OrZero(stepNumber)
     `;
     const rows = await clickhouse.query<{
@@ -394,18 +395,18 @@ export const getRunSpans = createAuthenticatedServerFn({
 				toUnixTimestamp64Milli(Timestamp) + if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as endTime,
 				if(lowerUTF8(StatusMessage) = 'skip', toUInt64(0), intDiv(Duration, 1000000)) as duration,
 				StatusMessage as conclusion,
-				ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
-				ResourceAttributes['cicd.pipeline.task.name'] as jobName,
-				SpanAttributes['everr.github.workflow_job_step.number'] as stepNumber,
-				ResourceAttributes['everr.github.workflow_job.created_at'] as createdAt,
-				ResourceAttributes['everr.github.workflow_job.started_at'] as startedAt,
-				ResourceAttributes['vcs.ref.head.name'] as headBranch,
-				ResourceAttributes['vcs.ref.head.revision'] as headSha,
-				ResourceAttributes['cicd.worker.name'] as runnerName,
-				ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
-				ResourceAttributes['cicd.pipeline.task.run.sender.login'] as sender,
-				ResourceAttributes['everr.github.workflow_job.run_attempt'] as runAttempt,
-				ResourceAttributes['cicd.pipeline.task.run.url.full'] as htmlUrl
+				toString(ResourceAttributes.\`cicd.pipeline.task.run.id\`) as jobId,
+				toString(ResourceAttributes.\`cicd.pipeline.task.name\`) as jobName,
+				toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) as stepNumber,
+				toString(ResourceAttributes.\`everr.github.workflow_job.created_at\`) as createdAt,
+				toString(ResourceAttributes.\`everr.github.workflow_job.started_at\`) as startedAt,
+				toString(ResourceAttributes.\`vcs.ref.head.name\`) as headBranch,
+				toString(ResourceAttributes.\`vcs.ref.head.revision\`) as headSha,
+				toString(ResourceAttributes.\`cicd.worker.name\`) as runnerName,
+				toString(ResourceAttributes.\`cicd.pipeline.worker.labels\`) as labels,
+				toString(ResourceAttributes.\`cicd.pipeline.task.run.sender.login\`) as sender,
+				toString(ResourceAttributes.\`everr.github.workflow_job.run_attempt\`) as runAttempt,
+				toString(ResourceAttributes.\`cicd.pipeline.task.run.url.full\`) as htmlUrl
 			FROM traces
 			WHERE TraceId = {traceId:String}
 			ORDER BY startTime ASC

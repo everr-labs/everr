@@ -62,7 +62,7 @@ describe("getLogsExplorer", () => {
     expect(sql).toContain("IN {levels:Array(String)}");
     expect(sql).not.toContain("count()");
     expect(sql).not.toContain("toStartOfInterval");
-    expect(sql).not.toContain("ResourceAttributes['vcs.ref.head.name']");
+    expect(sql).not.toContain("ResourceAttributes.`vcs.ref.head.name`");
     expect(sql).not.toContain("cicd.pipeline.task.run.id");
     expect(sql).toContain("toString(cityHash64(Body)) AS bodyHash");
     expect(sql).not.toContain("PREWHERE");
