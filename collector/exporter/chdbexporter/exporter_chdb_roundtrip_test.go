@@ -132,6 +132,34 @@ func TestChDBRoundTripKeepsLogTimestampNanoseconds(t *testing.T) {
 	require.Equal(t, strconv.FormatInt(roundTripTime.UnixNano(), 10), rows[0]["nanos"])
 }
 
+func TestChDBRoundTripStoresTypedJSONAttributes(t *testing.T) {
+	handle := openRealChDB(t)
+	cfg := withDefaultConfig(func(c *Config) { c.JSON = true })
+	exp := newLogsJSONExporter(zaptest.NewLogger(t), cfg, handle)
+	require.NoError(t, exp.start(t.Context(), nil))
+	t.Cleanup(func() { _ = exp.shutdown(context.Background()) })
+
+	ld := plog.NewLogs()
+	record := ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
+	record.SetTimestamp(pcommon.NewTimestampFromTime(roundTripTime))
+	record.Body().SetStr("typed attributes")
+	record.Attributes().PutInt("everr.github.workflow_job_step.number", 3)
+	record.Attributes().PutStr("http.route", "/x")
+	require.NoError(t, exp.pushLogsData(t.Context(), ld))
+
+	rows := queryJSONRows(t, handle,
+		"SELECT toString(LogAttributes.`everr.github.workflow_job_step.number`) AS step,"+
+			" dynamicType(LogAttributes.`everr.github.workflow_job_step.number`) AS stepType,"+
+			" toString(LogAttributes.`http.route`) AS route,"+
+			" has(LogAttributesKeys, 'http.route') AS hasRoute"+
+			` FROM "`+cfg.database()+`"."`+cfg.LogsTableName+`"`)
+	require.Len(t, rows, 1)
+	require.Equal(t, "3", rows[0]["step"])
+	require.Equal(t, "Int64", rows[0]["stepType"], "an integer attribute is stored as a number, not as text")
+	require.Equal(t, "/x", rows[0]["route"])
+	require.Equal(t, float64(1), rows[0]["hasRoute"])
+}
+
 func TestChDBRoundTripKeepsSpanTimestampNanoseconds(t *testing.T) {
 	handle := openRealChDB(t)
 	cfg := withDefaultConfig()

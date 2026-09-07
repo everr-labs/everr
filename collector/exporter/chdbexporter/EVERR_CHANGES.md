@@ -136,3 +136,18 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   same table as `app.traces_trace_id_ts`, with `tenant_id` in front of the
   key, and the `everr-use-telemetry` skill teaches the two-step trace lookup
   against both.
+
+## JSON attribute columns
+
+- The local store runs the exporter's `json` mode, the cloud's choice: typed
+  values, one `*Keys Array(LowCardinality(String))` per attribute column, and
+  a `bloom_filter` index on each keys array. The Map templates stay in the
+  tree for a `json: false` config but nothing in Everr uses them.
+- Every JSON column is `JSON(max_dynamic_paths = 256)`, the same guard as the
+  cloud tables in `clickhouse/init`. Upstream's default of 1024 let every
+  mixed-tenant part carry a thousand path columns and made merges fail.
+- `logs_json` and `traces_json` carry `idx_trace_id` and `logs_json` carries
+  `idx_lower_body`, as the Map templates do; upstream's JSON templates have
+  neither.
+- `errorFingerprint` takes the three attributes as text arguments instead of
+  the map, so a query reads three subcolumns and not the whole column.

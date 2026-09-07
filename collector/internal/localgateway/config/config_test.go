@@ -43,6 +43,7 @@ func TestBuildCollectorConfigUsesLocalDefaults(t *testing.T) {
 	// explorer queries run unchanged.
 	require.Equal(t, "logs", chdb["logs_table_name"])
 	require.Equal(t, "traces", chdb["traces_table_name"])
+	require.Equal(t, true, chdb["json"], "the local store writes JSON attribute columns like the cloud")
 	metricsTables := chdb["metrics_tables"].(map[string]any)
 	require.Equal(t, map[string]any{"name": "metrics_gauge"}, metricsTables["gauge"])
 	require.Equal(t, map[string]any{"name": "metrics_sum"}, metricsTables["sum"])
