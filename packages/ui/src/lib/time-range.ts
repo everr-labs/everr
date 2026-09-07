@@ -22,6 +22,19 @@ export function toClickHouseDateTime(date: Date): string {
   return date.toISOString().replace("T", " ").replace("Z", "");
 }
 
+/**
+ * A whole-second literal. A DateTime column refuses a fractional part in a
+ * comparison, even `.000`, and a DateTime64 column reads this form the same
+ * way. `floor` keeps a window's start inside the range, `ceil` keeps its end.
+ */
+export function toClickHouseDateTimeSeconds(
+  date: Date,
+  round: "floor" | "ceil",
+): string {
+  const seconds = Math[round](date.getTime() / 1000);
+  return toClickHouseDateTime(new Date(seconds * 1000)).slice(0, 19);
+}
+
 export function withTimeRange<T extends { from?: string; to?: string }>(
   search: T,
 ): T & { from: string; to: string; timeRange: TimeRange } {

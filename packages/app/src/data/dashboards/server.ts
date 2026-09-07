@@ -1,5 +1,9 @@
 import { bucketSeconds } from "@everr/ui/lib/bucket";
-import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
+import {
+  DEFAULT_TIME_RANGE,
+  resolveTimeRange,
+  toClickHouseDateTimeSeconds,
+} from "@everr/ui/lib/time-range";
 import { notFound } from "@tanstack/react-router";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
@@ -31,21 +35,23 @@ const PANEL_TARGET_POINTS = 500;
 
 /**
  * The ClickHouse query parameters bound to every dashboard query (panel and
- * variable-options alike), so the documented contract — `{from}`/`{to}` plus an
- * adaptive `{step:UInt32}` bucket width — holds for all of them by construction.
- * `from`/`to` are the resolved range; `step` is the adaptive bucket width
- * (seconds) so a chart can `toStartOfInterval(col, INTERVAL {step:UInt32}
- * SECOND)` and stay ~bounded in point count at any zoom. Queries that don't
- * reference a parameter simply ignore it.
+ * variable-options alike), so the documented contract, `{from}`/`{to}` plus an
+ * adaptive `{step:UInt32}` bucket width, holds for all of them by construction.
+ * `from`/`to` are the resolved range in whole seconds, the start rounded down
+ * and the end rounded up: a dashboard compares them directly, and a DateTime
+ * column such as the metrics TimeUnix refuses a fractional literal. `step` is
+ * the adaptive bucket width (seconds) so a chart can `toStartOfInterval(col,
+ * INTERVAL {step:UInt32} SECOND)` and stay ~bounded in point count at any
+ * zoom. Queries that don't reference a parameter simply ignore it.
  */
 function dashboardQueryParams(range: { from?: string; to?: string }) {
-  const { fromDate, toDate, fromISO, toISO } = resolveTimeRange({
+  const { fromDate, toDate } = resolveTimeRange({
     from: range.from ?? DEFAULT_TIME_RANGE.from,
     to: range.to ?? DEFAULT_TIME_RANGE.to,
   });
   return {
-    from: fromISO,
-    to: toISO,
+    from: toClickHouseDateTimeSeconds(fromDate, "floor"),
+    to: toClickHouseDateTimeSeconds(toDate, "ceil"),
     step: bucketSeconds(fromDate, toDate, PANEL_TARGET_POINTS),
   };
 }
