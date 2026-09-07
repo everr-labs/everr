@@ -51,7 +51,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS requests
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
                       GROUP BY ts
                       ORDER BY ts
       server-errors:
@@ -80,9 +80,9 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) >= 500) / count() * 100 AS pct
+                      SELECT countIf(toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)) >= 500) / count() * 100 AS pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
       client-errors:
         kind: Panel
         spec:
@@ -109,9 +109,9 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) BETWEEN 400 AND 499) / count() * 100 AS pct
+                      SELECT countIf(toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)) BETWEEN 400 AND 499) / count() * 100 AS pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
       p95-latency:
         kind: Panel
         spec:
@@ -132,7 +132,7 @@ document:
                     query: |-
                       SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
       by-status:
         kind: Panel
         spec:
@@ -151,10 +151,10 @@ document:
                   spec:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                             concat(toString(intDiv(toUInt16OrZero(SpanAttributes['http.response.status_code']), 100)), 'xx') AS status_class,
+                             concat(toString(intDiv(toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)), 100)), 'xx') AS status_class,
                              count() AS requests
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != '' AND SpanAttributes['http.response.status_code'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != '' AND toString(SpanAttributes.`http.response.status_code`) != ''
                       GROUP BY ts, status_class
                       ORDER BY ts
       by-route:
@@ -176,13 +176,13 @@ document:
                   spec:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                             coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) AS route,
+                             coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) AS route,
                              count() AS requests
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
-                        AND coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) IN (
-                        SELECT coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
-                        GROUP BY coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) ORDER BY count() DESC LIMIT 8
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
+                        AND coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) IN (
+                        SELECT coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
+                        GROUP BY coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, route
                       ORDER BY ts
@@ -204,13 +204,13 @@ document:
                   spec:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                             coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) AS route,
+                             coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) AS route,
                              round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
-                        AND coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) IN (
-                        SELECT coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
-                        GROUP BY coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) ORDER BY count() DESC LIMIT 8
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
+                        AND coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) IN (
+                        SELECT coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
+                        GROUP BY coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, route
                       ORDER BY ts
@@ -231,14 +231,14 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) AS route,
-                             SpanAttributes['http.request.method'] AS method,
+                      SELECT coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) AS route,
+                             toString(SpanAttributes.`http.request.method`) AS method,
                              count() AS requests,
                              round(avg(Duration) / 1000000, 1) AS avg_ms,
                              round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
                              round(quantile(0.99)(Duration) / 1000000, 1) AS p99_ms
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
                       GROUP BY route, method
                       ORDER BY p95_ms DESC
                       LIMIT 30
@@ -259,13 +259,13 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) AS route,
-                             SpanAttributes['http.request.method'] AS method,
+                      SELECT coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) AS route,
+                             toString(SpanAttributes.`http.request.method`) AS method,
                              count() AS requests,
                              round(sum(Duration) / 1000000000, 2) AS total_seconds,
-                             round(sum(Duration) / (SELECT sum(Duration) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != '') * 100, 1) AS share_pct
+                             round(sum(Duration) / (SELECT sum(Duration) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != '') * 100, 1) AS share_pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
                       GROUP BY route, method
                       ORDER BY total_seconds DESC
                       LIMIT 30
@@ -285,14 +285,14 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) AS route,
-                             SpanAttributes['http.request.method'] AS method,
-                             countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) >= 500) AS server_errors,
-                             countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) BETWEEN 400 AND 499) AS client_errors,
+                      SELECT coalesce(nullIf(toString(SpanAttributes.`http.route`), ''), nullIf(toString(SpanAttributes.`url.path`), ''), SpanName) AS route,
+                             toString(SpanAttributes.`http.request.method`) AS method,
+                             countIf(toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)) >= 500) AS server_errors,
+                             countIf(toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)) BETWEEN 400 AND 499) AS client_errors,
                              count() AS requests,
-                             anyIf(SpanAttributes['http.response.status_code'], toUInt16OrZero(SpanAttributes['http.response.status_code']) >= 400) AS sample_status
+                             anyIf(toString(SpanAttributes.`http.response.status_code`), toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)) >= 400) AS sample_status
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND toString(SpanAttributes.`http.request.method`) != ''
                       GROUP BY route, method
                       HAVING server_errors + client_errors > 0
                       ORDER BY server_errors DESC, client_errors DESC
@@ -316,7 +316,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS calls
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND toString(SpanAttributes.`http.request.method`) != ''
                       GROUP BY ts
                       ORDER BY ts
       outbound-errors:
@@ -345,9 +345,9 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) >= 500) / count() * 100 AS pct
+                      SELECT countIf(toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)) >= 500) / count() * 100 AS pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND toString(SpanAttributes.`http.request.method`) != ''
       outbound-p95:
         kind: Panel
         spec:
@@ -368,7 +368,7 @@ document:
                     query: |-
                       SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND toString(SpanAttributes.`http.request.method`) != ''
       outbound-by-host:
         kind: Panel
         spec:
@@ -387,13 +387,13 @@ document:
                   spec:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                             coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) AS host,
+                             coalesce(nullIf(toString(SpanAttributes.`server.address`), ''), SpanName) AS host,
                              count() AS calls
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
-                        AND coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) IN (
-                        SELECT coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
-                        GROUP BY coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) ORDER BY count() DESC LIMIT 8
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND toString(SpanAttributes.`http.request.method`) != ''
+                        AND coalesce(nullIf(toString(SpanAttributes.`server.address`), ''), SpanName) IN (
+                        SELECT coalesce(nullIf(toString(SpanAttributes.`server.address`), ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND toString(SpanAttributes.`http.request.method`) != ''
+                        GROUP BY coalesce(nullIf(toString(SpanAttributes.`server.address`), ''), SpanName) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, host
                       ORDER BY ts
@@ -415,10 +415,10 @@ document:
                   spec:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                             concat(toString(intDiv(toUInt16OrZero(SpanAttributes['http.response.status_code']), 100)), 'xx') AS status_class,
+                             concat(toString(intDiv(toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)), 100)), 'xx') AS status_class,
                              count() AS calls
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != '' AND SpanAttributes['http.response.status_code'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND toString(SpanAttributes.`http.request.method`) != '' AND toString(SpanAttributes.`http.response.status_code`) != ''
                       GROUP BY ts, status_class
                       ORDER BY ts
       dependencies:
@@ -438,14 +438,14 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) AS host,
-                             SpanAttributes['http.request.method'] AS method,
+                      SELECT coalesce(nullIf(toString(SpanAttributes.`server.address`), ''), SpanName) AS host,
+                             toString(SpanAttributes.`http.request.method`) AS method,
                              count() AS calls,
-                             countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) >= 400) AS errors,
+                             countIf(toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)) >= 400) AS errors,
                              round(avg(Duration) / 1000000, 1) AS avg_ms,
                              round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND toString(SpanAttributes.`http.request.method`) != ''
                       GROUP BY host, method
                       ORDER BY calls DESC
                       LIMIT 30

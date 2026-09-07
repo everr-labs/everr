@@ -56,7 +56,7 @@ spec:
                 kind: ClickHouseSQL
                 spec:
                   query: |
-                    SELECT countIf(SpanAttributes['everr.cloud_query.outcome'] = 'system_error') AS system_errors
+                    SELECT countIf(toString(SpanAttributes.`everr.cloud_query.outcome`) = 'system_error') AS system_errors
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
@@ -75,7 +75,7 @@ spec:
                 kind: ClickHouseSQL
                 spec:
                   query: |
-                    SELECT countIf(SpanAttributes['everr.cloud_query.outcome'] = 'user_error') AS user_errors
+                    SELECT countIf(toString(SpanAttributes.`everr.cloud_query.outcome`) = 'user_error') AS user_errors
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
@@ -115,8 +115,8 @@ spec:
                 spec:
                   query: |
                     SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
-                           if(SpanAttributes['everr.cloud_query.outcome'] = '', 'unknown',
-                              SpanAttributes['everr.cloud_query.outcome']) AS outcome,
+                           if(toString(SpanAttributes.`everr.cloud_query.outcome`) = '', 'unknown',
+                              toString(SpanAttributes.`everr.cloud_query.outcome`)) AS outcome,
                            count() AS requests
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
@@ -170,10 +170,10 @@ spec:
                 spec:
                   query: |
                     SELECT formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS time,
-                           SpanAttributes['everr.org_id'] AS org,
+                           toString(SpanAttributes.`everr.org_id`) AS org,
                            round(Duration / 1e6, 0) AS duration_ms,
-                           if(SpanAttributes['everr.cloud_query.outcome'] = '', 'unknown',
-                              SpanAttributes['everr.cloud_query.outcome']) AS outcome,
+                           if(toString(SpanAttributes.`everr.cloud_query.outcome`) = '', 'unknown',
+                              toString(SpanAttributes.`everr.cloud_query.outcome`)) AS outcome,
                            TraceId AS trace_id
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
@@ -196,14 +196,14 @@ spec:
                 kind: ClickHouseSQL
                 spec:
                   query: |
-                    SELECT SpanAttributes['everr.cloud_query.outcome'] AS outcome,
-                           SpanAttributes['everr.cloud_query.kind'] AS kind,
+                    SELECT toString(SpanAttributes.`everr.cloud_query.outcome`) AS outcome,
+                           toString(SpanAttributes.`everr.cloud_query.kind`) AS kind,
                            count() AS count,
                            formatDateTime(max(Timestamp), '%m-%d %H:%i') AS last_seen
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
-                      AND SpanAttributes['everr.cloud_query.outcome'] IN ('user_error', 'system_error')
+                      AND toString(SpanAttributes.`everr.cloud_query.outcome`) IN ('user_error', 'system_error')
                     GROUP BY outcome, kind
                     ORDER BY count DESC
                     LIMIT 20
@@ -223,10 +223,10 @@ spec:
                 kind: ClickHouseSQL
                 spec:
                   query: |
-                    SELECT SpanAttributes['everr.org_id'] AS org,
+                    SELECT toString(SpanAttributes.`everr.org_id`) AS org,
                            count() AS requests,
-                           countIf(SpanAttributes['everr.cloud_query.outcome'] = 'user_error') AS user_errors,
-                           countIf(SpanAttributes['everr.cloud_query.outcome'] = 'system_error') AS system_errors
+                           countIf(toString(SpanAttributes.`everr.cloud_query.outcome`) = 'user_error') AS user_errors,
+                           countIf(toString(SpanAttributes.`everr.cloud_query.outcome`) = 'system_error') AS system_errors
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'

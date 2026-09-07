@@ -43,8 +43,8 @@ document:
             kind: ClickHouseSQLVariable
             spec:
               query: |-
-                SELECT DISTINCT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route FROM logs
-                WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) != '' ORDER BY route
+                SELECT DISTINCT coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) AS route FROM logs
+                WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) != '' ORDER BY route
     refreshInterval: 5m
     panels:
       lcp:
@@ -80,10 +80,10 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p75
+                      SELECT round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 0) AS p75
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                        AND LogAttributes['browser.web_vital.name'] = 'lcp'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                        AND toString(LogAttributes.`browser.web_vital.name`) = 'lcp'
       inp:
         kind: Panel
         spec:
@@ -117,10 +117,10 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p75
+                      SELECT round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 0) AS p75
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                        AND LogAttributes['browser.web_vital.name'] = 'inp'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                        AND toString(LogAttributes.`browser.web_vital.name`) = 'inp'
       cls:
         kind: Panel
         spec:
@@ -153,10 +153,10 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 3) AS p75
+                      SELECT round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 3) AS p75
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                        AND LogAttributes['browser.web_vital.name'] = 'cls'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                        AND toString(LogAttributes.`browser.web_vital.name`) = 'cls'
       ttfb:
         kind: Panel
         spec:
@@ -190,10 +190,10 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p75
+                      SELECT round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 0) AS p75
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                        AND LogAttributes['browser.web_vital.name'] = 'ttfb'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                        AND toString(LogAttributes.`browser.web_vital.name`) = 'ttfb'
       lcp-rating:
         kind: Panel
         spec:
@@ -215,10 +215,10 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, LogAttributes['everr.browser.web_vital.rating'] AS rating, count() AS samples
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, toString(LogAttributes.`everr.browser.web_vital.rating`) AS rating, count() AS samples
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND EventName = 'browser.web_vital'
-                        AND LogAttributes['browser.web_vital.name'] = 'lcp'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND EventName = 'browser.web_vital'
+                        AND toString(LogAttributes.`browser.web_vital.name`) = 'lcp'
                       GROUP BY ts, rating
                       ORDER BY ts, indexOf(['good', 'needs-improvement', 'poor'], rating)
       inp-rating:
@@ -239,10 +239,10 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, LogAttributes['everr.browser.web_vital.rating'] AS rating, count() AS samples
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, toString(LogAttributes.`everr.browser.web_vital.rating`) AS rating, count() AS samples
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND EventName = 'browser.web_vital'
-                        AND LogAttributes['browser.web_vital.name'] = 'inp'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND EventName = 'browser.web_vital'
+                        AND toString(LogAttributes.`browser.web_vital.name`) = 'inp'
                       GROUP BY ts, rating
                       ORDER BY ts, indexOf(['good', 'needs-improvement', 'poor'], rating)
       cls-rating:
@@ -263,10 +263,10 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, LogAttributes['everr.browser.web_vital.rating'] AS rating, count() AS samples
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, toString(LogAttributes.`everr.browser.web_vital.rating`) AS rating, count() AS samples
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND EventName = 'browser.web_vital'
-                        AND LogAttributes['browser.web_vital.name'] = 'cls'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND EventName = 'browser.web_vital'
+                        AND toString(LogAttributes.`browser.web_vital.name`) = 'cls'
                       GROUP BY ts, rating
                       ORDER BY ts, indexOf(['good', 'needs-improvement', 'poor'], rating)
       lcp-over-time:
@@ -289,12 +289,12 @@ document:
                       SELECT ts, q.2 AS series, q.3 AS value
                       FROM (
                         SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                               round(quantile(0.5)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p50,
-                               round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p75,
-                               round(quantile(0.9)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p90
+                               round(quantile(0.5)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 0) AS p50,
+                               round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 0) AS p75,
+                               round(quantile(0.9)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 0) AS p90
                         FROM logs
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                          AND LogAttributes['browser.web_vital.name'] = 'lcp'
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                          AND toString(LogAttributes.`browser.web_vital.name`) = 'lcp'
                         GROUP BY ts
                       )
                       ARRAY JOIN [(0, 'Median', p50), (1, 'P75', p75), (2, 'P90', p90)] AS q
@@ -319,12 +319,12 @@ document:
                       SELECT ts, q.2 AS series, q.3 AS value
                       FROM (
                         SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                               round(quantile(0.5)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p50,
-                               round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p75,
-                               round(quantile(0.9)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p90
+                               round(quantile(0.5)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 0) AS p50,
+                               round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 0) AS p75,
+                               round(quantile(0.9)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 0) AS p90
                         FROM logs
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                          AND LogAttributes['browser.web_vital.name'] = 'inp'
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                          AND toString(LogAttributes.`browser.web_vital.name`) = 'inp'
                         GROUP BY ts
                       )
                       ARRAY JOIN [(0, 'Median', p50), (1, 'P75', p75), (2, 'P90', p90)] AS q
@@ -348,12 +348,12 @@ document:
                       SELECT ts, q.2 AS series, q.3 AS value
                       FROM (
                         SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                               round(quantile(0.5)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 3) AS p50,
-                               round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 3) AS p75,
-                               round(quantile(0.9)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 3) AS p90
+                               round(quantile(0.5)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 3) AS p50,
+                               round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 3) AS p75,
+                               round(quantile(0.9)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))), 3) AS p90
                         FROM logs
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                          AND LogAttributes['browser.web_vital.name'] = 'cls'
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                          AND toString(LogAttributes.`browser.web_vital.name`) = 'cls'
                         GROUP BY ts
                       )
                       ARRAY JOIN [(0, 'Median', p50), (1, 'P75', p75), (2, 'P90', p90)] AS q
@@ -380,13 +380,13 @@ document:
                       SELECT ts, phase.2 AS series, phase.3 AS value
                       FROM (
                         SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.lcp.time_to_first_byte']))) AS phase_0,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.lcp.resource_load_delay']))) AS phase_1,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.lcp.resource_load_duration']))) AS phase_2,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.lcp.element_render_delay']))) AS phase_3
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.web_vital.lcp.time_to_first_byte`)))) AS phase_0,
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.web_vital.lcp.resource_load_delay`)))) AS phase_1,
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.web_vital.lcp.resource_load_duration`)))) AS phase_2,
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.web_vital.lcp.element_render_delay`)))) AS phase_3
                         FROM logs
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                          AND LogAttributes['browser.web_vital.name'] = 'lcp'
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                          AND toString(LogAttributes.`browser.web_vital.name`) = 'lcp'
                         GROUP BY ts
                       )
                       ARRAY JOIN [(0, 'Time to first byte', phase_0), (1, 'Resource load delay', phase_1), (2, 'Resource load duration', phase_2), (3, 'Element render delay', phase_3)] AS phase
@@ -413,14 +413,14 @@ document:
                       SELECT ts, phase.2 AS series, phase.3 AS value
                       FROM (
                         SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.ttfb.waiting_duration']))) AS phase_0,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.ttfb.cache_duration']))) AS phase_1,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.ttfb.dns_duration']))) AS phase_2,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.ttfb.connection_duration']))) AS phase_3,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.ttfb.request_duration']))) AS phase_4
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.web_vital.ttfb.waiting_duration`)))) AS phase_0,
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.web_vital.ttfb.cache_duration`)))) AS phase_1,
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.web_vital.ttfb.dns_duration`)))) AS phase_2,
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.web_vital.ttfb.connection_duration`)))) AS phase_3,
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.web_vital.ttfb.request_duration`)))) AS phase_4
                         FROM logs
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                          AND LogAttributes['browser.web_vital.name'] = 'ttfb'
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                          AND toString(LogAttributes.`browser.web_vital.name`) = 'ttfb'
                         GROUP BY ts
                       )
                       ARRAY JOIN [(0, 'Waiting', phase_0), (1, 'Cache', phase_1), (2, 'DNS', phase_2), (3, 'Connection', phase_3), (4, 'Request', phase_4)] AS phase
@@ -442,18 +442,18 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT LogAttributes['everr.element.selector'] AS element,
+                      SELECT toString(LogAttributes.`everr.element.selector`) AS element,
                              coalesce(
-                               nullIf(LogAttributes['everr.browser.interaction.name'], ''),
-                               LogAttributes['everr.browser.interaction.type']
+                               nullIf(toString(LogAttributes.`everr.browser.interaction.name`), ''),
+                               toString(LogAttributes.`everr.browser.interaction.type`)
                              ) AS event,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.interaction.input_delay']))) AS input_delay_p75_ms,
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.interaction.input_delay`)))) AS input_delay_p75_ms,
                              count() AS samples,
-                             coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route
+                             coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) AS route
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                        AND LogAttributes['browser.web_vital.name'] = 'inp'
-                        AND LogAttributes['everr.element.selector'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                        AND toString(LogAttributes.`browser.web_vital.name`) = 'inp'
+                        AND toString(LogAttributes.`everr.element.selector`) != ''
                       GROUP BY element, event, route
                       ORDER BY input_delay_p75_ms DESC
                       LIMIT 25
@@ -474,13 +474,13 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT LogAttributes['everr.browser.web_vital.lcp.target'] AS element,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value']))) AS lcp_p75_ms,
+                      SELECT toString(LogAttributes.`everr.browser.web_vital.lcp.target`) AS element,
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)))) AS lcp_p75_ms,
                              count() AS samples
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
-                        AND LogAttributes['browser.web_vital.name'] = 'lcp'
-                        AND LogAttributes['everr.browser.web_vital.lcp.target'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND (toString(LogAttributes.`browser.web_vital.name`) = 'cls' OR toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`)) <= 60000) AND EventName = 'browser.web_vital'
+                        AND toString(LogAttributes.`browser.web_vital.name`) = 'lcp'
+                        AND toString(LogAttributes.`everr.browser.web_vital.lcp.target`) != ''
                       GROUP BY element
                       HAVING samples >= 5
                       ORDER BY lcp_p75_ms DESC
@@ -502,14 +502,14 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT LogAttributes['everr.browser.web_vital.cls.largest_shift_target'] AS element,
-                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.cls.largest_shift_value'])), 3) AS shift_p75,
-                             LogAttributes['everr.browser.web_vital.cls.load_state'] AS load_state,
+                      SELECT toString(LogAttributes.`everr.browser.web_vital.cls.largest_shift_target`) AS element,
+                             round(quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`everr.browser.web_vital.cls.largest_shift_value`))), 3) AS shift_p75,
+                             toString(LogAttributes.`everr.browser.web_vital.cls.load_state`) AS load_state,
                              count() AS samples
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND EventName = 'browser.web_vital'
-                        AND LogAttributes['browser.web_vital.name'] = 'cls'
-                        AND LogAttributes['everr.browser.web_vital.cls.largest_shift_target'] != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN $route AND EventName = 'browser.web_vital'
+                        AND toString(LogAttributes.`browser.web_vital.name`) = 'cls'
+                        AND toString(LogAttributes.`everr.browser.web_vital.cls.largest_shift_target`) != ''
                       GROUP BY element, load_state
                       ORDER BY shift_p75 DESC
                       LIMIT 25

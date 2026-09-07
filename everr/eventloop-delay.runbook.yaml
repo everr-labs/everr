@@ -123,7 +123,7 @@ spec:
                       formatDateTime(min(Timestamp), '%m-%d %H:%i:%S') AS started,
                       any(ServiceName) AS service,
                       anyIf(SpanName, SpanKind = 'Server' OR ParentSpanId = '') AS entry,
-                      anyIf(SpanAttributes['rpc.method'], SpanAttributes['rpc.method'] != '') AS server_fn,
+                      anyIf(toString(SpanAttributes.`rpc.method`), toString(SpanAttributes.`rpc.method`) != '') AS server_fn,
                       round(max(Duration) / 1e6, 1) AS duration_ms,
                       TraceId AS trace_id
                     FROM traces
@@ -157,8 +157,8 @@ spec:
                 spec:
                   query: |
                     SELECT
-                      if(SpanAttributes['rpc.method'] != '',
-                         concat('fn ', SpanAttributes['rpc.method']),
+                      if(toString(SpanAttributes.`rpc.method`) != '',
+                         concat('fn ', toString(SpanAttributes.`rpc.method`)),
                          SpanName) AS operation,
                       count() AS calls,
                       round(quantile(0.95)(Duration) / 1e6, 1) AS p95_ms,
@@ -172,7 +172,7 @@ spec:
                         WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}
                           AND MetricName = 'nodejs.eventloop.delay.p99'
                       )
-                      AND (SpanKind = 'Server' OR ParentSpanId = '' OR SpanAttributes['rpc.method'] != '')
+                      AND (SpanKind = 'Server' OR ParentSpanId = '' OR toString(SpanAttributes.`rpc.method`) != '')
                     GROUP BY operation
                     ORDER BY total_ms DESC
                     LIMIT 20
@@ -267,7 +267,7 @@ spec:
                 spec:
                   query: |
                     SELECT
-                      SpanAttributes['rpc.method'] AS server_fn,
+                      toString(SpanAttributes.`rpc.method`) AS server_fn,
                       count() AS calls,
                       round(quantile(0.5)(Duration) / 1e6, 1) AS p50_ms,
                       round(quantile(0.95)(Duration) / 1e6, 1) AS p95_ms,
@@ -275,7 +275,7 @@ spec:
                       countIf(StatusCode = 'Error') AS errors
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
-                      AND SpanAttributes['rpc.method'] != ''
+                      AND toString(SpanAttributes.`rpc.method`) != ''
                     GROUP BY server_fn
                     ORDER BY p95_ms DESC
                     LIMIT 30
