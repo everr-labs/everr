@@ -1,3 +1,4 @@
+import { attributeExists } from "@everr/telemetry-explorer/sql";
 import { z } from "zod";
 import { BUILTIN_DASHBOARDS } from "./catalog";
 import { type BuiltinDashboard, SIGNALS, type Signal } from "./types";
@@ -268,7 +269,7 @@ export function buildCapabilitiesQuery(
 
     if (match) {
       branches.push(
-        `SELECT ${key} AS key FROM ${signal} WHERE ${window} AND has(${attributes}Keys, '${match}') LIMIT 1`,
+        `SELECT ${key} AS key FROM ${signal} WHERE ${window} AND ${attributeExists(attributes, match)} LIMIT 1`,
       );
     } else {
       branches.push(

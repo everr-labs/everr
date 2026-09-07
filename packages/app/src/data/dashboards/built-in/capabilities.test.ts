@@ -41,9 +41,10 @@ describe("CATALOG_PROBES", () => {
 });
 
 describe("buildCapabilitiesQuery", () => {
-  // `mapContains` is the shape the tables' bloom_filter key indexes can
-  // prune, so an absent attribute reads zero granules instead of the window.
-  it("probes a trace attribute with the index-prunable mapContains", () => {
+  // `has(...Keys, ...)` is the shape the tables' bloom_filter indexes on the
+  // keys arrays can prune, so an absent attribute reads zero granules instead
+  // of the window.
+  it("probes a trace attribute with the index-prunable keys array", () => {
     expect(
       buildCapabilitiesQuery([{ signal: "traces", match: "faas.trigger" }]),
     ).toBe(
