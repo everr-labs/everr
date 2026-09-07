@@ -40,11 +40,11 @@ Skipped rows in either mode surface as an "N rows not mapped" badge on the panel
 
 ```sql
 -- choropleth: requests per country (alpha-2 codes)
-SELECT SpanAttributes['geo.country_code'] AS region,
+SELECT toString(SpanAttributes.`geo.country_code`) AS region,
        count() AS value
 FROM traces
 WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
-  AND SpanAttributes['geo.country_code'] != ''
+  AND toString(SpanAttributes.`geo.country_code`) != ''
 GROUP BY region
 ```
 

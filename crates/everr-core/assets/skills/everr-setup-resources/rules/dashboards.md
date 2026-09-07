@@ -139,7 +139,7 @@ spec:
           - { x: 0,  y: 8, width: 24, height: 10, content: { $ref: "#/spec/panels/slowest-endpoints" } }
 ```
 
-> The column names above (`ServiceName`, `SpanName`, `Duration`, `StatusCode`) are the standard `traces` columns. If you query attributes (`SpanAttributes['http.route']`, etc.) or other tables, discover the real columns first — see Startup Access in the skill root.
+> The column names above (`ServiceName`, `SpanName`, `Duration`, `StatusCode`) are the standard `traces` columns. If you query attributes (`` toString(SpanAttributes.`http.route`) ``, etc.) or other tables, discover the real columns first: see Startup Access in the skill root.
 
 ## Common mistakes
 

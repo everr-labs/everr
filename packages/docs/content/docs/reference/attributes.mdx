@@ -1,0 +1,59 @@
+---
+title: Attribute columns
+description: How to read span, log and resource attributes in SQL.
+---
+
+Logs and traces store their attributes in JSON columns: `LogAttributes`, `ScopeAttributes` and `ResourceAttributes` on `logs`, and `SpanAttributes` and `ResourceAttributes` on `traces`. Each column keeps the type the SDK sent, so an integer attribute is a number and a boolean is a boolean. Next to each column, an array named after it with the suffix `Keys` lists the keys present on the row, for example `LogAttributesKeys`.
+
+The metrics tables keep their maps: read `Attributes['key']` there.
+
+## Reading a key
+
+Put the key in backticks after the column and wrap the read in `toString`. Dots are part of the key. A missing key reads as an empty string.
+
+```sql
+SELECT toString(SpanAttributes.`http.route`) AS route, count()
+FROM traces
+WHERE Timestamp > now() - INTERVAL 1 HOUR
+GROUP BY route
+```
+
+## Comparing
+
+`toString` makes every comparison a text comparison, whatever type the SDK sent. For a number, convert the text.
+
+```sql
+WHERE toString(SpanAttributes.`http.request.method`) = 'POST'
+WHERE toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)) >= 500
+```
+
+A numeric comparison on the raw path, `` SpanAttributes.`http.response.status_code` >= 500 ``, works while every row it runs over holds a number. It fails with `NO_COMMON_TYPE` when a row holds text, which is what a `String` column does too. A query runs over your own rows only. Another tenant's types do not affect you. Two versions of your own SDK that disagree on the type do. The converted form works in every case. A typed read such as `` SpanAttributes.`k`.:Int64 `` is the one form to avoid: it returns `NULL` for every row whose stored type is different, silently.
+
+## Presence
+
+Test presence on the keys array; it is indexed. An empty-string test on the value also works but reads the value of every row in the window.
+
+```sql
+WHERE has(LogAttributesKeys, 'exception.type')
+WHERE NOT has(SpanAttributesKeys, 'everr.github.workflow_job_step.number')
+```
+
+## Listing keys
+
+```sql
+SELECT DISTINCT arrayJoin(LogAttributesKeys) AS key
+FROM logs
+WHERE Timestamp > now() - INTERVAL 1 HOUR
+ORDER BY key
+```
+
+## Moving from the map syntax
+
+| Before | After |
+|---|---|
+| `LogAttributes['k']` | `` toString(LogAttributes.`k`) `` |
+| `mapContains(LogAttributes, 'k')` | `has(LogAttributesKeys, 'k')` |
+| `toFloat64OrZero(LogAttributes['k'])` | `` toFloat64OrZero(toString(LogAttributes.`k`)) `` |
+| `mapKeys(LogAttributes)` | `LogAttributesKeys` |
+
+A map read on a JSON column is an error, not an empty result, so a saved query that still uses it fails loudly.
