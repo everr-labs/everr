@@ -13,7 +13,7 @@ import {
 function occurrencesQuery(fingerprint: string): string {
   return [
     "SELECT toString(Timestamp) AS timestamp, ServiceName, TraceId,",
-    "  LogAttributes['exception.stacktrace'] AS stacktrace",
+    "  toString(LogAttributes.`exception.stacktrace`) AS stacktrace",
     "FROM logs",
     "WHERE Timestamp > now() - INTERVAL 7 DAY",
     `  AND ${EXCEPTION_LOG_FILTER_SQL.trim()}`,

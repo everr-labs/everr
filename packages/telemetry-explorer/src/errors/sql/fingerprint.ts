@@ -1,18 +1,20 @@
+import { attributeExists, attributeText } from "../../sql/json-attributes";
+
 // Everr's stable identity for an Error. The expression lives in the
 // `errorFingerprint` ClickHouse UDF
 // (clickhouse/init/04-create-error-fingerprint-function.sql and the local
 // collector's copy), so the web app, local collector, agents, and skills all
 // group Errors identically instead of each carrying a copy of the SQL. Callers
-// pass ServiceName and the whole LogAttributes; the UDF reads
-// error.fingerprint / exception.type / exception.message from it.
-export const ERROR_FINGERPRINT_SQL = `errorFingerprint(ServiceName, LogAttributes)`;
+// pass ServiceName and the three attributes the UDF reads, each as text, so
+// the query reads three subcolumns and never the whole LogAttributes column.
+export const ERROR_FINGERPRINT_SQL = `errorFingerprint(ServiceName, ${attributeText("LogAttributes", "error.fingerprint")}, ${attributeText("LogAttributes", "exception.type")}, ${attributeText("LogAttributes", "exception.message")})`;
 
 export const EXCEPTION_LOG_FILTER_SQL = `
-  mapContains(ResourceAttributes, 'service.name')
+  ${attributeExists("ResourceAttributes", "service.name")}
   AND SeverityNumber >= 17
   AND (
-    mapContains(LogAttributes, 'exception.type')
-    OR mapContains(LogAttributes, 'exception.message')
+    ${attributeExists("LogAttributes", "exception.type")}
+    OR ${attributeExists("LogAttributes", "exception.message")}
   )
 `;
 

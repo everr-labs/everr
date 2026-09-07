@@ -14,6 +14,7 @@ import {
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
+import { attributeText, flattenAttributes } from "../../sql/json-attributes";
 import {
   resourceAttribute,
   resourceAttributeKeyExists,
@@ -31,13 +32,18 @@ import type {
 } from "./schemas";
 import type { ServiceIdentity, Span, TraceSummary } from "./types";
 
-type SpanRow = Omit<Span, "events" | "links"> & {
+type SpanRow = Omit<
+  Span,
+  "events" | "links" | "spanAttributes" | "resourceAttributes"
+> & {
+  spanAttributes: unknown;
+  resourceAttributes: unknown;
   eventNames: string[];
   eventTimestamps: string[];
-  eventAttributes: Record<string, string>[];
+  eventAttributes: unknown[];
   linkTraceIds: string[];
   linkSpanIds: string[];
-  linkAttributes: Record<string, string>[];
+  linkAttributes: unknown[];
 };
 
 const FROM_TS_SQL = "parseDateTime64BestEffort({fromTs:String}, 9)";
@@ -49,13 +55,13 @@ const SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE = "service.namespace";
 // stable OpenTelemetry attribute. `http.status_code` is the name before version
 // 1.23 that some SDKs still send.
 //
-// A key that is absent from a Map reads as '' in ClickHouse. The second choice
-// is therefore a test for an empty string, and no test for null is necessary. A
-// span that is not an HTTP span gives ''.
+// toString of a missing path is '' in ClickHouse, the same as a key absent
+// from a Map. The second choice is therefore a test for an empty string, and
+// no test for null is necessary. A span that is not an HTTP span gives ''.
 const ROOT_HTTP_STATUS_CODE_SQL = `if(
-  SpanAttributes['http.response.status_code'] != '',
-  SpanAttributes['http.response.status_code'],
-  SpanAttributes['http.status_code']
+  ${attributeText("SpanAttributes", "http.response.status_code")} != '',
+  ${attributeText("SpanAttributes", "http.response.status_code")},
+  ${attributeText("SpanAttributes", "http.status_code")}
 )`;
 
 // Traces store Timestamp as DateTime64(9); attribute discovery must parse its
@@ -363,6 +369,8 @@ export type TracesRepositoryLike = Pick<
 
 function rowToSpan(row: SpanRow): Span {
   const {
+    spanAttributes,
+    resourceAttributes,
     eventNames,
     eventTimestamps,
     eventAttributes,
@@ -373,15 +381,17 @@ function rowToSpan(row: SpanRow): Span {
   } = row;
   return {
     ...rest,
+    spanAttributes: flattenAttributes(spanAttributes),
+    resourceAttributes: flattenAttributes(resourceAttributes),
     events: eventNames.map((name, i) => ({
       name,
       timestamp: eventTimestamps[i] ?? "",
-      attributes: eventAttributes[i] ?? {},
+      attributes: flattenAttributes(eventAttributes[i]),
     })),
     links: linkTraceIds.map((traceId, i) => ({
       traceId,
       spanId: linkSpanIds[i] ?? "",
-      attributes: linkAttributes[i] ?? {},
+      attributes: flattenAttributes(linkAttributes[i]),
     })),
   };
 }
