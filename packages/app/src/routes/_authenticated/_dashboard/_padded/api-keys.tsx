@@ -7,6 +7,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { ApiKeysSections } from "@/components/api-keys/api-keys-table";
 import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
 import { apiKeysQueryOptions } from "@/components/api-keys/queries";
+import { PageHeader } from "@/components/page-header";
 import { auth } from "@/lib/auth.server";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
@@ -56,28 +57,22 @@ function ApiKeysPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-xl font-bold tracking-tight">API keys</h1>
-          <p className="text-muted-foreground max-w-prose text-sm/relaxed">
+      <PageHeader
+        title="API keys"
+        lede={
+          <>
             Organization-scoped keys for sending telemetry to Everr and running{" "}
             <code className="font-mono text-xs">everr apply</code>. Choose each
-            key's capabilities when you create it.{" "}
-            <a
-              className="text-foreground hover:text-primary underline underline-offset-4"
-              href="https://everr.dev/docs/guides/production-telemetry"
-              target="_blank"
-              rel="noreferrer"
-            >
-              SDK setup
-            </a>
-          </p>
-        </div>
-        {/* Sits outside every data-dependent branch below. The dialog shows a
-            new key exactly once, so a branch swapping under it would drop the
-            key before it can be copied. */}
-        <CreateApiKeyDialog />
-      </div>
+            key's capabilities when you create it.
+          </>
+        }
+        // Sits outside every data-dependent branch below. The dialog shows a
+        // new key exactly once, so a branch swapping under it would drop the
+        // key before it can be copied.
+        actions={<CreateApiKeyDialog />}
+        docsHref="https://everr.dev/docs/guides/production-telemetry"
+        docsLabel="SDK setup"
+      />
 
       {keys.isPending ? (
         <Card inset="flush-content">

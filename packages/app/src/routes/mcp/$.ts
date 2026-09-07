@@ -4,9 +4,9 @@ import { z } from "zod";
 import { getMcpIdentity } from "@/data/mcp/identity";
 import { assertCurrentMember } from "@/data/mcp/membership";
 import { runSqlForConnection } from "@/data/mcp/run-sql";
-import { SQL_API_TENANT_TABLES } from "@/lib/clickhouse";
 import { AUTH_ISSUER, MCP_RESOURCE } from "@/lib/mcp-resource";
 import { mcpResourceClient } from "@/lib/mcp-resource-client";
+import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
 
 // Single source of truth: the tables the per-org ClickHouse role can read.
 const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");

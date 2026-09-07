@@ -31,6 +31,7 @@ vi.mock("@/db/schema", () => ({
   organization: { id: "id", name: "name" },
 }));
 
+import { parseAlertingPrincipal } from "@/data/alerting/session";
 import {
   applyAuthErrorResponse,
   buildApplyContext,
@@ -139,6 +140,38 @@ describe("resolveApplyAuth", () => {
     ).rejects.toThrow(/not authorized to apply/i);
   });
 
+  // parseAlertingPrincipal trusts this producer and does not re-validate the
+  // separator: a principal without one would parse into a plausible wrong
+  // actor ("userx" reads as user "userx"). The round trip pins the contract
+  // at the only place that builds principals.
+  it("emits principals that round-trip through parseAlertingPrincipal", async () => {
+    verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
+    });
+    const viaKey = await resolveApplyAuth(
+      headers({ authorization: "Bearer ek_abc" }),
+    );
+    expect(parseAlertingPrincipal(viaKey.principalId)).toEqual({
+      kind: "apikey",
+      id: "k1",
+      display: "apikey:k1",
+    });
+
+    getSession.mockResolvedValueOnce({
+      session: { activeOrganizationId: "org-1" },
+      user: { id: "u1" },
+    });
+    const viaSession = await resolveApplyAuth(
+      headers({ authorization: "Bearer session-token" }),
+    );
+    expect(parseAlertingPrincipal(viaSession.principalId)).toEqual({
+      kind: "user",
+      id: "u1",
+      display: "user:u1",
+    });
+  });
+
   it("falls back to the org id when the org row is missing", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
@@ -204,8 +237,30 @@ describe("buildApplyContext", () => {
     });
     expect(ctx.session.session.activeOrganizationId).toBe("org-k");
     expect(ctx.session.user.id).toBe("apikey:1");
+    expect(ctx.session.principalId).toBe("apikey:1");
     expect(ctx.organization).toEqual({ id: "org-k", name: "Kettle" });
     expect(ctx.applyActions).toEqual(["read", "write", "delete"]);
+  });
+
+  it("derives the audit actor from the principal, key or user", () => {
+    const actorFor = (principalId: string) =>
+      buildApplyContext({
+        organizationId: "org-k",
+        organizationName: "Kettle",
+        principalId,
+        applyActions: null,
+      }).actor;
+
+    expect(actorFor("apikey:1")).toEqual({
+      kind: "apikey",
+      id: "1",
+      display: "apikey:1",
+    });
+    expect(actorFor("user:u1")).toEqual({
+      kind: "user",
+      id: "u1",
+      display: "user:u1",
+    });
   });
 
   it("threads a null applyActions through for session auth", () => {

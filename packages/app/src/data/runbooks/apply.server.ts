@@ -1,4 +1,5 @@
 import { and, eq, isNull } from "drizzle-orm";
+import { formatResourceName } from "@/data/as-code/identity";
 import {
   type OwnershipConflict,
   partitionByOwnership,
@@ -77,9 +78,9 @@ export const applyRunbookSpecs: Reconciler = async ({
     partitionByOwnership(diff.creates, foreign, adopt);
 
   const summary: ApplyRunbooksResult = {
-    created: freshCreates.map((d) => d.slug),
-    updated: diff.updates.map((d) => d.slug),
-    deleted: diff.deletes.map((d) => d.slug),
+    created: freshCreates.map((d) => formatResourceName(d.project, d.slug)),
+    updated: diff.updates.map((d) => formatResourceName(d.project, d.slug)),
+    deleted: diff.deletes.map((d) => formatResourceName(d.project, d.slug)),
     adopted,
     conflicts,
   };

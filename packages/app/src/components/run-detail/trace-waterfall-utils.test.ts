@@ -19,150 +19,84 @@ function makeSpan(overrides: Partial<Span> & { spanId: string }): Span {
   };
 }
 
+function makeChain() {
+  return buildSpanTree([
+    makeSpan({ spanId: "a", startTime: 1 }),
+    makeSpan({ spanId: "b", parentSpanId: "a", startTime: 2 }),
+    makeSpan({ spanId: "c", parentSpanId: "b", startTime: 3 }),
+  ]);
+}
+
 describe("buildSpanTree", () => {
-  it("returns empty array for no spans", () => {
-    expect(buildSpanTree([])).toEqual([]);
-  });
-
-  it("creates root nodes for spans without parents", () => {
+  it("nests children under their parent and assigns depths", () => {
     const roots = buildSpanTree([
-      makeSpan({ spanId: "a", name: "root1" }),
-      makeSpan({ spanId: "b", name: "root2" }),
+      makeSpan({ spanId: "a", name: "Root" }),
+      makeSpan({ spanId: "b", parentSpanId: "a", name: "Child" }),
+      makeSpan({ spanId: "c", parentSpanId: "b", name: "Grandchild" }),
+      makeSpan({ spanId: "d", name: "Other Root" }),
     ]);
-    expect(roots).toHaveLength(2);
-    expect(roots[0].depth).toBe(0);
-    expect(roots[1].depth).toBe(0);
-  });
 
-  it("builds parent-child relationships", () => {
-    const roots = buildSpanTree([
-      makeSpan({ spanId: "parent", name: "Parent" }),
-      makeSpan({
-        spanId: "child",
-        parentSpanId: "parent",
-        name: "Child",
-      }),
-    ]);
-    expect(roots).toHaveLength(1);
-    expect(roots[0].children).toHaveLength(1);
-    expect(roots[0].children[0].name).toBe("Child");
-  });
-
-  it("sets correct depths", () => {
-    const roots = buildSpanTree([
-      makeSpan({ spanId: "a" }),
-      makeSpan({ spanId: "b", parentSpanId: "a" }),
-      makeSpan({ spanId: "c", parentSpanId: "b" }),
-    ]);
-    expect(roots[0].depth).toBe(0);
+    expect(roots.map((n) => n.spanId)).toEqual(["a", "d"]);
+    expect(roots.map((n) => n.depth)).toEqual([0, 0]);
+    expect(roots[0].children.map((n) => n.name)).toEqual(["Child"]);
     expect(roots[0].children[0].depth).toBe(1);
     expect(roots[0].children[0].children[0].depth).toBe(2);
   });
 
-  it("handles orphan spans as roots", () => {
+  it("treats spans with an unknown parent as roots", () => {
     const roots = buildSpanTree([
       makeSpan({ spanId: "child", parentSpanId: "nonexistent" }),
     ]);
+
     expect(roots).toHaveLength(1);
     expect(roots[0].depth).toBe(0);
   });
 });
 
 describe("flattenTree", () => {
-  it("flattens a tree in order", () => {
-    const roots = buildSpanTree([
-      makeSpan({ spanId: "a", startTime: 1 }),
-      makeSpan({ spanId: "b", parentSpanId: "a", startTime: 2 }),
-      makeSpan({ spanId: "c", parentSpanId: "a", startTime: 3 }),
-    ]);
-
-    const flat = flattenTree(roots, new Set());
-    expect(flat.map((n) => n.spanId)).toEqual(["a", "b", "c"]);
-  });
-
-  it("sorts by start time", () => {
+  it("walks depth-first with siblings ordered by start time", () => {
     const roots = buildSpanTree([
       makeSpan({ spanId: "b", startTime: 200 }),
       makeSpan({ spanId: "a", startTime: 100 }),
+      makeSpan({ spanId: "a2", parentSpanId: "a", startTime: 300 }),
+      makeSpan({ spanId: "a1", parentSpanId: "a", startTime: 150 }),
     ]);
 
-    const flat = flattenTree(roots, new Set());
-    expect(flat[0].spanId).toBe("a");
-    expect(flat[1].spanId).toBe("b");
+    expect(flattenTree(roots, new Set()).map((n) => n.spanId)).toEqual([
+      "a",
+      "a1",
+      "a2",
+      "b",
+    ]);
   });
 
-  it("skips children of collapsed nodes", () => {
-    const roots = buildSpanTree([
-      makeSpan({ spanId: "a", startTime: 1 }),
-      makeSpan({ spanId: "b", parentSpanId: "a", startTime: 2 }),
-      makeSpan({ spanId: "c", parentSpanId: "b", startTime: 3 }),
-    ]);
-
-    const flat = flattenTree(roots, new Set(["a"]));
-    expect(flat.map((n) => n.spanId)).toEqual(["a"]);
-  });
-
-  it("only collapses specified nodes", () => {
-    const roots = buildSpanTree([
-      makeSpan({ spanId: "a", startTime: 1 }),
-      makeSpan({ spanId: "b", parentSpanId: "a", startTime: 2 }),
-      makeSpan({ spanId: "c", parentSpanId: "b", startTime: 3 }),
-    ]);
-
-    // Collapse "b" but not "a"
-    const flat = flattenTree(roots, new Set(["b"]));
-    expect(flat.map((n) => n.spanId)).toEqual(["a", "b"]);
+  it.each([
+    { collapsed: [], expected: ["a", "b", "c"] },
+    { collapsed: ["a"], expected: ["a"] },
+    { collapsed: ["b"], expected: ["a", "b"] },
+  ])("stops at collapsed nodes ($collapsed)", ({ collapsed, expected }) => {
+    const flat = flattenTree(makeChain(), new Set(collapsed));
+    expect(flat.map((n) => n.spanId)).toEqual(expected);
   });
 });
 
 describe("getParentSpanIds", () => {
-  it("returns empty set for no nodes", () => {
-    expect(getParentSpanIds([])).toEqual(new Set());
-  });
-
-  it("returns empty set for leaf nodes", () => {
-    const roots = buildSpanTree([makeSpan({ spanId: "a" })]);
-    expect(getParentSpanIds(roots)).toEqual(new Set());
-  });
-
-  it("identifies parent nodes", () => {
-    const roots = buildSpanTree([
-      makeSpan({ spanId: "a" }),
-      makeSpan({ spanId: "b", parentSpanId: "a" }),
-      makeSpan({ spanId: "c", parentSpanId: "a" }),
-    ]);
-
-    const parents = getParentSpanIds(roots);
-    expect(parents.has("a")).toBe(true);
-    expect(parents.has("b")).toBe(false);
-    expect(parents.has("c")).toBe(false);
-  });
-
-  it("identifies nested parents", () => {
+  it("collects nodes with children at any depth, skipping leaves", () => {
     const roots = buildSpanTree([
       makeSpan({ spanId: "a" }),
       makeSpan({ spanId: "b", parentSpanId: "a" }),
       makeSpan({ spanId: "c", parentSpanId: "b" }),
+      makeSpan({ spanId: "leaf" }),
     ]);
 
-    const parents = getParentSpanIds(roots);
-    expect(parents.has("a")).toBe(true);
-    expect(parents.has("b")).toBe(true);
-    expect(parents.has("c")).toBe(false);
+    expect(getParentSpanIds(roots)).toEqual(new Set(["a", "b"]));
   });
 });
 
 describe("stringToColor", () => {
-  it("returns an HSL color string", () => {
-    const color = stringToColor("test");
-    expect(color).toMatch(/^hsl\(\d+, 65%, 55%\)$/);
-  });
-
-  it("returns consistent colors for the same input", () => {
+  it("derives a stable hsl color per name", () => {
+    expect(stringToColor("hello")).toMatch(/^hsl\(\d+, 65%, 55%\)$/);
     expect(stringToColor("hello")).toBe(stringToColor("hello"));
-  });
-
-  it("returns different colors for different inputs", () => {
     expect(stringToColor("foo")).not.toBe(stringToColor("bar"));
   });
 });

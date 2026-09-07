@@ -4,6 +4,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
+import svgr from "vite-plugin-svgr";
 import { smeeWebhookPlugin } from "./vite.smee";
 
 const config = defineConfig(({ mode }) => {
@@ -65,6 +66,9 @@ const config = defineConfig(({ mode }) => {
         traceDeps: ["tslib*"],
       }),
       viteReact(),
+      // dimensions: false drops the svg's fixed width/height, so the icon
+      // scales from its viewBox and CSS classes own the size everywhere.
+      svgr({ svgrOptions: { dimensions: false } }),
     ],
   };
 });

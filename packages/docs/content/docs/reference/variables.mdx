@@ -3,7 +3,7 @@ title: Variables
 description: Make dashboards interactive with template variables and reference them in queries.
 ---
 
-Variables let a dashboard be parameterized — a service picker, an environment dropdown, a free-text filter. They render as controls in the variable bar at the top of the dashboard, and you reference their values in panel queries with `$name` tokens. Define them under `spec.variables`.
+Variables let a dashboard be parameterized: a service picker, an environment dropdown, a free-text filter. They render as controls in the variable bar at the top of the dashboard, and you reference their values in panel queries with `$name` tokens. Define them under `spec.variables`.
 
 ## Text variables
 
@@ -21,7 +21,7 @@ variables:
 
 ## List variables
 
-A dropdown. Options come from a plugin — either a static list or a ClickHouse query.
+A dropdown. Options come from a plugin, either a static list or a ClickHouse query.
 
 Static options:
 
@@ -55,11 +55,11 @@ Query-backed options (the first column of the result becomes the options):
 
 List-variable options:
 
-- **`allowMultiple`** — let the user select several values.
-- **`allowAllValue`** — add an "All" entry. When selected, `$name` expands to every loaded option (as a quoted list). Set `customAllValue` to substitute a fixed string instead — it's inserted **verbatim**, with no quoting added, so include any quotes the SQL needs yourself. For a `LIKE` match-all use `customAllValue: "'%'"` (note the inner quotes) → `... LIKE '%'`; a bare `customAllValue: "%"` produces the invalid `... LIKE %`.
-- **`defaultValue`** — initial selection (a string, or a list when `allowMultiple`).
-- **`sort`** — order the picker options: `none`, `alphabetical-asc` / `-desc`, `numerical-asc` / `-desc`, or the case-insensitive `alphabetical-ci-asc` / `-desc`.
-- **`display.hidden: true`** — keep the variable out of the bar but still usable in queries.
+- **`allowMultiple`**: let the user select several values.
+- **`allowAllValue`**: add an "All" entry. When selected, `$name` expands to every loaded option (as a quoted list). Set `customAllValue` to substitute a fixed string instead. It's inserted **verbatim**, with no quoting added, so include any quotes the SQL needs yourself. For a `LIKE` match-all use `customAllValue: "'%'"` (note the inner quotes) → `... LIKE '%'`; a bare `customAllValue: "%"` produces the invalid `... LIKE %`.
+- **`defaultValue`**: initial selection (a string, or a list when `allowMultiple`).
+- **`sort`**: order the picker options: `none`, `alphabetical-asc` / `-desc`, `numerical-asc` / `-desc`, or the case-insensitive `alphabetical-ci-asc` / `-desc`.
+- **`display.hidden: true`**: keep the variable out of the bar but still usable in queries.
 
 Query-backed options load through the app keyed on the query and the active time range, so changing the time range refreshes them. Large result sets are capped at the first 1000 options (the bar notes the truncation).
 
@@ -69,9 +69,9 @@ Reference a variable in panel SQL with Grafana-style tokens. Everr interpolates 
 
 | Token | Expands to |
 | --- | --- |
-| `$name` | the value as a ClickHouse literal — `'api'`, or a list `('api','web')` for multi-select |
+| `$name` | the value as a ClickHouse literal: `'api'`, or a list `('api','web')` for multi-select |
 | `${name}` | same as `$name`, with explicit delimiters for embedding (e.g. `pre${name}post`) |
-| `${name:raw}` | the value **unquoted** — comma-joined for lists; use only for trusted, non-string fragments |
+| `${name:raw}` | the value **unquoted**, comma-joined for lists; use only for trusted, non-string fragments |
 
 ```sql
 SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS spans

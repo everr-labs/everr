@@ -62,6 +62,7 @@ import {
   apiRunToCollectorBody,
   type BackfillProgress,
   backfillRepo,
+  JOB_QUOTA_PER_REPO,
 } from "./backfill";
 import { generateWorkflowTraceId } from "./trace-id";
 
@@ -223,12 +224,6 @@ function makeSuccessfulRunsWithJobs(runIds: number[]) {
   return { runs, jobs };
 }
 
-function makeSingleRunWithJob() {
-  const runs = [makeRun({ id: 1 })];
-  const jobs = [[makeJob({ id: 101, run_id: 1 })]];
-  return { runs, jobs };
-}
-
 function setupDbMock(existingTraceIds: string[] = []) {
   const rows = existingTraceIds.map((traceId) => ({ traceId }));
   const where = vi.fn().mockResolvedValue(rows);
@@ -295,19 +290,20 @@ async function drainBackfill(...args: Parameters<typeof backfillRepo>) {
 }
 
 describe("backfillRepo", () => {
+  const runListUrls: string[] = [];
+
   function setupFetch(
     runs: ReturnType<typeof makeRun>[],
     jobsPerRun: ReturnType<typeof makeJob>[][],
   ) {
+    runListUrls.length = 0;
     mockFetch.mockImplementation(async (url: string) => {
       if (url.includes("/access_tokens")) {
         return mockTokenResponse();
       }
       if (url.includes("/actions/runs?")) {
-        return mockGitHubList(
-          "workflow_runs",
-          url.includes("branch=") ? [] : runs,
-        );
+        runListUrls.push(url);
+        return mockGitHubList("workflow_runs", runs);
       }
       if (url.includes("/jobs")) {
         const runId = Number(url.match(/runs\/(\d+)\/jobs/)?.[1]);
@@ -318,15 +314,36 @@ describe("backfillRepo", () => {
     });
   }
 
-  it("replays runs and jobs through the collector", async () => {
-    const { runs, jobs } = makeSingleRunWithJob();
+  it("replays runs and jobs from any branch, reporting progress", async () => {
+    const runs = [
+      makeRun({ id: 1, head_branch: "main" }),
+      makeRun({ id: 2, head_branch: "feature/import-me" }),
+    ];
+    const jobs = [
+      [makeJob({ id: 101, run_id: 1, head_branch: "main" })],
+      [makeJob({ id: 201, run_id: 2, head_branch: "feature/import-me" })],
+    ];
     setupFetch(runs, jobs);
 
-    const { result } = await drainBackfill(999, "org-1", TEST_REPO);
+    const { result, progress } = await drainBackfill(999, "org-1", TEST_REPO);
 
-    expect(result.runsReplayed).toBe(1);
-    expect(result.jobsReplayed).toBe(1);
-    expect(mockEnqueue).toHaveBeenCalledTimes(2); // 1 run + 1 job
+    expect(result.runsReplayed).toBe(2);
+    expect(result.jobsReplayed).toBe(2);
+    expect(mockEnqueue).toHaveBeenCalledTimes(4); // 2 runs + 2 jobs
+    expect(runListUrls.every((url) => !url.includes("branch="))).toBe(true);
+
+    // 1 initial + 1 per replayed run + 1 done
+    expect(
+      progress.map((e) => [e.status, e.runsProcessed, e.jobsEnqueued]),
+    ).toEqual([
+      ["importing", 0, 0],
+      ["importing", 1, 1],
+      ["importing", 2, 2],
+      ["done", 2, 2],
+    ]);
+    expect(progress.every((e) => e.jobsQuota === JOB_QUOTA_PER_REPO)).toBe(
+      true,
+    );
   });
 
   it("filters out cancelled conclusions", async () => {
@@ -346,7 +363,7 @@ describe("backfillRepo", () => {
     expect(result.jobsReplayed).toBe(1);
   });
 
-  it("stops after 250 jobs per repo", async () => {
+  it("stops after the per-repo job quota", async () => {
     // 60 runs with 5 jobs each = 300 jobs, should stop at 250 (50 runs)
     const runs = Array.from({ length: 60 }, (_, i) =>
       makeRun({ id: i + 1, run_number: i + 1 }),
@@ -360,66 +377,8 @@ describe("backfillRepo", () => {
 
     const { result } = await drainBackfill(999, "org-1", TEST_REPO);
 
-    expect(result.jobsReplayed).toBe(250);
-    expect(result.runsReplayed).toBe(50);
-  });
-
-  it("imports workflow runs from any branch", async () => {
-    const runs = [
-      makeRun({ id: 1, head_branch: "main" }),
-      makeRun({ id: 2, head_branch: "feature/import-me" }),
-    ];
-    const jobs = [
-      [makeJob({ id: 101, run_id: 1, head_branch: "main" })],
-      [makeJob({ id: 201, run_id: 2, head_branch: "feature/import-me" })],
-    ];
-    const runListUrls: string[] = [];
-
-    mockFetch.mockImplementation(async (url: string) => {
-      if (url.includes("/access_tokens")) return mockTokenResponse();
-      if (url.includes("/actions/runs?")) {
-        runListUrls.push(url);
-        if (url.includes("branch=")) {
-          return mockGitHubList("workflow_runs", [runs[0]]);
-        }
-        return mockGitHubList("workflow_runs", runs);
-      }
-      if (url.includes("/jobs")) {
-        const runId = Number(url.match(/runs\/(\d+)\/jobs/)?.[1]);
-        const idx = runs.findIndex((r) => r.id === runId);
-        return mockGitHubList("jobs", idx >= 0 ? jobs[idx] : []);
-      }
-      return mockGitHubList("workflow_runs", []);
-    });
-
-    const { result } = await drainBackfill(999, "org-1", TEST_REPO);
-
-    expect(result.runsReplayed).toBe(2);
-    expect(result.jobsReplayed).toBe(2);
-    expect(runListUrls.every((url) => !url.includes("branch="))).toBe(true);
-  });
-
-  it("uses no branch filter when listing runs", async () => {
-    const { runs, jobs } = makeSingleRunWithJob();
-    const runListUrls: string[] = [];
-
-    mockFetch.mockImplementation(async (url: string) => {
-      if (url.includes("/access_tokens")) return mockTokenResponse();
-      if (url.includes("/actions/runs?")) {
-        runListUrls.push(url);
-        return mockGitHubList("workflow_runs", runs);
-      }
-      if (url.includes("/jobs")) {
-        return mockGitHubList("jobs", jobs[0]);
-      }
-      return mockGitHubList("workflow_runs", []);
-    });
-
-    const { result } = await drainBackfill(999, "org-1", TEST_REPO);
-
-    expect(result.runsReplayed).toBe(1);
-    expect(result.jobsReplayed).toBe(1);
-    expect(runListUrls.every((url) => !url.includes("branch="))).toBe(true);
+    expect(result.jobsReplayed).toBe(JOB_QUOTA_PER_REPO);
+    expect(result.runsReplayed).toBe(JOB_QUOTA_PER_REPO / 5);
   });
 
   it("handles repos with no workflow runs", async () => {
@@ -447,45 +406,6 @@ describe("backfillRepo", () => {
     expect(result.jobsReplayed).toBe(1);
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]).toContain("collector down");
-  });
-
-  it("emits onProgress events during backfill", async () => {
-    const { runs, jobs } = makeSuccessfulRunsWithJobs([1, 2, 3]);
-    setupFetch(runs, jobs);
-
-    const { result, progress: progressEvents } = await drainBackfill(
-      999,
-      "org-1",
-      TEST_REPO,
-    );
-
-    expect(result.runsReplayed).toBe(3);
-
-    // 1 initial + 3 per-run + 1 done = 5
-    expect(progressEvents.length).toBe(5);
-
-    // First event should be "importing" with runsProcessed 0 and jobsQuota 250
-    const first = progressEvents[0];
-    expect(first.status).toBe("importing");
-    expect(first.runsProcessed).toBe(0);
-    expect(first.jobsQuota).toBe(250);
-
-    // Last event should be "done"
-    const last = progressEvents[progressEvents.length - 1];
-    expect(last.status).toBe("done");
-    expect(last.runsProcessed).toBe(3);
-    expect(last.jobsEnqueued).toBe(3);
-    expect(last.jobsQuota).toBe(250);
-
-    // Incremental events should show increasing runsProcessed
-    const importingEvents = progressEvents.filter(
-      (e) => e.status === "importing" && e.runsProcessed > 0,
-    );
-    for (let i = 1; i < importingEvents.length; i++) {
-      expect(importingEvents[i].runsProcessed).toBeGreaterThanOrEqual(
-        importingEvents[i - 1].runsProcessed,
-      );
-    }
   });
 
   it("skips runs whose traceId already exists in the database", async () => {

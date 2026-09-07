@@ -9,17 +9,18 @@ vi.mock("@/data/dashboards/apply.server", () => ({
 vi.mock("@/data/runbooks/apply.server", () => ({
   applyRunbookSpecs: (...a: unknown[]) => runbookReconciler(...a),
 }));
-vi.mock("@/data/alerts/apply.server", () => ({
+vi.mock("@/data/alerting/rules/resource/apply.server", () => ({
   applyAlertSpecs: (...a: unknown[]) => alertReconciler(...a),
 }));
 // Cross-kind runbook-link validation is exercised in its own suite; mock it
 // here so the orchestration test stays focused on routing and avoids the
-// runbook-links module's transitive DB import.
+// runbook-links module's transitive data imports.
 const validateRunbookLinks = vi.fn();
-vi.mock("@/data/alerts/runbook-links.server", () => ({
-  validateAlertRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
+const collectOrphanWarnings = vi.fn();
+vi.mock("./runbook-links.server", () => ({
+  validateRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
+  collectOrphanWarnings: (...a: unknown[]) => collectOrphanWarnings(...a),
 }));
-
 const upsertPreview = vi.fn();
 const findPreviewId = vi.fn();
 vi.mock("@/data/previews/apply.server", () => ({
@@ -37,6 +38,7 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
+import { db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
 import { applyResources } from "./registry";
 
@@ -55,6 +57,7 @@ beforeEach(() => {
   alertReconciler.mockResolvedValue(empty);
   upsertPreview.mockResolvedValue("prev-1");
   findPreviewId.mockResolvedValue(null);
+  collectOrphanWarnings.mockResolvedValue([]);
 });
 
 describe("applyResources", () => {
@@ -79,7 +82,11 @@ describe("applyResources", () => {
     const out = await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [dash], runbooks: [runbook], alerts: [alert] },
+      state: {
+        dashboards: [dash],
+        runbooks: [runbook],
+        alerts: [alert],
+      },
       dryRun: false,
     });
     const liveNs = { orgId: "org-1", repoid: "repo-1", kind: "live" };
@@ -92,6 +99,22 @@ describe("applyResources", () => {
     expect(alertReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ namespace: liveNs, resources: [alert] }),
     );
+    // The write pass (the last call; the first is validation) hands every
+    // reconciler the shared transaction executor, so a failing kind rolls
+    // back the others' mutations (the rejection path is covered by the
+    // mid-apply failure test below).
+    for (const reconciler of [
+      dashboardReconciler,
+      runbookReconciler,
+      alertReconciler,
+    ]) {
+      expect(reconciler.mock.lastCall?.[0].db).toEqual({ tx: true });
+    }
+    expect(validateRunbookLinks).toHaveBeenCalledWith({
+      namespace: liveNs,
+      alerts: [alert],
+      runbooks: [runbook],
+    });
     expect(out).toEqual({
       dryRun: false,
       results: [
@@ -127,8 +150,8 @@ describe("applyResources", () => {
       new ApplyValidationError("bad runbook"),
     );
 
-    await expect(
-      applyResources({
+    try {
+      await applyResources({
         orgId: "org-1",
         repoid: "repo-1",
         state: {
@@ -137,8 +160,11 @@ describe("applyResources", () => {
           alerts: [],
         },
         dryRun: false,
-      }),
-    ).rejects.toThrow(/bad runbook/);
+      });
+      expect.fail("expected the invalid runbook to fail the apply");
+    } catch (error) {
+      expect((error as Error).message).toMatch(/bad runbook/);
+    }
 
     // Dashboard was only ever validated (dryRun: true) — never applied for real,
     // so it cannot have pruned the repo before Runbook validation threw.
@@ -158,7 +184,11 @@ describe("applyResources", () => {
     const out = await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+      },
       dryRun: true,
     });
     expect(dashboardReconciler).toHaveBeenCalledTimes(1);
@@ -179,7 +209,11 @@ describe("applyResources", () => {
     await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+      },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ dryRun: false }),
@@ -193,8 +227,8 @@ describe("applyResources", () => {
   });
 
   it("rejects resources placed under the wrong state key", async () => {
-    await expect(
-      applyResources({
+    try {
+      await applyResources({
         orgId: "org-1",
         repoid: "repo-1",
         state: {
@@ -202,16 +236,21 @@ describe("applyResources", () => {
           runbooks: [],
           alerts: [],
         },
-      }),
-    ).rejects.toThrow('alert.yaml: expected kind "Dashboard"');
+      });
+      expect.fail("expected the misplaced resource to be rejected");
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        'alert.yaml: expected kind "Dashboard"',
+      );
+    }
 
     expect(dashboardReconciler).not.toHaveBeenCalled();
     expect(runbookReconciler).not.toHaveBeenCalled();
     expect(alertReconciler).not.toHaveBeenCalled();
   });
 
-  // Kind validation is the only back-compat surface in the rename: `Runbook`
-  // is canonical and the legacy `Notebook` kind stays accepted (ADR 0002).
+  // `Runbook` is canonical and the legacy `Notebook` kind stays accepted per
+  // ADR 0002.
   it.each([
     "Runbook",
     "Notebook",
@@ -236,8 +275,8 @@ describe("applyResources", () => {
   });
 
   it("honors the Notebook alias only for runbooks — rejects it under dashboards", async () => {
-    await expect(
-      applyResources({
+    try {
+      await applyResources({
         orgId: "org-1",
         repoid: "repo-1",
         state: {
@@ -245,8 +284,15 @@ describe("applyResources", () => {
           runbooks: [],
           alerts: [],
         },
-      }),
-    ).rejects.toThrow('nb.yaml: expected kind "Dashboard"');
+      });
+      expect.fail(
+        "expected the Notebook alias to be rejected under dashboards",
+      );
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        'nb.yaml: expected kind "Dashboard"',
+      );
+    }
 
     expect(dashboardReconciler).not.toHaveBeenCalled();
     expect(runbookReconciler).not.toHaveBeenCalled();
@@ -258,7 +304,11 @@ describe("applyResources", () => {
       orgId: "org-1",
       repoid: "repo-1",
       preview: "gio/x",
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+      },
     });
     for (const reconciler of [
       dashboardReconciler,
@@ -278,8 +328,36 @@ describe("applyResources", () => {
       );
     }
     expect(upsertPreview).toHaveBeenCalledTimes(1);
-    // Registered first, inside the shared transaction (the executor arg).
-    expect(upsertPreview).toHaveBeenCalledWith(expect.anything(), {
+    // Registration must commit before independently persisted preview resources.
+    expect(upsertPreview).toHaveBeenCalledWith(db, {
+      orgId: "org-1",
+      repoid: "repo-1",
+      name: "gio/x",
+    });
+    const registeredAt = upsertPreview.mock.invocationCallOrder[0];
+    const txOpenedAt = vi.mocked(db.transaction).mock.invocationCallOrder[0];
+    expect(registeredAt).toBeLessThan(txOpenedAt);
+  });
+
+  it("keeps the preview registered when a kind fails mid-apply (no orphan namespace)", async () => {
+    // Validation succeeds, then the real alert reconcile fails.
+    alertReconciler
+      .mockResolvedValueOnce(empty)
+      .mockRejectedValueOnce(new Error("alert repository unavailable"));
+
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        preview: "gio/x",
+        state: { dashboards: [], runbooks: [], alerts: [] },
+      }),
+    ).rejects.toThrow("alert repository unavailable");
+
+    // The preview row commits outside the reconcile transaction, so the next
+    // apply upserts the same namespace instead of re-registering.
+    expect(upsertPreview).toHaveBeenCalledTimes(1);
+    expect(upsertPreview).toHaveBeenCalledWith(db, {
       orgId: "org-1",
       repoid: "repo-1",
       name: "gio/x",
@@ -290,14 +368,22 @@ describe("applyResources", () => {
     await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+      },
     });
     await applyResources({
       orgId: "org-1",
       repoid: "repo-1",
       preview: "gio/x",
       dryRun: true,
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+      },
     });
     expect(upsertPreview).not.toHaveBeenCalled();
   });
@@ -310,8 +396,8 @@ describe("applyResources", () => {
       adopted: [],
       conflicts: [{ project: "default", slug: "cpu", owner: "repo-2" }],
     });
-    await expect(
-      applyResources({
+    try {
+      await applyResources({
         orgId: "org-1",
         repoid: "repo-1",
         state: {
@@ -320,8 +406,13 @@ describe("applyResources", () => {
           alerts: [],
         },
         dryRun: false,
-      }),
-    ).rejects.toThrow(/default\/cpu \(owned by repo-2\)[\s\S]*--adopt/);
+      });
+      expect.fail("expected the ownership conflict to fail the apply");
+    } catch (error) {
+      expect((error as Error).message).toMatch(
+        /default\/cpu \(owned by repo-2\)[\s\S]*--adopt/,
+      );
+    }
     // Fail-fast: aborts in the validation pass, before the real apply's
     // transaction ever registers or writes.
     expect(upsertPreview).not.toHaveBeenCalled();
@@ -332,13 +423,69 @@ describe("applyResources", () => {
       orgId: "org-1",
       repoid: "repo-1",
       adopt: true,
-      state: { dashboards: [], runbooks: [], alerts: [] },
+      state: {
+        dashboards: [],
+        runbooks: [],
+        alerts: [],
+      },
     });
     expect(dashboardReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ adopt: true }),
     );
     expect(alertReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ adopt: true }),
+    );
+  });
+
+  it("appends orphan-link warnings to the Runbook kind's result note, joined with its existing note", async () => {
+    runbookReconciler.mockResolvedValue({
+      created: [],
+      updated: [],
+      deleted: ["triage"],
+      adopted: [],
+      conflicts: [],
+      note: "preview-only advisory",
+    });
+    collectOrphanWarnings.mockResolvedValue([
+      'deleting runbook "default/triage" orphans the link from alert "default/api-errors" (owned by repo-2)',
+    ]);
+    const out = await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: { dashboards: [], runbooks: [], alerts: [] },
+      dryRun: false,
+    });
+    expect(collectOrphanWarnings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        namespace: expect.objectContaining({ kind: "live" }),
+      }),
+    );
+    const runbookResult = out.results.find((r) => r.kind === "Runbook");
+    expect(runbookResult?.note).toBe(
+      'preview-only advisory; deleting runbook "default/triage" orphans the link from alert "default/api-errors" (owned by repo-2)',
+    );
+  });
+
+  it("appends orphan-link warnings to the dry-run result too", async () => {
+    runbookReconciler.mockResolvedValue({
+      created: [],
+      updated: [],
+      deleted: ["triage"],
+      adopted: [],
+      conflicts: [],
+    });
+    collectOrphanWarnings.mockResolvedValue([
+      'deleting runbook "default/triage" orphans the link from alert "default/checkout" (owned by repo-2)',
+    ]);
+    const out = await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: { dashboards: [], runbooks: [], alerts: [] },
+      dryRun: true,
+    });
+    const runbookResult = out.results.find((r) => r.kind === "Runbook");
+    expect(runbookResult?.note).toBe(
+      'deleting runbook "default/triage" orphans the link from alert "default/checkout" (owned by repo-2)',
     );
   });
 });

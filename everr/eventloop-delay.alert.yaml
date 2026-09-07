@@ -8,15 +8,17 @@ spec:
     description: Services whose Node.js event loop p99 delay is elevated over the last 5 minutes.
   notificationMessage:
     title: "${ServiceName} event loop is lagging"
-    description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes"
+    description: "p99 event loop delay averaged ${value}ms over the last 5 minutes"
   evaluationInterval: 1m
+  condition:
+    operator: gt
+    threshold: 100
   query: |
     SELECT
       ServiceName,
-      round(avg(Value) * 1000, 1) AS p99_delay_ms
+      round(avg(Value) * 1000, 1) AS value
     FROM metrics_gauge
     WHERE MetricName = 'nodejs.eventloop.delay.p99'
       AND TimeUnix >= now() - INTERVAL 5 MINUTE
     GROUP BY ServiceName
-    HAVING p99_delay_ms > 100
-    ORDER BY p99_delay_ms DESC
+    ORDER BY value DESC

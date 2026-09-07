@@ -29,11 +29,14 @@ export interface InstrumentationContext {
    * the context from `setAttributes`. Then it puts the record in the batch with
    * the other records. The SDK ignores an attribute value of null and an
    * attribute value of undefined. Thus an optional attribute needs no
-   * additional code.
+   * additional code. The optional timestamp is integer epoch milliseconds.
+   * Normalize a browser timestamp with `epoch()` at the capture site. Without
+   * it, the SDK uses the instant that `emit` is called.
    */
   emit(
     name: string,
     attributes?: Record<string, AttrValue | null | undefined>,
+    timestamp?: number,
   ): void;
   /**
    * The OTel tracer of the SDK. The traces pipeline sends a completed span.

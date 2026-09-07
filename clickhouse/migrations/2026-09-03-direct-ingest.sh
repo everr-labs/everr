@@ -99,8 +99,6 @@ echo "2/4 rebuild the tables, the landing tables and the views"
 # The stored otel.* copies go with the tables. They hold seven days of raw
 # rows that nothing reads: app.* is the read model.
 trap drop_landing_tables ERR
-# alert_events_logs_mv writes into app.logs, so it goes before app.logs does.
-run_sql "DROP VIEW IF EXISTS app.alert_events_logs_mv"
 for t in "${TABLES[@]}"; do
   run_sql "DROP VIEW IF EXISTS app.${t}_mv"
   run_sql "DROP TABLE IF EXISTS otel.otel_${t}"
@@ -110,7 +108,7 @@ run_sql "DROP TABLE IF EXISTS app.alert_events"
 run_file init/03-create-otel-tables.sql     # Null engines
 run_file init/05-create-retention-functions.sql  # the stamp and the strip the views call
 run_file init/10-create-mvs.sql             # app.* and their views
-run_file init/12-create-alert-events.sql    # app.alert_events and its view into app.logs
+run_file init/12-create-alert-events.sql    # app.alert_events
 
 # Every landing table must have its view back before ingestion resumes. Still
 # under the trap: a landing table left Null with no view is the silent-discard
@@ -119,7 +117,7 @@ mv_names=$(printf ",'%s_mv'" "${TABLES[@]}")
 run_sql "SELECT throwIf(
   (SELECT count() FROM system.tables
      WHERE database = 'app' AND engine = 'MaterializedView'
-       AND name IN (${mv_names#,}, 'alert_events_logs_mv')) != $(( ${#TABLES[@]} + 1 )),
+       AND name IN (${mv_names#,})) != ${#TABLES[@]},
   'a table is missing its materialized view: rows would be discarded')"
 trap - ERR
 

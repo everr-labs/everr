@@ -1,0 +1,165 @@
+import { and, asc, eq, sql } from "drizzle-orm";
+import { type DbExecutor, db } from "@/db/client";
+import {
+  alertDefinitions,
+  alertDeliveryEvents,
+  alertEvents,
+  alertNotificationGroupEvents,
+} from "@/db/schema";
+
+/**
+ * The delivery pipeline's only reads of the journal. Every query here
+ * hard-codes `kind = 'notifying'`, so a state-only row (pending, closed, hold
+ * decisions) can never be selected for delivery, whatever its event type
+ * says. Nothing outside this module may read `alert_events` for delivery
+ * work, the history trail included.
+ */
+export function deliverableEventQuery(executor: DbExecutor, eventId: string) {
+  return executor
+    .select()
+    .from(alertEvents)
+    .where(and(eq(alertEvents.id, eventId), eq(alertEvents.kind, "notifying")))
+    .limit(1);
+}
+
+export async function claimDeliverableEvent(eventId: string) {
+  const [event] = await deliverableEventQuery(db, eventId);
+  return event ?? null;
+}
+
+/**
+ * A group's claimed memberships, with the owning rule's liveness read in the
+ * same statement. `ruleActive` is null when the definition is gone, false
+ * when the rule is paused. The flush drops both instead of notifying.
+ *
+ * `cap` bounds how many rows one flush claims, so a storm feeding one group
+ * cannot push one worker through an unbounded number of suppression checks.
+ * What is left past the cap stays linked and unflushed, and the flush's own
+ * pending-member count turns that into a follow-up flush.
+ *
+ * Unflushed members come first, then the oldest by event id. Ordering on the
+ * id alone starved them. A member that flushes while still firing is written
+ * back with the same id. So once a group holds more than `cap` firing
+ * members, the same oldest ones win every claim, and the newer ones are never
+ * reached.
+ *
+ * Already-flushed members stay claimable on purpose. Claiming is how their
+ * rows are pruned: a row leaves the group by being claimed once more and then
+ * not written back as active. Filtering them out here would leak a row for
+ * every instance that resolves.
+ */
+export function deliverableGroupMemberQuery(
+  executor: DbExecutor,
+  groupId: string,
+  cap: number,
+) {
+  return (
+    executor
+      .select({
+        event: alertEvents,
+        flushedAt: alertNotificationGroupEvents.flushedAt,
+        ruleActive: alertDefinitions.active,
+      })
+      .from(alertNotificationGroupEvents)
+      .innerJoin(
+        alertEvents,
+        and(
+          eq(
+            alertNotificationGroupEvents.organizationId,
+            alertEvents.organizationId,
+          ),
+          eq(alertNotificationGroupEvents.eventId, alertEvents.id),
+          eq(alertEvents.kind, "notifying"),
+        ),
+      )
+      .leftJoin(
+        alertDefinitions,
+        and(
+          eq(alertEvents.organizationId, alertDefinitions.organizationId),
+          eq(alertEvents.sourceDefinitionId, alertDefinitions.id),
+        ),
+      )
+      .where(eq(alertNotificationGroupEvents.groupId, groupId))
+      // `false` sorts before `true`, so an unflushed member outranks a flushed
+      // one whatever their ids say.
+      .orderBy(
+        asc(sql`${alertNotificationGroupEvents.flushedAt} IS NOT NULL`),
+        asc(alertEvents.id),
+      )
+      .limit(cap)
+  );
+}
+
+/**
+ * The notifying events a delivery was built from, for its history trail. One
+ * delivery can cover several events once grouping has merged them, and each
+ * gets its own trail row so a per-instance history stays complete.
+ */
+export function linkedEventsForDeliveryQuery(
+  executor: DbExecutor,
+  organizationId: string,
+  dedupKey: string,
+) {
+  return executor
+    .select({ event: alertEvents })
+    .from(alertDeliveryEvents)
+    .innerJoin(
+      alertEvents,
+      and(
+        eq(alertDeliveryEvents.organizationId, alertEvents.organizationId),
+        eq(alertDeliveryEvents.eventId, alertEvents.id),
+        eq(alertEvents.kind, "notifying"),
+      ),
+    )
+    .where(
+      and(
+        eq(alertDeliveryEvents.organizationId, organizationId),
+        eq(alertDeliveryEvents.deliveryDedupKey, dedupKey),
+      ),
+    );
+}
+
+/**
+ * At least one still-active rule behind a composed notification. A send job
+ * can outlive a pause or a delete that committed after its delivery row was
+ * written, and a notification whose every source rule is gone must not send.
+ * One live rule is enough: dropping the whole send would lose that rule's
+ * only notification.
+ *
+ * Ordered oldest-first, so the one row also says when the delivery started
+ * firing and which rule to attribute it to. Both are for telemetry, and both
+ * ride this query on purpose. A separate read would add a database round trip
+ * to the delivery path for measurement alone, and after the send it could
+ * throw, retry the job, and page someone twice.
+ */
+export function liveRuleForDeliveryQuery(
+  executor: DbExecutor,
+  dedupKey: string,
+) {
+  return executor
+    .select({
+      eventId: alertDeliveryEvents.eventId,
+      slug: alertEvents.slug,
+      firedAt: alertEvents.occurredAt,
+    })
+    .from(alertDeliveryEvents)
+    .innerJoin(
+      alertEvents,
+      and(
+        eq(alertDeliveryEvents.organizationId, alertEvents.organizationId),
+        eq(alertDeliveryEvents.eventId, alertEvents.id),
+        eq(alertEvents.kind, "notifying"),
+      ),
+    )
+    .innerJoin(
+      alertDefinitions,
+      and(
+        eq(alertEvents.organizationId, alertDefinitions.organizationId),
+        eq(alertEvents.sourceDefinitionId, alertDefinitions.id),
+        eq(alertDefinitions.active, true),
+      ),
+    )
+    .where(eq(alertDeliveryEvents.deliveryDedupKey, dedupKey))
+    .orderBy(asc(alertEvents.occurredAt))
+    .limit(1);
+}

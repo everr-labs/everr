@@ -122,6 +122,7 @@ export const captureError = (
         "exception.message": message,
         "exception.stacktrace": stack,
       },
+      undefined,
       17,
       message ? `${type}: ${message}` : type,
     );

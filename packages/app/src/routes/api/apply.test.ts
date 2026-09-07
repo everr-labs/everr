@@ -130,6 +130,23 @@ describe("POST /api/apply", () => {
     expect(applyResources).not.toHaveBeenCalled();
   });
 
+  it("returns 400 on unknown state keys", async () => {
+    const res = await POST({
+      request: req({
+        repoid: "repo-1",
+        state: {
+          dashboards: [],
+          runbooks: [],
+          alerts: [],
+          unexpected: [],
+        },
+      }),
+      context: ctx,
+    });
+    expect(res.status).toBe(400);
+    expect(applyResources).not.toHaveBeenCalled();
+  });
+
   it("returns 400 with the message on a validation error", async () => {
     applyResources.mockRejectedValueOnce(
       new ApplyValidationError('bad.yaml: unknown kind "Gizmo"'),

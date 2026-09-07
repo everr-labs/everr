@@ -68,6 +68,7 @@ export type Emit = (
   // a cast, and an editor can still complete the EventName union.
   eventName: EventName | "" | (string & {}),
   attributes?: Record<string, AttrValue | null | undefined>,
+  timestamp?: number,
   severityNumber?: number,
   body?: string,
 ) => void;
@@ -82,8 +83,8 @@ export type EmitSpan = (
   traceId: string,
   spanId: string,
   name: string,
-  startEpochMs: number,
-  endEpochMs: number,
+  startTime: number,
+  endTime: number,
   attributes: Record<string, AttrValue | null | undefined>,
   error?: boolean,
   parentSpanId?: string,
@@ -305,9 +306,19 @@ export function createEmitter(
     }
   };
 
+  const sortBy = <T, K extends keyof T>(items: T[], key: K) =>
+    items.sort((a, b) =>
+      Number(BigInt(a[key] as string) - BigInt(b[key] as string)),
+    );
+
   const flush = (keepalive?: boolean): Promise<void> => {
     clearTimeout(timer);
     timer = undefined;
+    // Array.sort is stable, so records with the same timestamp keep their
+    // capture order. The exit path truncates before this sort, preserving its
+    // rule that records emitted by hide handlers stay in the constrained batch.
+    sortBy(queue, "timeUnixNano");
+    sortBy(spanQueue, "startTimeUnixNano");
     const posts: Promise<void>[] = [];
     if (queue.length) {
       posts.push(post("logs", buildLogs(), keepalive));
@@ -388,11 +399,13 @@ export function createEmitter(
   const emit: Emit = (
     eventName,
     attributes,
+    time,
     severityNumber = 9, // INFO
-    // The default body is the event name. Thus a log viewer shows a line that
-    // the user can read.
     body = eventName,
   ) => {
+    // Read this before the hook. The default is the instant emit was called,
+    // even when a host hook does synchronous work before the item is queued.
+    const timestamp = `${time ?? Date.now()}000000`;
     const item = applyBeforeSend({
       kind: "log",
       eventName,
@@ -405,7 +418,7 @@ export function createEmitter(
     // at run time.
     if (item?.kind !== "log") return;
     queue.push({
-      timeUnixNano: `${Date.now()}000000`,
+      timeUnixNano: timestamp,
       severityNumber: item.severityNumber,
       eventName: item.eventName,
       body: toAnyValue(item.body),
@@ -418,8 +431,8 @@ export function createEmitter(
     traceId,
     spanId,
     name,
-    startEpochMs,
-    endEpochMs,
+    startTime,
+    endTime,
     attributes,
     error,
     parentSpanId,
@@ -442,8 +455,8 @@ export function createEmitter(
       parentSpanId,
       name: item.name,
       kind: 3, // SPAN_KIND_CLIENT
-      startTimeUnixNano: `${startEpochMs}000000`,
-      endTimeUnixNano: `${endEpochMs}000000`,
+      startTimeUnixNano: `${startTime}000000`,
+      endTimeUnixNano: `${endTime}000000`,
       attributes: toKeyValues(item.attributes),
       // This is STATUS_CODE_ERROR. If not, the field is absent and thus Unset,
       // because JSON removes a value of undefined.

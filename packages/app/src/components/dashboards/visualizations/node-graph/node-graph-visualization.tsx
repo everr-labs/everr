@@ -1,6 +1,6 @@
+import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { Share2 } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { CursorTooltip } from "@/components/cursor-tooltip";
 import { SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import { formatStatValue } from "../stat-chart/stat-calculations";

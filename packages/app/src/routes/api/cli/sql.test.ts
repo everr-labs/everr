@@ -6,6 +6,7 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 import { querySqlApi } from "@/lib/clickhouse";
+import { SCHEMA_PROBE_MESSAGE } from "@/lib/sql-api-error";
 import { Route } from "./sql";
 
 const mockedQuerySqlApi = vi.mocked(querySqlApi);
@@ -109,12 +110,6 @@ describe("/api/cli/sql", () => {
     });
   });
 
-  const SCHEMA_PROBE_MESSAGE =
-    "Query references a table that doesn't exist or isn't available to you. " +
-    "Readable tables: traces, logs, metrics_gauge, metrics_sum, " +
-    "metrics_histogram, metrics_exponential_histogram, metrics_summary, " +
-    "traces_trace_id_ts.";
-
   async function postSql(body: string) {
     return getHandler()({
       request: new Request("http://localhost/api/cli/sql", {
@@ -131,14 +126,14 @@ describe("/api/cli/sql", () => {
       "ACCESS_DENIED",
       "497",
       "sql_api_org_PKeXt: Not enough privileges. To execute this query, it's " +
-        "necessary to have the grant SELECT(tenant_id, retention_days, " +
-        "evidence_json) ON app.alert_events. ",
+        "necessary to have the grant SELECT(tenant_id, traces_days, logs_days, " +
+        "metrics_days) ON app.tenant_retention. ",
     ],
     [
       "UNKNOWN_TABLE",
       "60",
-      "Unknown table expression identifier 'app.secret_table' in scope " +
-        "SELECT * FROM app.secret_table",
+      "Unknown table expression identifier 'app.tenant_retention' in scope " +
+        "SELECT * FROM app.tenant_retention",
     ],
     ["UNKNOWN_DATABASE", "81", "Database secret_db does not exist."],
   ])("collapses %s into a uniform message that leaks no schema", async (type, code, rawMessage) => {
@@ -146,28 +141,28 @@ describe("/api/cli/sql", () => {
       new ClickHouseError({ message: rawMessage, code, type }),
     );
 
-    const response = await postSql("SELECT * FROM app.secret_table");
+    const response = await postSql("SELECT * FROM app.tenant_retention");
     const body = (await response.json()) as { error: string };
 
     expect(response.status).toBe(400);
     expect(body.error).toBe(SCHEMA_PROBE_MESSAGE);
     // The raw error must not reach the client: no table/column names, no
     // per-org ClickHouse username, no "exists vs not" distinction.
-    expect(body.error).not.toContain("alert_events");
-    expect(body.error).not.toContain("evidence_json");
+    expect(body.error).not.toContain("tenant_retention");
+    expect(body.error).not.toContain("traces_days");
     expect(body.error).not.toContain("sql_api_org_");
   });
 
   it("matches schema-probe errors even when the type is unparsed", async () => {
     mockedQuerySqlApi.mockRejectedValue(
       new ClickHouseError({
-        message: "Not enough privileges ... ON app.alert_events.",
+        message: "Not enough privileges ... ON app.tenant_retention.",
         code: "497",
         type: undefined,
       }),
     );
 
-    const response = await postSql("SELECT * FROM app.secret_table");
+    const response = await postSql("SELECT * FROM app.tenant_retention");
     expect(await response.json()).toEqual({ error: SCHEMA_PROBE_MESSAGE });
   });
 

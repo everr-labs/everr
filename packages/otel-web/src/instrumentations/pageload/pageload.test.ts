@@ -36,9 +36,9 @@ const tracer = createTracer(
       spanId,
       parentSpanId,
       name,
-      start,
-      end,
-      duration: end - start,
+      start: start as number,
+      end: end as number,
+      duration: (end as number) - (start as number),
       attrs: a,
     });
   },

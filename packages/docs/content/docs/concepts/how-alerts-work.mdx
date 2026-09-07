@@ -2,11 +2,11 @@
 title: How alerts work
 ---
 
-Every row the alert query returns is a firing instance. An empty result means resolved.
+Every alert query returns a numeric column named `value`. The rule condition compares that value with a threshold for each row. Matching rows are firing instances; non-matching rows stay available for dashboards and diagnostics.
 
 ## The evaluation loop
 
-Everr runs `spec.query` every `evaluationInterval`. Notifications fire on the **edges** — when an instance newly starts firing and when it resolves, not on every evaluation while it stays firing. A service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute.
+Everr runs `spec.query` every `evaluationInterval`. Notifications fire on the **edges**: when an instance newly starts firing and when it resolves, not on every evaluation while it stays firing. A service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute.
 
 ```yaml
 kind: AlertRule
@@ -14,21 +14,21 @@ metadata:
   name: eventloop-delay
 spec:
   evaluationInterval: 1m
+  condition: { operator: gt, threshold: 100 }
   query: |
-    SELECT ServiceName, round(avg(Value) * 1000, 1) AS p99_delay_ms
+    SELECT ServiceName, round(avg(Value) * 1000, 1) AS value
     FROM metrics_gauge
     WHERE MetricName = 'nodejs.eventloop.delay.p99'
       AND TimeUnix >= now() - INTERVAL 5 MINUTE
     GROUP BY ServiceName
-    HAVING p99_delay_ms > 100
 ```
 
-The threshold lives in the SQL, a `WHERE` filter, a `HAVING` clause, whatever comparison defines "something is wrong." A healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` returns rows only when the event loop is stuck for more than 100ms.
+The query returns the measurement for every service with data. A healthy service might return `value: 10`, which remains visible but does not match the `gt: 100` condition. A blocked service returning `value: 140` becomes a firing instance.
 
 ## Instance identity
 
-By default an instance's identity is the set of **string** columns the query returns; numeric columns are measurements, not identity. The rule above returns `ServiceName` (a string) and `p99_delay_ms` (a number), so it produces one instance per service automatically, a single rule scales across every service, firing independently for `checkout`, `payments`, and anything else. Because the numeric column is not part of identity, a service stays the same instance as its delay rises and falls. To carry an extra string column in the message without churning identity, override which columns count. See [alert queries](/docs/reference/alert-queries).
+By default an instance's identity is the set of **string** columns the query returns; numeric columns are measurements, not identity. The rule above returns `ServiceName` (a string) and `value` (a number), so it produces one instance per service automatically, a single rule scales across every service, firing independently for `checkout`, `payments`, and anything else. Because `value` is not part of identity, a service stays the same instance as its delay rises and falls. To carry an extra string column in the message without churning identity, override which columns count. See [alert queries](/docs/reference/alert-queries).
 
 ## Notifications
 
-Each evaluation with changes sends one notification summarizing every instance that newly fired or resolved. Channels are org-wide app configuration, not part of the rule's code. See [set up notifications](/docs/guides/set-up-notifications).
+Firing and resolved alerts normally deliver to the Organization's default destination: one channel list for all alerts, or one per severity. A rule can instead declare `spec.notifications.channels` as its own destination. When present, those channels receive the alert and the default destination is skipped. Silences still apply, and preview alerts remain suppressed. See [set up notifications](/docs/guides/set-up-notifications).

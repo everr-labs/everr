@@ -9,12 +9,11 @@ describe("layout options", () => {
     expect(baseOptions().nav?.title).toBeTruthy();
     expect(baseOptions().searchToggle?.enabled).not.toBe(false);
     expect(docs.nav?.title).toBeTruthy();
-    expect(docs.links).not.toContainEqual(
-      expect.objectContaining({ text: "Docs" }),
-    );
-    expect(docs.links).not.toContainEqual(
-      expect.objectContaining({ text: "Discord" }),
-    );
+    // The links are shared with the top nav, so what keeps them out of the
+    // sidebar is `on: "nav"` on every one of them, not their absence from the
+    // list. A link that loses that flag renders in both places.
+    expect(docs.links?.length).toBeGreaterThan(0);
+    expect(docs.links?.filter((l) => l.on !== "nav")).toEqual([]);
     expect(docs.githubUrl).toBeUndefined();
     expect(docsNavTitle?.({ href: "/" })).toBeNull();
     expect(docs.searchToggle?.enabled).toBe(false);

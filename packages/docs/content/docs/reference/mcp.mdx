@@ -5,7 +5,7 @@ description: Connect an AI client to query your telemetry over the Model Context
 
 ## Overview
 
-Everr exposes a read-only [MCP](https://modelcontextprotocol.io) server so AI clients (Claude, Cursor, the MCP Inspector, …) can query your organization's telemetry directly. It is intended for cases the CLI and skills don't cover — ad-hoc, model-driven exploration.
+Everr exposes a read-only [MCP](https://modelcontextprotocol.io) server so AI clients (Claude, Cursor, the MCP Inspector, …) can query your organization's telemetry directly. It is intended for cases the CLI and skills don't cover: ad-hoc, model-driven exploration.
 
 ## Endpoint
 
@@ -25,7 +25,7 @@ claude mcp add --transport http everr https://app.everr.dev/mcp
 
 Then run `/mcp` in a session to complete the browser login.
 
-**Claude Desktop** — Settings → Connectors → Add custom connector → paste `https://app.everr.dev/mcp`.
+**Claude Desktop**: Settings → Connectors → Add custom connector → paste `https://app.everr.dev/mcp`.
 
 **Codex CLI**
 
@@ -36,7 +36,7 @@ codex mcp login everr
 
 The login command opens the browser OAuth flow.
 
-**Codex Desktop** — Settings → Integrations & MCP → MCPs → Add a new server → paste `https://app.everr.dev/mcp`.
+**Codex Desktop**: Settings → Integrations & MCP → MCPs → Add a new server → paste `https://app.everr.dev/mcp`.
 
 **OpenCode**
 

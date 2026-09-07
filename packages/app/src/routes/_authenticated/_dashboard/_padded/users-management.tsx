@@ -9,6 +9,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
+import { PageHeader } from "@/components/page-header";
 import { InvitationsTable } from "@/components/users-management/invitations-table";
 import { InviteMemberDialog } from "@/components/users-management/invite-member-dialog";
 import { MembersTable } from "@/components/users-management/members-table";
@@ -71,12 +72,10 @@ function UsersManagementPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">Users Management</h1>
-        <p className="text-muted-foreground">
-          Manage organization members, invitations, and access.
-        </p>
-      </div>
+      <PageHeader
+        title="Users Management"
+        lede="Manage organization members, invitations, and access."
+      />
 
       {pendingInvitations.length > 0 && (
         <Card inset="flush-content">

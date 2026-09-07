@@ -83,7 +83,6 @@ describe("/api/cli/import", () => {
   it("returns 403 when the current user cannot manage imports", async () => {
     await mockCurrentMemberRole("member");
     mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
-    mockedListRepos.mockResolvedValueOnce([]);
 
     const response = await callImport({ repos: ["org/repo-a"] });
 
@@ -110,11 +109,10 @@ describe("/api/cli/import", () => {
   it("returns ok immediately and starts backfill in background", async () => {
     await mockCurrentMemberRole("admin");
     mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
-    mockedListRepos.mockResolvedValueOnce([
-      { id: 1, full_name: "org/repo-a" } as Awaited<
-        ReturnType<typeof mockedListRepos>
-      >[number],
-    ]);
+    const repo = { id: 1, full_name: "org/repo-a" } as Awaited<
+      ReturnType<typeof mockedListRepos>
+    >[number];
+    mockedListRepos.mockResolvedValueOnce([repo]);
 
     async function* fakeBackfill() {
       yield {
@@ -131,5 +129,6 @@ describe("/api/cli/import", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
+    expect(mockedBackfillRepo).toHaveBeenCalledWith(99, CLI_TEST_ORG_ID, repo);
   });
 });

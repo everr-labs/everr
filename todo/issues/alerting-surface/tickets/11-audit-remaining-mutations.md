@@ -1,0 +1,20 @@
+# 11: Audit the remaining alerting mutations
+
+**What to build:** The audit journal widens from suppression-affecting
+mutations to every alerting configuration mutation: channel and default-destination
+create/change/delete, and plain rule applies. Ticket 04 deliberately
+narrowed its scope (decided 2026-08-09); this ticket is the declared
+follow-up, so "who added this webhook" becomes answerable.
+
+**Details:** step 10 in `../02-alerting-clickhouse-surface.md`
+(Auditability stays in PostgreSQL); the scope decision is recorded in its
+settled list.
+
+**Blocked by:** 04.
+
+**Status:** ready-for-agent
+
+- [ ] Channel, default-destination, and rule-apply mutations journal audit rows through the same enforcement boundary as ticket 04
+- [ ] Snapshots go through the same typed per-channel-type redaction
+- [ ] The application trail displays the widened set
+- [ ] `expireSilence` takes no executor today; the audit wrap adds the executor parameter

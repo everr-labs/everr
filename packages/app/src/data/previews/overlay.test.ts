@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { identityKey } from "@/data/as-code/reconcile";
 import { overlayPreview } from "./overlay";
 
 const r = (
@@ -26,19 +27,29 @@ const p = (
 
 const covered = new Set(["repo-1"]);
 
+// The as-code resource these cases stand in for is a dashboard: identified by
+// (project, slug), declared as a document sitting at a folder path.
+const overlay = (
+  rows: ReturnType<typeof r>[],
+  coveredRepoids: ReadonlySet<string>,
+) =>
+  overlayPreview({
+    rows,
+    coveredRepoids,
+    identity: identityKey,
+    content: (row) => [row.folderPath, row.document],
+  });
+
 describe("overlayPreview", () => {
   it("passes live rows of uncovered repoids through untagged", () => {
-    const out = overlayPreview({
-      rows: [r("repo-2", "other")],
-      coveredRepoids: covered,
-    });
+    const out = overlay([r("repo-2", "other")], covered);
     expect(out).toEqual([r("repo-2", "other")]);
     expect(out[0].previewStatus).toBeUndefined();
   });
 
   it("tags added, changed, unchanged, and removed", () => {
-    const out = overlayPreview({
-      rows: [
+    const out = overlay(
+      [
         r("repo-1", "changed", { v: 1 }),
         r("repo-1", "unchanged"),
         r("repo-1", "removed"),
@@ -46,8 +57,8 @@ describe("overlayPreview", () => {
         p("repo-1", "changed", { v: 2 }),
         p("repo-1", "unchanged"),
       ],
-      coveredRepoids: covered,
-    });
+      covered,
+    );
     const byStatus = Object.fromEntries(
       out.map((row) => [row.slug, row.previewStatus]),
     );
@@ -60,16 +71,16 @@ describe("overlayPreview", () => {
   });
 
   it("treats a folderPath move as changed and compares documents stably", () => {
-    const out = overlayPreview({
-      rows: [
+    const out = overlay(
+      [
         r("repo-1", "moved", { a: 1, b: 2 }, "old"),
         r("repo-1", "same", { a: 1, b: 2 }),
         p("repo-1", "moved", { a: 1, b: 2 }, "new"),
         // Key order differs; stable-stringify must call them equal.
         p("repo-1", "same", { b: 2, a: 1 }),
       ],
-      coveredRepoids: covered,
-    });
+      covered,
+    );
     const byStatus = Object.fromEntries(
       out.map((row) => [row.slug, row.previewStatus]),
     );
@@ -79,10 +90,7 @@ describe("overlayPreview", () => {
   it("flags a preview add as a conflict when the identity is live under another owner", () => {
     // (project, slug) is the global identity: a preview "add" of "dup" collides
     // with repo-2's live "dup" — merging it would fail the ownership check.
-    const out = overlayPreview({
-      rows: [r("repo-2", "dup"), p("repo-1", "dup")],
-      coveredRepoids: covered,
-    });
+    const out = overlay([r("repo-2", "dup"), p("repo-1", "dup")], covered);
     expect(out).toHaveLength(2);
     expect(out.find((row) => row.repoid === "repo-1")?.previewStatus).toBe(
       "conflict",
@@ -94,19 +102,16 @@ describe("overlayPreview", () => {
   });
 
   it("tags a preview add with no live identity anywhere as added", () => {
-    const out = overlayPreview({
-      rows: [p("repo-1", "brand-new")],
-      coveredRepoids: covered,
-    });
+    const out = overlay([p("repo-1", "brand-new")], covered);
     expect(out).toHaveLength(1);
     expect(out[0].previewStatus).toBe("added");
   });
 
   it("ignores orphan preview rows whose repoid is not covered", () => {
-    const out = overlayPreview({
-      rows: [r("repo-3", "dup"), p("repo-3", "dup")],
-      coveredRepoids: new Set<string>(),
-    });
+    const out = overlay(
+      [r("repo-3", "dup"), p("repo-3", "dup")],
+      new Set<string>(),
+    );
     expect(out).toEqual([r("repo-3", "dup")]);
     expect(out[0].previewStatus).toBeUndefined();
   });

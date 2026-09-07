@@ -977,6 +977,9 @@ fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
         for s in &r.adopted {
             println!("  ⇄ {s}");
         }
+        if let Some(note) = &r.note {
+            println!("  note: {note}");
+        }
     }
 }
 

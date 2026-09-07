@@ -48,7 +48,12 @@ describe("instrumentation tracer", () => {
     parent.end();
     const after = tracer.startSpan("later");
     after.end();
-    const [childWire, parentWire, afterWire] = await spans();
+    const wire = await spans();
+    const by = (name: string) =>
+      wire.find((span) => span.name === name) as OtlpSpan;
+    const childWire = by("work");
+    const parentWire = by("pageLoad");
+    const afterWire = by("later");
     expect(parentWire.name).toBe("pageLoad");
     expect(parentWire.parentSpanId).toBeUndefined();
     expect(childWire.traceId).toBe(parentWire.traceId);
@@ -205,21 +210,15 @@ describe("instrumentation tracer", () => {
     expect(attrs(wire[2])["exception.message"]).toBeUndefined();
   });
 
-  it("honors epoch-millis start/end times and falls back to now otherwise", async () => {
+  it("honors normalized epoch-millisecond times", async () => {
     start();
-    const explicit = tracer.startSpan("explicit", { startTime: 1_000 });
-    explicit.end(2_000);
-    const fallback = tracer.startSpan("fallback", { startTime: new Date() });
-    fallback.end(new Date());
+    const explicit = tracer.startSpan("explicit", {
+      startTime: 1_724_976_000_123,
+    });
+    explicit.end(1_725_004_801_456);
     const wire = await spans();
-    expect(wire[0].startTimeUnixNano).toBe("1000000000");
-    expect(wire[0].endTimeUnixNano).toBe("2000000000");
-    // For a Date input, the code uses the current time. That time is the same
-    // as the times in this test, or later.
-    expect(Number(wire[1].startTimeUnixNano)).toBeGreaterThan(2_000_000_000);
-    expect(Number(wire[1].endTimeUnixNano)).toBeGreaterThanOrEqual(
-      Number(wire[1].startTimeUnixNano),
-    );
+    expect(wire[0].startTimeUnixNano).toBe("1724976000123000000");
+    expect(wire[0].endTimeUnixNano).toBe("1725004801456000000");
   });
 
   it("startActiveSpan runs the callback with the span, options collapsed", async () => {

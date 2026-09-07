@@ -40,15 +40,29 @@ export function createChartTooltipFormatter(
   );
 }
 
-export function chartTooltipLabelFormatter(
-  _: unknown,
-  payload: Array<{ payload?: { date?: string } }>,
+/**
+ * Build a tooltip label formatter that reads a timestamp off the hovered
+ * payload row. `key` is the row field holding the ISO string (default "date");
+ * `withTime` includes the time of day (for intraday series like per-minute or
+ * per-hour points) instead of just the calendar date.
+ */
+export function createChartTooltipLabelFormatter(
+  key = "date",
+  { withTime = false }: { withTime?: boolean } = {},
 ) {
-  if (payload?.[0]?.payload?.date) {
-    return new Date(payload[0].payload.date).toLocaleDateString();
-  }
-  return "";
+  return (
+    _: unknown,
+    payload: Array<{ payload?: Record<string, unknown> }>,
+  ) => {
+    const raw = payload?.[0]?.payload?.[key];
+    if (typeof raw !== "string") return "";
+    const d = new Date(raw);
+    return withTime ? d.toLocaleString() : d.toLocaleDateString();
+  };
 }
+
+/** The common case: a `date` field, formatted as a calendar date. */
+export const chartTooltipLabelFormatter = createChartTooltipLabelFormatter();
 
 export function createLegendFormatter(config: ChartConfig) {
   return (value: string) =>

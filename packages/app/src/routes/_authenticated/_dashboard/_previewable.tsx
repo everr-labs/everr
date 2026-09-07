@@ -28,6 +28,7 @@ function PreviewableLayout() {
   // touches the content edges; every other route gets the padded page scroll.
   const matches = useMatches();
   let status: PreviewStatus | undefined;
+  let hidePreviewFrame = false;
   let fullBleed = false;
   for (const match of matches) {
     if (!match.routeId.startsWith(Route.id)) continue;
@@ -36,6 +37,9 @@ function PreviewableLayout() {
       | { previewStatus?: PreviewStatus }
       | undefined;
     if (data?.previewStatus !== undefined) status = data.previewStatus;
+    if (match.staticData?.hidePreviewFrame !== undefined) {
+      hidePreviewFrame = match.staticData.hidePreviewFrame;
+    }
   }
 
   const content = fullBleed ? (
@@ -48,7 +52,7 @@ function PreviewableLayout() {
     </ScrollingPageContainer>
   );
 
-  if (!name) return content;
+  if (!name || hidePreviewFrame) return content;
 
   return (
     <PreviewFrame
