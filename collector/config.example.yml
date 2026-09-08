@@ -1,4 +1,8 @@
 extensions:
+  everr_usage:
+    internal_tenant: ${env:USAGE_INTERNAL_TENANT_ID:-}
+    retention_days: 90
+    max_series: 30000
   # Authenticates public OTLP ingest by exchanging a Bearer key with the
   # everr app's internal verify endpoint. The shared secret guards that
   # endpoint; rotate both sides together.
@@ -7,6 +11,9 @@ extensions:
     shared_secret: ${env:INGEST_VERIFY_SHARED_SECRET:-replace-with-a-long-random-value}
 
 receivers:
+  everr_usage:
+    interval: 60s
+    timeout: 10s
   githubactions:
     path: /webhook/github
     endpoint: 0.0.0.0:8080
@@ -64,6 +71,7 @@ receivers:
         endpoint: 127.0.0.1:4319
 
 processors:
+  everr_usage: {}
   # Internal pipeline (github webhook): tenant comes from a trusted header the
   # app sets when it forwards the webhook
   # (packages/app/src/server/github-events/collector.ts). Never convert it to
@@ -160,12 +168,15 @@ exporters:
   # Writes into otel.* landing tables (ENGINE = Null). Nothing is stored there;
   # the views in clickhouse/init/10-create-mvs.sql stamp tenant and retention
   # and write app.*. `ttl` is unused with create_schema: false.
-  clickhouse:
+  clickhouse: &storage_exporter
     endpoint: http://clickhouse:8123
     username: collector_rw
     password: collector-dev
     database: otel
     create_schema: false
+    connection_params:
+      wait_for_async_insert: "1"
+      materialized_views_ignore_errors: "0"
     # Logs and traces write JSON attribute columns with typed values and one
     # keys array per attribute column; the landing tables in
     # clickhouse/init/03 declare that column set. A Map exporter against those
@@ -181,10 +192,20 @@ exporters:
     # small batches multiply parts. flush_timeout is the ingestion delay when
     # traffic is too low to fill a batch.
     sending_queue:
+      enabled: true
+      wait_for_result: true
       num_consumers: 10
       batch:
         min_size: 8192
-        flush_timeout: 5s
+        flush_timeout: 1s
+  # Usage flushes are consumed once. Never retry an ambiguous usage insert.
+  clickhouse/usage:
+    <<: *storage_exporter
+    sending_queue:
+      enabled: false
+    retry_on_failure:
+      enabled: false
+
   # >>> DEV ONLY: DELETE THIS EXPORTER FOR PRODUCTION <<<
   # Forward to the dev machine's local everr desktop instance so distributed
   # traces assemble whole there (app half + engine half in one store).
@@ -192,21 +213,25 @@ exporters:
     endpoint: ${env:EVERR_DEV_OTLP_ENDPOINT:-http://host.docker.internal:54318}
 
 service:
-  extensions: [everr_apikey]
+  extensions: [everr_apikey, everr_usage]
   pipelines:
+    metrics/usage:
+      receivers: [everr_usage]
+      exporters: [clickhouse/usage]
+
     # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.
     traces:
       receivers: [githubactions]
-      processors: [resource, resource/retention_traces]
-      exporters: [clickhouse, debug]
+      processors: [resource, resource/retention_traces, everr_usage]
+      exporters: [clickhouse]
     metrics:
       receivers: [githubactions]
-      processors: [resource, resource/retention_metrics]
-      exporters: [clickhouse, debug]
+      processors: [resource, resource/retention_metrics, everr_usage]
+      exporters: [clickhouse]
     logs:
       receivers: [githubactions]
-      processors: [resource, resource/retention_logs]
-      exporters: [clickhouse, debug]
+      processors: [resource, resource/retention_logs, everr_usage]
+      exporters: [clickhouse]
 
     # Public pipelines: untrusted clients, tenant from authenticated key.
     # Must NOT share the `resource` processor with the internal pipelines:
@@ -214,16 +239,16 @@ service:
     # spoof their tenant.
     traces/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_traces]
-      exporters: [clickhouse, debug]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_traces, everr_usage]
+      exporters: [clickhouse]
     metrics/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_metrics]
-      exporters: [clickhouse, debug]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_metrics, everr_usage]
+      exporters: [clickhouse]
     logs/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_logs]
-      exporters: [clickhouse, debug]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_logs, everr_usage]
+      exporters: [clickhouse]
 
     # >>> DEV ONLY: DELETE THESE THREE PIPELINES FOR PRODUCTION <<<
     # Dev self-telemetry (app server + browser, dev tools): both stores.
