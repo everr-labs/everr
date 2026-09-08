@@ -80,7 +80,6 @@ FROM
 -- and max(End) + 1 before querying logs or traces; +1 covers whole-second truncation.
 -- Monthly partitions and small granules reduce point-lookup reads. Whole-part
 -- expiry can retain these lookup rows up to a month beyond their spans.
--- Measurements: docs/clickhouse-retention-rollout.md.
 CREATE TABLE IF NOT EXISTS app.traces_trace_id_ts
 (
   tenant_id String CODEC(ZSTD(1)),
@@ -191,7 +190,6 @@ FROM
 -- index compact while preserving series locality for compression.
 -- Keep idx_time_minmax: the trailing TimeUnix key alone does not reliably prune
 -- granules containing multiple hours or series.
--- Measurements: docs/clickhouse-retention-rollout.md.
 CREATE TABLE IF NOT EXISTS app.metrics_gauge
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
