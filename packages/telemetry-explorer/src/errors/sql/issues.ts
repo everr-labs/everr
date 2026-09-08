@@ -69,6 +69,8 @@ function buildExceptionLogsCte(
           ResourceAttributes,
           ScopeAttributes,
           LogAttributes,
+          toString(LogAttributes.\`exception.type\`) AS exception_type,
+          toString(LogAttributes.\`exception.message\`) AS exception_message,
           ${ERROR_FINGERPRINT_SQL} AS fingerprint
         FROM ${tableName}
         WHERE ${filters.join("\n          AND ")}
@@ -105,8 +107,8 @@ export function buildSummaryQuery(
       WITH ${cte.sql}
       SELECT
         fingerprint,
-        argMax(toString(LogAttributes.\`exception.type\`), Timestamp) AS exceptionType,
-        argMax(toString(LogAttributes.\`exception.message\`), Timestamp) AS exceptionMessage,
+        argMax(exception_type, Timestamp) AS exceptionType,
+        argMax(exception_message, Timestamp) AS exceptionMessage,
         argMax(Body, Timestamp) AS body,
         argMax(ServiceName, Timestamp) AS latestServiceName,
         groupUniqArray(ServiceName) AS services,

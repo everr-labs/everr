@@ -131,12 +131,28 @@ processors:
 
   # >>> DEV ONLY: DELETE THIS PROCESSOR FOR PRODUCTION <<<
   # Dev self-telemetry: stamp everything onto the internal dev tenant so it is
-  # browsable in the cloud app.
+  # browsable in the cloud app. Retention is literal because this receiver is
+  # unauthenticated and has no auth context to supply the signal's window.
   resource/dev_tenant:
     attributes:
       - action: upsert
         key: everr.tenant.id
         value: ${env:DEV_SELF_TENANT_ID:-replace-with-your-dev-org-id}
+  resource/dev_retention_traces:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        value: "14"
+  resource/dev_retention_logs:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        value: "14"
+  resource/dev_retention_metrics:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        value: "14"
 
 exporters:
   debug:
@@ -213,15 +229,15 @@ service:
     # Dev self-telemetry (app server + browser, dev tools): both stores.
     traces/dev:
       receivers: [otlp/dev]
-      processors: [attributes/strip_user_tenant, resource/dev_tenant, batch]
+      processors: [attributes/strip_user_tenant, resource/dev_tenant, resource/dev_retention_traces]
       exporters: [clickhouse, otlphttp/localdev]
     metrics/dev:
       receivers: [otlp/dev]
-      processors: [attributes/strip_user_tenant, resource/dev_tenant, batch]
+      processors: [attributes/strip_user_tenant, resource/dev_tenant, resource/dev_retention_metrics]
       exporters: [clickhouse, otlphttp/localdev]
     logs/dev:
       receivers: [otlp/dev]
-      processors: [attributes/strip_user_tenant, resource/dev_tenant, batch]
+      processors: [attributes/strip_user_tenant, resource/dev_tenant, resource/dev_retention_logs]
       exporters: [clickhouse, otlphttp/localdev]
 
   # Ship the collector's own telemetry (its logs, metrics, and internal
