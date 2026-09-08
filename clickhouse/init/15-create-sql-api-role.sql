@@ -109,7 +109,7 @@ GRANT SELECT ON app.metrics_summary              TO sql_api_role;
 -- organization row policy and advertises the table to callers. If any one of
 -- the three is missing, the table is either unreachable or readable across
 -- tenants. Organizations provisioned before the new entry also need a policy
--- backfill; see clickhouse/migrate-alert-events-sql-api-access.sql.
+-- backfill during the deployment cut-over.
 GRANT SELECT ON app.alert_events  TO sql_api_role;
 GRANT SELECT ON app.traces_trace_id_ts           TO sql_api_role;
 
@@ -142,4 +142,3 @@ CREATE QUOTA OR REPLACE sql_api_quota
   FOR INTERVAL 1 minute MAX queries = 120, errors = 20,
   FOR INTERVAL 1 hour   MAX queries = 2400, read_rows = 20000000000, execution_time = 1200
   TO sql_api_role EXCEPT web_app_admin;
-

@@ -21,7 +21,7 @@ incident in timestamp order with no join.
    your organization. Adding the predicate cannot widen a result, and getting
    the value wrong empties it.
 4. **Always carry a time bound.** `event_time` is the partition key's time
-   dimension, so a bound on it prunes whole months of data.
+   dimension of the daily partitions, so a bound on it prunes whole days of data.
 5. `silenced`, `silence_id` and `silence_comment` are decided after the
    transition is written, so they carry meaning **only on
    `notification_deferred` and `notification_suppressed` rows**.

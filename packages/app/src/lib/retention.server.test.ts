@@ -5,7 +5,6 @@ vi.mock("@/lib/billing-data.server", () => ({
 }));
 
 import { readOrgEntitlement } from "@/lib/billing-data.server";
-import { resolveRetention } from "@/lib/retention";
 import { retentionForOrg } from "./retention.server";
 
 const entitlement = {
@@ -19,15 +18,37 @@ describe("retentionForOrg", () => {
     vi.mocked(readOrgEntitlement).mockClear();
   });
 
-  it("returns the retention of the organization's tier", async () => {
+  it.each([
+    {
+      tier: "free" as const,
+      telemetryDays: 14,
+      evaluationDays: 14,
+      lifecycleDays: 14,
+    },
+    {
+      tier: "pro" as const,
+      telemetryDays: 365,
+      evaluationDays: 30,
+      lifecycleDays: 365,
+    },
+  ])("returns the $tier entitlements", async ({
+    tier,
+    telemetryDays,
+    evaluationDays,
+    lifecycleDays,
+  }) => {
     vi.mocked(readOrgEntitlement).mockResolvedValueOnce({
       ...entitlement,
-      tier: "pro",
+      tier,
     });
 
-    await expect(retentionForOrg("org_pro")).resolves.toEqual(
-      resolveRetention("pro"),
-    );
+    await expect(retentionForOrg(`org_${tier}`)).resolves.toEqual({
+      tracesDays: telemetryDays,
+      logsDays: telemetryDays,
+      metricsDays: telemetryDays,
+      alertEvaluationDays: evaluationDays,
+      alertLifecycleDays: lifecycleDays,
+    });
   });
 
   it("answers a repeated lookup without asking the database again", async () => {

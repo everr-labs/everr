@@ -143,6 +143,12 @@ export type AlertHistoryRow = {
   delivery_dedup_key: string;
 };
 
+function isEvaluationHistoryEvent(eventType: AlertHistoryEventType): boolean {
+  return (
+    eventType === "evaluation_succeeded" || eventType === "evaluation_failed"
+  );
+}
+
 function baseHistoryRow(opts: {
   def: AlertHistoryDefinition;
   eventId?: string;
@@ -482,16 +488,21 @@ async function insertAlertHistoryRows(
   rows: AlertHistoryRow[],
   { sync, convergesOnRetry }: { sync: boolean; convergesOnRetry: boolean },
 ): Promise<void> {
-  // Alert history follows the tenant's logs retention. The app.* views stamp
-  // telemetry from a resource attribute, but this table is written directly,
-  // so each row gets its retention_days here from the tenant's plan. A batch
+  // Free keeps evaluation and lifecycle history for 14 days; Pro keeps
+  // evaluations for 30 days and lifecycle history for 365 days. Each row gets
+  // its event-class entitlement here as a write-time snapshot. A batch
   // can hold rows of several tenants; retentionForOrg caches per tenant, so
   // the lookup runs once per tenant in the batch.
   const stamped = await Promise.all(
-    rows.map(async (row) => ({
-      ...row,
-      retention_days: (await retentionForOrg(row.tenant_id)).logsDays,
-    })),
+    rows.map(async (row) => {
+      const retention = await retentionForOrg(row.tenant_id);
+      return {
+        ...row,
+        retention_days: isEvaluationHistoryEvent(row.event_type)
+          ? retention.alertEvaluationDays
+          : retention.alertLifecycleDays,
+      };
+    }),
   );
   return insertAdminRows("app.alert_events", stamped, {
     async_insert: sync ? 0 : 1,

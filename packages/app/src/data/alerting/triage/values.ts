@@ -4,7 +4,7 @@
  *
  * The read is one more read of `app.alert_events`, and it keeps the discipline
  * `history.ts` states in full at the top of that file: a floor on `event_time`,
- * because the table partitions on the month of it; a bare `event_type`
+ * because the table partitions by day; a bare `event_type`
  * predicate, which 26.4 prunes on, never the sole predicate of a bare
  * `count()`; and no aggregate aliased to the column it reads, which shadows
  * that column and is rejected or silently empty depending on the types.

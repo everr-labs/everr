@@ -12,7 +12,10 @@ const INGEST_CONFIG_ID = "ingest";
 // The retention days come straight from TenantRetention. The collector stamps
 // them on every resource it ingests with this key and the views write them
 // into app.*, so this is the only place retention enters the pipeline.
-type VerifyKeyResponse = TenantRetention & {
+type VerifyKeyResponse = Pick<
+  TenantRetention,
+  "tracesDays" | "logsDays" | "metricsDays"
+> & {
   tenantId: string;
   keyId: string;
 };
@@ -73,10 +76,13 @@ export const Route = createFileRoute("/api/internal/verify-key")({
           return new Response(null, { status: 403 });
         }
 
+        const retention = await retentionForOrg(result.key.referenceId);
         const payload: VerifyKeyResponse = {
           tenantId: result.key.referenceId,
           keyId: result.key.id,
-          ...(await retentionForOrg(result.key.referenceId)),
+          tracesDays: retention.tracesDays,
+          logsDays: retention.logsDays,
+          metricsDays: retention.metricsDays,
         };
 
         return Response.json(payload);

@@ -28,6 +28,7 @@ import { resolveRetention } from "@/lib/retention";
 import { retentionForOrg } from "@/lib/retention.server";
 import {
   deliveryHistoryRow,
+  evaluationFailureHistoryRow,
   evaluationHistoryRow,
   instanceHistoryRow,
   journalHoldRow,
@@ -37,10 +38,10 @@ import {
   ZERO_UUID,
 } from "./clickhouse";
 
-// What the writer hands to ClickHouse: the row plus the tenant's logs retention.
-const stamped = <T extends { tenant_id: string }>(row: T) => ({
+// Expected Pro retention at the write boundary; row builders own no retention.
+const stamped = <T extends { tenant_id: string }>(row: T, days = 365) => ({
   ...row,
-  retention_days: resolveRetention("pro").logsDays,
+  retention_days: days,
 });
 
 const def = {
@@ -123,7 +124,7 @@ describe("ClickHouse alert history", () => {
     // that differs every time gives each insert its own async-insert buffer.
     expect(mocks.insertAdminRows).toHaveBeenCalledWith(
       "app.alert_events",
-      [stamped(evaluation), stamped(transition)],
+      [stamped(evaluation, 30), stamped(transition)],
       {
         async_insert: 1,
         wait_for_async_insert: 1,
@@ -150,7 +151,7 @@ describe("ClickHouse alert history", () => {
     });
   });
 
-  it("stamps each row with its own tenant's logs retention", async () => {
+  it("stamps mixed tenants and event classes with their alert entitlements", async () => {
     vi.mocked(retentionForOrg).mockImplementation(async (orgId) =>
       resolveRetention(orgId === "org-2" ? "free" : "pro"),
     );
@@ -166,20 +167,55 @@ describe("ClickHouse alert history", () => {
         samplesTruncated: false,
       });
 
-    await recordAlertHistory(null, [rowFor("org-1"), rowFor("org-2")], {
-      convergesOnRetry: false,
+    const proFailure = evaluationFailureHistoryRow({
+      def,
+      scheduledFor,
+      occurredAt,
+      error: "query failed",
     });
+    const proLifecycle = journalTerminalRow(journalEvent);
+    const freeLifecycle = journalTerminalRow({
+      ...journalEvent,
+      organizationId: "org-2",
+    });
+    await recordAlertHistory(
+      null,
+      [
+        rowFor("org-1"),
+        rowFor("org-2"),
+        proFailure,
+        proLifecycle,
+        freeLifecycle,
+      ],
+      {
+        convergesOnRetry: false,
+      },
+    );
 
     expect(mocks.insertAdminRows).toHaveBeenCalledWith(
       "app.alert_events",
       [
         expect.objectContaining({
           tenant_id: "org-1",
-          retention_days: resolveRetention("pro").logsDays,
+          retention_days: 30,
         }),
         expect.objectContaining({
           tenant_id: "org-2",
-          retention_days: resolveRetention("free").logsDays,
+          retention_days: 14,
+        }),
+        expect.objectContaining({
+          event_type: "evaluation_failed",
+          retention_days: 30,
+        }),
+        expect.objectContaining({
+          tenant_id: "org-1",
+          event_type: "notification_suppressed",
+          retention_days: 365,
+        }),
+        expect.objectContaining({
+          tenant_id: "org-2",
+          event_type: "notification_suppressed",
+          retention_days: 14,
         }),
       ],
       expect.anything(),

@@ -98,14 +98,11 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   INDEX alert_notification_skip_idx notification_event_id TYPE bloom_filter GRANULARITY 4
 )
 ENGINE = MergeTree
--- The second dimension keeps every query on transitions and deliveries
--- off the evaluation rows, which outnumber
--- everything else by two orders of magnitude. Partitioning on event_time
--- itself (not a date column) is what lets a plain event_time bound prune:
--- ClickHouse does not infer a DEFAULT relation between two columns.
--- retention_days is the third dimension so that every row of a part expires
--- on the same day and ttl_only_drop_parts drops the part whole.
-PARTITION BY (toYYYYMM(event_time), event_type IN ('evaluation_succeeded', 'evaluation_failed'), retention_days)
+-- The second dimension keeps transition and delivery reads separate from the
+-- evaluation rows, which outnumber everything else by two orders of magnitude.
+-- The event day and retention_days make every row in a partition expire on the
+-- same day, so ttl_only_drop_parts drops the partition whole.
+PARTITION BY (toDate(event_time), event_type IN ('evaluation_succeeded', 'evaluation_failed'), retention_days)
 -- Dominant read: per-alert history by tenant + slug over a time range.
 -- ORDER BY is immutable, so this intentionally prioritizes alert filters over
 -- date-only scans.
@@ -132,11 +129,11 @@ PARTITION BY (toYYYYMM(event_time), event_type IN ('evaluation_succeeded', 'eval
 -- rows. Convergence is a write-side property here; see Idempotence in the
 -- surface design doc.
 ORDER BY (tenant_id, slug, event_type, event_time, event_id)
--- Evaluation rows expire at min(30, tenant retention) days: they exist for
--- staleness and rule-health reads. Everything else lives at the tenant
--- retention. Both read the row's own retention_days, which the writer stamps
--- from the plan, so no dictionary lookup runs at merge time.
-TTL toDate(event_time) + toIntervalDay(if(event_type IN ('evaluation_succeeded', 'evaluation_failed'), least(toUInt16(30), retention_days), retention_days))
+-- The writer stamps the plan's event-class entitlement into retention_days:
+-- Free keeps evaluation and lifecycle history for 14 days; Pro keeps
+-- evaluations for 30 days and lifecycle history for 365 days. The TTL applies
+-- that write-time snapshot directly, including after a tenant changes plans.
+TTL toDate(event_time) + toIntervalDay(retention_days)
 -- Both writers in server/alerting/history/clickhouse.ts set
 -- insert_deduplication_token from the sorted row ids, which dedups under
 -- async_insert as well as a synchronous insert. The window is bounded, so it
