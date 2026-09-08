@@ -1,3 +1,13 @@
+type JsonAttributeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonAttributeValue[]
+  | JsonAttributes;
+
+export type JsonAttributes = { [key: string]: JsonAttributeValue };
+
 // Attribute columns on logs and traces are ClickHouse JSON columns. A path is
 // read as `column.`key``: that form reads only the path's subcolumn, while
 // getSubcolumn(column, {key:String}) reads the whole column, so the key goes

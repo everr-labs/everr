@@ -14,7 +14,11 @@ import {
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
-import { attributeText, flattenAttributes } from "../../sql/json-attributes";
+import {
+  attributeText,
+  flattenAttributes,
+  type JsonAttributes,
+} from "../../sql/json-attributes";
 import {
   resourceAttribute,
   resourceAttributeKeyExists,
@@ -36,14 +40,14 @@ type SpanRow = Omit<
   Span,
   "events" | "links" | "spanAttributes" | "resourceAttributes"
 > & {
-  spanAttributes: unknown;
-  resourceAttributes: unknown;
+  spanAttributes: JsonAttributes;
+  resourceAttributes: JsonAttributes;
   eventNames: string[];
   eventTimestamps: string[];
-  eventAttributes: unknown[];
+  eventAttributes: JsonAttributes[];
   linkTraceIds: string[];
   linkSpanIds: string[];
-  linkAttributes: unknown[];
+  linkAttributes: JsonAttributes[];
 };
 
 const FROM_TS_SQL = "parseDateTime64BestEffort({fromTs:String}, 9)";
