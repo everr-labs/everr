@@ -13,33 +13,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// localSchemaVersion is the shape of the local store. Bump it in the same
-// commit as any change under internal/sqltemplates that alters a table's
-// shape. TestSchemaTemplatesMatchVersion fails when the two move apart.
-//
-// A mismatch drops the store and rebuilds it. There is no ALTER path, because
-// ClickHouse cannot rewrite a sort key or a partition key, nor change the type
-// of a column either one uses, and those are what schema changes here keep
-// touching. Local telemetry is a rolling cache bounded by `ttl` and never a
-// system of record, so a rebuild costs at most one ttl window of local data.
-//
-// Version 2 is the JSON attribute columns. A store built at version 1 holds
-// Map `logs` and `traces` tables under the same names the JSON templates use.
-// `CREATE TABLE IF NOT EXISTS` would keep them, so without this bump the
-// rebuild would not fire. The rebuild replaces them at the cost of one 7-day
-// cache.
+// Bump localSchemaVersion when a table shape changes, alongside the template
+// digest. A version mismatch discards cached local telemetry and rebuilds it.
 const localSchemaVersion = 2
 
-// schemaVersionTable holds exactly one row: the version the store was built
-// at. It lives inside the store rather than in a file beside it so that it
-// cannot outlive the data. Delete the store and the marker goes with it, and
-// the next startup correctly rebuilds. A missing or empty table reads as 0.
+// Keep the version marker inside the store so deleting the data also resets it.
+// A missing or empty marker reads as version 0.
 const schemaVersionTable = "_everr_schema"
 
-// Table names from the layout that predates naming local tables after the
-// cloud ones. Dropping them is what retires the old adoption path: a store
-// that still holds them has orphans that nothing reads and nothing else would
-// ever remove.
+// Include tables from before the local names matched the cloud names.
 var legacyLocalTableNames = []string{
 	"otel_logs",
 	"otel_traces",

@@ -5,12 +5,8 @@ import type { Tier } from "@/lib/retention";
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
-// Billing has stopped or is being retried, but the customer has already paid
-// through currentPeriodEnd. Dropping them to free the moment the webhook lands
-// is not recoverable: every app.* row is stamped with its tenant's retention at
-// ingest and retention_days is a partition key column, so data ingested inside
-// a paid period would keep free-tier retention for good. Over-granting costs
-// storage; under-granting deletes data the customer paid to keep.
+// Keep paid-through retention during payment retries or scheduled cancellation:
+// retention stamped at ingestion cannot be extended later.
 const PAID_THROUGH_STATUSES = new Set(["past_due", "unpaid", "canceled"]);
 
 type SubscriptionTierInput = {

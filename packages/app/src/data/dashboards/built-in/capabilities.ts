@@ -24,16 +24,8 @@ const METRIC_TABLES = [
   "metrics_summary",
 ] as const;
 
-/**
- * The bounds arrive as one ClickHouse datetime string with milliseconds, but
- * the columns differ: `traces.Timestamp` and `logs.Timestamp` are DateTime64(9)
- * and accept it, while `metrics.TimeUnix` is a plain DateTime and rejects the
- * fraction outright. Each bound is parsed to its own column's type rather than
- * leaning on implicit comparison.
- *
- * `{from}`/`{to}` are the same bound parameters every panel query gets, so the
- * probe and the previews it grades always look at one identical window.
- */
+// Parse the shared panel bounds to each column type: DateTime64 for logs
+// and traces, DateTime for metrics.
 const TRACES_WINDOW = `Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND Timestamp <= parseDateTime64BestEffort({to:String}, 9)`;
 const LOGS_WINDOW = `Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND Timestamp <= parseDateTime64BestEffort({to:String}, 9)`;
 const METRICS_WINDOW = `TimeUnix >= parseDateTimeBestEffort({from:String}) AND TimeUnix <= parseDateTimeBestEffort({to:String})`;
@@ -120,108 +112,6 @@ function prefixTest(column: string, match: string): string {
  * probe keys. Existence is the whole question every branch asks, and the limit
  * lets ClickHouse stop at the first matching granule instead of reading the
  * range.
- *
- * The full query the current catalog generates (`<time range>` stands for the
- * table-specific window predicate above; regenerate by logging
- * `buildCapabilitiesQuery()` in a vitest run when the catalog changes):
- *
- *   SELECT DISTINCT key FROM (
- *     SELECT 'traces' AS key FROM traces WHERE <time range> LIMIT 1
- *     UNION ALL
- *     SELECT 'traces:http.request.method' AS key FROM traces WHERE <time range> AND has(SpanAttributesKeys, 'http.request.method') LIMIT 1
- *     UNION ALL
- *     SELECT 'traces:rpc.system.name' AS key FROM traces WHERE <time range> AND has(SpanAttributesKeys, 'rpc.system.name') LIMIT 1
- *     UNION ALL
- *     SELECT 'traces:everr.server_function.name' AS key FROM traces WHERE <time range> AND has(SpanAttributesKeys, 'everr.server_function.name') LIMIT 1
- *     UNION ALL
- *     SELECT 'traces:faas.trigger' AS key FROM traces WHERE <time range> AND has(SpanAttributesKeys, 'faas.trigger') LIMIT 1
- *     UNION ALL
- *     SELECT 'logs' AS key FROM logs WHERE <time range> LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics' AS key FROM metrics_gauge WHERE <time range> LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics' AS key FROM metrics_sum WHERE <time range> LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics' AS key FROM metrics_histogram WHERE <time range> LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics' AS key FROM metrics_exponential_histogram WHERE <time range> LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics' AS key FROM metrics_summary WHERE <time range> LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:jvm.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'jvm.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:jvm.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'jvm.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:jvm.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'jvm.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:jvm.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'jvm.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:jvm.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'jvm.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:nodejs.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'nodejs.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:nodejs.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'nodejs.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:nodejs.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'nodejs.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:nodejs.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'nodejs.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:nodejs.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'nodejs.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:postgresql.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'postgresql.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:postgresql.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'postgresql.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:postgresql.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'postgresql.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:postgresql.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'postgresql.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:postgresql.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'postgresql.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:mysql.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'mysql.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:mysql.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'mysql.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:mysql.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'mysql.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:mysql.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'mysql.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:mysql.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'mysql.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:redis.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'redis.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:redis.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'redis.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:redis.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'redis.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:redis.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'redis.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:redis.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'redis.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:mongodb.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'mongodb.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:mongodb.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'mongodb.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:mongodb.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'mongodb.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:mongodb.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'mongodb.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:mongodb.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'mongodb.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:k8s.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:k8s.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:k8s.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:k8s.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
- *     UNION ALL
- *     SELECT 'metrics:k8s.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
- *     UNION ALL
- *     SELECT 'logs:browser.web_vital.value' AS key FROM logs WHERE <time range> AND has(LogAttributesKeys, 'browser.web_vital.value') LIMIT 1
- *     UNION ALL
- *     SELECT 'logs:everr.page_view.id' AS key FROM logs WHERE <time range> AND has(LogAttributesKeys, 'everr.page_view.id') LIMIT 1
- *   )
  */
 export function buildCapabilitiesQuery(
   probes: CapabilityProbe[] = CATALOG_PROBES,

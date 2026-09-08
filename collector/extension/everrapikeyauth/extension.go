@@ -189,15 +189,7 @@ func (e *ext) lookup(ctx context.Context, token, origin string) (*authData, erro
 				return nil, err
 			}
 			if errors.Is(err, errInvalidResponse) {
-				// The app answered, and the answer was unusable. That is
-				// not the outage the grace window exists for: serving a
-				// stale entry here would keep authenticating a tenant
-				// whose retention the app can no longer state. Fail, and
-				// hold it for the negative window like any other definitive
-				// rejection, so a bad app deploy does not turn every ingest
-				// request into a verify call. The window is short
-				// (negative_cache_ttl, 5s by default), so a fixed app
-				// recovers within it.
+				// Invalid responses are definitive failures; never serve stale auth for them.
 				e.logger.Error("verify endpoint returned an unusable response", zap.Error(err))
 				e.cache.putFailure(cacheKey, err)
 				return nil, err

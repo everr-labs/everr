@@ -91,9 +91,6 @@ func TestRebuildDropsEachTableOnce(t *testing.T) {
 	}
 }
 
-// The fakes above prove which statements run. This one runs them against a
-// real chDB store, which is the only place the shim quirks in readSchemaVersion
-// and writeSchemaVersion show up.
 func TestRebuildEmptiesAStoreBuiltAtAnOlderVersion(t *testing.T) {
 	t.Cleanup(chdb.ResetForTesting)
 	handle, err := chdb.Open(filepath.Join(t.TempDir(), "chdb"))

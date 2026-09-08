@@ -50,25 +50,10 @@ CLIENT_ARGS=("$@")
 # is a no-op.
 TABLES=(traces_trace_id_ts traces logs metrics_gauge metrics_sum metrics_histogram metrics_exponential_histogram metrics_summary)
 
-# The app.* tables are rebuilt, not altered, and app.alert_events with them.
-# Two reasons, either one enough on its own:
-#
-#   The tables that are live carry a TTL built from dictGetOrDefault. Any ALTER
-#   re-validates that expression and fails with "TTL expression cannot contain
-#   non-deterministic functions", so the codec and index blocks in init/10
-#   cannot run against them at all.
-#
-#   The metrics sort key becomes (tenant_id, ServiceName, MetricName,
-#   toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix) and TimeUnix
-#   narrows to DateTime. ALTER can do neither: a sort key cannot be rewritten,
-#   and the type of a column the sort key uses cannot change.
-#
-# CREATE TABLE IF NOT EXISTS is a no-op on a table that is already there, so
-# without the drop init/10 would silently leave the old shape in place.
-#
-# Row policies and grants survive the drop, because ClickHouse keys access
-# control by database and table name and not by the table UUID, so tenant
-# isolation and the per-org /sql API users need no repair.
+# Rebuild app.* (including alert_events): ALTER revalidates the old
+# nondeterministic TTL and cannot apply the new sort keys and column types.
+# CREATE TABLE IF NOT EXISTS would leave the old schema intact.
+# Grants and row policies survive because they are keyed by table name.
 
 # After the landing tables become Null and before their views exist, an insert
 # is accepted and discarded. If the swap stops half way, drop the Null tables

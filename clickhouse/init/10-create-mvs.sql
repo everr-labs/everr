@@ -1,43 +1,17 @@
--- Per-row retention. Every app.* row is stamped with `retention_days` by its
--- materialized view from the resource attribute the collector sets at
--- authentication (everr.retention.days, one key holding the window for that
--- pipeline's signal), and the view strips it before storage. The table
--- partitions by (day, retention_days) and the TTL is `day + retention_days`
--- with ttl_only_drop_parts = 1. Every row in a partition expires on the same
--- day, so ClickHouse drops whole parts and never rewrites one to expire a
--- single tenant. A retention change applies to rows ingested from that point
--- on. Every distinct retention value costs that many live partitions per
--- table; RETENTION_BY_TIER (packages/app/src/lib/retention.ts) is the only
--- source of values.
+-- Views stamp retention_days at ingestion. Daily partitions group rows by
+-- expiry so ttl_only_drop_parts can expire them without rewrites. Plan changes
+-- affect future rows; values come from packages/app/src/lib/retention.ts.
 --
--- Only the views write these tables. everrRetentionDays and
--- everrStripRetention (05-create-retention-functions.sql) hold the stamp and
--- the strip. On the metrics views the stamp is computed in an inner query
--- because the `everrStripRetention(...) AS ResourceAttributes` alias in the
--- outer query shadows the source column. The logs and traces views keep the
--- same inner query, so all five views read alike.
---
--- On app.logs and app.traces the attributes are JSON columns. The strip of
--- `everr.retention.days` from the document is the SKIP on the column type,
--- applied when the view's rows land in the table, so the view only filters
--- the keys array, and the stamp reads the path with getSubcolumn.
--- `everr.tenant.id` stays in the document and in the keys, as it does with
--- the maps.
+-- Metrics stamp retention before replacing ResourceAttributes, avoiding alias
+-- shadowing. JSON columns strip retention through SKIP; their views filter the
+-- keys array. everr.tenant.id remains in both attributes and keys.
 
 -- Traces: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.traces
 ENGINE = MergeTree
 PARTITION BY (toDate(Timestamp), retention_days)
--- Upstream sorts traces by (ServiceName, SpanName, toDateTime(Timestamp)).
--- Nothing here filters SpanName by equality (the explorer only substring
--- matches it) and every query carries a time window, so a span name ahead of
--- the time column made a 15-minute window read a whole day's part: measured
--- on 15M spans, 500,000 rows against 49,152 with the time column directly
--- after the service. Time order also keeps a trace's spans adjacent, which
--- took the table from 724 to 505 MiB (Timestamp 47 to 0.9 MiB, TraceId 232
--- to 93 MiB) and the by-id lookup from 8 granules to 3. The raw DateTime64
--- is the key column on purpose; the app.logs note below says why no bucket
--- goes in front of it.
+-- Put Timestamp directly after the tenant and service filters so time ranges
+-- can prune without an equality filter on SpanName.
 ORDER BY (tenant_id, ServiceName, Timestamp)
 TTL toDate(Timestamp) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
@@ -49,31 +23,17 @@ SELECT
 FROM otel.otel_traces
 WHERE 1 = 0;
 
--- Skip indexes mirrored from otel.otel_traces. CREATE TABLE ... AS SELECT copies
--- columns but not indexes, so app.traces starts bare; add the same set the raw
--- table carries so app-side queries prune the same way.
---
--- The keys arrays carry the only skip indexes on attributes. A filter on one
--- key reads that key's own subcolumn, so a value index has nothing to add;
--- the keys index serves the exists filter and the key list of the filter UI.
--- The metrics tables below keep their map indexes, measured in PR #426:
--- bloom_filter reads the same rows as upstream's text() for the two
--- predicates the app emits at 500 times less storage.
+-- CREATE TABLE AS SELECT does not copy indexes. Attribute-key bloom filters
+-- support presence checks; value reads use the JSON path subcolumns.
 ALTER TABLE app.traces
   ADD INDEX IF NOT EXISTS idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_res_attr_keys ResourceAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_span_attr_keys SpanAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
   ADD INDEX IF NOT EXISTS idx_duration Duration TYPE minmax GRANULARITY 1;
 
--- Codecs for app.traces. CREATE TABLE ... AS SELECT copies types but not
--- codecs, so without this every column falls back to LZ4 and the table is
--- about twice the size of the raw copy. MODIFY COLUMN without a type keeps
--- the type the CTAS copied, so 03-create-otel-tables.sql stays the only place
--- a column type is written, with one exception: the attribute columns of
--- app.traces and app.logs, because the SKIP of everr.retention.days is part
--- of the column type and belongs to the app table only, so it is written
--- here instead. The landing table keeps the path so the view can read it.
--- Every app.* table below repeats this for its own source.
+-- CREATE TABLE AS SELECT also drops codecs. Restore them without repeating
+-- column types, except JSON types whose SKIP rule belongs only to app tables.
+-- Landing tables retain the retention path so views can read it.
 ALTER TABLE app.traces
   MODIFY COLUMN `Timestamp` CODEC(Delta(8), ZSTD(1)),
   MODIFY COLUMN `TraceId` CODEC(ZSTD(1)),
@@ -116,28 +76,11 @@ FROM
   FROM otel.otel_traces
 );
 
--- Trace id to time range. app.traces sorts by service and time, so a lookup
--- by TraceId alone has no key prefix to use and reads the TraceId bloom
--- filter of every granule the tenant has. This table sorts by the id: a
--- reader takes min(Start) and max(End) + 1 for one TraceId here, then reads
--- app.traces or app.logs with that window, and both prune to the trace's own
--- partition and granules. The view fires once per inserted block, so a trace
--- whose spans arrive in several batches has several rows, which is why
--- readers aggregate. Start and End are whole seconds; the + 1 covers the
--- truncation of End. Same shape as the local store's traces_trace_id_ts, so
--- one query serves both. The run views and the everr-use-telemetry skill
--- read it; the explorer already knows its window. No skip index on TraceId:
--- the key starts with it.
---
--- Partitioned by month, unlike the other tables. A point lookup reads one
--- granule from every part whose id range covers the id, and with random ids
--- that is every part, so the cost is the part count. Measured at 365 daily
--- partitions, one lookup read 552 parts, 93 MiB, 70 ms; at 13 monthly
--- partitions, 13 parts, 3.7 MiB, 4 ms. index_granularity 256 keeps each of
--- those reads to a few KiB rather than a full 8192-row granule: 113 KiB for
--- the same 13 parts. A monthly part drops once its newest row has expired,
--- so a lookup row can outlive its spans by up to a month; it holds an id and
--- two timestamps, nothing else.
+-- Each inserted batch contributes a trace window. Readers aggregate min(Start)
+-- and max(End) + 1 before querying logs or traces; +1 covers whole-second truncation.
+-- Monthly partitions and small granules reduce point-lookup reads. Whole-part
+-- expiry can retain these lookup rows up to a month beyond their spans.
+-- Measurements: docs/clickhouse-retention-rollout.md.
 CREATE TABLE IF NOT EXISTS app.traces_trace_id_ts
 (
   tenant_id String CODEC(ZSTD(1)),
@@ -152,12 +95,8 @@ ORDER BY (tenant_id, TraceId, Start)
 TTL toDate(Start) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 256, ttl_only_drop_parts = 1;
 
--- Reads the landing table, like every other view here, and stamps tenant_id
--- and retention_days again with the expressions app.traces_mv uses. A view
--- chained off app.traces would need the inserting user to hold SELECT on
--- app.traces, because ClickHouse checks that user against every view in the
--- chain, and the collector user stays on otel.* only. The guard in
--- everrRetentionDaysJson fires here too, which refuses the same rows.
+-- Read the landing table directly: chaining off app.traces would require
+-- the collector user to have SELECT access to app.*, beyond its otel.* grants.
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_trace_id_ts_mv
 TO app.traces_trace_id_ts
 AS
@@ -175,20 +114,8 @@ GROUP BY tenant_id, retention_days, TraceId;
 CREATE TABLE IF NOT EXISTS app.logs
 ENGINE = MergeTree
 PARTITION BY (toDate(Timestamp), retention_days)
--- The raw Timestamp sits directly after ServiceName. Do not put a bucket
--- such as toStartOfFiveMinutes(Timestamp) in front of it, which is what
--- upstream's (ServiceName, TimestampTime) key becomes once TimestampTime is
--- gone. ClickHouse binds a `Timestamp >= x` predicate to the key column that
--- is Timestamp, never to a function of it that sits earlier, and it can only
--- exclude a granule on that column when every earlier column is constant
--- inside the granule. Below about 8192 rows per service per bucket the
--- bucket changes inside every granule and nothing is excluded: measured on
--- this table at 694 rows per five-minute bucket, a 15-minute window read 25
--- of 25 granules, and 2 of 25 once the bucket predicate was added to the
--- query by hand. The flat key prunes with the query as the explorer emits it
--- (6 of 1,840 granules on a 15M-row part) and orders the rows exactly as the
--- bucketed key would, so it costs nothing in compression. Range pruning on a
--- sorted DateTime64 does not need runs of equal values.
+-- Keep Timestamp directly after ServiceName so the explorer time predicate
+-- prunes without an additional bucket predicate.
 ORDER BY (tenant_id, ServiceName, Timestamp)
 TTL toDate(Timestamp) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
@@ -260,30 +187,11 @@ FROM
   FROM otel.otel_logs
 );
 
--- Metrics (Gauge): tenant-enriched read table + MV
---
--- The five metrics tables order by the hour before the attributes, which is
--- what the upstream exporter does since v0.160.0. Dashboard panels all filter
--- ServiceName + MetricName + a time range and aggregate across series, and
--- with the attributes ahead of the time column every granule of a metric held
--- points from the whole day, so a time filter pruned nothing and a 15-minute
--- panel read the same rows as a 24-hour one.
---
--- cityHash64(Attributes) groups without ordering: rows of one series share a
--- hash so they stay adjacent inside the hour and the Attributes column still
--- compresses by run, but the primary index (held in memory) stores 8 bytes per
--- granule instead of a whole map. Dropping the attributes from the key instead
--- nearly doubles that column. The cost is that an attribute predicate can no
--- longer prune granules, which only matters when reading one high-cardinality
--- series over a long range; no built-in dashboard does that.
---
--- idx_time_minmax below does the time pruning, not the primary key. A
--- `TimeUnix >= x` predicate binds to the trailing TimeUnix column, and a
--- granule is only excluded on it when the hour and the hash are constant
--- across the granule, which at a few thousand rows per hour they never are:
--- measured on this table at 4,800 rows per hour, the primary key read 15 of
--- 15 granules for a 15-minute window and the minmax index took it to 2 of
--- 15. The index is load-bearing, not a mirrored decoration.
+-- Metrics group series within each hour. Hashing attributes keeps the primary
+-- index compact while preserving series locality for compression.
+-- Keep idx_time_minmax: the trailing TimeUnix key alone does not reliably prune
+-- granules containing multiple hours or series.
+-- Measurements: docs/clickhouse-retention-rollout.md.
 CREATE TABLE IF NOT EXISTS app.metrics_gauge
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
