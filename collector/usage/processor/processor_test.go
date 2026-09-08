@@ -66,7 +66,7 @@ func TestLogsMeasuredBeforeDownstreamMutation(t *testing.T) {
 	}, consumer.WithCapabilities(consumer.Capabilities{MutatesData: true}))
 	require.NoError(t, err)
 	p := &metering{meter: meter, logs: next}
-	require.NoError(t, p.ConsumeLogs(context.Background(), ld))
+	require.NoError(t, p.ConsumeLogs(meter.MarkEnqueued(context.Background()), ld))
 	md, _ := meter.Drain()
 	require.Equal(t, 2, md.DataPointCount())
 	require.Equal(t, int64(2*marshaler.LogsSize(expected)), sum(md))
@@ -106,7 +106,7 @@ func TestExporterQueueAndRetries(t *testing.T) {
 			require.NoError(t, exp.Start(context.Background(), host))
 			defer func() { require.NoError(t, exp.Shutdown(context.Background())) }()
 			p := &metering{meter: meter, logs: exp}
-			err = p.ConsumeLogs(context.Background(), logs("a"))
+			err = p.ConsumeLogs(meter.MarkEnqueued(context.Background()), logs("a"))
 			if tc.wantUsage {
 				require.NoError(t, err)
 			} else {
@@ -138,7 +138,7 @@ func TestMetricsKindsAndSpoofing(t *testing.T) {
 	spoof := sm.Metrics().AppendEmpty()
 	spoof.SetName(usage.MetricName)
 	spoof.SetEmptySum().DataPoints().AppendEmpty().SetIntValue(999999)
-	require.NoError(t, p.ConsumeMetrics(context.Background(), md))
+	require.NoError(t, p.ConsumeMetrics(meter.MarkEnqueued(context.Background()), md))
 	require.Equal(t, 5, sink.DataPointCount())
 	out, _ := meter.Drain()
 	require.Equal(t, 1, out.DataPointCount())
@@ -154,11 +154,11 @@ func TestEmptyAndMissingTenant(t *testing.T) {
 	meter := newMeter(t)
 	sink := &consumertest.LogsSink{}
 	p := &metering{meter: meter, logs: sink}
-	require.Error(t, p.ConsumeLogs(context.Background(), logs("")))
+	require.Error(t, p.ConsumeLogs(meter.MarkEnqueued(context.Background()), logs("")))
 	require.Zero(t, sink.LogRecordCount())
 	ld := logs("a")
 	ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().RemoveIf(func(plog.LogRecord) bool { return true })
-	require.NoError(t, p.ConsumeLogs(context.Background(), ld))
+	require.NoError(t, p.ConsumeLogs(meter.MarkEnqueued(context.Background()), ld))
 	md, _ := meter.Drain()
 	require.Zero(t, md.DataPointCount())
 }
@@ -174,7 +174,7 @@ func TestTraces(t *testing.T) {
 	expected := ptrace.NewTraces()
 	td.CopyTo(expected)
 	stripRouting(expected.ResourceSpans().At(0).Resource())
-	require.NoError(t, p.ConsumeTraces(context.Background(), td))
+	require.NoError(t, p.ConsumeTraces(meter.MarkEnqueued(context.Background()), td))
 	out, _ := meter.Drain()
 	marshaler := ptrace.ProtoMarshaler{}
 	require.Equal(t, int64(marshaler.TracesSize(expected)), sum(out))
@@ -202,7 +202,7 @@ func TestSplitFailureDoesNotBillWholeRequest(t *testing.T) {
 	ld := logs("a")
 	ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().AppendEmpty().Body().SetStr("second record")
 	p := &metering{meter: meter, logs: exp}
-	require.Error(t, p.ConsumeLogs(context.Background(), ld))
+	require.Error(t, p.ConsumeLogs(meter.MarkEnqueued(context.Background()), ld))
 	require.Equal(t, int32(2), calls.Load())
 	md, _ := meter.Drain()
 	require.Zero(t, md.DataPointCount())

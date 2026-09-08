@@ -24,6 +24,12 @@ require (
 )
 
 require (
+	go.etcd.io/bbolt v1.5.0 // indirect
+	go.opentelemetry.io/collector/connector/xconnector v0.160.0 // indirect
+	go.opentelemetry.io/collector/internal/fanoutconsumer v0.160.0 // indirect
+)
+
+require (
 	github.com/cenkalti/backoff/v7 v7.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
@@ -40,17 +46,20 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.160.0
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/client v1.66.0 // indirect
+	go.opentelemetry.io/collector/client v1.66.0
 	go.opentelemetry.io/collector/component/componenttest v0.160.0 // indirect
+	go.opentelemetry.io/collector/connector v0.160.0
+	go.opentelemetry.io/collector/connector/connectortest v0.160.0
 	go.opentelemetry.io/collector/consumer/xconsumer v0.160.0 // indirect
-	go.opentelemetry.io/collector/exporter v1.66.0 // indirect
+	go.opentelemetry.io/collector/exporter v1.66.0
 	go.opentelemetry.io/collector/exporter/xexporter v0.160.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.160.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.66.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.160.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.160.0 // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.160.0 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.160.0
 	go.opentelemetry.io/collector/pipeline v1.66.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.160.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.160.0 // indirect

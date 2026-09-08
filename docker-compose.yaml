@@ -58,6 +58,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
+      - collector-queue:/var/lib/everr/queue
       - ./collector/config.yml:/etc/everr-collector/config.yaml:ro,z
       - ./collector/dev-everr-app.pem:/etc/everr-collector/dev-everr-app.pem:ro,z
   mailpit:
@@ -74,3 +75,6 @@ services:
       MP_DATABASE: /data/mailpit.db
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  collector-queue:

@@ -2,10 +2,13 @@
 
 This module measures decoded OTLP protobuf bytes after a storage exporter
 confirms success. It contains an `everr_usage` extension, processor, and metrics
-receiver. The upstream storage exporter is unchanged.
+receiver, plus an `everr_queue` connector backed by the standard exporter helper
+and file storage extension. The upstream storage exporter is unchanged.
 
-The processor measures each tenant before forwarding the payload, then records
-only scalar totals after downstream success. The shared extension aggregates
+Authenticated telemetry is acknowledged after it has been written to the disk
+queue. The queue batches and retries delivery through the processor into the
+synchronous storage exporter. The processor measures each tenant before
+forwarding the payload, then records only scalar totals after downstream success. The shared extension aggregates
 those totals across signal pipelines. The receiver drains them every 60 seconds
 and attempts customer and internal publication separately, once each.
 
@@ -36,7 +39,7 @@ customer telemetry. Both copies have identical values and interval timestamps.
 ## Measurement version 1
 
 Bytes are the protobuf serialization size of the decoded, nonempty telemetry
-grouped by tenant within each incoming processor call. Measurement includes
+grouped by tenant within each queued export attempt. Measurement includes
 resource and scope metadata, records, span events and links, metric buckets and
 exemplars. It excludes the routing and retention resource attributes
 `everr.tenant.id` and `everr.retention.days`, empty resources and scopes, and
@@ -57,14 +60,29 @@ enforce the same namespace restriction.
 ## Configuration
 
 See [the collector example](../config.example.yml) for the complete wiring.
-All three factories must be included in the collector distribution.
+All four factories must be included in the collector distribution.
 
 ```yaml
 extensions:
+  file_storage/ingestion:
+    directory: /var/lib/everr/queue
+    create_directory: true
+    fsync: true
   everr_usage:
     internal_tenant: ${env:USAGE_INTERNAL_TENANT_ID:-}
     retention_days: 90
     max_series: 30000
+connectors:
+  everr_queue:
+    sending_queue:
+      storage: file_storage/ingestion
+      queue_size: 10000
+      batch:
+        min_size: 8192
+        flush_timeout: 1s
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0s
 processors:
   everr_usage:
     extension: everr_usage
@@ -75,13 +93,34 @@ receivers:
     timeout: 10s
 ```
 
-Enable the extension in `service.extensions`. Put the processor last in each
-metered signal pipeline, with exactly one storage exporter. An enabled sending
-queue must use `wait_for_result: true` and cannot use persistent storage with
-Collector v0.160.0. Export retries can remain enabled. Ingest requests now wait
-through queue flushing and export retries; the example uses a one-second batch
-flush timeout to limit low-volume latency. Tune batch size, concurrency, and
-request timeouts together.
+Enable both extensions in `service.extensions`. Connect authenticated ingress to
+`everr_queue`, after stamping trusted tenant and retention attributes. Do not put
+an asynchronous batch processor before the queue: that would acknowledge data
+before it is persisted.
+
+For each signal, give the queue exactly one destination pipeline:
+
+```text
+authenticate + stamp tenant/retention
+  -> everr_queue (disk persistence, batching, retries)
+  -> everr_usage processor
+  -> synchronous storage exporter
+```
+
+The destination pipeline has only the metering processor and one exporter.
+Disable both `sending_queue` and `retry_on_failure` on that exporter. The queue
+owns retries, with `max_elapsed_time: 0s`, so retriable outages do not exhaust a
+retry time budget. Queue-full and disk-write failures return an error to the
+receiver rather than acknowledging data that was not persisted. Permanently
+invalid telemetry can still be rejected by the downstream pipeline.
+
+Keep the queue directory and connector ID stable across restarts. Docker Compose
+mounts a named volume at the example path, and the image makes the directory
+writable by its collector user. Other deployments must mount persistent storage
+at `EVERR_QUEUE_DIRECTORY` (default `/var/lib/everr/queue`). Each collector replica
+needs its own directory/volume. Losing the volume loses the queued telemetry.
+Capacity defaults to 10,000 requests, not bytes; size disk capacity and queue
+limits for the deployment's request sizes and expected outage duration.
 
 Connect the receiver to a separate metrics pipeline with no processors and one
 exporter targeting the same metrics tables. This exporter's `sending_queue.enabled`
@@ -103,9 +142,21 @@ dispute period. This change does not add a permanent invoice ledger.
 ## Failure contract
 
 - A failed or ambiguous export contributes zero usage, including partial writes.
-- Exporter retries happen below the processor. Eventual success contributes the
-  original measurement once, even if retry attempts stored extra copies.
-- A crash, cancellation, accumulator limit, or failed publication can lose usage.
+- The persistent queue retries unsuccessful export attempts. Each successful
+  attempt contributes its measurement once, even if earlier ambiguous attempts
+  stored extra copies.
+- Accepted telemetry survives process restarts while its queue volume remains
+  available. A crash, cancellation, accumulator limit, or failed publication can
+  still lose usage metrics.
+- Every queued request carries an overwritten, server-generated collector-start
+  marker in persisted request metadata. It is never emitted as a telemetry
+  attribute. After restart, all older requests are delivered without billing,
+  including requests that had not previously reached storage. This intentionally
+  undercounts to avoid charging twice when a crash follows usage publication but
+  precedes deletion of the queue entry.
+- Queue batching always partitions by that marker, so recovered requests cannot
+  borrow a fresh request's billing eligibility. Missing or foreign markers cannot
+  contribute usage. The queue overwrites client-supplied markers on admission.
 - A drained snapshot is never restored or replayed. Customer and internal copies
   may differ if one publication fails. Do not add the two copies together.
 - At most `max_series` tenant/signal totals are retained per interval. New series
@@ -125,7 +176,8 @@ finishing after that flush can be lost.
 Run `go test -race ./...` in this directory and `make build` in `collector`.
 The tests exercise measurement across tenants and all signal types, exporter queue
 and retry behavior, namespace protection, concurrent drains, limits, topology
-validation, and failed publication without replay. For end-to-end validation,
+validation, disk-backed recovery for every signal, mixed recovered/fresh batches,
+and failed publication without replay. For end-to-end validation,
 send uniquely marked telemetry through an authenticated collector and query the
 fresh payload and usage rows through Everr. Check both ownership copies and
 confirm the reserved namespace cannot be forged.
