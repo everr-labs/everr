@@ -10,7 +10,7 @@ queue. The queue batches and retries delivery through the processor into the
 synchronous storage exporter. The processor measures each tenant before
 forwarding the payload, then records only scalar totals after downstream success. The shared extension aggregates
 those totals across signal pipelines. The receiver drains them every 60 seconds
-and attempts customer and internal publication separately, once each.
+and attempts publication once into each customer’s own metrics.
 
 ## Metric contract
 
@@ -27,14 +27,13 @@ and attempts customer and internal publication separately, once each.
 | Resource owner | `everr.tenant.id`, the destination tenant |
 | Scope | `github.com/everr-labs/everr/collector/usage`, version `1` |
 
-The customer copy is owned by the measured tenant. Setting `internal_tenant` on
-the extension creates another copy owned by that internal tenant, retaining the
-customer in `everr.usage.tenant.id`. No second copy is made when the customer is
-already the internal tenant. Empty `internal_tenant` disables duplication.
+Each point is owned by the measured tenant. Billing reads these same customer-visible
+points through administrative access across tenants. There is no administrative
+copy and no second publication that could diverge from customer-visible usage.
 
 Sum the delta values across collector instances to obtain usage for a time
 range. Interval timestamps use confirmation and flush time, not timestamps in
-customer telemetry. Both copies have identical values and interval timestamps.
+customer telemetry. The invoice scheduler is outside this module.
 
 ## Measurement version 1
 
@@ -69,8 +68,6 @@ extensions:
     create_directory: true
     fsync: true
   everr_usage:
-    internal_tenant: ${env:USAGE_INTERNAL_TENANT_ID:-}
-    retention_days: 90
     max_series: 30000
 connectors:
   everr_queue:
@@ -135,9 +132,16 @@ For ClickHouse the example explicitly sets `wait_for_async_insert=1` and
 `materialized_views_ignore_errors=0`. Replacing the database requires verifying
 the replacement exporter's acknowledgement, filtering, and deduplication behavior.
 
-Usage points receive an explicit retention window (90 days by default), independent
-of the source signal's retention. Configure a window covering the billing and
-dispute period. This change does not add a permanent invoice ledger.
+Usage points always receive 365 days of retention, independent of the customer's
+plan and source signal retention. This is not configurable. This change does not
+add a permanent invoice ledger.
+
+The durable connector remains necessary with the pinned Collector version.
+A live test of upstream `queuebatchprocessor` reproduced a double-release panic
+after persistent queue recovery. The upstream ownership fix is tracked in
+[Collector PR 15739](https://github.com/open-telemetry/opentelemetry-collector/pull/15739).
+Reevaluate replacing this connector when that fix is released and recovery is
+verified in the complete collector pipeline.
 
 ## Failure contract
 
@@ -157,8 +161,8 @@ dispute period. This change does not add a permanent invoice ledger.
 - Queue batching always partitions by that marker, so recovered requests cannot
   borrow a fresh request's billing eligibility. Missing or foreign markers cannot
   contribute usage. The queue overwrites client-supplied markers on admission.
-- A drained snapshot is never restored or replayed. Customer and internal copies
-  may differ if one publication fails. Do not add the two copies together.
+- A drained snapshot is never restored or replayed. Failed publication can lose
+  usage. Billing reads only points actually present in customer metrics.
 - At most `max_series` tenant/signal totals are retained per interval. New series
   beyond that bound are dropped and reported in collector logs. Individual totals
   cannot exceed `2^53` bytes, preserving exact values in Float64 metric storage.
@@ -179,5 +183,5 @@ and retry behavior, namespace protection, concurrent drains, limits, topology
 validation, disk-backed recovery for every signal, mixed recovered/fresh batches,
 and failed publication without replay. For end-to-end validation,
 send uniquely marked telemetry through an authenticated collector and query the
-fresh payload and usage rows through Everr. Check both ownership copies and
+fresh payload and usage rows through Everr. Check tenant ownership and 365-day retention, and
 confirm the reserved namespace cannot be forged.

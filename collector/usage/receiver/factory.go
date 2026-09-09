@@ -9,7 +9,6 @@ import (
 	"github.com/everr-labs/everr/collector/usage"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 )
@@ -82,16 +81,13 @@ func (r *publisher) Shutdown(ctx context.Context) error {
 	return nil
 }
 func (r *publisher) flush(ctx context.Context) {
-	customer, internal := r.meter.Drain()
-	for _, md := range []pmetric.Metrics{customer, internal} {
-		if md.DataPointCount() == 0 {
-			continue
-		}
-		attempt, cancel := context.WithTimeout(ctx, r.cfg.Timeout)
-		err := r.next.ConsumeMetrics(attempt, md)
-		cancel()
-		if err != nil {
-			r.logger.Error("Usage publication failed; snapshot discarded", zap.Error(err))
-		}
+	md := r.meter.Drain()
+	if md.DataPointCount() == 0 {
+		return
+	}
+	attempt, cancel := context.WithTimeout(ctx, r.cfg.Timeout)
+	defer cancel()
+	if err := r.next.ConsumeMetrics(attempt, md); err != nil {
+		r.logger.Error("Usage publication failed; snapshot discarded", zap.Error(err))
 	}
 }

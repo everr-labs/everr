@@ -67,7 +67,7 @@ func TestLogsMeasuredBeforeDownstreamMutation(t *testing.T) {
 	require.NoError(t, err)
 	p := &metering{meter: meter, logs: next}
 	require.NoError(t, p.ConsumeLogs(meter.MarkEnqueued(context.Background()), ld))
-	md, _ := meter.Drain()
+	md := meter.Drain()
 	require.Equal(t, 2, md.DataPointCount())
 	require.Equal(t, int64(2*marshaler.LogsSize(expected)), sum(md))
 }
@@ -112,7 +112,7 @@ func TestExporterQueueAndRetries(t *testing.T) {
 			} else {
 				require.Error(t, err)
 			}
-			md, _ := meter.Drain()
+			md := meter.Drain()
 			require.Equal(t, tc.wantUsage, md.DataPointCount() > 0)
 			require.Equal(t, tc.wantCalls, calls.Load())
 		})
@@ -140,7 +140,7 @@ func TestMetricsKindsAndSpoofing(t *testing.T) {
 	spoof.SetEmptySum().DataPoints().AppendEmpty().SetIntValue(999999)
 	require.NoError(t, p.ConsumeMetrics(meter.MarkEnqueued(context.Background()), md))
 	require.Equal(t, 5, sink.DataPointCount())
-	out, _ := meter.Drain()
+	out := meter.Drain()
 	require.Equal(t, 1, out.DataPointCount())
 	expected := pmetric.NewMetrics()
 	sink.AllMetrics()[0].CopyTo(expected)
@@ -159,7 +159,7 @@ func TestEmptyAndMissingTenant(t *testing.T) {
 	ld := logs("a")
 	ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().RemoveIf(func(plog.LogRecord) bool { return true })
 	require.NoError(t, p.ConsumeLogs(meter.MarkEnqueued(context.Background()), ld))
-	md, _ := meter.Drain()
+	md := meter.Drain()
 	require.Zero(t, md.DataPointCount())
 }
 
@@ -175,7 +175,7 @@ func TestTraces(t *testing.T) {
 	td.CopyTo(expected)
 	stripRouting(expected.ResourceSpans().At(0).Resource())
 	require.NoError(t, p.ConsumeTraces(meter.MarkEnqueued(context.Background()), td))
-	out, _ := meter.Drain()
+	out := meter.Drain()
 	marshaler := ptrace.ProtoMarshaler{}
 	require.Equal(t, int64(marshaler.TracesSize(expected)), sum(out))
 	require.Equal(t, 1, sink.SpanCount())
@@ -204,6 +204,6 @@ func TestSplitFailureDoesNotBillWholeRequest(t *testing.T) {
 	p := &metering{meter: meter, logs: exp}
 	require.Error(t, p.ConsumeLogs(meter.MarkEnqueued(context.Background()), ld))
 	require.Equal(t, int32(2), calls.Load())
-	md, _ := meter.Drain()
+	md := meter.Drain()
 	require.Zero(t, md.DataPointCount())
 }

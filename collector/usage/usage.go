@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -28,21 +27,19 @@ const (
 )
 
 type Config struct {
-	InternalTenant string `mapstructure:"internal_tenant"`
-	RetentionDays  uint16 `mapstructure:"retention_days"`
-	MaxSeries      int    `mapstructure:"max_series"`
+	MaxSeries int `mapstructure:"max_series"`
 }
 
 func (c *Config) Validate() error {
-	if c.RetentionDays == 0 || c.MaxSeries <= 0 {
-		return errors.New("retention_days and max_series must be positive")
+	if c.MaxSeries <= 0 {
+		return errors.New("max_series must be positive")
 	}
 	return nil
 }
 
 func NewFactory() extension.Factory {
 	return extension.NewFactory(component.MustNewType(Type), func() component.Config {
-		return &Config{RetentionDays: 90, MaxSeries: 30000}
+		return &Config{MaxSeries: 30000}
 	}, func(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 		return newMeter(*cfg.(*Config), set.Logger), nil
 	}, component.StabilityLevelDevelopment)
@@ -112,9 +109,9 @@ func (m *Meter) Record(signal string, bytesByTenant map[string]int64) {
 	}
 }
 
-// Drain consumes a snapshot permanently before either destination is attempted.
+// Drain consumes a snapshot permanently before publication is attempted.
 // A failed publication must never be restored or replayed.
-func (m *Meter) Drain() (pmetric.Metrics, pmetric.Metrics) {
+func (m *Meter) Drain() pmetric.Metrics {
 	m.mu.Lock()
 	end := time.Now()
 	totals, dropped := m.totals, m.dropped
@@ -124,7 +121,7 @@ func (m *Meter) Drain() (pmetric.Metrics, pmetric.Metrics) {
 	if dropped > 0 {
 		m.logger.Warn("Usage measurements dropped at accumulator limit", zap.Uint64("measurements", dropped))
 	}
-	customer, internal := pmetric.NewMetrics(), pmetric.NewMetrics()
+	customer := pmetric.NewMetrics()
 	keys := make([]key, 0, len(totals))
 	for k := range totals {
 		keys = append(keys, k)
@@ -136,19 +133,16 @@ func (m *Meter) Drain() (pmetric.Metrics, pmetric.Metrics) {
 		return keys[i].tenant < keys[j].tenant
 	})
 	for _, k := range keys {
-		m.appendPoint(customer, k.tenant, k, totals[k], end)
-		if m.cfg.InternalTenant != "" && m.cfg.InternalTenant != k.tenant {
-			m.appendPoint(internal, m.cfg.InternalTenant, k, totals[k], end)
-		}
+		m.appendPoint(customer, k, totals[k], end)
 	}
-	return customer, internal
+	return customer
 }
 
-func (m *Meter) appendPoint(md pmetric.Metrics, owner string, k key, v total, end time.Time) {
+func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time) {
 	rm := md.ResourceMetrics().AppendEmpty()
 	attrs := rm.Resource().Attributes()
-	attrs.PutStr(TenantKey, owner)
-	attrs.PutStr(RetentionKey, strconv.Itoa(int(m.cfg.RetentionDays)))
+	attrs.PutStr(TenantKey, k.tenant)
+	attrs.PutStr(RetentionKey, "365")
 	attrs.PutStr("service.name", "everr-ingestion")
 	attrs.PutStr("service.instance.id", m.instance)
 	sm := rm.ScopeMetrics().AppendEmpty()

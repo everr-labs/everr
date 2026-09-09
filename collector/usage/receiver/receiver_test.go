@@ -16,7 +16,6 @@ import (
 func TestFailedPublicationIsNeverReplayed(t *testing.T) {
 	f := usage.NewFactory()
 	cfg := f.CreateDefaultConfig().(*usage.Config)
-	cfg.InternalTenant = "operator"
 	ext, err := f.Create(context.Background(), extensiontest.NewNopSettings(f.Type()), cfg)
 	require.NoError(t, err)
 	meter := ext.(*usage.Meter)
@@ -35,11 +34,11 @@ func TestFailedPublicationIsNeverReplayed(t *testing.T) {
 	r := publisher{cfg: *NewFactory().CreateDefaultConfig().(*Config), next: next, logger: zap.NewNop(), meter: meter}
 	r.flush(context.Background())
 	r.flush(context.Background())
-	require.Len(t, attempts, 2, "customer failure must neither replay nor prevent the internal attempt")
-	owner, _ := attempts[1].ResourceMetrics().At(0).Resource().Attributes().Get(usage.TenantKey)
-	require.Equal(t, "operator", owner.Str())
+	require.Len(t, attempts, 1, "failed or ambiguous usage must never be replayed")
+	owner, _ := attempts[0].ResourceMetrics().At(0).Resource().Attributes().Get(usage.TenantKey)
+	require.Equal(t, "a", owner.Str())
 	meter.Record("logs", map[string]int64{"a": 20})
 	r.flush(context.Background())
-	require.Len(t, attempts, 4)
-	require.Equal(t, int64(20), attempts[2].ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0).IntValue())
+	require.Len(t, attempts, 2)
+	require.Equal(t, int64(20), attempts[1].ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0).IntValue())
 }

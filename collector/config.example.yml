@@ -4,8 +4,6 @@ extensions:
     create_directory: true
     fsync: true
   everr_usage:
-    internal_tenant: ${env:USAGE_INTERNAL_TENANT_ID:-}
-    retention_days: 90
     max_series: 30000
   # Authenticates public OTLP ingest by exchanging a Bearer key with the
   # everr app's internal verify endpoint. The shared secret guards that

@@ -142,7 +142,7 @@ func TestPersistentRecovery(t *testing.T) {
 			// Simulate the worst billing window: usage was published before a crash left
 			// the queue entry pending. Replay must not charge this entry a second time.
 			m.Record(signal, map[string]int64{"a": 100})
-			first, _ := m.Drain()
+			first := m.Drain()
 			require.Equal(t, 1, first.DataPointCount())
 			stop()
 			stopHost()
@@ -157,7 +157,7 @@ func TestPersistentRecovery(t *testing.T) {
 			// Submit before the replay batch flushes to exercise epoch-based partitioning.
 			require.NoError(t, send())
 			require.Eventually(t, func() bool { return delivered.Load() == 2 }, time.Second, time.Millisecond)
-			out, _ := m.Drain()
+			out := m.Drain()
 			require.Equal(t, 1, out.DataPointCount())
 			require.Equal(t, int64(100), out.ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0).IntValue())
 			stop()
