@@ -9,6 +9,8 @@ import (
 
 	"github.com/everr-labs/everr/collector/extension/everrusageextension"
 	filestorage "github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configoptional"
@@ -19,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/processor/processortest"
 )
 
 type host map[component.ID]component.Component
@@ -157,4 +160,63 @@ func TestFullQueueRejectsWithoutUsage(t *testing.T) {
 			require.Zero(t, m.Drain().DataPointCount())
 		})
 	}
+}
+
+// The exporter has separate signal queues even when its component ID is shared.
+// Logs can be admitted while the metrics queue rejects their usage snapshot.
+func TestUsageQueueRejectionRecoveredByLaterSnapshot(t *testing.T) {
+	h, meter, stopHost := startHost(t, t.TempDir())
+	defer stopHost()
+	send, stopLogs := startAdmission(t, h, meter, "logs", 100, func(int) error { return nil })
+	defer stopLogs()
+
+	var available atomic.Bool
+	var maximum atomic.Int64
+	q := exporterhelper.NewDefaultQueueConfig()
+	storageID := component.NewIDWithName(component.MustNewType("file_storage"), "ingestion")
+	q.StorageID, q.QueueSize, q.NumConsumers = &storageID, 1, 1
+	q.WaitForResult = false
+	retry := configretry.NewDefaultBackOffConfig()
+	retry.InitialInterval, retry.MaxInterval, retry.MaxElapsedTime = time.Millisecond, time.Millisecond, 0
+	exp, err := exporterhelper.NewMetrics(t.Context(), exportertest.NewNopSettings(component.MustNewType("storage")), &struct{}{},
+		func(_ context.Context, md pmetric.Metrics) error {
+			if !available.Load() {
+				return errors.New("metrics storage unavailable")
+			}
+			value := sum(md)
+			if value > maximum.Load() {
+				maximum.Store(value)
+			}
+			return nil
+		}, exporterhelper.WithQueue(configoptional.Some(q)), exporterhelper.WithRetry(retry))
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(t.Context(), h))
+	defer func() { available.Store(true); require.NoError(t, exp.Shutdown(context.Background())) }()
+	factory := deltatocumulativeprocessor.NewFactory()
+	cumulative, err := factory.CreateMetrics(t.Context(), processortest.NewNopSettings(factory.Type()), factory.CreateDefaultConfig(), exp)
+	require.NoError(t, err)
+	require.NoError(t, cumulative.Start(t.Context(), h))
+	defer func() { require.NoError(t, cumulative.Shutdown(context.Background())) }()
+
+	require.NoError(t, send())
+	first := meter.Drain()
+	bytes := sum(first)
+	require.Positive(t, bytes)
+	require.NoError(t, cumulative.ConsumeMetrics(t.Context(), first))
+	require.NoError(t, send(), "logs admission must succeed despite the full metrics queue")
+	require.Error(t, cumulative.ConsumeMetrics(t.Context(), meter.Drain()))
+	require.Zero(t, meter.Drain().DataPointCount(), "a rejected delta must not be replayed")
+
+	available.Store(true)
+	require.Eventually(t, func() bool { return maximum.Load() == bytes }, time.Second, time.Millisecond)
+	admissions := int64(2)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		// Every attempt is a fresh admission, never a replayed delta. This also
+		// tolerates the worker still releasing the first queued snapshot.
+		require.NoError(c, send())
+		admissions++
+		require.NoError(c, cumulative.ConsumeMetrics(t.Context(), meter.Drain()))
+	}, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return maximum.Load() == admissions*bytes }, time.Second, time.Millisecond)
+
 }

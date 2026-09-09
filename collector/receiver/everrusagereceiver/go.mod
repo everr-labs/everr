@@ -40,6 +40,7 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/client v1.66.0 // indirect
 	go.opentelemetry.io/collector/component/componenttest v0.160.0 // indirect
+	go.opentelemetry.io/collector/consumer/xconsumer v0.160.0 // indirect
 	go.opentelemetry.io/collector/exporter v1.66.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.160.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.66.0 // indirect
@@ -61,6 +62,9 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 
-require github.com/everr-labs/everr/collector/extension/everrusageextension v0.160.0
+require (
+	github.com/everr-labs/everr/collector/extension/everrusageextension v0.160.0
+	go.opentelemetry.io/collector/consumer/consumertest v0.160.0
+)
 
 replace github.com/everr-labs/everr/collector/extension/everrusageextension => ../../extension/everrusageextension

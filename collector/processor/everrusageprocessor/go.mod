@@ -23,7 +23,15 @@ require (
 	go.uber.org/zap v1.28.0 // indirect
 )
 
-require go.etcd.io/bbolt v1.5.0 // indirect
+require (
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.160.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.160.0 // indirect
+	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
+	go.etcd.io/bbolt v1.5.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.160.0 // indirect
+	go.opentelemetry.io/collector/pdata/testdata v0.160.0 // indirect
+	go.opentelemetry.io/collector/processor/xprocessor v0.160.0 // indirect
+)
 
 require (
 	github.com/cenkalti/backoff/v7 v7.0.0 // indirect
@@ -71,6 +79,10 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 
-require github.com/everr-labs/everr/collector/extension/everrusageextension v0.160.0
+require (
+	github.com/everr-labs/everr/collector/extension/everrusageextension v0.160.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.160.0
+	go.opentelemetry.io/collector/processor/processortest v0.160.0
+)
 
 replace github.com/everr-labs/everr/collector/extension/everrusageextension => ../../extension/everrusageextension

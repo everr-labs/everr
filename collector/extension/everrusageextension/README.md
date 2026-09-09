@@ -140,14 +140,21 @@ Drain any earlier experimental custom queue before switching storage identities.
 - Idle expiry does not lose any values already queued. Once expired, returning
   traffic starts a new lifetime; no month-long cache or synthetic idle points.
 - Usage publication bypasses metering and does not bill itself. Shutdown attempts
-  a final flush.
+  a final flush, but independent ingestion pipelines can admit telemetry after
+  that flush. The Collector does not order those pipelines through the shared
+  extension; such late measurements remain unpublished and can undercount.
 
 ## Validation
 
 Run `go test -race ./...` in each usage component module and `make build` in
 `collector`. Tests cover measurement, tenant isolation, admission errors, native
 queue retries/recovery, bounds, UTC monthly attribution, and month rollover
-through the actual upstream cumulative processor.
+through the actual upstream cumulative processor. Failure tests cover a full
+persistent metrics queue while logs still admit successfully, recovery through a
+later cumulative snapshot, and permanent loss of an unpublished final value
+after native idle expiry. The expiry test uses Go virtual time with the real
+upstream cleanup ticker. Shutdown tests cover the final flush and the remaining
+late-admission gap between independent pipelines.
 
 Run [the opt-in smoke test](../../test/smoke/usage.py) against the local database:
 
