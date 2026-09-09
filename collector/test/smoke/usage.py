@@ -37,7 +37,7 @@ def post(url, body, headers=None):
 
 def verify_month_query(db):
     # Read-only fixtures: late September snapshots, duplicates, a restart,
-    # an administrative copy, October usage, and Float64 rounding above 2^53.
+    # a mismatched owner, October usage, and Float64 rounding above 2^53.
     fixture = """(
         SELECT 'everr-ingestion' AS ServiceName,
             'everr.ingestion.volume' AS MetricName,
@@ -51,7 +51,7 @@ def verify_month_query(db):
             ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 200),
             ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 400),
             ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 400),
-            ('2026-09', 'a', 'admin', 'one', '2026-09-30 23:58:00', 400),
+            ('2026-09', 'a', 'other', 'one', '2026-09-30 23:58:00', 400),
             ('2026-09', 'a', 'a', 'two', '2026-09-30 23:59:00', 50),
             ('2026-10', 'a', 'a', 'one', '2026-10-01 00:00:00', 300),
             ('2026-09', 'large', 'large', 'one', '2026-09-30 23:58:00', 9007199254740995)
@@ -73,7 +73,7 @@ def main():
     args = parser.parse_args()
     month = datetime.now(timezone.utc).strftime('%Y-%m')
     run = 'usage-smoke-' + uuid.uuid4().hex
-    tenants = {key: run + '-' + key for key in ['a', 'b', 'admin']}
+    tenants = {key: run + '-' + key for key in ['a', 'b', 'c']}
     failures = {'outage': True, 'rejected': 0, 'ambiguous': 0, 'remaining': 2}
     failure_lock = threading.Lock()
 
@@ -172,7 +172,6 @@ def main():
             'receivers': {
                 'otlp': {'protocols': {'http': {'endpoint': f'127.0.0.1:{port}', 'auth': {'authenticator': 'everr_apikey'}}}},
                 'everr_usage': {'interval': '1s'}},
-            'connectors': {'forward/usage': {}},
             'processors': {
                 # Accelerate idle expiry; upstream's cleanup ticker still runs once per minute.
                 'delta_to_cumulative/usage': {'max_stale': '2s', 'max_streams': 60000},
@@ -192,8 +191,7 @@ def main():
                                   'queue_size': 10000, 'batch': {'min_size': 8192, 'flush_timeout': '100ms'}},
                 'retry_on_failure': {'enabled': True, 'initial_interval': '100ms', 'max_interval': '100ms', 'max_elapsed_time': '0s'}}},
             'service': {'extensions': ['everr_usage', 'everr_apikey', 'file_storage/ingestion'], 'pipelines': {
-                'metrics/usage': {'receivers': ['everr_usage'], 'processors': ['delta_to_cumulative/usage'], 'exporters': ['forward/usage']},
-                'metrics/usage_customer': {'receivers': ['forward/usage'], 'exporters': ['clickhouse']}}}}
+                'metrics/usage': {'receivers': ['everr_usage'], 'processors': ['delta_to_cumulative/usage'], 'exporters': ['clickhouse']}}}}
         for signal in ['logs', 'traces', 'metrics']:
             processors = ['resource/tenant', 'everr_usage']
             if signal == 'metrics':
@@ -205,9 +203,8 @@ def main():
         proc = None
 
         def start():
-            process = subprocess.Popen([str(ROOT / 'build/everr-collector'), '--config', str(temp / 'config.json'),
-                                        '--config', str(ROOT / 'config/usage-admin.example.yaml')],
-                                       env={**os.environ, 'EVERR_ADMIN_TENANT_ID': tenants['admin']}, stdout=log, stderr=log)
+            process = subprocess.Popen([str(ROOT / 'build/everr-collector'), '--config', str(temp / 'config.json')],
+                                       stdout=log, stderr=log)
             def ready():
                 if process.poll() is not None:
                     raise RuntimeError(log_path.read_text())
@@ -264,12 +261,12 @@ def main():
             print('Customer-owned totals after crash recovery and ambiguous retries:', before, flush=True)
             raw = db(f"SELECT count() AS rows, uniqExact(tuple(tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.usage.tenant.id'], Attributes['everr.ingestion.signal'], StartTimeUnix)) AS identities FROM app.metrics_sum WHERE {usage_where}")[0]
             assert raw['rows'] > raw['identities'], raw
-            repeated = db(f"SELECT count() AS copies FROM app.metrics_sum WHERE {usage_where} AND tenant_id=Attributes['everr.usage.tenant.id'] AND tenant_id!='{tenants['admin']}' GROUP BY tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.ingestion.signal'], StartTimeUnix HAVING copies>1 LIMIT 1")
-            assert repeated, 'must observe actual retried customer rows, not just copies of our own tenant'
+            repeated = db(f"SELECT count() AS copies FROM app.metrics_sum WHERE {usage_where} AND tenant_id=Attributes['everr.usage.tenant.id'] GROUP BY tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.ingestion.signal'], StartTimeUnix HAVING copies>1 LIMIT 1")
+            assert repeated, 'must observe actual retried customer rows'
             print('Actual duplicate rows:', raw, flush=True)
             copies = db(f"SELECT Attributes['everr.usage.tenant.id'] AS customer, Attributes['everr.ingestion.signal'] AS signal, ResourceAttributes['service.instance.id'] AS instance, StartTimeUnix AS counter_start, groupUniqArray(tenant_id) AS owners, uniqExact(tuple(Value, StartTimeUnix, TimeUnix)) AS values, min(retention_days) AS retention FROM app.metrics_sum WHERE {usage_where} GROUP BY customer, signal, instance, counter_start")
             for row in copies:
-                assert set(row['owners']) == {row['customer'], tenants['admin']}, row
+                assert set(row['owners']) == {row['customer']}, row
                 assert row['values'] == 1 and row['retention'] == 365, row
             for table, stamp in [('logs', 'Timestamp'), ('traces', 'Timestamp'), ('metrics_gauge', 'TimeUnix'), ('metrics_sum', 'TimeUnix'), ('metrics_histogram', 'TimeUnix'), ('metrics_exponential_histogram', 'TimeUnix'), ('metrics_summary', 'TimeUnix')]:
                 assert db(f"SELECT uniqExact(tenant_id) AS tenants FROM app.{table} WHERE ServiceName='{run}' AND {stamp}>now()-INTERVAL 10 MINUTE")[0]['tenants'] == 3
@@ -282,7 +279,7 @@ def main():
                 post(*item)
             expected = {(r['customer'], r['signal']): int(r['bytes'])*2 for r in before}
             eventually(lambda: {(r['customer'], r['signal']): int(r['bytes']) for r in totals()} == expected)
-            print('Fresh admissions counted exactly once; admin-owned source data also counted once.', flush=True)
+            print('Fresh admissions counted exactly once for each tenant.', flush=True)
             # Another sample in the same lifetime must increase its max, not its row sum.
             for item in requests:
                 post(*item)
@@ -301,7 +298,7 @@ def main():
             expected = {(r['customer'], r['signal']): int(r['bytes'])*4 for r in before}
             eventually(lambda: {(r['customer'], r['signal']): int(r['bytes']) for r in totals()} == expected)
             identities_after = db(f"SELECT uniqExact(tuple(tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.usage.tenant.id'], Attributes['everr.ingestion.signal'], StartTimeUnix)) AS n FROM app.metrics_sum WHERE {usage_where}")[0]['n']
-            assert identities_after == identities_before + 15, (identities_before, identities_after)
+            assert identities_after == identities_before + 9, (identities_before, identities_after)
             assert db(f"SELECT uniqExact(AggregationTemporality) AS n, min(AggregationTemporality) AS temporality FROM app.metrics_sum WHERE {usage_where}")[0] == {'n': 1, 'temporality': 2}
             print('PASS: idle expiry and resumption created new lifetimes without losing or double-counting prior usage.', flush=True)
 
@@ -321,7 +318,7 @@ def main():
                     return {(r['customer'], r['signal']): int(r['bytes']) for r in map(json.loads, output.splitlines())}
                 eventually(lambda: everr_totals() == expected)
                 print('PASS: same canonical totals verified through Everr from stored rows, including duplicates.', flush=True)
-            print('PASS: one exporter, admin fanout, namespace filtering, durable recovery, retry-safe totals.', flush=True)
+            print('PASS: one exporter, customer-only usage, namespace filtering, durable recovery, retry-safe totals.', flush=True)
         except BaseException:
             print(log_path.read_text()[-12000:])
             raise

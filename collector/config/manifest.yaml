@@ -13,9 +13,6 @@ exporters:
   # well as the dev ClickHouse, so a distributed trace assembles whole there.
   - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.160.0
 
-connectors:
-  - gomod: go.opentelemetry.io/collector/connector/forwardconnector v0.160.0
-
 processors:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.160.0
   - gomod: github.com/everr-labs/everr/collector/processor/everrusageprocessor v0.160.0

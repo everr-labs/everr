@@ -72,9 +72,6 @@ receivers:
       grpc:
         endpoint: 127.0.0.1:4319
 
-connectors:
-  forward/usage: {}
-
 processors:
   everr_usage: {}
   delta_to_cumulative/usage:
@@ -220,13 +217,9 @@ exporters:
 service:
   extensions: [everr_apikey, everr_usage, file_storage/ingestion]
   pipelines:
-    # Optional admin fanout: load config/usage-admin.example.yaml as a second config.
     metrics/usage:
       receivers: [everr_usage]
       processors: [delta_to_cumulative/usage]
-      exporters: [forward/usage]
-    metrics/usage_customer:
-      receivers: [forward/usage]
       exporters: [clickhouse]
 
     # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.

@@ -12,11 +12,7 @@ authenticate + stamp tenant/retention -> usage processor -> persistent exporter
                                             |
                                 record after queue admission
                                             |
-usage receiver -> delta_to_cumulative -> forward/usage
-                                           |      |
-                                  customer copy  resource: admin tenant
-                                           |      |
-                                     same persistent exporter
+usage receiver -> delta_to_cumulative -> same persistent exporter
 ```
 
 ## Metric contract
@@ -64,10 +60,9 @@ writes have settled. Previously experimental delta/sequence points are excluded.
 The invoice scheduler and customer usage UI must use this query contract; they
 are outside these components.
 
-The query excludes administrative copies by requiring the owner to equal the
-measured customer. It also handles our own tenant's duplicate self-copy, since
-both copies have the same lifetime. Tenant access remains enforced by row-level
-policy. Service, metric, and month-start time filters constrain the scan.
+The query requires the resource owner to equal the measured customer. Tenant
+access remains enforced by row-level policy. Service, metric, and month-start
+time filters constrain the scan.
 
 The current tables store metric values as Float64. Values through `2^53` bytes
 are exact. For larger cumulative values, the query subtracts 1024 bytes per
@@ -106,22 +101,16 @@ processors:
   delta_to_cumulative/usage:
     max_stale: 5m
     max_streams: 60000
-connectors:
-  forward/usage: {}
 service:
   pipelines:
     metrics/usage:
       receivers: [everr_usage]
       processors: [delta_to_cumulative/usage]
-      exporters: [forward/usage]
-    metrics/usage_customer:
-      receivers: [forward/usage]
       exporters: [clickhouse]
 ```
 
-Convert once, before fanout and exporter retries. The standard forward connector
-lets deployments add destinations after conversion. Do not replay a delta
-through the converter; retries belong after conversion. The pinned v0.160.0
+Convert once, before exporter retries. Do not replay a delta through the
+converter; retries belong after conversion. The pinned v0.160.0
 cumulative processor is alpha and keeps its state in memory. Its `max_streams`
 limit drops new streams rather than evicting active ones; size it for active
 customer/signal/month combinations, including rollover overlap. The usage
@@ -137,19 +126,6 @@ mounts a named volume; other deployments need persistent storage at
 own volume. Unlimited retries do not imply unlimited queue or disk capacity.
 Drain any earlier experimental custom queue before switching storage identities.
 
-## Optional administrative copy
-
-Load [usage-admin.example.yaml](../../config/usage-admin.example.yaml) with a
-second `--config` argument and set `EVERR_ADMIN_TENANT_ID`. The standard resource
-processor changes only the copy's resource owner. Customer, month, signal,
-counter start, values, and retention are preserved. Both copies use the same
-ClickHouse exporter; no custom duplication component is involved.
-
-The two writes can succeed independently. Our copy is for reporting, while
-customer-owned stored points remain authoritative for invoices. For reporting
-from our copy, query as our tenant and omit the owner/customer equality, keeping
-the per-lifetime maximum calculation.
-
 ## Failure behavior
 
 - Queue rejection or ambiguous admission returns without adding usage.
@@ -163,8 +139,8 @@ the per-lifetime maximum calculation.
 - Retry duplicates of cumulative snapshots do not increase lifetime maxima.
 - Idle expiry does not lose any values already queued. Once expired, returning
   traffic starts a new lifetime; no month-long cache or synthetic idle points.
-- Publication and the administrative copy bypass metering and do not bill
-  themselves. Shutdown attempts a final flush.
+- Usage publication bypasses metering and does not bill itself. Shutdown attempts
+  a final flush.
 
 ## Validation
 
@@ -179,7 +155,7 @@ Run [the opt-in smoke test](../../test/smoke/usage.py) against the local databas
 python3 collector/test/smoke/usage.py --everr-cli everr-dev
 ```
 
-It uses the real collector, shared exporter, and admin overlay. It tests storage
+It uses the real collector and shared exporter. It tests storage
 outages, forced restart, successful writes with lost acknowledgments, idle
 resumption, retention, reserved-name filtering, and lifetime-max totals. The
 idle test accelerates `max_stale` to two seconds but waits for the upstream

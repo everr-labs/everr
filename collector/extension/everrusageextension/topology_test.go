@@ -62,9 +62,9 @@ func TestComposition(t *testing.T) {
 	p["receivers"] = []any{"forward"}
 	p["processors"] = []any{"custom", "batch", Type}
 	pipelines["logs/copy"] = p
-	pipelines["metrics/usage_admin"] = map[string]any{"receivers": []any{Type}, "processors": []any{"resource/admin"}, "exporters": []any{"storage"}}
+	pipelines["metrics/usage"].(map[string]any)["processors"] = []any{"custom"}
 	require.NoError(t, validateTopology(confmap.NewFromStringMap(c)))
-	pipelines["metrics/usage_admin"].(map[string]any)["processors"] = []any{Type}
+	pipelines["metrics/usage"].(map[string]any)["processors"] = []any{Type}
 	require.ErrorContains(t, validateTopology(confmap.NewFromStringMap(c)), "bypass metering")
 }
 
