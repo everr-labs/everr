@@ -55,13 +55,14 @@ and repeated resource metadata can change the volume. Changing the definition
 after release requires an explicit billing migration.
 
 Authentication and trusted tenant stamping must precede the processor. Configure
-the standard filter processor before metering on every incoming metrics pipeline:
+the standard filter processor before metering on every incoming metrics pipeline
+to reserve all `everr.*` metric names:
 
 ```yaml
-filter/reserved_usage:
+filter/reserved_everr:
   error_mode: propagate
   metric_conditions:
-    - 'IsMatch(metric.name, "^everr[.]ingestion[.]")'
+    - 'IsMatch(metric.name, "^everr[.]")'
 ```
 
 Only the isolated usage receiver bypasses this filter. Apply the same rule to

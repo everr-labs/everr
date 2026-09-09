@@ -74,12 +74,12 @@ receivers:
 
 processors:
   everr_usage: {}
-  # Protect the billing namespace on every incoming metrics pipeline.
+  # Reserve the everr.* metric namespace on every incoming metrics pipeline.
   # Generated usage has its own pipeline and bypasses this filter.
-  filter/reserved_usage:
+  filter/reserved_everr:
     error_mode: propagate
     metric_conditions:
-      - 'IsMatch(metric.name, "^everr[.]ingestion[.]")'
+      - 'IsMatch(metric.name, "^everr[.]")'
   # Internal pipeline (github webhook): tenant comes from a trusted header the
   # app sets when it forwards the webhook
   # (packages/app/src/server/github-events/collector.ts). Never convert it to
@@ -233,7 +233,7 @@ service:
       exporters: [clickhouse]
     metrics:
       receivers: [githubactions]
-      processors: [filter/reserved_usage, resource, resource/retention_metrics, everr_usage]
+      processors: [filter/reserved_everr, resource, resource/retention_metrics, everr_usage]
       exporters: [clickhouse]
     logs:
       receivers: [githubactions]
@@ -250,7 +250,7 @@ service:
       exporters: [clickhouse]
     metrics/public:
       receivers: [otlp/public]
-      processors: [filter/reserved_usage, attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_metrics, everr_usage]
+      processors: [filter/reserved_everr, attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_metrics, everr_usage]
       exporters: [clickhouse]
     logs/public:
       receivers: [otlp/public]
@@ -265,7 +265,7 @@ service:
       exporters: [clickhouse, otlphttp/localdev]
     metrics/dev:
       receivers: [otlp/dev]
-      processors: [filter/reserved_usage, attributes/strip_user_tenant, resource/dev_tenant, resource/dev_retention_metrics]
+      processors: [filter/reserved_everr, attributes/strip_user_tenant, resource/dev_tenant, resource/dev_retention_metrics]
       exporters: [clickhouse, otlphttp/localdev]
     logs/dev:
       receivers: [otlp/dev]
