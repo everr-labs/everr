@@ -9,6 +9,7 @@ require (
 	go.opentelemetry.io/collector/component/componenttest v0.160.0
 	go.opentelemetry.io/collector/config/configoptional v1.66.0
 	go.opentelemetry.io/collector/confmap v1.66.0
+	go.opentelemetry.io/collector/consumer v1.66.0
 	go.opentelemetry.io/collector/consumer/consumertest v0.160.0
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.160.0
 	go.opentelemetry.io/collector/extension v1.66.0
@@ -27,7 +28,6 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.160.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.66.0 // indirect
-	go.opentelemetry.io/collector/consumer v1.66.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.160.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.160.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.160.0 // indirect
