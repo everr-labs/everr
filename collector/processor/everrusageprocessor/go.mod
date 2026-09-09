@@ -1,26 +1,26 @@
-module github.com/everr-labs/everr/collector/usage
+module github.com/everr-labs/everr/collector/processor/everrusageprocessor
 
 go 1.26.0
 
 require (
-	github.com/google/uuid v1.6.0
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.66.0
 	go.opentelemetry.io/collector/config/configoptional v1.66.0
 	go.opentelemetry.io/collector/config/configretry v1.66.0
-	go.opentelemetry.io/collector/confmap v1.66.0
+	go.opentelemetry.io/collector/confmap v1.66.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.66.0
 	go.opentelemetry.io/collector/consumer/consumererror v0.160.0
 	go.opentelemetry.io/collector/consumer/consumertest v0.160.0
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.160.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.160.0
-	go.opentelemetry.io/collector/extension v1.66.0
-	go.opentelemetry.io/collector/extension/extensioncapabilities v0.160.0
+	go.opentelemetry.io/collector/extension v1.66.0 // indirect
+	go.opentelemetry.io/collector/extension/extensioncapabilities v0.160.0 // indirect
 	go.opentelemetry.io/collector/extension/extensiontest v0.160.0
 	go.opentelemetry.io/collector/pdata v1.66.0
 	go.opentelemetry.io/collector/processor v1.66.0
-	go.opentelemetry.io/collector/receiver v1.66.0
-	go.uber.org/zap v1.28.0
+	go.opentelemetry.io/collector/receiver v1.66.0 // indirect
+	go.uber.org/zap v1.28.0 // indirect
 )
 
 require go.etcd.io/bbolt v1.5.0 // indirect
@@ -70,3 +70,7 @@ require (
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
+
+require github.com/everr-labs/everr/collector/extension/everrusageextension v0.160.0
+
+replace github.com/everr-labs/everr/collector/extension/everrusageextension => ../../extension/everrusageextension

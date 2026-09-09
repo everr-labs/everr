@@ -1,11 +1,11 @@
-package usagereceiver
+package everrusagereceiver
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"github.com/everr-labs/everr/collector/usage"
+	"github.com/everr-labs/everr/collector/extension/everrusageextension"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension/extensiontest"
@@ -14,11 +14,11 @@ import (
 )
 
 func TestFailedPublicationIsNeverReplayed(t *testing.T) {
-	f := usage.NewFactory()
-	cfg := f.CreateDefaultConfig().(*usage.Config)
+	f := everrusageextension.NewFactory()
+	cfg := f.CreateDefaultConfig().(*everrusageextension.Config)
 	ext, err := f.Create(context.Background(), extensiontest.NewNopSettings(f.Type()), cfg)
 	require.NoError(t, err)
-	meter := ext.(*usage.Meter)
+	meter := ext.(*everrusageextension.Meter)
 	meter.Record("logs", map[string]int64{"a": 123})
 	var attempts []pmetric.Metrics
 	next, err := consumer.NewMetrics(func(_ context.Context, md pmetric.Metrics) error {
@@ -35,7 +35,7 @@ func TestFailedPublicationIsNeverReplayed(t *testing.T) {
 	r.flush(context.Background())
 	r.flush(context.Background())
 	require.Len(t, attempts, 1, "failed or ambiguous usage must never be replayed")
-	owner, _ := attempts[0].ResourceMetrics().At(0).Resource().Attributes().Get(usage.TenantKey)
+	owner, _ := attempts[0].ResourceMetrics().At(0).Resource().Attributes().Get(everrusageextension.TenantKey)
 	require.Equal(t, "a", owner.Str())
 	meter.Record("logs", map[string]int64{"a": 20})
 	r.flush(context.Background())

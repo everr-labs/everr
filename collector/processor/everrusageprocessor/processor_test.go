@@ -1,11 +1,11 @@
-package usageprocessor
+package everrusageprocessor
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"github.com/everr-labs/everr/collector/usage"
+	"github.com/everr-labs/everr/collector/extension/everrusageextension"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumertest"
@@ -15,18 +15,18 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-func newMeter(t *testing.T) *usage.Meter {
+func newMeter(t *testing.T) *everrusageextension.Meter {
 	t.Helper()
-	f := usage.NewFactory()
+	f := everrusageextension.NewFactory()
 	e, err := f.Create(context.Background(), extensiontest.NewNopSettings(f.Type()), f.CreateDefaultConfig())
 	require.NoError(t, err)
-	return e.(*usage.Meter)
+	return e.(*everrusageextension.Meter)
 }
 func logs(tenant string) plog.Logs {
 	ld := plog.NewLogs()
 	rm := ld.ResourceLogs().AppendEmpty()
-	rm.Resource().Attributes().PutStr(usage.TenantKey, tenant)
-	rm.Resource().Attributes().PutStr(usage.RetentionKey, "14")
+	rm.Resource().Attributes().PutStr(everrusageextension.TenantKey, tenant)
+	rm.Resource().Attributes().PutStr(everrusageextension.RetentionKey, "14")
 	rm.Resource().Attributes().PutStr("service.name", "customer-app")
 	rm.ScopeLogs().AppendEmpty().LogRecords().AppendEmpty().Body().SetStr("hello")
 	return ld
@@ -48,7 +48,7 @@ func TestLogsMeasuredBeforeDownstreamMutation(t *testing.T) {
 	marshaler := plog.ProtoMarshaler{}
 	next, err := consumer.NewLogs(func(_ context.Context, data plog.Logs) error {
 		require.Equal(t, 2, data.LogRecordCount())
-		require.Equal(t, "14", data.ResourceLogs().At(0).Resource().Attributes().AsRaw()[usage.RetentionKey])
+		require.Equal(t, "14", data.ResourceLogs().At(0).Resource().Attributes().AsRaw()[everrusageextension.RetentionKey])
 		data.ResourceLogs().RemoveIf(func(plog.ResourceLogs) bool { return true })
 		return nil
 	}, consumer.WithCapabilities(consumer.Capabilities{MutatesData: true}))
@@ -75,7 +75,7 @@ func TestMetricsKinds(t *testing.T) {
 	p := &metering{meter: meter, metrics: sink}
 	md := pmetric.NewMetrics()
 	rm := md.ResourceMetrics().AppendEmpty()
-	rm.Resource().Attributes().PutStr(usage.TenantKey, "a")
+	rm.Resource().Attributes().PutStr(everrusageextension.TenantKey, "a")
 	sm := rm.ScopeMetrics().AppendEmpty()
 	sm.Metrics().AppendEmpty().SetEmptyGauge().DataPoints().AppendEmpty().SetIntValue(1)
 	sm.Metrics().AppendEmpty().SetEmptySum().DataPoints().AppendEmpty().SetIntValue(2)
@@ -116,7 +116,7 @@ func TestTraces(t *testing.T) {
 	p := &metering{meter: meter, traces: sink}
 	td := ptrace.NewTraces()
 	rm := td.ResourceSpans().AppendEmpty()
-	rm.Resource().Attributes().PutStr(usage.TenantKey, "a")
+	rm.Resource().Attributes().PutStr(everrusageextension.TenantKey, "a")
 	rm.ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetName("span")
 	expected := ptrace.NewTraces()
 	td.CopyTo(expected)

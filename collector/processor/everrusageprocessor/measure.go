@@ -1,10 +1,10 @@
-package usageprocessor
+package everrusageprocessor
 
 import (
 	"context"
 	"errors"
 
-	"github.com/everr-labs/everr/collector/usage"
+	"github.com/everr-labs/everr/collector/extension/everrusageextension"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -13,15 +13,15 @@ import (
 )
 
 func tenant(res pcommon.Resource) (string, error) {
-	v, ok := res.Attributes().Get(usage.TenantKey)
+	v, ok := res.Attributes().Get(everrusageextension.TenantKey)
 	if !ok || v.Type() != pcommon.ValueTypeStr || v.Str() == "" {
 		return "", consumererror.NewPermanent(errors.New("usage requires a trusted nonempty everr.tenant.id on every resource"))
 	}
 	return v.Str(), nil
 }
 func stripRouting(res pcommon.Resource) {
-	res.Attributes().Remove(usage.TenantKey)
-	res.Attributes().Remove(usage.RetentionKey)
+	res.Attributes().Remove(everrusageextension.TenantKey)
+	res.Attributes().Remove(everrusageextension.RetentionKey)
 }
 
 func (p *metering) ConsumeLogs(ctx context.Context, ld plog.Logs) error {

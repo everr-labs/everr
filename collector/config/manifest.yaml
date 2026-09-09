@@ -14,9 +14,7 @@ exporters:
   - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.160.0
 
 processors:
-  - gomod: github.com/everr-labs/everr/collector/usage v0.160.0
-    import: github.com/everr-labs/everr/collector/usage/processor
-    name: usageprocessor
+  - gomod: github.com/everr-labs/everr/collector/processor/everrusageprocessor v0.160.0
   - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.160.0
   - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.160.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.160.0
@@ -24,17 +22,14 @@ processors:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.160.0
 
 extensions:
-  - gomod: github.com/everr-labs/everr/collector/usage v0.160.0
-    name: usageextension
+  - gomod: github.com/everr-labs/everr/collector/extension/everrusageextension v0.160.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.160.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.160.0
   - gomod: github.com/everr-labs/everr/collector/extension/everrapikeyauth v0.160.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/bearertokenauthextension v0.160.0
 
 receivers:
-  - gomod: github.com/everr-labs/everr/collector/usage v0.160.0
-    import: github.com/everr-labs/everr/collector/usage/receiver
-    name: usagereceiver
+  - gomod: github.com/everr-labs/everr/collector/receiver/everrusagereceiver v0.160.0
   - gomod: github.com/everr-labs/everr/collector/receiver/githubactionsreceiver v0.160.0
   - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.160.0
 
@@ -43,7 +38,9 @@ providers:
   - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.66.0
 
 replaces:
-  - github.com/everr-labs/everr/collector/usage => ../usage
+  - github.com/everr-labs/everr/collector/extension/everrusageextension => ../extension/everrusageextension
+  - github.com/everr-labs/everr/collector/processor/everrusageprocessor => ../processor/everrusageprocessor
+  - github.com/everr-labs/everr/collector/receiver/everrusagereceiver => ../receiver/everrusagereceiver
   - github.com/everr-labs/everr/collector/receiver/githubactionsreceiver => ../receiver/githubactionsreceiver
   - github.com/everr-labs/everr/collector/internal/sharedcomponent => ../internal/sharedcomponent
   - github.com/everr-labs/everr/collector/semconv => ../semconv

@@ -1,8 +1,11 @@
 # Ingestion usage
 
-This module measures decoded OTLP protobuf bytes durably accepted for ingestion.
-It contains an `everr_usage` extension, processor, and metrics receiver. The
-unmodified storage exporter owns its persistent queue, batching, and retries.
+The usage components measure decoded OTLP protobuf bytes durably accepted for
+ingestion. This module provides the shared accumulator extension. The
+[processor](../../processor/everrusageprocessor) measures admitted requests, and
+the [receiver](../../receiver/everrusagereceiver) publishes usage metrics. All
+three use the component ID `everr_usage`. The unmodified storage exporter owns
+its persistent queue, batching, and retries.
 
 ```text
 authenticate + stamp tenant/retention
@@ -152,7 +155,9 @@ shutdown attempts a final flush; measurements finishing later can be lost.
 
 ## Validation
 
-Run `go test -race ./...` here and `make build` in `collector`. Tests cover byte
+Run `go test -race ./...` in each usage component module and `make build` in
+`collector`. The modules are `extension/everrusageextension`,
+`processor/everrusageprocessor`, and `receiver/everrusagereceiver`. Tests cover byte
 measurement, admission failures, concurrent drains, limits,
 topology, native persistent exporter retries and recovery for every signal,
 full queues, and failed usage publication without replay.

@@ -1,4 +1,4 @@
-package usageprocessor
+package everrusageprocessor
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/everr-labs/everr/collector/usage"
+	"github.com/everr-labs/everr/collector/extension/everrusageextension"
 	filestorage "github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -25,10 +25,10 @@ type host map[component.ID]component.Component
 
 func (h host) GetExtensions() map[component.ID]component.Component { return h }
 
-func startHost(t *testing.T, dir string) (host, *usage.Meter, func()) {
+func startHost(t *testing.T, dir string) (host, *everrusageextension.Meter, func()) {
 	t.Helper()
 	ctx := context.Background()
-	uf := usage.NewFactory()
+	uf := everrusageextension.NewFactory()
 	u, err := uf.Create(ctx, extensiontest.NewNopSettings(uf.Type()), uf.CreateDefaultConfig())
 	require.NoError(t, err)
 	sf := filestorage.NewFactory()
@@ -43,10 +43,10 @@ func startHost(t *testing.T, dir string) (host, *usage.Meter, func()) {
 	h := host{storageID: s, component.NewID(uf.Type()): u}
 	require.NoError(t, s.Start(ctx, h))
 	require.NoError(t, u.Start(ctx, h))
-	return h, u.(*usage.Meter), func() { require.NoError(t, u.Shutdown(ctx)); require.NoError(t, s.Shutdown(ctx)) }
+	return h, u.(*everrusageextension.Meter), func() { require.NoError(t, u.Shutdown(ctx)); require.NoError(t, s.Shutdown(ctx)) }
 }
 
-func startAdmission(t *testing.T, h host, m *usage.Meter, signal string, capacity int64, push func(int) error) (func() error, func()) {
+func startAdmission(t *testing.T, h host, m *everrusageextension.Meter, signal string, capacity int64, push func(int) error) (func() error, func()) {
 	t.Helper()
 	ctx := context.Background()
 	q := exporterhelper.NewDefaultQueueConfig()
@@ -81,7 +81,7 @@ func startAdmission(t *testing.T, h host, m *usage.Meter, signal string, capacit
 		send = func() error {
 			d := ptrace.NewTraces()
 			r := d.ResourceSpans().AppendEmpty()
-			r.Resource().Attributes().PutStr(usage.TenantKey, "a")
+			r.Resource().Attributes().PutStr(everrusageextension.TenantKey, "a")
 			r.ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetName("persist me")
 			return p.ConsumeTraces(ctx, d)
 		}
@@ -93,7 +93,7 @@ func startAdmission(t *testing.T, h host, m *usage.Meter, signal string, capacit
 		send = func() error {
 			d := pmetric.NewMetrics()
 			r := d.ResourceMetrics().AppendEmpty()
-			r.Resource().Attributes().PutStr(usage.TenantKey, "a")
+			r.Resource().Attributes().PutStr(everrusageextension.TenantKey, "a")
 			metric := r.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
 			metric.SetName("test")
 			metric.SetEmptyGauge().DataPoints().AppendEmpty().SetIntValue(1)

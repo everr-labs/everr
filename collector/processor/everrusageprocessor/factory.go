@@ -1,10 +1,10 @@
-package usageprocessor
+package everrusageprocessor
 
 import (
 	"context"
 	"errors"
 
-	"github.com/everr-labs/everr/collector/usage"
+	"github.com/everr-labs/everr/collector/extension/everrusageextension"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
@@ -15,14 +15,16 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
-	if c.Extension.Type().String() != usage.Type {
+	if c.Extension.Type().String() != everrusageextension.Type {
 		return errors.New("extension must reference an everr_usage extension")
 	}
 	return nil
 }
 
 func NewFactory() processor.Factory {
-	return processor.NewFactory(component.MustNewType(usage.Type), func() component.Config { return &Config{Extension: component.NewID(component.MustNewType(usage.Type))} },
+	return processor.NewFactory(component.MustNewType(everrusageextension.Type), func() component.Config {
+		return &Config{Extension: component.NewID(component.MustNewType(everrusageextension.Type))}
+	},
 		processor.WithLogs(func(_ context.Context, _ processor.Settings, c component.Config, next consumer.Logs) (processor.Logs, error) {
 			return &metering{cfg: *c.(*Config), logs: next}, nil
 		}, component.StabilityLevelDevelopment),
@@ -37,7 +39,7 @@ func NewFactory() processor.Factory {
 type metering struct {
 	component.ShutdownFunc
 	cfg     Config
-	meter   *usage.Meter
+	meter   *everrusageextension.Meter
 	logs    consumer.Logs
 	traces  consumer.Traces
 	metrics consumer.Metrics
@@ -45,7 +47,7 @@ type metering struct {
 
 func (p *metering) Start(_ context.Context, host component.Host) error {
 	var err error
-	p.meter, err = usage.Lookup(host, p.cfg.Extension)
+	p.meter, err = everrusageextension.Lookup(host, p.cfg.Extension)
 	return err
 }
 func (*metering) Capabilities() consumer.Capabilities {

@@ -1,5 +1,5 @@
-// Package usage accounts for durably accepted ingestion and publishes tenant-scoped metrics.
-package usage
+// Package everrusageextension accounts for durably accepted ingestion and publishes tenant-scoped metrics.
+package everrusageextension
 
 import (
 	"context"

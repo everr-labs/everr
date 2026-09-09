@@ -1,4 +1,4 @@
-package usagereceiver
+package everrusagereceiver
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/everr-labs/everr/collector/usage"
+	"github.com/everr-labs/everr/collector/extension/everrusageextension"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
@@ -20,15 +20,15 @@ type Config struct {
 }
 
 func (c *Config) Validate() error {
-	if c.Extension.Type().String() != usage.Type || c.Interval <= 0 || c.Timeout <= 0 {
+	if c.Extension.Type().String() != everrusageextension.Type || c.Interval <= 0 || c.Timeout <= 0 {
 		return errors.New("usage receiver requires an everr_usage extension and positive interval and timeout")
 	}
 	return nil
 }
 func NewFactory() receiver.Factory {
-	return receiver.NewFactory(component.MustNewType(usage.Type), func() component.Config {
+	return receiver.NewFactory(component.MustNewType(everrusageextension.Type), func() component.Config {
 		return &Config{
-			Extension: component.NewID(component.MustNewType(usage.Type)), Interval: time.Minute, Timeout: 10 * time.Second,
+			Extension: component.NewID(component.MustNewType(everrusageextension.Type)), Interval: time.Minute, Timeout: 10 * time.Second,
 		}
 	}, receiver.WithMetrics(func(_ context.Context, set receiver.Settings, cfg component.Config, next consumer.Metrics) (receiver.Metrics, error) {
 		return &publisher{cfg: *cfg.(*Config), next: next, logger: set.Logger}, nil
@@ -39,14 +39,14 @@ type publisher struct {
 	cfg    Config
 	next   consumer.Metrics
 	logger *zap.Logger
-	meter  *usage.Meter
+	meter  *everrusageextension.Meter
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
 func (r *publisher) Start(_ context.Context, host component.Host) error {
 	var err error
-	r.meter, err = usage.Lookup(host, r.cfg.Extension)
+	r.meter, err = everrusageextension.Lookup(host, r.cfg.Extension)
 	if err != nil {
 		return err
 	}
