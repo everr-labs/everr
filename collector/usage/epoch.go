@@ -26,6 +26,9 @@ func (m *Meter) MarkEnqueued(ctx context.Context) context.Context {
 func (m *Meter) RecordConfirmed(ctx context.Context, signal string, bytes map[string]int64) {
 	epoch := client.FromContext(ctx).Metadata.Get(EpochMetadataKey)
 	if len(epoch) != 1 || epoch[0] != m.instance {
+		for _, n := range bytes {
+			m.recordDiscarded(signal, "foreign_epoch", n)
+		}
 		return
 	}
 	m.Record(signal, bytes)

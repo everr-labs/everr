@@ -41,7 +41,13 @@ func NewFactory() extension.Factory {
 	return extension.NewFactory(component.MustNewType(Type), func() component.Config {
 		return &Config{MaxSeries: 30000}
 	}, func(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
-		return newMeter(*cfg.(*Config), set.Logger), nil
+		h, err := newHealth(set.MeterProvider)
+		if err != nil {
+			return nil, err
+		}
+		m := newMeter(*cfg.(*Config), set.Logger)
+		m.health = h
+		return m, nil
 	}, component.StabilityLevelDevelopment)
 }
 
@@ -56,6 +62,7 @@ type Meter struct {
 	component.ShutdownFunc
 	cfg       Config
 	logger    *zap.Logger
+	health    *health
 	instance  string
 	mu        sync.Mutex
 	totals    map[key]total
@@ -97,8 +104,15 @@ func (m *Meter) Record(signal string, bytesByTenant map[string]int64) {
 		}
 		k := key{tenant, signal}
 		v, exists := m.totals[k]
-		if (!exists && len(m.totals) >= m.cfg.MaxSeries) || bytes > maxBytes-v.bytes {
+		reason := ""
+		if !exists && len(m.totals) >= m.cfg.MaxSeries {
+			reason = "series_limit"
+		} else if bytes > maxBytes-v.bytes {
+			reason = "value_limit"
+		}
+		if reason != "" {
 			m.dropped++
+			m.recordDiscarded(signal, reason, bytes)
 			continue
 		}
 		if !exists {

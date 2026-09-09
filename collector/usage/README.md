@@ -175,6 +175,30 @@ Usage is published directly from the receiver, bypassing metering, so it never
 charges for itself. A final flush is attempted on receiver shutdown; measurements
 finishing after that flush can be lost.
 
+## Accounting health
+
+The extension uses the Collector's internal meter provider for two operational
+counters. They are separate from customer billing points and use the existing
+Prometheus scrape and authenticated ingestion route into our own tenant.
+
+| Instrument | Unit | Attributes | Meaning |
+| --- | --- | --- | --- |
+| `everr.usage.discarded.volume` | `By` | `everr.ingestion.signal`, `everr.usage.discard.reason` | Confirmed bytes excluded before publication |
+| `everr.usage.publication.failed` | `1` | None | Failed publication attempts, including ambiguous writes |
+
+Discard reasons are `foreign_epoch` (recovered requests or missing/foreign
+admission metadata), `series_limit`, and `value_limit`. No customer identifiers
+are included. Successful accounting, empty flushes, and successful publication
+do not increment these counters. Through the configured Prometheus reader they
+are cumulative counters. The internal scraper allows both their dotted names
+and the normalized names `everr_usage_discarded_volume` and
+`everr_usage_publication_failed`, depending on scrape protocol negotiation.
+They first appear after an event and reset with the collector process.
+
+These are diagnostics, not billing corrections. A failed publication may already
+be stored, and a crash can lose operational observations too. Ingestion of the
+scraped counters is ordinary telemetry belonging to our tenant.
+
 ## Validation
 
 Run `go test -race ./...` in this directory and `make build` in `collector`.
