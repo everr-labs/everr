@@ -65,12 +65,6 @@ go.opentelemetry.io/collector/config/configretry v1.66.0 h1:qFuzoYW+TDKJzxJY5v9N
 go.opentelemetry.io/collector/config/configretry v1.66.0/go.mod h1:Y2Kdgd0HFBXYbGqUUUWGDLYviRHgl9aJVSyDfFYY7U8=
 go.opentelemetry.io/collector/confmap v1.66.0 h1:9m9ZeZ17Iz0uuks5dK0JwLXwTrqfeCM9WWfqR+SO9C8=
 go.opentelemetry.io/collector/confmap v1.66.0/go.mod h1:EsXDabkoH/H4mrfECHNdxE+MGQiBlCvyZ7caoK5xY7Y=
-go.opentelemetry.io/collector/connector v0.160.0 h1:MzKdOOdK1J6xALHhN1HTXhRfFXgs+QtFjTeWIrVe4Ig=
-go.opentelemetry.io/collector/connector v0.160.0/go.mod h1:8pRubHSt5CB5yN9ArgQl5qQHk5y++ZAcfsRhT0A0cg8=
-go.opentelemetry.io/collector/connector/connectortest v0.160.0 h1:arhM/T8m+/KeVJWM3IrJRNkRzLGCryQgcDhNR+G3dGk=
-go.opentelemetry.io/collector/connector/connectortest v0.160.0/go.mod h1:BhkNLCNyyGShbtchbNXsWAywtUzGZDdiGJ7LQybrFIo=
-go.opentelemetry.io/collector/connector/xconnector v0.160.0 h1:3n14qQ7ARp6b/wTqbXjBMbOqZy3JyEF3HxppGXs/h6g=
-go.opentelemetry.io/collector/connector/xconnector v0.160.0/go.mod h1:kByTaYOGl9ydTKQhxLJMAfiXQYzogM1dwtaCHcT86+Q=
 go.opentelemetry.io/collector/consumer v1.66.0 h1:YcL8Y7jn0b9ko8hWKHIpilYnKNtp6pxjdrSpKFR9O40=
 go.opentelemetry.io/collector/consumer v1.66.0/go.mod h1:CHUqFqerioBLb4usZEiHpzTKpEJH09a0CDyYECwQYFc=
 go.opentelemetry.io/collector/consumer/consumererror v0.160.0 h1:MCByq8RbEPzeXcU8DHCJ9QsGxuhyh1A8tNs28Oqx8RY=
@@ -99,8 +93,6 @@ go.opentelemetry.io/collector/featuregate v1.66.0 h1:zy7JvvPanCVexGnZnMWR/htZ1BK
 go.opentelemetry.io/collector/featuregate v1.66.0/go.mod h1:dRYifiJa2vQ6LWpPwHny4mL82mnGWsWEVeVWw+DhYJw=
 go.opentelemetry.io/collector/internal/componentalias v0.160.0 h1:rDRD1s22Z13Q9YzkaTOfkwrLD7Hf7T4tmE6IX0bndlk=
 go.opentelemetry.io/collector/internal/componentalias v0.160.0/go.mod h1:vfDgm9skzaGSDWDJgZl3E5/J6MXY3pnWiXnda4NA3/k=
-go.opentelemetry.io/collector/internal/fanoutconsumer v0.160.0 h1:L4KoduejWKVMobesmKCjkCNj27M5OuMZInaw01nrQOs=
-go.opentelemetry.io/collector/internal/fanoutconsumer v0.160.0/go.mod h1:TWG2ZZy2O2B9usOE4POz5HkIsjB3X0AmcuR8c2Y036g=
 go.opentelemetry.io/collector/internal/testutil v0.160.0 h1:Y6AeI8KjqglQzKYmNoSy9FB2CohuyoYxcLZEXQPW4og=
 go.opentelemetry.io/collector/internal/testutil v0.160.0/go.mod h1:FV43FoAsh4fP615Sc5ZSh7iPMgZaSgha6ngavix9OEI=
 go.opentelemetry.io/collector/pdata v1.66.0 h1:GvbRMxks0XbmH7UEGvgcauboAgH+DE9xMtgIEGUBENw=

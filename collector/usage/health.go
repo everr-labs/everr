@@ -20,7 +20,7 @@ type health struct {
 func newHealth(provider metric.MeterProvider) (*health, error) {
 	meter := provider.Meter("github.com/everr-labs/everr/collector/usage")
 	discarded, err := meter.Int64Counter(discardedVolumeName,
-		metric.WithUnit("By"), metric.WithDescription("Confirmed ingestion bytes excluded from usage accounting before publication"))
+		metric.WithUnit("By"), metric.WithDescription("Accepted ingestion bytes excluded from usage accounting before publication"))
 	if err != nil {
 		return nil, err
 	}

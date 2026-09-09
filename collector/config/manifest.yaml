@@ -13,11 +13,6 @@ exporters:
   # well as the dev ClickHouse, so a distributed trace assembles whole there.
   - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.160.0
 
-connectors:
-  - gomod: github.com/everr-labs/everr/collector/usage v0.160.0
-    import: github.com/everr-labs/everr/collector/usage/queue
-    name: usagequeue
-
 processors:
   - gomod: github.com/everr-labs/everr/collector/usage v0.160.0
     import: github.com/everr-labs/everr/collector/usage/processor

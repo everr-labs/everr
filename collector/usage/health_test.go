@@ -21,10 +21,9 @@ func TestAccountingHealth(t *testing.T) {
 	ext, err := factory.Create(ctx, settings, &Config{MaxSeries: 1})
 	require.NoError(t, err)
 	meter := ext.(*Meter)
-	meter.RecordConfirmed(meter.MarkEnqueued(ctx), "logs", map[string]int64{"customer": maxBytes})
+	meter.Record("logs", map[string]int64{"customer": maxBytes})
 	meter.Record("logs", map[string]int64{"customer": 7})
 	meter.Record("traces", map[string]int64{"another-customer": 11})
-	meter.RecordConfirmed(ctx, "metrics", map[string]int64{"customer": 13, "another-customer": 17})
 	require.Equal(t, maxBytes, totalValue(meter.Drain()))
 	require.Zero(t, meter.Drain().DataPointCount())
 	// Draining billable usage must not reset cumulative operational counters.
@@ -47,6 +46,6 @@ func TestAccountingHealth(t *testing.T) {
 			signal, _ := point.Attributes.Value("everr.ingestion.signal")
 			values[signal.AsString()+"/"+reason.AsString()] = point.Value
 		}
-		require.Equal(t, map[string]int64{"logs/value_limit": 7, "traces/series_limit": 11, "metrics/foreign_epoch": 30}, values)
+		require.Equal(t, map[string]int64{"logs/value_limit": 7, "traces/series_limit": 11}, values)
 	}
 }

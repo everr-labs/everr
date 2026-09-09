@@ -57,7 +57,7 @@ func (p *metering) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 	if err := p.logs.ConsumeLogs(ctx, ld); err != nil {
 		return err
 	}
-	p.meter.RecordConfirmed(ctx, "logs", sizes)
+	p.meter.Record("logs", sizes)
 	return nil
 }
 
@@ -93,7 +93,7 @@ func (p *metering) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
 	if err := p.traces.ConsumeTraces(ctx, td); err != nil {
 		return err
 	}
-	p.meter.RecordConfirmed(ctx, "traces", sizes)
+	p.meter.Record("traces", sizes)
 	return nil
 }
 
@@ -137,7 +137,7 @@ func (p *metering) ConsumeMetrics(ctx context.Context, md pmetric.Metrics) error
 	if err := p.metrics.ConsumeMetrics(ctx, md); err != nil {
 		return err
 	}
-	p.meter.RecordConfirmed(ctx, "metrics", sizes)
+	p.meter.Record("metrics", sizes)
 	return nil
 }
 

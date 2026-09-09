@@ -3,9 +3,13 @@ package usage
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
+	"time"
 
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 )
 
@@ -20,102 +24,95 @@ type pipelineConfig struct {
 	Processors []string `mapstructure:"processors"`
 	Exporters  []string `mapstructure:"exporters"`
 }
-type extensionReference struct {
-	Extension string `mapstructure:"extension"`
-}
-
-func (r extensionReference) id() string {
-	if r.Extension == "" {
-		return Type
-	}
-	return r.Extension
-}
 
 func validateTopology(conf *confmap.Conf) error {
 	var cfg struct {
 		Service struct {
-			Pipelines map[string]pipelineConfig `mapstructure:"pipelines"`
+			Pipelines  map[string]pipelineConfig `mapstructure:"pipelines"`
+			Extensions []string                  `mapstructure:"extensions"`
 		} `mapstructure:"service"`
-		Connectors map[string]extensionReference `mapstructure:"connectors"`
-		Processors map[string]extensionReference `mapstructure:"processors"`
+		Extensions map[string]struct {
+			FSync bool `mapstructure:"fsync"`
+		} `mapstructure:"extensions"`
+		Connectors map[string]any `mapstructure:"connectors"`
 		Exporters  map[string]struct {
-			SendingQueue struct {
-				Enabled bool `mapstructure:"enabled"`
-			} `mapstructure:"sending_queue"`
-			Retry struct {
-				Enabled bool `mapstructure:"enabled"`
+			SendingQueue configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"sending_queue"`
+			Retry        struct {
+				Enabled        *bool         `mapstructure:"enabled"`
+				MaxElapsedTime time.Duration `mapstructure:"max_elapsed_time"`
 			} `mapstructure:"retry_on_failure"`
 		} `mapstructure:"exporters"`
 	}
 	if err := conf.Unmarshal(&cfg, confmap.WithIgnoreUnused()); err != nil {
 		return err
 	}
-	destinations := map[string]int{}
+	receiverUses := map[string]int{}
 	for name, p := range cfg.Service.Pipelines {
-		metered, publisher, queued := false, false, false
+		for _, id := range p.Receivers {
+			receiverUses[componentType(name)+"/"+id]++
+		}
+	}
+	for name, p := range cfg.Service.Pipelines {
+		meters, publishers := 0, 0
 		for _, id := range p.Processors {
 			if componentType(id) == Type {
-				metered = true
+				meters++
 			}
 		}
 		for _, id := range p.Receivers {
-			switch componentType(id) {
-			case Type:
-				publisher = true
-			case "everr_queue":
-				queued = true
-				destinations[componentType(name)+"/"+id]++
+			if componentType(id) == Type {
+				publishers++
 			}
 		}
-		for _, id := range p.Exporters {
-			if componentType(id) != "everr_queue" {
-				continue
-			}
-			if len(p.Exporters) != 1 {
-				return fmt.Errorf("pipeline %s: durable ingestion cannot fan out before storage", name)
-			}
-			for _, proc := range p.Processors {
-				if componentType(proc) == "batch" {
-					return fmt.Errorf("pipeline %s: batch before the persistent queue acknowledges unpersisted data", name)
-				}
-			}
-		}
-		if queued && !metered {
-			return fmt.Errorf("pipeline %s: everr_queue must feed a metering processor", name)
-		}
-		if !metered && !publisher {
+		if meters == 0 && publishers == 0 {
 			continue
 		}
+		for _, id := range p.Receivers {
+			if receiverUses[componentType(name)+"/"+id] != 1 {
+				return fmt.Errorf("pipeline %s: metered and usage receivers cannot fan out across pipelines", name)
+			}
+		}
 		if len(p.Exporters) != 1 {
-			return fmt.Errorf("pipeline %s: usage requires exactly one storage exporter, without fanout", name)
+			return fmt.Errorf("pipeline %s: usage requires one exporter without fanout", name)
 		}
 		e, ok := cfg.Exporters[p.Exporters[0]]
 		if !ok {
-			return fmt.Errorf("pipeline %s: usage requires a storage exporter, not a connector", name)
+			return fmt.Errorf("pipeline %s: usage must feed an exporter directly", name)
 		}
-		if e.SendingQueue.Enabled || e.Retry.Enabled {
-			return fmt.Errorf("pipeline %s: storage and usage exporters require sending_queue.enabled=false and retry_on_failure.enabled=false", name)
-		}
-		if publisher {
+		q := e.SendingQueue.Get()
+		if publishers > 0 {
 			if componentType(name) != "metrics" || len(p.Receivers) != 1 || len(p.Processors) != 0 {
-				return fmt.Errorf("pipeline %s: usage publication must be an isolated metrics pipeline without processors", name)
+				return fmt.Errorf("pipeline %s: usage publication must be isolated without processors", name)
 			}
-		} else {
-			if len(p.Receivers) != 1 || !queued || len(p.Processors) != 1 {
-				return fmt.Errorf("pipeline %s: durable ingestion requires everr_queue -> everr_usage -> synchronous storage", name)
+			if e.SendingQueue.HasValue() || e.Retry.Enabled == nil || *e.Retry.Enabled {
+				return fmt.Errorf("pipeline %s: usage publication requires explicit queue and retry disabling", name)
 			}
-			q, ok := cfg.Connectors[p.Receivers[0]]
-			if !ok {
-				return fmt.Errorf("pipeline %s: missing everr_queue connector", name)
-			}
-			if q.id() != cfg.Processors[p.Processors[0]].id() {
-				return fmt.Errorf("pipeline %s: queue and meter must use the same usage extension", name)
+			continue
+		}
+		if meters != 1 || componentType(p.Processors[len(p.Processors)-1]) != Type {
+			return fmt.Errorf("pipeline %s: one usage processor must directly precede the exporter", name)
+		}
+		for _, id := range p.Receivers {
+			if _, ok := cfg.Connectors[id]; ok {
+				return fmt.Errorf("pipeline %s: admission metering cannot follow a connector", name)
 			}
 		}
-	}
-	for name, count := range destinations {
-		if count != 1 {
-			return fmt.Errorf("queue %s: exactly one downstream pipeline per signal is required", name)
+		for _, id := range p.Processors[:len(p.Processors)-1] {
+			switch componentType(id) {
+			case "resource", "attributes", "filter", "transform", "memory_limiter":
+			default:
+				return fmt.Errorf("pipeline %s: processor %s is not supported before durable admission", name, id)
+			}
+		}
+		if !e.SendingQueue.HasValue() || q.WaitForResult || q.StorageID == nil || q.StorageID.Type().String() != "file_storage" {
+			return fmt.Errorf("pipeline %s: admission metering requires a persistent exporter queue and wait_for_result=false", name)
+		}
+		storage, ok := cfg.Extensions[q.StorageID.String()]
+		if !ok || !storage.FSync || !slices.Contains(cfg.Service.Extensions, q.StorageID.String()) {
+			return fmt.Errorf("pipeline %s: queue file storage must be enabled with fsync=true", name)
+		}
+		if e.Retry.Enabled == nil || !*e.Retry.Enabled || e.Retry.MaxElapsedTime != 0 {
+			return fmt.Errorf("pipeline %s: ingestion exporter requires unlimited retries", name)
 		}
 	}
 	return nil

@@ -7,80 +7,98 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
-func TestTopology(t *testing.T) {
+func admissionConfig() map[string]any {
+	return map[string]any{
+		"extensions": map[string]any{"file_storage/ingestion": map[string]any{"fsync": true}},
+		"service": map[string]any{"extensions": []any{"file_storage/ingestion"}, "pipelines": map[string]any{
+			"logs":          map[string]any{"receivers": []any{"otlp"}, "processors": []any{"resource", Type}, "exporters": []any{"storage"}},
+			"metrics/usage": map[string]any{"receivers": []any{Type}, "exporters": []any{"storage/usage"}},
+		}},
+		"exporters": map[string]any{
+			"storage":       map[string]any{"sending_queue": map[string]any{"enabled": true, "storage": "file_storage/ingestion", "wait_for_result": false, "queue_size": 10000, "num_consumers": 10, "batch": map[string]any{"min_size": 8192, "flush_timeout": "1s"}}, "retry_on_failure": map[string]any{"enabled": true, "max_elapsed_time": "0s"}},
+			"storage/usage": map[string]any{"sending_queue": map[string]any{"enabled": false}, "retry_on_failure": map[string]any{"enabled": false}},
+		},
+	}
+}
+
+func TestAdmissionTopology(t *testing.T) {
+	require.NoError(t, validateTopology(confmap.NewFromStringMap(admissionConfig())))
 	for _, tc := range []struct {
 		name   string
-		change func(map[string]any, map[string]any)
-		valid  bool
+		change func(map[string]any, map[string]any, map[string]any, map[string]any)
 	}{
-		{name: "durable_queue_before_meter", valid: true},
-		{name: "synchronous_storage", valid: true, change: func(_ map[string]any, e map[string]any) { e["sending_queue"] = map[string]any{"enabled": false} }},
-		{name: "queue_ack", change: func(_ map[string]any, e map[string]any) { e["sending_queue"] = map[string]any{"enabled": true} }},
-		{name: "persistent_queue", change: func(_ map[string]any, e map[string]any) {
-			e["sending_queue"] = map[string]any{"enabled": true, "wait_for_result": true, "storage": "file_storage"}
+		{"fanout", func(c, p, q, r map[string]any) { p["exporters"] = []any{"storage", "debug"} }},
+		{"missing_exporter", func(c, p, q, r map[string]any) { p["exporters"] = []any{"connector"} }},
+		{"batch_before", func(c, p, q, r map[string]any) { p["processors"] = []any{"batch", Type} }},
+		{"batch_after", func(c, p, q, r map[string]any) { p["processors"] = []any{Type, "batch"} }},
+		{"double_meter", func(c, p, q, r map[string]any) { p["processors"] = []any{Type, Type + "/second"} }},
+		{"unknown_processor", func(c, p, q, r map[string]any) { p["processors"] = []any{"custom", Type} }},
+		{"connector_before", func(c, p, q, r map[string]any) {
+			c["connectors"] = map[string]any{"queue": map[string]any{}}
+			p["receivers"] = []any{"queue"}
 		}},
-		{name: "fanout", change: func(p, e map[string]any) { p["exporters"] = []any{"storage", "debug"} }},
-		{name: "buffer_after_meter", change: func(p, e map[string]any) { p["processors"] = []any{Type, "batch"} }},
-		{name: "direct_ingress", change: func(p, e map[string]any) { p["receivers"] = []any{"otlp"} }},
-		{name: "buffer_before_meter", change: func(p, e map[string]any) { p["processors"] = []any{"batch", Type} }},
-		{name: "storage_retries", change: func(p, e map[string]any) { e["retry_on_failure"] = map[string]any{"enabled": true} }},
-		{name: "meter_twice", change: func(p, e map[string]any) { p["processors"] = []any{Type, Type + "/second"} }},
+		{"disabled_queue", func(c, p, q, r map[string]any) { q["enabled"] = false }},
+		{"missing_queue", func(c, p, q, r map[string]any) {
+			delete(c["exporters"].(map[string]any)["storage"].(map[string]any), "sending_queue")
+		}},
+		{"wait_for_result", func(c, p, q, r map[string]any) { q["wait_for_result"] = true }},
+		{"memory_queue", func(c, p, q, r map[string]any) { delete(q, "storage") }},
+		{"missing_storage", func(c, p, q, r map[string]any) { q["storage"] = "file_storage/missing" }},
+		{"no_fsync", func(c, p, q, r map[string]any) {
+			c["extensions"].(map[string]any)["file_storage/ingestion"] = map[string]any{"fsync": false}
+		}},
+		{"disabled_storage", func(c, p, q, r map[string]any) { c["service"].(map[string]any)["extensions"] = []any{} }},
+		{"no_retries", func(c, p, q, r map[string]any) { r["enabled"] = false }},
+		{"finite_retries", func(c, p, q, r map[string]any) { r["max_elapsed_time"] = "1m" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := map[string]any{"receivers": []any{"everr_queue"}, "processors": []any{Type}, "exporters": []any{"storage"}}
-			e := map[string]any{"sending_queue": map[string]any{"enabled": false}}
-			if tc.change != nil {
-				tc.change(p, e)
-			}
-			err := validateTopology(confmap.NewFromStringMap(map[string]any{"service": map[string]any{"pipelines": map[string]any{"logs": p}}, "exporters": map[string]any{"storage": e}, "connectors": map[string]any{"everr_queue": map[string]any{}}}))
-			if tc.valid {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-			}
-		})
-	}
-	for _, tc := range []struct {
-		name                    string
-		queue, retry, processor bool
-		valid                   bool
-	}{
-		{name: "one_attempt", valid: true}, {name: "retries", retry: true}, {name: "buffer", queue: true}, {name: "processor", processor: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			p := map[string]any{"receivers": []any{Type}, "exporters": []any{"storage"}}
-			if tc.processor {
-				p["processors"] = []any{"batch"}
-			}
-			e := map[string]any{"sending_queue": map[string]any{"enabled": tc.queue}, "retry_on_failure": map[string]any{"enabled": tc.retry}}
-			err := validateTopology(confmap.NewFromStringMap(map[string]any{"service": map[string]any{"pipelines": map[string]any{"metrics/usage": p}}, "exporters": map[string]any{"storage": e}, "connectors": map[string]any{"everr_queue": map[string]any{}}}))
-			if tc.valid {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-			}
+			c := admissionConfig()
+			p := c["service"].(map[string]any)["pipelines"].(map[string]any)["logs"].(map[string]any)
+			e := c["exporters"].(map[string]any)["storage"].(map[string]any)
+			tc.change(c, p, e["sending_queue"].(map[string]any), e["retry_on_failure"].(map[string]any))
+			require.Error(t, validateTopology(confmap.NewFromStringMap(c)))
 		})
 	}
 }
 
-func TestQueueRoutingSafety(t *testing.T) {
+func TestPublicationTopology(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
-		change func(map[string]any)
+		change func(map[string]any, map[string]any)
 	}{
-		{"two_destinations", func(p map[string]any) { p["logs/second"] = p["logs/storage"] }},
-		{"unmetered_destination", func(p map[string]any) { p["logs/storage"].(map[string]any)["processors"] = []any{} }},
-		{"source_fanout", func(p map[string]any) { p["logs/source"].(map[string]any)["exporters"] = []any{"everr_queue", "debug"} }},
-		{"source_batch", func(p map[string]any) { p["logs/source"].(map[string]any)["processors"] = []any{"batch"} }},
+		{"queue", func(p, e map[string]any) { e["sending_queue"] = map[string]any{"enabled": true} }},
+		{"retry", func(p, e map[string]any) { e["retry_on_failure"] = map[string]any{"enabled": true} }},
+		{"implicit_retry", func(p, e map[string]any) { delete(e, "retry_on_failure") }},
+		{"processor", func(p, e map[string]any) { p["processors"] = []any{"resource"} }},
+		{"mixed_receiver", func(p, e map[string]any) { p["receivers"] = []any{Type, "otlp"} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			pipelines := map[string]any{
-				"logs/source":  map[string]any{"receivers": []any{"otlp"}, "exporters": []any{"everr_queue"}},
-				"logs/storage": map[string]any{"receivers": []any{"everr_queue"}, "processors": []any{Type}, "exporters": []any{"storage"}},
-			}
-			tc.change(pipelines)
-			cfg := map[string]any{"service": map[string]any{"pipelines": pipelines}, "connectors": map[string]any{"everr_queue": map[string]any{}}, "exporters": map[string]any{"storage": map[string]any{}}}
-			require.Error(t, validateTopology(confmap.NewFromStringMap(cfg)))
+			c := admissionConfig()
+			p := c["service"].(map[string]any)["pipelines"].(map[string]any)["metrics/usage"].(map[string]any)
+			e := c["exporters"].(map[string]any)["storage/usage"].(map[string]any)
+			tc.change(p, e)
+			require.Error(t, validateTopology(confmap.NewFromStringMap(c)))
 		})
 	}
+}
+
+func TestReceiverFanoutRejected(t *testing.T) {
+	for _, source := range []string{"logs", "metrics/usage"} {
+		t.Run(source, func(t *testing.T) {
+			c := admissionConfig()
+			pipelines := c["service"].(map[string]any)["pipelines"].(map[string]any)
+			pipelines[componentType(source)+"/copy"] = pipelines[source]
+			require.Error(t, validateTopology(confmap.NewFromStringMap(c)))
+		})
+	}
+}
+
+func TestEffectiveOptionalQueueConfig(t *testing.T) {
+	c := admissionConfig()
+	exporters := c["exporters"].(map[string]any)
+	// The Collector marshals enabled optional sections without an enabled key,
+	// and disabled optional sections as nil in the effective snapshot.
+	delete(exporters["storage"].(map[string]any)["sending_queue"].(map[string]any), "enabled")
+	exporters["storage/usage"].(map[string]any)["sending_queue"] = nil
+	require.NoError(t, validateTopology(confmap.NewFromStringMap(c)))
 }

@@ -72,19 +72,6 @@ receivers:
       grpc:
         endpoint: 127.0.0.1:4319
 
-connectors:
-  everr_queue:
-    sending_queue:
-      storage: file_storage/ingestion
-      queue_size: 10000
-      num_consumers: 10
-      batch:
-        min_size: 8192
-        flush_timeout: 1s
-    retry_on_failure:
-      enabled: true
-      max_elapsed_time: 0s
-
 processors:
   everr_usage: {}
   # Internal pipeline (github webhook): tenant comes from a trusted header the
@@ -198,12 +185,20 @@ exporters:
     # tables fails every insert, and the reverse too, so this flag and the
     # schema move together.
     json: true
-    # Durable queueing and retries happen before the metering processor. This
-    # exporter must return the storage result, without buffering or retrying.
+    # Successful exporter calls acknowledge durable admission. Delivery,
+    # batching, and retries remain inside the standard exporter.
     sending_queue:
-      enabled: false
+      enabled: true
+      storage: file_storage/ingestion
+      wait_for_result: false
+      queue_size: 10000
+      num_consumers: 10
+      batch:
+        min_size: 8192
+        flush_timeout: 1s
     retry_on_failure:
-      enabled: false
+      enabled: true
+      max_elapsed_time: 0s
   # Usage flushes are consumed once. Never retry an ambiguous usage insert.
   clickhouse/usage:
     <<: *storage_exporter
@@ -225,33 +220,19 @@ service:
       receivers: [everr_usage]
       exporters: [clickhouse/usage]
 
-    # Persistent queue consumers call the meter and storage synchronously.
-    traces/storage:
-      receivers: [everr_queue]
-      processors: [everr_usage]
-      exporters: [clickhouse]
-    logs/storage:
-      receivers: [everr_queue]
-      processors: [everr_usage]
-      exporters: [clickhouse]
-    metrics/storage:
-      receivers: [everr_queue]
-      processors: [everr_usage]
-      exporters: [clickhouse]
-
     # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.
     traces:
       receivers: [githubactions]
-      processors: [resource, resource/retention_traces]
-      exporters: [everr_queue]
+      processors: [resource, resource/retention_traces, everr_usage]
+      exporters: [clickhouse]
     metrics:
       receivers: [githubactions]
-      processors: [resource, resource/retention_metrics]
-      exporters: [everr_queue]
+      processors: [resource, resource/retention_metrics, everr_usage]
+      exporters: [clickhouse]
     logs:
       receivers: [githubactions]
-      processors: [resource, resource/retention_logs]
-      exporters: [everr_queue]
+      processors: [resource, resource/retention_logs, everr_usage]
+      exporters: [clickhouse]
 
     # Public pipelines: untrusted clients, tenant from authenticated key.
     # Must NOT share the `resource` processor with the internal pipelines:
@@ -259,16 +240,16 @@ service:
     # spoof their tenant.
     traces/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_traces]
-      exporters: [everr_queue]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_traces, everr_usage]
+      exporters: [clickhouse]
     metrics/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_metrics]
-      exporters: [everr_queue]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_metrics, everr_usage]
+      exporters: [clickhouse]
     logs/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_logs]
-      exporters: [everr_queue]
+      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_logs, everr_usage]
+      exporters: [clickhouse]
 
     # >>> DEV ONLY: DELETE THESE THREE PIPELINES FOR PRODUCTION <<<
     # Dev self-telemetry (app server + browser, dev tools): both stores.

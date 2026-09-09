@@ -1,4 +1,4 @@
-// Package usage accounts for confirmed ingestion and publishes tenant-scoped metrics.
+// Package usage accounts for durably accepted ingestion and publishes tenant-scoped metrics.
 package usage
 
 import (
@@ -165,7 +165,7 @@ func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time) {
 	metric := sm.Metrics().AppendEmpty()
 	metric.SetName(MetricName)
 	metric.SetUnit("By")
-	metric.SetDescription("Decoded OTLP protobuf bytes in confirmed ingestion, measurement version 1")
+	metric.SetDescription("Decoded OTLP protobuf bytes durably accepted for ingestion, measurement version 1")
 	sum := metric.SetEmptySum()
 	sum.SetIsMonotonic(true)
 	sum.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
