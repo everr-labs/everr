@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -130,21 +129,8 @@ func (m *Meter) drainAt(end time.Time) pmetric.Metrics {
 		m.logger.Warn("Usage measurements dropped at accumulator limit", zap.Uint64("measurements", dropped))
 	}
 	customer := pmetric.NewMetrics()
-	keys := make([]key, 0, len(totals))
-	for k := range totals {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].tenant == keys[j].tenant {
-			if keys[i].signal == keys[j].signal {
-				return keys[i].month < keys[j].month
-			}
-			return keys[i].signal < keys[j].signal
-		}
-		return keys[i].tenant < keys[j].tenant
-	})
-	for _, k := range keys {
-		m.appendPoint(customer, k, totals[k], end)
+	for k, v := range totals {
+		m.appendPoint(customer, k, v, end)
 	}
 	return customer
 }

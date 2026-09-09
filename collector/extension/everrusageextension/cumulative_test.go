@@ -30,12 +30,22 @@ func TestNativeCumulativeMonthlyStreams(t *testing.T) {
 	require.NoError(t, proc.ConsumeMetrics(t.Context(), meter.drainAt(september.Add(3*time.Minute))))
 	md := sink.AllMetrics()[1]
 	require.Equal(t, 2, md.DataPointCount())
-	for i, rm := range md.ResourceMetrics().All() {
+	expected := map[string]struct {
+		bytes int64
+		start time.Time
+	}{
+		"2026-09": {400, september},
+		"2026-10": {300, september.Add(2 * time.Minute)},
+	}
+	for _, rm := range md.ResourceMetrics().All() {
 		sum := rm.ScopeMetrics().At(0).Metrics().At(0).Sum()
 		require.Equal(t, pmetric.AggregationTemporalityCumulative, sum.AggregationTemporality())
 		point := sum.DataPoints().At(0)
-		require.Equal(t, []string{"2026-09", "2026-10"}[i], point.Attributes().AsRaw()[MonthKey])
-		require.Equal(t, []int64{400, 300}[i], point.IntValue())
-		require.Equal(t, []time.Time{september, september.Add(2 * time.Minute)}[i], point.StartTimestamp().AsTime())
+		month := point.Attributes().AsRaw()[MonthKey].(string)
+		require.Contains(t, expected, month)
+		require.Equal(t, expected[month].bytes, point.IntValue())
+		require.Equal(t, expected[month].start, point.StartTimestamp().AsTime())
+		delete(expected, month)
 	}
+	require.Empty(t, expected)
 }

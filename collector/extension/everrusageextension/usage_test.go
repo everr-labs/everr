@@ -15,9 +15,10 @@ func TestDrainContract(t *testing.T) {
 	m.Record("logs", map[string]int64{"customer": 123, "other": 50})
 	md := m.Drain()
 	require.Equal(t, 2, md.DataPointCount(), "exactly one customer-owned point per tenant/signal")
-	for i, rm := range md.ResourceMetrics().All() {
+	expected := map[string]int64{"customer": 123, "other": 50}
+	for _, rm := range md.ResourceMetrics().All() {
 		owner, _ := rm.Resource().Attributes().Get(TenantKey)
-		require.Equal(t, []string{"customer", "other"}[i], owner.Str())
+		require.Contains(t, expected, owner.Str())
 		retention, _ := rm.Resource().Attributes().Get(RetentionKey)
 		require.Equal(t, "365", retention.Str())
 		instance, _ := rm.Resource().Attributes().Get("service.instance.id")
@@ -30,11 +31,13 @@ func TestDrainContract(t *testing.T) {
 		require.True(t, metric.Sum().IsMonotonic())
 		require.Equal(t, pmetric.AggregationTemporalityDelta, metric.Sum().AggregationTemporality())
 		point := metric.Sum().DataPoints().At(0)
-		require.Equal(t, []int64{123, 50}[i], point.IntValue())
+		require.Equal(t, expected[owner.Str()], point.IntValue())
+		delete(expected, owner.Str())
 		require.Equal(t, map[string]any{"everr.ingestion.signal": "logs", "everr.usage.tenant.id": owner.Str(), MonthKey: point.StartTimestamp().AsTime().UTC().Format("2006-01")}, point.Attributes().AsRaw())
 		require.NotZero(t, point.StartTimestamp())
 		require.GreaterOrEqual(t, point.Timestamp(), point.StartTimestamp())
 	}
+	require.Empty(t, expected)
 	require.Zero(t, m.Drain().DataPointCount())
 }
 
@@ -90,11 +93,15 @@ func TestMonthRolloverWithinOneFlush(t *testing.T) {
 	m.recordAt("logs", map[string]int64{"a": 300}, after)
 	md := m.drainAt(after.Add(time.Minute))
 	require.Equal(t, 2, md.DataPointCount())
-	for i, rm := range md.ResourceMetrics().All() {
+	expected := map[string]int64{"2026-09": 200, "2026-10": 300}
+	for _, rm := range md.ResourceMetrics().All() {
 		point := rm.ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
-		require.Equal(t, []string{"2026-09", "2026-10"}[i], point.Attributes().AsRaw()[MonthKey])
-		require.Equal(t, []int64{200, 300}[i], point.IntValue())
+		month := point.Attributes().AsRaw()[MonthKey].(string)
+		require.Contains(t, expected, month)
+		require.Equal(t, expected[month], point.IntValue())
+		delete(expected, month)
 	}
+	require.Empty(t, expected)
 	restarted := newMeter(Config{MaxSeries: 10}, zap.NewNop())
 	require.NotEqual(t, m.instance, restarted.instance)
 }
