@@ -72,8 +72,14 @@ receivers:
       grpc:
         endpoint: 127.0.0.1:4319
 
+connectors:
+  forward/usage: {}
+
 processors:
   everr_usage: {}
+  delta_to_cumulative/usage:
+    max_stale: 5m
+    max_streams: 60000
   # Reserve the everr.* metric namespace on every incoming metrics pipeline.
   # Generated usage has its own pipeline and bypasses this filter.
   filter/reserved_everr:
@@ -217,6 +223,10 @@ service:
     # Optional admin fanout: load config/usage-admin.example.yaml as a second config.
     metrics/usage:
       receivers: [everr_usage]
+      processors: [delta_to_cumulative/usage]
+      exporters: [forward/usage]
+    metrics/usage_customer:
+      receivers: [forward/usage]
       exporters: [clickhouse]
 
     # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.

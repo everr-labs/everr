@@ -6,19 +6,35 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.66.0
+	go.opentelemetry.io/collector/component/componenttest v0.160.0
 	go.opentelemetry.io/collector/config/configoptional v1.66.0
 	go.opentelemetry.io/collector/confmap v1.66.0
+	go.opentelemetry.io/collector/consumer/consumertest v0.160.0
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.160.0
 	go.opentelemetry.io/collector/extension v1.66.0
 	go.opentelemetry.io/collector/extension/extensioncapabilities v0.160.0
 	go.opentelemetry.io/collector/pdata v1.66.0
+	go.opentelemetry.io/collector/processor/processortest v0.160.0
 	go.uber.org/zap v1.28.0
 )
 
 require (
+	github.com/go-logr/logr v1.4.4 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.160.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.160.0 // indirect
+	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.160.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.66.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.66.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.160.0 // indirect
+	go.opentelemetry.io/collector/consumer/xconsumer v0.160.0 // indirect
+	go.opentelemetry.io/collector/pdata/testdata v0.160.0 // indirect
+	go.opentelemetry.io/collector/processor v1.66.0 // indirect
+	go.opentelemetry.io/collector/processor/xprocessor v0.160.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.46.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.46.0 // indirect
 )
 
 require (
@@ -36,6 +52,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.160.0
 	go.opentelemetry.io/collector/client v1.66.0 // indirect
 	go.opentelemetry.io/collector/exporter v1.66.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.160.0 // indirect

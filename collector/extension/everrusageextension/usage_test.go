@@ -3,6 +3,7 @@ package everrusageextension
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -30,7 +31,7 @@ func TestDrainContract(t *testing.T) {
 		require.Equal(t, pmetric.AggregationTemporalityDelta, metric.Sum().AggregationTemporality())
 		point := metric.Sum().DataPoints().At(0)
 		require.Equal(t, []int64{123, 50}[i], point.IntValue())
-		require.Equal(t, map[string]any{"everr.ingestion.signal": "logs", "everr.usage.tenant.id": owner.Str(), SequenceKey: "1"}, point.Attributes().AsRaw())
+		require.Equal(t, map[string]any{"everr.ingestion.signal": "logs", "everr.usage.tenant.id": owner.Str(), MonthKey: point.StartTimestamp().AsTime().UTC().Format("2006-01")}, point.Attributes().AsRaw())
 		require.NotZero(t, point.StartTimestamp())
 		require.GreaterOrEqual(t, point.Timestamp(), point.StartTimestamp())
 	}
@@ -81,17 +82,26 @@ func totalValue(md pmetric.Metrics) int64 {
 	return n
 }
 
-func TestSnapshotIdentity(t *testing.T) {
+func TestMonthRolloverWithinOneFlush(t *testing.T) {
 	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
-	m.Record("logs", map[string]int64{"a": 10, "b": 20})
-	first := m.Drain()
-	require.Zero(t, m.Drain().DataPointCount())
-	m.Record("logs", map[string]int64{"a": 10})
-	second := m.Drain()
-	for _, rm := range first.ResourceMetrics().All() {
-		require.Equal(t, "1", rm.ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0).Attributes().AsRaw()[SequenceKey])
+	before := time.Date(2026, 9, 30, 23, 59, 59, 0, time.UTC)
+	after := before.Add(time.Second)
+	m.recordAt("logs", map[string]int64{"a": 200}, before)
+	m.recordAt("logs", map[string]int64{"a": 300}, after)
+	md := m.drainAt(after.Add(time.Minute))
+	require.Equal(t, 2, md.DataPointCount())
+	for i, rm := range md.ResourceMetrics().All() {
+		point := rm.ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
+		require.Equal(t, []string{"2026-09", "2026-10"}[i], point.Attributes().AsRaw()[MonthKey])
+		require.Equal(t, []int64{200, 300}[i], point.IntValue())
 	}
-	require.Equal(t, "2", second.ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0).Attributes().AsRaw()[SequenceKey])
 	restarted := newMeter(Config{MaxSeries: 10}, zap.NewNop())
-	require.NotEqual(t, m.instance, restarted.instance, "restart must never reuse the prior sequence namespace")
+	require.NotEqual(t, m.instance, restarted.instance)
+}
+
+func TestMonthUsesUTC(t *testing.T) {
+	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
+	m.recordAt("logs", map[string]int64{"a": 200}, time.Date(2026, 10, 1, 1, 0, 0, 0, time.FixedZone("east", 2*60*60)))
+	point := m.Drain().ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
+	require.Equal(t, "2026-09", point.Attributes().AsRaw()[MonthKey])
 }

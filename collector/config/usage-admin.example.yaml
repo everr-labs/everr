@@ -9,6 +9,6 @@ processors:
 service:
   pipelines:
     metrics/usage_admin:
-      receivers: [everr_usage]
+      receivers: [forward/usage]
       processors: [resource/admin_usage]
       exporters: [clickhouse]

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -23,7 +22,7 @@ const (
 	MetricName   = "everr.ingestion.volume"
 	TenantKey    = "everr.tenant.id"
 	RetentionKey = "everr.retention.days"
-	SequenceKey  = "everr.usage.sequence"
+	MonthKey     = "everr.usage.month"
 	// Integer values above this limit cannot be represented exactly in metrics_sum.Value.
 	maxBytes = int64(1 << 53)
 )
@@ -47,7 +46,7 @@ func NewFactory() extension.Factory {
 	}, component.StabilityLevelDevelopment)
 }
 
-type key struct{ tenant, signal string }
+type key struct{ tenant, signal, month string }
 type total struct {
 	bytes int64
 	start time.Time
@@ -63,7 +62,6 @@ type Meter struct {
 	totals    map[key]total
 	dropped   uint64
 	publisher bool
-	sequence  uint64
 }
 
 func newMeter(cfg Config, logger *zap.Logger) *Meter {
@@ -91,14 +89,18 @@ func (m *Meter) ClaimPublisher() error {
 
 // Record retains only scalar measurements, never customer payloads. Overflow loses usage.
 func (m *Meter) Record(signal string, bytesByTenant map[string]int64) {
+	m.recordAt(signal, bytesByTenant, time.Now())
+}
+
+func (m *Meter) recordAt(signal string, bytesByTenant map[string]int64, now time.Time) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	now := time.Now()
+	month := now.UTC().Format("2006-01")
 	for tenant, bytes := range bytesByTenant {
 		if bytes <= 0 {
 			continue
 		}
-		k := key{tenant, signal}
+		k := key{tenant, signal, month}
 		v, exists := m.totals[k]
 		if (!exists && len(m.totals) >= m.cfg.MaxSeries) || bytes > maxBytes-v.bytes {
 			m.dropped++
@@ -113,15 +115,14 @@ func (m *Meter) Record(signal string, bytesByTenant map[string]int64) {
 }
 
 // Drain consumes a snapshot permanently before publication is attempted.
-// Exporter retries preserve the snapshot identity; the receiver never re-creates it.
+// Convert these deltas to cumulative before the retrying exporter, never replay them here.
 func (m *Meter) Drain() pmetric.Metrics {
+	return m.drainAt(time.Now())
+}
+
+func (m *Meter) drainAt(end time.Time) pmetric.Metrics {
 	m.mu.Lock()
-	end := time.Now()
 	totals, dropped := m.totals, m.dropped
-	if len(totals) > 0 {
-		m.sequence++
-	}
-	sequence := strconv.FormatUint(m.sequence, 10)
 	m.totals = make(map[key]total)
 	m.dropped = 0
 	m.mu.Unlock()
@@ -135,17 +136,20 @@ func (m *Meter) Drain() pmetric.Metrics {
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		if keys[i].tenant == keys[j].tenant {
+			if keys[i].signal == keys[j].signal {
+				return keys[i].month < keys[j].month
+			}
 			return keys[i].signal < keys[j].signal
 		}
 		return keys[i].tenant < keys[j].tenant
 	})
 	for _, k := range keys {
-		m.appendPoint(customer, k, totals[k], end, sequence)
+		m.appendPoint(customer, k, totals[k], end)
 	}
 	return customer
 }
 
-func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time, sequence string) {
+func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time) {
 	rm := md.ResourceMetrics().AppendEmpty()
 	attrs := rm.Resource().Attributes()
 	attrs.PutStr(TenantKey, k.tenant)
@@ -166,7 +170,7 @@ func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time, s
 	point.SetIntValue(v.bytes)
 	point.SetStartTimestamp(pcommon.NewTimestampFromTime(v.start))
 	point.SetTimestamp(pcommon.NewTimestampFromTime(end))
-	point.Attributes().PutStr(SequenceKey, sequence)
+	point.Attributes().PutStr(MonthKey, k.month)
 	point.Attributes().PutStr("everr.ingestion.signal", k.signal)
 	point.Attributes().PutStr("everr.usage.tenant.id", k.tenant)
 }

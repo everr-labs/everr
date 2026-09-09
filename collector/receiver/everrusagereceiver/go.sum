@@ -42,7 +42,15 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJ
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee h1:W5t00kpgFdJifH4BDsTlE89Zl93FEloxaWZfGcifgq8=
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.160.0 h1:XwC9DyKBx2RYeCkDtu53bz0YyM16tt8nQi4bYAIeJI0=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.160.0/go.mod h1:reZbvAmPMr7JvMBy3P2IqxU0k6/sQTtlr1LiWi3XRVA=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.160.0 h1:KuAMWLY47aSlhUR45cty6V3vmqPfGtuEWUMWoXLihL8=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.160.0/go.mod h1:m7KYHz7g2nS7G3pLpyVoLFiyKXiVQNSsizqj+Dg1pLo=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.160.0 h1:f2+8vct0uGoW/EECcp3fLExnQtPtHP9qzmUEw3qnE14=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.160.0/go.mod h1:IzBMfIjygKPnd9E9m8gm6xpOGhFkBFpFGRF3pUzo+no=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/puzpuzpuz/xsync/v4 v4.5.0 h1:vOSWu6b57/emh+L/Cw0BeQfvxa/cogFywXHeGUxQxAg=
+github.com/puzpuzpuz/xsync/v4 v4.5.0/go.mod h1:VJDmTCJMBt8igNxnkQd86r+8KUeN1quSfNKu5bLYFQo=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
@@ -53,6 +61,8 @@ go.opentelemetry.io/collector/client v1.66.0 h1:uLwmr3QejpA0upn8bBAeDjMofC5kgmou
 go.opentelemetry.io/collector/client v1.66.0/go.mod h1:pH/NTKb1jXgUYXvVnRZpYq/kiBse8hJJcQSkCns4dF8=
 go.opentelemetry.io/collector/component v1.66.0 h1:JaAwBPug6Wm5V0+4qHpWVcazabgZvEozfcMC8gmgIY4=
 go.opentelemetry.io/collector/component v1.66.0/go.mod h1:IIS7ZSCTijjAy5uaCwqAp6RKqOs1rzHl3EmwBZ6B0V4=
+go.opentelemetry.io/collector/component/componentstatus v0.160.0 h1:DwFYGAARWGp0TW1LYIGVRgSgLa2L3uOjPmYLK53TApk=
+go.opentelemetry.io/collector/component/componentstatus v0.160.0/go.mod h1:qCwO9DZvdlDaSyNjra2FbVxeOYjylS4WHU4XrInjy0M=
 go.opentelemetry.io/collector/component/componenttest v0.160.0 h1:vfe7NaNksFjFfsrD1dDTCp/oQmknfI19z7SLyE8XDFo=
 go.opentelemetry.io/collector/component/componenttest v0.160.0/go.mod h1:Rp9rk0xkLrfbWGhz78/y7swrC1rLG8nSOVb0tjRW2TI=
 go.opentelemetry.io/collector/config/configoptional v1.66.0 h1:1DC5zgyfyUDzeaivb9w5bvPwGD/7AjINS3NCPdQWlHY=
@@ -103,6 +113,12 @@ go.opentelemetry.io/collector/pipeline v1.66.0 h1:wh7bydw4VXE/8wkO3Vq7msTSdCWciE
 go.opentelemetry.io/collector/pipeline v1.66.0/go.mod h1:4S7iD/7hGDNXg4yPi+5es5WTvwo/Uie2OoHio79xokI=
 go.opentelemetry.io/collector/pipeline/xpipeline v0.160.0 h1:LU9e57Ozxm95wfaiIColv2Nyx+HcPVBYj7pmuCmNxLM=
 go.opentelemetry.io/collector/pipeline/xpipeline v0.160.0/go.mod h1:i2/f6k2N1OxmIn8LXRYiE2ZNeHrYat/A99JOTuBwGS4=
+go.opentelemetry.io/collector/processor v1.66.0 h1:oNsicM3SYORpR9IzqHD8rnMpasuXIOI2o3Qdv7PHqUA=
+go.opentelemetry.io/collector/processor v1.66.0/go.mod h1:L/McJZAaCC1LtkDS9SXd65SL7fGV2MrI8sK6CvisOFY=
+go.opentelemetry.io/collector/processor/processortest v0.160.0 h1:UpuV/guqpBd4TD8J3yim7pbOGO4tze1RSfu3/tEq598=
+go.opentelemetry.io/collector/processor/processortest v0.160.0/go.mod h1:dZHObCxq4fFslWISI2fGK8vLZ+aQFyQv7h1d+5Wv6nE=
+go.opentelemetry.io/collector/processor/xprocessor v0.160.0 h1:3bvK03H90nsPjS/Lh0XDaXm1/vGOxUCdNNZ/HPW4OcI=
+go.opentelemetry.io/collector/processor/xprocessor v0.160.0/go.mod h1:21hAhrW9b7fsmqVg3mMPS9knPpjJ/EFMx8sKjPXQ6qU=
 go.opentelemetry.io/collector/receiver v1.66.0 h1:H7BSRnT/N3aeCbibDNLGf/onHvIxB5xVfzB8UKNVqEQ=
 go.opentelemetry.io/collector/receiver v1.66.0/go.mod h1:IwJHhJvBUShZdKIjMpy0zN4XontHofXNlkaCQOO54m8=
 go.opentelemetry.io/collector/receiver/receivertest v0.160.0 h1:MJn7ty7+ojP704ZCbAm/EblHcPbnsgeK/0sYvJjf+a4=
