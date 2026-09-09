@@ -54,10 +54,19 @@ compressed database size, or proof of successful database storage. Client batchi
 and repeated resource metadata can change the volume. Changing the definition
 after release requires an explicit billing migration.
 
-Authentication and trusted tenant stamping must precede the processor. Incoming
-metrics in `everr.ingestion.*` are removed before admission and measurement; only
-the isolated usage receiver may publish that namespace. Any other unmetered
-ingress into a billing store must enforce the same restriction.
+Authentication and trusted tenant stamping must precede the processor. Configure
+the standard filter processor before metering on every incoming metrics pipeline:
+
+```yaml
+filter/reserved_usage:
+  error_mode: propagate
+  metric_conditions:
+    - 'IsMatch(metric.name, "^everr[.]ingestion[.]")'
+```
+
+Only the isolated usage receiver bypasses this filter. Apply the same rule to
+unmetered ingress into the billing store. Namespace filtering belongs to pipeline
+configuration; the metering component does not filter incoming metric names.
 
 ## Configuration
 
@@ -140,28 +149,10 @@ queue files during rollout.
 Usage publication bypasses metering and never charges for itself. Receiver
 shutdown attempts a final flush; measurements finishing later can be lost.
 
-## Accounting health
-
-The Collector internal meter provider exposes two operational counters:
-
-| Instrument | Unit | Attributes | Meaning |
-| --- | --- | --- | --- |
-| `everr.usage.discarded.volume` | `By` | `everr.ingestion.signal`, `everr.usage.discard.reason` | Accepted bytes excluded by accumulator limits |
-| `everr.usage.publication.failed` | `1` | None | Failed publication attempts, including ambiguous writes |
-
-Discard reasons are `series_limit` and `value_limit`. These counters contain no
-customer identifiers. Through the Prometheus reader they are cumulative, first
-appear after an event, and reset with the process. The internal scraper allows
-both dotted and normalized names (`everr_usage_discarded_volume` and
-`everr_usage_publication_failed`) according to scrape protocol negotiation. They
-use ordinary authenticated ingestion into our tenant. They are diagnostics,
-not billing corrections: ambiguous publication may already be stored, and
-crashes can lose operational observations too.
-
 ## Validation
 
 Run `go test -race ./...` here and `make build` in `collector`. Tests cover byte
-measurement, namespace protection, admission failures, concurrent drains, limits,
+measurement, admission failures, concurrent drains, limits,
 topology, native persistent exporter retries and recovery for every signal,
 full queues, and failed usage publication without replay.
 
@@ -169,4 +160,6 @@ For end-to-end validation, send uniquely marked authenticated telemetry for two
 tenants while database writes are unavailable. Verify admission usage through
 Everr, kill the collector, restart with the same volume, and verify delivery
 without additional usage. Fresh admissions must count once; full queues must
-reject requests with no usage. Include all five metric types.
+reject requests with no usage. Include all five metric types. Verify the standard
+filter drops reserved names from mixed payloads and that reserved-only payloads
+produce neither stored metrics nor usage.

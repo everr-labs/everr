@@ -69,7 +69,7 @@ func TestRejectedAdmissionDoesNotCount(t *testing.T) {
 	require.Zero(t, meter.Drain().DataPointCount())
 }
 
-func TestMetricsKindsAndSpoofing(t *testing.T) {
+func TestMetricsKinds(t *testing.T) {
 	meter := newMeter(t)
 	sink := &consumertest.MetricsSink{}
 	p := &metering{meter: meter, metrics: sink}
@@ -85,9 +85,6 @@ func TestMetricsKindsAndSpoofing(t *testing.T) {
 	empty := sm.Metrics().AppendEmpty()
 	empty.SetName("empty")
 	empty.SetEmptyGauge()
-	spoof := sm.Metrics().AppendEmpty()
-	spoof.SetName(usage.MetricName)
-	spoof.SetEmptySum().DataPoints().AppendEmpty().SetIntValue(999999)
 	require.NoError(t, p.ConsumeMetrics(context.Background(), md))
 	require.Equal(t, 5, sink.DataPointCount())
 	out := meter.Drain()

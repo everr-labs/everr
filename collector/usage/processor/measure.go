@@ -3,7 +3,6 @@ package usageprocessor
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/everr-labs/everr/collector/usage"
 	"go.opentelemetry.io/collector/consumer/consumererror"
@@ -98,13 +97,6 @@ func (p *metering) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
 }
 
 func (p *metering) ConsumeMetrics(ctx context.Context, md pmetric.Metrics) error {
-	// Only the usage receiver can publish the reserved namespace. A client cannot
-	// exempt its payload from billing or forge billing points by naming them usage.
-	for _, rm := range md.ResourceMetrics().All() {
-		for _, sm := range rm.ScopeMetrics().All() {
-			sm.Metrics().RemoveIf(func(m pmetric.Metric) bool { return strings.HasPrefix(m.Name(), "everr.ingestion.") })
-		}
-	}
 	groups := map[string]pmetric.Metrics{}
 	for _, rm := range md.ResourceMetrics().All() {
 		copyData := pmetric.NewMetrics()

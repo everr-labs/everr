@@ -88,7 +88,6 @@ func (r *publisher) flush(ctx context.Context) {
 	attempt, cancel := context.WithTimeout(ctx, r.cfg.Timeout)
 	defer cancel()
 	if err := r.next.ConsumeMetrics(attempt, md); err != nil {
-		r.meter.RecordPublicationFailure()
 		r.logger.Error("Usage publication failed; snapshot discarded", zap.Error(err))
 	}
 }

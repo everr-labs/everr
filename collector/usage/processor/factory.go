@@ -49,5 +49,5 @@ func (p *metering) Start(_ context.Context, host component.Host) error {
 	return err
 }
 func (*metering) Capabilities() consumer.Capabilities {
-	return consumer.Capabilities{MutatesData: true}
+	return consumer.Capabilities{MutatesData: false}
 }
