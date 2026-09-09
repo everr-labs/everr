@@ -30,7 +30,7 @@ func TestDrainContract(t *testing.T) {
 		require.Equal(t, pmetric.AggregationTemporalityDelta, metric.Sum().AggregationTemporality())
 		point := metric.Sum().DataPoints().At(0)
 		require.Equal(t, []int64{123, 50}[i], point.IntValue())
-		require.Equal(t, map[string]any{"everr.ingestion.signal": "logs", "everr.usage.tenant.id": owner.Str()}, point.Attributes().AsRaw())
+		require.Equal(t, map[string]any{"everr.ingestion.signal": "logs", "everr.usage.tenant.id": owner.Str(), SequenceKey: "1"}, point.Attributes().AsRaw())
 		require.NotZero(t, point.StartTimestamp())
 		require.GreaterOrEqual(t, point.Timestamp(), point.StartTimestamp())
 	}
@@ -79,4 +79,19 @@ func totalValue(md pmetric.Metrics) int64 {
 		}
 	}
 	return n
+}
+
+func TestSnapshotIdentity(t *testing.T) {
+	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
+	m.Record("logs", map[string]int64{"a": 10, "b": 20})
+	first := m.Drain()
+	require.Zero(t, m.Drain().DataPointCount())
+	m.Record("logs", map[string]int64{"a": 10})
+	second := m.Drain()
+	for _, rm := range first.ResourceMetrics().All() {
+		require.Equal(t, "1", rm.ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0).Attributes().AsRaw()[SequenceKey])
+	}
+	require.Equal(t, "2", second.ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0).Attributes().AsRaw()[SequenceKey])
+	restarted := newMeter(Config{MaxSeries: 10}, zap.NewNop())
+	require.NotEqual(t, m.instance, restarted.instance, "restart must never reuse the prior sequence namespace")
 }

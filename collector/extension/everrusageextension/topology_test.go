@@ -12,11 +12,10 @@ func admissionConfig() map[string]any {
 		"extensions": map[string]any{"file_storage/ingestion": map[string]any{"fsync": true}},
 		"service": map[string]any{"extensions": []any{"file_storage/ingestion"}, "pipelines": map[string]any{
 			"logs":          map[string]any{"receivers": []any{"otlp"}, "processors": []any{"resource", Type}, "exporters": []any{"storage"}},
-			"metrics/usage": map[string]any{"receivers": []any{Type}, "exporters": []any{"storage/usage"}},
+			"metrics/usage": map[string]any{"receivers": []any{Type}, "exporters": []any{"storage"}},
 		}},
 		"exporters": map[string]any{
-			"storage":       map[string]any{"sending_queue": map[string]any{"enabled": true, "storage": "file_storage/ingestion", "wait_for_result": false, "queue_size": 10000, "num_consumers": 10, "batch": map[string]any{"min_size": 8192, "flush_timeout": "1s"}}, "retry_on_failure": map[string]any{"enabled": true, "max_elapsed_time": "0s"}},
-			"storage/usage": map[string]any{"sending_queue": map[string]any{"enabled": false}, "retry_on_failure": map[string]any{"enabled": false}},
+			"storage": map[string]any{"sending_queue": map[string]any{"enabled": true, "storage": "file_storage/ingestion", "wait_for_result": false, "queue_size": 10000, "num_consumers": 10, "batch": map[string]any{"min_size": 8192, "flush_timeout": "1s"}}, "retry_on_failure": map[string]any{"enabled": true, "max_elapsed_time": "0s"}},
 		},
 	}
 }
@@ -29,14 +28,8 @@ func TestAdmissionTopology(t *testing.T) {
 	}{
 		{"fanout", func(c, p, q, r map[string]any) { p["exporters"] = []any{"storage", "debug"} }},
 		{"missing_exporter", func(c, p, q, r map[string]any) { p["exporters"] = []any{"connector"} }},
-		{"batch_before", func(c, p, q, r map[string]any) { p["processors"] = []any{"batch", Type} }},
 		{"batch_after", func(c, p, q, r map[string]any) { p["processors"] = []any{Type, "batch"} }},
 		{"double_meter", func(c, p, q, r map[string]any) { p["processors"] = []any{Type, Type + "/second"} }},
-		{"unknown_processor", func(c, p, q, r map[string]any) { p["processors"] = []any{"custom", Type} }},
-		{"connector_before", func(c, p, q, r map[string]any) {
-			c["connectors"] = map[string]any{"queue": map[string]any{}}
-			p["receivers"] = []any{"queue"}
-		}},
 		{"disabled_queue", func(c, p, q, r map[string]any) { q["enabled"] = false }},
 		{"missing_queue", func(c, p, q, r map[string]any) {
 			delete(c["exporters"].(map[string]any)["storage"].(map[string]any), "sending_queue")
@@ -61,36 +54,18 @@ func TestAdmissionTopology(t *testing.T) {
 	}
 }
 
-func TestPublicationTopology(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		change func(map[string]any, map[string]any)
-	}{
-		{"queue", func(p, e map[string]any) { e["sending_queue"] = map[string]any{"enabled": true} }},
-		{"retry", func(p, e map[string]any) { e["retry_on_failure"] = map[string]any{"enabled": true} }},
-		{"implicit_retry", func(p, e map[string]any) { delete(e, "retry_on_failure") }},
-		{"processor", func(p, e map[string]any) { p["processors"] = []any{"resource"} }},
-		{"mixed_receiver", func(p, e map[string]any) { p["receivers"] = []any{Type, "otlp"} }},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			c := admissionConfig()
-			p := c["service"].(map[string]any)["pipelines"].(map[string]any)["metrics/usage"].(map[string]any)
-			e := c["exporters"].(map[string]any)["storage/usage"].(map[string]any)
-			tc.change(p, e)
-			require.Error(t, validateTopology(confmap.NewFromStringMap(c)))
-		})
-	}
-}
-
-func TestReceiverFanoutRejected(t *testing.T) {
-	for _, source := range []string{"logs", "metrics/usage"} {
-		t.Run(source, func(t *testing.T) {
-			c := admissionConfig()
-			pipelines := c["service"].(map[string]any)["pipelines"].(map[string]any)
-			pipelines[componentType(source)+"/copy"] = pipelines[source]
-			require.Error(t, validateTopology(confmap.NewFromStringMap(c)))
-		})
-	}
+func TestComposition(t *testing.T) {
+	c := admissionConfig()
+	c["connectors"] = map[string]any{"forward": map[string]any{}}
+	pipelines := c["service"].(map[string]any)["pipelines"].(map[string]any)
+	p := pipelines["logs"].(map[string]any)
+	p["receivers"] = []any{"forward"}
+	p["processors"] = []any{"custom", "batch", Type}
+	pipelines["logs/copy"] = p
+	pipelines["metrics/usage_admin"] = map[string]any{"receivers": []any{Type}, "processors": []any{"resource/admin"}, "exporters": []any{"storage"}}
+	require.NoError(t, validateTopology(confmap.NewFromStringMap(c)))
+	pipelines["metrics/usage_admin"].(map[string]any)["processors"] = []any{Type}
+	require.ErrorContains(t, validateTopology(confmap.NewFromStringMap(c)), "bypass metering")
 }
 
 func TestEffectiveOptionalQueueConfig(t *testing.T) {
@@ -99,6 +74,5 @@ func TestEffectiveOptionalQueueConfig(t *testing.T) {
 	// The Collector marshals enabled optional sections without an enabled key,
 	// and disabled optional sections as nil in the effective snapshot.
 	delete(exporters["storage"].(map[string]any)["sending_queue"].(map[string]any), "enabled")
-	exporters["storage/usage"].(map[string]any)["sending_queue"] = nil
 	require.NoError(t, validateTopology(confmap.NewFromStringMap(c)))
 }

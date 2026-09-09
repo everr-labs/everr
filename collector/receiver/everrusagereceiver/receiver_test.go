@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestFailedPublicationIsNeverReplayed(t *testing.T) {
+func TestFailedSubmissionIsNotRecreated(t *testing.T) {
 	f := everrusageextension.NewFactory()
 	cfg := f.CreateDefaultConfig().(*everrusageextension.Config)
 	ext, err := f.Create(context.Background(), extensiontest.NewNopSettings(f.Type()), cfg)
@@ -26,7 +26,7 @@ func TestFailedPublicationIsNeverReplayed(t *testing.T) {
 		md.CopyTo(copy)
 		attempts = append(attempts, copy)
 		if len(attempts) == 1 {
-			return errors.New("write committed but acknowledgement lost")
+			return errors.New("queue admission returned an ambiguous error")
 		}
 		return nil
 	})
@@ -34,7 +34,7 @@ func TestFailedPublicationIsNeverReplayed(t *testing.T) {
 	r := publisher{cfg: *NewFactory().CreateDefaultConfig().(*Config), next: next, logger: zap.NewNop(), meter: meter}
 	r.flush(context.Background())
 	r.flush(context.Background())
-	require.Len(t, attempts, 1, "failed or ambiguous usage must never be replayed")
+	require.Len(t, attempts, 1, "the receiver submits a drained snapshot only once; exporter retries retain its identity")
 	owner, _ := attempts[0].ResourceMetrics().At(0).Resource().Attributes().Get(everrusageextension.TenantKey)
 	require.Equal(t, "a", owner.Str())
 	meter.Record("logs", map[string]int64{"a": 20})

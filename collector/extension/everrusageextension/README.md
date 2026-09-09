@@ -27,7 +27,7 @@ pass through the processor again.
 | Type | Monotonic delta Sum |
 | Unit | `By` |
 | Publication interval | 60 seconds by default |
-| Datapoint attributes | `everr.ingestion.signal`, `everr.usage.tenant.id` |
+| Datapoint attributes | `everr.ingestion.signal`, `everr.usage.tenant.id`, `everr.usage.sequence` |
 | Signals | `logs`, `traces`, `metrics` |
 | Resource owner | `everr.tenant.id`, the measured tenant |
 | Resource service | `service.name=everr-ingestion` |
@@ -35,12 +35,55 @@ pass through the processor again.
 | Scope | `github.com/everr-labs/everr/collector/usage`, version `1` |
 | Retention | Fixed 365 days, independent of plan and source retention |
 
-Each point is published once into the customer's own metrics. Billing reads
-those same points through administrative access across tenants. There is no
-administrative copy. Sum deltas across instances; never carry a previous value
-into an empty interval. Only tenant/signal pairs with newly accepted bytes
-produce points. Timestamps use admission and flush time, not the customer's
-telemetry timestamps. The invoice scheduler is outside this module.
+The receiver submits each snapshot once to the same exporter used for telemetry.
+The persistent exporter queue owns batching, retries, and recovery for both.
+Only tenant/signal pairs with newly accepted bytes produce points. Timestamps
+use admission and flush time, not customer telemetry timestamps.
+
+## Retry-safe totals
+
+Exporter delivery is at least once: a successful write with a lost acknowledgment
+can leave duplicate rows. Never bill by directly summing raw `Value` rows.
+Use [customer-usage.sql](customer-usage.sql) for both customer-facing totals and
+billing. Supply a half-open UTC period through the `from` and `to` DateTime
+parameters. The invoice scheduler and usage UI are outside this module; their
+integration must use this query contract.
+
+Each point's identity is `(service.instance.id, everr.usage.tenant.id,
+everr.ingestion.signal, everr.usage.sequence)`. The sequence advances once per
+nonempty drain, under the accumulator lock. A restart creates a new instance ID.
+Retries and administrative copies preserve all four fields. A sequence is needed
+because the current metric tables store timestamps at second precision; two
+flushes in the same second must remain distinct. This attribute deliberately
+adds one identity per flush to the low-volume usage metric.
+
+The query groups by this identity before summing, using `min(Value)` so identical
+retry copies contribute once (conflicting copies conservatively use the smaller
+value). Decimal summation preserves exact integer byte totals beyond `2^53`.
+It excludes legacy points without identity. Service, metric, and time filters
+bound the scan; tenant access remains enforced by the existing row-level policy.
+Do not apply a pre-deduplication rollup that discards the identity.
+
+## Optional administrative copy
+
+The base configuration publishes customer-owned usage. Deployments may add
+[usage-admin.example.yaml](../../config/usage-admin.example.yaml) as a second
+`--config` file, setting `EVERR_ADMIN_TENANT_ID` to our internal tenant. Standard
+pipeline fanout and the resource processor make an isolated copy, replace only
+resource `everr.tenant.id`, and send it to the same `clickhouse` exporter. The
+customer identity, sequence, bytes, timestamps, and 365-day retention are kept.
+No custom copy component or additional exporter is needed.
+
+Both publication branches bypass metering and the reserved-name filter. Do not
+send generated usage back through public ingress, which drops `everr.*` metrics.
+If the measured tenant is our own tenant, the two copies have the same identity
+and the canonical query still counts them once.
+
+The two branches can succeed independently. Our copy is for reporting; the
+customer-owned points remain the billing authority. The canonical query excludes
+administrative copies by requiring owner and measured customer to match, even
+when run with administrative access across tenants. To report from the admin
+copy, query as our tenant and omit that equality, keeping identity deduplication.
 
 ## Measurement version 1
 
@@ -74,7 +117,7 @@ configuration; the metering component does not filter incoming metric names.
 
 ## Configuration
 
-See [the collector example](../config.example.yml) for complete wiring. Enable
+See [the collector example](../../config.example.yml) for complete wiring. Enable
 the usage and file storage extensions in `service.extensions`. Place one usage
 processor last in each ingestion pipeline, directly before one exporter.
 
@@ -109,17 +152,18 @@ exporters:
       max_elapsed_time: 0s
 ```
 
-There must be no asynchronous batch processor before admission and no exporter
-fanout. Batching belongs inside `sending_queue.batch`. Startup validation accepts
-synchronous resource, attributes, filter, transform, and memory limiter processors
-before the meter. It rejects connectors feeding metered pipelines, which could
-replay already-accounted data.
+Batching normally belongs inside `sending_queue.batch`. Startup validation
+requires one meter directly before one persistent exporter with fsync and
+unlimited retries. Upstream connectors, processors, and receiver fanout are
+allowed: billing measures each downstream admission after those transformations,
+not the original receiver acknowledgment. If an upstream component buffers,
+filters, duplicates, or retries data, that affects which admissions reach the
+meter. Configure tenant stamping before any component that loses auth context.
 
-The usage receiver needs a separate metrics pipeline with no processors and one
-exporter targeting the same customer metrics tables. Explicitly disable both
-that exporter's queue and retries. Do not place a retrying proxy or buffering
-collector before usage storage. Exactly one usage receiver may claim an
-extension. Startup validation enforces these pipeline constraints.
+The usage receiver publishes into a metrics pipeline that bypasses metering.
+It may fan out through resource processors into the same exporter. Exactly one
+usage receiver may claim an extension; sharing that receiver across pipelines
+uses the Collector's built-in fanout.
 
 Keep exporter ID and queue directory stable across restarts. Docker Compose
 mounts a named volume; other deployments must mount persistent storage at
@@ -143,9 +187,9 @@ queue files during rollout.
 - Client resubmissions are separate admissions, including retries after a lost
   receiver acknowledgement. This does not deduplicate client requests.
 - A crash after admission but before recording or publishing usage can undercount.
-- Drained usage snapshots are never restored or replayed. Failed publication can
-  lose usage, while an ambiguous one may already be stored. Billing reads only
-  customer-visible points actually present in metrics storage.
+- The receiver never restores a drained snapshot. Failure to enqueue usage can
+  undercount. Once queued, exporter retries and recovery preserve point identity.
+  Deduplicated billing reads only customer-owned points present in storage.
 - At most `max_series` tenant/signal totals are retained per interval. New series
   beyond the bound are dropped. Each total is capped at `2^53` bytes to preserve
   exact values in Float64 metric storage.
@@ -160,12 +204,18 @@ Run `go test -race ./...` in each usage component module and `make build` in
 `processor/everrusageprocessor`, and `receiver/everrusagereceiver`. Tests cover byte
 measurement, admission failures, concurrent drains, limits,
 topology, native persistent exporter retries and recovery for every signal,
-full queues, and failed usage publication without replay.
+full queues, snapshot identities, and failed receiver submissions without replay.
 
 For end-to-end validation, send uniquely marked authenticated telemetry for two
 tenants while database writes are unavailable. Verify admission usage through
-Everr, kill the collector, restart with the same volume, and verify delivery
-without additional usage. Fresh admissions must count once; full queues must
+the persistent queue, kill the collector, restart with the same volume, and
+verify delivery without additional usage. Fresh admissions must count once; full queues must
 reject requests with no usage. Include all five metric types. Verify the standard
 filter drops reserved names from mixed payloads and that reserved-only payloads
 produce neither stored metrics nor usage.
+
+The opt-in [usage smoke test](../../test/smoke/usage.py) exercises the real
+collector and ClickHouse with an injected outage and successful writes whose
+acknowledgments are lost. See its `--help` for local prerequisites. It compares
+canonical totals, customer/admin copies, retention, native queue recovery,
+reserved-name filtering, and receiver fanout without tenant mutation leaks.

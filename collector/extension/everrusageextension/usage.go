@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -22,6 +23,7 @@ const (
 	MetricName   = "everr.ingestion.volume"
 	TenantKey    = "everr.tenant.id"
 	RetentionKey = "everr.retention.days"
+	SequenceKey  = "everr.usage.sequence"
 	// Integer values above this limit cannot be represented exactly in metrics_sum.Value.
 	maxBytes = int64(1 << 53)
 )
@@ -61,6 +63,7 @@ type Meter struct {
 	totals    map[key]total
 	dropped   uint64
 	publisher bool
+	sequence  uint64
 }
 
 func newMeter(cfg Config, logger *zap.Logger) *Meter {
@@ -110,11 +113,15 @@ func (m *Meter) Record(signal string, bytesByTenant map[string]int64) {
 }
 
 // Drain consumes a snapshot permanently before publication is attempted.
-// A failed publication must never be restored or replayed.
+// Exporter retries preserve the snapshot identity; the receiver never re-creates it.
 func (m *Meter) Drain() pmetric.Metrics {
 	m.mu.Lock()
 	end := time.Now()
 	totals, dropped := m.totals, m.dropped
+	if len(totals) > 0 {
+		m.sequence++
+	}
+	sequence := strconv.FormatUint(m.sequence, 10)
 	m.totals = make(map[key]total)
 	m.dropped = 0
 	m.mu.Unlock()
@@ -133,12 +140,12 @@ func (m *Meter) Drain() pmetric.Metrics {
 		return keys[i].tenant < keys[j].tenant
 	})
 	for _, k := range keys {
-		m.appendPoint(customer, k, totals[k], end)
+		m.appendPoint(customer, k, totals[k], end, sequence)
 	}
 	return customer
 }
 
-func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time) {
+func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time, sequence string) {
 	rm := md.ResourceMetrics().AppendEmpty()
 	attrs := rm.Resource().Attributes()
 	attrs.PutStr(TenantKey, k.tenant)
@@ -159,6 +166,7 @@ func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time) {
 	point.SetIntValue(v.bytes)
 	point.SetStartTimestamp(pcommon.NewTimestampFromTime(v.start))
 	point.SetTimestamp(pcommon.NewTimestampFromTime(end))
+	point.Attributes().PutStr(SequenceKey, sequence)
 	point.Attributes().PutStr("everr.ingestion.signal", k.signal)
 	point.Attributes().PutStr("everr.usage.tenant.id", k.tenant)
 }

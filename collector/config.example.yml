@@ -176,7 +176,7 @@ exporters:
   # Writes into otel.* landing tables (ENGINE = Null). Nothing is stored there;
   # the views in clickhouse/init/10-create-mvs.sql stamp tenant and retention
   # and write app.*. `ttl` is unused with create_schema: false.
-  clickhouse: &storage_exporter
+  clickhouse:
     endpoint: http://clickhouse:8123
     username: collector_rw
     password: collector-dev
@@ -205,14 +205,6 @@ exporters:
     retry_on_failure:
       enabled: true
       max_elapsed_time: 0s
-  # Usage flushes are consumed once. Never retry an ambiguous usage insert.
-  clickhouse/usage:
-    <<: *storage_exporter
-    sending_queue:
-      enabled: false
-    retry_on_failure:
-      enabled: false
-
   # >>> DEV ONLY: DELETE THIS EXPORTER FOR PRODUCTION <<<
   # Forward to the dev machine's local everr desktop instance so distributed
   # traces assemble whole there (app half + engine half in one store).
@@ -222,9 +214,10 @@ exporters:
 service:
   extensions: [everr_apikey, everr_usage, file_storage/ingestion]
   pipelines:
+    # Optional admin fanout: load config/usage-admin.example.yaml as a second config.
     metrics/usage:
       receivers: [everr_usage]
-      exporters: [clickhouse/usage]
+      exporters: [clickhouse]
 
     # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.
     traces:
