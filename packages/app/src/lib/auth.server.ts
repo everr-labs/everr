@@ -354,6 +354,8 @@ export const auth = betterAuth({
     organizationPlugin({
       ac: orgAc,
       roles: orgRoles,
+      allowUserToCreateOrganization: true,
+      creatorRole: "owner",
       // Preserve pre-1.6.11 behavior: don't require the recipient's email to be
       // verified to view/accept an invitation. 1.6.11 flipped this default to true.
       requireEmailVerificationOnInvitation: false,

@@ -8,6 +8,7 @@ Software delivery intelligence for developers and AI agents: the same OpenTeleme
 
 **Organization**:
 The top-level account that owns telemetry, dashboards, alerts, runbooks, members, and API keys. The unit of billing and access control.
+Known limitation: there is currently no independent flow for deleting an Organization.
 _Avoid_: workspace, account, tenant (see Tenant)
 
 **Tenant**:
@@ -19,12 +20,20 @@ The single Organization a session — or a connected client — is currently act
 _Avoid_: last-used organization, current org, default org
 
 **User**:
-A person who uses Everr, typically the developer working on the code. Everr is built for Users and Agents at the same level: its telemetry is meant to be equally usable by a human and by an AI, neither above the other. Belongs to an Organization through a Membership.
+A person who uses Everr, typically the developer working on the code. Everr is built for Users and Agents at the same level: its telemetry is meant to be equally usable by a human and by an AI, neither above the other. A User can belong to zero or more Organizations through Memberships.
 _Avoid_: end user, customer
 
+**Membership**:
+The relationship between a User and an Organization. It grants access and carries one or more roles.
+_Avoid_: seat, access record
+
 **Member**:
-A User's belonging to an Organization, which grants access to its telemetry and resources. Access is decided by current Membership, not by membership at the time access was granted.
-_Avoid_: collaborator, seat
+A User who belongs to an Organization through a current Membership. Access is decided by the current Membership, not by membership at the time access was granted.
+_Avoid_: collaborator, Membership
+
+**Owner**:
+The Membership role with full control of an Organization. An Organization can have multiple Owners.
+_Avoid_: creator, administrator
 
 **Project**:
 A namespace within an Organization for dashboards, alerts, and runbooks, so different teams can reuse the same name without colliding. Defaults to `default`.

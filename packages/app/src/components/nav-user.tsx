@@ -27,6 +27,7 @@ import {
   Download,
   KeyRound,
   LogOut,
+  Plus,
   Users,
 } from "lucide-react";
 import { PLATFORMS } from "@/lib/app-download";
@@ -45,7 +46,6 @@ export function NavUser() {
     (m) => m.userId === session?.user?.id,
   )?.role;
   const isAdmin = userRole === "admin" || userRole === "owner";
-  const hasMultipleOrgs = orgs && orgs.length > 1;
 
   const { isMobile } = useSidebar();
 
@@ -119,31 +119,37 @@ export function NavUser() {
               </div>
             </div>
             <DropdownMenuSeparator />
-            {hasMultipleOrgs && (
-              <DropdownMenuGroup>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Building2 />
-                    Switch organization
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {orgs.map((org) => (
-                      <DropdownMenuItem
-                        key={org.id}
-                        onClick={() => void handleSwitchOrg(org.id)}
-                      >
-                        {org.id === activeOrg?.id ? (
-                          <Check />
-                        ) : (
-                          <span className="size-4" />
-                        )}
-                        <span className="truncate">{org.name}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              </DropdownMenuGroup>
-            )}
+            <DropdownMenuGroup>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Building2 />
+                  Organizations
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {orgs?.map((org) => (
+                    <DropdownMenuItem
+                      key={org.id}
+                      onClick={() => void handleSwitchOrg(org.id)}
+                    >
+                      {org.id === activeOrg?.id ? (
+                        <Check />
+                      ) : (
+                        <span className="size-4" />
+                      )}
+                      <span className="truncate">{org.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                  {orgs && orgs.length > 0 ? <DropdownMenuSeparator /> : null}
+                  <DropdownMenuItem
+                    nativeButton={false}
+                    render={<Link to="/organizations/new" />}
+                  >
+                    <Plus />
+                    Create organization
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </DropdownMenuGroup>
             <DropdownMenuGroup>
               <DropdownMenuItem
                 render={<Link to="/account" />}

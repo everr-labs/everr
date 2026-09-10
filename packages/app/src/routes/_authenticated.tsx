@@ -1,4 +1,4 @@
-import { Button } from "@everr/ui/components/button";
+import { Button, buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
@@ -10,12 +10,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   ErrorComponent,
+  Link,
   redirect,
   useRouter,
 } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Loader2, Plus } from "lucide-react";
+import { useState } from "react";
 import { auth } from "@/lib/auth.server";
 import { authClient } from "@/lib/auth-client";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
@@ -91,11 +92,7 @@ function OrgSwitcher() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { data: orgs, isPending, refetch } = authClient.useListOrganizations();
-
-  useEffect(() => {
-    refetch();
-  }, []);
+  const { data: orgs, isPending } = authClient.useListOrganizations();
 
   const [switching, setSwitching] = useState<string | null>(null);
 
@@ -111,11 +108,11 @@ function OrgSwitcher() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-xl font-heading">
-            Organization unavailable
+            Choose an organization
           </CardTitle>
           <CardDescription>
-            You no longer have access to this organization. Switch to another
-            one to continue.
+            Select an organization to continue, or create a new one for your
+            team.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -142,9 +139,16 @@ function OrgSwitcher() {
             </div>
           ) : (
             <p className="text-center text-sm text-muted-foreground">
-              You don't belong to any organizations.
+              You don't belong to any organizations yet.
             </p>
           )}
+          <Link
+            to="/organizations/new"
+            className={buttonVariants({ className: "mt-4 w-full" })}
+          >
+            <Plus />
+            Create organization
+          </Link>
         </CardContent>
       </Card>
     </main>
