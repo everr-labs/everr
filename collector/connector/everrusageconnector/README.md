@@ -73,6 +73,25 @@ usage persistence can still undercount. A full usage queue can still exceed the
 publication timeout. Never retry a drained delta through cumulative conversion;
 exporter retries operate on the already-converted cumulative snapshot.
 
+## Future administrative copies
+
+Administrative copies are not currently enabled. To add them, use a standard
+forward connector after cumulative conversion to feed customer and administrative
+metrics pipelines. Rewrite only the administrative resource's `everr.tenant.id`
+to the internal tenant. Preserve the measured customer attribute, month, signal,
+counter start, instance identity, and cumulative value. Route both pipelines to
+`clickhouse/usage`, bypassing admission metering.
+
+This duplicates usage metrics only. The customer telemetry path and its exporter
+remain unchanged. The [shutdown graph test](shutdown_test.go) already covers this
+fanout arrangement with a rewritten administrative owner.
+
+Delivery of the two copies is not atomic. A failed or timed-out publication to one
+branch can leave stored copies different, even though both originate from the
+same cumulative snapshot. A later snapshot can recover a missing value while the
+counter lifetime survives; an unpublished final value can still be lost.
+Customer-visible usage remains authoritative for billing.
+
 ## Validation
 
 Run `go test -race ./...` in the connector, processor, and extension modules, then

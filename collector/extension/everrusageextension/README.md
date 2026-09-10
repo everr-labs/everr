@@ -202,7 +202,10 @@ repairs accounting.
   independent. Limit-exhaustion and deployment termination-grace sizing must be
   verified for the intended load.
 - Customer-visible usage is authoritative for billing. No administrative copy is
-  published.
+  published. The [future administrative-copy design](../../connector/everrusageconnector/README.md#future-administrative-copies)
+  fans out after cumulative conversion, but delivery of the copies is not atomic.
+  Missing publication on one branch can leave its stored total behind the other;
+  an administrative copy must not authorize billing for customer-invisible usage.
 - Usage retention is 365 days. Any invoice audit history required beyond that
   needs its own retention policy. Keep exporter IDs and persistent volumes stable
   so queued history remains recoverable during rollout.
