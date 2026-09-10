@@ -58,7 +58,7 @@ queue recovery. Do not sum raw samples or discard these identities in a rollup.
 The month attribute controls billing; sample timestamps only provide a lower
 scan bound. There is deliberately no end-of-month sample cutoff, because a final
 snapshot may be published after midnight. Finalize invoices only after pending
-writes have settled. Previously experimental delta/sequence points are excluded.
+writes have settled. Only cumulative points matching the metric contract are included.
 The invoice scheduler and customer usage UI must use this query contract; they
 are outside these components.
 
@@ -133,7 +133,6 @@ Keep exporter ID and queue directory stable across restarts. Docker Compose
 mounts a named volume; other deployments need persistent storage at
 `EVERR_QUEUE_DIRECTORY` (default `/var/lib/everr/queue`). Each replica needs its
 own volume. Unlimited retries do not imply unlimited queue or disk capacity.
-Drain any earlier experimental custom queue before switching storage identities.
 
 ## Failure modes and remaining gaps
 
@@ -148,8 +147,8 @@ whose lifetime has expired or whose process has stopped.
 
 | Scenario | Protection and billing behavior | Verification |
 | --- | --- | --- |
-| Independent publisher stops before final source admissions | The connector waits for all connected input nodes to stop before flushing, while its cumulative processor and exporter remain running. This closes the removed receiver's cross-pipeline graceful shutdown gap. | `TestRealCollectorShutdownGraph`, including source emission during shutdown and a future administrative copy. |
-| A ready tick competes with shutdown cancellation | Stopping ticks does not cancel an in-flight publication. Shutdown waits for its bounded attempt before the final flush. This closes the cancelled-context drain bug. | `TestShutdownDoesNotCancelPeriodicPublication` and `TestPeriodicPublicationRemainsBoundedDuringShutdown`. |
+| Final source admissions during graceful shutdown | The connector waits for all connected input nodes to stop before flushing, while its cumulative processor and exporter remain running. | `TestRealCollectorShutdownGraph`, including source emission during shutdown. |
+| A ready tick competes with shutdown cancellation | Stopping ticks does not cancel an in-flight publication. Shutdown waits for its bounded attempt before the final flush. | `TestShutdownDoesNotCancelPeriodicPublication` and `TestPeriodicPublicationRemainsBoundedDuringShutdown`. |
 | First connector input stops while other signals still admit data | All signal nodes share one publisher; only the last node flushes. Repeated shutdown cannot decrement the count twice. | `TestLastInputFlushes`. |
 | Customer metrics fill their queue | Usage has a distinct exporter ID and persistent metrics queue. Customer metrics cannot consume usage queue capacity. | `TestDedicatedUsageQueueWaitsForCapacity`. |
 | Exporter retries after a lost database acknowledgment, or recovers queued data after restart | Cumulative snapshot identities survive retries and recovery. Billing uses lifetime maxima, and replayed source queues bypass admission metering. These internal retries do not add charges. | `TestPersistentAdmissionRecovery` and the storage smoke test, which produces actual duplicate rows. |
@@ -202,11 +201,8 @@ repairs accounting.
   resource pressure can indirectly affect ingestion even though queue waits are
   independent. Limit-exhaustion and deployment termination-grace sizing must be
   verified for the intended load.
-- An administrative copy is not enabled. The shutdown test covers future fanout
-  after conversion, with both owners using the usage exporter. Copies preserve
-  cumulative identity but are not atomically delivered: failed publication of one
-  branch can leave the stored copies different. Customer-visible usage remains
-  authoritative for billing.
+- Customer-visible usage is authoritative for billing. No administrative copy is
+  published.
 - Usage retention is 365 days. Any invoice audit history required beyond that
   needs its own retention policy. Keep exporter IDs and persistent volumes stable
   so queued history remains recoverable during rollout.

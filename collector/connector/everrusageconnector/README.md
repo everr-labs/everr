@@ -19,12 +19,11 @@ Both exporters are unmodified ClickHouse exporters writing to the same database
 and tables. Customer telemetry is exported once. Usage is customer-owned; no
 administrative copy is enabled.
 
-## Why a connector
+## Lifecycle and shutdown
 
-We previously used an independent usage receiver. During graceful shutdown it
-could publish its final snapshot before another ingestion pipeline finished
-admitting telemetry. The connector creates the graph dependencies needed to
-close that gap, so the receiver has been removed.
+The connector creates graph dependencies between metered ingestion pipelines and
+usage publication. Its final flush runs after source admissions finish and before
+the downstream cumulative processor and usage exporter stop.
 
 Its input methods accept logs, traces, and metrics, return success, and neither
 record nor forward source payloads. Collector creates one node per input signal,
@@ -53,8 +52,8 @@ The usage pipeline bypasses admission metering and namespace filtering, converts
 deltas once, and exports to `clickhouse/usage`. This exporter has its own persistent
 metrics queue with `block_on_overflow: true` and `wait_for_result: false`. It waits
 for queue space, within the connector's publication timeout, then acknowledges
-persistence without waiting for a database write. Customer telemetry retains
-its existing nonblocking queue behavior. The publisher runs independently of
+persistence without waiting for a database write. Customer telemetry uses
+a nonblocking queue. The publisher runs independently of
 source consumption: a blocked usage queue does not directly block or fail customer
 ingestion. Ingestion can still fail when its own queue fills or shared disk,
 database, CPU, or memory pressure affects it.
@@ -65,24 +64,20 @@ for covered gaps, remaining loss scenarios, billing consequences, and test evide
 Exporter IDs namespace the queue files, so both exporters can share the same
 fsync-enabled file storage extension and directory. Customer metrics cannot use
 usage queue capacity, although disk and database failures still affect both.
-Keep exporter IDs and the queue volume stable across restarts. The existing
-`clickhouse` exporter ID is preserved so any previously queued telemetry and usage
-can drain; new usage enters `clickhouse/usage`.
+Keep exporter IDs and the queue volume stable across restarts so queued requests
+remain recoverable. Customer telemetry uses `clickhouse`; usage uses
+`clickhouse/usage`.
 
 The queues are not an atomic transaction. A crash between telemetry admission and
 usage persistence can still undercount. A full usage queue can still exceed the
 publication timeout. Never retry a drained delta through cumulative conversion;
 exporter retries operate on the already-converted cumulative snapshot.
 
-For a future administrative copy, fan out after cumulative conversion, rewrite
-only the administrative resource owner, and route both copies through the usage
-exporter. The shutdown graph test covers this arrangement.
-
 ## Validation
 
 Run `go test -race ./...` in the connector, processor, and extension modules, then
 `make build` in `collector`. Tests cover the real Collector shutdown graph with
-native persistent queue batching and recovery, including an administrative copy.
+native persistent queue batching and recovery.
 They also cover publication cancellation, timeouts, full customer metrics queue
 isolation, and bounded waiting on a full usage queue.
 
