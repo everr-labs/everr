@@ -14,7 +14,9 @@ FROM alpine:3.23
 ARG BIN_PATH=/collector/build/everr-collector
 ARG UID=10001
 
-RUN adduser -D -u ${UID} collector
+RUN adduser -D -u ${UID} collector \
+    && mkdir -p /var/lib/everr/queue \
+    && chown -R collector:collector /var/lib/everr
 COPY --from=build --chmod=755 ${BIN_PATH} /usr/bin/everr-collector
 
 USER collector
