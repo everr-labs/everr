@@ -115,7 +115,7 @@ func validateTopology(conf *confmap.Conf) error {
 		if len(storageExporters) != 1 || len(anchors) > 1 {
 			return fmt.Errorf("pipeline %s: admission metering requires one exporter", name)
 		}
-		e, ok := cfg.Exporters[storageExporters[0]]
+		_, ok := cfg.Exporters[storageExporters[0]]
 		if !ok {
 			return fmt.Errorf("pipeline %s: usage must feed an exporter directly", name)
 		}
@@ -128,19 +128,11 @@ func validateTopology(conf *confmap.Conf) error {
 				return fmt.Errorf("pipeline %s: must attach the usage connector publishing its extension", name)
 			}
 		}
-		q := e.SendingQueue.Get()
 		if meters != 1 || componentType(p.Processors[len(p.Processors)-1]) != Type {
 			return fmt.Errorf("pipeline %s: one usage processor must directly precede the exporter", name)
 		}
-		if !e.SendingQueue.HasValue() || q.WaitForResult || q.StorageID == nil || q.StorageID.Type().String() != "file_storage" {
-			return fmt.Errorf("pipeline %s: admission metering requires a persistent exporter queue and wait_for_result=false", name)
-		}
-		storage, ok := cfg.Extensions[q.StorageID.String()]
-		if !ok || !storage.FSync || !slices.Contains(cfg.Service.Extensions, q.StorageID.String()) {
-			return fmt.Errorf("pipeline %s: queue file storage must be enabled with fsync=true", name)
-		}
-		if e.Retry.Enabled == nil || !*e.Retry.Enabled || e.Retry.MaxElapsedTime != 0 {
-			return fmt.Errorf("pipeline %s: ingestion exporter requires unlimited retries", name)
+		if err := cfg.validateQueue(storageExporters[0]); err != nil {
+			return fmt.Errorf("pipeline %s: %w", name, err)
 		}
 	}
 	return cfg.validatePublication()
@@ -200,15 +192,11 @@ func (cfg topologyConfig) validatePublication() error {
 		for _, id := range p.Exporters {
 			if e, ok := cfg.Exporters[id]; ok {
 				q := e.SendingQueue.Get()
-				if !e.SendingQueue.HasValue() || q.WaitForResult || !q.BlockOnOverflow || q.StorageID == nil || q.StorageID.Type().String() != "file_storage" {
-					return fmt.Errorf("exporter %s: usage requires a persistent queue, block_on_overflow=true and wait_for_result=false", id)
+				if err := cfg.validateQueue(id); err != nil {
+					return err
 				}
-				storage, ok := cfg.Extensions[q.StorageID.String()]
-				if !ok || !storage.FSync || !slices.Contains(cfg.Service.Extensions, q.StorageID.String()) {
-					return fmt.Errorf("exporter %s: usage queue file storage must be enabled with fsync=true", id)
-				}
-				if e.Retry.Enabled == nil || !*e.Retry.Enabled || e.Retry.MaxElapsedTime != 0 {
-					return fmt.Errorf("exporter %s: usage requires unlimited retries", id)
+				if !q.BlockOnOverflow {
+					return fmt.Errorf("exporter %s: usage requires block_on_overflow=true", id)
 				}
 				usageExporters[id] = true
 				continue
@@ -263,6 +251,23 @@ func (cfg topologyConfig) validatePublication() error {
 				}
 			}
 		}
+	}
+	return nil
+}
+
+// Both telemetry and usage acknowledge durable queue admission and retry delivery.
+func (cfg topologyConfig) validateQueue(id string) error {
+	e := cfg.Exporters[id]
+	q := e.SendingQueue.Get()
+	if !e.SendingQueue.HasValue() || q.WaitForResult || q.StorageID == nil || q.StorageID.Type().String() != "file_storage" {
+		return fmt.Errorf("exporter %s: requires a persistent queue and wait_for_result=false", id)
+	}
+	storage, ok := cfg.Extensions[q.StorageID.String()]
+	if !ok || !storage.FSync || !slices.Contains(cfg.Service.Extensions, q.StorageID.String()) {
+		return fmt.Errorf("exporter %s: queue file storage must be enabled with fsync=true", id)
+	}
+	if e.Retry.Enabled == nil || !*e.Retry.Enabled || e.Retry.MaxElapsedTime != 0 {
+		return fmt.Errorf("exporter %s: requires unlimited retries", id)
 	}
 	return nil
 }

@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pipeline"
 	"go.uber.org/zap"
 )
 
@@ -45,7 +46,10 @@ func NewFactory() extension.Factory {
 	}, component.StabilityLevelDevelopment)
 }
 
-type key struct{ tenant, signal, month string }
+type key struct {
+	tenant, month string
+	signal        pipeline.Signal
+}
 type total struct {
 	bytes int64
 	start time.Time
@@ -87,11 +91,17 @@ func (m *Meter) ClaimPublisher() error {
 }
 
 // Record retains only scalar measurements, never customer payloads. Overflow loses usage.
-func (m *Meter) Record(signal string, bytesByTenant map[string]int64) {
+func (m *Meter) Record(signal pipeline.Signal, bytesByTenant map[string]int64) {
 	m.recordAt(signal, bytesByTenant, time.Now())
 }
 
-func (m *Meter) recordAt(signal string, bytesByTenant map[string]int64, now time.Time) {
+func (m *Meter) recordAt(signal pipeline.Signal, bytesByTenant map[string]int64, now time.Time) {
+	switch signal {
+	case pipeline.SignalLogs, pipeline.SignalTraces, pipeline.SignalMetrics:
+	default:
+		m.logger.Error("Unsupported usage signal", zap.String("signal", signal.String()))
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	month := now.UTC().Format("2006-01")
@@ -99,7 +109,7 @@ func (m *Meter) recordAt(signal string, bytesByTenant map[string]int64, now time
 		if bytes <= 0 {
 			continue
 		}
-		k := key{tenant, signal, month}
+		k := key{tenant: tenant, signal: signal, month: month}
 		v, exists := m.totals[k]
 		if (!exists && len(m.totals) >= m.cfg.MaxSeries) || bytes > maxBytes-v.bytes {
 			m.dropped++
@@ -157,6 +167,6 @@ func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time) {
 	point.SetStartTimestamp(pcommon.NewTimestampFromTime(v.start))
 	point.SetTimestamp(pcommon.NewTimestampFromTime(end))
 	point.Attributes().PutStr(MonthKey, k.month)
-	point.Attributes().PutStr("everr.ingestion.signal", k.signal)
+	point.Attributes().PutStr("everr.ingestion.signal", k.signal.String())
 	point.Attributes().PutStr("everr.usage.tenant.id", k.tenant)
 }

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/collector/pipeline"
+
 	"github.com/everr-labs/everr/collector/extension/everrusageextension"
 	filestorage "github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor"
@@ -267,7 +269,7 @@ func TestDedicatedUsageQueueWaitsForCapacity(t *testing.T) {
 
 	// A full usage queue waits until the publication context expires, rather
 	// than immediately rejecting. The failed delta must never be replayed.
-	meter.Record("metrics", map[string]int64{"a": bytes})
+	meter.Record(pipeline.SignalMetrics, map[string]int64{"a": bytes})
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	err = cumulative.ConsumeMetrics(ctx, meter.Drain())
 	cancel()
@@ -275,7 +277,7 @@ func TestDedicatedUsageQueueWaitsForCapacity(t *testing.T) {
 
 	// Freeing usage capacity allows the next cumulative snapshot through even
 	// while the customer metrics queue remains full. It includes the failed tail.
-	meter.Record("metrics", map[string]int64{"a": bytes})
+	meter.Record(pipeline.SignalMetrics, map[string]int64{"a": bytes})
 	usageAvailable.Store(true)
 	ctx, cancel = context.WithTimeout(t.Context(), time.Second)
 	defer cancel()

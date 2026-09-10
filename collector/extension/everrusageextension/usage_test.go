@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/collector/pipeline"
+
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
@@ -12,7 +14,7 @@ import (
 
 func TestDrainContract(t *testing.T) {
 	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
-	m.Record("logs", map[string]int64{"customer": 123, "other": 50})
+	m.Record(pipeline.SignalLogs, map[string]int64{"customer": 123, "other": 50})
 	md := m.Drain()
 	require.Equal(t, 2, md.DataPointCount(), "exactly one customer-owned point per tenant/signal")
 	expected := map[string]int64{"customer": 123, "other": 50}
@@ -49,7 +51,7 @@ func TestConcurrentDrainAndBounds(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for range 100 {
-				m.Record("logs", map[string]int64{"a": 1})
+				m.Record(pipeline.SignalLogs, map[string]int64{"a": 1})
 			}
 		}()
 	}
@@ -62,8 +64,8 @@ func TestConcurrentDrainAndBounds(t *testing.T) {
 	md := m.Drain()
 	sum += totalValue(md)
 	require.Equal(t, int64(800), sum)
-	m.Record("logs", map[string]int64{"a": maxBytes})
-	m.Record("logs", map[string]int64{"a": 1, "b": 5})
+	m.Record(pipeline.SignalLogs, map[string]int64{"a": maxBytes})
+	m.Record(pipeline.SignalLogs, map[string]int64{"a": 1, "b": 5})
 	md = m.Drain()
 	require.Equal(t, maxBytes, totalValue(md))
 	require.Equal(t, 1, md.DataPointCount())
@@ -89,8 +91,8 @@ func TestMonthRolloverWithinOneFlush(t *testing.T) {
 	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
 	before := time.Date(2026, 9, 30, 23, 59, 59, 0, time.UTC)
 	after := before.Add(time.Second)
-	m.recordAt("logs", map[string]int64{"a": 200}, before)
-	m.recordAt("logs", map[string]int64{"a": 300}, after)
+	m.recordAt(pipeline.SignalLogs, map[string]int64{"a": 200}, before)
+	m.recordAt(pipeline.SignalLogs, map[string]int64{"a": 300}, after)
 	md := m.drainAt(after.Add(time.Minute))
 	require.Equal(t, 2, md.DataPointCount())
 	expected := map[string]int64{"2026-09": 200, "2026-10": 300}
@@ -108,7 +110,21 @@ func TestMonthRolloverWithinOneFlush(t *testing.T) {
 
 func TestMonthUsesUTC(t *testing.T) {
 	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
-	m.recordAt("logs", map[string]int64{"a": 200}, time.Date(2026, 10, 1, 1, 0, 0, 0, time.FixedZone("east", 2*60*60)))
+	m.recordAt(pipeline.SignalLogs, map[string]int64{"a": 200}, time.Date(2026, 10, 1, 1, 0, 0, 0, time.FixedZone("east", 2*60*60)))
 	point := m.Drain().ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
 	require.Equal(t, "2026-09", point.Attributes().AsRaw()[MonthKey])
+}
+
+func TestUnsupportedSignalsAreNotPublished(t *testing.T) {
+	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
+	var profiles pipeline.Signal
+	require.NoError(t, profiles.UnmarshalText([]byte("profiles")))
+	for _, signal := range []pipeline.Signal{{}, profiles} {
+		m.Record(signal, map[string]int64{"a": 100})
+	}
+	require.Zero(t, m.Drain().DataPointCount())
+	for _, signal := range []pipeline.Signal{pipeline.SignalLogs, pipeline.SignalTraces, pipeline.SignalMetrics} {
+		m.Record(signal, map[string]int64{"a": 100})
+	}
+	require.Equal(t, 3, m.Drain().DataPointCount())
 }

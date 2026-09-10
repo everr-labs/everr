@@ -7,6 +7,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"go.opentelemetry.io/collector/pipeline"
+
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -26,11 +28,11 @@ func TestNativeCumulativeMonthlyStreams(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, proc.Shutdown(t.Context())) })
 	meter := newMeter(Config{MaxSeries: 10}, zap.NewNop())
 	september := time.Date(2026, 9, 30, 23, 58, 0, 0, time.UTC)
-	meter.recordAt("logs", map[string]int64{"a": 200}, september)
+	meter.recordAt(pipeline.SignalLogs, map[string]int64{"a": 200}, september)
 	require.NoError(t, proc.ConsumeMetrics(t.Context(), meter.drainAt(september.Add(time.Minute))))
 	// One flush spans the UTC boundary: these must remain different streams.
-	meter.recordAt("logs", map[string]int64{"a": 200}, september.Add(90*time.Second))
-	meter.recordAt("logs", map[string]int64{"a": 300}, september.Add(2*time.Minute))
+	meter.recordAt(pipeline.SignalLogs, map[string]int64{"a": 200}, september.Add(90*time.Second))
+	meter.recordAt(pipeline.SignalLogs, map[string]int64{"a": 300}, september.Add(2*time.Minute))
 	require.NoError(t, proc.ConsumeMetrics(t.Context(), meter.drainAt(september.Add(3*time.Minute))))
 	md := sink.AllMetrics()[1]
 	require.Equal(t, 2, md.DataPointCount())
@@ -75,7 +77,7 @@ func TestRejectedFinalSnapshotIsLostAfterIdleExpiry(t *testing.T) {
 		defer func() { require.NoError(t, proc.Shutdown(context.Background())) }()
 		meter := newMeter(Config{MaxSeries: 10}, zap.NewNop())
 		publish := func(bytes int64) error {
-			meter.Record("logs", map[string]int64{"a": bytes})
+			meter.Record(pipeline.SignalLogs, map[string]int64{"a": bytes})
 			return proc.ConsumeMetrics(t.Context(), meter.Drain())
 		}
 		require.NoError(t, publish(200))

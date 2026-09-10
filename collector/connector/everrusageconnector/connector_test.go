@@ -7,6 +7,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"go.opentelemetry.io/collector/pipeline"
+
 	"github.com/everr-labs/everr/collector/extension/everrusageextension"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -26,7 +28,7 @@ func TestFailedSubmissionIsNotRecreated(t *testing.T) {
 	ext, err := f.Create(context.Background(), extensiontest.NewNopSettings(f.Type()), cfg)
 	require.NoError(t, err)
 	meter := ext.(*everrusageextension.Meter)
-	meter.Record("logs", map[string]int64{"a": 123})
+	meter.Record(pipeline.SignalLogs, map[string]int64{"a": 123})
 	var attempts []pmetric.Metrics
 	next, err := consumer.NewMetrics(func(_ context.Context, md pmetric.Metrics) error {
 		copy := pmetric.NewMetrics()
@@ -44,7 +46,7 @@ func TestFailedSubmissionIsNotRecreated(t *testing.T) {
 	require.Len(t, attempts, 1, "the connector submits a drained snapshot only once; exporter retries retain its identity")
 	owner, _ := attempts[0].ResourceMetrics().At(0).Resource().Attributes().Get(everrusageextension.TenantKey)
 	require.Equal(t, "a", owner.Str())
-	meter.Record("logs", map[string]int64{"a": 20})
+	meter.Record(pipeline.SignalLogs, map[string]int64{"a": 20})
 	r.flush(context.Background())
 	require.Len(t, attempts, 2)
 	require.Equal(t, int64(20), attempts[1].ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0).IntValue())
@@ -78,11 +80,11 @@ func TestLastInputFlushes(t *testing.T) {
 	require.NoError(t, traces.ConsumeTraces(t.Context(), ptrace.NewTraces()))
 	require.NoError(t, metrics.ConsumeMetrics(t.Context(), pmetric.NewMetrics()))
 	require.Zero(t, meter.Drain().DataPointCount(), "connector input never meters or forwards source payloads")
-	meter.Record("logs", map[string]int64{"a": 200})
+	meter.Record(pipeline.SignalLogs, map[string]int64{"a": 200})
 	require.NoError(t, logs.Shutdown(t.Context()))
 	require.NoError(t, logs.Shutdown(t.Context())) // A repeated stop cannot decrement twice.
 	require.Zero(t, sink.DataPointCount())
-	meter.Record("logs", map[string]int64{"a": 100})
+	meter.Record(pipeline.SignalLogs, map[string]int64{"a": 100})
 	require.NoError(t, traces.Shutdown(t.Context()))
 	require.Zero(t, sink.DataPointCount())
 	require.NoError(t, metrics.Shutdown(t.Context()))
@@ -117,9 +119,9 @@ func TestShutdownDoesNotCancelPeriodicPublication(t *testing.T) {
 		cfg.Interval = time.Second
 		r := anchor{p: &publisher{cfg: cfg, next: next, logger: zap.NewNop(), remaining: 1, release: func() {}}}
 		require.NoError(t, r.Start(t.Context(), usageHost{component.NewID(f.Type()): ext}))
-		meter.Record("logs", map[string]int64{"a": 200})
+		meter.Record(pipeline.SignalLogs, map[string]int64{"a": 200})
 		attempt := <-started
-		meter.Record("logs", map[string]int64{"a": 100})
+		meter.Record(pipeline.SignalLogs, map[string]int64{"a": 100})
 		time.Sleep(cfg.Interval) // Leave another tick pending.
 		stopped := make(chan error, 1)
 		go func() { stopped <- r.Shutdown(t.Context()) }()
@@ -153,7 +155,7 @@ func TestPeriodicPublicationRemainsBoundedDuringShutdown(t *testing.T) {
 		cfg.Timeout = 3 * time.Second
 		r := anchor{p: &publisher{cfg: cfg, next: next, logger: zap.NewNop(), remaining: 1, release: func() {}}}
 		require.NoError(t, r.Start(t.Context(), usageHost{component.NewID(f.Type()): ext}))
-		meter.Record("logs", map[string]int64{"a": 200})
+		meter.Record(pipeline.SignalLogs, map[string]int64{"a": 200})
 		<-started
 		before := time.Now()
 		require.NoError(t, r.Shutdown(t.Context()))

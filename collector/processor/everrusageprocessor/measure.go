@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"go.opentelemetry.io/collector/pipeline"
+
 	"github.com/everr-labs/everr/collector/extension/everrusageextension"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -56,7 +58,7 @@ func (p *metering) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 	if err := p.logs.ConsumeLogs(ctx, ld); err != nil {
 		return err
 	}
-	p.meter.Record("logs", sizes)
+	p.meter.Record(pipeline.SignalLogs, sizes)
 	return nil
 }
 
@@ -92,7 +94,7 @@ func (p *metering) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
 	if err := p.traces.ConsumeTraces(ctx, td); err != nil {
 		return err
 	}
-	p.meter.Record("traces", sizes)
+	p.meter.Record(pipeline.SignalTraces, sizes)
 	return nil
 }
 
@@ -129,7 +131,7 @@ func (p *metering) ConsumeMetrics(ctx context.Context, md pmetric.Metrics) error
 	if err := p.metrics.ConsumeMetrics(ctx, md); err != nil {
 		return err
 	}
-	p.meter.Record("metrics", sizes)
+	p.meter.Record(pipeline.SignalMetrics, sizes)
 	return nil
 }
 
