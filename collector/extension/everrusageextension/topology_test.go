@@ -9,10 +9,11 @@ import (
 
 func admissionConfig() map[string]any {
 	return map[string]any{
+		"connectors": map[string]any{Type + "_connector": map[string]any{}},
 		"extensions": map[string]any{"file_storage/ingestion": map[string]any{"fsync": true}},
 		"service": map[string]any{"extensions": []any{"file_storage/ingestion"}, "pipelines": map[string]any{
-			"logs":          map[string]any{"receivers": []any{"otlp"}, "processors": []any{"resource", Type}, "exporters": []any{"storage"}},
-			"metrics/usage": map[string]any{"receivers": []any{Type}, "exporters": []any{"storage"}},
+			"logs":          map[string]any{"receivers": []any{"otlp"}, "processors": []any{"resource", Type}, "exporters": []any{"storage", Type + "_connector"}},
+			"metrics/usage": map[string]any{"receivers": []any{Type + "_connector"}, "exporters": []any{"storage"}},
 		}},
 		"exporters": map[string]any{
 			"storage": map[string]any{"sending_queue": map[string]any{"enabled": true, "storage": "file_storage/ingestion", "wait_for_result": false, "queue_size": 10000, "num_consumers": 10, "batch": map[string]any{"min_size": 8192, "flush_timeout": "1s"}}, "retry_on_failure": map[string]any{"enabled": true, "max_elapsed_time": "0s"}},
@@ -56,7 +57,7 @@ func TestAdmissionTopology(t *testing.T) {
 
 func TestComposition(t *testing.T) {
 	c := admissionConfig()
-	c["connectors"] = map[string]any{"forward": map[string]any{}}
+	c["connectors"].(map[string]any)["forward"] = map[string]any{}
 	pipelines := c["service"].(map[string]any)["pipelines"].(map[string]any)
 	p := pipelines["logs"].(map[string]any)
 	p["receivers"] = []any{"forward"}
@@ -75,4 +76,30 @@ func TestEffectiveOptionalQueueConfig(t *testing.T) {
 	// and disabled optional sections as nil in the effective snapshot.
 	delete(exporters["storage"].(map[string]any)["sending_queue"].(map[string]any), "enabled")
 	require.NoError(t, validateTopology(confmap.NewFromStringMap(c)))
+}
+
+func TestConnectorTopology(t *testing.T) {
+	connectorConfig := admissionConfig
+	require.NoError(t, validateTopology(confmap.NewFromStringMap(connectorConfig())))
+	for _, tc := range []struct {
+		name   string
+		change func(map[string]any, map[string]any)
+	}{
+		{"missing_input_edge", func(c, pipes map[string]any) {
+			pipes["traces"] = map[string]any{"receivers": []any{"otlp"}, "processors": []any{Type}, "exporters": []any{"storage"}}
+		}},
+		{"different_meter", func(c, pipes map[string]any) {
+			c["connectors"].(map[string]any)[Type+"_connector"] = map[string]any{"extension": Type + "/other"}
+		}},
+		{"unmetered_input", func(c, pipes map[string]any) { delete(pipes["logs"].(map[string]any), "processors") }},
+		{"publication_loop", func(c, pipes map[string]any) { pipes["metrics/usage"].(map[string]any)["processors"] = []any{Type} }},
+		{"two_publication_pipelines", func(c, pipes map[string]any) { pipes["metrics/other"] = pipes["metrics/usage"] }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := connectorConfig()
+			pipes := c["service"].(map[string]any)["pipelines"].(map[string]any)
+			tc.change(c, pipes)
+			require.Error(t, validateTopology(confmap.NewFromStringMap(c)))
+		})
+	}
 }

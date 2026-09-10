@@ -220,3 +220,66 @@ func TestUsageQueueRejectionRecoveredByLaterSnapshot(t *testing.T) {
 	require.Eventually(t, func() bool { return maximum.Load() == admissions*bytes }, time.Second, time.Millisecond)
 
 }
+
+// Exporter IDs isolate two metrics queues on the same file storage extension.
+func TestDedicatedUsageQueueWaitsForCapacity(t *testing.T) {
+	h, meter, stopHost := startHost(t, t.TempDir())
+	defer stopHost()
+	var telemetryAvailable, usageAvailable atomic.Bool
+	send, stopTelemetry := startAdmission(t, h, meter, "metrics", 1, func(int) error {
+		if !telemetryAvailable.Load() {
+			return errors.New("telemetry unavailable")
+		}
+		return nil
+	})
+	defer func() { telemetryAvailable.Store(true); stopTelemetry() }()
+	require.NoError(t, send())
+	require.Error(t, send(), "customer metrics queue is full")
+	first := meter.Drain()
+	bytes := sum(first)
+	require.Positive(t, bytes)
+
+	q := exporterhelper.NewDefaultQueueConfig()
+	storageID := component.NewIDWithName(component.MustNewType("file_storage"), "ingestion")
+	q.StorageID, q.QueueSize, q.NumConsumers = &storageID, 1, 1
+	q.WaitForResult, q.BlockOnOverflow = false, true
+	retry := configretry.NewDefaultBackOffConfig()
+	retry.InitialInterval, retry.MaxInterval, retry.MaxElapsedTime = time.Millisecond, time.Millisecond, 0
+	settings := exportertest.NewNopSettings(component.MustNewType("storage"))
+	settings.ID = component.NewIDWithName(component.MustNewType("storage"), "usage")
+	var maximum atomic.Int64
+	exp, err := exporterhelper.NewMetrics(t.Context(), settings, &struct{}{}, func(_ context.Context, md pmetric.Metrics) error {
+		if !usageAvailable.Load() {
+			return errors.New("usage unavailable")
+		}
+		maximum.Store(sum(md))
+		return nil
+	}, exporterhelper.WithQueue(configoptional.Some(q)), exporterhelper.WithRetry(retry))
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(t.Context(), h))
+	defer func() { usageAvailable.Store(true); require.NoError(t, exp.Shutdown(context.Background())) }()
+	factory := deltatocumulativeprocessor.NewFactory()
+	cumulative, err := factory.CreateMetrics(t.Context(), processortest.NewNopSettings(factory.Type()), factory.CreateDefaultConfig(), exp)
+	require.NoError(t, err)
+	require.NoError(t, cumulative.Start(t.Context(), h))
+	defer func() { require.NoError(t, cumulative.Shutdown(context.Background())) }()
+	require.NoError(t, cumulative.ConsumeMetrics(t.Context(), first), "full customer metrics queue must not prevent usage admission")
+
+	// A full usage queue waits until the publication context expires, rather
+	// than immediately rejecting. The failed delta must never be replayed.
+	meter.Record("metrics", map[string]int64{"a": bytes})
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	err = cumulative.ConsumeMetrics(ctx, meter.Drain())
+	cancel()
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	// Freeing usage capacity allows the next cumulative snapshot through even
+	// while the customer metrics queue remains full. It includes the failed tail.
+	meter.Record("metrics", map[string]int64{"a": bytes})
+	usageAvailable.Store(true)
+	ctx, cancel = context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	require.NoError(t, cumulative.ConsumeMetrics(ctx, meter.Drain()))
+	require.Eventually(t, func() bool { return maximum.Load() == 3*bytes }, time.Second, time.Millisecond)
+	require.Error(t, send(), "usage recovery must not depend on draining customer metrics")
+}

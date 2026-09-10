@@ -9,6 +9,7 @@ same customer-visible query there. No production credentials are needed.
 """
 
 import argparse
+import copy
 from datetime import datetime, timezone
 import http.server
 import json
@@ -169,9 +170,9 @@ def main():
                 'everr_usage': {},
                 'everr_apikey': {'endpoint': f'http://127.0.0.1:{verify.server_port}/verify', 'shared_secret': run},
                 'file_storage/ingestion': {'directory': str(temp / 'queue'), 'create_directory': True, 'fsync': True}},
+            'connectors': {'everr_usage_connector': {'interval': '1s'}},
             'receivers': {
-                'otlp': {'protocols': {'http': {'endpoint': f'127.0.0.1:{port}', 'auth': {'authenticator': 'everr_apikey'}}}},
-                'everr_usage': {'interval': '1s'}},
+                'otlp': {'protocols': {'http': {'endpoint': f'127.0.0.1:{port}', 'auth': {'authenticator': 'everr_apikey'}}}}},
             'processors': {
                 # Accelerate idle expiry; upstream's cleanup ticker still runs once per minute.
                 'delta_to_cumulative/usage': {'max_stale': '2s', 'max_streams': 60000},
@@ -190,13 +191,15 @@ def main():
                 'sending_queue': {'enabled': True, 'storage': 'file_storage/ingestion', 'wait_for_result': False,
                                   'queue_size': 10000, 'batch': {'min_size': 8192, 'flush_timeout': '100ms'}},
                 'retry_on_failure': {'enabled': True, 'initial_interval': '100ms', 'max_interval': '100ms', 'max_elapsed_time': '0s'}}},
-            'service': {'extensions': ['everr_usage', 'everr_apikey', 'file_storage/ingestion'], 'pipelines': {
-                'metrics/usage': {'receivers': ['everr_usage'], 'processors': ['delta_to_cumulative/usage'], 'exporters': ['clickhouse']}}}}
+            'service': {'telemetry': {'metrics': {'level': 'none'}}, 'extensions': ['everr_usage', 'everr_apikey', 'file_storage/ingestion'], 'pipelines': {
+                'metrics/usage': {'receivers': ['everr_usage_connector'], 'processors': ['delta_to_cumulative/usage'], 'exporters': ['clickhouse/usage']}}}}
         for signal in ['logs', 'traces', 'metrics']:
             processors = ['resource/tenant', 'everr_usage']
             if signal == 'metrics':
                 processors.insert(0, 'filter/reserved_everr')
-            config['service']['pipelines'][signal] = {'receivers': ['otlp'], 'processors': processors, 'exporters': ['clickhouse']}
+            config['service']['pipelines'][signal] = {'receivers': ['otlp'], 'processors': processors, 'exporters': ['clickhouse', 'everr_usage_connector']}
+        config['exporters']['clickhouse/usage'] = copy.deepcopy(config['exporters']['clickhouse'])
+        config['exporters']['clickhouse/usage']['sending_queue']['block_on_overflow'] = True
         (temp / 'config.json').write_text(json.dumps(config))
         log_path = temp / 'collector.log'
         log = log_path.open('w')
@@ -249,7 +252,7 @@ def main():
                     requests.append(item)
             time.sleep(3)
             assert failures['rejected'] > 0 and totals() == []
-            # All original data AND usage are queued in the one exporter during the outage.
+            # Original data and usage are persisted in separate exporter queues during the outage.
             proc.kill()
             proc.wait(timeout=10)
             failures['outage'] = False
@@ -318,7 +321,7 @@ def main():
                     return {(r['customer'], r['signal']): int(r['bytes']) for r in map(json.loads, output.splitlines())}
                 eventually(lambda: everr_totals() == expected)
                 print('PASS: same canonical totals verified through Everr from stored rows, including duplicates.', flush=True)
-            print('PASS: one exporter, customer-only usage, namespace filtering, durable recovery, retry-safe totals.', flush=True)
+            print('PASS: isolated telemetry and usage exporters, customer-only usage, namespace filtering, durable recovery, retry-safe totals.', flush=True)
         except BaseException:
             print(log_path.read_text()[-12000:])
             raise

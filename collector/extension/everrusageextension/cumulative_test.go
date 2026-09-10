@@ -3,7 +3,6 @@ package everrusageextension
 import (
 	"context"
 	"errors"
-	"go.opentelemetry.io/collector/consumer"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor/processortest"

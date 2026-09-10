@@ -75,12 +75,12 @@ func Lookup(host component.Host, id component.ID) (*Meter, error) {
 	return meter, nil
 }
 
-// ClaimPublisher prevents two receivers from splitting intervals for the same stream.
+// ClaimPublisher prevents two publishers from splitting intervals for the same stream.
 func (m *Meter) ClaimPublisher() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.publisher {
-		return errors.New("a usage extension must have exactly one usage receiver")
+		return errors.New("a usage extension must have exactly one usage publisher")
 	}
 	m.publisher = true
 	return nil

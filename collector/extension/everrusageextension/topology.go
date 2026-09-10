@@ -19,6 +19,17 @@ func (*Meter) NotifyConfigSnapshot(_ context.Context, snapshot extensioncapabili
 	return validateTopology(snapshot.Effective())
 }
 
+type publisherConfig struct {
+	Extension string `mapstructure:"extension"`
+}
+
+func (c publisherConfig) extensionID() string {
+	if c.Extension == "" {
+		return Type
+	}
+	return c.Extension
+}
+
 type pipelineConfig struct {
 	Receivers  []string `mapstructure:"receivers"`
 	Processors []string `mapstructure:"processors"`
@@ -27,7 +38,9 @@ type pipelineConfig struct {
 
 func validateTopology(conf *confmap.Conf) error {
 	var cfg struct {
-		Service struct {
+		Connectors map[string]publisherConfig `mapstructure:"connectors"`
+		Processors map[string]publisherConfig `mapstructure:"processors"`
+		Service    struct {
 			Pipelines  map[string]pipelineConfig `mapstructure:"pipelines"`
 			Extensions []string                  `mapstructure:"extensions"`
 		} `mapstructure:"service"`
@@ -45,6 +58,25 @@ func validateTopology(conf *confmap.Conf) error {
 	if err := conf.Unmarshal(&cfg, confmap.WithIgnoreUnused()); err != nil {
 		return err
 	}
+	// An enabled connector must cover every admission pipeline using its meter.
+	// Otherwise the final flush could still precede an unconnected admission.
+	connectorByExtension := map[string]string{}
+	for name, p := range cfg.Service.Pipelines {
+		for _, id := range p.Receivers {
+			if componentType(id) != Type+"_connector" {
+				continue
+			}
+			c, ok := cfg.Connectors[id]
+			if !ok {
+				return fmt.Errorf("pipeline %s: missing usage connector %s", name, id)
+			}
+			ext := c.extensionID()
+			if _, ok := connectorByExtension[ext]; ok {
+				return fmt.Errorf("extension %s: require one usage connector and one publication pipeline", ext)
+			}
+			connectorByExtension[ext] = id
+		}
+	}
 	for name, p := range cfg.Service.Pipelines {
 		meters, publishers := 0, 0
 		for _, id := range p.Processors {
@@ -53,9 +85,21 @@ func validateTopology(conf *confmap.Conf) error {
 			}
 		}
 		for _, id := range p.Receivers {
-			if componentType(id) == Type {
+			if componentType(id) == Type+"_connector" {
 				publishers++
 			}
+		}
+		storageExporters := []string{}
+		anchors := []string{}
+		for _, id := range p.Exporters {
+			if componentType(id) == Type+"_connector" {
+				anchors = append(anchors, id)
+			} else {
+				storageExporters = append(storageExporters, id)
+			}
+		}
+		if len(anchors) > 0 && (meters != 1 || publishers != 0) {
+			return fmt.Errorf("pipeline %s: usage connector input requires one usage processor and must bypass publication", name)
 		}
 		if meters == 0 && publishers == 0 {
 			continue
@@ -66,12 +110,21 @@ func validateTopology(conf *confmap.Conf) error {
 			}
 			continue
 		}
-		if len(p.Exporters) != 1 {
+		if len(storageExporters) != 1 || len(anchors) > 1 {
 			return fmt.Errorf("pipeline %s: admission metering requires one exporter", name)
 		}
-		e, ok := cfg.Exporters[p.Exporters[0]]
+		e, ok := cfg.Exporters[storageExporters[0]]
 		if !ok {
 			return fmt.Errorf("pipeline %s: usage must feed an exporter directly", name)
+		}
+		for _, id := range p.Processors {
+			if componentType(id) != Type {
+				continue
+			}
+			expected := connectorByExtension[cfg.Processors[id].extensionID()]
+			if expected == "" || !slices.Equal(anchors, []string{expected}) {
+				return fmt.Errorf("pipeline %s: must attach the usage connector publishing its extension", name)
+			}
 		}
 		q := e.SendingQueue.Get()
 		if meters != 1 || componentType(p.Processors[len(p.Processors)-1]) != Type {
