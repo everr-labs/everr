@@ -207,10 +207,19 @@ export function createChdbDatabase(): ChdbDatabase {
     insert(rows, deduplicationToken) {
       if (rows.length === 0) return;
       // Direct fixture inserts need the retention stamp normally supplied by the writer.
-      const stamped = rows.map((row) => ({
-        retention_days: resolveRetention("free").logsDays,
-        ...row,
-      }));
+      const retention = resolveRetention("free");
+      const stamped = rows.map((row) => {
+        const eventType = "event_type" in row ? row.event_type : undefined;
+        const isEvaluation =
+          eventType === "evaluation_succeeded" ||
+          eventType === "evaluation_failed";
+        return {
+          retention_days: isEvaluation
+            ? retention.alertEvaluationDays
+            : retention.alertLifecycleDays,
+          ...row,
+        };
+      });
       // JSONEachRow payload, not a SQL literal: the JSON goes in raw. Quoting
       // it the way a string literal is quoted would corrupt every row that
       // contains a quote or a backslash.
