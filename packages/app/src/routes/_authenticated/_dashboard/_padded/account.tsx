@@ -10,7 +10,7 @@ import {
   AlertDialogTrigger,
 } from "@everr/ui/components/alert-dialog";
 import { Badge } from "@everr/ui/components/badge";
-import { Button, buttonVariants } from "@everr/ui/components/button";
+import { Button } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
@@ -19,13 +19,14 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { Input } from "@everr/ui/components/input";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { siGoogle } from "simple-icons";
 import { PageHeader } from "@/components/page-header";
 import { deleteCurrentUserAccount } from "@/data/account-settings";
 import { authClient } from "@/lib/auth-client";
+import { isOrganizationOwner } from "@/lib/organization-role";
 
 type LinkedAccount = NonNullable<
   Awaited<ReturnType<typeof authClient.listAccounts>>["data"]
@@ -62,11 +63,12 @@ function AccountSettingsPage() {
   const currentMemberRole = activeOrganizationMembers.find(
     (member) => member.userId === session?.user?.id,
   )?.role;
-  const canDeleteActiveOrganization = isOrgOwnerRole(currentMemberRole);
+  const canDeleteActiveOrganization = isOrganizationOwner(currentMemberRole);
   const isOnlyActiveOrganizationOwner =
     canDeleteActiveOrganization &&
-    activeOrganizationMembers.filter((member) => isOrgOwnerRole(member.role))
-      .length === 1;
+    activeOrganizationMembers.filter((member) =>
+      isOrganizationOwner(member.role),
+    ).length === 1;
   const activeOrganizationName =
     activeOrganization?.name ?? "current organization";
   const googleButtonLabel = isLoadingLinkedAccounts
@@ -238,21 +240,6 @@ function AccountSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>GitHub Connection</CardTitle>
-          <CardDescription>
-            Connect or update your GitHub App installation for this
-            organization.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Link to="/github" className={buttonVariants({ size: "sm" })}>
-            Manage GitHub
-          </Link>
-        </CardContent>
-      </Card>
-
       <Card className="border-destructive/40">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
@@ -345,15 +332,6 @@ function AccountSettingsPage() {
         </CardHeader>
       </Card>
     </div>
-  );
-}
-
-function isOrgOwnerRole(role: string | null | undefined) {
-  return (
-    role
-      ?.split(",")
-      .map((part) => part.trim())
-      .some((part) => part === "owner") ?? false
   );
 }
 

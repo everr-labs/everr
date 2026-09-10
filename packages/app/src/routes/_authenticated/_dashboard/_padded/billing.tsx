@@ -41,9 +41,9 @@ type Entitlement = {
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_padded/billing",
 )({
-  staticData: { breadcrumb: "Billing", hideTimeRangePicker: true },
+  staticData: { breadcrumb: "Plan & Billing", hideTimeRangePicker: true },
   head: () => ({
-    meta: [{ title: "Everr - Billing" }],
+    meta: [{ title: "Everr - Plan & Billing" }],
   }),
   beforeLoad: async () => {
     await ensureOrgBillingAdmin();
@@ -125,7 +125,7 @@ function Body({ entitlement }: { entitlement: Entitlement | undefined }) {
 function Header({ orgName }: { orgName?: string }) {
   return (
     <PageHeader
-      title="Billing"
+      title="Plan & Billing"
       lede={
         <>
           Manage the plan and billing for{" "}

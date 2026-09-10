@@ -35,6 +35,10 @@ _Avoid_: collaborator, Membership
 The Membership role with full control of an Organization. An Organization can have multiple Owners.
 _Avoid_: creator, administrator
 
+**Billing details**:
+The legal name, tax identifier, billing email, and postal address used to bill an Organization. They may differ from the Organization's display name.
+_Avoid_: billing data, billing profile, Organization name
+
 **Project**:
 A namespace within an Organization for dashboards, alerts, and runbooks, so different teams can reuse the same name without colliding. Defaults to `default`.
 _Avoid_: namespace, team
