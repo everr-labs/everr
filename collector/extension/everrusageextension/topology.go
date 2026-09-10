@@ -36,25 +36,27 @@ type pipelineConfig struct {
 	Exporters  []string `mapstructure:"exporters"`
 }
 
+type topologyConfig struct {
+	Connectors map[string]publisherConfig `mapstructure:"connectors"`
+	Processors map[string]publisherConfig `mapstructure:"processors"`
+	Service    struct {
+		Pipelines  map[string]pipelineConfig `mapstructure:"pipelines"`
+		Extensions []string                  `mapstructure:"extensions"`
+	} `mapstructure:"service"`
+	Extensions map[string]struct {
+		FSync bool `mapstructure:"fsync"`
+	} `mapstructure:"extensions"`
+	Exporters map[string]struct {
+		SendingQueue configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"sending_queue"`
+		Retry        struct {
+			Enabled        *bool         `mapstructure:"enabled"`
+			MaxElapsedTime time.Duration `mapstructure:"max_elapsed_time"`
+		} `mapstructure:"retry_on_failure"`
+	} `mapstructure:"exporters"`
+}
+
 func validateTopology(conf *confmap.Conf) error {
-	var cfg struct {
-		Connectors map[string]publisherConfig `mapstructure:"connectors"`
-		Processors map[string]publisherConfig `mapstructure:"processors"`
-		Service    struct {
-			Pipelines  map[string]pipelineConfig `mapstructure:"pipelines"`
-			Extensions []string                  `mapstructure:"extensions"`
-		} `mapstructure:"service"`
-		Extensions map[string]struct {
-			FSync bool `mapstructure:"fsync"`
-		} `mapstructure:"extensions"`
-		Exporters map[string]struct {
-			SendingQueue configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"sending_queue"`
-			Retry        struct {
-				Enabled        *bool         `mapstructure:"enabled"`
-				MaxElapsedTime time.Duration `mapstructure:"max_elapsed_time"`
-			} `mapstructure:"retry_on_failure"`
-		} `mapstructure:"exporters"`
-	}
+	var cfg topologyConfig
 	if err := conf.Unmarshal(&cfg, confmap.WithIgnoreUnused()); err != nil {
 		return err
 	}
@@ -141,7 +143,117 @@ func validateTopology(conf *confmap.Conf) error {
 			return fmt.Errorf("pipeline %s: ingestion exporter requires unlimited retries", name)
 		}
 	}
-	return nil
+	return cfg.validatePublication()
 }
 
 func componentType(id string) string { kind, _, _ := strings.Cut(id, "/"); return kind }
+
+// Walk configured connector edges without restricting unrelated custom pipelines.
+// Conversion happens once, before fanout; downstream resource rewriting is allowed.
+func (cfg topologyConfig) validatePublication() error {
+	reached := map[string]bool{}
+	usageExporters := map[string]bool{}
+	visiting := map[string]bool{}
+	var visit func(string, bool) error
+	visit = func(name string, root bool) error {
+		if visiting[name] {
+			return fmt.Errorf("pipeline %s: usage publication cycle", name)
+		}
+		if reached[name] {
+			return nil
+		}
+		visiting[name] = true
+		defer delete(visiting, name)
+		p := cfg.Service.Pipelines[name]
+		if componentType(name) != "metrics" {
+			return fmt.Errorf("pipeline %s: usage publication must remain metrics", name)
+		}
+		for _, id := range p.Receivers {
+			if _, ok := cfg.Connectors[id]; !ok {
+				return fmt.Errorf("pipeline %s: usage publication cannot receive customer telemetry", name)
+			}
+		}
+		conversions := 0
+		for _, id := range p.Processors {
+			switch componentType(id) {
+			case Type:
+				return fmt.Errorf("pipeline %s: usage publication must bypass metering", name)
+			case "delta_to_cumulative":
+				conversions++
+			}
+		}
+		if (root && conversions != 1) || (!root && conversions != 0) {
+			return fmt.Errorf("pipeline %s: convert usage to cumulative exactly once before connector fanout", name)
+		}
+		if len(p.Exporters) == 0 {
+			return fmt.Errorf("pipeline %s: usage publication has no destination", name)
+		}
+		for _, id := range p.Exporters {
+			if e, ok := cfg.Exporters[id]; ok {
+				q := e.SendingQueue.Get()
+				if !e.SendingQueue.HasValue() || q.WaitForResult || !q.BlockOnOverflow || q.StorageID == nil || q.StorageID.Type().String() != "file_storage" {
+					return fmt.Errorf("exporter %s: usage requires a persistent queue, block_on_overflow=true and wait_for_result=false", id)
+				}
+				storage, ok := cfg.Extensions[q.StorageID.String()]
+				if !ok || !storage.FSync || !slices.Contains(cfg.Service.Extensions, q.StorageID.String()) {
+					return fmt.Errorf("exporter %s: usage queue file storage must be enabled with fsync=true", id)
+				}
+				if e.Retry.Enabled == nil || !*e.Retry.Enabled || e.Retry.MaxElapsedTime != 0 {
+					return fmt.Errorf("exporter %s: usage requires unlimited retries", id)
+				}
+				usageExporters[id] = true
+				continue
+			}
+			if _, ok := cfg.Connectors[id]; !ok {
+				return fmt.Errorf("pipeline %s: unknown usage destination %s", name, id)
+			}
+			destinations := 0
+			for target, next := range cfg.Service.Pipelines {
+				if slices.Contains(next.Receivers, id) {
+					destinations++
+					if err := visit(target, false); err != nil {
+						return err
+					}
+				}
+			}
+			if destinations == 0 {
+				return fmt.Errorf("connector %s: usage has no downstream pipeline", id)
+			}
+		}
+		reached[name] = true
+		return nil
+	}
+	for name, p := range cfg.Service.Pipelines {
+		for _, id := range p.Receivers {
+			if componentType(id) == Type+"_connector" {
+				if err := visit(name, true); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	// A shared exporter, or an external source into a publication connector,
+	// would let customer telemetry consume usage queue capacity.
+	for name, p := range cfg.Service.Pipelines {
+		if reached[name] {
+			continue
+		}
+		for _, id := range p.Exporters {
+			if usageExporters[id] {
+				return fmt.Errorf("pipeline %s: usage exporter %s must be separate from telemetry", name, id)
+			}
+			if componentType(id) == Type+"_connector" {
+				continue
+			}
+			if _, ok := cfg.Connectors[id]; !ok {
+				continue
+			}
+			for target, next := range cfg.Service.Pipelines {
+				if reached[target] && slices.Contains(next.Receivers, id) {
+					return fmt.Errorf("pipeline %s: telemetry must not feed usage publication connector %s", name, id)
+				}
+			}
+		}
+	}
+	return nil
+}

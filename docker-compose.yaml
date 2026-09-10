@@ -43,6 +43,8 @@ services:
 
   collector:
     build: ./collector
+    # Allow upstream shutdown plus an in-flight and final usage publication.
+    stop_grace_period: 60s
     depends_on:
       clickhouse:
         condition: service_healthy

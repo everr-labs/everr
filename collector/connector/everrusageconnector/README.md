@@ -35,6 +35,10 @@ Collector lifecycle contract and finish in-flight consumption before stopping.
 Stopping ticks does not cancel a publication already in flight. Each attempt is
 bounded by `timeout`; shutdown waits for it before the final flush. Deployment
 termination grace must allow upstream shutdown and these bounded attempts.
+The Docker Compose configuration gives the collector 60 seconds. Run the collector
+as the container process so it receives SIGTERM directly; avoid a shell wrapper
+that does not forward signals. Recheck the grace period when changing publication
+timeouts or adding components that take longer to stop.
 
 The extra read-only fan-out branch can cause Collector to clone customer payloads
 for the mutable exporter branch. High-cardinality CPU and memory load testing
@@ -44,7 +48,12 @@ remains necessary.
 
 [config.example.yml](../../config.example.yml) contains the complete configuration.
 Every pipeline using a usage extension must export to its matching connector
-alongside its telemetry exporter. Startup validation checks those connections.
+alongside its telemetry exporter. Startup validation checks those connections,
+requires exactly one cumulative conversion before publication fanout, and checks
+all destination exporters for dedicated persistent queues, fsync, blocking,
+queue-admission acknowledgment, and unlimited retries. It allows downstream
+connector fanout and resource rewriting while rejecting telemetry mixed into the
+publication graph.
 The connector accepts `extension` (default `everr_usage`), `interval` (default
 `1m`), and `timeout` (default `10s`). Only one publisher may claim an extension.
 
@@ -98,7 +107,9 @@ Run `go test -race ./...` in the connector, processor, and extension modules, th
 `make build` in `collector`. Tests cover the real Collector shutdown graph with
 native persistent queue batching and recovery.
 They also cover publication cancellation, timeouts, full customer metrics queue
-isolation, and bounded waiting on a full usage queue.
+isolation, bounded waiting on a full usage queue, and publication configuration
+rejection. The smoke test exercises SIGTERM before a periodic publication,
+checks the 60-second shutdown budget, and verifies the final persisted usage.
 
 Run the end-to-end local storage check with:
 

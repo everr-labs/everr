@@ -95,6 +95,10 @@ the usage and file-storage extensions. Place the usage processor directly before
 one persistent exporter, with fsync, queue-admission acknowledgment
 (`wait_for_result: false`), and unlimited retries. Startup validation checks this
 immediate boundary and requires the matching usage connector beside that exporter.
+It also checks the publication graph: one cumulative conversion before fanout,
+no downstream metering or second conversion, and dedicated usage exporters with
+persistent fsync-enabled queues, blocking admission, and unlimited retries.
+Customer sources cannot feed those publication pipelines or exporters.
 Upstream processors, connectors, and receiver fanout are
 allowed: each resulting storage admission is metered. Stamp trusted tenant
 attributes before any component that loses authentication context.
@@ -150,6 +154,7 @@ whose lifetime has expired or whose process has stopped.
 | Final source admissions during graceful shutdown | The connector waits for all connected input nodes to stop before flushing, while its cumulative processor and exporter remain running. | `TestRealCollectorShutdownGraph`, including source emission during shutdown. |
 | A ready tick competes with shutdown cancellation | Stopping ticks does not cancel an in-flight publication. Shutdown waits for its bounded attempt before the final flush. | `TestShutdownDoesNotCancelPeriodicPublication` and `TestPeriodicPublicationRemainsBoundedDuringShutdown`. |
 | First connector input stops while other signals still admit data | All signal nodes share one publisher; only the last node flushes. Repeated shutdown cannot decrement the count twice. | `TestLastInputFlushes`. |
+| Unsafe publication configuration | Startup rejects missing/duplicate cumulative conversion, nonpersistent or nonblocking usage queues, finite retries, shared telemetry exporters, and invalid publication paths. Connector fanout and resource rewriting remain supported. | `TestPublicationTopology` and `TestPublicationFanout`. |
 | Customer metrics fill their queue | Usage has a distinct exporter ID and persistent metrics queue. Customer metrics cannot consume usage queue capacity. | `TestDedicatedUsageQueueWaitsForCapacity`. |
 | Exporter retries after a lost database acknowledgment, or recovers queued data after restart | Cumulative snapshot identities survive retries and recovery. Billing uses lifetime maxima, and replayed source queues bypass admission metering. These internal retries do not add charges. | `TestPersistentAdmissionRecovery` and the storage smoke test, which produces actual duplicate rows. |
 | An already-persisted counter expires while the customer is idle | Returning traffic starts a new lifetime. Summing lifetime maxima preserves prior usage without synthetic idle points. | `TestNativeCumulativeMonthlyStreams` and the idle expiry/resumption smoke test. |
@@ -182,9 +187,10 @@ repairs accounting.
   the same as internal exporter retries. Upstream fanout that creates multiple
   storage admissions also meters each admission.
 - Only one publisher may claim a meter. Every metered pipeline must attach its
-  matching connector; startup validation rejects missing edges. That validation
-  is not a general proof of arbitrary custom downstream routing or of all usage
-  exporter settings. Use the supplied configuration and exercise changes.
+  matching connector. Startup also validates publication conversion, queue
+  protection, and isolation along configured connector edges. It cannot prove
+  arbitrary custom component behavior, attribute transformations, or storage
+  availability. Exercise configuration changes with the ingestion smoke test.
 - Source tenant identity must be stamped from trusted authentication before
   metering. Missing tenant identity cannot be charged. The collector's wall clock
   determines the UTC month and timestamps; clock skew near rollover can attribute
@@ -195,7 +201,10 @@ repairs accounting.
   guarantee that an arbitrarily long backlog has drained.
 - Accounting losses currently have error/warning logs, not dedicated accounting
   health metrics or an independent reconciliation ledger. We cannot precisely
-  quantify all lost usage from the usage metric itself.
+  quantify all lost usage from the usage metric itself. Accounting alert rules
+  remain a follow-up: the deployment scrapes collector metrics but needs a log
+  forwarding path before alerts on publication errors and accumulator-limit
+  warnings can work.
 - Production-scale CPU, allocation, memory, and saturation testing remains open.
   The connector can trigger a full payload clone in exporter fanout; shared
   resource pressure can indirectly affect ingestion even though queue waits are
@@ -222,7 +231,10 @@ after native idle expiry. The expiry test uses Go virtual time with the real
 upstream cleanup ticker. Shutdown tests cover admissions during graceful shutdown
 and the final flush.
 Queue tests cover customer metrics saturation, isolated usage capacity, and
-bounded waiting when the usage queue is full.
+bounded waiting when the usage queue is full. The smoke test also sends SIGTERM
+before the first 60-second publication tick, requires shutdown within the
+60-second grace period, and verifies final usage after persistent queue recovery.
+This checks healthy local shutdown, not a worst-case production load guarantee.
 
 Run [the opt-in smoke test](../../test/smoke/usage.py) against the local database:
 

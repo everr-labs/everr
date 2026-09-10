@@ -305,6 +305,28 @@ def main():
             assert db(f"SELECT uniqExact(AggregationTemporality) AS n, min(AggregationTemporality) AS temporality FROM app.metrics_sum WHERE {usage_where}")[0] == {'n': 1, 'temporality': 2}
             print('PASS: idle expiry and resumption created new lifetimes without losing or double-counting prior usage.', flush=True)
 
+            # Verify final publication with the production interval: no periodic
+            # tick may account for these admissions before SIGTERM.
+            proc.terminate()
+            assert proc.wait(timeout=60) == 0
+            config['connectors']['everr_usage_connector']['interval'] = '60s'
+            (temp / 'config.json').write_text(json.dumps(config))
+            began = time.monotonic()
+            proc = start()
+            for item in requests:
+                assert post(*item) == 200
+            assert time.monotonic() - began < 60, 'a periodic publication could mask the shutdown test'
+            stopped = time.monotonic()
+            proc.terminate()
+            assert proc.wait(timeout=60) == 0
+            elapsed = time.monotonic() - stopped
+            # Native exporter shutdown may leave the final snapshot persisted
+            # for recovery. Restart without sending any more source telemetry.
+            proc = start()
+            expected = {(r['customer'], r['signal']): int(r['bytes'])*5 for r in before}
+            eventually(lambda: {(r['customer'], r['signal']): int(r['bytes']) for r in totals()} == expected)
+            print(f'PASS: SIGTERM finished in {elapsed:.2f}s within the 60s grace; final usage survived shutdown/recovery.', flush=True)
+
             if args.everr_cli:
                 status = subprocess.check_output([args.everr_cli, 'local', 'status'], text=True)
                 endpoint = next(line.split(': ', 1)[1] for line in status.splitlines() if line.startswith('otlp: '))
@@ -329,7 +351,7 @@ def main():
             if proc is not None and proc.poll() is None:
                 proc.terminate()
                 try:
-                    proc.wait(timeout=10)
+                    proc.wait(timeout=60)
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait()
