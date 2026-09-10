@@ -10,8 +10,10 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap/zaptest"
 
@@ -117,8 +119,16 @@ func TestRebuildEmptiesAStoreBuiltAtAnOlderVersion(t *testing.T) {
 	filled := newLogsExporter(zaptest.NewLogger(t), first, handle)
 	require.NoError(t, filled.start(t.Context(), nil))
 	ld := plog.NewLogs()
-	ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty().Body().SetStr("before")
+	record := ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
+	record.SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	record.Body().SetStr("before")
 	require.NoError(t, filled.pushLogsData(t.Context(), ld))
+	require.Equal(t, "1", countLogs(first))
+
+	// Apply TTL deletion synchronously so this test cannot pass with an
+	// already-expired fixture while background merges happen to be idle.
+	require.NoError(t, conn.Exec(t.Context(), `ALTER TABLE "`+first.database()+`"."`+
+		first.LogsTableName+`" MATERIALIZE TTL`))
 	require.Equal(t, "1", countLogs(first))
 	require.NoError(t, filled.shutdown(context.Background()))
 
