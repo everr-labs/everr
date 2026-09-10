@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CreateOrganizationInputSchema } from "@/common/organization-name";
+import { CreateOrganizationInputSchema } from "./organization-name";
 
 describe("CreateOrganizationInputSchema", () => {
   it("rejects blank names", () => {

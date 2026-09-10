@@ -18,11 +18,16 @@ import {
   ownerAc,
 } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { member, session as sessionTable, user } from "@/db/schema";
+import { invitation, member, session as sessionTable, user } from "@/db/schema";
 import { env } from "@/env";
-import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
+import {
+  deriveOrgName,
+  generateOrgSlug,
+  selectSoleOrganization,
+  shouldCreateAutomaticOrganization,
+} from "@/lib/auto-org";
 import { upsertOrgSubscription } from "@/lib/billing-data.server";
 import {
   cliDeviceOrganizationPlugin,
@@ -235,23 +240,31 @@ export const auth = betterAuth({
             activeOrganizationId = await getLastUsedOrganizationId(session);
           }
 
-          // Look for an existing membership to set as active org.
+          // A single membership is unambiguous. If there are several and no
+          // previous selection, leave the session without an active org so the
+          // user can choose rather than depending on database row order.
+          let membershipCount = 0;
           if (!activeOrganizationId) {
-            const existingMembership = await db
+            const existingMemberships = await db
               .select({
                 organizationId: member.organizationId,
               })
               .from(member)
               .where(eq(member.userId, session.userId))
-              .limit(1);
+              .limit(2);
 
-            activeOrganizationId =
-              existingMembership[0]?.organizationId ?? null;
+            membershipCount = existingMemberships.length;
+            activeOrganizationId = selectSoleOrganization(
+              existingMemberships.map(
+                (membership) => membership.organizationId,
+              ),
+            );
           }
 
-          // If the user has no org (fresh signup, not via invite),
-          // create a personal org so the session starts with one.
-          if (!activeOrganizationId) {
+          // A valid invitation is an organization destination even before it
+          // becomes a membership. Let the invitation flow complete instead of
+          // creating an unrelated organization during sign-up.
+          if (!activeOrganizationId && membershipCount === 0) {
             const userRecord = await db
               .select({ name: user.name, email: user.email })
               .from(user)
@@ -259,6 +272,35 @@ export const auth = betterAuth({
               .limit(1);
 
             if (userRecord[0]) {
+              const pendingInvitations = await db
+                .select({ id: invitation.id })
+                .from(invitation)
+                .where(
+                  and(
+                    eq(
+                      sql<string>`lower(${invitation.email})`,
+                      userRecord[0].email.toLowerCase(),
+                    ),
+                    eq(invitation.status, "pending"),
+                    gt(invitation.expiresAt, new Date()),
+                  ),
+                )
+                .limit(1);
+
+              if (
+                !shouldCreateAutomaticOrganization({
+                  membershipCount,
+                  hasPendingInvitation: pendingInvitations.length > 0,
+                })
+              ) {
+                return {
+                  data: {
+                    ...session,
+                    activeOrganizationId: null,
+                  },
+                };
+              }
+
               const orgName = deriveOrgName(
                 userRecord[0].name,
                 userRecord[0].email,
@@ -269,7 +311,6 @@ export const auth = betterAuth({
                   body: {
                     name: orgName,
                     slug: generateOrgSlug(),
-                    metadata: { onboardingCompleted: false },
                     userId: session.userId,
                   },
                 });

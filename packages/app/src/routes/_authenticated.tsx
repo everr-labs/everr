@@ -141,17 +141,9 @@ function OrgSwitcher() {
               ))}
             </div>
           ) : (
-            <div className="space-y-4 text-center">
-              <p className="text-sm text-muted-foreground">
-                You don't belong to any organizations.
-              </p>
-              <Button
-                className="w-full"
-                onClick={() => void router.navigate({ to: "/onboarding" })}
-              >
-                Create an organization
-              </Button>
-            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              You don't belong to any organizations.
+            </p>
           )}
         </CardContent>
       </Card>
