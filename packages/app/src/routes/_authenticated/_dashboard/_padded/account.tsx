@@ -242,7 +242,8 @@ function AccountSettingsPage() {
         <CardHeader>
           <CardTitle>GitHub Connection</CardTitle>
           <CardDescription>
-            Connect or update your GitHub App installation for this workspace.
+            Connect or update your GitHub App installation for this
+            organization.
           </CardDescription>
         </CardHeader>
         <CardContent>
