@@ -1,3 +1,4 @@
+import { flattenAttributes } from "../../sql/json-attributes";
 import type { LogDetail, LogIdentity, LogLevel } from "../schemas";
 import { normalizeTimestampToUtc } from "../util/timestamp";
 import type { BuiltQuery } from "./explorer";
@@ -12,9 +13,9 @@ export interface DetailRowRaw {
   serviceName: string;
   traceId: string;
   spanId: string;
-  resourceAttributes: Record<string, string> | null;
-  logAttributes: Record<string, string> | null;
-  scopeAttributes: Record<string, string> | null;
+  resourceAttributes: unknown;
+  logAttributes: unknown;
+  scopeAttributes: unknown;
 }
 
 export function buildDetailQuery(
@@ -36,8 +37,7 @@ export function buildDetailQuery(
         LogAttributes AS logAttributes,
         ScopeAttributes AS scopeAttributes
       FROM ${tableName}
-      WHERE TimestampTime = toDateTime(parseDateTime64BestEffort({timestampRaw:String}, 9))
-        AND Timestamp = parseDateTime64BestEffort({timestampRaw:String}, 9)
+      WHERE Timestamp = parseDateTime64BestEffort({timestampRaw:String}, 9)
         AND ServiceName = {serviceName:String}
         AND TraceId = {traceId:String}
         AND SpanId = {spanId:String}
@@ -56,8 +56,8 @@ export function mapDetailRow(row: DetailRowRaw): LogDetail {
     serviceName: row.serviceName,
     traceId: row.traceId,
     spanId: row.spanId,
-    resourceAttributes: row.resourceAttributes ?? {},
-    logAttributes: row.logAttributes ?? {},
-    scopeAttributes: row.scopeAttributes ?? {},
+    resourceAttributes: flattenAttributes(row.resourceAttributes),
+    logAttributes: flattenAttributes(row.logAttributes),
+    scopeAttributes: flattenAttributes(row.scopeAttributes),
   };
 }

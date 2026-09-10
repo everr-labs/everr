@@ -27,8 +27,8 @@ spec:
     SELECT
       'cloud-query' AS scope,
       count() AS value,
-      arrayStringConcat(groupUniqArray(SpanAttributes['everr.cloud_query.kind']), ', ') AS kinds
+      arrayStringConcat(groupUniqArray(toString(SpanAttributes.`everr.cloud_query.kind`)), ', ') AS kinds
     FROM traces
     WHERE SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
-      AND SpanAttributes['everr.cloud_query.outcome'] = 'system_error'
+      AND toString(SpanAttributes.`everr.cloud_query.outcome`) = 'system_error'
       AND Timestamp >= now() - INTERVAL 5 MINUTE

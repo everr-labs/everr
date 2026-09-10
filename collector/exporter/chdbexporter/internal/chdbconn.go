@@ -245,7 +245,7 @@ func normalizeJSONValue(value any) any {
 	case time.Time:
 		return formatTimestamp(value)
 	case []time.Time:
-		out := make([]int64, 0, len(value))
+		out := make([]string, 0, len(value))
 		for _, item := range value {
 			out = append(out, formatTimestamp(item))
 		}
@@ -294,8 +294,12 @@ func normalizeJSONValue(value any) any {
 	return value
 }
 
-func formatTimestamp(t time.Time) int64 {
-	return t.UTC().UnixNano()
+// A bare JSON number has no unit, so ClickHouse reads it as the column's own
+// ticks and it lands wrong in every time column type but one. The RFC 3339
+// string parses into DateTime, DateTime64 at any scale, and their Array
+// forms, at the precision each column has.
+func formatTimestamp(t time.Time) string {
+	return t.UTC().Format(time.RFC3339Nano)
 }
 
 func touchSentinel(path string) error {

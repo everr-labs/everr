@@ -367,9 +367,9 @@ Confirm all rows include the required resource attributes:
 ```sql
 SELECT
   ServiceName,
-  ResourceAttributes['service.version'] AS service_version,
-  ResourceAttributes['service.instance.id'] AS service_instance_id,
-  ResourceAttributes['deployment.environment.name'] AS environment
+  toString(ResourceAttributes.`service.version`) AS service_version,
+  toString(ResourceAttributes.`service.instance.id`) AS service_instance_id,
+  toString(ResourceAttributes.`deployment.environment.name`) AS environment
 FROM logs
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName IN ('<rust-service-name>', '<browser-service-name>')

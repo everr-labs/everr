@@ -6,17 +6,11 @@ import (
 	"time"
 )
 
-// authResult is what the verify endpoint tells us.
-type authResult struct {
-	tenantID string
-	keyID    string
-}
-
 // cacheEntry stores one verification outcome.
 //
 // If err != nil this is a negative cache entry (verify said "no").
 type cacheEntry struct {
-	result    *authResult
+	result    *authData
 	err       error
 	expiresAt time.Time
 }
@@ -138,7 +132,7 @@ func (c *tokenCache) get(token string) (cacheEntry, bool) {
 	return cacheEntry{}, false
 }
 
-func (c *tokenCache) putSuccess(token string, res *authResult) {
+func (c *tokenCache) putSuccess(token string, res *authData) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.pos.put(token, cacheEntry{
@@ -160,7 +154,7 @@ func (c *tokenCache) putFailure(token string, err error) {
 // exists and is still within `grace` of its expiry. Used as a fallback when
 // the verify endpoint is transiently unavailable so brief upstream outages
 // don't translate into client-visible 401s for keys we recently accepted.
-func (c *tokenCache) peekStalePositive(token string, grace time.Duration) (*authResult, bool) {
+func (c *tokenCache) peekStalePositive(token string, grace time.Duration) (*authData, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e, ok := c.pos.peek(token)

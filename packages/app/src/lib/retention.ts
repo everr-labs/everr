@@ -4,13 +4,27 @@ export type TenantRetention = {
   tracesDays: number;
   logsDays: number;
   metricsDays: number;
+  alertEvaluationDays: number;
+  alertLifecycleDays: number;
 };
 
+// Daily partitions are keyed by retention_days. Keep the distinct windows
+// bounded; their sum determines the approximate live partition count per table.
 const RETENTION_BY_TIER: Record<Tier, TenantRetention> = {
-  free: { tracesDays: 7, logsDays: 7, metricsDays: 14 },
-  // Metrics retention is "13 months" — Datadog/industry convention, stored
-  // here as 395 days (~13 × 30.4).
-  pro: { tracesDays: 90, logsDays: 90, metricsDays: 395 },
+  free: {
+    tracesDays: 14,
+    logsDays: 14,
+    metricsDays: 14,
+    alertEvaluationDays: 14,
+    alertLifecycleDays: 14,
+  },
+  pro: {
+    tracesDays: 365,
+    logsDays: 365,
+    metricsDays: 365,
+    alertEvaluationDays: 30,
+    alertLifecycleDays: 365,
+  },
 };
 
 export function resolveRetention(tier: Tier): TenantRetention {

@@ -41,8 +41,8 @@ WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'
   AND SeverityNumber >= 17
   AND (
-    mapContains(LogAttributes, 'exception.type')
-    OR mapContains(LogAttributes, 'exception.message')
+    has(LogAttributesKeys, 'exception.type')
+    OR has(LogAttributesKeys, 'exception.message')
   )
 ORDER BY Timestamp DESC
 LIMIT 20
@@ -91,8 +91,8 @@ FROM traces
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'
   AND (
-    ResourceAttributes['request.id'] = '<request-id>'
-    OR SpanAttributes['request.id'] = '<request-id>'
+    toString(ResourceAttributes.`request.id`) = '<request-id>'
+    OR toString(SpanAttributes.`request.id`) = '<request-id>'
   )
 ORDER BY Timestamp DESC
 LIMIT 20
@@ -106,8 +106,8 @@ FROM logs
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'
   AND (
-    ResourceAttributes['request.id'] = '<request-id>'
-    OR LogAttributes['request.id'] = '<request-id>'
+    toString(ResourceAttributes.`request.id`) = '<request-id>'
+    OR toString(LogAttributes.`request.id`) = '<request-id>'
   )
 ORDER BY Timestamp DESC
 LIMIT 20

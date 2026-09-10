@@ -50,6 +50,7 @@ If an Everr command fails, investigate why: collector stopped, stale app, wrong 
 
 - **Always include a time window and LIMIT** for diagnostic queries. Cloud enforces a 1000-row hard limit and 30s timeout — queries without time windows will hit these limits. Local queries without windows are wasteful.
 - Freshness checks and schema discovery (`DESCRIBE`, `SHOW TABLES`) may omit the time window.
+- **Trace by id**: `traces` and `logs` are sorted by service and time, not by `TraceId`, so a bare `TraceId = '...'` reads every part. Take the trace's window from `traces_trace_id_ts` first; the "Full trace" query below shows the shape.
 - Use read-only SQL only: `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`, `DESC`, `SHOW`.
 
 ## Tables And Columns
@@ -63,6 +64,7 @@ SQL starts with the same query-facing table names for local and cloud:
 - `metrics_histogram`
 - `metrics_exponential_histogram`
 - `metrics_summary`
+- `traces_trace_id_ts`: `TraceId`, `Start`, `End`. The time window of each trace in whole seconds, one row per trace per ingested batch. Aggregate with `min(Start)` and `max(End)`.
 
 Cloud has one more table, `alert_events`, holding alert history:
 evaluations, state transitions, withheld notifications, and delivery
@@ -76,7 +78,7 @@ Useful log columns: `Timestamp`, `TraceId`, `SpanId`, `ServiceName`, `ScopeName`
 
 `Duration` is nanoseconds (`UInt64`): divide by `1e9` for seconds, `1e6` for milliseconds.
 
-`SpanAttributes`, `LogAttributes`, and `ResourceAttributes` are key/value maps; read a key with `Column['key']`. **Before assuming attribute names** (like `SpanAttributes['http.route']` or `SpanAttributes['db.statement']`), discover what exists with `DESCRIBE TABLE <table>` or by sampling a few rows. OTel attribute naming conventions vary across languages and frameworks.
+`SpanAttributes`, `LogAttributes`, and `ResourceAttributes` are JSON columns with typed values. Read a key as text with `` toString(Column.`key`) `` (backticks around the key, dots included): a missing key gives `''`. Read a number with `` toFloat64OrZero(toString(Column.`key`)) ``. Test presence with `has(ColumnKeys, 'key')`, which is indexed. Never compare the raw `` Column.`key` `` without a conversion: it is a `Dynamic` value, refused in `GROUP BY` and in a comparison across mixed types. The `metrics_*` tables keep maps: `Attributes['key']`. **Before assuming attribute names** (like `` SpanAttributes.`http.route` `` or `` SpanAttributes.`db.statement` ``), discover what exists with `SELECT DISTINCT arrayJoin(SpanAttributesKeys)` over a short window, or by sampling a few rows. OTel attribute naming conventions vary across languages and frameworks.
 
 ## Useful Queries
 
@@ -114,21 +116,27 @@ ORDER BY Duration DESC
 LIMIT 20
 ```
 
-Full trace:
+Full trace, from its id. The window comes from `traces_trace_id_ts`; the `+ 1` covers the truncation of `End` to whole seconds:
 ```sql
+WITH
+  (SELECT min(Start) FROM traces_trace_id_ts WHERE TraceId = '<trace-id>') AS start,
+  (SELECT max(End) + 1 FROM traces_trace_id_ts WHERE TraceId = '<trace-id>') AS end
 SELECT Timestamp, ServiceName, SpanName, Duration, StatusCode, StatusMessage
 FROM traces
-WHERE Timestamp > now() - INTERVAL 1 HOUR
+WHERE Timestamp >= start AND Timestamp <= end
   AND TraceId = '<trace-id>'
 ORDER BY Timestamp ASC
 LIMIT 200
 ```
 
-Correlated logs for a trace:
+Correlated logs for a trace, same window:
 ```sql
+WITH
+  (SELECT min(Start) FROM traces_trace_id_ts WHERE TraceId = '<trace-id>') AS start,
+  (SELECT max(End) + 1 FROM traces_trace_id_ts WHERE TraceId = '<trace-id>') AS end
 SELECT Timestamp, SeverityText, Body
 FROM logs
-WHERE Timestamp > now() - INTERVAL 1 HOUR
+WHERE Timestamp >= start AND Timestamp <= end
   AND TraceId = '<trace-id>'
 ORDER BY Timestamp ASC
 LIMIT 200
@@ -157,27 +165,27 @@ LIMIT 20
 
 ## Group Errors By Fingerprint
 
-Everr groups error logs into Errors by a *fingerprint*: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The fingerprint is a ClickHouse UDF, `errorFingerprint(ServiceName, LogAttributes)`, available on both cloud and local telemetry, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint.
+Everr groups error logs into Errors by a *fingerprint*: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The fingerprint is a ClickHouse UDF, `` errorFingerprint(ServiceName, toString(LogAttributes.`error.fingerprint`), toString(LogAttributes.`exception.type`), toString(LogAttributes.`exception.message`)) ``, available on both cloud and local telemetry, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint.
 
 An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message:
 ```sql
-mapContains(ResourceAttributes, 'service.name')
+has(ResourceAttributesKeys, 'service.name')
 AND SeverityNumber >= 17
 AND (
-  mapContains(LogAttributes, 'exception.type')
-  OR mapContains(LogAttributes, 'exception.message')
+  has(LogAttributesKeys, 'exception.type')
+  OR has(LogAttributesKeys, 'exception.message')
 )
 ```
 
 Occurrences of one Fingerprint (widen the window if the Error is older):
 ```sql
 SELECT toString(Timestamp) AS timestamp, ServiceName, TraceId,
-  LogAttributes['exception.stacktrace'] AS stacktrace
+  toString(LogAttributes.`exception.stacktrace`) AS stacktrace
 FROM logs
 WHERE Timestamp > now() - INTERVAL 7 DAY
-  AND mapContains(ResourceAttributes, 'service.name')
+  AND has(ResourceAttributesKeys, 'service.name')
   AND SeverityNumber >= 17
-  AND errorFingerprint(ServiceName, LogAttributes) = '<fingerprint>'
+  AND errorFingerprint(ServiceName, toString(LogAttributes.`error.fingerprint`), toString(LogAttributes.`exception.type`), toString(LogAttributes.`exception.message`)) = '<fingerprint>'
 ORDER BY Timestamp DESC
 LIMIT 50
 ```

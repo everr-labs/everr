@@ -62,6 +62,10 @@ func (e *tracesJSONExporter) start(ctx context.Context, _ component.Host) error 
 			return createDBErr
 		}
 
+		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
+			return schemaErr
+		}
+
 		if createTableErr := createTraceJSONTables(ctx, e.cfg, e.db); createTableErr != nil {
 			return createTableErr
 		}
@@ -302,9 +306,6 @@ func renderCreateTracesJSONTableSQL(cfg *Config) string {
 }
 
 func createTraceJSONTables(ctx context.Context, cfg *Config, db driver.Conn) error {
-	if err := adoptLegacyTraceTables(ctx, cfg, db); err != nil {
-		return err
-	}
 	if err := db.Exec(ctx, renderCreateTracesJSONTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create json traces table sql: %w", err)
 	}

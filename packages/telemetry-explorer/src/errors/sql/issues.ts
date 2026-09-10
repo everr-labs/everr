@@ -11,9 +11,7 @@ export type BuiltQuery = { sql: string; params: Record<string, unknown> };
 
 function timePredicateSql(): string {
   return `
-    TimestampTime >= toDateTime(parseDateTime64BestEffort({fromTs:String}, 9))
-    AND TimestampTime <= toDateTime(parseDateTime64BestEffort({toTs:String}, 9))
-    AND Timestamp >= parseDateTime64BestEffort({fromTs:String}, 9)
+    Timestamp >= parseDateTime64BestEffort({fromTs:String}, 9)
     AND Timestamp <= parseDateTime64BestEffort({toTs:String}, 9)
   `;
 }
@@ -44,8 +42,8 @@ function buildExceptionLogsCte(
   }
   if (input.q) {
     filters.push(`(
-      positionCaseInsensitive(LogAttributes['exception.type'], {q:String}) > 0
-      OR positionCaseInsensitive(LogAttributes['exception.message'], {q:String}) > 0
+      positionCaseInsensitive(toString(LogAttributes.\`exception.type\`), {q:String}) > 0
+      OR positionCaseInsensitive(toString(LogAttributes.\`exception.message\`), {q:String}) > 0
       OR positionCaseInsensitive(Body, {q:String}) > 0
     )`);
     params.q = input.q;
@@ -71,6 +69,8 @@ function buildExceptionLogsCte(
           ResourceAttributes,
           ScopeAttributes,
           LogAttributes,
+          toString(LogAttributes.\`exception.type\`) AS exception_type,
+          toString(LogAttributes.\`exception.message\`) AS exception_message,
           ${ERROR_FINGERPRINT_SQL} AS fingerprint
         FROM ${tableName}
         WHERE ${filters.join("\n          AND ")}
@@ -107,8 +107,8 @@ export function buildSummaryQuery(
       WITH ${cte.sql}
       SELECT
         fingerprint,
-        argMax(LogAttributes['exception.type'], Timestamp) AS exceptionType,
-        argMax(LogAttributes['exception.message'], Timestamp) AS exceptionMessage,
+        argMax(exception_type, Timestamp) AS exceptionType,
+        argMax(exception_message, Timestamp) AS exceptionMessage,
         argMax(Body, Timestamp) AS body,
         argMax(ServiceName, Timestamp) AS latestServiceName,
         groupUniqArray(ServiceName) AS services,
@@ -164,9 +164,9 @@ export function buildOccurrencesQuery(
         TraceId AS traceId,
         SpanId AS spanId,
         Body AS body,
-        LogAttributes['exception.type'] AS exceptionType,
-        LogAttributes['exception.message'] AS exceptionMessage,
-        LogAttributes['exception.stacktrace'] AS exceptionStacktrace,
+        toString(LogAttributes.\`exception.type\`) AS exceptionType,
+        toString(LogAttributes.\`exception.message\`) AS exceptionMessage,
+        toString(LogAttributes.\`exception.stacktrace\`) AS exceptionStacktrace,
         ResourceAttributes AS resourceAttributes,
         LogAttributes AS logAttributes,
         ScopeAttributes AS scopeAttributes

@@ -49,9 +49,9 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT uniqExact(LogAttributes['everr.visitor.id']) AS visitors
+                      SELECT uniqExact(toString(LogAttributes.`everr.visitor.id`)) AS visitors
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
       sessions:
         kind: Panel
         spec:
@@ -69,9 +69,9 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT uniqExact(LogAttributes['session.id']) AS sessions
+                      SELECT uniqExact(toString(LogAttributes.`session.id`)) AS sessions
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
       page-views:
         kind: Panel
         spec:
@@ -118,8 +118,8 @@ document:
                       FROM (
                         SELECT dateDiff('second', min(Timestamp), max(Timestamp)) AS seconds
                         FROM logs
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND LogAttributes['session.id'] != ''
-                        GROUP BY LogAttributes['session.id']
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND toString(LogAttributes.`session.id`) != ''
+                        GROUP BY toString(LogAttributes.`session.id`)
                       )
       bounce-rate:
         kind: Panel
@@ -150,12 +150,12 @@ document:
                     query: |-
                       SELECT round(countIf(views = 1 AND autocaptures = 0 AND seconds < 10) / count() * 100, 1) AS bounce_pct
                       FROM (
-                        SELECT LogAttributes['session.id'] AS session,
+                        SELECT toString(LogAttributes.`session.id`) AS session,
                                countIf(EventName = 'everr.browser.page_view') AS views,
                                countIf(startsWith(EventName, 'everr.browser.interaction.')) AS autocaptures,
-                               maxIf(toFloat64OrZero(LogAttributes['everr.page_view.duration']), EventName = 'everr.browser.page_leave') / 1000 AS seconds
+                               maxIf(toFloat64OrZero(toString(LogAttributes.`everr.page_view.duration`)), EventName = 'everr.browser.page_leave') / 1000 AS seconds
                         FROM logs
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND LogAttributes['session.id'] != ''
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND toString(LogAttributes.`session.id`) != ''
                         GROUP BY session
                         HAVING views > 0
                       )
@@ -178,8 +178,8 @@ document:
                       SELECT ts, counted.1 AS series, counted.2 AS value
                       FROM (
                         SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                               uniqExact(LogAttributes['everr.visitor.id']) AS visitors,
-                               uniqExact(LogAttributes['session.id']) AS sessions,
+                               uniqExact(toString(LogAttributes.`everr.visitor.id`)) AS visitors,
+                               uniqExact(toString(LogAttributes.`session.id`)) AS sessions,
                                count() AS views
                         FROM logs
                         WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.page_view'
@@ -204,12 +204,12 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route, count() AS views
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) AS route, count() AS views
                       FROM logs
                       WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.page_view'
-                        AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN (
-                        SELECT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) FROM logs WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.page_view'
-                        GROUP BY coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) ORDER BY count() DESC LIMIT 8
+                        AND coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) IN (
+                        SELECT coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) FROM logs WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.page_view'
+                        GROUP BY coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, route
                       ORDER BY ts
@@ -237,15 +237,15 @@ document:
                              round(avgIf(seconds, left), 1) AS avg_seconds,
                              round(avgIf(scroll, left) * 100) AS avg_scroll_pct
                       FROM (
-                        SELECT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route,
-                               LogAttributes['everr.visitor.id'] AS visitor,
+                        SELECT coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) AS route,
+                               toString(LogAttributes.`everr.visitor.id`) AS visitor,
                                countIf(EventName = 'everr.browser.page_leave') > 0 AS left,
                                countIf(startsWith(EventName, 'everr.browser.interaction.')) AS autocaptures,
-                               maxIf(toFloat64OrZero(LogAttributes['everr.page_view.duration']), EventName = 'everr.browser.page_leave') / 1000 AS seconds,
-                               maxIf(toFloat64OrZero(LogAttributes['everr.scroll.depth']), EventName = 'everr.browser.page_leave') AS scroll
+                               maxIf(toFloat64OrZero(toString(LogAttributes.`everr.page_view.duration`)), EventName = 'everr.browser.page_leave') / 1000 AS seconds,
+                               maxIf(toFloat64OrZero(toString(LogAttributes.`everr.scroll.depth`)), EventName = 'everr.browser.page_leave') AS scroll
                         FROM logs
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND LogAttributes['everr.page_view.id'] != ''
-                        GROUP BY LogAttributes['everr.page_view.id'], route, visitor
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND toString(LogAttributes.`everr.page_view.id`) != ''
+                        GROUP BY toString(LogAttributes.`everr.page_view.id`), route, visitor
                       )
                       GROUP BY route
                       ORDER BY views DESC
@@ -267,14 +267,14 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT multiIf(LogAttributes['everr.referrer.url'] = '', 'direct', domain(LogAttributes['everr.referrer.url']) = '', 'other', domain(LogAttributes['everr.referrer.url'])) AS referrer,
-                             uniqExact(LogAttributes['session.id']) AS sessions,
-                             uniqExact(LogAttributes['everr.visitor.id']) AS visitors,
+                      SELECT multiIf(toString(LogAttributes.`everr.referrer.url`) = '', 'direct', domain(toString(LogAttributes.`everr.referrer.url`)) = '', 'other', domain(toString(LogAttributes.`everr.referrer.url`))) AS referrer,
+                             uniqExact(toString(LogAttributes.`session.id`)) AS sessions,
+                             uniqExact(toString(LogAttributes.`everr.visitor.id`)) AS visitors,
                              count() AS views
                       FROM logs
                       WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.page_view'
-                        AND LogAttributes['everr.navigation.type'] = 'initial'
-                        AND domain(LogAttributes['everr.referrer.url']) != domain(LogAttributes['url.full'])
+                        AND toString(LogAttributes.`everr.navigation.type`) = 'initial'
+                        AND domain(toString(LogAttributes.`everr.referrer.url`)) != domain(toString(LogAttributes.`url.full`))
                       GROUP BY referrer
                       ORDER BY sessions DESC
                       LIMIT 20
@@ -295,13 +295,13 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT multiIf(position(ResourceAttributes['user_agent.original'], 'Headless') > 0, 'Headless Chrome', position(ResourceAttributes['user_agent.original'], 'Edg/') > 0, 'Edge', position(ResourceAttributes['user_agent.original'], 'Firefox/') > 0, 'Firefox', position(ResourceAttributes['user_agent.original'], 'Chrome/') > 0, 'Chrome', position(ResourceAttributes['user_agent.original'], 'Safari/') > 0, 'Safari', 'Other') AS browser,
-                             extract(ResourceAttributes['user_agent.original'], '(?:Edg|Firefox|Chrome|Version)/([0-9]+)') AS version,
-                             uniqExact(LogAttributes['session.id']) AS sessions,
-                             uniqExact(LogAttributes['everr.visitor.id']) AS visitors,
+                      SELECT multiIf(position(toString(ResourceAttributes.`user_agent.original`), 'Headless') > 0, 'Headless Chrome', position(toString(ResourceAttributes.`user_agent.original`), 'Edg/') > 0, 'Edge', position(toString(ResourceAttributes.`user_agent.original`), 'Firefox/') > 0, 'Firefox', position(toString(ResourceAttributes.`user_agent.original`), 'Chrome/') > 0, 'Chrome', position(toString(ResourceAttributes.`user_agent.original`), 'Safari/') > 0, 'Safari', 'Other') AS browser,
+                             extract(toString(ResourceAttributes.`user_agent.original`), '(?:Edg|Firefox|Chrome|Version)/([0-9]+)') AS version,
+                             uniqExact(toString(LogAttributes.`session.id`)) AS sessions,
+                             uniqExact(toString(LogAttributes.`everr.visitor.id`)) AS visitors,
                              count() AS views
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
                       GROUP BY browser, version
                       ORDER BY sessions DESC
                       LIMIT 20
@@ -323,9 +323,9 @@ document:
                     query: |-
                       SELECT EventName AS event,
                              count() AS occurrences,
-                             uniqExact(LogAttributes['session.id']) AS sessions
+                             uniqExact(toString(LogAttributes.`session.id`)) AS sessions
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND EventName != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND EventName != ''
                       GROUP BY event
                       ORDER BY occurrences DESC
                       LIMIT 20
@@ -346,10 +346,10 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route,
-                             LogAttributes['everr.element.tag'] AS tag,
+                      SELECT coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) AS route,
+                             toString(LogAttributes.`everr.element.tag`) AS tag,
                              count() AS rage_clicks,
-                             substring(LogAttributes['everr.element.selector'], -40) AS selector_tail
+                             substring(toString(LogAttributes.`everr.element.selector`), -40) AS selector_tail
                       FROM logs
                       WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.interaction.rage_click'
                       GROUP BY route, tag, selector_tail

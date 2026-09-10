@@ -72,13 +72,20 @@ func TestAuthenticate_InvalidKey(t *testing.T) {
 	}
 }
 
+// okVerify is a complete verify response. Most tests here are about caching,
+// singleflight or headers and do not care about the retention values; they
+// only need values that pass the completeness check in verify.
+func okVerify(tenantID string) verifyResponse {
+	return verifyResponse{TenantID: tenantID, KeyID: "ak_1", LogsDays: 14, TracesDays: 14, MetricsDays: 14}
+}
+
 func TestAuthenticate_Success_StampsAuthData(t *testing.T) {
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-internal-secret") != "test-secret" {
 			http.Error(w, "missing secret", http.StatusForbidden)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_42", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(okVerify("org_42"))
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -103,7 +110,7 @@ func TestAuthenticate_CacheHit_AvoidsSecondCall(t *testing.T) {
 	var calls int32
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&calls, 1)
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(okVerify("org_1"))
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -148,7 +155,7 @@ func TestAuthenticate_Singleflight_Coalesces(t *testing.T) {
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&calls, 1)
 		<-release // block until all goroutines are queued behind singleflight
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(okVerify("org_1"))
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -191,7 +198,7 @@ func TestAuthenticate_StaleFallback_OnTransientError(t *testing.T) {
 	var phase atomic.Int32 // 0 = succeed, 1 = transient 5xx
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if phase.Load() == 0 {
-			_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+			_ = json.NewEncoder(w).Encode(okVerify("org_1"))
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
@@ -219,6 +226,53 @@ func TestAuthenticate_StaleFallback_OnTransientError(t *testing.T) {
 	}
 }
 
+// TestAuthenticate_NoStaleFallback_OnMissingRetention covers an app that is
+// reachable but broken: it answers 200 without retention. The grace window is
+// for an unreachable app, so a warm cache must not paper over this.
+func TestAuthenticate_NoStaleFallback_OnMissingRetention(t *testing.T) {
+	var phase atomic.Int32 // 0 = complete answer, 1 = answer without retention
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		res := okVerify("org_1")
+		if phase.Load() == 1 {
+			res.LogsDays, res.TracesDays, res.MetricsDays = 0, 0, 0
+		}
+		_ = json.NewEncoder(w).Encode(res)
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	if _, err := e.Authenticate(context.Background(), authHeaders("known")); err != nil {
+		t.Fatalf("priming verify failed: %v", err)
+	}
+
+	// Expired for a normal get, but inside the stale-fallback grace window.
+	e.cache.pos.now = func() time.Time {
+		return time.Now().Add(e.cfg.CacheTTL + 1*time.Second)
+	}
+	e.cache.now = e.cache.pos.now
+
+	phase.Store(1)
+	if _, err := e.Authenticate(context.Background(), authHeaders("known")); err == nil {
+		t.Fatal("expected authentication to fail when the app reports no retention")
+	}
+
+	// Held for the negative window, so a broken app does not take one verify
+	// call per ingest request.
+	phase.Store(0)
+	if _, err := e.Authenticate(context.Background(), authHeaders("known")); err == nil {
+		t.Fatal("expected the unusable answer to be held for the negative window")
+	}
+
+	// Released once that window passes, so a fixed app recovers on its own.
+	recovered := time.Now().Add(e.cfg.CacheTTL + e.cfg.NegativeCacheTTL + 1*time.Second)
+	e.cache.pos.now = func() time.Time { return recovered }
+	e.cache.neg.now = e.cache.pos.now
+	e.cache.now = e.cache.pos.now
+	if _, err := e.Authenticate(context.Background(), authHeaders("known")); err != nil {
+		t.Fatalf("expected recovery once the negative entry expired; got %v", err)
+	}
+}
+
 func TestAuthenticate_ForwardsOrigin(t *testing.T) {
 	var got struct {
 		Key    string `json:"key"`
@@ -228,7 +282,7 @@ func TestAuthenticate_ForwardsOrigin(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
 			t.Errorf("decode verify body: %v", err)
 		}
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(okVerify("org_1"))
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -250,7 +304,7 @@ func TestAuthenticate_LowercaseOriginHeader(t *testing.T) {
 	}
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&got)
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(okVerify("org_1"))
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -269,7 +323,7 @@ func TestAuthenticate_NoOrigin_OmitsField(t *testing.T) {
 	var raw map[string]any
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&raw)
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(okVerify("org_1"))
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -288,7 +342,7 @@ func TestAuthenticate_CachePerOrigin(t *testing.T) {
 	var calls int32
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&calls, 1)
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(okVerify("org_1"))
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -329,7 +383,7 @@ func TestAuthenticate_NegativeCachePerOrigin(t *testing.T) {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_1", KeyID: "ak_1"})
+		_ = json.NewEncoder(w).Encode(okVerify("org_1"))
 	})
 	defer srv.Close()
 	e := newTestExt(t, srv.URL)
@@ -360,5 +414,45 @@ func TestExtension_TimeoutWiring(t *testing.T) {
 	e := newExtension(cfg, extension.Settings{})
 	if e.httpClient.Timeout != 500*time.Millisecond {
 		t.Fatalf("got %v", e.httpClient.Timeout)
+	}
+}
+
+func TestAuthenticate_Success_StampsRetention(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(verifyResponse{
+			TenantID: "org_42", KeyID: "ak_1",
+			LogsDays: 7, TracesDays: 14, MetricsDays: 21,
+		})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	ctx, err := e.Authenticate(context.Background(), authHeaders("good"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cl := client.FromContext(ctx)
+	for name, want := range map[string]string{
+		"retention_logs_days":    "7",
+		"retention_traces_days":  "14",
+		"retention_metrics_days": "21",
+	} {
+		if got := cl.Auth.GetAttribute(name); got != want {
+			t.Errorf("%s: got %v want %s", name, got, want)
+		}
+	}
+}
+
+// Fail closed: a row can only exist with a retention stamp, so an app that
+// does not return one (an old deploy) must not be allowed to ingest.
+func TestAuthenticate_RejectsResponseWithoutRetention(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(verifyResponse{TenantID: "org_42", KeyID: "ak_1"})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	if _, err := e.Authenticate(context.Background(), authHeaders("good")); err == nil {
+		t.Fatal("expected error: a verify response without retention must not authenticate")
 	}
 }

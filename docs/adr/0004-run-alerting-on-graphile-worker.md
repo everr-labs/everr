@@ -12,11 +12,11 @@ Everr runs Alert evaluation and notification delivery as Graphile Worker jobs in
 
 - Graphile Worker owns execution, retries, delayed scheduling, and worker distribution. PostgreSQL alert tables retain current domain state, delivery outbox records, and evaluation idempotency markers.
 - ClickHouse stores immutable evaluation samples, bounded query evidence, and instance transitions. The alert detail and triage history reads use this analytical history instead of PostgreSQL JSON rows.
-- Preview-owned alert definitions and delivery outbox records reference the Preview directly and are deleted by PostgreSQL cascades. ClickHouse history keeps the Preview id and expires through the tenant logs retention policy.
+- Preview-owned alert definitions and delivery outbox records reference the Preview directly and are deleted by PostgreSQL cascades. ClickHouse history keeps the Preview id and expires through the tenant's alert-history entitlements: Free retains all events for 14 days; Pro retains evaluations for 30 days and lifecycle events for 365 days. Each row snapshots its entitlement at write time.
 - Alert ownership is stored in a required first-class `repoid` column. Live resources carry `previewId: null`; preview resources carry their parent Preview id, and the database verifies that their Organization and Repoid match the Preview.
 - ClickHouse alert events retain the source definition id and resource name without a live foreign key. Deleting a rule does not rewrite historical identity.
 - Notification groups, deliveries, and their event memberships are normalized. Delivery history is derived from successful delivery records, so one route cannot overwrite another route's targets.
 - The application uses one native alerting model. There is no empty-string namespace sentinel, ownership annotation, or compatibility facade for the retired service.
 - Alert jobs carry a Tenant identity, but ClickHouse placement and credentials are always resolved server-side from the Tenant.
 - The worker pool is shared across Organizations. Fairness and ClickHouse query concurrency are enforced by Everr rather than by creating one queue or process per Organization.
-- Alert scheduling and delivery share PostgreSQL's availability and capacity envelope. Historical evidence growth follows ClickHouse logs retention. Queue lag, table growth, and noisy-neighbor behavior must be monitored explicitly.
+- Alert scheduling and delivery share PostgreSQL's availability and capacity envelope. Historical evidence growth follows the alert evaluation and lifecycle retention windows. Queue lag, table growth, and noisy-neighbor behavior must be monitored explicitly.

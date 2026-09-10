@@ -14,6 +14,7 @@ import type {
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import { formatResourceName } from "@/data/as-code/identity";
 import { insertAdminRows } from "@/lib/clickhouse";
+import { retentionForOrg } from "@/lib/retention.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import {
   capAlertLabels,
@@ -141,6 +142,12 @@ export type AlertHistoryRow = {
   delivery_targets: AlertDeliveryTargets;
   delivery_dedup_key: string;
 };
+
+function isEvaluationHistoryEvent(eventType: AlertHistoryEventType): boolean {
+  return (
+    eventType === "evaluation_succeeded" || eventType === "evaluation_failed"
+  );
+}
 
 function baseHistoryRow(opts: {
   def: AlertHistoryDefinition;
@@ -477,11 +484,27 @@ function alertHistoryDedupToken(rows: readonly AlertHistoryRow[]): string {
  * query, so a token that differs every time gives every insert its own buffer
  * and its own part.
  */
-function insertAlertHistoryRows(
+async function insertAlertHistoryRows(
   rows: AlertHistoryRow[],
   { sync, convergesOnRetry }: { sync: boolean; convergesOnRetry: boolean },
 ): Promise<void> {
-  return insertAdminRows("app.alert_events", rows, {
+  // Free keeps evaluation and lifecycle history for 14 days; Pro keeps
+  // evaluations for 30 days and lifecycle history for 365 days. Each row gets
+  // its event-class entitlement here as a write-time snapshot. A batch
+  // can hold rows of several tenants; retentionForOrg caches per tenant, so
+  // the lookup runs once per tenant in the batch.
+  const stamped = await Promise.all(
+    rows.map(async (row) => {
+      const retention = await retentionForOrg(row.tenant_id);
+      return {
+        ...row,
+        retention_days: isEvaluationHistoryEvent(row.event_type)
+          ? retention.alertEvaluationDays
+          : retention.alertLifecycleDays,
+      };
+    }),
+  );
+  return insertAdminRows("app.alert_events", stamped, {
     async_insert: sync ? 0 : 1,
     ...(sync ? {} : { wait_for_async_insert: 1 }),
     date_time_input_format: "best_effort",

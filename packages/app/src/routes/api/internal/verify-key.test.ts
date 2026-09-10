@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveRetention } from "@/lib/retention";
 import { Route } from "./verify-key";
 
 vi.mock("@/env", () => ({
@@ -14,6 +15,10 @@ vi.mock("@/lib/auth.server", () => ({
       verifyApiKey: vi.fn(),
     },
   },
+}));
+
+vi.mock("@/lib/retention.server", () => ({
+  retentionForOrg: vi.fn(),
 }));
 
 type PostHandler = (args: { request: Request }) => Promise<Response>;
@@ -44,7 +49,11 @@ async function mockVerify(result: unknown) {
   vi.mocked(auth.api.verifyApiKey).mockResolvedValueOnce(result as never);
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(async () => {
+  vi.clearAllMocks();
+  const { retentionForOrg } = await import("@/lib/retention.server");
+  vi.mocked(retentionForOrg).mockResolvedValue(resolveRetention("pro"));
+});
 
 describe("/api/internal/verify-key", () => {
   it("returns 403 when shared secret is missing", async () => {
@@ -108,7 +117,12 @@ describe("/api/internal/verify-key", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_3",
+      tracesDays: 365,
+      logsDays: 365,
+      metricsDays: 365,
     });
+    const { retentionForOrg } = await import("@/lib/retention.server");
+    expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 
     // The configId pin is the sole guarantee that a CLI/user-scoped key
     // can't be used for ingest — assert we still pass it.
@@ -182,6 +196,9 @@ describe("/api/internal/verify-key browser origin policy", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_public",
+      tracesDays: 365,
+      logsDays: 365,
+      metricsDays: 365,
     });
   });
 
@@ -247,6 +264,9 @@ describe("/api/internal/verify-key browser origin policy", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_secret",
+      tracesDays: 365,
+      logsDays: 365,
+      metricsDays: 365,
     });
   });
 

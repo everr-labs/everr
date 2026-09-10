@@ -192,8 +192,8 @@ Renderer records carry the mark you chose above: `everr.process.type = renderer`
 
 ```sql
 SELECT Timestamp, ServiceName, SeverityText, Body,
-       LogAttributes['everr.process.type'] AS process_type,
-       LogAttributes['exception.mechanism'] AS mechanism,
+       toString(LogAttributes.`everr.process.type`) AS process_type,
+       toString(LogAttributes.`exception.mechanism`) AS mechanism,
        TraceId
 FROM logs
 WHERE Timestamp > now() - INTERVAL 10 MINUTE

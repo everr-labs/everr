@@ -37,7 +37,7 @@ const JOB_COST_FILTER = [
   nonEmptyResourceAttribute("cicd.pipeline.worker.labels"),
   nonEmptyResourceAttribute("cicd.pipeline.task.run.id"),
   `lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'`,
-  "SpanAttributes['everr.github.workflow_job_step.number'] = ''",
+  "toString(SpanAttributes.`everr.github.workflow_job_step.number`) = ''",
 ].join(AND);
 
 export const getWorkflowCostSummary = createAuthenticatedServerFn({
@@ -72,7 +72,7 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
       }>(
         `
 				SELECT
-					ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
+					toString(ResourceAttributes.\`cicd.pipeline.worker.labels\`) as labels,
 					sumIf(Duration, Timestamp >= {fromTime:String}) / 1000000 as currentDurationMs,
 					sumIf(ceil(Duration / 60000000000.0), Timestamp >= {fromTime:String}) as currentRoundedMinutes,
 					sumIf(Duration, Timestamp < {fromTime:String}) / 1000000 as prevDurationMs,
@@ -103,7 +103,7 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
 					FROM traces
 					WHERE Timestamp >= {prevFromTime:String} AND Timestamp <= {toTime:String}
 						AND ${RUN_FILTER}
-					GROUP BY ResourceAttributes['cicd.pipeline.run.id']
+					GROUP BY toString(ResourceAttributes.\`cicd.pipeline.run.id\`)
 				)
 			`,
         params,
@@ -118,7 +118,7 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
         `
 				SELECT
 					toDate(Timestamp) as date,
-					ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
+					toString(ResourceAttributes.\`cicd.pipeline.worker.labels\`) as labels,
 					sum(Duration) / 1000000 as durationMs,
 					sum(ceil(Duration / 60000000000.0)) as roundedMinutes
 				FROM traces
@@ -199,9 +199,9 @@ export const getWorkflowCostByJob = createAuthenticatedServerFn({
     }>(
       `
 			SELECT
-				ResourceAttributes['cicd.pipeline.task.name'] as job,
-				ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
-				uniqExact(ResourceAttributes['cicd.pipeline.run.id']) as runs,
+				toString(ResourceAttributes.\`cicd.pipeline.task.name\`) as job,
+				toString(ResourceAttributes.\`cicd.pipeline.worker.labels\`) as labels,
+				uniqExact(toString(ResourceAttributes.\`cicd.pipeline.run.id\`)) as runs,
 				sum(Duration) / 1000000 as durationMs,
 				sum(ceil(Duration / 60000000000.0)) as roundedMinutes
 			FROM traces
@@ -270,8 +270,8 @@ export const getWorkflowRunTimelines = createAuthenticatedServerFn({
       `
 			SELECT
 				TraceId as trace_id,
-				anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-				anyLast(toUInt32OrZero(ResourceAttributes['everr.github.workflow_job.run_attempt'])) as run_attempt,
+				anyLast(toString(ResourceAttributes.\`cicd.pipeline.run.id\`)) as run_id,
+				anyLast(toUInt32OrZero(toString(ResourceAttributes.\`everr.github.workflow_job.run_attempt\`))) as run_attempt,
 				${CONCLUSION_EXPR} as conclusion,
 				max(Timestamp) as timestamp
 			FROM traces
@@ -307,17 +307,17 @@ export const getWorkflowRunTimelines = createAuthenticatedServerFn({
       `
 			SELECT
 				TraceId as trace_id,
-				ResourceAttributes['cicd.pipeline.task.run.id'] as jobId,
-				anyLast(ResourceAttributes['cicd.pipeline.task.name']) as name,
-				anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
-				anyLast(ResourceAttributes['cicd.pipeline.worker.labels']) as labels,
+				toString(ResourceAttributes.\`cicd.pipeline.task.run.id\`) as jobId,
+				anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.name\`)) as name,
+				anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`)) as conclusion,
+				anyLast(toString(ResourceAttributes.\`cicd.pipeline.worker.labels\`)) as labels,
 				min(toUnixTimestamp64Milli(Timestamp)) as startMs,
 				max(toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000)) as endMs,
 				max(Duration) / 1000000 as durationMs
 			FROM traces
 			WHERE TraceId IN {traceIds:Array(String)}
 				AND ${nonEmptyResourceAttribute("cicd.pipeline.task.run.id")}
-				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+				AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''
 			GROUP BY trace_id, jobId
 			ORDER BY startMs ASC
 		`,
@@ -385,7 +385,7 @@ export const getWorkflowRecentRuns = createAuthenticatedServerFn({
       whereClause: `Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ${RUN_FILTER}
 					AND ${nonEmptyResourceAttribute("cicd.pipeline.task.run.result")}
-					AND SpanAttributes['everr.github.workflow_job_step.number'] = ''`,
+					AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''`,
       groupByExpr: "TraceId",
       groupByAlias: "trace_id",
       includeRunAttempt: true,
@@ -420,8 +420,8 @@ export const getWorkflowRecentRuns = createAuthenticatedServerFn({
       }>(
         `
 				SELECT
-					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-					ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
+					toString(ResourceAttributes.\`cicd.pipeline.run.id\`) as run_id,
+					toString(ResourceAttributes.\`cicd.pipeline.worker.labels\`) as labels,
 					sum(Duration) / 1000000 as durationMs,
 					sum(ceil(Duration / 60000000000.0)) as roundedMinutes
 				FROM traces

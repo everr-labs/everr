@@ -56,37 +56,22 @@ func TestRenderCreateLogsTableSQL(t *testing.T) {
 		c.TTL = 72 * time.Hour
 	})
 
-	t.Run("bloom filter indexes for CH < 26.2", func(t *testing.T) {
-		sql, err := renderCreateLogsTableSQL(cfg, false)
+	t.Run("bloom filter indexes and the cloud sort key", func(t *testing.T) {
+		sql, err := renderCreateLogsTableSQL(cfg)
 		require.NoError(t, err)
 
 		require.Contains(t, sql, "TYPE bloom_filter")
 		require.Contains(t, sql, "TYPE tokenbf_v1")
 		require.NotContains(t, sql, "TYPE text(")
 
-		require.Contains(t, sql, "toStartOfFiveMinutes(Timestamp)")
+		require.Contains(t, sql, "ORDER BY (ServiceName, Timestamp)")
+		require.NotContains(t, sql, "toStartOfFiveMinutes")
 		require.Contains(t, sql, "`test_db`.`otel_logs`")
-		require.Contains(t, sql, "`TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
+		require.NotContains(t, sql, "TimestampTime")
 		require.Contains(t, sql, "EventName")
 		require.Contains(t, sql, "__otel_materialized_k8s.namespace.name")
 		require.Contains(t, sql, "__otel_materialized_deployment.environment.name")
 		require.Contains(t, sql, "toDateTime(Timestamp)")
-	})
-
-	t.Run("full text search indexes for CH >= 26.2", func(t *testing.T) {
-		sql, err := renderCreateLogsTableSQL(cfg, true)
-		require.NoError(t, err)
-
-		require.Contains(t, sql, "TYPE text(tokenizer = 'array')")
-		require.Contains(t, sql, "TYPE text(tokenizer = 'splitByNonAlpha')")
-		require.NotContains(t, sql, "TYPE bloom_filter")
-		require.NotContains(t, sql, "tokenbf_v1")
-
-		require.Contains(t, sql, "toStartOfFiveMinutes(Timestamp)")
-		require.Contains(t, sql, "`test_db`.`otel_logs`")
-		require.Contains(t, sql, "`TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
-		require.Contains(t, sql, "EventName")
-		require.Contains(t, sql, "__otel_materialized_k8s.namespace.name")
 	})
 
 	t.Run("no TTL when zero", func(t *testing.T) {
@@ -95,7 +80,7 @@ func TestRenderCreateLogsTableSQL(t *testing.T) {
 			c.Database = "test_db"
 			c.TTL = 0
 		})
-		sql, err := renderCreateLogsTableSQL(noTTLCfg, false)
+		sql, err := renderCreateLogsTableSQL(noTTLCfg)
 		require.NoError(t, err)
 		require.NotContains(t, sql, "TTL")
 	})
@@ -115,9 +100,10 @@ func TestRenderCreateLogsJSONTableSQL(t *testing.T) {
 	require.Contains(t, sql, "`ResourceAttributes` JSON")
 	require.Contains(t, sql, "`ScopeAttributes` JSON")
 	require.Contains(t, sql, "`LogAttributes` JSON")
-	require.Contains(t, sql, "`TimestampTime` DateTime DEFAULT toDateTime(Timestamp)")
+	require.NotContains(t, sql, "TimestampTime")
 
-	require.Contains(t, sql, "toStartOfFiveMinutes(Timestamp)")
+	require.Contains(t, sql, "ORDER BY (ServiceName, Timestamp)")
+	require.NotContains(t, sql, "toStartOfFiveMinutes")
 	require.Contains(t, sql, "`test_db`.`otel_logs_json`")
 
 	require.Contains(t, sql, "TYPE bloom_filter")

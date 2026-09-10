@@ -194,11 +194,9 @@ describe("TracesRepository.search", () => {
     expect(sql).not.toContain("{toTs:DateTime64(9)}");
     expect(sql).toContain("parseDateTime64BestEffort({fromTs:String}, 9)");
     expect(sql).toContain("parseDateTime64BestEffort({toTs:String}, 9)");
+    expect(sql).toContain("has(ResourceAttributesKeys, 'service.namespace')");
     expect(sql).toContain(
-      "mapContains(ResourceAttributes, 'service.namespace')",
-    );
-    expect(sql).toContain(
-      "ResourceAttributes['service.namespace'] IN {namespace:Array(String)}",
+      "toString(ResourceAttributes.`service.namespace`) IN {namespace:Array(String)}",
     );
   });
 
@@ -218,10 +216,10 @@ describe("TracesRepository.search", () => {
 
     const [sql] = query.mock.calls[0] ?? [];
     expect(sql).not.toContain(
-      "mapContains(ResourceAttributes, 'service.namespace')",
+      "has(ResourceAttributesKeys, 'service.namespace')",
     );
     expect(sql).toContain(
-      "ResourceAttributes['service.namespace'] IN {namespace:Array(String)}",
+      "toString(ResourceAttributes.`service.namespace`) IN {namespace:Array(String)}",
     );
   });
 
@@ -352,6 +350,44 @@ describe("TracesRepository.getTrace", () => {
     ]);
   });
 
+  it("flattens the nested JSON attribute columns into dotted keys", async () => {
+    query.mockResolvedValueOnce([
+      {
+        traceId: "t1",
+        spanId: "s1",
+        parentSpanId: "",
+        spanName: "root",
+        serviceName: "web",
+        serviceNamespace: "app",
+        timestamp: "2026-05-20 12:00:00.000",
+        timestampNs: "1000",
+        duration: "500",
+        statusCode: "Ok",
+        spanKind: "Server",
+        spanAttributes: { http: { route: "/x" } },
+        resourceAttributes: { service: { name: "api" } },
+        eventNames: ["exception"],
+        eventTimestamps: ["1010"],
+        eventAttributes: [{ exception: { type: "E" } }],
+        linkTraceIds: [],
+        linkSpanIds: [],
+        linkAttributes: [],
+      },
+    ]);
+
+    const result = await makeRepo().getTrace({
+      traceId: "t1",
+      fromTs: "2026-05-20 11:00:00.000",
+      toTs: "2026-05-20 13:00:00.000",
+    });
+
+    expect(result[0]?.spanAttributes).toEqual({ "http.route": "/x" });
+    expect(result[0]?.resourceAttributes).toEqual({ "service.name": "api" });
+    expect(result[0]?.events[0]?.attributes).toEqual({
+      "exception.type": "E",
+    });
+  });
+
   it("propagates query errors", async () => {
     query.mockRejectedValueOnce(new Error("not found"));
     await expect(
@@ -380,7 +416,7 @@ describe("TracesRepository.listServiceIdentities", () => {
     expect(result).toEqual(rows);
     const [sql, params] = query.mock.calls[0] ?? [];
     expect(sql).toContain("SELECT DISTINCT");
-    expect(sql).toContain("ResourceAttributes['service.namespace']");
+    expect(sql).toContain("toString(ResourceAttributes.`service.namespace`)");
     expect(params).toEqual({
       fromTs: "2026-05-20 11:00:00.000",
       toTs: "2026-05-20 13:00:00.000",
@@ -417,7 +453,7 @@ describe("trace search attribute filtering", () => {
 
     const [sql, params] = query.mock.calls[0] ?? [];
     expect(sql).toContain("SELECT DISTINCT TraceId");
-    expect(sql).toContain("mapContains(SpanAttributes, {attrKey0:String})");
+    expect(sql).toContain("has(SpanAttributesKeys, {attrKey0:String})");
     expect(params.attrKey0).toBe("http.route");
     expect(params.attrVals0).toEqual(["/x"]);
   });
@@ -439,7 +475,7 @@ describe("trace search attribute filtering", () => {
     // A trace is excluded when *any* span has the key, rather than matched when
     // any span lacks it — otherwise every trace with a keyless DB span matches.
     expect(sql).toContain("TraceId NOT IN (");
-    expect(sql).toContain("mapContains(SpanAttributes,");
+    expect(sql).toContain("has(SpanAttributesKeys,");
     // No "any-span" candidate IN subquery, since there is no positive operator.
     expect(sql).not.toContain("AND TraceId IN (");
     expect(Object.values(params)).toContain("http.route");

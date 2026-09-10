@@ -41,7 +41,7 @@ export function buildHistogramQuery(
   );
   const sql = `
       SELECT
-        toStartOfInterval(TimestampTime, INTERVAL ${intervalSeconds} SECOND) AS bucket,
+        toStartOfInterval(toDateTime(Timestamp), INTERVAL ${intervalSeconds} SECOND) AS bucket,
         count() AS total,
         countIf(level = 'error') AS error,
         countIf(level = 'warning') AS warning,
@@ -50,7 +50,7 @@ export function buildHistogramQuery(
         countIf(level = 'trace') AS trace,
         countIf(level = 'unknown') AS unknown
       FROM (
-        SELECT TimestampTime, ${LOG_LEVEL_EXPR} AS level
+        SELECT Timestamp, ${LOG_LEVEL_EXPR} AS level
         FROM ${tableName}
         WHERE ${where.clause}
       )

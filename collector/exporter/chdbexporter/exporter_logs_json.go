@@ -68,14 +68,11 @@ func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
 			return fnErr
 		}
 
-		if adoptErr := adoptLegacyLogsTable(ctx, e.cfg, e.db); adoptErr != nil {
-			return adoptErr
+		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
+			return schemaErr
 		}
 		if createTableErr := createLogsJSONTable(ctx, e.cfg, e.db); createTableErr != nil {
 			return createTableErr
-		}
-		if migrateErr := migrateLogsTable(ctx, e.cfg, e.db); migrateErr != nil {
-			return migrateErr
 		}
 	}
 

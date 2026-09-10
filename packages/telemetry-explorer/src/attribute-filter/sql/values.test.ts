@@ -18,8 +18,8 @@ describe("buildAttributeValuesQuery", () => {
       },
       { tableName: "traces", columnFor },
     );
-    expect(sql).toContain("SpanAttributes[{key:String}] AS v");
-    expect(sql).toContain("mapContains(SpanAttributes, {key:String})");
+    expect(sql).toContain("toString(SpanAttributes.`http.route`) AS v");
+    expect(sql).toContain("has(SpanAttributesKeys, {key:String})");
     expect(sql).toContain("LIMIT 100");
     expect(params.key).toBe("http.route");
     expect(params.fromTime).toBeDefined();
@@ -38,7 +38,7 @@ describe("buildAttributeValuesQuery", () => {
       { tableName: "traces", columnFor },
     );
     expect(sql).toContain(
-      "positionCaseInsensitive(SpanAttributes[{key:String}], {valueSearch:String}) > 0",
+      "positionCaseInsensitive(toString(SpanAttributes.`http.route`), {valueSearch:String}) > 0",
     );
     expect(params.valueSearch).toBe("/api");
   });
@@ -96,12 +96,12 @@ describe("buildAttributeValuesQuery", () => {
         source: "span",
         key: "http.route",
       },
-      { tableName: "traces", columnFor, timeColumn: "Timestamp" },
+      { tableName: "metrics_gauge", columnFor, timeColumn: "TimeUnix" },
     );
     expect(sql).toContain(
-      "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
+      "TimeUnix >= parseDateTimeBestEffort({fromTime:String})",
     );
-    expect(sql).not.toContain("TimestampTime");
+    expect(sql).not.toContain("Timestamp");
   });
 
   it("uses an injected time-bound parser for both bounds", () => {

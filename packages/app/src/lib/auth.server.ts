@@ -31,7 +31,6 @@ import {
 import {
   deprovisionSqlApiOrgUser,
   provisionSqlApiOrgUser,
-  upsertTenantRetention,
 } from "@/lib/clickhouse";
 import {
   sendInvitationEmail,
@@ -41,7 +40,6 @@ import {
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
-import { resolveRetention } from "@/lib/retention";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 type PolarSubscriptionPayload = {
@@ -337,24 +335,6 @@ export const auth = betterAuth({
             });
           } catch (error) {
             serverLogger.error("polar.customer.create_for_org.failed", {
-              ...exceptionAttributes(error),
-              "organization.id": organization.id,
-            });
-          }
-
-          // Seed free-tier retention so the dictionary has an entry for this
-          // tenant and TTL merges don't fall back to the dictGetOrDefault
-          // baseline before the first subscription webhook arrives.
-          try {
-            const retention = resolveRetention("free");
-            await upsertTenantRetention({
-              tenantId: organization.id,
-              tracesDays: retention.tracesDays,
-              logsDays: retention.logsDays,
-              metricsDays: retention.metricsDays,
-            });
-          } catch (error) {
-            serverLogger.error("retention.seed_for_org.failed", {
               ...exceptionAttributes(error),
               "organization.id": organization.id,
             });

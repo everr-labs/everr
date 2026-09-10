@@ -1,4 +1,5 @@
 import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
+import { attributeKeysColumn, attributeText } from "../../sql/json-attributes";
 import { validateTableName } from "../../sql/table";
 import type { AttributeSource } from "../schemas";
 import type { BuiltQuery } from "./types";
@@ -31,10 +32,11 @@ export function buildAttributeValuesQuery(
   },
 ): BuiltQuery {
   validateTableName(opts.tableName);
-  const timeColumn = opts.timeColumn ?? "TimestampTime";
+  const timeColumn = opts.timeColumn ?? "Timestamp";
   const timeBound =
     opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
   const column = opts.columnFor(input.source);
+  const value = attributeText(column, input.key);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const params: Record<string, unknown> = {
     fromTime: fromISO,
@@ -44,23 +46,21 @@ export function buildAttributeValuesQuery(
   const filters = [
     `${timeColumn} >= ${timeBound("fromTime")}`,
     `${timeColumn} <= ${timeBound("toTime")}`,
-    `mapContains(${column}, {key:String})`,
-    `${column}[{key:String}] != ''`,
+    `has(${attributeKeysColumn(column)}, {key:String})`,
+    `${value} != ''`,
   ];
   if (opts.rowPredicate) {
     filters.push(`(${opts.rowPredicate})`);
   }
   // Server-side substring match so high-cardinality values past the LIMIT
-  // cutoff remain reachable — the user types and the matching slice is fetched.
+  // cutoff remain reachable: the user types and the matching slice is fetched.
   const search = input.search?.trim();
   if (search) {
-    filters.push(
-      `positionCaseInsensitive(${column}[{key:String}], {valueSearch:String}) > 0`,
-    );
+    filters.push(`positionCaseInsensitive(${value}, {valueSearch:String}) > 0`);
     params.valueSearch = search;
   }
   const sql = `
-      SELECT DISTINCT ${column}[{key:String}] AS v
+      SELECT DISTINCT ${value} AS v
       FROM ${opts.tableName}
       WHERE ${filters.join("\n        AND ")}
       ORDER BY v

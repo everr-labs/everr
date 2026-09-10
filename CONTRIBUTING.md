@@ -94,7 +94,11 @@ pnpm build
    ```
 10. Install the app on the repository you want to observe.
 11. Get the **App ID** from the GitHub App settings page (shown at the top of the page).
-12. Fill `collector/config.yml`:
+12. Copy `collector/config.example.yml` to `collector/config.yml` and fill in
+    the two values you just collected:
+    ```bash
+    cp collector/config.example.yml collector/config.yml
+    ```
     ```yaml
     receivers:
       githubactions:
@@ -103,16 +107,10 @@ pnpm build
           auth:
             app_id: <app-id>
             private_key_path: ./dev-everr-app.pem
-    processors:
-      resource/tenant:
-        attributes:
-          - key: everr.tenant.id
-            from_context: metadata.x-everr-tenant-id
-            action: upsert
-          - key: everr.tenant.id
-            action: convert
-            converted_type: int
     ```
+    Do not hand-write the `processors` block. The example is the maintained
+    copy: it stamps the tenant and the retention the views expect, and a
+    resource that reaches ClickHouse without retention is rejected.
 13. Try to redeliver the ping to validate that everything is ok
 
 ### GitHub installation ownership model

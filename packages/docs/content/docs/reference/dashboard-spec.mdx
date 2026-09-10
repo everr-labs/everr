@@ -74,7 +74,7 @@ Every dashboard query (panel queries and variable [options queries](/docs/refere
 
 | Parameter | Value |
 | --- | --- |
-| `{from:String}` / `{to:String}` | The dashboard's selected time range, as UTC datetimes in `YYYY-MM-DD HH:MM:SS.mmm` form (millisecond precision; compare them directly rather than assuming whole seconds). |
+| `{from:String}` / `{to:String}` | The dashboard's selected time range, as UTC datetimes in `YYYY-MM-DD HH:MM:SS` form. The start rounds down and the end rounds up to a whole second, so a `DateTime` column such as `TimeUnix` and a `DateTime64` column such as `Timestamp` both accept a direct comparison. |
 | `{step:UInt32}` | Adaptive bucket width in seconds: the range divided by a ~500-point budget, snapped up to the next clock-aligned width: 1/2/5/10/15/20/30s, 1/2/5/10/15/30m, 1/2/3/6/12h, 1d, then whole days. |
 
 ### Grid layout

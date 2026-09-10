@@ -24,15 +24,15 @@ export const getRepoStats = createAuthenticatedServerFn({
 				avg(duration) as avgDuration
 			FROM (
 				SELECT
-					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
+					toString(ResourceAttributes.\`cicd.pipeline.run.id\`) as run_id,
+					anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`)) as conclusion,
 					max(Duration) / 1000000 as duration
 				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-					AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-					AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
+					AND toString(ResourceAttributes.\`vcs.repository.name\`) = {repo:String}
+					AND toString(ResourceAttributes.\`cicd.pipeline.run.id\`) != ''
+					AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''
+					AND toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`) != ''
 				GROUP BY run_id
 			)
 		`;
@@ -75,13 +75,13 @@ export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
 			FROM (
 				SELECT
 					toDate(max(Timestamp)) as date,
-					ResourceAttributes['cicd.pipeline.run.id'] as run_id,
-					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion
+					toString(ResourceAttributes.\`cicd.pipeline.run.id\`) as run_id,
+					anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`)) as conclusion
 				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-					AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
+					AND toString(ResourceAttributes.\`vcs.repository.name\`) = {repo:String}
+					AND toString(ResourceAttributes.\`cicd.pipeline.run.id\`) != ''
+					AND toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`) != ''
 				GROUP BY run_id
 			)
 			GROUP BY date
@@ -119,9 +119,9 @@ export const getRepoDurationTrend = createAuthenticatedServerFn({
 				quantile(0.95)(Duration) / 1000000 as p95Duration
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
-				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+				AND toString(ResourceAttributes.\`vcs.repository.name\`) = {repo:String}
+				AND toString(ResourceAttributes.\`cicd.pipeline.task.run.id\`) != ''
+				AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''
 			GROUP BY date
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;
@@ -149,18 +149,18 @@ export const getRepoRecentRuns = createAuthenticatedServerFn({
     const sql = `
 			SELECT
 				TraceId as trace_id,
-				anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-				anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
-				anyLast(ResourceAttributes['vcs.ref.head.name']) as branch,
-				anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
+				anyLast(toString(ResourceAttributes.\`cicd.pipeline.run.id\`)) as run_id,
+				anyLast(toString(ResourceAttributes.\`cicd.pipeline.name\`)) as workflowName,
+				anyLast(toString(ResourceAttributes.\`vcs.ref.head.name\`)) as branch,
+				anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`)) as conclusion,
 				max(Timestamp) as timestamp,
-				anyLast(ResourceAttributes['cicd.pipeline.task.run.sender.login']) as sender
+				anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.run.sender.login\`)) as sender
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-				AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-				AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
+				AND toString(ResourceAttributes.\`vcs.repository.name\`) = {repo:String}
+				AND toString(ResourceAttributes.\`cicd.pipeline.run.id\`) != ''
+				AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''
+				AND toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`) != ''
 			GROUP BY trace_id
 			ORDER BY timestamp DESC
 			LIMIT 20
@@ -196,20 +196,20 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
 
     const sql = `
 			SELECT
-				ResourceAttributes['cicd.pipeline.task.name'] as jobName,
-				anyLast(ResourceAttributes['cicd.pipeline.name']) as workflowName,
+				toString(ResourceAttributes.\`cicd.pipeline.task.name\`) as jobName,
+				anyLast(toString(ResourceAttributes.\`cicd.pipeline.name\`)) as workflowName,
 				count(*) as totalRuns,
-				countIf(ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure') as failureCount,
+				countIf(toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`) = 'failure') as failureCount,
 				round(
-					countIf(ResourceAttributes['cicd.pipeline.task.run.result'] = 'failure') * 100.0
+					countIf(toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`) = 'failure') * 100.0
 					/ nullIf(count(*), 0),
 					1
 				) as failureRate
 			FROM traces
 			WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-				AND ResourceAttributes['cicd.pipeline.task.name'] != ''
-				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
+				AND toString(ResourceAttributes.\`vcs.repository.name\`) = {repo:String}
+				AND toString(ResourceAttributes.\`cicd.pipeline.task.name\`) != ''
+				AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''
 			GROUP BY jobName
 			HAVING failureCount > 0
 			ORDER BY failureCount DESC
@@ -251,17 +251,17 @@ export const getActiveBranches = createAuthenticatedServerFn({
 				round(countIf(conclusion = 'success') * 100.0 / nullIf(count(*), 0), 1) as successRate
 			FROM (
 				SELECT
-					ResourceAttributes['vcs.ref.head.name'] as branch,
+					toString(ResourceAttributes.\`vcs.ref.head.name\`) as branch,
 					TraceId as trace_id,
-					anyLast(ResourceAttributes['cicd.pipeline.run.id']) as run_id,
-					anyLast(ResourceAttributes['cicd.pipeline.task.run.result']) as conclusion,
+					anyLast(toString(ResourceAttributes.\`cicd.pipeline.run.id\`)) as run_id,
+					anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`)) as conclusion,
 					max(Timestamp) as timestamp
 				FROM traces
 				WHERE Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
-					AND ResourceAttributes['vcs.repository.name'] = {repo:String}
-					AND ResourceAttributes['cicd.pipeline.run.id'] != ''
-					AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-					AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
+					AND toString(ResourceAttributes.\`vcs.repository.name\`) = {repo:String}
+					AND toString(ResourceAttributes.\`cicd.pipeline.run.id\`) != ''
+					AND toString(SpanAttributes.\`everr.github.workflow_job_step.number\`) = ''
+					AND toString(ResourceAttributes.\`cicd.pipeline.task.run.result\`) != ''
 				GROUP BY branch, trace_id
 			)
 			GROUP BY branch

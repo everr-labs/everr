@@ -1,11 +1,14 @@
 import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
+import { attributeKeysColumn } from "../../sql/json-attributes";
 import { validateTableName } from "../../sql/table";
 import type { AttributeKey, AttributeSource } from "../schemas";
 import type { BuiltQuery } from "./types";
 
-// Cap each source independently so one high-cardinality map (e.g. log/span)
-// can't fill a single global limit and crowd out keys from the others. Key
-// names are low-cardinality in practice, so this effectively shows them all.
+// Cap each source independently so one high-cardinality keys array (e.g.
+// log/span) can't fill a single global limit and crowd out keys from the
+// others. Key names are low-cardinality in practice, so this effectively
+// shows them all. The keys array column costs only a few MiB per source to
+// scan, since it holds distinct key names rather than the attribute values.
 export const ATTRIBUTE_KEY_PER_SOURCE_LIMIT = 200;
 
 export interface AttributeKeyRowRaw {
@@ -31,7 +34,7 @@ export function buildAttributeKeysQuery(
   },
 ): BuiltQuery {
   validateTableName(opts.tableName);
-  const timeColumn = opts.timeColumn ?? "TimestampTime";
+  const timeColumn = opts.timeColumn ?? "Timestamp";
   const timeBound =
     opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
   const scope = opts.rowPredicate
@@ -41,7 +44,7 @@ export function buildAttributeKeysQuery(
   const selects = opts.sources.map(
     (source) => `
         SELECT key, source FROM (
-          SELECT DISTINCT arrayJoin(mapKeys(${opts.columnFor(source)})) AS key, '${source}' AS source
+          SELECT DISTINCT arrayJoin(${attributeKeysColumn(opts.columnFor(source))}) AS key, '${source}' AS source
           FROM ${opts.tableName}
           WHERE ${timeColumn} >= ${timeBound("fromTime")}
             AND ${timeColumn} <= ${timeBound("toTime")}${scope}

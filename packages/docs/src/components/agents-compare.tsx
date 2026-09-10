@@ -169,7 +169,7 @@ function GroundedColumn({ inView }: { inView: boolean }) {
         <div className="divide-y divide-fd-border/50 overflow-hidden rounded-lg border border-fd-border bg-fd-background/60">
           <QueryRow
             verb="everr cloud query"
-            sql="SELECT ResourceAttributes['service.version'] AS version, count() FROM traces WHERE ServiceName = 'checkout' AND StatusCode = 'Error' GROUP BY version"
+            sql="SELECT toString(ResourceAttributes.`service.version`) AS version, count() FROM traces WHERE ServiceName = 'checkout' AND StatusCode = 'Error' GROUP BY version"
             result={
               <>
                 37 errors ·{" "}

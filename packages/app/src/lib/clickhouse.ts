@@ -181,30 +181,6 @@ type AdminCommandOptions = Omit<
   "query"
 >;
 
-export async function upsertTenantRetention(row: {
-  tenantId: string;
-  tracesDays: number;
-  logsDays: number;
-  metricsDays: number;
-}): Promise<void> {
-  await instrumentClickhouseOperation(
-    { client: "admin", operation: "INSERT" },
-    () =>
-      clickhouseAdmin.insert({
-        table: "app.tenant_retention_source",
-        values: [
-          {
-            tenant_id: row.tenantId,
-            traces_days: row.tracesDays,
-            logs_days: row.logsDays,
-            metrics_days: row.metricsDays,
-          },
-        ],
-        format: "JSONEachRow",
-      }),
-  );
-}
-
 type AdminInsertSettings = Parameters<
   typeof clickhouseAdmin.insert
 >[0]["clickhouse_settings"];

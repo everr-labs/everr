@@ -34,4 +34,24 @@ describe("mapDetailRow", () => {
     expect(detail.severityNumber).toBe(17);
     expect(detail.timestamp).toMatch(/^2026-03-09T12:00:00/);
   });
+
+  it("flattens the nested JSON attributes into dotted keys", () => {
+    const detail = mapDetailRow({
+      timestampRaw: "2026-09-07 10:00:00.000000000",
+      level: "info",
+      severityText: "INFO",
+      severityNumber: 9,
+      serviceName: "api",
+      traceId: "",
+      spanId: "",
+      resourceAttributes: { service: { name: "api" } },
+      logAttributes: { http: { response: { status_code: 500 } } },
+      scopeAttributes: null,
+    });
+    expect(detail.resourceAttributes).toEqual({ "service.name": "api" });
+    expect(detail.logAttributes).toEqual({
+      "http.response.status_code": "500",
+    });
+    expect(detail.scopeAttributes).toEqual({});
+  });
 });

@@ -14,9 +14,21 @@ vi.mock("@/telemetry/logger", () => ({
   serverLogger: { error: mocks.error },
 }));
 
+// Cuts the import chain to the Postgres client. The tier is fixed to pro so
+// the stamped retention_days is a known value below.
+vi.mock("@/lib/retention.server", async () => {
+  const { resolveRetention } = await import("@/lib/retention");
+  return {
+    retentionForOrg: vi.fn(async () => resolveRetention("pro")),
+  };
+});
+
 import { uuidv7Time } from "@/data/alerting/history/ids";
+import { resolveRetention } from "@/lib/retention";
+import { retentionForOrg } from "@/lib/retention.server";
 import {
   deliveryHistoryRow,
+  evaluationFailureHistoryRow,
   evaluationHistoryRow,
   instanceHistoryRow,
   journalHoldRow,
@@ -25,6 +37,12 @@ import {
   recordAlertHistoryStrict,
   ZERO_UUID,
 } from "./clickhouse";
+
+// Expected Pro retention at the write boundary; row builders own no retention.
+const stamped = <T extends { tenant_id: string }>(row: T, days = 365) => ({
+  ...row,
+  retention_days: days,
+});
 
 const def = {
   id: "019c3ab6-54d6-7e26-bc76-8cadd67542fb",
@@ -61,6 +79,9 @@ const EPOCH_ISO = "1970-01-01T00:00:00.000Z";
 describe("ClickHouse alert history", () => {
   beforeEach(() => {
     mocks.insertAdminRows.mockReset().mockResolvedValue(undefined);
+    vi.mocked(retentionForOrg).mockImplementation(async () =>
+      resolveRetention("pro"),
+    );
     mocks.error.mockReset();
   });
 
@@ -103,7 +124,7 @@ describe("ClickHouse alert history", () => {
     // that differs every time gives each insert its own async-insert buffer.
     expect(mocks.insertAdminRows).toHaveBeenCalledWith(
       "app.alert_events",
-      [evaluation, transition],
+      [stamped(evaluation, 30), stamped(transition)],
       {
         async_insert: 1,
         wait_for_async_insert: 1,
@@ -128,6 +149,77 @@ describe("ClickHouse alert history", () => {
       instance_labels: { service: "api" },
       service_name: "api",
     });
+  });
+
+  it("stamps mixed tenants and event classes with their alert entitlements", async () => {
+    vi.mocked(retentionForOrg).mockImplementation(async (orgId) =>
+      resolveRetention(orgId === "org-2" ? "free" : "pro"),
+    );
+    const rowFor = (organizationId: string) =>
+      evaluationHistoryRow({
+        def: { ...def, organizationId },
+        scheduledFor,
+        occurredAt,
+        rowCount: 0,
+        evidenceJson: "[]",
+        evidenceTruncated: false,
+        samples: [],
+        samplesTruncated: false,
+      });
+
+    const proFailure = evaluationFailureHistoryRow({
+      def,
+      scheduledFor,
+      occurredAt,
+      error: "query failed",
+    });
+    const proLifecycle = journalTerminalRow(journalEvent);
+    const freeLifecycle = journalTerminalRow({
+      ...journalEvent,
+      organizationId: "org-2",
+    });
+    await recordAlertHistory(
+      null,
+      [
+        rowFor("org-1"),
+        rowFor("org-2"),
+        proFailure,
+        proLifecycle,
+        freeLifecycle,
+      ],
+      {
+        convergesOnRetry: false,
+      },
+    );
+
+    expect(mocks.insertAdminRows).toHaveBeenCalledWith(
+      "app.alert_events",
+      [
+        expect.objectContaining({
+          tenant_id: "org-1",
+          retention_days: 30,
+        }),
+        expect.objectContaining({
+          tenant_id: "org-2",
+          retention_days: 14,
+        }),
+        expect.objectContaining({
+          event_type: "evaluation_failed",
+          retention_days: 30,
+        }),
+        expect.objectContaining({
+          tenant_id: "org-1",
+          event_type: "notification_suppressed",
+          retention_days: 365,
+        }),
+        expect.objectContaining({
+          tenant_id: "org-2",
+          event_type: "notification_suppressed",
+          retention_days: 14,
+        }),
+      ],
+      expect.anything(),
+    );
   });
 
   it("mints time-decodable v7 ids for rows without a caller-supplied id", () => {
@@ -425,7 +517,7 @@ describe("ClickHouse alert history", () => {
 
       expect(mocks.insertAdminRows).toHaveBeenCalledWith(
         "app.alert_events",
-        [first, second],
+        [stamped(first), stamped(second)],
         {
           async_insert: 0,
           date_time_input_format: "best_effort",

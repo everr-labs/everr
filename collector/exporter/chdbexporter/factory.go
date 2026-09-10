@@ -11,19 +11,11 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/collector/featuregate"
-	"go.uber.org/zap"
+	"go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper"
+	"go.opentelemetry.io/collector/exporter/xexporter"
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/metadata"
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
-)
-
-// Deprecated: Use the `json` config option instead. This feature gate will be removed in a future version.
-var featureGateJSON = featuregate.GlobalRegistry().MustRegister(
-	"clickhouse.json",
-	featuregate.StageDeprecated,
-	featuregate.WithRegisterDescription("Deprecated: Use the `json` config option instead."),
-	featuregate.WithRegisterToVersion("v0.149.0"),
 )
 
 // NewFactory creates a factory for the ClickHouse exporter.
@@ -33,18 +25,21 @@ func NewFactory() exporter.Factory {
 
 // NewFactoryWithHandle creates a factory for the local chDB exporter.
 func NewFactoryWithHandle(handle *chdb.Handle) exporter.Factory {
-	return exporter.NewFactory(
+	return xexporter.NewFactory(
 		metadata.Type,
 		createDefaultConfig,
-		exporter.WithLogs(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Logs, error) {
+		xexporter.WithLogs(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Logs, error) {
 			return createLogsExporter(ctx, set, cfg, handle)
 		}, metadata.LogsStability),
-		exporter.WithTraces(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Traces, error) {
+		xexporter.WithTraces(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Traces, error) {
 			return createTracesExporter(ctx, set, cfg, handle)
 		}, metadata.TracesStability),
-		exporter.WithMetrics(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Metrics, error) {
+		xexporter.WithMetrics(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Metrics, error) {
 			return createMetricExporter(ctx, set, cfg, handle)
 		}, metadata.MetricsStability),
+		xexporter.WithProfiles(func(ctx context.Context, set exporter.Settings, cfg component.Config) (xexporter.Profiles, error) {
+			return createProfilesExporter(ctx, set, cfg, handle)
+		}, metadata.ProfilesStability),
 	)
 }
 
@@ -58,7 +53,7 @@ func createLogsExporter(
 	c.collectorVersion = set.BuildInfo.Version
 
 	var exp anyLogsExporter
-	if useJSON(set.Logger, c) {
+	if c.JSON {
 		exp = newLogsJSONExporter(set.Logger, c, handle)
 	} else {
 		exp = newLogsExporter(set.Logger, c, handle)
@@ -87,7 +82,7 @@ func createTracesExporter(
 	c.collectorVersion = set.BuildInfo.Version
 
 	var exp anyTracesExporter
-	if useJSON(set.Logger, c) {
+	if c.JSON {
 		exp = newTracesJSONExporter(set.Logger, c, handle)
 	} else {
 		exp = newTracesExporter(set.Logger, c, handle)
@@ -106,12 +101,28 @@ func createTracesExporter(
 	)
 }
 
-func useJSON(logger *zap.Logger, c *Config) bool {
-	if featureGateJSON.IsEnabled() {
-		logger.Warn("The clickhouse.json feature gate is deprecated. Use the `json` config option instead.")
-		return true
-	}
-	return c.JSON
+func createProfilesExporter(
+	ctx context.Context,
+	set exporter.Settings,
+	cfg component.Config,
+	handle *chdb.Handle,
+) (xexporter.Profiles, error) {
+	c := cfg.(*Config)
+	c.collectorVersion = set.BuildInfo.Version
+
+	exp := newProfilesExporter(set.Logger, c, handle)
+
+	return xexporterhelper.NewProfiles(
+		ctx,
+		set,
+		cfg,
+		exp.pushProfilesData,
+		exporterhelper.WithStart(exp.start),
+		exporterhelper.WithShutdown(exp.shutdown),
+		exporterhelper.WithTimeout(c.TimeoutSettings),
+		exporterhelper.WithQueue(c.QueueSettings),
+		exporterhelper.WithRetry(c.BackOffConfig),
+	)
 }
 
 func createMetricExporter(

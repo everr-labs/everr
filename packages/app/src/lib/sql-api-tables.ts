@@ -13,4 +13,5 @@ export const SQL_API_TENANT_TABLES = [
   "metrics_exponential_histogram",
   "metrics_summary",
   "alert_events",
+  "traces_trace_id_ts",
 ] as const;

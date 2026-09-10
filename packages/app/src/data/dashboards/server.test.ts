@@ -172,6 +172,27 @@ describe("runPanelQuery – variable interpolation", () => {
     // Default range is now-7d..now → 604800s / 500 = 1209.6 → snapped to 30m.
     expect(params.step).toBe(1800);
   });
+
+  it("binds whole-second bounds, start rounded down and end rounded up", async () => {
+    // The metrics tables keep TimeUnix as DateTime, which refuses a fractional
+    // literal in a comparison, and a dashboard compares {from}/{to} directly.
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runPanelQuery({
+      data: {
+        source: { kind: "ClickHouseSQL", sql: "SELECT 1" },
+        from: "2026-06-10T00:00:00.231Z",
+        to: "2026-06-10T00:10:00.231Z",
+      },
+    });
+
+    const params = mockedClickhouse.mock.calls[0]![2] as Record<
+      string,
+      unknown
+    >;
+    expect(params.from).toBe("2026-06-10 00:00:00");
+    expect(params.to).toBe("2026-06-10 00:10:01");
+  });
 });
 
 // ---------------------------------------------------------------------------

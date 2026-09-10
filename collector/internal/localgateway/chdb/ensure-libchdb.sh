@@ -9,7 +9,7 @@ extract_dir="$5"
 
 archive_path="$cache_dir/${version}-${asset_name}"
 tmp_path="${archive_path}.tmp"
-url="https://github.com/chdb-io/chdb/releases/download/${version}/${asset_name}"
+url="https://github.com/chdb-io/chdb-core/releases/download/${version}/${asset_name}"
 
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then

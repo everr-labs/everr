@@ -221,11 +221,11 @@ const getJobResourceUsage = createAuthenticatedServerFn({
     }): Promise<JobResourceUsage | null> => {
       const identifierSql = `
       SELECT
-        anyLast(ResourceAttributes['cicd.pipeline.run.id']) as runId,
-        anyLast(ResourceAttributes['cicd.pipeline.task.name']) as jobName
+        anyLast(toString(ResourceAttributes.\`cicd.pipeline.run.id\`)) as runId,
+        anyLast(toString(ResourceAttributes.\`cicd.pipeline.task.name\`)) as jobName
       FROM traces
       WHERE TraceId = {traceId:String}
-        AND ResourceAttributes['cicd.pipeline.task.run.id'] = {jobId:String}
+        AND toString(ResourceAttributes.\`cicd.pipeline.task.run.id\`) = {jobId:String}
     `;
 
       const identifierRows = await clickhouse.query<{
@@ -236,10 +236,12 @@ const getJobResourceUsage = createAuthenticatedServerFn({
       const ids = resolveJobIdentifiers(identifierRows);
       if (!ids?.runId || !ids.jobName) return null;
 
+      // TimeUnix is DateTime, not DateTime64, so toUnixTimestamp64Milli
+      // rejects it: that function validates its argument with isDateTime64.
       const metricsSql = `
       SELECT
         MetricName as metricName,
-        toUnixTimestamp64Milli(TimeUnix) as timestamp,
+        toUnixTimestamp(TimeUnix) * 1000 as timestamp,
         Value as value,
         Attributes['cpu.logical_number'] as cpuLogicalNumber,
         Attributes['system.memory.state'] as memoryState,
@@ -255,7 +257,7 @@ const getJobResourceUsage = createAuthenticatedServerFn({
 
       SELECT
         MetricName as metricName,
-        toUnixTimestamp64Milli(TimeUnix) as timestamp,
+        toUnixTimestamp(TimeUnix) * 1000 as timestamp,
         Value as value,
         '' as cpuLogicalNumber,
         Attributes['system.memory.state'] as memoryState,

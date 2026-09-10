@@ -9,8 +9,8 @@ else
 	.SHELLFLAGS = -o pipefail -c
 endif
 
-# SRC_ROOT is the top of the source tree.
-SRC_ROOT := $(shell git rev-parse --show-toplevel)
+# Resolve from this file so Git hook environment variables cannot change the root.
+SRC_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
 # A lot of the following install tools commands were leveraged from the
 # Open Telemetry Contributor Makefile following the Go Paradigm for Third Party Tools
@@ -39,6 +39,7 @@ LINT := $(TOOLS_BIN_DIR)/golangci-lint
 SEC := $(TOOLS_BIN_DIR)/gosec
 STATICCHECK := $(TOOLS_BIN_DIR)/staticcheck
 MDATAGEN := $(TOOLS_BIN_DIR)/mdatagen
+GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
 OCB := $(TOOLS_BIN_DIR)/builder
 CROSSLINK := $(TOOLS_BIN_DIR)/crosslink
 
@@ -52,8 +53,12 @@ tidy:
 	go mod tidy
 
 .PHONY: gen
+# mdatagen imports exporter/xexporter for any exporter that declares profiles
+# but never uses it, so the generated file does not compile until the imports
+# are tidied. Upstream runs the same pass after generating.
 gen:
 	go generate ./...
+	$(GOIMPORTS) -w .
 
 .PHONY: test
 TEST_PREP ?=

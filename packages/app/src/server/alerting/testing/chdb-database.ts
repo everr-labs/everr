@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Session } from "chdb";
 
+import { resolveRetention } from "@/lib/retention";
+
 const HISTORY_TABLE = "app.alert_events";
 
 function clickhouseInitDir(): string {
@@ -14,13 +16,7 @@ function clickhouseInitDir(): string {
   );
 }
 
-/**
- * Statements out of one init file, with comments removed first.
- *
- * The files carry prose comments that contain semicolons, so splitting the
- * raw text on `;` cuts statements in half. Stripping line comments first is
- * what makes the split safe.
- */
+// Strip line comments before splitting statements: comments can contain semicolons.
 function statementsIn(file: string): string[] {
   return readFileSync(join(clickhouseInitDir(), file), "utf8")
     .split("\n")
@@ -31,54 +27,16 @@ function statementsIn(file: string): string[] {
     .filter(Boolean);
 }
 
-/**
- * The retention dictionary, which `app.alert_events` names in its TTL.
- *
- * Its shipped definition reaches back into ClickHouse over the network as
- * `web_app_admin`. chdb is one process with no server and no users, so the
- * credentials are dropped and the dictionary reads the source table directly.
- * The columns, layout, lifetime and query all stay as shipped: this changes
- * how the dictionary authenticates, not what it holds.
- */
-function withoutSourceCredentials(statement: string): string {
-  return statement
-    .replace(/^\s*user\s+'[^']*'\s*$/gm, "")
-    .replace(/^\s*password\s+'[^']*'\s*$/gm, "");
-}
-
-/**
- * Whether a statement belongs to the access-control plane, which embedded
- * chdb has none of: it runs as `default`, cannot grant itself anything, and
- * refuses CREATE ROLE, CREATE ROW POLICY and the SQL_ custom settings.
- *
- * The grants and the tenant row policy at the end of the alert_events DDL are
- * therefore skipped rather than adapted. There is no honest stand-in for a
- * row policy here, and pretending otherwise would be worse than the gap: it
- * would make an unscoped read look scoped. This is the one part of the shipped
- * file this loader does not apply, and the reason no case in this suite may
- * claim anything about tenant isolation.
- */
+// Embedded chDB has no access management. Skip grants and policies;
+// these tests do not verify tenant isolation.
 function isAccessControl(statement: string): boolean {
   return /^\s*(GRANT|REVOKE|CREATE\s+ROLE|DROP\s+ROLE|CREATE\s+ROW\s+POLICY|DROP\s+ROW\s+POLICY|CREATE\s+USER|ALTER\s+USER|SET\s+ROLE)\b/i.test(
     statement,
   );
 }
 
-/**
- * The table without its TTL clause.
- *
- * TTL is evaluated against the machine clock while this suite writes at a
- * pinned virtual date. Evaluation rows expire after 30 days, and the cases
- * write them at 2026-01-01, so on any machine more than a month past that the
- * engine drops them as they land and the case reads an empty history. Keeping
- * the clause would make the suite fail by calendar.
- *
- * Expiry is therefore out of scope here. PostgreSQL lets pglite-database.ts
- * shadow `now()` through the search path; ClickHouse exposes no such seam, so
- * that answer does not transfer. Everything the TTL does not touch, which is
- * every column, type, default and the deduplication window, still comes from
- * the shipped file.
- */
+// Fixtures use fixed timestamps, so omit TTL to keep them independent of the
+// machine clock. Expiry is outside this suite; the remaining DDL stays intact.
 function withoutTtl(statement: string): string {
   return statement.replace(/\nTTL [\s\S]*?(?=\nSETTINGS )/, "\n");
 }
@@ -139,30 +97,8 @@ export interface ChdbDatabase {
   close(): void;
 }
 
-/**
- * A real ClickHouse for the alerting history, embedded in the test process.
- *
- * What this buys over a hand-written double: the column types, the DEFAULT
- * expressions, the TTL and the insert deduplication all come from the shipped
- * DDL. A row the pipeline writes must survive the same engine production
- * writes it to, while a double accepts whatever shape it is handed.
- *
- * What it does not cover: embedded chdb runs as `default` with no access
- * management and cannot grant itself any, so `CREATE ROLE`, `CREATE ROW
- * POLICY` and the `SQL_everr_*` settings all fail. Tenant isolation in
- * production is a row policy. Reads here run unrestricted, so nothing in this
- * suite is evidence that a query is scoped to a tenant. Do not let a case
- * claim that.
- */
-/**
- * chdb holds one data directory per process, and opening a second while the
- * first is live throws. The handle therefore lives on `globalThis`, not in a
- * module variable, because vitest can load this module more than once in a
- * worker
- * (the mocked `@/lib/clickhouse` graph and a direct import resolve through
- * different registries) and two module copies would each boot an engine.
- * vitest isolates test files, so one process is one file in practice.
- */
+// Vitest can load this module through multiple registries. Share one handle
+// on globalThis because chDB permits only one active data directory per process.
 const ACTIVE_KEY = Symbol.for("everr.alerting.testing.chdb");
 
 type ChdbHost = { [ACTIVE_KEY]?: ChdbDatabase };
@@ -201,17 +137,6 @@ export function createChdbDatabase(): ChdbDatabase {
   };
 
   run("CREATE DATABASE IF NOT EXISTS app");
-  for (const statement of statementsIn("10-create-mvs.sql")) {
-    // Only the retention pair, not the telemetry tables and materialized
-    // views in the rest of that file: alert_events needs the dictionary its
-    // TTL calls, and nothing else in there.
-    if (
-      statement.includes("tenant_retention_source") ||
-      statement.includes("DICTIONARY IF NOT EXISTS app.tenant_retention")
-    ) {
-      run(withoutSourceCredentials(statement));
-    }
-  }
   for (const statement of statementsIn("12-create-alert-events.sql")) {
     if (isAccessControl(statement)) continue;
     run(withoutTtl(statement));
@@ -281,10 +206,24 @@ export function createChdbDatabase(): ChdbDatabase {
     },
     insert(rows, deduplicationToken) {
       if (rows.length === 0) return;
+      // Direct fixture inserts need the retention stamp normally supplied by the writer.
+      const retention = resolveRetention("free");
+      const stamped = rows.map((row) => {
+        const eventType = "event_type" in row ? row.event_type : undefined;
+        const isEvaluation =
+          eventType === "evaluation_succeeded" ||
+          eventType === "evaluation_failed";
+        return {
+          retention_days: isEvaluation
+            ? retention.alertEvaluationDays
+            : retention.alertLifecycleDays,
+          ...row,
+        };
+      });
       // JSONEachRow payload, not a SQL literal: the JSON goes in raw. Quoting
       // it the way a string literal is quoted would corrupt every row that
       // contains a quote or a backslash.
-      const values = rows.map((row) => JSON.stringify(row)).join("\n");
+      const values = stamped.map((row) => JSON.stringify(row)).join("\n");
       const settings =
         deduplicationToken === undefined
           ? ""

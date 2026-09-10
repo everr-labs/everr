@@ -33,6 +33,6 @@ CREATE TABLE IF NOT EXISTS %q.%q %s (
     INDEX idx_duration Duration TYPE minmax GRANULARITY 1
 ) ENGINE = %s
 PARTITION BY toDate(Timestamp)
-ORDER BY (ServiceName, SpanName, toDateTime(Timestamp))
+ORDER BY (ServiceName, Timestamp)
 %s
 SETTINGS index_granularity=8192, ttl_only_drop_parts = 1

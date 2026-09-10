@@ -27,14 +27,14 @@ spec:
                 spec:
                   query: |
                     SELECT formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS time,
-                           SpanAttributes['everr.cloud_query.kind'] AS kind,
-                           SpanAttributes['everr.org_id'] AS org,
+                           toString(SpanAttributes.`everr.cloud_query.kind`) AS kind,
+                           toString(SpanAttributes.`everr.org_id`) AS org,
                            round(Duration / 1e6, 0) AS duration_ms,
                            TraceId AS trace_id
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
-                      AND SpanAttributes['everr.cloud_query.outcome'] = 'system_error'
+                      AND toString(SpanAttributes.`everr.cloud_query.outcome`) = 'system_error'
                     ORDER BY Timestamp DESC
                     LIMIT 50
     error-kind-breakdown:
@@ -54,12 +54,12 @@ spec:
                 spec:
                   query: |
                     SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
-                           SpanAttributes['everr.cloud_query.kind'] AS kind,
+                           toString(SpanAttributes.`everr.cloud_query.kind`) AS kind,
                            count() AS errors
                     FROM traces
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server'
-                      AND SpanAttributes['everr.cloud_query.outcome'] = 'system_error'
+                      AND toString(SpanAttributes.`everr.cloud_query.outcome`) = 'system_error'
                     GROUP BY ts, kind
                     ORDER BY ts
     latency:
@@ -118,7 +118,7 @@ spec:
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND (
                         (SpanName = 'POST /api/cli/sql' AND SpanKind = 'Server')
-                        OR (SpanName = 'ClickHouse QUERY' AND SpanAttributes['clickhouse.client'] = 'sql_api')
+                        OR (SpanName = 'ClickHouse QUERY' AND toString(SpanAttributes.`clickhouse.client`) = 'sql_api')
                       )
                     GROUP BY ts, span
                     ORDER BY ts

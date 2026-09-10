@@ -3,7 +3,7 @@
  * the shaping that turns its rows into what the charts draw.
  *
  * Every read here carries a lower bound on `event_time`. The table partitions
- * on the month of it, so the floor is what keeps a read off every month the
+ * by day, so the floor is what keeps a read off every day the
  * tenant has, and the tenant-wide reads, which name no slug, have nothing else
  * to bound them.
  *

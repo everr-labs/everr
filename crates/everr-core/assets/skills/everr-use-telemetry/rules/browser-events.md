@@ -73,9 +73,9 @@ The INP vital does not use that prefix. It carries the same attribution as the `
 Web-vital p75 by route (one row per metric per route):
 
 ```sql
-SELECT LogAttributes['everr.route.pattern'] AS route,
-  LogAttributes['browser.web_vital.name'] AS vital,
-  quantile(0.75)(toFloat64(LogAttributes['browser.web_vital.value'])) AS p75,
+SELECT toString(LogAttributes.`everr.route.pattern`) AS route,
+  toString(LogAttributes.`browser.web_vital.name`) AS vital,
+  quantile(0.75)(toFloat64OrZero(toString(LogAttributes.`browser.web_vital.value`))) AS p75,
   count() AS samples
 FROM logs
 WHERE Timestamp > now() - INTERVAL 24 HOUR
@@ -88,8 +88,8 @@ LIMIT 50
 Rage clicks by element, to find broken UI:
 
 ```sql
-SELECT LogAttributes['everr.route.pattern'] AS route,
-  LogAttributes['everr.element.selector'] AS selector,
+SELECT toString(LogAttributes.`everr.route.pattern`) AS route,
+  toString(LogAttributes.`everr.element.selector`) AS selector,
   count() AS rage_clicks
 FROM logs
 WHERE Timestamp > now() - INTERVAL 24 HOUR
@@ -102,7 +102,7 @@ LIMIT 20
 Frontend error rate by page:
 
 ```sql
-SELECT LogAttributes['everr.route.pattern'] AS route,
+SELECT toString(LogAttributes.`everr.route.pattern`) AS route,
   countIf(EventName = 'exception') AS errors,
   countIf(EventName = 'everr.browser.page_view') AS views
 FROM logs
@@ -117,15 +117,15 @@ What one user session did, in order (events and requests interleaved):
 
 ```sql
 SELECT * FROM (
-  SELECT Timestamp, EventName AS what, LogAttributes['url.path'] AS path
+  SELECT Timestamp, EventName AS what, toString(LogAttributes.`url.path`) AS path
   FROM logs
   WHERE Timestamp > now() - INTERVAL 24 HOUR
-    AND LogAttributes['session.id'] = '<session-id>'
+    AND toString(LogAttributes.`session.id`) = '<session-id>'
   UNION ALL
-  SELECT Timestamp, SpanName, SpanAttributes['url.full']
+  SELECT Timestamp, SpanName, toString(SpanAttributes.`url.full`)
   FROM traces
   WHERE Timestamp > now() - INTERVAL 24 HOUR
-    AND SpanAttributes['session.id'] = '<session-id>'
+    AND toString(SpanAttributes.`session.id`) = '<session-id>'
 )
 ORDER BY Timestamp ASC
 LIMIT 200

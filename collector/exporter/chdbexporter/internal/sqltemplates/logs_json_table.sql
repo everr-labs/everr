@@ -1,6 +1,5 @@
 CREATE TABLE IF NOT EXISTS {{ident .Database}}.{{ident .TableName}} {{.ClusterString}} (
     `Timestamp` DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-    `TimestampTime` DateTime DEFAULT toDateTime(Timestamp),
     `TraceId` String CODEC(ZSTD(1)),
     `SpanId` String CODEC(ZSTD(1)),
     `TraceFlags` UInt8,
@@ -9,24 +8,24 @@ CREATE TABLE IF NOT EXISTS {{ident .Database}}.{{ident .TableName}} {{.ClusterSt
     `ServiceName` LowCardinality(String) CODEC(ZSTD(1)),
     `Body` String CODEC(ZSTD(1)),
     `ResourceSchemaUrl` LowCardinality(String) CODEC(ZSTD(1)),
-    `ResourceAttributes` JSON CODEC(ZSTD(1)),
+    `ResourceAttributes` JSON(max_dynamic_paths = 256) CODEC(ZSTD(1)),
     `ResourceAttributesKeys` Array(LowCardinality(String)) CODEC(ZSTD(1)),
     `ScopeSchemaUrl` LowCardinality(String) CODEC(ZSTD(1)),
     `ScopeName` String CODEC(ZSTD(1)),
     `ScopeVersion` LowCardinality(String) CODEC(ZSTD(1)),
-    `ScopeAttributes` JSON CODEC(ZSTD(1)),
+    `ScopeAttributes` JSON(max_dynamic_paths = 256) CODEC(ZSTD(1)),
     `ScopeAttributesKeys` Array(LowCardinality(String)) CODEC(ZSTD(1)),
-    `LogAttributes` JSON CODEC(ZSTD(1)),
+    `LogAttributes` JSON(max_dynamic_paths = 256) CODEC(ZSTD(1)),
     `LogAttributesKeys` Array(LowCardinality(String)) CODEC(ZSTD(1)),
     `EventName` String CODEC(ZSTD(1)),
 
     INDEX idx_res_attr_keys ResourceAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_scope_attr_keys ScopeAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_log_attr_keys LogAttributesKeys TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_body Body TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
+    INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_lower_body lower(Body) TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 8
 ) ENGINE = {{.Engine}}
 PARTITION BY toDate(Timestamp)
-PRIMARY KEY (toStartOfFiveMinutes(Timestamp), ServiceName)
-ORDER BY (toStartOfFiveMinutes(Timestamp), ServiceName, Timestamp)
+ORDER BY (ServiceName, Timestamp)
 {{.TTL}}
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
