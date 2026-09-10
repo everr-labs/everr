@@ -324,11 +324,7 @@ _Avoid_: MCP endpoint, tool server, MCP client (an Agent, named by how it connec
 **Wrap**:
 Running a command through `everr wrap` so its stdout, stderr, and exit code are captured as Logs.
 
-### Onboarding & authentication
-
-**Onboarding**:
-The first-run flow that takes a new User and Organization from sign-up to a usable state — naming the Organization, connecting GitHub, importing CI runs, installing Skills, and authorizing the CLI. The web wizard and the CLI's `everr setup` are its two surfaces.
-_Avoid_: wizard, setup (a generic synonym; `everr setup` is the command name)
+### Authentication
 
 **Device authorization**:
 How a client without a browser — the CLI or the desktop app — signs in: Everr shows a short Device code, the User approves it in the browser, and the client becomes authenticated for an Organization.

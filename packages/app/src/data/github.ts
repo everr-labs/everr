@@ -43,14 +43,16 @@ export const getInstallationRepos = createAuthenticatedServerFn({
   const installations = await getInstallationsForOrganization(
     session.session.activeOrganizationId,
   );
-  const active = installations.find((i) => i.status === "active");
+  const active = installations.find(
+    (installation) => installation.status === "active",
+  );
 
   if (!active) {
     return [];
   }
 
   const repos = await listInstallationRepos(active.installationId);
-  return repos.map((r) => ({ id: r.id, fullName: r.full_name }));
+  return repos.map((repo) => ({ id: repo.id, fullName: repo.full_name }));
 });
 
 export const importRepos = createAuthenticatedServerFn({ method: "POST" })
@@ -59,31 +61,33 @@ export const importRepos = createAuthenticatedServerFn({ method: "POST" })
     const installations = await getInstallationsForOrganization(
       session.session.activeOrganizationId,
     );
-    const active = installations.find((i) => i.status === "active");
+    const active = installations.find(
+      (installation) => installation.status === "active",
+    );
     if (!active) {
       throw new Error("No active GitHub installation found");
     }
 
     const allRepos = await listInstallationRepos(active.installationId);
     const repos = data.repos
-      .map((name) => allRepos.find((r) => r.full_name === name))
-      .filter((r) => r != null);
+      .map((name) => allRepos.find((repo) => repo.full_name === name))
+      .filter((repo) => repo != null);
 
     const totalQuota = repos.length * JOB_QUOTA_PER_REPO;
     let totalJobs = 0;
     let totalErrors = 0;
     let runsOffset = 0;
 
-    for (let i = 0; i < repos.length; i++) {
-      const repo = repos[i];
+    for (let index = 0; index < repos.length; index++) {
+      const repo = repos[index];
       yield {
         type: "repo-start" as const,
         repoFullName: repo.full_name,
-        repoIndex: i,
+        repoIndex: index,
         reposTotal: repos.length,
       };
 
-      const jobsBase = i * JOB_QUOTA_PER_REPO;
+      const jobsBase = index * JOB_QUOTA_PER_REPO;
       const currentRunsOffset = runsOffset;
 
       try {
@@ -106,9 +110,9 @@ export const importRepos = createAuthenticatedServerFn({ method: "POST" })
             totalErrors += update.errors?.length ?? 0;
           }
         }
-      } catch (err) {
-        serverLogger.error("onboarding.repo_import.failed", {
-          ...exceptionAttributes(err),
+      } catch (error) {
+        serverLogger.error("github.repo_import.failed", {
+          ...exceptionAttributes(error),
           "github.installation.id": active.installationId,
           "github.repository.full_name": repo.full_name,
           "organization.id": session.session.activeOrganizationId,

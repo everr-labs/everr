@@ -81,7 +81,10 @@ describe("/account route", () => {
     render(<Component />);
 
     expect(screen.getByText("GitHub Connection")).toBeInTheDocument();
-    expect(screen.getByText("Connect GitHub")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Manage GitHub" })).toHaveAttribute(
+      "href",
+      "/github",
+    );
   });
 
   it("renders Google connection card", async () => {

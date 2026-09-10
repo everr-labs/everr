@@ -246,12 +246,8 @@ function AccountSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Link
-            to="/api/github/install/start"
-            reloadDocument
-            className={buttonVariants({ size: "sm" })}
-          >
-            Connect GitHub
+          <Link to="/github" className={buttonVariants({ size: "sm" })}>
+            Manage GitHub
           </Link>
         </CardContent>
       </Card>

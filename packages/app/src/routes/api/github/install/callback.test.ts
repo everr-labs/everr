@@ -31,6 +31,11 @@ vi.mock("@/db/schema", () => ({
     status: "status",
     updatedAt: "updated_at",
   },
+  member: {
+    id: "member_id",
+    organizationId: "organization_id",
+    userId: "user_id",
+  },
 }));
 
 import { db } from "@/db/client";
@@ -56,21 +61,26 @@ function getHandler() {
   return handler as (args: { request: Request }) => Promise<Response>;
 }
 
+function selectResult(rows: unknown[]) {
+  const limit = vi.fn().mockResolvedValue(rows);
+  const where = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where });
+  return { from } as never;
+}
+
 function mockDbExistingLink(link: {
   githubInstallationId: number;
   organizationId: string;
 }) {
-  const limit = vi.fn().mockResolvedValue([link]);
-  const where = vi.fn().mockReturnValue({ limit });
-  const from = vi.fn().mockReturnValue({ where });
-  vi.mocked(db.select).mockReturnValue({ from } as never);
+  vi.mocked(db.select)
+    .mockReturnValueOnce(selectResult([{ id: "member_1" }]))
+    .mockReturnValueOnce(selectResult([link]));
 }
 
 function mockDbNoExistingLink() {
-  const limit = vi.fn().mockResolvedValue([]);
-  const where = vi.fn().mockReturnValue({ limit });
-  const from = vi.fn().mockReturnValue({ where });
-  vi.mocked(db.select).mockReturnValue({ from } as never);
+  vi.mocked(db.select)
+    .mockReturnValueOnce(selectResult([{ id: "member_1" }]))
+    .mockReturnValueOnce(selectResult([]));
 }
 
 async function mockBetterAuthSession(session: unknown) {
@@ -107,8 +117,52 @@ describe("/api/github/install/callback", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe(
-      "http://localhost/?github_install=error&reason=already_linked",
+      "http://localhost/github?github_install=error&reason=already_linked",
     );
+  });
+
+  it("links to the signed org when another org is active", async () => {
+    await mockBetterAuthSession({
+      user: { id: "user_1" },
+      session: { activeOrganizationId: "org_other" },
+    });
+    mockDbNoExistingLink();
+
+    const values = vi.fn();
+    vi.mocked(db.insert).mockReturnValue({ values } as never);
+
+    const response = await getHandler()({
+      request: new Request(
+        "http://localhost/api/github/install/callback?installation_id=123&state=ok",
+      ),
+    });
+
+    expect(response.status).toBe(200);
+    expect(values).toHaveBeenCalledWith({
+      githubInstallationId: 123,
+      organizationId: "org_1",
+      status: "active",
+    });
+  });
+
+  it("rejects the callback when membership in the signed org was removed", async () => {
+    await mockBetterAuthSession({
+      user: { id: "user_1" },
+      session: { activeOrganizationId: "org_other" },
+    });
+    vi.mocked(db.select).mockReturnValueOnce(selectResult([]));
+
+    const response = await getHandler()({
+      request: new Request(
+        "http://localhost/api/github/install/callback?installation_id=123&state=ok",
+      ),
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost/github?github_install=error&reason=membership_missing",
+    );
+    expect(db.insert).not.toHaveBeenCalled();
   });
 
   it("treats an existing link for the same org as a successful reactivation", async () => {

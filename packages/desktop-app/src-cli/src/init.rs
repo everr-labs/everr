@@ -1,6 +1,6 @@
 use std::process::Command as ProcessCommand;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use everr_core::api::{ApiClient, OrgResponse};
 use everr_core::build;
 
@@ -164,7 +164,6 @@ mod tests {
         let org = OrgResponse {
             name: "Acme".to_string(),
             is_only_member: false,
-            onboarding_completed: false,
             role: Some("member".to_string()),
         };
 
@@ -176,7 +175,6 @@ mod tests {
         let org = OrgResponse {
             name: "Acme".to_string(),
             is_only_member: false,
-            onboarding_completed: false,
             role: Some("owner".to_string()),
         };
 

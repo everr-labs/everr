@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-export const OrganizationNameSchema = z
+const OrganizationNameSchema = z
   .string()
   .trim()
   .min(2, "Organization name must be at least 2 characters")

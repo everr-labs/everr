@@ -86,31 +86,13 @@ describe("/api/cli/org", () => {
     expect(await response.json()).toEqual({
       name: "Test Org",
       isOnlyMember: true,
-      onboardingCompleted: false,
-      role: "admin",
-    });
-  });
-
-  it("returns onboardingCompleted true when the active org metadata has it", async () => {
-    await mockGetFullOrganization(
-      makeOrg({ metadata: { onboardingCompleted: true } }),
-    );
-
-    const response = await invokeGet();
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      name: "Test Org",
-      isOnlyMember: true,
       onboardingCompleted: true,
       role: "admin",
     });
   });
 
-  it("parses metadata when better-auth returns it as a JSON string", async () => {
-    await mockGetFullOrganization(
-      makeOrg({ metadata: JSON.stringify({ onboardingCompleted: true }) }),
-    );
+  it("reports retired onboarding as complete for old CLI clients", async () => {
+    await mockGetFullOrganization(makeOrg({ metadata: { plan: "free" } }));
 
     const response = await invokeGet();
 
@@ -165,45 +147,14 @@ describe("/api/cli/org", () => {
     expect(await response.json()).toMatchObject({ isOnlyMember: false });
   });
 
-  it("marks active org onboarding complete", async () => {
-    await mockGetFullOrganization(
-      makeOrg({ metadata: { plan: "free", onboardingCompleted: false } }),
-    );
+  it("accepts the legacy onboarding PATCH as a no-op", async () => {
     const { auth } = await import("@/lib/auth.server");
 
     const response = await invokePatch();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
-    expect(auth.api.updateOrganization).toHaveBeenCalledWith({
-      headers: expect.any(Headers),
-      body: {
-        organizationId: "org_xyz",
-        data: {
-          metadata: { plan: "free", onboardingCompleted: true },
-        },
-      },
-    });
-  });
-
-  it("preserves existing metadata keys when better-auth returns it as a JSON string", async () => {
-    await mockGetFullOrganization(
-      makeOrg({
-        metadata: JSON.stringify({ plan: "free", onboardingCompleted: false }),
-      }),
-    );
-    const { auth } = await import("@/lib/auth.server");
-
-    await invokePatch();
-
-    expect(auth.api.updateOrganization).toHaveBeenCalledWith({
-      headers: expect.any(Headers),
-      body: {
-        organizationId: "org_xyz",
-        data: {
-          metadata: { plan: "free", onboardingCompleted: true },
-        },
-      },
-    });
+    expect(auth.api.getFullOrganization).not.toHaveBeenCalled();
+    expect(auth.api.updateOrganization).not.toHaveBeenCalled();
   });
 });
