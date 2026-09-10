@@ -19,6 +19,10 @@ FROM
       AND Attributes['everr.usage.month'] = {month:String}
       AND TimeUnix >= toDateTime(concat({month:String}, '-01 00:00:00'), 'UTC')
       AND AggregationTemporality = 2
+      AND IsMonotonic
+      AND MetricUnit = 'By'
+      AND ScopeName = 'github.com/everr-labs/everr/collector/usage'
+      AND ScopeVersion = '1'
       AND ResourceAttributes['everr.tenant.id'] = Attributes['everr.usage.tenant.id']
       AND notEmpty(ResourceAttributes['service.instance.id'])
       AND notEmpty(Attributes['everr.usage.tenant.id'])

@@ -47,7 +47,9 @@ def verify_month_query(db):
             map('everr.tenant.id', owner, 'service.instance.id', instance) AS ResourceAttributes,
             started AS StartTimeUnix,
             toDateTime('2026-10-01 00:00:05', 'UTC') AS TimeUnix,
-            toFloat64(bytes) AS Value, 2 AS AggregationTemporality
+            toFloat64(bytes) AS Value, 2 AS AggregationTemporality,
+            true AS IsMonotonic, 'By' AS MetricUnit,
+            'github.com/everr-labs/everr/collector/usage' AS ScopeName, '1' AS ScopeVersion
         FROM values('month String, customer String, owner String, instance String, started DateTime, bytes Int64',
             ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 200),
             ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 400),
@@ -63,7 +65,16 @@ def verify_month_query(db):
     assert september['a'] == 450, september
     assert 9007199254740995-1024 <= september['large'] <= 9007199254740995, september
     assert db(query.replace('{month:String}', "'2026-10'")) == [{'customer': 'a', 'signal': 'logs', 'bytes': 300}]
-    print('PASS: canonical monthly query handles late publication, resets, copies, and large-counter rounding.', flush=True)
+    # Mutate one contract field at a time; otherwise these are billable rows.
+    for field, original, invalid in [
+        ('IsMonotonic', 'true AS IsMonotonic', 'false AS IsMonotonic'),
+        ('MetricUnit', "'By' AS MetricUnit", "'1' AS MetricUnit"),
+        ('ScopeName', "'github.com/everr-labs/everr/collector/usage' AS ScopeName", "'other' AS ScopeName"),
+        ('ScopeVersion', "'1' AS ScopeVersion", "'2' AS ScopeVersion"),
+    ]:
+        malformed = query.replace(original, invalid).replace('{month:String}', "'2026-09'")
+        assert db(malformed) == [], f'{field}: malformed usage was billed'
+    print('PASS: canonical monthly query enforces the metric contract and handles late publication, resets, copies, and large-counter rounding.', flush=True)
 
 
 def main():

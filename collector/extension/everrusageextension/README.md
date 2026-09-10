@@ -49,8 +49,8 @@ would instead emit 200 followed by 400. Both cases total 400 bytes.
 
 Use [customer-usage.sql](customer-usage.sql) for customer usage and billing. Supply
 `month` as a `YYYY-MM` string parameter. It selects cumulative points for that
-month, takes the highest value per `(customer, signal, service.instance.id,
-StartTimeUnix)`, then sums across lifetimes. Retries and out-of-order delivery do
+month, enforces the metric contract, takes the highest value per
+`(customer, signal, service.instance.id, StartTimeUnix)`, then sums across lifetimes. Retries and out-of-order delivery do
 not inflate maxima. A collector restart creates a new instance identity, while
 idle expiry creates a new start timestamp. The exporter preserves both through
 queue recovery. Do not sum raw samples or discard these identities in a rollup.
@@ -58,7 +58,9 @@ queue recovery. Do not sum raw samples or discard these identities in a rollup.
 The month attribute controls billing; sample timestamps only provide a lower
 scan bound. There is deliberately no end-of-month sample cutoff, because a final
 snapshot may be published after midnight. Finalize invoices only after pending
-writes have settled. Only cumulative points matching the metric contract are included.
+writes have settled. Only monotonic cumulative points with unit `By`, scope name
+`github.com/everr-labs/everr/collector/usage`, and scope version `1` are included.
+Changing the scope version requires an explicit billing-query update.
 The invoice scheduler and customer usage UI must use this query contract; they
 are outside these components.
 
@@ -154,7 +156,7 @@ whose lifetime has expired or whose process has stopped.
 | Final source admissions during graceful shutdown | The connector waits for all connected input nodes to stop before flushing, while its cumulative processor and exporter remain running. | `TestRealCollectorShutdownGraph`, including source emission during shutdown. |
 | A ready tick competes with shutdown cancellation | Stopping ticks does not cancel an in-flight publication. Shutdown waits for its bounded attempt before the final flush. | `TestShutdownDoesNotCancelPeriodicPublication` and `TestPeriodicPublicationRemainsBoundedDuringShutdown`. |
 | First connector input stops while other signals still admit data | All signal nodes share one publisher; only the last node flushes. Repeated shutdown cannot decrement the count twice. | `TestLastInputFlushes`. |
-| Unsafe publication configuration | Startup rejects missing/duplicate cumulative conversion, nonpersistent or nonblocking usage queues, finite retries, shared telemetry exporters, and invalid publication paths. Connector fanout and resource rewriting remain supported. | `TestPublicationTopology` and `TestPublicationFanout`. |
+| Unsafe publication configuration | Startup rejects missing/duplicate cumulative conversion, nonpersistent or nonblocking usage queues, finite retries, shared telemetry exporters, publication roots reused as downstream nodes, and invalid publication paths. Connector fanout and resource rewriting remain supported. | `TestPublicationTopology` and `TestPublicationFanout`. |
 | Customer metrics fill their queue | Usage has a distinct exporter ID and persistent metrics queue. Customer metrics cannot consume usage queue capacity. | `TestDedicatedUsageQueueWaitsForCapacity`. |
 | Exporter retries after a lost database acknowledgment, or recovers queued data after restart | Cumulative snapshot identities survive retries and recovery. Billing uses lifetime maxima, and replayed source queues bypass admission metering. These internal retries do not add charges. | `TestPersistentAdmissionRecovery` and the storage smoke test, which produces actual duplicate rows. |
 | An already-persisted counter expires while the customer is idle | Returning traffic starts a new lifetime. Summing lifetime maxima preserves prior usage without synthetic idle points. | `TestNativeCumulativeMonthlyStreams` and the idle expiry/resumption smoke test. |

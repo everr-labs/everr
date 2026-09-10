@@ -156,6 +156,16 @@ func (cfg topologyConfig) validatePublication() error {
 	visiting := map[string]bool{}
 	var visit func(string, bool) error
 	visit = func(name string, root bool) error {
+		p := cfg.Service.Pipelines[name]
+		// Check the incoming role before the name-only cache. A publication
+		// root must not consume another pipeline's already-cumulative output.
+		if !root {
+			for _, id := range p.Receivers {
+				if componentType(id) == Type+"_connector" {
+					return fmt.Errorf("pipeline %s: usage publication root cannot also be downstream", name)
+				}
+			}
+		}
 		if visiting[name] {
 			return fmt.Errorf("pipeline %s: usage publication cycle", name)
 		}
@@ -164,7 +174,6 @@ func (cfg topologyConfig) validatePublication() error {
 		}
 		visiting[name] = true
 		defer delete(visiting, name)
-		p := cfg.Service.Pipelines[name]
 		if componentType(name) != "metrics" {
 			return fmt.Errorf("pipeline %s: usage publication must remain metrics", name)
 		}

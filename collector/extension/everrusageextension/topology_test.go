@@ -1,6 +1,7 @@
 package everrusageextension
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -177,6 +178,38 @@ func TestPublicationFanout(t *testing.T) {
 			c := config()
 			tc.change(c["service"].(map[string]any)["pipelines"].(map[string]any))
 			require.Error(t, validateTopology(confmap.NewFromStringMap(c)))
+		})
+	}
+}
+
+func TestPublicationRootCannotAlsoBeDownstream(t *testing.T) {
+	for _, converted := range []bool{false, true} {
+		t.Run(fmt.Sprint("converted=", converted), func(t *testing.T) {
+			c := admissionConfig()
+			connectors := c["connectors"].(map[string]any)
+			connectors[Type+"_connector/second"] = map[string]any{"extension": Type + "/second"}
+			connectors["forward/usage"] = map[string]any{}
+			c["processors"] = map[string]any{Type + "/second": map[string]any{"extension": Type + "/second"}}
+			pipes := c["service"].(map[string]any)["pipelines"].(map[string]any)
+			pipes["logs/second"] = map[string]any{"receivers": []any{"otlp"}, "processors": []any{Type + "/second"}, "exporters": []any{"storage", Type + "_connector/second"}}
+			pipes["metrics/usage"].(map[string]any)["exporters"] = []any{"forward/usage"}
+			mixed := map[string]any{"receivers": []any{Type + "_connector/second", "forward/usage"}, "exporters": []any{"storage/usage"}}
+			if converted {
+				mixed["processors"] = []any{"delta_to_cumulative/second"}
+			}
+			pipes["metrics/mixed"] = mixed
+			accepted := 0
+			for range 1000 {
+				if validateTopology(confmap.NewFromStringMap(c)) == nil {
+					accepted++
+				}
+			}
+			require.Zero(t, accepted, "publication roots must never also consume another publication pipeline")
+			// Independent roots remain valid, including a shared usage exporter.
+			mixed["receivers"] = []any{Type + "_connector/second"}
+			mixed["processors"] = []any{"delta_to_cumulative/second"}
+			pipes["metrics/usage"].(map[string]any)["exporters"] = []any{"storage/usage"}
+			require.NoError(t, validateTopology(confmap.NewFromStringMap(c)))
 		})
 	}
 }
