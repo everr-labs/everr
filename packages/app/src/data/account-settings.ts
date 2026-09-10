@@ -1,21 +1,13 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth.server";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { isOrganizationOwner } from "@/lib/organization-role";
+import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
 
 const DeleteCurrentUserAccountInputSchema = z.object({
   confirmation: z.literal("DELETE"),
   deleteOrganization: z.boolean().optional(),
 });
-
-function isOrgOwnerRole(role: string | null | undefined) {
-  return (
-    role
-      ?.split(",")
-      .map((part) => part.trim())
-      .some((part) => part === "owner") ?? false
-  );
-}
 
 async function getFullOrganizations(headers: Headers) {
   const organizations = await auth.api.listOrganizations({ headers });
@@ -30,7 +22,7 @@ async function getFullOrganizations(headers: Headers) {
   );
 }
 
-export const deleteCurrentUserAccount = createAuthenticatedServerFn({
+export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(DeleteCurrentUserAccountInputSchema)
@@ -50,10 +42,10 @@ export const deleteCurrentUserAccount = createAuthenticatedServerFn({
         (member) => member.userId === session.user.id,
       );
       const ownerCount = organization.members.filter((member) =>
-        isOrgOwnerRole(member.role),
+        isOrganizationOwner(member.role),
       ).length;
 
-      return isOrgOwnerRole(currentMember?.role) && ownerCount === 1;
+      return isOrganizationOwner(currentMember?.role) && ownerCount === 1;
     });
 
     if (soleOwnedOrganizations.length > 0) {
@@ -67,15 +59,21 @@ export const deleteCurrentUserAccount = createAuthenticatedServerFn({
     }
 
     if (data.deleteOrganization) {
+      const activeOrganizationId = session.session.activeOrganizationId;
+      if (!activeOrganizationId) {
+        throw new Error(
+          "Select an organization before deleting it with your account.",
+        );
+      }
+
       const org = organizations.find(
-        (organization) =>
-          organization?.id === session.session.activeOrganizationId,
+        (organization) => organization?.id === activeOrganizationId,
       );
       const currentMember = org?.members.find(
         (member) => member.userId === session.user.id,
       );
 
-      if (!isOrgOwnerRole(currentMember?.role)) {
+      if (!isOrganizationOwner(currentMember?.role)) {
         throw new Error(
           "Only organization owners can delete the organization while deleting their account.",
         );
@@ -83,7 +81,7 @@ export const deleteCurrentUserAccount = createAuthenticatedServerFn({
 
       await auth.api.deleteOrganization({
         headers,
-        body: { organizationId: session.session.activeOrganizationId },
+        body: { organizationId: activeOrganizationId },
       });
     }
 

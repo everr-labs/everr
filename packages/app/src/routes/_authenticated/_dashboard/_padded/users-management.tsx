@@ -19,6 +19,7 @@ import {
 } from "@/components/users-management/queries";
 import { auth } from "@/lib/auth.server";
 import { authClient } from "@/lib/auth-client";
+import { isOrganizationAdmin } from "@/lib/organization-role";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
 const ensureOrgAdmin = createAuthenticatedServerFn.handler(
@@ -31,7 +32,7 @@ const ensureOrgAdmin = createAuthenticatedServerFn.handler(
 
     const membership = org.members.find((m) => m.userId === session.user.id);
     return {
-      allowed: membership?.role === "admin" || membership?.role === "owner",
+      allowed: isOrganizationAdmin(membership?.role),
     };
   },
 );
@@ -39,9 +40,9 @@ const ensureOrgAdmin = createAuthenticatedServerFn.handler(
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_padded/users-management",
 )({
-  staticData: { breadcrumb: "Users Management", hideTimeRangePicker: true },
+  staticData: { breadcrumb: "Members", hideTimeRangePicker: true },
   head: () => ({
-    meta: [{ title: "Everr - Users Management" }],
+    meta: [{ title: "Everr - Members" }],
   }),
   beforeLoad: async () => {
     const { allowed } = await ensureOrgAdmin();
@@ -49,7 +50,7 @@ export const Route = createFileRoute(
       throw redirect({ to: "/" });
     }
   },
-  component: UsersManagementPage,
+  component: MembersPage,
 });
 
 function MembersSkeleton() {
@@ -62,7 +63,7 @@ function MembersSkeleton() {
   );
 }
 
-function UsersManagementPage() {
+function MembersPage() {
   const { data: session } = authClient.useSession();
   const currentUserId = session?.user?.id;
   const members = useQuery(membersQueryOptions());
@@ -73,7 +74,7 @@ function UsersManagementPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <PageHeader
-        title="Users Management"
+        title="Members"
         lede="Manage organization members, invitations, and access."
       />
 

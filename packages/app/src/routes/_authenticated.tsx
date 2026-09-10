@@ -15,7 +15,7 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Settings } from "lucide-react";
 import { useState } from "react";
 import { auth } from "@/lib/auth.server";
 import { authClient } from "@/lib/auth-client";
@@ -58,6 +58,20 @@ export const Route = createFileRoute("/_authenticated")({
       // toggles to sign-in and back, preserving this redirect).
       const to = pathname === "/device" ? "/auth/sign-up" : "/auth/sign-in";
       throw redirect({ to, search: { redirect: redirectTo } });
+    }
+
+    if (pathname === "/account") {
+      return {
+        session: {
+          ...session,
+          session: {
+            ...session.session,
+            // Account settings do not consume organization context. Preserve
+            // the narrowed parent type for organization-scoped descendants.
+            activeOrganizationId: session.session.activeOrganizationId ?? "",
+          },
+        },
+      };
     }
 
     const { activeOrganizationId } = await verifyActiveOrg();
@@ -148,6 +162,16 @@ function OrgSwitcher() {
           >
             <Plus />
             Create organization
+          </Link>
+          <Link
+            to="/account"
+            className={buttonVariants({
+              variant: "outline",
+              className: "mt-2 w-full",
+            })}
+          >
+            <Settings />
+            Account &amp; privacy
           </Link>
         </CardContent>
       </Card>
