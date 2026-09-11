@@ -6,7 +6,8 @@ A bar chart over time **or** over categories. It infers its structure from the c
 
 | Option | Type | Default | Values | Effect |
 | --- | --- | --- | --- | --- |
-| `unit` | string | `""` | any string | Suffix on value-axis ticks and tooltip values. Raw concatenation, **no space** — `unit: ms` renders `123ms`. |
+| `unit` | string | `""` | any string | Unit of the numeric query result. It remains a literal suffix unless `displayUnit` is set. |
+| `displayUnit` | string | none | `auto` | Scale recognized byte or duration units on value-axis ticks, labels, and tooltips. The input `unit` may already be prefixed, such as `GiBy`, the common `GiB` alias, or `ms`. |
 | `showLegend` | boolean | `false` | `true` | Show the series legend. Only the literal `true` enables it. |
 | `stacking` | string | `none` | `none`, `stacked`, `percent` | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% — the value axis becomes percentages while tooltips keep raw values. |
 | `orientation` | string | `vertical` | `vertical`, `horizontal` | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis — prefer it for categorical data with long labels. |
@@ -25,7 +26,7 @@ plugin:
     colors: { good: "#0cce6b", poor: "#ff4e42" } # optional
 ```
 
-These six are the complete set. There is **no** `yAxis` / `min` / `max`, `barWidth`, `legend` object, `thresholds`, or `decimals`. A series that `colors` does not name takes its color from a fixed 6-color palette assigned by order (wrapping after 6).
+These seven are the complete set. There is **no** `yAxis` / `min` / `max`, `barWidth`, `legend` object, `thresholds`, or `decimals`. A series that `colors` does not name takes its color from a fixed 6-color palette assigned by order (wrapping after 6).
 
 ## Data shape
 

@@ -8,10 +8,12 @@ describe("parseSpecLenient", () => {
   it("returns the parsed spec with no warnings for valid input", () => {
     const { spec, warnings } = parseSpecLenient(timeSeriesChartSpec, {
       unit: "ms",
+      displayUnit: "auto",
       lineWidth: 2,
     });
     expect(warnings).toEqual([]);
     expect(spec.unit).toBe("ms");
+    expect(spec.displayUnit).toBe("auto");
     expect(spec.lineWidth).toBe(2);
     expect(spec.curveType).toBe("monotone");
   });
@@ -25,6 +27,16 @@ describe("parseSpecLenient", () => {
     expect(spec.unit).toBe("ms");
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/^lineWidth: /);
+  });
+
+  it("rejects a fixed display unit because the input unit already fixes it", () => {
+    const { spec, warnings } = parseSpecLenient(timeSeriesChartSpec, {
+      unit: "GiBy",
+      displayUnit: "GiBy",
+    });
+    expect(spec.unit).toBe("GiBy");
+    expect(spec.displayUnit).toBeUndefined();
+    expect(warnings[0]).toMatch(/^displayUnit: /);
   });
 
   it("warns once per invalid option and keeps the valid ones", () => {

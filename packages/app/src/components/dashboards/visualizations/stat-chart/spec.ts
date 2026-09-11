@@ -38,9 +38,13 @@ export const calculationSpec = z.enum([
 export const statChartSpec = z.looseObject({
   calculation: calculationSpec.default("last"),
   unit: z.string().default(""),
+  displayUnit: z.literal("auto").optional(),
   /** Fixed fraction digits; omitted = up to 2, trailing zeros dropped. */
   decimals: z.number().int().min(0).max(10).optional(),
   sparkline: z.boolean().default(false),
+  /** Fixed series label to CSS color mapping for sparklines. Unmapped series
+   * keep the existing shared accent color. */
+  colors: z.record(z.string(), z.string()).default({}),
   thresholds: thresholdsSpec.optional(),
   /** "background" fills the tile with the threshold color instead of tinting the value text. */
   colorMode: z.enum(["value", "background"]).default("value"),

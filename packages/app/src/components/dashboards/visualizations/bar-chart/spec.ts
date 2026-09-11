@@ -7,6 +7,7 @@ import * as z from "zod";
  */
 export const barChartSpec = z.looseObject({
   unit: z.string().default(""),
+  displayUnit: z.literal("auto").optional(),
   showLegend: z.boolean().default(false),
   /** `stacked` piles series into one bar per x value; `percent` additionally
    * normalizes each stack to 100% (the value axis becomes percentages). */

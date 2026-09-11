@@ -11,6 +11,7 @@ metadata:
   project: platform          # optional; defaults to "default"; namespaces identity + URL
 spec:
   display: { name: ..., description: ... }   # optional
+  timeRange: { from: now/M, to: now }        # optional; explicit default range
   duration: 1h               # optional; seeds the time-range picker (e.g. 1h, 24h)
   refreshInterval: 30s       # optional; seeds auto-refresh
   variables: [ ... ]         # optional; see rules/queries.md
@@ -19,6 +20,7 @@ spec:
 ```
 
 Identity is `project` + `slug` → URL `/dashboards/<project>/<slug>`.
+When both are present, `timeRange` takes precedence over `duration`.
 
 ## Layout — panels only render if a layout references them
 

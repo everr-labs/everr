@@ -28,6 +28,7 @@ export const BUILTIN_MANIFEST: BuiltinManifestEntry[] = [
   { id: "redis-overview", name: "Redis Overview" },
   { id: "mongodb-overview", name: "MongoDB Overview" },
   { id: "kubernetes-workloads", name: "Kubernetes Workloads" },
+  { id: "telemetry-usage", name: "Telemetry Usage" },
   { id: "web-vitals", name: "Web Vitals" },
   { id: "product-analytics", name: "Product Analytics" },
 ];

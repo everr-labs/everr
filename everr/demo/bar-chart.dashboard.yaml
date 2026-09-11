@@ -6,7 +6,7 @@ spec:
   display:
     name: Bar Chart
     description: >-
-      BarChart regression sheet — every option (unit, showLegend, stacking
+      BarChart regression sheet: every option (unit, displayUnit, showLegend, stacking
       none/stacked/percent, orientation vertical/horizontal, showValues) and
       behavior (time axis, categorical axis, grouped pivot, multi-query merge,
       empty result) exercised with deterministic TestData.
@@ -120,13 +120,14 @@ spec:
       spec:
         display:
           name: "Bar: horizontal categories, values"
-          description: "orientation: horizontal · showValues: true · unit: req · category axis (no time column), query order kept"
+          description: "orientation: horizontal · showValues: true · unit: By · displayUnit: auto · category axis (no time column), query order kept"
         plugin:
           kind: BarChart
           spec:
             orientation: horizontal
             showValues: true
-            unit: req
+            unit: By
+            displayUnit: auto
         queries:
           - kind: TestData
             spec:
@@ -134,13 +135,13 @@ spec:
                 kind: TestData
                 spec:
                   scenario: csv
-                  columns: [endpoint, requests]
+                  columns: [endpoint, bytes]
                   rows:
-                    - ["/api/users", 1240]
-                    - ["/api/orders", 870]
-                    - ["/api/search", 605]
-                    - ["/api/login", 432]
-                    - ["/healthz", 121]
+                    - ["/api/users", 5368709120]
+                    - ["/api/orders", 3758096384]
+                    - ["/api/search", 2684354560]
+                    - ["/api/login", 1879048192]
+                    - ["/healthz", 536870912]
     bar-categorical-pivot:
       kind: Panel
       spec:

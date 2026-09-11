@@ -7,6 +7,7 @@ import * as z from "zod";
  */
 export const timeSeriesChartSpec = z.looseObject({
   unit: z.string().default(""),
+  displayUnit: z.literal("auto").optional(),
   showLegend: z.boolean().default(false),
   lineWidth: z.number().positive().default(1.5),
   curveType: z

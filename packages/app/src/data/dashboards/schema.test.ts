@@ -82,6 +82,16 @@ describe("dashboardSpecSchema datasources", () => {
   });
 });
 
+describe("dashboardSpecSchema time range", () => {
+  it("preserves an explicit default range", () => {
+    const result = dashboardSpecSchema.parse({
+      ...spec("#/spec/panels/cpu"),
+      timeRange: { from: "now/M", to: "now" },
+    });
+    expect(result.timeRange).toEqual({ from: "now/M", to: "now" });
+  });
+});
+
 describe("dashboardSpecSchemaStrict plugin specs", () => {
   const specWithPlugin = (kind: string, pluginSpec: unknown) => ({
     panels: {
@@ -100,7 +110,11 @@ describe("dashboardSpecSchemaStrict plugin specs", () => {
 
   it("accepts valid options for a known kind", () => {
     const result = dashboardSpecSchemaStrict.safeParse(
-      specWithPlugin("TimeSeriesChart", { unit: "ms", lineWidth: 2 }),
+      specWithPlugin("TimeSeriesChart", {
+        unit: "ms",
+        displayUnit: "auto",
+        lineWidth: 2,
+      }),
     );
     expect(result.success).toBe(true);
   });

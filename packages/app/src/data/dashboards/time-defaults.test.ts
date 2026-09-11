@@ -2,6 +2,30 @@ import { describe, expect, it } from "vitest";
 import { dashboardTimeDefaults } from "./time-defaults";
 
 describe("dashboardTimeDefaults", () => {
+  it("uses an explicit time range", () => {
+    expect(
+      dashboardTimeDefaults({ timeRange: { from: "now/M", to: "now" } }),
+    ).toEqual({ from: "now/M", to: "now" });
+  });
+
+  it("prefers an explicit time range over a duration", () => {
+    expect(
+      dashboardTimeDefaults({
+        timeRange: { from: "now/M", to: "now" },
+        duration: "31d",
+      }),
+    ).toEqual({ from: "now/M", to: "now" });
+  });
+
+  it("falls back to a valid duration when the explicit range is invalid", () => {
+    expect(
+      dashboardTimeDefaults({
+        timeRange: { from: "banana", to: "now" },
+        duration: "7d",
+      }),
+    ).toEqual({ from: "now-7d", to: "now" });
+  });
+
   it("derives from/to from a valid duration", () => {
     expect(dashboardTimeDefaults({ duration: "1h" })).toEqual({
       from: "now-1h",

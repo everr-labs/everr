@@ -6,8 +6,8 @@ spec:
   display:
     name: Stat
     description: >-
-      StatChart regression sheet — every option (all 9 calculations, unit,
-      decimals, sparkline, thresholds absolute/percent, colorMode, showLabel,
+      StatChart regression sheet: every option (all 9 calculations, unit,
+      displayUnit, decimals, sparkline, colors, thresholds absolute/percent, colorMode, showLabel,
       noValue) and behavior (multi-query, placeholder tile, row-order sparkline,
       multi-tile, empty) exercised with deterministic TestData.
   duration: 7d
@@ -69,12 +69,13 @@ spec:
       spec:
         display:
           name: "Stat: mean"
-          description: "calculation: mean · unit: s · decimals: 2"
+          description: "calculation: mean · unit: By · displayUnit: auto · decimals: 2"
         plugin:
           kind: StatChart
           spec:
             calculation: mean
-            unit: s
+            unit: By
+            displayUnit: auto
             decimals: 2
         queries:
           - kind: TestData
@@ -85,7 +86,7 @@ spec:
                   scenario: random_walk
                   seed: 23
                   series:
-                    - { name: avg_s, start: 0.6, noise: 0.1, min: 0 }
+                    - { name: avg_bytes, start: 6442450944, noise: 536870912, min: 0 }
     stat-min:
       kind: Panel
       spec:
@@ -282,12 +283,16 @@ spec:
       spec:
         display:
           name: "Stat: multi-tile (3 columns)"
-          description: "One query, three numeric columns → one tile each (multi-tile layout) · sparkline"
+          description: "One query, three numeric columns → one tile each (multi-tile layout) · sparkline · colors"
         plugin:
           kind: StatChart
           spec:
             calculation: last
             sparkline: true
+            colors:
+              p50_ms: "#a78bfa"
+              p95_ms: "#fde047"
+              p99_ms: "#22d3ee"
         queries:
           - kind: TestData
             spec:

@@ -30,6 +30,7 @@ import {
   SERIES_COLORS,
 } from "../data-utils";
 import type { VisualizationProps } from "../index";
+import { formatValue } from "../value-format";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 
@@ -59,8 +60,15 @@ export function TimeSeriesChartVisualization({
   timeRange,
   onTimeRangeChange,
 }: VisualizationProps<TimeSeriesChartSpec>) {
-  const { showLegend, connectNulls, lineWidth, unit, curveType, stacked } =
-    spec;
+  const {
+    showLegend,
+    connectNulls,
+    lineWidth,
+    unit,
+    displayUnit,
+    curveType,
+    stacked,
+  } = spec;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRectRef = useRef<DOMRect | null>(null);
@@ -281,7 +289,9 @@ export function TimeSeriesChartVisualization({
             // would have chosen.
             domain={yAxis.domain}
             ticks={yAxis.ticks}
-            tickFormatter={(v) => (unit ? `${v}${unit}` : String(v))}
+            tickFormatter={(v) =>
+              formatValue(Number(v), unit, { displayUnit, locale: false })
+            }
           />
           {showLegend && <ChartLegend content={<ChartLegendContent />} />}
           {valueKeys.map((key) =>
@@ -354,7 +364,10 @@ export function TimeSeriesChartVisualization({
                   key,
                   color: chartConfig[key]?.color,
                   label: chartConfig[key]?.label ?? key,
-                  value: unit ? `${val}${unit}` : String(val),
+                  value: formatValue(val as number, unit, {
+                    displayUnit,
+                    locale: false,
+                  }),
                   // Calls out the row the pointer is on, so overlapping series
                   // can be told apart by aiming at one of them.
                   active: nearestKeys.has(key),

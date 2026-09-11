@@ -147,6 +147,12 @@ export const dashboardSpecSchema = z
     variables: z.array(variable).optional(),
     panels: z.record(z.string(), panel),
     layouts: z.array(gridLayout),
+    timeRange: z
+      .object({
+        from: z.string(),
+        to: z.string(),
+      })
+      .optional(),
     duration: z.string().optional(),
     refreshInterval: z.string().optional(),
   })

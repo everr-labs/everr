@@ -17,6 +17,7 @@ import {
   YAxis,
 } from "recharts";
 import type { VisualizationProps } from "../index";
+import { formatValue } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
 
@@ -111,7 +112,15 @@ export function BarChartVisualization({
   spec,
   data,
 }: VisualizationProps<BarChartSpec>) {
-  const { unit, showLegend, stacking, orientation, showValues, colors } = spec;
+  const {
+    unit,
+    displayUnit,
+    showLegend,
+    stacking,
+    orientation,
+    showValues,
+    colors,
+  } = spec;
 
   const { chartData, valueKeys, chartConfig, isTimeAxis } = useMemo(
     () => buildBarChartModel(data ?? [], colors),
@@ -183,11 +192,8 @@ export function BarChartVisualization({
   const formatValueTick = (v: number) =>
     stacking === "percent"
       ? `${Math.round(v * 100)}%`
-      : unit
-        ? `${v}${unit}`
-        : String(v);
-  const formatValue = (v: number) =>
-    unit ? `${v.toLocaleString()}${unit}` : v.toLocaleString();
+      : formatValue(v, unit, { displayUnit, locale: false });
+  const formatBarValue = (v: number) => formatValue(v, unit, { displayUnit });
 
   // Dense (time-bucketed) data produces one category per bucket — thin the
   // tick labels instead of letting them overlap.
@@ -265,7 +271,7 @@ export function BarChartVisualization({
                   className="fill-foreground"
                   fontSize={10}
                   formatter={(v: unknown) =>
-                    typeof v === "number" ? formatValue(v) : ""
+                    typeof v === "number" ? formatBarValue(v) : ""
                   }
                 />
               )}
@@ -287,7 +293,7 @@ export function BarChartVisualization({
                 key,
                 color: chartConfig[key]?.color,
                 label: chartConfig[key]?.label ?? key,
-                value: formatValue(tooltipRow[key] as number),
+                value: formatBarValue(tooltipRow[key] as number),
               }))}
           />
         </CursorTooltip>

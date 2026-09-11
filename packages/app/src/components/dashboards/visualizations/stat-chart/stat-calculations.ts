@@ -1,3 +1,4 @@
+import { formatCompactValue } from "../value-format";
 import type { CalculationType, ThresholdsSpec } from "./spec";
 
 export type { CalculationType, ThresholdsSpec } from "./spec";
@@ -54,12 +55,6 @@ export function resolveThresholdColor(
   return color;
 }
 
-const ABBREVIATIONS: ReadonlyArray<[number, string]> = [
-  [1e12, "T"],
-  [1e9, "B"],
-  [1e6, "M"],
-];
-
 /**
  * Locale-formatted value for the stat tile. Magnitudes >= 1e6 abbreviate
  * (1234567 -> "1.23M") so large counts don't overflow the tile; thousands
@@ -67,14 +62,5 @@ const ABBREVIATIONS: ReadonlyArray<[number, string]> = [
  * means up to 2 with trailing zeros dropped.
  */
 export function formatStatValue(value: number, decimals?: number): string {
-  const fraction: Intl.NumberFormatOptions =
-    decimals !== undefined
-      ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals }
-      : { maximumFractionDigits: 2 };
-  for (const [factor, suffix] of ABBREVIATIONS) {
-    if (Math.abs(value) >= factor) {
-      return `${(value / factor).toLocaleString(undefined, fraction)}${suffix}`;
-    }
-  }
-  return value.toLocaleString(undefined, fraction);
+  return formatCompactValue(value, decimals);
 }

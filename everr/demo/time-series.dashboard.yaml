@@ -6,7 +6,7 @@ spec:
   display:
     name: Time Series
     description: >-
-      TimeSeriesChart regression sheet — every option (unit, showLegend,
+      TimeSeriesChart regression sheet: every option (unit, displayUnit, showLegend,
       lineWidth, curveType, connectNulls, stacked) and behavior (grouped pivot,
       multi-column, multi-query, null gaps, empty result) exercised with
       deterministic TestData.
@@ -94,12 +94,13 @@ spec:
       kind: Panel
       spec:
         display:
-          name: "TS: natural, seconds unit"
-          description: "curveType: natural · unit: s"
+          name: "TS: natural, byte units"
+          description: "curveType: natural · unit: By · displayUnit: auto"
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: s
+            unit: By
+            displayUnit: auto
             showLegend: false
             lineWidth: 1.5
             curveType: natural
@@ -113,7 +114,7 @@ spec:
                   scenario: random_walk
                   seed: 5
                   series:
-                    - { name: avg_s, start: 0.5, noise: 0.1, min: 0 }
+                    - { name: volume, start: 3221225472, noise: 268435456, min: 0 }
     ts-step-before:
       kind: Panel
       spec:

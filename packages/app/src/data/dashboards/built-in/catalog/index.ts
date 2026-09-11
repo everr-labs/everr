@@ -40,6 +40,8 @@ const ORDER = [
   "mongodb-overview",
   // Infrastructure
   "kubernetes-workloads",
+  // Everr
+  "telemetry-usage",
   // Browser
   "web-vitals",
   "product-analytics",

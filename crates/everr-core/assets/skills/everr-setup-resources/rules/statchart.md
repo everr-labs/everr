@@ -7,9 +7,11 @@ One or more big single-value tiles, each optionally with a sparkline and thresho
 | Option | Type | Default | Values | Effect |
 | --- | --- | --- | --- | --- |
 | `calculation` | string | `last` | `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff` | How each tile's column is reduced to one number. `count` = number of points, `range` = max − min, `diff` = last − first. An unknown value is rejected by `everr apply`. |
-| `unit` | string | `""` | any string | Suffix after the value. |
+| `unit` | string | `""` | any string | Unit of the numeric query result. It remains a literal suffix unless `displayUnit` is set. |
+| `displayUnit` | string | none | `auto` | Scale recognized byte or duration units for display. The input `unit` may already be prefixed, such as `GiBy`, the common `GiB` alias, or `ms`. |
 | `decimals` | number | none | `0`–`10` | Fixed fraction digits. Omitted: up to 2, trailing zeros dropped. |
 | `sparkline` | boolean | `false` | `true` | Draw a trend line under the value. **Needs a time column and ≥2 points** (see Data shape) or nothing draws. |
+| `colors` | map | `{}` | series label to CSS color | Pin sparkline colors by series label. Unmapped series keep the default accent color. Threshold colors take precedence. |
 | `colorMode` | string | `value` | `value`, `background` | `value` tints the number with the threshold color; `background` fills the whole tile. No effect without `thresholds`. |
 | `showLabel` | boolean | `false` | `true` | Show the column-name label even on a single-tile panel (multi-tile always shows it). |
 | `noValue` | string | `–` | any string | Text rendered for a query that produced no value (empty result / no numeric column). |
@@ -32,6 +34,7 @@ plugin:
     unit: "%"
     decimals: 1
     sparkline: true
+    colors: { p50: "#a78bfa", p95: "#fde047" }
     thresholds:
       mode: absolute
       defaultColor: "#22c55e"            # green below the first step
@@ -55,4 +58,5 @@ There is **no** `title`, `orientation`, or `graphMode`. `calculation`, `unit`, a
 - A query that returns no value still renders its tile with the `noValue` text — it does not silently vanish from a multi-query panel.
 - **`percent` mode** without `thresholds.max` compares against the tile's own series max, so a single-value (time-less) tile is always 100% — set `max` or use it with a sparkline series.
 - The resolved threshold color tints **both** the number and the sparkline (`colorMode: background` fills the tile instead).
+- A `colors` entry changes only that series' sparkline. Threshold colors still win when configured.
 - Value text scales down as tiles crowd the panel.

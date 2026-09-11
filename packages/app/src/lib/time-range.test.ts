@@ -179,6 +179,9 @@ describe("formatTimeRangeDisplay", () => {
     expect(formatTimeRangeDisplay({ from: "now-1h", to: "now" })).toBe(
       "Last 1 hour",
     );
+    expect(formatTimeRangeDisplay({ from: "now/M", to: "now" })).toBe(
+      "This month so far",
+    );
   });
 
   it("returns raw expression for custom ranges", () => {
