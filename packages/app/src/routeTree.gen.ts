@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
@@ -22,6 +21,7 @@ import { Route as ApiCliRouteImport } from './routes/api/cli'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as McpSplatRouteImport } from './routes/mcp/$'
 import { Route as McpConsentRouteImport } from './routes/mcp/consent'
+import { Route as OrganizationsNewRouteImport } from './routes/organizations.new'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
 import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
 import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
@@ -53,6 +53,7 @@ import { Route as AuthenticatedDashboardPaddedAccountRouteImport } from './route
 import { Route as AuthenticatedDashboardPaddedApiKeysRouteImport } from './routes/_authenticated/_dashboard/_padded/api-keys'
 import { Route as AuthenticatedDashboardPaddedBillingRouteImport } from './routes/_authenticated/_dashboard/_padded/billing'
 import { Route as AuthenticatedDashboardPaddedCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/_padded/cost-analysis'
+import { Route as AuthenticatedDashboardPaddedGithubRouteImport } from './routes/_authenticated/_dashboard/_padded/github'
 import { Route as AuthenticatedDashboardPaddedReposRouteImport } from './routes/_authenticated/_dashboard/_padded/repos'
 import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
 import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
@@ -60,7 +61,6 @@ import { Route as AuthenticatedDashboardPreviewableDashboardsRouteRouteImport } 
 import { Route as AuthenticatedDashboardPreviewableRunbooksRouteRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/route'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
-import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
 import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/histogram'
@@ -98,11 +98,6 @@ const AuthRoute = AuthRouteImport.update({
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DotwellKnownOauthAuthorizationServerRoute =
@@ -153,6 +148,11 @@ const McpSplatRoute = McpSplatRouteImport.update({
 const McpConsentRoute = McpConsentRouteImport.update({
   id: '/mcp/consent',
   path: '/mcp/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrganizationsNewRoute = OrganizationsNewRouteImport.update({
+  id: '/organizations/new',
+  path: '/organizations/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WebhookGithubRoute = WebhookGithubRouteImport.update({
@@ -322,6 +322,12 @@ const AuthenticatedDashboardPaddedCostAnalysisRoute =
     path: '/cost-analysis',
     getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
+const AuthenticatedDashboardPaddedGithubRoute =
+  AuthenticatedDashboardPaddedGithubRouteImport.update({
+    id: '/github',
+    path: '/github',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+  } as any)
 const AuthenticatedDashboardPaddedReposRoute =
   AuthenticatedDashboardPaddedReposRouteImport.update({
     id: '/repos',
@@ -364,11 +370,6 @@ const AuthenticatedDashboardRunsTraceIdRouteRoute =
     path: '/$traceId',
     getParentRoute: () => AuthenticatedDashboardRunsRoute,
   } as any)
-const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
-  id: '/name',
-  path: '/name',
-  getParentRoute: () => ApiCliOrgRoute,
-} as any)
 const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
   id: '/$traceId',
   path: '/$traceId',
@@ -546,7 +547,6 @@ const AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedDashboardPaddedIndexRoute
-  '/onboarding': typeof OnboardingRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
@@ -555,6 +555,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
+  '/organizations/new': typeof OrganizationsNewRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -563,7 +564,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
-  '/api/cli/org': typeof ApiCliOrgRouteWithChildren
+  '/api/cli/org': typeof ApiCliOrgRoute
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
@@ -585,10 +586,10 @@ export interface FileRoutesByFullPath {
   '/api-keys': typeof AuthenticatedDashboardPaddedApiKeysRoute
   '/billing': typeof AuthenticatedDashboardPaddedBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
+  '/github': typeof AuthenticatedDashboardPaddedGithubRoute
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRouteWithChildren
-  '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
   '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
@@ -623,7 +624,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof AuthenticatedDashboardPaddedIndexRoute
-  '/onboarding': typeof OnboardingRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
@@ -632,6 +632,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
+  '/organizations/new': typeof OrganizationsNewRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -639,7 +640,7 @@ export interface FileRoutesByTo {
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
-  '/api/cli/org': typeof ApiCliOrgRouteWithChildren
+  '/api/cli/org': typeof ApiCliOrgRoute
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
@@ -658,9 +659,9 @@ export interface FileRoutesByTo {
   '/api-keys': typeof AuthenticatedDashboardPaddedApiKeysRoute
   '/billing': typeof AuthenticatedDashboardPaddedBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
+  '/github': typeof AuthenticatedDashboardPaddedGithubRoute
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
-  '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
   '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
@@ -697,7 +698,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_auth': typeof AuthRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteWithChildren
-  '/onboarding': typeof OnboardingRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/_auth/_guest': typeof AuthGuestRouteWithChildren
@@ -708,6 +708,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
+  '/organizations/new': typeof OrganizationsNewRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/_auth/auth/error': typeof AuthAuthErrorRoute
   '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -719,7 +720,7 @@ export interface FileRoutesById {
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
-  '/api/cli/org': typeof ApiCliOrgRouteWithChildren
+  '/api/cli/org': typeof ApiCliOrgRoute
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
@@ -741,10 +742,10 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/api-keys': typeof AuthenticatedDashboardPaddedApiKeysRoute
   '/_authenticated/_dashboard/_padded/billing': typeof AuthenticatedDashboardPaddedBillingRoute
   '/_authenticated/_dashboard/_padded/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
+  '/_authenticated/_dashboard/_padded/github': typeof AuthenticatedDashboardPaddedGithubRoute
   '/_authenticated/_dashboard/_padded/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/_authenticated/_dashboard/_padded/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/_authenticated/_dashboard/_previewable/alerts': typeof AuthenticatedDashboardPreviewableAlertsRouteWithChildren
-  '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
   '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
@@ -782,7 +783,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/onboarding'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/device'
@@ -791,6 +791,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
+    | '/organizations/new'
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
@@ -821,10 +822,10 @@ export interface FileRouteTypes {
     | '/api-keys'
     | '/billing'
     | '/cost-analysis'
+    | '/github'
     | '/repos'
     | '/users-management'
     | '/alerts'
-    | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
     | '/api/cli/runs/histogram'
@@ -859,7 +860,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/onboarding'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/device'
@@ -868,6 +868,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
+    | '/organizations/new'
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
@@ -894,9 +895,9 @@ export interface FileRouteTypes {
     | '/api-keys'
     | '/billing'
     | '/cost-analysis'
+    | '/github'
     | '/repos'
     | '/users-management'
-    | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
     | '/api/cli/runs/histogram'
@@ -932,7 +933,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_auth'
     | '/_authenticated'
-    | '/onboarding'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/_auth/_guest'
@@ -943,6 +943,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
+    | '/organizations/new'
     | '/webhook/github'
     | '/_auth/auth/error'
     | '/_auth/invite/$invitationId'
@@ -976,10 +977,10 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/api-keys'
     | '/_authenticated/_dashboard/_padded/billing'
     | '/_authenticated/_dashboard/_padded/cost-analysis'
+    | '/_authenticated/_dashboard/_padded/github'
     | '/_authenticated/_dashboard/_padded/repos'
     | '/_authenticated/_dashboard/_padded/users-management'
     | '/_authenticated/_dashboard/_previewable/alerts'
-    | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
     | '/api/cli/runs/histogram'
@@ -1017,7 +1018,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
-  OnboardingRoute: typeof OnboardingRoute
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   ApiApplyRoute: typeof ApiApplyRoute
@@ -1025,6 +1025,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   McpSplatRoute: typeof McpSplatRoute
   McpConsentRoute: typeof McpConsentRoute
+  OrganizationsNewRoute: typeof OrganizationsNewRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
@@ -1047,13 +1048,6 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-authorization-server': {
@@ -1124,6 +1118,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp/consent'
       fullPath: '/mcp/consent'
       preLoaderRoute: typeof McpConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organizations/new': {
+      id: '/organizations/new'
+      path: '/organizations/new'
+      fullPath: '/organizations/new'
+      preLoaderRoute: typeof OrganizationsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/webhook/github': {
@@ -1343,6 +1344,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPaddedCostAnalysisRouteImport
       parentRoute: typeof AuthenticatedDashboardPaddedRoute
     }
+    '/_authenticated/_dashboard/_padded/github': {
+      id: '/_authenticated/_dashboard/_padded/github'
+      path: '/github'
+      fullPath: '/github'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedGithubRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
     '/_authenticated/_dashboard/_padded/repos': {
       id: '/_authenticated/_dashboard/_padded/repos'
       path: '/repos'
@@ -1391,13 +1399,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/runs/$traceId'
       preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsRoute
-    }
-    '/api/cli/org/name': {
-      id: '/api/cli/org/name'
-      path: '/name'
-      fullPath: '/api/cli/org/name'
-      preLoaderRoute: typeof ApiCliOrgNameRouteImport
-      parentRoute: typeof ApiCliOrgRoute
     }
     '/api/cli/runs/$traceId': {
       id: '/api/cli/runs/$traceId'
@@ -1706,6 +1707,7 @@ interface AuthenticatedDashboardPaddedRouteChildren {
   AuthenticatedDashboardPaddedApiKeysRoute: typeof AuthenticatedDashboardPaddedApiKeysRoute
   AuthenticatedDashboardPaddedBillingRoute: typeof AuthenticatedDashboardPaddedBillingRoute
   AuthenticatedDashboardPaddedCostAnalysisRoute: typeof AuthenticatedDashboardPaddedCostAnalysisRoute
+  AuthenticatedDashboardPaddedGithubRoute: typeof AuthenticatedDashboardPaddedGithubRoute
   AuthenticatedDashboardPaddedReposRoute: typeof AuthenticatedDashboardPaddedReposRoute
   AuthenticatedDashboardPaddedUsersManagementRoute: typeof AuthenticatedDashboardPaddedUsersManagementRoute
   AuthenticatedDashboardPaddedIndexRoute: typeof AuthenticatedDashboardPaddedIndexRoute
@@ -1723,6 +1725,8 @@ const AuthenticatedDashboardPaddedRouteChildren: AuthenticatedDashboardPaddedRou
       AuthenticatedDashboardPaddedBillingRoute,
     AuthenticatedDashboardPaddedCostAnalysisRoute:
       AuthenticatedDashboardPaddedCostAnalysisRoute,
+    AuthenticatedDashboardPaddedGithubRoute:
+      AuthenticatedDashboardPaddedGithubRoute,
     AuthenticatedDashboardPaddedReposRoute:
       AuthenticatedDashboardPaddedReposRoute,
     AuthenticatedDashboardPaddedUsersManagementRoute:
@@ -1924,18 +1928,6 @@ const DotwellKnownOauthAuthorizationServerRouteWithChildren =
     DotwellKnownOauthAuthorizationServerRouteChildren,
   )
 
-interface ApiCliOrgRouteChildren {
-  ApiCliOrgNameRoute: typeof ApiCliOrgNameRoute
-}
-
-const ApiCliOrgRouteChildren: ApiCliOrgRouteChildren = {
-  ApiCliOrgNameRoute: ApiCliOrgNameRoute,
-}
-
-const ApiCliOrgRouteWithChildren = ApiCliOrgRoute._addFileChildren(
-  ApiCliOrgRouteChildren,
-)
-
 interface ApiCliResourcesKindProjectSlugRouteChildren {
   ApiCliResourcesKindProjectSlugAdoptRoute: typeof ApiCliResourcesKindProjectSlugAdoptRoute
 }
@@ -1997,7 +1989,7 @@ interface ApiCliRouteChildren {
   ApiCliImportRoute: typeof ApiCliImportRoute
   ApiCliMeRoute: typeof ApiCliMeRoute
   ApiCliNotificationRoute: typeof ApiCliNotificationRoute
-  ApiCliOrgRoute: typeof ApiCliOrgRouteWithChildren
+  ApiCliOrgRoute: typeof ApiCliOrgRoute
   ApiCliReposRoute: typeof ApiCliReposRoute
   ApiCliResourcesRoute: typeof ApiCliResourcesRouteWithChildren
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
@@ -2008,7 +2000,7 @@ const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliImportRoute: ApiCliImportRoute,
   ApiCliMeRoute: ApiCliMeRoute,
   ApiCliNotificationRoute: ApiCliNotificationRoute,
-  ApiCliOrgRoute: ApiCliOrgRouteWithChildren,
+  ApiCliOrgRoute: ApiCliOrgRoute,
   ApiCliReposRoute: ApiCliReposRoute,
   ApiCliResourcesRoute: ApiCliResourcesRouteWithChildren,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
@@ -2021,7 +2013,6 @@ const ApiCliRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
-  OnboardingRoute: OnboardingRoute,
   DotwellKnownOauthAuthorizationServerRoute:
     DotwellKnownOauthAuthorizationServerRouteWithChildren,
   DotwellKnownOauthProtectedResourceRoute:
@@ -2031,6 +2022,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   McpSplatRoute: McpSplatRoute,
   McpConsentRoute: McpConsentRoute,
+  OrganizationsNewRoute: OrganizationsNewRoute,
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,

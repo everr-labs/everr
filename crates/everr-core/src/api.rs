@@ -5,8 +5,8 @@ use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use opentelemetry::global;
 use opentelemetry::propagation::Injector;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::StatusCode;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -276,47 +276,6 @@ impl ApiClient {
 
     pub async fn get_org(&self) -> Result<OrgResponse> {
         self.get("/org", &[]).await
-    }
-
-    pub async fn complete_org_onboarding(&self) -> Result<()> {
-        let response = self
-            .http
-            .patch(format!("{}/org", self.base_endpoint))
-            .send()
-            .await
-            .context("PATCH org onboarding request failed")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "PATCH org onboarding"));
-        }
-
-        Ok(())
-    }
-
-    pub async fn patch_org_name(&self, name: &str) -> Result<()> {
-        let response = self
-            .http
-            .patch(format!("{}/org/name", self.base_endpoint))
-            .json(&serde_json::json!({ "name": name }))
-            .send()
-            .await
-            .context("PATCH org name request failed")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "PATCH org name"));
-        }
-
-        Ok(())
     }
 
     pub async fn get_repos(&self) -> Result<Vec<RepoEntry>> {
@@ -609,8 +568,6 @@ pub struct OrgResponse {
     pub name: String,
     pub is_only_member: bool,
     #[serde(default)]
-    pub onboarding_completed: bool,
-    #[serde(default)]
     pub role: Option<String>,
 }
 
@@ -697,8 +654,8 @@ where
 #[cfg(test)]
 mod api_client_tests {
     use super::*;
-    use futures_util::StreamExt;
     use futures_util::pin_mut;
+    use futures_util::StreamExt;
 
     fn make_session(base_url: &str) -> crate::state::Session {
         crate::state::Session {
@@ -736,7 +693,6 @@ mod api_client_tests {
 
         assert_eq!(org.name, "Test Org");
         assert!(org.is_only_member);
-        assert!(org.onboarding_completed);
         assert_eq!(org.role.as_deref(), Some("admin"));
         mock.assert_async().await;
     }
@@ -747,7 +703,6 @@ mod api_client_tests {
             let org = OrgResponse {
                 name: "Acme".to_string(),
                 is_only_member: false,
-                onboarding_completed: false,
                 role: Some(role.to_string()),
             };
 
@@ -760,46 +715,10 @@ mod api_client_tests {
         let org = OrgResponse {
             name: "Acme".to_string(),
             is_only_member: false,
-            onboarding_completed: false,
             role: Some("member".to_string()),
         };
 
         assert!(!org.can_manage_runs_import());
-    }
-
-    #[tokio::test]
-    async fn complete_org_onboarding_sends_patch() {
-        let mut server = mockito::Server::new_async().await;
-        let mock = server
-            .mock("PATCH", "/api/cli/org")
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(r#"{"ok":true}"#)
-            .create_async()
-            .await;
-
-        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
-        client.complete_org_onboarding().await.unwrap();
-
-        mock.assert_async().await;
-    }
-
-    #[tokio::test]
-    async fn patch_org_name_sends_correct_body() {
-        let mut server = mockito::Server::new_async().await;
-        let mock = server
-            .mock("PATCH", "/api/cli/org/name")
-            .match_body(r#"{"name":"New Name"}"#)
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(r#"{"ok":true}"#)
-            .create_async()
-            .await;
-
-        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
-        client.patch_org_name("New Name").await.unwrap();
-
-        mock.assert_async().await;
     }
 
     #[tokio::test]

@@ -129,14 +129,6 @@ fn print_setup_identity(context: &SetupContext) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn clean_org_name(name: &str) -> String {
-    name.trim().to_string()
-}
-
-fn should_skip_org_setup_steps(org: Option<&OrgResponse>) -> bool {
-    org.is_some_and(|org| org.onboarding_completed)
-}
-
 async fn step_authenticate() -> Result<Session> {
     let store = auth::state_store();
     let config = auth::resolve_auth_config()?;
@@ -151,36 +143,6 @@ async fn step_authenticate() -> Result<Session> {
             Ok(session)
         }
     }
-}
-
-async fn step_rename_org(session: &Session, org: Option<&OrgResponse>) -> Result<()> {
-    let interactive = std::io::stdin().is_terminal();
-    if !interactive {
-        return Ok(());
-    }
-
-    let Some(org) = org else { return Ok(()) };
-    if org.onboarding_completed || !org.is_only_member {
-        return Ok(());
-    }
-
-    let input: String = cliclack::input("Organization name")
-        .default_input(&org.name)
-        .interact()?;
-
-    let new_name = clean_org_name(&input);
-    if new_name == org.name || new_name.is_empty() {
-        return Ok(());
-    }
-
-    let Ok(client) = ApiClient::from_session(session) else {
-        return Ok(());
-    };
-    if client.patch_org_name(&new_name).await.is_err() {
-        return Ok(());
-    }
-    cliclack::log::success(format!("Organization name set to \"{new_name}\""))?;
-    Ok(())
 }
 
 async fn step_import_repos(session: &Session) -> Result<bool> {
@@ -294,31 +256,10 @@ async fn connect_cloud(outcome: &mut SetupOutcome) -> Result<()> {
         })?;
     }
 
-    if !should_skip_org_setup_steps(context.org.as_ref()) {
-        step_rename_org(&session, context.org.as_ref()).await?;
-        if OrgResponse::can_manage_runs_import_or_default(context.org.as_ref()) {
-            outcome.repos_imported = step_import_repos(&session).await?;
-        }
+    if OrgResponse::can_manage_runs_import_or_default(context.org.as_ref()) {
+        outcome.repos_imported = step_import_repos(&session).await?;
     }
 
-    step_mark_cloud_onboarding_complete(&session, context.org.as_ref()).await?;
-    Ok(())
-}
-
-async fn step_mark_cloud_onboarding_complete(
-    session: &Session,
-    org: Option<&OrgResponse>,
-) -> Result<()> {
-    let Some(org) = org else { return Ok(()) };
-    if org.onboarding_completed {
-        return Ok(());
-    }
-
-    let Ok(client) = ApiClient::from_session(session) else {
-        return Ok(());
-    };
-
-    let _ = client.complete_org_onboarding().await;
     Ok(())
 }
 
@@ -597,16 +538,6 @@ async fn step_install_desktop_app() -> Result<DesktopApp> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn clean_org_name_trims_whitespace() {
-        assert_eq!(super::clean_org_name("  Acme Inc.  "), "Acme Inc.");
-    }
-
-    #[test]
-    fn clean_org_name_preserves_inner_spaces() {
-        assert_eq!(super::clean_org_name("Acme Corp"), "Acme Corp");
-    }
-
-    #[test]
     fn claude_target_maps_to_claude_code() {
         use everr_core::skills::SkillProvider;
         assert_eq!(
@@ -693,18 +624,14 @@ mod tests {
             skills_installed: false,
             repos_imported: true,
         };
-        assert!(
-            super::next_steps("everr", &imported)
-                .iter()
-                .any(|step| step.command.contains("ci runs"))
-        );
+        assert!(super::next_steps("everr", &imported)
+            .iter()
+            .any(|step| step.command.contains("ci runs")));
 
         let not_imported = super::SetupOutcome::default();
-        assert!(
-            !super::next_steps("everr", &not_imported)
-                .iter()
-                .any(|step| step.command.contains("ci runs"))
-        );
+        assert!(!super::next_steps("everr", &not_imported)
+            .iter()
+            .any(|step| step.command.contains("ci runs")));
     }
 
     #[test]
@@ -714,18 +641,14 @@ mod tests {
             skills_installed: true,
             repos_imported: false,
         };
-        assert!(
-            super::next_steps("everr", &with_skills)
-                .iter()
-                .any(|step| step.command.contains("/everr-setup-telemetry"))
-        );
+        assert!(super::next_steps("everr", &with_skills)
+            .iter()
+            .any(|step| step.command.contains("/everr-setup-telemetry")));
 
         let without = super::SetupOutcome::default();
-        assert!(
-            !super::next_steps("everr", &without)
-                .iter()
-                .any(|step| step.command.contains("/everr-setup-telemetry"))
-        );
+        assert!(!super::next_steps("everr", &without)
+            .iter()
+            .any(|step| step.command.contains("/everr-setup-telemetry")));
     }
 
     #[test]
@@ -741,35 +664,9 @@ mod tests {
             repos_imported: true,
         };
         let steps = super::next_steps("everr-dev", &outcome);
-        assert!(
-            steps
-                .iter()
-                .all(|step| step.command.starts_with("everr-dev") || step.command.starts_with('/'))
-        );
-    }
-
-    #[test]
-    fn onboarded_org_skips_org_setup_steps() {
-        let org = everr_core::api::OrgResponse {
-            name: "Acme".to_string(),
-            is_only_member: true,
-            onboarding_completed: true,
-            role: Some("admin".to_string()),
-        };
-
-        assert!(super::should_skip_org_setup_steps(Some(&org)));
-    }
-
-    #[test]
-    fn not_onboarded_org_runs_org_setup_steps() {
-        let org = everr_core::api::OrgResponse {
-            name: "Acme".to_string(),
-            is_only_member: true,
-            onboarding_completed: false,
-            role: Some("admin".to_string()),
-        };
-
-        assert!(!super::should_skip_org_setup_steps(Some(&org)));
+        assert!(steps
+            .iter()
+            .all(|step| step.command.starts_with("everr-dev") || step.command.starts_with('/')));
     }
 
     #[test]

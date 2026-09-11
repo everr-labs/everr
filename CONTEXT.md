@@ -8,6 +8,7 @@ Software delivery intelligence for developers and AI agents: the same OpenTeleme
 
 **Organization**:
 The top-level account that owns telemetry, dashboards, alerts, runbooks, members, and API keys. The unit of billing and access control.
+Known limitation: there is currently no independent flow for deleting an Organization.
 _Avoid_: workspace, account, tenant (see Tenant)
 
 **Tenant**:
@@ -19,12 +20,28 @@ The single Organization a session — or a connected client — is currently act
 _Avoid_: last-used organization, current org, default org
 
 **User**:
-A person who uses Everr, typically the developer working on the code. Everr is built for Users and Agents at the same level: its telemetry is meant to be equally usable by a human and by an AI, neither above the other. Belongs to an Organization through a Membership.
+A person who uses Everr, typically the developer working on the code. Everr is built for Users and Agents at the same level: its telemetry is meant to be equally usable by a human and by an AI, neither above the other. A User can belong to zero or more Organizations through Memberships.
 _Avoid_: end user, customer
 
+**Membership**:
+The relationship between a User and an Organization. It grants access and carries one or more roles.
+_Avoid_: seat, access record
+
 **Member**:
-A User's belonging to an Organization, which grants access to its telemetry and resources. Access is decided by current Membership, not by membership at the time access was granted.
-_Avoid_: collaborator, seat
+A User who belongs to an Organization through a current Membership. Access is decided by the current Membership, not by membership at the time access was granted.
+_Avoid_: collaborator, Membership
+
+**Owner**:
+The Membership role with full control of an Organization. An Organization can have multiple Owners.
+_Avoid_: creator, administrator
+
+**Billing details**:
+The legal name, tax identifier, billing email, and postal address used to bill an Organization. They may differ from the Organization's display name.
+_Avoid_: billing data, billing profile, Organization name
+
+**Billing email**:
+The Organization-specific email address used by the billing provider to identify the Organization's customer and send billing communications. It is independent from every Member's account email and must be unique across billable Organizations.
+_Avoid_: owner email, User email, contact email
 
 **Project**:
 A namespace within an Organization for dashboards, alerts, and runbooks, so different teams can reuse the same name without colliding. Defaults to `default`.
@@ -324,11 +341,7 @@ _Avoid_: MCP endpoint, tool server, MCP client (an Agent, named by how it connec
 **Wrap**:
 Running a command through `everr wrap` so its stdout, stderr, and exit code are captured as Logs.
 
-### Onboarding & authentication
-
-**Onboarding**:
-The first-run flow that takes a new User and Organization from sign-up to a usable state — naming the Organization, connecting GitHub, importing CI runs, installing Skills, and authorizing the CLI. The web wizard and the CLI's `everr setup` are its two surfaces.
-_Avoid_: wizard, setup (a generic synonym; `everr setup` is the command name)
+### Authentication
 
 **Device authorization**:
 How a client without a browser — the CLI or the desktop app — signs in: Everr shows a short Device code, the User approves it in the browser, and the client becomes authenticated for an Organization.

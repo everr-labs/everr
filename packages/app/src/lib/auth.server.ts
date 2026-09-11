@@ -18,11 +18,16 @@ import {
   ownerAc,
 } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { member, session as sessionTable, user } from "@/db/schema";
+import { invitation, member, session as sessionTable, user } from "@/db/schema";
 import { env } from "@/env";
-import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
+import {
+  deriveOrgName,
+  generateOrgSlug,
+  selectSoleOrganization,
+  shouldCreateAutomaticOrganization,
+} from "@/lib/auto-org";
 import { upsertOrgSubscription } from "@/lib/billing-data.server";
 import {
   cliDeviceOrganizationPlugin,
@@ -39,7 +44,11 @@ import {
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
-import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
+import {
+  ensurePolarCustomerForOrg,
+  getPolarCustomerForOrg,
+  polarClient,
+} from "@/lib/polar.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 type PolarSubscriptionPayload = {
@@ -235,23 +244,31 @@ export const auth = betterAuth({
             activeOrganizationId = await getLastUsedOrganizationId(session);
           }
 
-          // Look for an existing membership to set as active org.
+          // A single membership is unambiguous. If there are several and no
+          // previous selection, leave the session without an active org so the
+          // user can choose rather than depending on database row order.
+          let membershipCount = 0;
           if (!activeOrganizationId) {
-            const existingMembership = await db
+            const existingMemberships = await db
               .select({
                 organizationId: member.organizationId,
               })
               .from(member)
               .where(eq(member.userId, session.userId))
-              .limit(1);
+              .limit(2);
 
-            activeOrganizationId =
-              existingMembership[0]?.organizationId ?? null;
+            membershipCount = existingMemberships.length;
+            activeOrganizationId = selectSoleOrganization(
+              existingMemberships.map(
+                (membership) => membership.organizationId,
+              ),
+            );
           }
 
-          // If the user has no org (fresh signup, not via invite),
-          // create a personal org so the session starts with one.
-          if (!activeOrganizationId) {
+          // A valid invitation is an organization destination even before it
+          // becomes a membership. Let the invitation flow complete instead of
+          // creating an unrelated organization during sign-up.
+          if (!activeOrganizationId && membershipCount === 0) {
             const userRecord = await db
               .select({ name: user.name, email: user.email })
               .from(user)
@@ -259,20 +276,66 @@ export const auth = betterAuth({
               .limit(1);
 
             if (userRecord[0]) {
+              const pendingInvitations = await db
+                .select({ id: invitation.id })
+                .from(invitation)
+                .where(
+                  and(
+                    eq(
+                      sql<string>`lower(${invitation.email})`,
+                      userRecord[0].email.toLowerCase(),
+                    ),
+                    eq(invitation.status, "pending"),
+                    gt(invitation.expiresAt, new Date()),
+                  ),
+                )
+                .limit(1);
+
+              if (
+                !shouldCreateAutomaticOrganization({
+                  membershipCount,
+                  hasPendingInvitation: pendingInvitations.length > 0,
+                })
+              ) {
+                return {
+                  data: {
+                    ...session,
+                    activeOrganizationId: null,
+                  },
+                };
+              }
+
               const orgName = deriveOrgName(
                 userRecord[0].name,
                 userRecord[0].email,
               );
 
               try {
-                await auth.api.createOrganization({
+                const createdOrganization = await auth.api.createOrganization({
                   body: {
                     name: orgName,
                     slug: generateOrgSlug(),
-                    metadata: { onboardingCompleted: false },
                     userId: session.userId,
                   },
                 });
+
+                if (createdOrganization) {
+                  try {
+                    await ensurePolarCustomerForOrg({
+                      orgId: createdOrganization.id,
+                      orgName: createdOrganization.name,
+                      fallbackEmail: userRecord[0].email,
+                    });
+                  } catch (error) {
+                    serverLogger.error(
+                      "polar.customer.create_for_auto_org.failed",
+                      {
+                        ...exceptionAttributes(error),
+                        "everr.organization.id": createdOrganization.id,
+                      },
+                    );
+                  }
+                }
 
                 // Re-query for the membership that was just created.
                 const newMembership = await db
@@ -313,6 +376,10 @@ export const auth = betterAuth({
     organizationPlugin({
       ac: orgAc,
       roles: orgRoles,
+      // Organization creation is orchestrated by server-owned flows so a
+      // billable Organization cannot bypass Polar customer provisioning.
+      allowUserToCreateOrganization: false,
+      creatorRole: "owner",
       // Preserve pre-1.6.11 behavior: don't require the recipient's email to be
       // verified to view/accept an invitation. 1.6.11 flipped this default to true.
       requireEmailVerificationOnInvitation: false,
@@ -326,20 +393,7 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
-        afterCreateOrganization: async ({ organization, user: creator }) => {
-          try {
-            await ensurePolarCustomerForOrg({
-              orgId: organization.id,
-              orgName: organization.name,
-              fallbackEmail: creator.email,
-            });
-          } catch (error) {
-            serverLogger.error("polar.customer.create_for_org.failed", {
-              ...exceptionAttributes(error),
-              "organization.id": organization.id,
-            });
-          }
-
+        afterCreateOrganization: async ({ organization }) => {
           // Provision the per-org ClickHouse user + row policies that back
           // the /api/cli/sql endpoint's tenant isolation. Each /sql query
           // authenticates as exactly this org's user; without provisioning,
@@ -350,6 +404,15 @@ export const auth = betterAuth({
             serverLogger.error("sql_api.org_user.provision.failed", {
               ...exceptionAttributes(error),
               "organization.id": organization.id,
+            });
+          }
+        },
+        beforeDeleteOrganization: async ({ organization }) => {
+          const customer = await getPolarCustomerForOrg(organization.id);
+          if (customer) {
+            throw new APIError("BAD_REQUEST", {
+              message:
+                "Organizations connected to billing cannot be deleted yet.",
             });
           }
         },
