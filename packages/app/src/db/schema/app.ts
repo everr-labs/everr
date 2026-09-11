@@ -12,7 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { Dashboard } from "@/data/dashboards/schema";
+import type { DashboardResource } from "@/data/dashboards/schema";
 import type { Runbook } from "@/data/runbooks/schema";
 
 export const githubInstallationStatusEnum = pgEnum("installation_status", [
@@ -198,7 +198,7 @@ export const dashboards = pgTable(
     // The whole Perses document, stored verbatim so unknown fields survive a
     // read/apply round-trip. Identity/index data (project, slug, folderPath)
     // lives in dedicated columns above.
-    document: jsonb("document").notNull().$type<Dashboard>(),
+    document: jsonb("document").notNull().$type<DashboardResource>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -262,7 +262,11 @@ export type DatasourceSpec = z.infer<typeof datasourceSpec>;
 export type TextVariable = z.infer<typeof textVariable>;
 export type ListVariable = z.infer<typeof listVariable>;
 export type Variable = z.infer<typeof variable>;
-export type DashboardSpec = z.infer<typeof dashboardSpecSchema>;
+/** Dashboard spec accepted at the resource boundary, including Perses input. */
+export type DashboardResourceSpec = z.infer<typeof dashboardSpecSchema>;
+
+/** Canonical dashboard spec used by the renderer. */
+export type DashboardSpec = Omit<DashboardResourceSpec, "duration">;
 
 export interface DashboardMetadata {
   name: string;
@@ -274,6 +278,13 @@ export interface Dashboard {
   kind: "Dashboard";
   metadata: DashboardMetadata;
   spec: DashboardSpec;
+}
+
+/** Losslessly stored dashboard resource before compatibility normalization. */
+export interface DashboardResource {
+  kind: "Dashboard";
+  metadata: DashboardMetadata;
+  spec: DashboardResourceSpec;
 }
 
 /** Validates a dashboard slug: lowercase letters, digits and hyphens only. */

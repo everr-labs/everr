@@ -12,7 +12,9 @@ spec:
       minRadius/maxRadius range, showLegend on/off, multi-query overlay, the
       unmapped-rows badge, and the empty state, driven by the deterministic geo
       and csv TestData scenarios.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     geo-points:

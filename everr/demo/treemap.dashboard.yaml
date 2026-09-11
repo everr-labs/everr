@@ -11,7 +11,9 @@ spec:
       cycling when ungrouped, multi-query grouping, duplicate-name summing,
       maxTiles tail collapsing into the Other tile, the dropped-rows badge,
       and the empty state, driven by the deterministic csv TestData scenario.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     treemap-defaults:

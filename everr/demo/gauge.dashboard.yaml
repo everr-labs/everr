@@ -12,7 +12,9 @@ spec:
       showAxis, showThresholdLabels) and behavior (spec defaults, clamping
       past the bounds, multi-query placeholder, multi-gauge, empty, inverted
       bounds) exercised with deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     # ── Calculations + options ───────────────────────────────────────

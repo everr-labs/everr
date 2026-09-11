@@ -8,7 +8,9 @@ spec:
       Triage board for open errors: volume and rate at a glance, error groups
       ranked by occurrences with a sample trace to jump into, failing
       operations, and the latest error logs.
-  duration: 24h
+  timeRange:
+    from: now-24h
+    to: now
   refreshInterval: 1m
   variables:
     - kind: ListVariable

@@ -12,7 +12,9 @@ document:
   spec:
     display:
       name: Traces Overview
-    duration: 6h
+    timeRange:
+      from: now-6h
+      to: now
     refreshInterval: 1m
     variables:
       - kind: ListVariable

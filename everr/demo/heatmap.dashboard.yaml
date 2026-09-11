@@ -11,7 +11,9 @@ spec:
       values, min/max domain, cellGap) and behavior (spec defaults, numeric
       bucket ordering, multi-query summing, empty, no time column) exercised
       with deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     # ── Formats and options ──────────────────────────────────────────

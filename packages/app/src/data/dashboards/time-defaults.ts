@@ -4,14 +4,14 @@ import type { RouteTimeDefaults } from "@/lib/time-range";
 import type { DashboardSpec } from "./schema";
 
 /**
- * Translate a dashboard's saved time range, duration, and refresh interval into
+ * Translate a dashboard's saved time range and refresh interval into
  * route-level defaults. These are layered under the URL search params by the
  * time-range hooks (explicit URL values always win), so they seed the global
  * picker and the panels without writing anything to the URL. Returns undefined
  * when the dashboard declares nothing usable.
  */
 export function dashboardTimeDefaults(
-  spec: Pick<DashboardSpec, "duration" | "refreshInterval" | "timeRange">,
+  spec: Pick<DashboardSpec, "refreshInterval" | "timeRange">,
 ): RouteTimeDefaults | undefined {
   const defaults: RouteTimeDefaults = {};
 
@@ -22,9 +22,6 @@ export function dashboardTimeDefaults(
   ) {
     defaults.from = spec.timeRange.from;
     defaults.to = spec.timeRange.to;
-  } else if (spec.duration && isValid(`now-${spec.duration}`)) {
-    defaults.from = `now-${spec.duration}`;
-    defaults.to = "now";
   }
 
   if (

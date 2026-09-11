@@ -15,7 +15,9 @@ document:
   spec:
     display:
       name: HTTP Endpoints
-    duration: 6h
+    timeRange:
+      from: now-6h
+      to: now
     refreshInterval: 1m
     variables:
       - kind: ListVariable

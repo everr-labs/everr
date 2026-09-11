@@ -9,7 +9,9 @@ spec:
       (ok / user_error / system_error), latency, the slowest queries with a
       trace to open, per-tenant usage, and how reliably the CLI leg of each
       trace is landing.
-  duration: 24h
+  timeRange:
+    from: now-24h
+    to: now
   refreshInterval: 1m
   panels:
     total-requests:

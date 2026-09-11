@@ -15,7 +15,9 @@ document:
   spec:
     display:
       name: Web Vitals
-    duration: 24h
+    timeRange:
+      from: now-24h
+      to: now
     variables:
       - kind: ListVariable
         spec:

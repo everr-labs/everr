@@ -10,7 +10,9 @@ spec:
       lineWidth, curveType, connectNulls, stacked) and behavior (grouped pivot,
       multi-column, multi-query, null gaps, empty result) exercised with
       deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     # ── Options + core behaviors ─────────────────────────────────────

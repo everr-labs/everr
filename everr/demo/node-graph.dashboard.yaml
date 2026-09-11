@@ -12,7 +12,9 @@ spec:
       multi-query summing, dropped rows (nulls + self-loops), maxNodes
       trimming, and the empty state, driven by the deterministic csv
       TestData scenario.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     node-graph-defaults:

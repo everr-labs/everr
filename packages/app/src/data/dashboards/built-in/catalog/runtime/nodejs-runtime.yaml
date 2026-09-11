@@ -15,7 +15,9 @@ document:
   spec:
     display:
       name: Node.js Runtime
-    duration: 6h
+    timeRange:
+      from: now-6h
+      to: now
     refreshInterval: 1m
     variables:
       - kind: ListVariable

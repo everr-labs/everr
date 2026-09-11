@@ -10,7 +10,9 @@ spec:
       displayUnit, decimals, sparkline, colors, thresholds absolute/percent, colorMode, showLabel,
       noValue) and behavior (multi-query, placeholder tile, row-order sparkline,
       multi-tile, empty) exercised with deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     # ── Calculations + options ───────────────────────────────────────

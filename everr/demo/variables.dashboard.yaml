@@ -9,7 +9,9 @@ spec:
       Variable toolbar regression sheet: ten variables at once, mixing
       single/multi selects, allow-all, hidden, text inputs, and a live
       ClickHouse-backed list, to check how the toolbar wraps and aligns.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   variables:
     - kind: ListVariable

@@ -9,7 +9,9 @@ spec:
       Table regression sheet — stickyHeader option and behaviors (multi-query
       selector, NULL rendering, scroll, single-query empty, all-frames-empty)
       exercised with deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     table-sticky:

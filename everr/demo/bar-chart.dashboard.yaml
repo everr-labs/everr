@@ -10,7 +10,9 @@ spec:
       none/stacked/percent, orientation vertical/horizontal, showValues) and
       behavior (time axis, categorical axis, grouped pivot, multi-query merge,
       empty result) exercised with deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     # ── Options + core behaviors ─────────────────────────────────────
