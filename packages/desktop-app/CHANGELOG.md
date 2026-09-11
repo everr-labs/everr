@@ -1,5 +1,13 @@
 # @everr/desktop-app
 
+## 0.7.1
+
+### Patch Changes
+
+- 1238863: Refresh the CLI help text and command reference to match the current telemetry, CI, Skills, and resources-as-code command surface.
+- Updated dependencies [bbbf091]
+  - @everr/otel-web@0.3.0
+
 ## 0.7.0
 
 ### Minor Changes
