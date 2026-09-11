@@ -1,12 +1,13 @@
 import { SidebarProvider } from "@everr/ui/components/sidebar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { forwardRef, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   invalidate: vi.fn(),
+  navigate: vi.fn(),
   openConsentSettings: vi.fn(),
 }));
 
@@ -21,11 +22,13 @@ vi.mock("@tanstack/react-router", () => ({
       </a>
     );
   }),
-  useRouter: () => ({ invalidate: mocks.invalidate }),
+  useRouter: () => ({
+    invalidate: mocks.invalidate,
+    navigate: mocks.navigate,
+  }),
 }));
 
 vi.mock("@/data/billing", () => ({
-  BillingCustomerNotFoundError: class extends Error {},
   getOrgPortalUrl: vi.fn(),
 }));
 
@@ -60,6 +63,7 @@ vi.mock("@/telemetry/consent-gate", () => ({
   useOpenConsentSettings: () => mocks.openConsentSettings,
 }));
 
+import { getOrgPortalUrl } from "@/data/billing";
 import { NavUser } from "./nav-user";
 
 describe("NavUser", () => {
@@ -79,5 +83,17 @@ describe("NavUser", () => {
 
     expect(await screen.findByText("Organization settings")).toBeVisible();
     expect(screen.getByText("Account & privacy")).toBeVisible();
+    const downloadItem = screen.getByRole("menuitem", {
+      name: "Download App",
+    });
+    expect(downloadItem.querySelector(".sr-only")).toBeNull();
+    vi.mocked(getOrgPortalUrl).mockResolvedValueOnce({
+      status: "customer_missing",
+    } as never);
+    await user.click(screen.getByText("Billing details"));
+
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/billing" });
+    });
   });
 });

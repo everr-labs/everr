@@ -30,6 +30,7 @@ export const Route = createFileRoute("/organizations/new")({
 
 function CreateOrganizationPage() {
   const [organizationName, setOrganizationName] = useState("");
+  const [billingEmail, setBillingEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -39,6 +40,7 @@ function CreateOrganizationPage() {
 
     const parsed = CreateOrganizationInputSchema.safeParse({
       organizationName,
+      billingEmail,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Enter a valid name.");
@@ -55,10 +57,11 @@ function CreateOrganizationPage() {
       });
 
       if (activation.error) {
-        throw new Error(
-          activation.error.message ??
-            "The organization was created but could not be selected.",
+        setError(
+          "The organization and billing customer were created, but the organization could not be selected. You can select it from the organization menu.",
         );
+        setIsCreating(false);
+        return;
       }
 
       window.location.assign("/");
@@ -84,30 +87,57 @@ function CreateOrganizationPage() {
               Create an organization
             </CardTitle>
             <CardDescription>
-              Give your team a name. You can configure members and integrations
-              after creation.
+              Give your team a name and a unique email for billing. You can
+              configure members and integrations after creation.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <label htmlFor="organization-name" className="text-sm font-medium">
-              Organization name
-            </label>
-            <Input
-              id="organization-name"
-              name="organizationName"
-              autoComplete="organization"
-              autoFocus
-              maxLength={100}
-              value={organizationName}
-              disabled={isCreating}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? "organization-name-error" : undefined}
-              placeholder="Acme"
-              onChange={(event) => setOrganizationName(event.target.value)}
-            />
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label
+                htmlFor="organization-name"
+                className="text-sm font-medium"
+              >
+                Organization name
+              </label>
+              <Input
+                id="organization-name"
+                name="organizationName"
+                autoComplete="organization"
+                autoFocus
+                maxLength={100}
+                value={organizationName}
+                disabled={isCreating}
+                placeholder="Acme"
+                onChange={(event) => setOrganizationName(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="billing-email" className="text-sm font-medium">
+                Billing email
+              </label>
+              <Input
+                id="billing-email"
+                name="billingEmail"
+                type="email"
+                autoComplete="email"
+                value={billingEmail}
+                disabled={isCreating}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={
+                  error ? "organization-create-error" : undefined
+                }
+                placeholder="billing@example.com"
+                onChange={(event) => setBillingEmail(event.target.value)}
+              />
+              <p className="text-muted-foreground text-xs">
+                This address identifies the organization in Polar and receives
+                billing communications. It must not be used by another
+                organization.
+              </p>
+            </div>
             {error ? (
               <p
-                id="organization-name-error"
+                id="organization-create-error"
                 className="text-sm text-destructive"
                 role="alert"
               >
