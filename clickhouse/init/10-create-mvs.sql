@@ -18,7 +18,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')) AS tenant_id,
+  toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_traces
 WHERE 1 = 0;
@@ -71,7 +71,7 @@ FROM
 (
   SELECT
     *,
-    toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')) AS tenant_id,
+    toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
     everrRetentionDaysJson(ResourceAttributes) AS retention_days
   FROM otel.otel_traces
 );
@@ -82,7 +82,7 @@ FROM
 -- expiry can retain these lookup rows up to a month beyond their spans.
 CREATE TABLE IF NOT EXISTS app.traces_trace_id_ts
 (
-  tenant_id String CODEC(ZSTD(1)),
+  tenant_id LowCardinality(String) CODEC(ZSTD(1)),
   TraceId String CODEC(ZSTD(1)),
   Start DateTime CODEC(Delta(4), ZSTD(1)),
   End DateTime CODEC(Delta(4), ZSTD(1)),
@@ -100,7 +100,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_trace_id_ts_mv
 TO app.traces_trace_id_ts
 AS
 SELECT
-  toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')) AS tenant_id,
+  toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
   TraceId,
   min(Timestamp) AS Start,
   max(Timestamp) AS End,
@@ -121,7 +121,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')) AS tenant_id,
+  toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_logs
 WHERE 1 = 0;
@@ -181,7 +181,7 @@ FROM
 (
   SELECT
     *,
-    toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')) AS tenant_id,
+    toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
     everrRetentionDaysJson(ResourceAttributes) AS retention_days
   FROM otel.otel_logs
 );
@@ -199,7 +199,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_metrics_gauge
 WHERE 1 = 0;
@@ -249,7 +249,7 @@ FROM
 (
   SELECT
     *,
-    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_gauge
 );
@@ -264,7 +264,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_metrics_sum
 WHERE 1 = 0;
@@ -316,7 +316,7 @@ FROM
 (
   SELECT
     *,
-    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_sum
 );
@@ -331,7 +331,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_metrics_histogram
 WHERE 1 = 0;
@@ -387,7 +387,7 @@ FROM
 (
   SELECT
     *,
-    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_histogram
 );
@@ -402,7 +402,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_metrics_exponential_histogram
 WHERE 1 = 0;
@@ -462,7 +462,7 @@ FROM
 (
   SELECT
     *,
-    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_exponential_histogram
 );
@@ -477,7 +477,7 @@ SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  CAST(ResourceAttributes['everr.tenant.id'] AS String) AS tenant_id,
+  toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_metrics_summary
 WHERE 1 = 0;
@@ -525,7 +525,7 @@ FROM
 (
   SELECT
     *,
-    ResourceAttributes['everr.tenant.id'] AS tenant_id,
+    toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_summary
 );
