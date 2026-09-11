@@ -31,7 +31,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { BillingCustomerNotFoundError, getOrgPortalUrl } from "@/data/billing";
+import { getOrgPortalUrl } from "@/data/billing";
 import { PLATFORMS } from "@/lib/app-download";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationAdmin } from "@/lib/organization-role";
@@ -51,18 +51,17 @@ export function NavUser() {
   const isAdmin = isOrganizationAdmin(userRole);
   const portalMutation = useMutation({
     mutationFn: () => getOrgPortalUrl(),
-    onSuccess: ({ url }) => {
-      window.location.href = url;
+    onSuccess: (result) => {
+      if (result.status === "customer_missing") {
+        void router.navigate({ to: "/billing" });
+        toast.error("Set up a billing email before opening billing details.");
+        return;
+      }
+
+      window.location.href = result.url;
     },
-    onError: (error) => {
-      const customerMissing =
-        error instanceof BillingCustomerNotFoundError ||
-        error.name === "BillingCustomerNotFoundError";
-      toast.error(
-        customerMissing
-          ? "Billing details are unavailable because this organization has no Polar customer."
-          : "We couldn't open billing details. Please try again.",
-      );
+    onError: () => {
+      toast.error("We couldn't open billing details. Please try again.");
     },
   });
 
@@ -240,13 +239,11 @@ export function NavUser() {
                 nativeButton={false}
                 render={
                   <a href={downloadUrl} download>
-                    <span className="sr-only">Download App</span>
+                    <Download />
+                    Download App
                   </a>
                 }
-              >
-                <Download />
-                Download App
-              </DropdownMenuItem>
+              />
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem

@@ -44,7 +44,11 @@ import {
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
-import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
+import {
+  ensurePolarCustomerForOrg,
+  getPolarCustomerForOrg,
+  polarClient,
+} from "@/lib/polar.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 type PolarSubscriptionPayload = {
@@ -307,13 +311,31 @@ export const auth = betterAuth({
               );
 
               try {
-                await auth.api.createOrganization({
+                const createdOrganization = await auth.api.createOrganization({
                   body: {
                     name: orgName,
                     slug: generateOrgSlug(),
                     userId: session.userId,
                   },
                 });
+
+                if (createdOrganization) {
+                  try {
+                    await ensurePolarCustomerForOrg({
+                      orgId: createdOrganization.id,
+                      orgName: createdOrganization.name,
+                      fallbackEmail: userRecord[0].email,
+                    });
+                  } catch (error) {
+                    serverLogger.error(
+                      "polar.customer.create_for_auto_org.failed",
+                      {
+                        ...exceptionAttributes(error),
+                        "everr.organization.id": createdOrganization.id,
+                      },
+                    );
+                  }
+                }
 
                 // Re-query for the membership that was just created.
                 const newMembership = await db
@@ -354,7 +376,9 @@ export const auth = betterAuth({
     organizationPlugin({
       ac: orgAc,
       roles: orgRoles,
-      allowUserToCreateOrganization: true,
+      // Organization creation is orchestrated by server-owned flows so a
+      // billable Organization cannot bypass Polar customer provisioning.
+      allowUserToCreateOrganization: false,
       creatorRole: "owner",
       // Preserve pre-1.6.11 behavior: don't require the recipient's email to be
       // verified to view/accept an invitation. 1.6.11 flipped this default to true.
@@ -369,20 +393,7 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
-        afterCreateOrganization: async ({ organization, user: creator }) => {
-          try {
-            await ensurePolarCustomerForOrg({
-              orgId: organization.id,
-              orgName: organization.name,
-              fallbackEmail: creator.email,
-            });
-          } catch (error) {
-            serverLogger.error("polar.customer.create_for_org.failed", {
-              ...exceptionAttributes(error),
-              "organization.id": organization.id,
-            });
-          }
-
+        afterCreateOrganization: async ({ organization }) => {
           // Provision the per-org ClickHouse user + row policies that back
           // the /api/cli/sql endpoint's tenant isolation. Each /sql query
           // authenticates as exactly this org's user; without provisioning,
@@ -393,6 +404,15 @@ export const auth = betterAuth({
             serverLogger.error("sql_api.org_user.provision.failed", {
               ...exceptionAttributes(error),
               "organization.id": organization.id,
+            });
+          }
+        },
+        beforeDeleteOrganization: async ({ organization }) => {
+          const customer = await getPolarCustomerForOrg(organization.id);
+          if (customer) {
+            throw new APIError("BAD_REQUEST", {
+              message:
+                "Organizations connected to billing cannot be deleted yet.",
             });
           }
         },

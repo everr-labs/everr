@@ -7,8 +7,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
+import { Input } from "@everr/ui/components/input";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   ArrowUpRight,
@@ -20,13 +21,19 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, type SubmitEvent, useState } from "react";
+import {
+  BillingEmailSchema,
+  BillingEmailUnavailableError,
+} from "@/common/organization-name";
 import { PageHeader } from "@/components/page-header";
 import {
   ensureOrgBillingAdmin,
+  getOrgBillingCustomerStatus,
   getOrgEntitlement,
   getOrgPortalUrl,
   NotBillingAdminError,
+  provisionOrgBillingCustomer,
   startOrgCheckout,
 } from "@/data/billing";
 import { authClient } from "@/lib/auth-client";
@@ -95,17 +102,47 @@ function BillingPage() {
     enabled: Boolean(activeOrg?.id),
     queryFn: () => getOrgEntitlement(),
   });
+  const { data: billingCustomer } = useQuery({
+    queryKey: ["billing", "customer", activeOrg?.id],
+    enabled: Boolean(activeOrg?.id),
+    queryFn: () => getOrgBillingCustomerStatus(),
+  });
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <Header orgName={activeOrg?.name} />
-      <Body entitlement={entitlement} />
+      <Body
+        entitlement={entitlement}
+        billingCustomerConfigured={billingCustomer?.configured}
+      />
     </div>
   );
 }
 
-function Body({ entitlement }: { entitlement: Entitlement | undefined }) {
-  if (!entitlement) return <Skeleton className="h-40 w-full rounded-xl" />;
+function Body({
+  entitlement,
+  billingCustomerConfigured,
+}: {
+  entitlement: Entitlement | undefined;
+  billingCustomerConfigured: boolean | undefined;
+}) {
+  if (!entitlement || billingCustomerConfigured === undefined) {
+    return <Skeleton className="h-40 w-full rounded-xl" />;
+  }
+
+  if (!billingCustomerConfigured) {
+    return (
+      <>
+        {entitlement.tier === "pro" ? (
+          <ProHero entitlement={entitlement} />
+        ) : (
+          <FreeHero />
+        )}
+        <BillingSetupCard />
+      </>
+    );
+  }
+
   if (entitlement.tier === "pro") {
     return (
       <>
@@ -119,6 +156,95 @@ function Body({ entitlement }: { entitlement: Entitlement | undefined }) {
       <FreeHero />
       <PlanComparison />
     </>
+  );
+}
+
+function BillingSetupCard() {
+  const queryClient = useQueryClient();
+  const [billingEmail, setBillingEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const mutation = useMutation({
+    mutationFn: (email: string) =>
+      provisionOrgBillingCustomer({ data: { billingEmail: email } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["billing", "customer"],
+      });
+    },
+    onError: (cause) => {
+      const unavailable =
+        cause instanceof BillingEmailUnavailableError ||
+        cause.name === "BillingEmailUnavailableError";
+      setError(
+        unavailable
+          ? "This billing email cannot be used."
+          : "Billing setup could not be completed. Please try again.",
+      );
+    },
+  });
+
+  function handleSubmit(event: SubmitEvent) {
+    event.preventDefault();
+    if (mutation.isPending) return;
+
+    const parsed = BillingEmailSchema.safeParse(billingEmail);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Enter a valid email.");
+      return;
+    }
+
+    setError(null);
+    mutation.mutate(parsed.data);
+  }
+
+  return (
+    <Card>
+      <form onSubmit={handleSubmit}>
+        <CardHeader>
+          <CardTitle className="text-base">Set up billing details</CardTitle>
+          <CardDescription>
+            This organization does not have a Polar customer yet. Add a unique
+            billing email before upgrading or opening the billing portal.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="billing-email" className="text-sm font-medium">
+              Billing email
+            </label>
+            <Input
+              id="billing-email"
+              name="billingEmail"
+              type="email"
+              autoComplete="email"
+              value={billingEmail}
+              disabled={mutation.isPending}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "billing-setup-error" : undefined}
+              placeholder="billing@example.com"
+              onChange={(event) => setBillingEmail(event.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">
+              Polar uses this address for billing communications. It must not be
+              used by another organization.
+            </p>
+          </div>
+          {error ? (
+            <p
+              id="billing-setup-error"
+              className="text-destructive text-sm"
+              role="alert"
+            >
+              {error}
+            </p>
+          ) : null}
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? <Loader2 className="animate-spin" /> : null}
+            {mutation.isPending ? "Setting up billing..." : "Set up billing"}
+          </Button>
+        </CardContent>
+      </form>
+    </Card>
   );
 }
 
@@ -271,12 +397,14 @@ function PlanComparison() {
 
 function RedirectButton({
   mutationFn,
+  onCustomerMissing,
   variant,
   icon: Icon,
   label,
   loadingLabel,
 }: {
-  mutationFn: () => Promise<{ url: string }>;
+  mutationFn: () => Promise<{ url: string } | { status: "customer_missing" }>;
+  onCustomerMissing?: () => void;
   variant?: "default" | "outline";
   icon: LucideIcon;
   label: ReactNode;
@@ -284,8 +412,13 @@ function RedirectButton({
 }) {
   const m = useMutation({
     mutationFn,
-    onSuccess: ({ url }) => {
-      window.location.href = url;
+    onSuccess: (result) => {
+      if ("status" in result) {
+        onCustomerMissing?.();
+        return;
+      }
+
+      window.location.href = result.url;
     },
   });
   const busy = m.isPending || m.isSuccess;
@@ -310,6 +443,8 @@ function UpgradeButton() {
 }
 
 function ManageBillingCard() {
+  const queryClient = useQueryClient();
+
   return (
     <Card>
       <CardHeader>
@@ -321,6 +456,11 @@ function ManageBillingCard() {
       <CardContent>
         <RedirectButton
           mutationFn={() => getOrgPortalUrl()}
+          onCustomerMissing={() => {
+            void queryClient.invalidateQueries({
+              queryKey: ["billing", "customer"],
+            });
+          }}
           variant="outline"
           icon={CreditCard}
           label="Open billing portal"

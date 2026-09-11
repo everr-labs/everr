@@ -39,6 +39,10 @@ _Avoid_: creator, administrator
 The legal name, tax identifier, billing email, and postal address used to bill an Organization. They may differ from the Organization's display name.
 _Avoid_: billing data, billing profile, Organization name
 
+**Billing email**:
+The Organization-specific email address used by the billing provider to identify the Organization's customer and send billing communications. It is independent from every Member's account email and must be unique across billable Organizations.
+_Avoid_: owner email, User email, contact email
+
 **Project**:
 A namespace within an Organization for dashboards, alerts, and runbooks, so different teams can reuse the same name without colliding. Defaults to `default`.
 _Avoid_: namespace, team
