@@ -1,4 +1,3 @@
-import { formatCompactValue } from "../value-format";
 import type { CalculationType, ThresholdsSpec } from "./spec";
 
 export type { CalculationType, ThresholdsSpec } from "./spec";
@@ -53,14 +52,4 @@ export function resolveThresholdColor(
     if (compare >= step.value) color = step.color ?? color;
   }
   return color;
-}
-
-/**
- * Locale-formatted value for the stat tile. Magnitudes >= 1e6 abbreviate
- * (1234567 -> "1.23M") so large counts don't overflow the tile; thousands
- * stay exact with grouping. `decimals` fixes the fraction digits; omitted
- * means up to 2 with trailing zeros dropped.
- */
-export function formatStatValue(value: number, decimals?: number): string {
-  return formatCompactValue(value, decimals);
 }

@@ -45,13 +45,14 @@ spec:
       spec:
         display:
           name: "Heatmap: values in cells"
-          description: "showValues: true · unit: req · colorScheme: greens — value text inside cells wide enough to fit it, text contrast follows cell luminance; sparse rows leave gaps"
+          description: "showValues: true · unit: {request} · colorScheme: greens — value text inside cells wide enough to fit it, text contrast follows cell luminance; sparse rows leave gaps"
         plugin:
           kind: Heatmap
           spec:
             showValues: true
-            unit: req
             colorScheme: greens
+            valueFormat:
+              unit: '{request}'
         queries:
           - kind: TestData
             spec:
@@ -148,8 +149,9 @@ spec:
         plugin:
           kind: Heatmap
           spec:
-            unit: ms
             colorScheme: greenYellowRed
+            valueFormat:
+              unit: ms
         queries:
           - kind: TestData
             spec:
@@ -283,6 +285,134 @@ spec:
                   rows:
                     - ["<10ms", 12]
                     - ["<100ms", 48]
+    format-none:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: none"
+          description: "valueFormat: none, unit: {connection}, decimals: 2"
+        plugin:
+          kind: Heatmap
+          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 }, showValues: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: bucket, const: api }, { name: value, walk: { start: 12500, noise: 1250, min: 0 } }]
+    format-decimal:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: decimal"
+          description: "valueFormat: decimal, unit: widgets/s, decimals: 2"
+        plugin:
+          kind: Heatmap
+          spec: { valueFormat: { unit: widgets/s, scale: decimal, decimals: 2 }, showValues: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: bucket, const: api }, { name: value, walk: { start: 12500, noise: 1250, min: 0 } }]
+    format-binary:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: binary"
+          description: "valueFormat: binary, unit: By/s, decimals: 2"
+        plugin:
+          kind: Heatmap
+          spec: { valueFormat: { unit: By/s, scale: binary, decimals: 2 }, showValues: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: bucket, const: api }, { name: value, walk: { start: 2621440, noise: 262144, min: 0 } }]
+    format-duration:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: duration"
+          description: "valueFormat: duration, unit: s, decimals: 1"
+        plugin:
+          kind: Heatmap
+          spec: { valueFormat: { unit: s, scale: duration, decimals: 1 }, showValues: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: bucket, const: api }, { name: value, walk: { start: 0.025, noise: 0.0025, min: 0 } }]
+    format-percent:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: ratio as percent"
+          description: "unit: 1, display: percent; raw query ratios are unchanged"
+        plugin:
+          kind: Heatmap
+          spec:
+            valueFormat:
+              unit: "1"
+              display: percent
+            showValues: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns:
+                    - name: ts
+                      time: true
+                    - name: bucket
+                      const: api
+                    - name: value
+                      const: 0.75
+    format-si:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: SI prefixes"
+          description: "unit: Hz, scale: decimal; conventional GHz label"
+        plugin:
+          kind: Heatmap
+          spec:
+            valueFormat:
+              unit: Hz
+              scale: decimal
+            showValues: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns:
+                    - name: ts
+                      time: true
+                    - name: bucket
+                      const: api
+                    - name: value
+                      const: 3200000000
   layouts:
     - kind: Grid
       spec:
@@ -298,3 +428,9 @@ spec:
           - { x: 0,  y: 24, width: 8,  height: 5, content: { $ref: "#/spec/panels/hm-multi-query" } }
           - { x: 8,  y: 24, width: 8,  height: 5, content: { $ref: "#/spec/panels/hm-empty" } }
           - { x: 16, y: 24, width: 8,  height: 5, content: { $ref: "#/spec/panels/hm-no-time" } }
+          - { x: 0, y: 29, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
+          - { x: 12, y: 29, width: 12, height: 9, content: { $ref: "#/spec/panels/format-decimal" } }
+          - { x: 0, y: 38, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
+          - { x: 12, y: 38, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
+          - { x: 0, y: 47, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
+          - { x: 12, y: 47, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }

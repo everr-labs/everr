@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  calculate,
-  formatStatValue,
-  resolveThresholdColor,
-} from "./stat-calculations";
+import { calculate, resolveThresholdColor } from "./stat-calculations";
 
 describe("calculate", () => {
   const values = [4, 2, 8, 6];
@@ -85,38 +81,5 @@ describe("resolveThresholdColor", () => {
     expect(resolveThresholdColor(60, pct, 60)).toBe("#888888");
     // value 170 of 200 → 85% → crosses the 80 step.
     expect(resolveThresholdColor(170, pct, 60)).toBe("#ef4444");
-  });
-});
-
-describe("formatStatValue", () => {
-  it("limits to two fraction digits", () => {
-    // compare against toLocaleString so the test is locale-independent
-    expect(formatStatValue(Math.PI)).toBe((3.14).toLocaleString());
-  });
-  it("groups thousands below the abbreviation cutoff", () => {
-    expect(formatStatValue(123456)).toBe((123456).toLocaleString());
-  });
-  it("abbreviates millions, billions, and trillions", () => {
-    expect(formatStatValue(1234567)).toBe(`${(1.23).toLocaleString()}M`);
-    expect(formatStatValue(2_500_000_000)).toBe(`${(2.5).toLocaleString()}B`);
-    expect(formatStatValue(7.2e12)).toBe(`${(7.2).toLocaleString()}T`);
-  });
-  it("abbreviates negative magnitudes", () => {
-    expect(formatStatValue(-1500000)).toBe(`${(-1.5).toLocaleString()}M`);
-  });
-  it("fixes fraction digits when decimals is set", () => {
-    expect(formatStatValue(3, 2)).toBe(
-      (3).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
-    );
-    expect(formatStatValue(3.4567, 0)).toBe((3).toLocaleString());
-    expect(formatStatValue(1234567, 1)).toBe(
-      `${(1.2).toLocaleString(undefined, {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1,
-      })}M`,
-    );
   });
 });

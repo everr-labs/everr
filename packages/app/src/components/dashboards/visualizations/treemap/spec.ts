@@ -1,10 +1,12 @@
 import * as z from "zod";
+import { valueFormatSpec } from "../value-format-spec";
 
 /**
  * Treemap plugin options. Loose so unknown keys flow through verbatim; every
  * field defaulted/optional so `{}` parses (the lenient render path needs it).
  */
 export const treemapSpec = z.looseObject({
+  valueFormat: valueFormatSpec.optional(),
   /** Tile label column. */
   nameColumn: z.string().default("name"),
   /** Tile size column — rows with a non-positive value have no area and are dropped. */
@@ -21,7 +23,6 @@ export const treemapSpec = z.looseObject({
    */
   maxTiles: z.number().int().min(2).optional(),
   /** Value formatting in tiles + tooltip. */
-  unit: z.string().default(""),
   /** Render the value inside tiles that are large enough. */
   showValues: z.boolean().default(true),
   /** Group color legend — only shown when there are groups. */

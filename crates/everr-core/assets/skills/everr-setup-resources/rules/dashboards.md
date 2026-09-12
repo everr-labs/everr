@@ -72,7 +72,7 @@ spec:
         display: { name: p95 request latency (ms) }
         plugin:
           kind: TimeSeriesChart
-          spec: { unit: ms, showLegend: true }
+          spec: { showLegend: true, valueFormat: { unit: ms } }
         queries:
           - kind: ClickHouseSQL
             spec:
@@ -95,13 +95,14 @@ spec:
           kind: StatChart
           spec:
             calculation: last
-            unit: "%"
             thresholds:
               mode: absolute
               defaultColor: "#22c55e"
               steps:
                 - { value: 1, color: "#f59e0b" }
                 - { value: 5, color: "#ef4444" }
+            valueFormat:
+              unit: "%"
         queries:
           - kind: ClickHouseSQL
             spec:

@@ -4,17 +4,14 @@ import { Gauge } from "lucide-react";
 import { useMemo } from "react";
 import { queryLabel, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
-import {
-  formatStatValue,
-  resolveThresholdColor,
-} from "../stat-chart/stat-calculations";
+import { resolveThresholdColor } from "../stat-chart/stat-calculations";
 import { computeStatTiles } from "../stat-chart/stat-series";
+import { createValueFormatter } from "../value-format";
 import {
   axisFraction,
   bandColors,
   type FillSegment,
   fillSegments,
-  formatAxisEnd,
   type ThresholdMark,
   thresholdMarks,
 } from "./gauge-axis";
@@ -67,8 +64,6 @@ export function GaugeChartVisualization({
 }: VisualizationProps<GaugeChartSpec>) {
   const {
     calculation,
-    unit,
-    decimals,
     min,
     max,
     thresholds,
@@ -78,6 +73,14 @@ export function GaugeChartVisualization({
     showAxis,
     showThresholdLabels,
   } = spec;
+  const formatter = useMemo(
+    () => createValueFormatter(spec.valueFormat),
+    [spec],
+  );
+  const axisFormatter = useMemo(
+    () => formatter.axis(Math.max(Math.abs(min), Math.abs(max))),
+    [formatter, min, max],
+  );
 
   const tiles = useMemo(
     () => (data ? computeStatTiles(data, calculation) : []),
@@ -86,8 +89,8 @@ export function GaugeChartVisualization({
   const hasAnyValue = tiles.some((t) => t.value !== undefined);
   const fallbackColor = SERIES_COLORS[0] ?? "currentColor";
   const marks = useMemo(
-    () => thresholdMarks(thresholds, min, max, unit),
-    [thresholds, min, max, unit],
+    () => thresholdMarks(thresholds, min, max, axisFormatter),
+    [thresholds, min, max, axisFormatter],
   );
   const ticks = useMemo(
     () => marks.filter((m): m is Tick => m.color !== undefined),
@@ -113,8 +116,8 @@ export function GaugeChartVisualization({
 
   const horizontal = variant === "horizontal";
   const multi = tiles.length > 1;
-  const minText = formatAxisEnd(min, unit);
-  const maxText = formatAxisEnd(max, unit);
+  const minText = axisFormatter(min);
+  const maxText = axisFormatter(max);
 
   return (
     <ScrollArea
@@ -131,8 +134,9 @@ export function GaugeChartVisualization({
         const name = tile.label || queryLabel(tile.frame);
         const fraction =
           value !== undefined ? axisFraction(value, min, max) : 0;
-        const valueText =
-          value === undefined ? noValue : formatStatValue(value, decimals);
+        const formatted =
+          value === undefined ? undefined : formatter.parts(value);
+        const valueText = formatted?.value ?? noValue;
         const label = (multi || showLabel) && (
           <p
             className={cn(
@@ -147,7 +151,7 @@ export function GaugeChartVisualization({
           label,
           value,
           valueText,
-          unit,
+          unit: formatted?.unit ?? "",
           fraction,
           ticks,
           showAxis,
@@ -156,7 +160,7 @@ export function GaugeChartVisualization({
           maxText,
         };
         const key = `${tile.frame}-${tile.label}`;
-        const ariaLabel = `${name}: ${valueText}${unit ? ` ${unit}` : ""}`;
+        const ariaLabel = `${name}: ${value === undefined ? noValue : formatter.format(value)}`;
 
         return horizontal ? (
           <GaugeBar
@@ -287,6 +291,10 @@ function GaugeArc({
   ariaLabel,
   color,
 }: TileProps & { ariaLabel: string; color: string }) {
+  const valueScale = Math.min(
+    1,
+    88 / Math.max(1, valueText.length * 7.8 + unit.length * 4.2 + 1.5),
+  );
   return (
     <div className="flex min-w-28 flex-1 flex-col items-center">
       {label}
@@ -337,7 +345,10 @@ function GaugeArc({
                     x={labelPos.x}
                     y={labelPos.y}
                     textAnchor="middle"
-                    fontSize={5}
+                    fontSize={Math.min(
+                      5,
+                      32 / Math.max(1, tick.text.length * 0.6),
+                    )}
                     className="fill-muted-foreground tabular-nums"
                   >
                     {tick.text}
@@ -350,7 +361,7 @@ function GaugeArc({
             x={CX}
             y={46}
             textAnchor="middle"
-            fontSize={13}
+            fontSize={13 * valueScale}
             className={cn(
               "font-semibold tabular-nums",
               value === undefined ? "fill-muted-foreground" : "fill-foreground",
@@ -360,7 +371,7 @@ function GaugeArc({
             {value !== undefined && unit && (
               <tspan
                 dx={1.5}
-                fontSize={7}
+                fontSize={7 * valueScale}
                 className="fill-muted-foreground font-normal"
               >
                 {unit}
@@ -372,8 +383,8 @@ function GaugeArc({
               <text
                 x={CX - R}
                 y={62}
-                textAnchor="middle"
-                fontSize={5.5}
+                textAnchor="start"
+                fontSize={Math.min(5.5, 36 / Math.max(1, minText.length * 0.6))}
                 className="fill-muted-foreground tabular-nums"
               >
                 {minText}
@@ -381,8 +392,8 @@ function GaugeArc({
               <text
                 x={CX + R}
                 y={62}
-                textAnchor="middle"
-                fontSize={5.5}
+                textAnchor="end"
+                fontSize={Math.min(5.5, 36 / Math.max(1, maxText.length * 0.6))}
                 className="fill-muted-foreground tabular-nums"
               >
                 {maxText}

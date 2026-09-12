@@ -29,8 +29,7 @@ document:
             kind: StatChart
             spec:
               calculation: sum
-              unit: By
-              displayUnit: auto
+              valueFormat: { unit: By, scale: binary }
               sparkline: true
               colors:
                 Logs: "hsl(263, 90%, 65%)"
@@ -100,8 +99,7 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: By
-              displayUnit: auto
+              valueFormat: { unit: By, scale: binary }
               showLabel: true
           queries:
             - kind: ClickHouseSQL
@@ -158,8 +156,7 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: By
-              displayUnit: auto
+              valueFormat: { unit: By, scale: binary }
               lineWidth: 2
               curveType: linear
               showLegend: true
@@ -227,8 +224,7 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: By
-              displayUnit: auto
+              valueFormat: { unit: By, scale: binary }
               lineWidth: 2
               curveType: linear
               connectNulls: true

@@ -65,8 +65,6 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: "%"
-              decimals: 2
               thresholds:
                 mode: absolute
                 defaultColor: "#22c55e"
@@ -75,6 +73,9 @@ document:
                     color: "#f59e0b"
                   - value: 5
                     color: "#ef4444"
+              valueFormat:
+                unit: "%"
+                decimals: 2
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -94,8 +95,6 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: "%"
-              decimals: 2
               thresholds:
                 mode: absolute
                 defaultColor: "#22c55e"
@@ -104,6 +103,9 @@ document:
                     color: "#f59e0b"
                   - value: 20
                     color: "#ef4444"
+              valueFormat:
+                unit: "%"
+                decimals: 2
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -123,8 +125,9 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: ms
-              decimals: 1
+              valueFormat:
+                unit: ms
+                decimals: 1
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -197,7 +200,8 @@ document:
             kind: TimeSeriesChart
             spec:
               showLegend: true
-              unit: ms
+              valueFormat:
+                unit: ms
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -330,8 +334,6 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: "%"
-              decimals: 2
               thresholds:
                 mode: absolute
                 defaultColor: "#22c55e"
@@ -340,6 +342,9 @@ document:
                     color: "#f59e0b"
                   - value: 5
                     color: "#ef4444"
+              valueFormat:
+                unit: "%"
+                decimals: 2
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -359,8 +364,9 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: ms
-              decimals: 1
+              valueFormat:
+                unit: ms
+                decimals: 1
           queries:
             - kind: ClickHouseSQL
               spec:

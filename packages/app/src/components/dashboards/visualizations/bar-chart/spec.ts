@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { valueFormatSpec } from "../value-format-spec";
 
 /**
  * BarChart plugin options. Loose so unknown keys flow through verbatim
@@ -6,8 +7,7 @@ import * as z from "zod";
  * is defaulted so `{}` always parses — the lenient render path relies on it.
  */
 export const barChartSpec = z.looseObject({
-  unit: z.string().default(""),
-  displayUnit: z.literal("auto").optional(),
+  valueFormat: valueFormatSpec.optional(),
   showLegend: z.boolean().default(false),
   /** `stacked` piles series into one bar per x value; `percent` additionally
    * normalizes each stack to 100% (the value axis becomes percentages). */

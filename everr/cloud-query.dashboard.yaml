@@ -89,8 +89,9 @@ spec:
           kind: StatChart
           spec:
             calculation: last
-            unit: ms
-            decimals: 0
+            valueFormat:
+              unit: ms
+              decimals: 0
         queries:
           - kind: ClickHouseSQL
             spec:
@@ -132,10 +133,11 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ms
             showLegend: true
             lineWidth: 1.5
             curveType: monotone
+            valueFormat:
+              unit: ms
         queries:
           - kind: ClickHouseSQL
             spec:
@@ -248,14 +250,15 @@ spec:
           kind: StatChart
           spec:
             calculation: last
-            unit: "%"
-            decimals: 0
             thresholds:
               mode: absolute
               defaultColor: "#ef4444"
               steps:
                 - { value: 50, color: "#f59e0b" }
                 - { value: 90, color: "#22c55e" }
+            valueFormat:
+              unit: "%"
+              decimals: 0
         queries:
           - kind: ClickHouseSQL
             spec:

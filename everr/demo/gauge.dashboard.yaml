@@ -28,14 +28,15 @@ spec:
           kind: GaugeChart
           spec:
             calculation: last
-            unit: "%"
-            decimals: 1
             thresholds:
               mode: absolute
               defaultColor: "#22c55e"
               steps:
                 - { value: 70, color: "#f59e0b" }
                 - { value: 90, color: "#ef4444" }
+            valueFormat:
+              unit: "%"
+              decimals: 1
         queries:
           - kind: TestData
             spec:
@@ -56,8 +57,9 @@ spec:
           kind: GaugeChart
           spec:
             calculation: first
-            decimals: 0
             max: 500
+            valueFormat:
+              decimals: 0
         queries:
           - kind: TestData
             spec:
@@ -78,9 +80,10 @@ spec:
           kind: GaugeChart
           spec:
             calculation: mean
-            unit: s
-            decimals: 2
             max: 2
+            valueFormat:
+              unit: s
+              decimals: 2
         queries:
           - kind: TestData
             spec:
@@ -101,8 +104,9 @@ spec:
           kind: GaugeChart
           spec:
             calculation: min
-            unit: ms
             max: 50
+            valueFormat:
+              unit: ms
         queries:
           - kind: TestData
             spec:
@@ -262,11 +266,12 @@ spec:
         plugin:
           kind: GaugeChart
           spec:
-            unit: "%"
             thresholds:
               defaultColor: "#22c55e"
               steps:
                 - { value: 90, color: "#ef4444" }
+            valueFormat:
+              unit: "%"
         queries:
           - kind: TestData
             spec:
@@ -286,7 +291,6 @@ spec:
         plugin:
           kind: GaugeChart
           spec:
-            unit: "%"
             min: 100
             max: 0
             thresholds:
@@ -294,6 +298,8 @@ spec:
               defaultColor: "#22c55e"
               steps:
                 - { value: 40, color: "#ef4444" }
+            valueFormat:
+              unit: "%"
         queries:
           - kind: TestData
             spec:
@@ -313,13 +319,14 @@ spec:
         plugin:
           kind: GaugeChart
           spec:
-            unit: "%"
             thresholds:
               mode: absolute
               defaultColor: "#22c55e"
               steps:
                 - { value: 50, color: "#f59e0b" }
                 - { value: 80, color: "#ef4444" }
+            valueFormat:
+              unit: "%"
         queries:
           - kind: TestData
             spec:
@@ -369,8 +376,9 @@ spec:
           kind: GaugeChart
           spec:
             calculation: last
-            unit: ms
             max: 300
+            valueFormat:
+              unit: ms
         queries:
           - kind: TestData
             spec:
@@ -413,7 +421,6 @@ spec:
           kind: GaugeChart
           spec:
             variant: arc
-            unit: "%"
             showThresholdLabels: true
             thresholds:
               mode: absolute
@@ -421,6 +428,8 @@ spec:
               steps:
                 - { value: 70, color: "#f59e0b" }
                 - { value: 90, color: "#ef4444" }
+            valueFormat:
+              unit: "%"
         queries:
           - kind: TestData
             spec:
@@ -440,8 +449,9 @@ spec:
         plugin:
           kind: GaugeChart
           spec:
-            unit: "%"
             showAxis: false
+            valueFormat:
+              unit: "%"
         queries:
           - kind: TestData
             spec:
@@ -462,14 +472,15 @@ spec:
           kind: GaugeChart
           spec:
             variant: horizontal
-            unit: "%"
-            decimals: 1
             thresholds:
               mode: absolute
               defaultColor: "#22c55e"
               steps:
                 - { value: 50, color: "#f59e0b" }
                 - { value: 80, color: "#ef4444" }
+            valueFormat:
+              unit: "%"
+              decimals: 1
         queries:
           - kind: TestData
             spec:
@@ -490,7 +501,6 @@ spec:
           kind: GaugeChart
           spec:
             variant: horizontal
-            unit: ms
             max: 500
             showAxis: false
             showThresholdLabels: true
@@ -500,6 +510,8 @@ spec:
               steps:
                 - { value: 200, color: "#f59e0b" }
                 - { value: 400, color: "#ef4444" }
+            valueFormat:
+              unit: ms
         queries:
           - kind: TestData
             spec:
@@ -520,7 +532,6 @@ spec:
           kind: GaugeChart
           spec:
             variant: horizontal
-            unit: "%"
             min: 100
             max: 0
             thresholds:
@@ -528,6 +539,8 @@ spec:
               defaultColor: "#22c55e"
               steps:
                 - { value: 40, color: "#ef4444" }
+            valueFormat:
+              unit: "%"
         queries:
           - kind: TestData
             spec:
@@ -538,6 +551,138 @@ spec:
                   columns: [cache_hit, uptime, success]
                   rows:
                     - [20, 85, 99]
+    format-none:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: none"
+          description: "valueFormat: none, unit: {connection}, decimals: 2"
+        plugin:
+          kind: GaugeChart
+          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 }, max: 25000, showThresholdLabels: true, thresholds: { steps: [{ value: 6250, color: "#22c55e" }] } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: value, const: 12500 }]
+    format-decimal:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: decimal"
+          description: "valueFormat: decimal, unit: widgets/s, decimals: 2"
+        plugin:
+          kind: GaugeChart
+          spec: { valueFormat: { unit: widgets/s, scale: decimal, decimals: 2 }, max: 25000, showThresholdLabels: true, thresholds: { steps: [{ value: 6250, color: "#22c55e" }] } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: value, const: 12500 }]
+    format-binary:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: binary"
+          description: "valueFormat: binary, unit: By/s, decimals: 2"
+        plugin:
+          kind: GaugeChart
+          spec: { valueFormat: { unit: By/s, scale: binary, decimals: 2 }, max: 5242880, showThresholdLabels: true, thresholds: { steps: [{ value: 1310720, color: "#22c55e" }] } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: value, const: 2621440 }]
+    format-duration:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: duration"
+          description: "valueFormat: duration, unit: s, decimals: 1"
+        plugin:
+          kind: GaugeChart
+          spec: { valueFormat: { unit: s, scale: duration, decimals: 1 }, max: 0.05, showThresholdLabels: true, thresholds: { steps: [{ value: 0.0125, color: "#22c55e" }] } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: value, const: 0.025 }]
+    format-percent:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: ratio as percent"
+          description: "unit: 1, display: percent; raw query ratios are unchanged"
+        plugin:
+          kind: GaugeChart
+          spec:
+            valueFormat:
+              unit: "1"
+              display: percent
+            max: 1
+            showThresholdLabels: true
+            thresholds:
+              defaultColor: "#22c55e"
+              steps:
+                - value: 0.8
+                  color: "#ef4444"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns:
+                    - name: value
+                      const: 0.75
+    format-si:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: SI prefixes"
+          description: "unit: Hz, scale: decimal; conventional GHz label"
+        plugin:
+          kind: GaugeChart
+          spec:
+            valueFormat:
+              unit: Hz
+              scale: decimal
+            max: 4000000000
+            showThresholdLabels: true
+            thresholds:
+              defaultColor: "#22c55e"
+              steps:
+                - value: 3500000000
+                  color: "#ef4444"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns:
+                    - name: value
+                      const: 3200000000
   layouts:
     - kind: Grid
       spec:
@@ -563,3 +708,9 @@ spec:
           - { x: 8,  y: 31, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-horizontal" } }
           - { x: 16, y: 31, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-horizontal-threshold-labels" } }
           - { x: 0,  y: 36, width: 12, height: 7, content: { $ref: "#/spec/panels/gauge-horizontal-inverted-multi" } }
+          - { x: 0, y: 43, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
+          - { x: 12, y: 43, width: 12, height: 9, content: { $ref: "#/spec/panels/format-decimal" } }
+          - { x: 0, y: 52, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
+          - { x: 12, y: 52, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
+          - { x: 0, y: 61, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
+          - { x: 12, y: 61, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }

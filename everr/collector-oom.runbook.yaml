@@ -18,10 +18,11 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: MiB
             showLegend: true
             lineWidth: 1.5
             curveType: monotone
+            valueFormat:
+              unit: MiBy
         queries:
           - kind: ClickHouseSQL
             spec:
@@ -76,10 +77,11 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ms
             showLegend: false
             lineWidth: 1.5
             curveType: monotone
+            valueFormat:
+              unit: ms
         queries:
           - kind: ClickHouseSQL
             spec:
@@ -134,14 +136,15 @@ spec:
           kind: StatChart
           spec:
             calculation: last
-            unit: " MiB"
-            decimals: 0
             colorMode: background
             thresholds:
               mode: absolute
               defaultColor: "#22c55e"
               steps:
                 - { value: 1024, color: "#ef4444" }
+            valueFormat:
+              unit: MiBy
+              decimals: 0
         queries:
           - kind: ClickHouseSQL
             spec:
@@ -175,14 +178,15 @@ spec:
           kind: StatChart
           spec:
             calculation: last
-            unit: " ms"
-            decimals: 0
             colorMode: background
             thresholds:
               mode: absolute
               defaultColor: "#22c55e"
               steps:
                 - { value: 5000, color: "#ef4444" }
+            valueFormat:
+              unit: ms
+              decimals: 0
         queries:
           - kind: ClickHouseSQL
             spec:

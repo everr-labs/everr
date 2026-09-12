@@ -1,201 +1,127 @@
-const COMPACT_SUFFIXES: ReadonlyArray<[number, string]> = [
-  [1e12, "T"],
-  [1e9, "B"],
-  [1e6, "M"],
+import { durationUnits, type ValueFormat } from "./value-format-spec";
+
+const DECIMAL_PREFIXES = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"];
+const BINARY_PREFIXES = ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi", "Yi"];
+const DURATION_STEPS: ReadonlyArray<readonly [number, string]> = [
+  [86400, "d"],
+  [3600, "h"],
+  [60, "min"],
+  [1, "s"],
+  [1e-3, "ms"],
+  [1e-6, "us"],
+  [1e-9, "ns"],
 ];
+const DECIMAL_DURATION_STEPS = DURATION_STEPS.filter(([factor]) => factor <= 1);
 
-type UnitDimension = "bytes" | "duration";
-type UnitSystem = "binary" | "decimal" | "duration";
-
-interface SemanticUnit {
-  dimension: UnitDimension;
-  factor: number;
-  label: string;
-  system: UnitSystem;
-}
-
-const UNITS: Readonly<Record<string, SemanticUnit>> = {
-  By: { dimension: "bytes", factor: 1, label: "B", system: "binary" },
-  bytes: { dimension: "bytes", factor: 1, label: "B", system: "binary" },
-  B: { dimension: "bytes", factor: 1, label: "B", system: "binary" },
-  kBy: { dimension: "bytes", factor: 1e3, label: "kB", system: "decimal" },
-  KBy: { dimension: "bytes", factor: 1e3, label: "kB", system: "decimal" },
-  KB: { dimension: "bytes", factor: 1e3, label: "kB", system: "decimal" },
-  MBy: { dimension: "bytes", factor: 1e6, label: "MB", system: "decimal" },
-  MB: { dimension: "bytes", factor: 1e6, label: "MB", system: "decimal" },
-  GBy: { dimension: "bytes", factor: 1e9, label: "GB", system: "decimal" },
-  GB: { dimension: "bytes", factor: 1e9, label: "GB", system: "decimal" },
-  TBy: { dimension: "bytes", factor: 1e12, label: "TB", system: "decimal" },
-  TB: { dimension: "bytes", factor: 1e12, label: "TB", system: "decimal" },
-  PBy: { dimension: "bytes", factor: 1e15, label: "PB", system: "decimal" },
-  PB: { dimension: "bytes", factor: 1e15, label: "PB", system: "decimal" },
-  KiBy: { dimension: "bytes", factor: 1024, label: "KiB", system: "binary" },
-  KiB: { dimension: "bytes", factor: 1024, label: "KiB", system: "binary" },
-  MiBy: {
-    dimension: "bytes",
-    factor: 1024 ** 2,
-    label: "MiB",
-    system: "binary",
-  },
-  MiB: {
-    dimension: "bytes",
-    factor: 1024 ** 2,
-    label: "MiB",
-    system: "binary",
-  },
-  GiBy: {
-    dimension: "bytes",
-    factor: 1024 ** 3,
-    label: "GiB",
-    system: "binary",
-  },
-  GiB: {
-    dimension: "bytes",
-    factor: 1024 ** 3,
-    label: "GiB",
-    system: "binary",
-  },
-  TiBy: {
-    dimension: "bytes",
-    factor: 1024 ** 4,
-    label: "TiB",
-    system: "binary",
-  },
-  TiB: {
-    dimension: "bytes",
-    factor: 1024 ** 4,
-    label: "TiB",
-    system: "binary",
-  },
-  PiBy: {
-    dimension: "bytes",
-    factor: 1024 ** 5,
-    label: "PiB",
-    system: "binary",
-  },
-  PiB: {
-    dimension: "bytes",
-    factor: 1024 ** 5,
-    label: "PiB",
-    system: "binary",
-  },
-  ns: { dimension: "duration", factor: 1e-9, label: "ns", system: "duration" },
-  us: { dimension: "duration", factor: 1e-6, label: "µs", system: "duration" },
-  µs: {
-    dimension: "duration",
-    factor: 1e-6,
-    label: "µs",
-    system: "duration",
-  },
-  ms: { dimension: "duration", factor: 1e-3, label: "ms", system: "duration" },
-  s: { dimension: "duration", factor: 1, label: "s", system: "duration" },
-  min: { dimension: "duration", factor: 60, label: "min", system: "duration" },
-  h: { dimension: "duration", factor: 3600, label: "h", system: "duration" },
-  d: { dimension: "duration", factor: 86400, label: "d", system: "duration" },
-};
-
-const BINARY_BYTE_UNITS = ["PiBy", "TiBy", "GiBy", "MiBy", "KiBy", "By"];
-const DECIMAL_BYTE_UNITS = ["PBy", "TBy", "GBy", "MBy", "kBy", "By"];
-const DURATION_UNITS = ["d", "h", "min", "s", "ms", "us", "ns"];
-
-interface FormatValueOptions {
-  decimals?: number;
-  compact?: boolean;
-  displayUnit?: "auto";
-  locale?: boolean;
-  unitSeparator?: string;
-}
-
-export interface FormattedValueParts {
+interface FormattedValueParts {
   value: string;
   unit: string;
 }
 
-function fractionDigits(decimals?: number): Intl.NumberFormatOptions {
-  return decimals === undefined
-    ? { maximumFractionDigits: 2 }
-    : { minimumFractionDigits: decimals, maximumFractionDigits: decimals };
+/** Present common OTel/UCUM codes without treating unknown units as aliases. */
+function unitLabel(unit: string): string {
+  if (unit === "1") return "";
+  const rate = /^(.*)\/(ns|us|ms|s|min|h|d)$/.exec(unit);
+  const atom = rate?.[1] ?? unit;
+  const bytes = /^((?:[KMGT]i|[kMGTPEZYmunp])?)By$/.exec(atom);
+  const label = bytes
+    ? `${bytes[1]}B`
+    : atom === "Cel"
+      ? "°C"
+      : atom === "us"
+        ? "µs"
+        : /^\{[^{}]+\}$/.test(atom)
+          ? atom.slice(1, -1)
+          : atom;
+  return rate ? `${label}/${rate[2] === "us" ? "µs" : rate[2]}` : label;
 }
 
-export function formatCompactValue(value: number, decimals?: number): string {
-  const fraction = fractionDigits(decimals);
-  for (const [factor, suffix] of COMPACT_SUFFIXES) {
-    if (Math.abs(value) >= factor) {
-      return `${(value / factor).toLocaleString(undefined, fraction)}${suffix}`;
+function numberFormatter(decimals?: number, useGrouping = true) {
+  return new Intl.NumberFormat(undefined, {
+    useGrouping,
+    minimumFractionDigits: decimals ?? 0,
+    maximumFractionDigits: decimals ?? 2,
+  });
+}
+
+/** Resolves presentation once; all geometry and thresholds keep raw query values. */
+export function createValueFormatter(
+  format: ValueFormat = { unit: "", scale: "none" },
+) {
+  const { unit, decimals } = format;
+  const percent = format.display === "percent";
+  const label = percent ? "%" : unitLabel(unit);
+  const numbers = numberFormatter(decimals);
+  const axisNumbers = numberFormatter(decimals, false);
+  const separator = label === "%" ? "" : " ";
+
+  function parts(
+    value: number,
+    reference = value,
+    axis = false,
+  ): FormattedValueParts {
+    const formatter = axis ? axisNumbers : numbers;
+    if (percent) return { value: formatter.format(value * 100), unit: label };
+    if (!Number.isFinite(value))
+      return { value: formatter.format(value), unit: label };
+    const magnitude = Number.isFinite(reference)
+      ? Math.abs(reference)
+      : Math.abs(value);
+    if (
+      format.scale === "duration" ||
+      (format.scale === "decimal" && Object.hasOwn(durationUnits, unit))
+    ) {
+      const inputFactor = durationUnits[unit] ?? 1;
+      const steps =
+        format.scale === "duration" ? DURATION_STEPS : DECIMAL_DURATION_STEPS;
+      const [factor, label] =
+        magnitude === 0
+          ? [inputFactor, unit]
+          : (steps.find(([factor]) => magnitude * inputFactor >= factor) ?? [
+              1e-9,
+              "ns",
+            ]);
+      return {
+        value: formatter.format(value * (inputFactor / factor)),
+        unit: unitLabel(label),
+      };
     }
+    if (format.scale === "decimal" || format.scale === "binary") {
+      const base = format.scale === "binary" ? 1024 : 1000;
+      const prefixes =
+        format.scale === "binary" ? BINARY_PREFIXES : DECIMAL_PREFIXES;
+      let index = 0;
+      while (index < prefixes.length - 1 && magnitude >= base ** (index + 1))
+        index++;
+      const prefix = prefixes[index] ?? "";
+      // SI symbols use decimal prefixes; binary prefixes remain byte/bit-specific.
+      const prefixOnUnit =
+        /^(By|bit)(\/.*)?$/.test(unit) ||
+        (format.scale === "decimal" && /^(Hz|W|J|V|A)$/.test(unit));
+      return prefixOnUnit
+        ? {
+            value: formatter.format(value / base ** index),
+            unit: prefix + label,
+          }
+        : {
+            value: formatter.format(value / base ** index) + prefix,
+            unit: label,
+          };
+    }
+    return { value: formatter.format(value), unit: label };
   }
-  return value.toLocaleString(undefined, fraction);
-}
 
-function autoUnit(input: SemanticUnit, baseValue: number): SemanticUnit {
-  const candidates =
-    input.dimension === "duration"
-      ? DURATION_UNITS
-      : input.system === "decimal"
-        ? DECIMAL_BYTE_UNITS
-        : BINARY_BYTE_UNITS;
-  if (baseValue === 0) return input;
-  const magnitude = Math.abs(baseValue);
-  for (const candidate of candidates) {
-    const resolved = UNITS[candidate];
-    if (resolved && magnitude >= resolved.factor) return resolved;
-  }
-  return UNITS[candidates.at(-1) ?? ""] ?? input;
-}
-
-function semanticParts(
-  value: number,
-  unit: string,
-  decimals?: number,
-): FormattedValueParts | undefined {
-  const input = UNITS[unit];
-  if (!input) return undefined;
-  const baseValue = value * input.factor;
-  const output = autoUnit(input, baseValue);
-  return {
-    value: (baseValue / output.factor).toLocaleString(
-      undefined,
-      fractionDigits(decimals),
-    ),
-    unit: output.label,
-  };
-}
-
-export function formatValueParts(
-  value: number,
-  unit: string,
-  options: Pick<
-    FormatValueOptions,
-    "decimals" | "compact" | "displayUnit"
-  > = {},
-): FormattedValueParts {
-  if (options.displayUnit === "auto") {
-    const semantic = semanticParts(value, unit, options.decimals);
-    if (semantic) return semantic;
+  function join(formatted: FormattedValueParts) {
+    return formatted.unit
+      ? formatted.value + separator + formatted.unit
+      : formatted.value;
   }
 
   return {
-    value: options.compact
-      ? formatCompactValue(value, options.decimals)
-      : value.toLocaleString(undefined, fractionDigits(options.decimals)),
-    unit,
+    parts: (value: number) => parts(value),
+    format: (value: number) => join(parts(value)),
+    /** Fix one scale for the entire axis, selected from its largest magnitude. */
+    axis: (reference: number) => (value: number) =>
+      join(parts(value, reference, true)),
   };
-}
-
-export function formatValue(
-  value: number,
-  unit: string,
-  options: FormatValueOptions = {},
-): string {
-  if (options.displayUnit === "auto") {
-    const semantic = semanticParts(value, unit, options.decimals);
-    if (semantic) return `${semantic.value} ${semantic.unit}`;
-  }
-
-  const formatted = options.compact
-    ? formatCompactValue(value, options.decimals)
-    : options.locale === false
-      ? String(value)
-      : value.toLocaleString(undefined, fractionDigits(options.decimals));
-  return unit ? `${formatted}${options.unitSeparator ?? ""}${unit}` : formatted;
 }

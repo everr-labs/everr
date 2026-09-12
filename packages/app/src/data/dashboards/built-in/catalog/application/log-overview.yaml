@@ -62,8 +62,6 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: "%"
-              decimals: 2
               thresholds:
                 mode: absolute
                 defaultColor: "#22c55e"
@@ -72,6 +70,9 @@ document:
                     color: "#f59e0b"
                   - value: 5
                     color: "#ef4444"
+              valueFormat:
+                unit: "%"
+                decimals: 2
           queries:
             - kind: ClickHouseSQL
               spec:

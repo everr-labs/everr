@@ -149,12 +149,19 @@ describe("runbookSpecSchemaStrict", () => {
       panels: {
         bad: {
           kind: "Panel",
-          spec: { plugin: { kind: "TimeSeriesChart", spec: { unit: 42 } } },
+          spec: {
+            plugin: {
+              kind: "TimeSeriesChart",
+              spec: { valueFormat: { unit: 42 } },
+            },
+          },
         },
       },
     });
     expect(r.success).toBe(false);
     const issue = r.error?.issues[0];
-    expect(issue?.path.join(".")).toBe("panels.bad.spec.plugin.spec.unit");
+    expect(issue?.path.join(".")).toBe(
+      "panels.bad.spec.plugin.spec.valueFormat.unit",
+    );
   });
 });

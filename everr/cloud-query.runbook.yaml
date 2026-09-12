@@ -71,10 +71,11 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ms
             showLegend: true
             lineWidth: 1.5
             curveType: monotone
+            valueFormat:
+              unit: ms
         queries:
           - kind: ClickHouseSQL
             spec:
@@ -100,10 +101,11 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ms
             showLegend: true
             lineWidth: 1.5
             curveType: monotone
+            valueFormat:
+              unit: ms
         queries:
           - kind: ClickHouseSQL
             spec:

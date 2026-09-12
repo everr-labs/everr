@@ -1,11 +1,13 @@
 import * as z from "zod";
 import { COLOR_SCHEMES, SCALE_TYPES } from "../color-scale";
+import { valueFormatSpec } from "../value-format-spec";
 
 /**
  * GeoMap plugin options. Loose so unknown keys flow through verbatim; every
  * field defaulted/optional so `{}` parses (the lenient render path needs it).
  */
 export const geoMapSpec = z.looseObject({
+  valueFormat: valueFormatSpec.optional(),
   mode: z.enum(["points", "choropleth"]).default("points"),
 
   // points mode: coordinate columns
@@ -27,7 +29,6 @@ export const geoMapSpec = z.looseObject({
   /** Tooltip title; falls back to region/coords when omitted. */
   labelColumn: z.string().optional(),
   /** Value formatting in tooltip + legend. */
-  unit: z.string().default(""),
   showLegend: z.boolean().default(true),
   colorScheme: z.enum(COLOR_SCHEMES).default("blue"),
   /** Map projection. */

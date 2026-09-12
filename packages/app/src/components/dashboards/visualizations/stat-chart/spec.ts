@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { valueFormatSpec } from "../value-format-spec";
 
 const thresholdStep = z.looseObject({
   value: z.number(),
@@ -36,11 +37,8 @@ export const calculationSpec = z.enum([
 ]);
 
 export const statChartSpec = z.looseObject({
+  valueFormat: valueFormatSpec.optional(),
   calculation: calculationSpec.default("last"),
-  unit: z.string().default(""),
-  displayUnit: z.literal("auto").optional(),
-  /** Fixed fraction digits; omitted = up to 2, trailing zeros dropped. */
-  decimals: z.number().int().min(0).max(10).optional(),
   sparkline: z.boolean().default(false),
   /** Fixed series label to CSS color mapping for sparklines. Unmapped series
    * keep the existing shared accent color. */

@@ -11,7 +11,7 @@ import { useMemo, useState } from "react";
 import { colorRamp, normalizeValue, schemeBaseColor } from "../color-scale";
 import { queryLabel, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
-import { formatStatValue } from "../stat-chart/stat-calculations";
+import { createValueFormatter } from "../value-format";
 import {
   deriveDomain,
   extractMarkers,
@@ -81,6 +81,7 @@ export function GeoMapVisualization({
   spec,
   data,
 }: VisualizationProps<GeoMapSpec>) {
+  const formatter = createValueFormatter(spec.valueFormat);
   const countries = getWorldCountries();
 
   const projection = useMemo(
@@ -105,10 +106,7 @@ export function GeoMapVisualization({
 
   const [hover, setHover] = useState<Hover | null>(null);
 
-  const fmt = (v: number | null) =>
-    v == null
-      ? "–"
-      : `${formatStatValue(v, undefined)}${spec.unit ? ` ${spec.unit}` : ""}`;
+  const fmt = (v: number | null) => (v == null ? "–" : formatter.format(v));
 
   const content = useMemo(() => {
     if (!data) return null;

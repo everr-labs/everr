@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { calculationSpec, thresholdsSpec } from "../stat-chart/spec";
+import { valueFormatSpec } from "../value-format-spec";
 
 /**
  * The options of the GaugeChart plugin. The object is loose, because unknown
@@ -8,13 +9,8 @@ import { calculationSpec, thresholdsSpec } from "../stat-chart/spec";
  * parse. The lenient render path needs this.
  */
 export const gaugeChartSpec = z.looseObject({
+  valueFormat: valueFormatSpec.optional(),
   calculation: calculationSpec.default("last"),
-  unit: z.string().default(""),
-  /**
-   * The number of fraction digits. If you do not set it, the value shows a
-   * maximum of 2 digits, and the zeros at the end are removed.
-   */
-  decimals: z.number().int().min(0).max(10).optional(),
   /** The lower bound of the gauge axis. */
   min: z.number().default(0),
   /**

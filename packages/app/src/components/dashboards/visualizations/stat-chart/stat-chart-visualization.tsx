@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { Area, AreaChart, XAxis } from "recharts";
 import { queryLabel } from "../data-utils";
 import type { VisualizationProps } from "../index";
-import { formatValueParts } from "../value-format";
+import { createValueFormatter } from "../value-format";
 import type { StatChartSpec } from "./spec";
 import { resolveThresholdColor } from "./stat-calculations";
 import { resolveStatSparklineColor } from "./stat-colors";
@@ -28,11 +28,9 @@ export function StatChartVisualization({
   spec,
   data,
 }: VisualizationProps<StatChartSpec>) {
+  const formatter = createValueFormatter(spec.valueFormat);
   const {
     calculation,
-    unit,
-    displayUnit,
-    decimals,
     sparkline: showSparkline,
     colors,
     thresholds,
@@ -68,13 +66,7 @@ export function StatChartVisualization({
         const value = tile.value;
         const label = tile.label || queryLabel(tile.frame);
         const formatted =
-          value === undefined
-            ? undefined
-            : formatValueParts(value, unit, {
-                decimals,
-                compact: true,
-                displayUnit,
-              });
+          value === undefined ? undefined : formatter.parts(value);
         const seriesMax =
           tile.points.length > 0
             ? Math.max(...tile.points.map((p) => p.value))

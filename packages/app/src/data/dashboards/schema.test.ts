@@ -111,8 +111,7 @@ describe("dashboardSpecSchemaStrict plugin specs", () => {
   it("accepts valid options for a known kind", () => {
     const result = dashboardSpecSchemaStrict.safeParse(
       specWithPlugin("TimeSeriesChart", {
-        unit: "ms",
-        displayUnit: "auto",
+        valueFormat: { unit: "ms", scale: "duration" },
         lineWidth: 2,
       }),
     );

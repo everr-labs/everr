@@ -7,8 +7,7 @@ One or more gauges, each showing a single value filled between `min` and `max`, 
 | Option | Type | Default | Values | Effect |
 | --- | --- | --- | --- | --- |
 | `calculation` | string | `last` | `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff` | How each gauge's column is reduced to one number. `count` = number of points, `range` = max − min, `diff` = last − first. An unknown value is rejected by `everr apply`. |
-| `unit` | string | `""` | any string | Suffix after the value. |
-| `decimals` | number | none | `0`–`10` | Fixed fraction digits. Omitted: up to 2, trailing zeros dropped. |
+| `valueFormat` | object | none | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels. |
 | `min` | number | `0` | any number | Gauge axis lower bound. |
 | `max` | number | `100` | any number | Gauge axis upper bound. **Set it to the metric's real ceiling** — the default 100 only suits percentages. Inverting the bounds (`min > max`) inverts the arc, so a lower value reads as fuller — useful for "lower is better" metrics. |
 | `showLabel` | boolean | `false` | `true` | Show the column-name label even on a single-gauge panel (multi-gauge always shows it). |
@@ -32,18 +31,19 @@ plugin:
   kind: GaugeChart
   spec:
     calculation: mean
-    unit: "%"
-    decimals: 1
     min: 0
     max: 100
     thresholds:
-      defaultColor: "#22c55e"            # green below the first step
+      defaultColor: "#22c55e" # green below the first step
       steps:
-        - { value: 70, color: "#f59e0b" }  # amber once value ≥ 70
-        - { value: 90, color: "#ef4444" }  # red once value ≥ 90
+        - { value: 70, color: "#f59e0b" } # amber once value ≥ 70
+        - { value: 90, color: "#ef4444" } # red once value ≥ 90
+    valueFormat:
+      unit: "%"
+      decimals: 1
 ```
 
-There is **no** `title`, `orientation`, `sparkline`, or `colorMode`. `calculation`, `unit`, `min`/`max`, and `thresholds` apply to **every** gauge uniformly.
+There is **no** `title`, `orientation`, `sparkline`, or `colorMode`. `calculation`, `valueFormat`, `min`/`max`, and `thresholds` apply to **every** gauge uniformly.
 
 ## Data shape — one gauge per numeric column per query
 
@@ -58,4 +58,4 @@ There is **no** `title`, `orientation`, `sparkline`, or `colorMode`. `calculatio
 - A query that returns no value still renders its gauge (empty arc, `noValue` text) — it does not silently vanish from a multi-query panel.
 - **`percent` thresholds** compare against `thresholds.max`, falling back to the gauge `max` — unlike StatChart there is no series-max fallback, so single-value queries behave predictably.
 - Threshold ticks only render for steps that have a `color` and fall strictly inside `(min, max)`.
-- Values ≥ 1 million **abbreviate** (`1234567` → `1.23M`, then `B`, `T`); the `min`/`max` end labels use the same formatting.
+- Values use at most two decimal places by default. Set `valueFormat.scale: decimal` to abbreviate large counts.

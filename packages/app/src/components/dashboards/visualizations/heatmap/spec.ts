@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { SCALE_TYPES } from "../color-scale";
+import { valueFormatSpec } from "../value-format-spec";
 import { HEATMAP_COLOR_SCHEMES } from "./heatmap-colors";
 
 /**
@@ -9,6 +10,7 @@ import { HEATMAP_COLOR_SCHEMES } from "./heatmap-colors";
  * relies on it.
  */
 export const heatmapSpec = z.looseObject({
+  valueFormat: valueFormatSpec.optional(),
   /** Y-bucket column; defaults to the first non-time column. */
   yColumn: z.string().optional(),
   /**
@@ -17,7 +19,6 @@ export const heatmapSpec = z.looseObject({
    */
   valueColumn: z.string().optional(),
   /** Value formatting in cells, tooltip and legend. */
-  unit: z.string().default(""),
   /** Color ramp legend (min → max) below the grid. */
   showLegend: z.boolean().default(true),
   /** Render the value inside cells wide enough to fit it. */
