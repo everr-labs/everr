@@ -6,11 +6,13 @@ spec:
   display:
     name: Time Series
     description: >-
-      TimeSeriesChart regression sheet — every option (unit, showLegend,
+      TimeSeriesChart regression sheet: every option (unit, valueFormat, showLegend,
       lineWidth, curveType, connectNulls, stacked) and behavior (grouped pivot,
       multi-column, multi-query, null gaps, empty result) exercised with
       deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     # ── Options + core behaviors ─────────────────────────────────────
@@ -23,11 +25,12 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ""
             showLegend: true
             lineWidth: 1.5
             curveType: monotone
             connectNulls: false
+            valueFormat:
+              unit: ""
         queries:
           - kind: TestData
             spec:
@@ -50,11 +53,12 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ms
             showLegend: true
             lineWidth: 2
             curveType: stepAfter
             connectNulls: false
+            valueFormat:
+              unit: ms
         queries:
           - kind: TestData
             spec:
@@ -75,11 +79,12 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ""
             showLegend: false
             lineWidth: 3
             curveType: linear
             connectNulls: true
+            valueFormat:
+              unit: ""
         queries:
           - kind: TestData
             spec:
@@ -94,12 +99,12 @@ spec:
       kind: Panel
       spec:
         display:
-          name: "TS: natural, seconds unit"
-          description: "curveType: natural · unit: s"
+          name: "TS: natural, byte units"
+          description: "curveType: natural · valueFormat: binary B"
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: s
+            valueFormat: { unit: By, scale: binary }
             showLegend: false
             lineWidth: 1.5
             curveType: natural
@@ -113,7 +118,7 @@ spec:
                   scenario: random_walk
                   seed: 5
                   series:
-                    - { name: avg_s, start: 0.5, noise: 0.1, min: 0 }
+                    - { name: volume, start: 3221225472, noise: 268435456, min: 0 }
     ts-step-before:
       kind: Panel
       spec:
@@ -123,11 +128,12 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ""
             showLegend: false
             lineWidth: 1
             curveType: stepBefore
             connectNulls: false
+            valueFormat:
+              unit: ""
         queries:
           - kind: TestData
             spec:
@@ -147,12 +153,13 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ""
             showLegend: true
             lineWidth: 1.5
             curveType: monotone
             connectNulls: false
             stacked: true
+            valueFormat:
+              unit: ""
         queries:
           - kind: TestData
             spec:
@@ -175,12 +182,13 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ""
             showLegend: true
             lineWidth: 1
             curveType: stepAfter
             connectNulls: false
             stacked: true
+            valueFormat:
+              unit: ""
         queries:
           - kind: TestData
             spec:
@@ -202,11 +210,12 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ""
             showLegend: true
             lineWidth: 1.5
             curveType: monotone
             connectNulls: false
+            valueFormat:
+              unit: ""
         queries:
           - kind: TestData
             spec:
@@ -235,11 +244,12 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ""
             showLegend: false
             lineWidth: 1.5
             curveType: monotone
             connectNulls: false
+            valueFormat:
+              unit: ""
         queries:
           - kind: TestData
             spec:
@@ -249,6 +259,128 @@ spec:
                   scenario: csv
                   columns: [ts, value]
                   rows: []
+    format-none:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: none"
+          description: "valueFormat: none, unit: {connection}, decimals: 2"
+        plugin:
+          kind: TimeSeriesChart
+          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: value, walk: { start: 12500, noise: 1250, min: 0 } }]
+    format-decimal:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: decimal"
+          description: "valueFormat: decimal, unit: widgets/s, decimals: 2"
+        plugin:
+          kind: TimeSeriesChart
+          spec: { valueFormat: { unit: widgets/s, scale: decimal, decimals: 2 } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: value, walk: { start: 12500, noise: 1250, min: 0 } }]
+    format-binary:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: binary"
+          description: "valueFormat: binary, unit: By/s, decimals: 2"
+        plugin:
+          kind: TimeSeriesChart
+          spec: { valueFormat: { unit: By/s, scale: binary, decimals: 2 } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: value, walk: { start: 2621440, noise: 262144, min: 0 } }]
+    format-duration:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: duration"
+          description: "valueFormat: duration, unit: s, decimals: 1"
+        plugin:
+          kind: TimeSeriesChart
+          spec: { valueFormat: { unit: s, scale: duration, decimals: 1 } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: value, walk: { start: 0.025, noise: 0.0025, min: 0 } }]
+    format-percent:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: ratio as percent"
+          description: "unit: 1, display: percent; raw query ratios are unchanged"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            valueFormat:
+              unit: "1"
+              display: percent
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns:
+                    - name: ts
+                      time: true
+                    - name: value
+                      const: 0.75
+    format-si:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: SI prefixes"
+          description: "unit: Hz, scale: decimal; conventional GHz label"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            valueFormat:
+              unit: Hz
+              scale: decimal
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns:
+                    - name: ts
+                      time: true
+                    - name: value
+                      const: 3200000000
   layouts:
     - kind: Grid
       spec:
@@ -262,3 +394,9 @@ spec:
           - { x: 12, y: 15, width: 12, height: 8, content: { $ref: "#/spec/panels/ts-stacked-sparse-step" } }
           - { x: 0,  y: 23, width: 16, height: 8, content: { $ref: "#/spec/panels/ts-multi-query" } }
           - { x: 16, y: 23, width: 8,  height: 8, content: { $ref: "#/spec/panels/ts-empty" } }
+          - { x: 0, y: 31, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
+          - { x: 12, y: 31, width: 12, height: 9, content: { $ref: "#/spec/panels/format-decimal" } }
+          - { x: 0, y: 40, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
+          - { x: 12, y: 40, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
+          - { x: 0, y: 49, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
+          - { x: 12, y: 49, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }

@@ -7,9 +7,9 @@ One or more big single-value tiles, each optionally with a sparkline and thresho
 | Option | Type | Default | Values | Effect |
 | --- | --- | --- | --- | --- |
 | `calculation` | string | `last` | `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff` | How each tile's column is reduced to one number. `count` = number of points, `range` = max − min, `diff` = last − first. An unknown value is rejected by `everr apply`. |
-| `unit` | string | `""` | any string | Suffix after the value. |
-| `decimals` | number | none | `0`–`10` | Fixed fraction digits. Omitted: up to 2, trailing zeros dropped. |
+| `valueFormat` | object | none | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels. |
 | `sparkline` | boolean | `false` | `true` | Draw a trend line under the value. **Needs a time column and ≥2 points** (see Data shape) or nothing draws. |
+| `colors` | map | `{}` | series label to CSS color | Pin sparkline colors by series label. Unmapped series keep the default accent color. Threshold colors take precedence. |
 | `colorMode` | string | `value` | `value`, `background` | `value` tints the number with the threshold color; `background` fills the whole tile. No effect without `thresholds`. |
 | `showLabel` | boolean | `false` | `true` | Show the column-name label even on a single-tile panel (multi-tile always shows it). |
 | `noValue` | string | `–` | any string | Text rendered for a query that produced no value (empty result / no numeric column). |
@@ -29,18 +29,20 @@ plugin:
   kind: StatChart
   spec:
     calculation: last
-    unit: "%"
-    decimals: 1
     sparkline: true
+    colors: { p50: "#a78bfa", p95: "#fde047" }
     thresholds:
       mode: absolute
-      defaultColor: "#22c55e"            # green below the first step
+      defaultColor: "#22c55e" # green below the first step
       steps:
-        - { value: 1, color: "#f59e0b" }   # amber once value ≥ 1
-        - { value: 5, color: "#ef4444" }   # red once value ≥ 5
+        - { value: 1, color: "#f59e0b" } # amber once value ≥ 1
+        - { value: 5, color: "#ef4444" } # red once value ≥ 5
+    valueFormat:
+      unit: "%"
+      decimals: 1
 ```
 
-There is **no** `title`, `orientation`, or `graphMode`. `calculation`, `unit`, and `thresholds` apply to **every** tile uniformly.
+There is **no** `title`, `orientation`, or `graphMode`. `calculation`, `valueFormat`, and `thresholds` apply to **every** tile uniformly.
 
 ## Data shape — one tile per numeric column per query
 
@@ -51,8 +53,9 @@ There is **no** `title`, `orientation`, or `graphMode`. `calculation`, `unit`, a
 ## Behaviors to know
 
 - A **single tile hides its label** unless `showLabel: true`; with multiple tiles each shows its column name. Choose column aliases accordingly.
-- Values ≥ 1 million **abbreviate** (`1234567` → `1.23M`, then `B`, `T`); smaller values keep thousands grouping.
+- Values use at most two decimal places by default. Set `valueFormat.scale: decimal` to abbreviate large counts.
 - A query that returns no value still renders its tile with the `noValue` text — it does not silently vanish from a multi-query panel.
 - **`percent` mode** without `thresholds.max` compares against the tile's own series max, so a single-value (time-less) tile is always 100% — set `max` or use it with a sparkline series.
 - The resolved threshold color tints **both** the number and the sparkline (`colorMode: background` fills the tile instead).
+- A `colors` entry changes only that series' sparkline. Threshold colors still win when configured.
 - Value text scales down as tiles crowd the panel.

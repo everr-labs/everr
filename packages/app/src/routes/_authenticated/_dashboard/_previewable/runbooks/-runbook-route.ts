@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
 import { runbookOptions } from "@/data/runbooks/options";
-import { findPage } from "@/data/runbooks/pages";
+import { findPage, toDashboardDocument } from "@/data/runbooks/pages";
 import type { BreadcrumbSegment } from "@/router-types";
 
 /**
@@ -51,6 +51,7 @@ export async function loadRunbook({
   const { document, previewStatus } = await queryClient.ensureQueryData(
     runbookOptions(project, slug, preview),
   );
+  const dashboard = toDashboardDocument(document, project, slug);
   // Expose the runbook's duration/refreshInterval as route time defaults so
   // the time-range hooks seed the picker and panels from the first render —
   // no post-mount URL write, so panels never query the wrong window first.
@@ -62,6 +63,6 @@ export async function loadRunbook({
     // stops at the runbook rather than naming a page the pane cannot show.
     pageTitle: pagePath ? findPage(document.spec, pagePath)?.title : undefined,
     previewStatus,
-    timeDefaults: dashboardTimeDefaults(document.spec),
+    timeDefaults: dashboardTimeDefaults(dashboard.spec),
   };
 }

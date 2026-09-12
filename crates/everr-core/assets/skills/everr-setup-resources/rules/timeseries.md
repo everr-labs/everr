@@ -6,7 +6,7 @@ A line chart over time (or a stacked area chart with `stacked: true`). It infers
 
 | Option | Type | Default | Values | Effect |
 | --- | --- | --- | --- | --- |
-| `unit` | string | `""` | any string | Suffix on y-axis ticks and tooltip values. Raw concatenation, **no space** — `unit: ms` renders `123ms`. |
+| `valueFormat` | object | none | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels. |
 | `showLegend` | boolean | `false` | `true` | Show the series legend. Only the literal `true` enables it. |
 | `lineWidth` | number | `1.5` | any number | Line stroke width. |
 | `curveType` | string | `monotone` | `monotone`, `linear`, `natural`, `stepBefore`, `stepAfter` | Line interpolation. An unknown value falls back to the renderer default. |
@@ -16,10 +16,10 @@ A line chart over time (or a stacked area chart with `stacked: true`). It infers
 ```yaml
 plugin:
   kind: TimeSeriesChart
-  spec: { unit: ms, showLegend: true, lineWidth: 1.5, curveType: monotone, connectNulls: false, stacked: false }
+  spec: { valueFormat: { unit: ms, scale: duration }, showLegend: true, lineWidth: 1.5, curveType: monotone, connectNulls: false, stacked: false }
 ```
 
-These six are the complete set. There is **no** `yAxis` / `min` / `max`, `legend` object, separate area / fill option, `thresholds`, `decimals`, `pointRadius`, or per-series color. Series colors come from a fixed 6-color palette assigned by order (wrapping after 6) and are not configurable.
+The table lists the supported top-level options. There is **no** `yAxis` / `min` / `max`, `legend` object, separate area / fill option, `thresholds`, top-level `decimals`, `pointRadius`, or per-series color. Set precision with `valueFormat.decimals`. Series colors come from a fixed 6-color palette assigned by order (wrapping after 6) and are not configurable.
 
 ## Data shape
 

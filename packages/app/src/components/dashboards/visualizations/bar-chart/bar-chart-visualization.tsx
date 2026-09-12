@@ -17,6 +17,8 @@ import {
   YAxis,
 } from "recharts";
 import type { VisualizationProps } from "../index";
+import { MIN_VALUE_AXIS_WIDTH, valueAxisWidth } from "../value-axis";
+import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
 
@@ -111,7 +113,8 @@ export function BarChartVisualization({
   spec,
   data,
 }: VisualizationProps<BarChartSpec>) {
-  const { unit, showLegend, stacking, orientation, showValues, colors } = spec;
+  const formatter = createValueFormatter(spec.valueFormat);
+  const { showLegend, stacking, orientation, showValues, colors } = spec;
 
   const { chartData, valueKeys, chartConfig, isTimeAxis } = useMemo(
     () => buildBarChartModel(data ?? [], colors),
@@ -179,15 +182,25 @@ export function BarChartVisualization({
   const formatXTick = isTimeAxis
     ? createTimeTickFormatter(spanMs)
     : (x: string | number) => String(x);
+  let axisMagnitude = 0;
+  for (const row of chartData) {
+    let positive = 0;
+    let negative = 0;
+    for (const key of valueKeys) {
+      const value = row[key];
+      if (typeof value !== "number" || !Number.isFinite(value)) continue;
+      if (stacked) {
+        positive += Math.max(0, value);
+        negative += Math.min(0, value);
+      } else axisMagnitude = Math.max(axisMagnitude, Math.abs(value));
+    }
+    if (stacked) axisMagnitude = Math.max(axisMagnitude, positive, -negative);
+  }
+  const formatAxisValue = formatter.axis(axisMagnitude);
   // With percent stacking the value axis runs 0..1 (stackOffset="expand").
   const formatValueTick = (v: number) =>
-    stacking === "percent"
-      ? `${Math.round(v * 100)}%`
-      : unit
-        ? `${v}${unit}`
-        : String(v);
-  const formatValue = (v: number) =>
-    unit ? `${v.toLocaleString()}${unit}` : v.toLocaleString();
+    stacking === "percent" ? `${Math.round(v * 100)}%` : formatAxisValue(v);
+  const formatBarValue = formatter.format;
 
   // Dense (time-bucketed) data produces one category per bucket — thin the
   // tick labels instead of letting them overlap.
@@ -243,7 +256,13 @@ export function BarChartVisualization({
           />
           <YAxis
             {...(horizontal ? categoryAxisProps : valueAxisProps)}
-            width={horizontal ? 90 : 60}
+            width={
+              horizontal
+                ? 90
+                : spec.valueFormat && stacking !== "percent"
+                  ? valueAxisWidth([-axisMagnitude], formatAxisValue)
+                  : MIN_VALUE_AXIS_WIDTH
+            }
             tickLine={false}
             axisLine={false}
             tickMargin={8}
@@ -265,7 +284,7 @@ export function BarChartVisualization({
                   className="fill-foreground"
                   fontSize={10}
                   formatter={(v: unknown) =>
-                    typeof v === "number" ? formatValue(v) : ""
+                    typeof v === "number" ? formatBarValue(v) : ""
                   }
                 />
               )}
@@ -287,7 +306,7 @@ export function BarChartVisualization({
                 key,
                 color: chartConfig[key]?.color,
                 label: chartConfig[key]?.label ?? key,
-                value: formatValue(tooltipRow[key] as number),
+                value: formatBarValue(tooltipRow[key] as number),
               }))}
           />
         </CursorTooltip>

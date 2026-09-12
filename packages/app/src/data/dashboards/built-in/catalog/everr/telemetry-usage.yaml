@@ -1,0 +1,268 @@
+id: telemetry-usage
+name: Telemetry Usage
+description: "Telemetry usage and its cumulative trend for the selected time range."
+category: Everr
+requires:
+  - signal: metrics
+    match: everr.ingestion.volume
+    label: no everr.ingestion.volume metric
+document:
+  kind: Dashboard
+  metadata:
+    name: telemetry-usage
+  spec:
+    display:
+      name: Telemetry Usage
+      description: "Ingestion volume and its cumulative trend for the selected time range."
+    timeRange:
+      from: now/M
+      to: now
+    refreshInterval: 5m
+    # metrics_sum timestamps have one-second precision. Ordering each monotonic
+    # counter by value resolves distinct same-second samples, while exact retry
+    # duplicates remain adjacent and contribute a zero delta.
+    panels:
+      signal-totals:
+        kind: Panel
+        spec:
+          display:
+            name: Usage by signal
+            description: Total volume by telemetry type, with non-cumulative interval trends.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: sum
+              valueFormat: { unit: By, scale: binary }
+              sparkline: true
+              colors:
+                Logs: "hsl(263, 90%, 65%)"
+                Traces: "hsl(56, 90%, 65%)"
+                Metrics: "hsl(195, 90%, 65%)"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: &usage_by_signal_query |-
+                      WITH parseDateTimeBestEffort({from:String}) AS selected_from,
+                           parseDateTimeBestEffort({to:String}) AS selected_to
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                             toFloat64(sumIf(delta, signal = 'logs')) AS Logs,
+                             toFloat64(sumIf(delta, signal = 'traces')) AS Traces,
+                             toFloat64(sumIf(delta, signal = 'metrics')) AS Metrics
+                      FROM (
+                        SELECT TimeUnix,
+                               signal,
+                               if(previous_value < 0,
+                                  value_decimal - if(value_decimal > 9007199254740992, 1024, 0),
+                                  greatest(value_decimal - previous_value, 0)) AS delta
+                        FROM (
+                          SELECT TimeUnix,
+                                 Attributes['everr.ingestion.signal'] AS signal,
+                                 toDecimal128(Value, 0) AS value_decimal,
+                                 lagInFrame(toDecimal128(Value, 0), 1, toDecimal128(-1, 0)) OVER counter AS previous_value
+                          FROM metrics_sum
+                          WHERE ServiceName = 'everr-ingestion'
+                            AND MetricName = 'everr.ingestion.volume'
+                            AND Attributes['everr.usage.month'] >= formatDateTime(toStartOfMonth(selected_from), '%Y-%m')
+                            AND Attributes['everr.usage.month'] <= formatDateTime(toStartOfMonth(selected_to), '%Y-%m')
+                            AND TimeUnix >= toStartOfMonth(selected_from)
+                            AND TimeUnix <= selected_to
+                            AND AggregationTemporality = 2
+                            AND IsMonotonic
+                            AND MetricUnit = 'By'
+                            AND ScopeName = 'github.com/everr-labs/everr/collector/usage'
+                            AND ScopeVersion = '1'
+                            AND ResourceAttributes['everr.tenant.id'] = Attributes['everr.usage.tenant.id']
+                            AND notEmpty(ResourceAttributes['service.instance.id'])
+                            AND notEmpty(Attributes['everr.usage.tenant.id'])
+                            AND Attributes['everr.ingestion.signal'] IN ('logs', 'traces', 'metrics')
+                            AND Value >= 0
+                          WINDOW counter AS (
+                            PARTITION BY Attributes['everr.usage.month'],
+                                         Attributes['everr.ingestion.signal'],
+                                         ResourceAttributes['service.instance.id'],
+                                         StartTimeUnix
+                            ORDER BY TimeUnix, Value
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                          )
+                        )
+                      )
+                      WHERE TimeUnix >= selected_from AND TimeUnix <= selected_to
+                      GROUP BY ts
+                      ORDER BY ts
+      totals:
+        kind: Panel
+        spec:
+          display:
+            name: Usage summary
+            description: Total ingestion volume for the selected time range.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              valueFormat: { unit: By, scale: binary }
+              showLabel: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH parseDateTimeBestEffort({from:String}) AS selected_from,
+                           parseDateTimeBestEffort({to:String}) AS selected_to
+                      SELECT toFloat64(sumIf(delta, TimeUnix >= selected_from)) AS `Selected range`
+                      FROM (
+                        SELECT TimeUnix,
+                               if(previous_value < 0,
+                                  value_decimal - if(value_decimal > 9007199254740992, 1024, 0),
+                                  greatest(value_decimal - previous_value, 0)) AS delta
+                        FROM (
+                          SELECT TimeUnix,
+                                 toDecimal128(Value, 0) AS value_decimal,
+                                 lagInFrame(toDecimal128(Value, 0), 1, toDecimal128(-1, 0)) OVER counter AS previous_value
+                          FROM metrics_sum
+                          WHERE ServiceName = 'everr-ingestion'
+                            AND MetricName = 'everr.ingestion.volume'
+                            AND Attributes['everr.usage.month'] >= formatDateTime(toStartOfMonth(selected_from), '%Y-%m')
+                            AND Attributes['everr.usage.month'] <= formatDateTime(toStartOfMonth(selected_to), '%Y-%m')
+                            AND TimeUnix >= toStartOfMonth(selected_from)
+                            AND TimeUnix <= selected_to
+                            AND AggregationTemporality = 2
+                            AND IsMonotonic
+                            AND MetricUnit = 'By'
+                            AND ScopeName = 'github.com/everr-labs/everr/collector/usage'
+                            AND ScopeVersion = '1'
+                            AND ResourceAttributes['everr.tenant.id'] = Attributes['everr.usage.tenant.id']
+                            AND notEmpty(ResourceAttributes['service.instance.id'])
+                            AND notEmpty(Attributes['everr.usage.tenant.id'])
+                            AND Attributes['everr.ingestion.signal'] IN ('logs', 'traces', 'metrics')
+                            AND Value >= 0
+                          WINDOW counter AS (
+                            PARTITION BY Attributes['everr.usage.month'],
+                                         Attributes['everr.ingestion.signal'],
+                                         ResourceAttributes['service.instance.id'],
+                                         StartTimeUnix
+                            ORDER BY TimeUnix, Value
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                          )
+                        )
+                      )
+      interval-volume:
+        kind: Panel
+        spec:
+          display:
+            name: Ingestion volume by signal
+            description: Logs, traces, and metrics ingested in each interval of the selected time range.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              valueFormat: { unit: By, scale: binary }
+              lineWidth: 2
+              curveType: linear
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: *usage_by_signal_query
+      cumulative:
+        kind: Panel
+        spec:
+          display:
+            name: Cumulative volume
+            description: Total telemetry accumulated within the selected time range.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              valueFormat: { unit: By, scale: binary }
+              lineWidth: 2
+              curveType: linear
+              connectNulls: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH parseDateTimeBestEffort({from:String}) AS selected_from,
+                           parseDateTimeBestEffort({to:String}) AS selected_to
+                      SELECT ts,
+                             toFloat64(sum(bucket_total) OVER (ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS Total
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                               sum(delta) AS bucket_total
+                        FROM (
+                          SELECT TimeUnix,
+                                 if(previous_value < 0,
+                                    value_decimal - if(value_decimal > 9007199254740992, 1024, 0),
+                                    greatest(value_decimal - previous_value, 0)) AS delta
+                          FROM (
+                            SELECT TimeUnix,
+                                   toDecimal128(Value, 0) AS value_decimal,
+                                   lagInFrame(toDecimal128(Value, 0), 1, toDecimal128(-1, 0)) OVER counter AS previous_value
+                            FROM metrics_sum
+                            WHERE ServiceName = 'everr-ingestion'
+                              AND MetricName = 'everr.ingestion.volume'
+                              AND Attributes['everr.usage.month'] >= formatDateTime(toStartOfMonth(selected_from), '%Y-%m')
+                              AND Attributes['everr.usage.month'] <= formatDateTime(toStartOfMonth(selected_to), '%Y-%m')
+                              AND TimeUnix >= toStartOfMonth(selected_from)
+                              AND TimeUnix <= selected_to
+                              AND AggregationTemporality = 2
+                              AND IsMonotonic
+                              AND MetricUnit = 'By'
+                              AND ScopeName = 'github.com/everr-labs/everr/collector/usage'
+                              AND ScopeVersion = '1'
+                              AND ResourceAttributes['everr.tenant.id'] = Attributes['everr.usage.tenant.id']
+                              AND notEmpty(ResourceAttributes['service.instance.id'])
+                              AND notEmpty(Attributes['everr.usage.tenant.id'])
+                              AND Attributes['everr.ingestion.signal'] IN ('logs', 'traces', 'metrics')
+                              AND Value >= 0
+                            WINDOW counter AS (
+                              PARTITION BY Attributes['everr.usage.month'],
+                                           Attributes['everr.ingestion.signal'],
+                                           ResourceAttributes['service.instance.id'],
+                                           StartTimeUnix
+                              ORDER BY TimeUnix, Value
+                              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                            )
+                          )
+                        )
+                        WHERE TimeUnix >= selected_from AND TimeUnix <= selected_to
+                        GROUP BY ts
+                      )
+                      ORDER BY ts
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 8
+              height: 6
+              content:
+                $ref: "#/spec/panels/totals"
+            - x: 8
+              y: 0
+              width: 16
+              height: 6
+              content:
+                $ref: "#/spec/panels/signal-totals"
+            - x: 0
+              y: 6
+              width: 24
+              height: 8
+              content:
+                $ref: "#/spec/panels/interval-volume"
+            - x: 0
+              y: 14
+              width: 24
+              height: 8
+              content:
+                $ref: "#/spec/panels/cumulative"

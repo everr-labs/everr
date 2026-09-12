@@ -73,7 +73,7 @@ spec:
   display: { name: Error rate }
   plugin:
     kind: TimeSeriesChart
-    spec: { unit: "%", showLegend: true }
+    spec: { showLegend: true, valueFormat: { unit: "%" } }
   queries:
     - kind: ClickHouseSQL
       spec:

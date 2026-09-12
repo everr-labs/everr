@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { valueFormatSpec } from "../value-format-spec";
 
 /**
  * TimeSeriesChart plugin options. Loose so unknown keys flow through verbatim
@@ -6,7 +7,7 @@ import * as z from "zod";
  * is defaulted so `{}` always parses — the lenient render path relies on it.
  */
 export const timeSeriesChartSpec = z.looseObject({
-  unit: z.string().default(""),
+  valueFormat: valueFormatSpec.optional(),
   showLegend: z.boolean().default(false),
   lineWidth: z.number().positive().default(1.5),
   curveType: z

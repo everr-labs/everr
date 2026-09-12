@@ -13,7 +13,7 @@ import {
 } from "@/data/previews/scope";
 import { dashboards } from "@/db/schema";
 import { buildDesiredSet } from "./desired";
-import type { Dashboard } from "./schema";
+import type { DashboardResource } from "./schema";
 
 export interface ApplyDashboardsResult {
   created: string[];
@@ -93,7 +93,7 @@ export const applyDashboardSpecs: Reconciler = async ({
       project: d.project,
       slug: d.slug,
       folderPath: d.folderPath,
-      document: d.document as Dashboard,
+      document: d.document as DashboardResource,
     });
   }
   // Adoption: take over the other repo's live row by its global identity,
@@ -104,7 +104,7 @@ export const applyDashboardSpecs: Reconciler = async ({
       .update(dashboards)
       .set({
         repoid: namespace.repoid,
-        document: d.document as Dashboard,
+        document: d.document as DashboardResource,
         folderPath: d.folderPath,
         updatedAt: new Date(),
       })
@@ -121,7 +121,7 @@ export const applyDashboardSpecs: Reconciler = async ({
     await exec
       .update(dashboards)
       .set({
-        document: d.document as Dashboard,
+        document: d.document as DashboardResource,
         folderPath: d.folderPath,
         updatedAt: new Date(),
       })

@@ -2,8 +2,10 @@ import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
 import { formatTimeRangeDisplay } from "@everr/ui/components/time-range-picker";
 import {
   DEFAULT_TIME_RANGE,
+  isValidTimeRange,
   resolveTimeRange,
   TimeRangeSchema,
+  timeRangeFromDuration,
   withTimeRange,
 } from "@everr/ui/lib/time-range";
 import { describe, expect, it } from "vitest";
@@ -134,6 +136,42 @@ describe("resolveTimeRange", () => {
     expect(result.fromISO).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
     expect(result.toISO).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
   });
+
+  it("uses one reference time for both bounds", () => {
+    const now = new Date("2026-09-12T12:00:00.000Z");
+    const result = resolveTimeRange({ from: "now-1h", to: "now" }, now);
+    expect(result.fromDate.toISOString()).toBe("2026-09-12T11:00:00.000Z");
+    expect(result.toDate.toISOString()).toBe("2026-09-12T12:00:00.000Z");
+  });
+});
+
+describe("isValidTimeRange", () => {
+  const now = new Date("2026-09-12T12:00:00.000Z");
+
+  it("accepts a chronological range", () => {
+    expect(isValidTimeRange({ from: "now-6h", to: "now" }, now)).toBe(true);
+  });
+
+  it("rejects invalid and reversed ranges", () => {
+    expect(isValidTimeRange({ from: "banana", to: "now" }, now)).toBe(false);
+    expect(isValidTimeRange({ from: "now", to: "now-6h" }, now)).toBe(false);
+  });
+});
+
+describe("timeRangeFromDuration", () => {
+  const now = new Date("2026-09-12T12:00:00.000Z");
+
+  it("converts a positive duration to a valid range", () => {
+    expect(timeRangeFromDuration("6h", now)).toEqual({
+      from: "now-6h",
+      to: "now",
+    });
+  });
+
+  it("rejects invalid and zero-length durations", () => {
+    expect(timeRangeFromDuration("banana", now)).toBeUndefined();
+    expect(timeRangeFromDuration("0h", now)).toBeUndefined();
+  });
 });
 
 describe("getRefreshIntervalMs", () => {
@@ -178,6 +216,9 @@ describe("formatTimeRangeDisplay", () => {
     );
     expect(formatTimeRangeDisplay({ from: "now-1h", to: "now" })).toBe(
       "Last 1 hour",
+    );
+    expect(formatTimeRangeDisplay({ from: "now/M", to: "now" })).toBe(
+      "This month so far",
     );
   });
 

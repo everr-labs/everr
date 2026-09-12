@@ -9,7 +9,7 @@ A **directed graph of nodes and weighted edges** with a deterministic force-dire
 | `sourceColumn` | string | `source` | column name | Edge source column; falls back to the first column when absent. |
 | `targetColumn` | string | `target` | column name | Edge target column; falls back to the second column when absent. |
 | `valueColumn` | string | `value` | column name | Edge weight column — drives edge thickness and node size. Falls back to the first remaining numeric column; without one every edge weighs 1. |
-| `unit` | string | `""` | any | Value formatting in tooltips and edge labels. |
+| `valueFormat` | object | none | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels. |
 | `directed` | boolean | `true` | `false` | Draw arrowheads pointing at each edge's target. |
 | `showValues` | boolean | `false` | `true` | Render the edge's value at its midpoint. |
 | `maxNodes` | number | unset | ≥ 2 | Keep only the `maxNodes` highest-value nodes (and the edges between them); the rest are hidden behind a "not shown" badge. There is also a built-in 250-node layout limit. |
@@ -21,7 +21,8 @@ plugin:
     sourceColumn: client
     targetColumn: server
     valueColumn: calls
-    unit: req
+    valueFormat:
+      unit: '{request}'
 ```
 
 There is **no** node coloring/grouping option, no separate nodes query, no pinning, and no layout option — nodes are derived from the edge rows only.
@@ -51,4 +52,4 @@ LIMIT 200
 - **Node value = sum of all touching edge weights** (in + out); the tooltip also shows the in/out edge counts.
 - Keep **node cardinality low** (≲ 50 for readability; hard layout cap at 250) — `GROUP BY` to coarse entities (services, not endpoints) and `LIMIT` in SQL, or set `maxNodes` to keep the heaviest nodes.
 - Without a numeric column every edge weighs 1, so a plain two-column edge list still sizes nodes by edge count.
-- Use `unit` for the tooltip/edge-label formatting; format anything fancier in SQL (the weight must stay numeric).
+- Use `valueFormat` for numeric presentation; keep weights numeric.

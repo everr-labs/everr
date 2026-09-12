@@ -8,7 +8,9 @@ spec:
       Triage board for open errors: volume and rate at a glance, error groups
       ranked by occurrences with a sample trace to jump into, failing
       operations, and the latest error logs.
-  duration: 24h
+  timeRange:
+    from: now-24h
+    to: now
   refreshInterval: 1m
   variables:
     - kind: ListVariable
@@ -56,14 +58,15 @@ spec:
           kind: StatChart
           spec:
             calculation: last
-            unit: "%"
-            decimals: 2
             thresholds:
               mode: absolute
               defaultColor: "#22c55e"
               steps:
                 - { value: 1, color: "#f59e0b" }
                 - { value: 5, color: "#ef4444" }
+            valueFormat:
+              unit: "%"
+              decimals: 2
         queries:
           - kind: ClickHouseSQL
             spec:

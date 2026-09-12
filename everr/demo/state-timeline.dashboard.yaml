@@ -11,7 +11,9 @@ spec:
       colors mapping, rowHeight) and behavior (spec defaults, numeric states,
       null gaps, multi-query lanes, empty, no time column) exercised with
       deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     # ── Formats and options ──────────────────────────────────────────

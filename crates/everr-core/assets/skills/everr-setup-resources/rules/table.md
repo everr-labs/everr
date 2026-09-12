@@ -1,12 +1,14 @@
 # Table
 
-Renders query rows as a plain table. Columns and their order come entirely from the `SELECT`; there is no column, formatting, sort, or pagination configuration.
+Renders query rows as a plain table. Columns and their order come entirely from the `SELECT`; numeric presentation supports a panel default and column overrides.
 
 ## Options (`plugin.spec`)
 
 | Option | Type | Default | Values | Effect |
 | --- | --- | --- | --- | --- |
 | `stickyHeader` | boolean | `false` | `true` | Keep the header row visible while the body scrolls. Only the literal `true` enables it. |
+| `valueFormat` | object | none | see shared rule | Default numeric format; read `rules/value-format.md`. |
+| `columns` | map | `{}` | column name to `{ valueFormat }` | Override the default format for a named column. |
 
 ```yaml
 plugin:
@@ -14,13 +16,13 @@ plugin:
   spec: { stickyHeader: true }
 ```
 
-`stickyHeader` is the only option. There is **no** `columns`, `columnSettings`, `unit`, `format`, `sort`, `align`, `pagination`, `pageSize`, or `density`.
+Read `rules/value-format.md` when configuring numeric formatting. Sorting and pagination remain unconfigured.
 
 ## Data shape
 
-Any columns. They render **as-is, in `SELECT` order**, with the column alias as the header. There is no type-aware formatting:
+Any columns. They render **as-is, in `SELECT` order**, with the column alias as the header. Numeric cells can use the shared format:
 
-- **Numbers are not formatted** — no thousands separators, rounding, units, or alignment. Format in SQL: `round(quantile(0.95)(Duration) / 1e6, 1) AS p95_ms`. Convey the unit through the alias or panel title; a literal "ms" suffix is not rendered.
+- Numbers default to at most two decimal places. Panel and column `valueFormat` options control precision, units, and scaling. String values are preserved, including numeric strings.
 - **`NULL` cells render the literal text `NULL`** (muted). Use `coalesce` / `ifNull` in SQL if you want blanks or a placeholder.
 
 ## Behaviors to know

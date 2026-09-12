@@ -8,7 +8,7 @@ A **time × bucket grid of color-intensity cells** — request-duration histogra
 | --- | --- | --- | --- | --- |
 | `yColumn` | string | first non-time column | column name | Y-bucket column. |
 | `valueColumn` | string | first remaining numeric column | column name | Cell intensity column. |
-| `unit` | string | `""` | any | Value formatting in cells, tooltip and legend. |
+| `valueFormat` | object | none | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels. |
 | `showLegend` | boolean | `true` | `false` | Color ramp legend (min → max) below the grid. |
 | `showValues` | boolean | `false` | `true` | Render the value inside cells wide enough to fit it. |
 | `colorScheme` | enum | `spectral` | `spectral`, `greenYellowRed`, `blues`, `greens`, `oranges`, `reds` | Cell color ramp. `spectral` = cool blue → yellow → hot red; `greenYellowRed` = green → amber → red; the rest are single-hue light→dark. |
@@ -23,9 +23,10 @@ plugin:
   spec:
     yColumn: bucket
     valueColumn: requests
-    unit: req
     colorScheme: spectral
     scaleType: log
+    valueFormat:
+      unit: '{request}'
 ```
 
 There is **no** `calculation`, `thresholds`, axis options, or client-side bucketing of raw values — compute the y buckets in SQL.

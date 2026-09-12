@@ -7,6 +7,7 @@ export type TelemetrySignal = "traces" | "metrics" | "logs";
 
 export type TelemetryEnv = Partial<{
   DEPLOYMENT_ENVIRONMENT: string;
+  EVERR_INGEST_ENDPOINT: string;
   EVERR_INGEST_KEY: string;
   GITHUB_SHA: string;
   NODE_ENV: string;
@@ -27,18 +28,21 @@ export function resolveTelemetryConfig(
   serviceInstanceId: string,
 ): TelemetryConfig | null {
   const explicitEndpoint = cleanEnvValue(env.OTEL_EXPORTER_OTLP_ENDPOINT);
+  const everrEndpoint = cleanEnvValue(env.EVERR_INGEST_ENDPOINT);
   const ingestKey = cleanEnvValue(env.EVERR_INGEST_KEY);
 
   const endpoint = normalizeBaseEndpoint(
     explicitEndpoint ??
-      (ingestKey ? EVERR_HOSTED_OTLP_ENDPOINT : DEFAULT_LOCAL_OTLP_ENDPOINT),
+      (ingestKey
+        ? (everrEndpoint ?? EVERR_HOSTED_OTLP_ENDPOINT)
+        : DEFAULT_LOCAL_OTLP_ENDPOINT),
   );
-  const usesHostedIngest = !explicitEndpoint && Boolean(ingestKey);
+  const usesEverrIngest = !explicitEndpoint && Boolean(ingestKey);
 
   return {
     endpoint,
     headers:
-      usesHostedIngest && ingestKey
+      usesEverrIngest && ingestKey
         ? { Authorization: `Bearer ${ingestKey}` }
         : undefined,
     resourceAttributes: telemetryResourceAttributes(env, serviceInstanceId),

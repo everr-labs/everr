@@ -1,3 +1,4 @@
+import { timeRangeFromDuration } from "@everr/ui/lib/time-range";
 import type { Dashboard } from "@/data/dashboards/schema";
 import type { Runbook, RunbookPage, RunbookSpec } from "./schema";
 
@@ -222,7 +223,7 @@ export function toDashboardDocument(
     display: runbook.spec.display,
     panels: runbook.spec.panels ?? {},
     layouts: [],
-    duration: runbook.spec.duration,
+    timeRange: timeRangeFromDuration(runbook.spec.duration),
     refreshInterval: runbook.spec.refreshInterval,
   };
   if (runbook.spec.variables !== undefined) {

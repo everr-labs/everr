@@ -1,3 +1,7 @@
+import {
+  isValidTimeRange,
+  timeRangeFromDuration,
+} from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import { panelPluginSpecs, queryPluginSpecs } from "./plugin-specs";
 
@@ -147,6 +151,12 @@ export const dashboardSpecSchema = z
     variables: z.array(variable).optional(),
     panels: z.record(z.string(), panel),
     layouts: z.array(gridLayout),
+    timeRange: z
+      .object({
+        from: z.string(),
+        to: z.string(),
+      })
+      .optional(),
     duration: z.string().optional(),
     refreshInterval: z.string().optional(),
   })
@@ -233,6 +243,23 @@ export function collectPanelStrictIssues(
  */
 export const dashboardSpecSchemaStrict = dashboardSpecSchema.superRefine(
   (spec, ctx) => {
+    if (spec.timeRange && !isValidTimeRange(spec.timeRange)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Time range must be valid and its start must precede its end",
+        path: ["timeRange"],
+      });
+    }
+    if (
+      spec.duration !== undefined &&
+      timeRangeFromDuration(spec.duration) === undefined
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Duration must define a positive time range",
+        path: ["duration"],
+      });
+    }
     for (const [key, p] of Object.entries(spec.panels)) {
       for (const issue of collectPanelStrictIssues(p)) {
         ctx.addIssue({
@@ -256,7 +283,11 @@ export type DatasourceSpec = z.infer<typeof datasourceSpec>;
 export type TextVariable = z.infer<typeof textVariable>;
 export type ListVariable = z.infer<typeof listVariable>;
 export type Variable = z.infer<typeof variable>;
-export type DashboardSpec = z.infer<typeof dashboardSpecSchema>;
+/** Dashboard spec accepted at the resource boundary, including Perses input. */
+export type DashboardResourceSpec = z.infer<typeof dashboardSpecSchema>;
+
+/** Canonical dashboard spec used by the renderer. */
+export type DashboardSpec = Omit<DashboardResourceSpec, "duration">;
 
 export interface DashboardMetadata {
   name: string;
@@ -268,6 +299,13 @@ export interface Dashboard {
   kind: "Dashboard";
   metadata: DashboardMetadata;
   spec: DashboardSpec;
+}
+
+/** Losslessly stored dashboard resource before compatibility normalization. */
+export interface DashboardResource {
+  kind: "Dashboard";
+  metadata: DashboardMetadata;
+  spec: DashboardResourceSpec;
 }
 
 /** Validates a dashboard slug: lowercase letters, digits and hyphens only. */
