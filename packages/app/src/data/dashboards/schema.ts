@@ -1,4 +1,7 @@
-import { isValidTimeRange } from "@everr/ui/lib/time-range";
+import {
+  isValidTimeRange,
+  timeRangeFromDuration,
+} from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import { panelPluginSpecs, queryPluginSpecs } from "./plugin-specs";
 
@@ -245,6 +248,16 @@ export const dashboardSpecSchemaStrict = dashboardSpecSchema.superRefine(
         code: "custom",
         message: "Time range must be valid and its start must precede its end",
         path: ["timeRange"],
+      });
+    }
+    if (
+      spec.duration !== undefined &&
+      timeRangeFromDuration(spec.duration) === undefined
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Duration must define a positive time range",
+        path: ["duration"],
       });
     }
     for (const [key, p] of Object.entries(spec.panels)) {

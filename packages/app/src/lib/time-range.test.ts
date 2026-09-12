@@ -5,6 +5,7 @@ import {
   isValidTimeRange,
   resolveTimeRange,
   TimeRangeSchema,
+  timeRangeFromDuration,
   withTimeRange,
 } from "@everr/ui/lib/time-range";
 import { describe, expect, it } from "vitest";
@@ -154,6 +155,22 @@ describe("isValidTimeRange", () => {
   it("rejects invalid and reversed ranges", () => {
     expect(isValidTimeRange({ from: "banana", to: "now" }, now)).toBe(false);
     expect(isValidTimeRange({ from: "now", to: "now-6h" }, now)).toBe(false);
+  });
+});
+
+describe("timeRangeFromDuration", () => {
+  const now = new Date("2026-09-12T12:00:00.000Z");
+
+  it("converts a positive duration to a valid range", () => {
+    expect(timeRangeFromDuration("6h", now)).toEqual({
+      from: "now-6h",
+      to: "now",
+    });
+  });
+
+  it("rejects invalid and zero-length durations", () => {
+    expect(timeRangeFromDuration("banana", now)).toBeUndefined();
+    expect(timeRangeFromDuration("0h", now)).toBeUndefined();
   });
 });
 

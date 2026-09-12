@@ -1,3 +1,4 @@
+import { timeRangeFromDuration } from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import {
   collectPanelStrictIssues,
@@ -106,6 +107,16 @@ export const runbookSpecSchema = z
  */
 export const runbookSpecSchemaStrict = runbookSpecSchema.superRefine(
   (spec, ctx) => {
+    if (
+      spec.duration !== undefined &&
+      timeRangeFromDuration(spec.duration) === undefined
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Duration must define a positive time range",
+        path: ["duration"],
+      });
+    }
     for (const [key, p] of Object.entries(spec.panels ?? {})) {
       for (const issue of collectPanelStrictIssues(p)) {
         ctx.addIssue({

@@ -1,25 +1,17 @@
-import { isValid } from "@everr/datemath";
-import { isValidTimeRange } from "@everr/ui/lib/time-range";
+import {
+  isValidTimeRange,
+  type TimeRange,
+  timeRangeFromDuration,
+} from "@everr/ui/lib/time-range";
 import type {
   Dashboard,
   DashboardResource,
   DashboardResourceSpec,
-  DashboardSpec,
 } from "./schema";
-
-type DashboardTimeRange = NonNullable<DashboardSpec["timeRange"]>;
-
-export function timeRangeFromDuration(
-  duration: string | undefined,
-): DashboardTimeRange | undefined {
-  return duration && isValid(`now-${duration}`)
-    ? { from: `now-${duration}`, to: "now" }
-    : undefined;
-}
 
 function dashboardTimeRange(
   spec: Pick<DashboardResourceSpec, "duration" | "timeRange">,
-): DashboardTimeRange | undefined {
+): TimeRange | undefined {
   if (spec.timeRange && isValidTimeRange(spec.timeRange)) {
     return spec.timeRange;
   }

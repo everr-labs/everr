@@ -64,6 +64,13 @@ describe("dashboardFromResource", () => {
     expect(dashboard.spec).not.toHaveProperty("duration");
   });
 
+  it("drops a zero-length Perses duration", () => {
+    const dashboard = dashboardFromResource(resource({ duration: "0h" }));
+
+    expect(dashboard.spec).not.toHaveProperty("timeRange");
+    expect(dashboard.spec).not.toHaveProperty("duration");
+  });
+
   it("prefers an explicit Everr time range over a Perses duration", () => {
     const dashboard = dashboardFromResource(
       resource({

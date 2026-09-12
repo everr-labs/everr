@@ -107,6 +107,15 @@ describe("runbookSpecSchema", () => {
 });
 
 describe("runbookSpecSchemaStrict", () => {
+  it("rejects a zero-length duration", () => {
+    const r = runbookSpecSchemaStrict.safeParse({
+      markdown: md,
+      duration: "0h",
+    });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.path).toEqual(["duration"]);
+  });
+
   it("rejects a bad query plugin spec with path through collectPanelStrictIssues", () => {
     const r = runbookSpecSchemaStrict.safeParse({
       markdown: md,

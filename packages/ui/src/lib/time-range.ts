@@ -62,3 +62,12 @@ export function isValidTimeRange(range: TimeRange, now = new Date()): boolean {
     return false;
   }
 }
+
+export function timeRangeFromDuration(
+  duration: string | undefined,
+  now = new Date(),
+): TimeRange | undefined {
+  if (!duration) return undefined;
+  const range = { from: `now-${duration}`, to: "now" };
+  return isValidTimeRange(range, now) ? range : undefined;
+}

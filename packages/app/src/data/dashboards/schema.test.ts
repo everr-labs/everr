@@ -107,6 +107,15 @@ describe("dashboardSpecSchema time range", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("rejects a zero-length legacy duration on the strict write path", () => {
+    const result = dashboardSpecSchemaStrict.safeParse({
+      ...spec("#/spec/panels/cpu"),
+      duration: "0h",
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["duration"]);
+  });
 });
 
 describe("dashboardSpecSchemaStrict plugin specs", () => {

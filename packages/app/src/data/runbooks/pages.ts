@@ -1,4 +1,4 @@
-import { timeRangeFromDuration } from "@/data/dashboards/normalize";
+import { timeRangeFromDuration } from "@everr/ui/lib/time-range";
 import type { Dashboard } from "@/data/dashboards/schema";
 import type { Runbook, RunbookPage, RunbookSpec } from "./schema";
 
