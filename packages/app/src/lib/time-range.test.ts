@@ -2,6 +2,7 @@ import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
 import { formatTimeRangeDisplay } from "@everr/ui/components/time-range-picker";
 import {
   DEFAULT_TIME_RANGE,
+  isValidTimeRange,
   resolveTimeRange,
   TimeRangeSchema,
   withTimeRange,
@@ -133,6 +134,26 @@ describe("resolveTimeRange", () => {
     expect(result.fromDate < result.toDate).toBe(true);
     expect(result.fromISO).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
     expect(result.toISO).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
+  });
+
+  it("uses one reference time for both bounds", () => {
+    const now = new Date("2026-09-12T12:00:00.000Z");
+    const result = resolveTimeRange({ from: "now-1h", to: "now" }, now);
+    expect(result.fromDate.toISOString()).toBe("2026-09-12T11:00:00.000Z");
+    expect(result.toDate.toISOString()).toBe("2026-09-12T12:00:00.000Z");
+  });
+});
+
+describe("isValidTimeRange", () => {
+  const now = new Date("2026-09-12T12:00:00.000Z");
+
+  it("accepts a chronological range", () => {
+    expect(isValidTimeRange({ from: "now-6h", to: "now" }, now)).toBe(true);
+  });
+
+  it("rejects invalid and reversed ranges", () => {
+    expect(isValidTimeRange({ from: "banana", to: "now" }, now)).toBe(false);
+    expect(isValidTimeRange({ from: "now", to: "now-6h" }, now)).toBe(false);
   });
 });
 

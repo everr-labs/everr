@@ -90,6 +90,23 @@ describe("dashboardSpecSchema time range", () => {
     });
     expect(result.timeRange).toEqual({ from: "now/M", to: "now" });
   });
+
+  it("rejects reversed ranges on the strict write path", () => {
+    const result = dashboardSpecSchemaStrict.safeParse({
+      ...spec("#/spec/panels/cpu"),
+      timeRange: { from: "now", to: "now-6h" },
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["timeRange"]);
+  });
+
+  it("keeps the read path lenient for stored reversed ranges", () => {
+    const result = dashboardSpecSchema.safeParse({
+      ...spec("#/spec/panels/cpu"),
+      timeRange: { from: "now", to: "now-6h" },
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("dashboardSpecSchemaStrict plugin specs", () => {

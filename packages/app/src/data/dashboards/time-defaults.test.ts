@@ -16,6 +16,12 @@ describe("dashboardTimeDefaults", () => {
     ).toBeUndefined();
   });
 
+  it("ignores a reversed time range", () => {
+    expect(
+      dashboardTimeDefaults({ timeRange: { from: "now", to: "now-6h" } }),
+    ).toBeUndefined();
+  });
+
   it("derives refresh from a supported refreshInterval", () => {
     expect(dashboardTimeDefaults({ refreshInterval: "30s" })).toEqual({
       refresh: "30s",
@@ -73,6 +79,17 @@ describe("dashboardFromResource", () => {
     const dashboard = dashboardFromResource(
       resource({
         timeRange: { from: "banana", to: "now" },
+        duration: "7d",
+      }),
+    );
+
+    expect(dashboard.spec.timeRange).toEqual({ from: "now-7d", to: "now" });
+  });
+
+  it("falls back to duration when the explicit range is reversed", () => {
+    const dashboard = dashboardFromResource(
+      resource({
+        timeRange: { from: "now", to: "now-6h" },
         duration: "7d",
       }),
     );

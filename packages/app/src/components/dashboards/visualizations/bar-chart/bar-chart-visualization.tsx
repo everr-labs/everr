@@ -17,6 +17,7 @@ import {
   YAxis,
 } from "recharts";
 import type { VisualizationProps } from "../index";
+import { MIN_VALUE_AXIS_WIDTH, valueAxisWidth } from "../value-axis";
 import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
@@ -259,11 +260,8 @@ export function BarChartVisualization({
               horizontal
                 ? 90
                 : spec.valueFormat && stacking !== "percent"
-                  ? Math.max(
-                      60,
-                      formatAxisValue(-axisMagnitude).length * 7 + 16,
-                    )
-                  : 60
+                  ? valueAxisWidth([-axisMagnitude], formatAxisValue)
+                  : MIN_VALUE_AXIS_WIDTH
             }
             tickLine={false}
             axisLine={false}

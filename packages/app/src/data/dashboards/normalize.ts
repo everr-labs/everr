@@ -1,4 +1,5 @@
 import { isValid } from "@everr/datemath";
+import { isValidTimeRange } from "@everr/ui/lib/time-range";
 import type {
   Dashboard,
   DashboardResource,
@@ -19,11 +20,7 @@ export function timeRangeFromDuration(
 function dashboardTimeRange(
   spec: Pick<DashboardResourceSpec, "duration" | "timeRange">,
 ): DashboardTimeRange | undefined {
-  if (
-    spec.timeRange &&
-    isValid(spec.timeRange.from) &&
-    isValid(spec.timeRange.to)
-  ) {
+  if (spec.timeRange && isValidTimeRange(spec.timeRange)) {
     return spec.timeRange;
   }
   return timeRangeFromDuration(spec.duration);

@@ -30,6 +30,7 @@ import {
   SERIES_COLORS,
 } from "../data-utils";
 import type { VisualizationProps } from "../index";
+import { MIN_VALUE_AXIS_WIDTH, valueAxisWidth } from "../value-axis";
 import { createValueFormatter } from "../value-format";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
@@ -279,13 +280,8 @@ export function TimeSeriesChartVisualization({
           <YAxis
             width={
               spec.valueFormat
-                ? Math.max(
-                    60,
-                    ...yAxis.ticks.map(
-                      (tick) => formatAxisValue(tick).length * 7 + 16,
-                    ),
-                  )
-                : 60
+                ? valueAxisWidth(yAxis.ticks, formatAxisValue)
+                : MIN_VALUE_AXIS_WIDTH
             }
             tickLine={false}
             axisLine={false}

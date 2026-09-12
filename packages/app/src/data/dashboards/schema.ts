@@ -1,3 +1,4 @@
+import { isValidTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import { panelPluginSpecs, queryPluginSpecs } from "./plugin-specs";
 
@@ -239,6 +240,13 @@ export function collectPanelStrictIssues(
  */
 export const dashboardSpecSchemaStrict = dashboardSpecSchema.superRefine(
   (spec, ctx) => {
+    if (spec.timeRange && !isValidTimeRange(spec.timeRange)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Time range must be valid and its start must precede its end",
+        path: ["timeRange"],
+      });
+    }
     for (const [key, p] of Object.entries(spec.panels)) {
       for (const issue of collectPanelStrictIssues(p)) {
         ctx.addIssue({

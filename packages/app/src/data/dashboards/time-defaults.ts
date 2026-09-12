@@ -1,5 +1,5 @@
-import { isValid } from "@everr/datemath";
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
+import { isValidTimeRange } from "@everr/ui/lib/time-range";
 import type { RouteTimeDefaults } from "@/lib/time-range";
 import type { DashboardSpec } from "./schema";
 
@@ -15,11 +15,7 @@ export function dashboardTimeDefaults(
 ): RouteTimeDefaults | undefined {
   const defaults: RouteTimeDefaults = {};
 
-  if (
-    spec.timeRange &&
-    isValid(spec.timeRange.from) &&
-    isValid(spec.timeRange.to)
-  ) {
+  if (spec.timeRange && isValidTimeRange(spec.timeRange)) {
     defaults.from = spec.timeRange.from;
     defaults.to = spec.timeRange.to;
   }

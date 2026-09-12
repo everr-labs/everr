@@ -43,13 +43,22 @@ export function withTimeRange<T extends { from?: string; to?: string }>(
   return { ...search, from, to, timeRange: { from, to } };
 }
 
-export function resolveTimeRange(range: TimeRange) {
-  const fromDate = resolve(range.from, { roundUp: false });
-  const toDate = resolve(range.to, { roundUp: true });
+export function resolveTimeRange(range: TimeRange, now = new Date()) {
+  const fromDate = resolve(range.from, { now, roundUp: false });
+  const toDate = resolve(range.to, { now, roundUp: true });
   return {
     fromDate,
     toDate,
     fromISO: toClickHouseDateTime(fromDate),
     toISO: toClickHouseDateTime(toDate),
   };
+}
+
+export function isValidTimeRange(range: TimeRange, now = new Date()): boolean {
+  try {
+    const { fromDate, toDate } = resolveTimeRange(range, now);
+    return fromDate < toDate;
+  } catch {
+    return false;
+  }
 }

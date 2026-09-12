@@ -20,7 +20,7 @@ plugin:
   spec: { nameColumn: route, valueColumn: requests, groupColumn: service, valueFormat: { unit: '{request}' } }
 ```
 
-The table lists the supported options. There is **no** nesting depth, drill-down, color-by-value ramp, per-tile color column, aggregation option (duplicates always sum — pre-aggregate in SQL for anything else), or sort option. To cap tile count, prefer `maxTiles` (folds the tail into an "Other" tile, preserving the total) over SQL `LIMIT` (silently drops the tail).
+The table lists the supported options. There is **no** nesting depth, drill-down, color-by-value ramp, per-tile color column, aggregation option (duplicates always sum, so pre-aggregate in SQL for anything else), or sort option. To cap tile count, prefer `maxTiles` (folds the tail into an "Other" tile, preserving the total) over SQL `LIMIT` (silently drops the tail).
 
 ## Data shape
 
