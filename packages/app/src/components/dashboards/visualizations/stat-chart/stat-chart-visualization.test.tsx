@@ -20,7 +20,7 @@ describe("StatChartVisualization", () => {
       />,
     );
     expect(screen.getByText("75")).toHaveStyle({ color: "rgb(0, 128, 0)" });
-    expect(screen.getByText("%")).toBeInTheDocument();
+    expect(screen.getByText("%")).not.toHaveClass("ml-1");
   });
   it("formats seconds while thresholds still compare the raw value", () => {
     render(
@@ -38,7 +38,7 @@ describe("StatChartVisualization", () => {
       />,
     );
     expect(screen.getByText("25")).toHaveStyle({ color: "rgb(0, 128, 0)" });
-    expect(screen.getByText("ms")).toBeInTheDocument();
+    expect(screen.getByText("ms")).toHaveClass("ml-1");
   });
   it("renders semantic byte units without decimal magnitude abbreviations", () => {
     render(

@@ -116,7 +116,7 @@ export function StatChartVisualization({
                   <span
                     className={cn(
                       unitSize,
-                      "ml-1",
+                      formatted.separator && "ml-1",
                       background ? "text-white/70" : "text-muted-foreground",
                     )}
                   >

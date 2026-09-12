@@ -16,7 +16,10 @@ const DECIMAL_DURATION_STEPS = DURATION_STEPS.filter(([factor]) => factor <= 1);
 interface FormattedValueParts {
   value: string;
   unit: string;
+  separator: "" | " ";
 }
+
+type RawFormattedValueParts = Omit<FormattedValueParts, "separator">;
 
 /** Present common OTel/UCUM codes without treating unknown units as aliases. */
 function unitLabel(unit: string): string {
@@ -55,11 +58,11 @@ export function createValueFormatter(
   const axisNumbers = numberFormatter(decimals, false);
   const separator = label === "%" ? "" : " ";
 
-  function parts(
+  function rawParts(
     value: number,
     reference = value,
     axis = false,
-  ): FormattedValueParts {
+  ): RawFormattedValueParts {
     const formatter = axis ? axisNumbers : numbers;
     if (percent) return { value: formatter.format(value * 100), unit: label };
     if (!Number.isFinite(value))
@@ -111,9 +114,21 @@ export function createValueFormatter(
     return { value: formatter.format(value), unit: label };
   }
 
+  function parts(
+    value: number,
+    reference = value,
+    axis = false,
+  ): FormattedValueParts {
+    const formatted = rawParts(value, reference, axis);
+    return {
+      ...formatted,
+      separator: formatted.unit ? separator : "",
+    };
+  }
+
   function join(formatted: FormattedValueParts) {
     return formatted.unit
-      ? formatted.value + separator + formatted.unit
+      ? formatted.value + formatted.separator + formatted.unit
       : formatted.value;
   }
 

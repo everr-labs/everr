@@ -29,6 +29,7 @@ describe("value formatting", () => {
     expect(formatter("Hz", "decimal", 2).parts(3.2e9)).toEqual({
       value: "3.20",
       unit: "GHz",
+      separator: " ",
     });
     expect(formatter("GHz", "none").format(3.2)).toBe("3.2 GHz");
     expect(formatter("widgets", "decimal").format(1500)).toBe("1.5k widgets");
@@ -56,7 +57,11 @@ describe("value formatting", () => {
     const result = createValueFormatter(
       valueFormatSpec.parse({ unit: "1", display: "percent", decimals: 2 }),
     );
-    expect(result.parts(0.75)).toEqual({ value: "75.00", unit: "%" });
+    expect(result.parts(0.75)).toEqual({
+      value: "75.00",
+      unit: "%",
+      separator: "",
+    });
     expect(formatter("1", "none").format(0.75)).toBe("0.75");
     expect(formatter("%", "none").format(0.75)).toBe("0.75%");
     expect(
@@ -156,6 +161,7 @@ describe("value formatting", () => {
     expect(formatter("Cel", "none").parts(21)).toEqual({
       value: "21",
       unit: "°C",
+      separator: " ",
     });
     expect(formatter("By", "binary").format(NaN)).toBe("NaN B");
     expect(formatter("1", "none").format(Infinity)).toBe("∞");
@@ -190,6 +196,7 @@ describe("value formatting", () => {
     expect(formatter("By", "binary").parts(5 * 1024 ** 3)).toEqual({
       value: "5",
       unit: "GiB",
+      separator: " ",
     });
   });
 

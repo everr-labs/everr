@@ -50,6 +50,7 @@ interface TileProps {
   value: number | undefined;
   valueText: string;
   unit: string;
+  unitSeparator: "" | " ";
   fraction: number;
   ticks: Tick[];
   showAxis: boolean;
@@ -152,6 +153,7 @@ export function GaugeChartVisualization({
           value,
           valueText,
           unit: formatted?.unit ?? "",
+          unitSeparator: formatted?.separator ?? "",
           fraction,
           ticks,
           showAxis,
@@ -194,6 +196,7 @@ function GaugeBar({
   value,
   valueText,
   unit,
+  unitSeparator,
   fraction,
   ticks,
   showAxis,
@@ -218,7 +221,14 @@ function GaugeBar({
           {valueText}
         </span>
         {value !== undefined && unit && (
-          <span className="ml-1 text-xs text-muted-foreground">{unit}</span>
+          <span
+            className={cn(
+              "text-xs text-muted-foreground",
+              unitSeparator && "ml-1",
+            )}
+          >
+            {unit}
+          </span>
         )}
       </p>
       <div className="relative pt-2">
@@ -282,6 +292,7 @@ function GaugeArc({
   value,
   valueText,
   unit,
+  unitSeparator,
   fraction,
   ticks,
   showAxis,
@@ -293,7 +304,11 @@ function GaugeArc({
 }: TileProps & { ariaLabel: string; color: string }) {
   const valueScale = Math.min(
     1,
-    88 / Math.max(1, valueText.length * 7.8 + unit.length * 4.2 + 1.5),
+    88 /
+      Math.max(
+        1,
+        valueText.length * 7.8 + unit.length * 4.2 + (unitSeparator ? 1.5 : 0),
+      ),
   );
   return (
     <div className="flex min-w-28 flex-1 flex-col items-center">
@@ -370,7 +385,7 @@ function GaugeArc({
             {valueText}
             {value !== undefined && unit && (
               <tspan
-                dx={1.5}
+                dx={unitSeparator ? 1.5 : undefined}
                 fontSize={7 * valueScale}
                 className="fill-muted-foreground font-normal"
               >
