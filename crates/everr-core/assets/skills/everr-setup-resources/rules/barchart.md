@@ -26,7 +26,7 @@ plugin:
       unit: '{request}'
 ```
 
-The table lists the supported options. There is **no** `yAxis` / `min` / `max`, `barWidth`, `legend` object, `thresholds`, or `decimals`. A series that `colors` does not name takes its color from a fixed 6-color palette assigned by order (wrapping after 6).
+The table lists the supported top-level options. There is **no** `yAxis` / `min` / `max`, `barWidth`, `legend` object, `thresholds`, or top-level `decimals`. Set precision with `valueFormat.decimals`. A series that `colors` does not name takes its color from a fixed 6-color palette assigned by order (wrapping after 6).
 
 ## Data shape
 

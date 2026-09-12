@@ -146,7 +146,7 @@ For `allowAllValue`, "All" expands to every loaded option as a quoted list; set 
 | PromQL / `rate()` / `$__rate_interval` / `PrometheusTimeSeriesQuery` | Queries are **ClickHouse SQL**; the only query plugin is `ClickHouseSQL`. |
 | No `{from:String}`/`{to:String}` in the `WHERE` | Add `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` — it is not auto-injected. |
 | Time-series x-axis blank | Alias the time column to `ts`/`time`/`timestamp` so it's detected. |
-| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max) | Only the options in each viz's rule file exist. Format/round in SQL, not via spec. |
+| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max) | Only the options in each viz's rule file exist. Use `valueFormat` for supported numeric presentation. Shape values in SQL when no supported spec option applies. |
 | `PrometheusLabelValuesVariable` or other variable plugins | Only `StaticListVariable` and `ClickHouseSQLVariable`. |
 | Single `ClickHouseSQL` in the query block | Both the query `kind` and the inner `plugin.kind` are `ClickHouseSQL`. |
 | `Duration` treated as ms/seconds | It's **nanoseconds** — divide by `1e6` (ms) or `1e9` (s). |

@@ -19,7 +19,7 @@ plugin:
   spec: { valueFormat: { unit: ms, scale: duration }, showLegend: true, lineWidth: 1.5, curveType: monotone, connectNulls: false, stacked: false }
 ```
 
-The table lists the supported options. There is **no** `yAxis` / `min` / `max`, `legend` object, separate area / fill option, `thresholds`, `decimals`, `pointRadius`, or per-series color. Series colors come from a fixed 6-color palette assigned by order (wrapping after 6) and are not configurable.
+The table lists the supported top-level options. There is **no** `yAxis` / `min` / `max`, `legend` object, separate area / fill option, `thresholds`, top-level `decimals`, `pointRadius`, or per-series color. Set precision with `valueFormat.decimals`. Series colors come from a fixed 6-color palette assigned by order (wrapping after 6) and are not configurable.
 
 ## Data shape
 
