@@ -1,5 +1,17 @@
 # @everr/desktop-app
 
+## 0.8.0
+
+### Minor Changes
+
+- 225d265: Update the bundled CLI skills for the current telemetry and resource formats. Trace and log query guidance now uses JSON attributes, while metric queries retain Map access. Dashboard and runbook guidance covers unified `valueFormat` options, OpenTelemetry units, numeric scaling, table column formatting, and shared time-range defaults.
+
+### Patch Changes
+
+- 1238863: Refresh the CLI help text and command reference to match the current telemetry, CI, Skills, and resources-as-code command surface.
+- Updated dependencies [bbbf091]
+  - @everr/otel-web@0.3.0
+
 ## 0.7.0
 
 ### Minor Changes
