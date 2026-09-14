@@ -10,7 +10,7 @@ Polar owns price revisions and keeps each existing subscription on its agreed pr
 
 Existing Organizations are outside the migration and remediation scope of this change. Suspension enforcement in APIs, MCP, and ingestion is also outside scope; this iteration provides the application recovery experience.
 
-The Organization stores `plan` and its canonical `ownerId` directly. A partial unique index on `ownerId` for Hobby Organizations enforces the one-Hobby-per-Owner rule. Subscription lifecycle data remains separate because it represents the billing provider state rather than the Organization's commercial Plan.
+The Organization stores `plan` directly. Ownership remains represented by the Membership role, avoiding a second source of truth that could diverge when roles change. The one-Hobby-per-Owner rule is an application-level constraint serialized with a PostgreSQL advisory lock; this trade-off is accepted at this stage of the project. Subscription lifecycle data remains separate because it represents the billing provider state rather than the Organization's commercial Plan.
 
 ## Recovery and downgrade
 

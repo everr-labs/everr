@@ -32,11 +32,11 @@ A User who belongs to an Organization through a current Membership. Access is de
 _Avoid_: collaborator, Membership
 
 **Owner**:
-The User referenced by an Organization's `ownerId`, and the Membership role with full control of that Organization. A Pro Organization can grant the Owner role to additional Members, but `ownerId` remains its canonical owner. Downgrade can transfer this canonical ownership to the Owner performing the operation.
+The Membership role with full control of an Organization. A Pro Organization can have multiple Owners. A Hobby Organization has one Member, who is its Owner.
 _Avoid_: creator, administrator
 
 **Plan**:
-The Organization's `plan`, Hobby or Pro, which determines its available capabilities. It is stored directly on the Organization together with `ownerId`.
+The Organization's `plan`, Hobby or Pro, which determines its available capabilities. It is stored directly on the Organization.
 _Avoid_: Tier, User plan, subscription status
 
 **Polar Product**:

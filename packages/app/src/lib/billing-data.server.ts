@@ -103,12 +103,8 @@ export async function readOrgEntitlement(
 export async function setOrganizationPlan(
   orgId: string,
   plan: OrganizationPlan,
-  ownerId?: string,
 ) {
-  await db
-    .update(organization)
-    .set({ plan, ...(ownerId === undefined ? {} : { ownerId }) })
-    .where(eq(organization.id, orgId));
+  await db.update(organization).set({ plan }).where(eq(organization.id, orgId));
 }
 
 export async function userOwnsHobbyOrganization(
@@ -116,18 +112,20 @@ export async function userOwnsHobbyOrganization(
   excludingOrgId?: string,
 ) {
   try {
-    const explicitOwnership = await db
-      .select({ orgId: organization.id })
-      .from(organization)
+    const memberships = await db
+      .select({ role: member.role })
+      .from(member)
+      .innerJoin(organization, eq(organization.id, member.organizationId))
       .where(
         and(
-          eq(organization.ownerId, userId),
+          eq(member.userId, userId),
           eq(organization.plan, "hobby"),
-          excludingOrgId ? ne(organization.id, excludingOrgId) : undefined,
+          excludingOrgId
+            ? ne(member.organizationId, excludingOrgId)
+            : undefined,
         ),
-      )
-      .limit(1);
-    return explicitOwnership.length > 0;
+      );
+    return memberships.some(({ role }) => hasRole(role, "owner"));
   } catch (error) {
     if (!isUnavailablePlanStorage(error)) throw error;
   }
@@ -158,9 +156,9 @@ export async function userOwnsHobbyOrganization(
 
 export async function lockHobbyOrganizationOwnership(
   tx: Transaction,
-  ownerId: string,
+  userId: string,
 ) {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${ownerId}))`);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
 }
 
 type SubscriptionUpsert = {

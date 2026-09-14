@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -91,19 +91,11 @@ export const organization = pgTable(
     logo: text("logo"),
     createdAt: timestamp("created_at").notNull(),
     metadata: text("metadata"),
-    ownerId: text("owner_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "restrict" }),
     plan: text("plan", { enum: ["hobby", "pro"] })
       .default("hobby")
       .notNull(),
   },
-  (table) => [
-    uniqueIndex("organization_slug_uidx").on(table.slug),
-    uniqueIndex("organization_hobby_owner_uidx")
-      .on(table.ownerId)
-      .where(sql`${table.plan} = 'hobby'`),
-  ],
+  (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
 );
 
 export const member = pgTable(
@@ -201,9 +193,6 @@ export const userRelations = relations(user, ({ many }) => ({
   accounts: many(account),
   members: many(member),
   invitations: many(invitation),
-  ownedOrganizations: many(organization, {
-    relationName: "organizationOwner",
-  }),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -220,18 +209,10 @@ export const accountRelations = relations(account, ({ one }) => ({
   }),
 }));
 
-export const organizationRelations = relations(
-  organization,
-  ({ many, one }) => ({
-    owner: one(user, {
-      fields: [organization.ownerId],
-      references: [user.id],
-      relationName: "organizationOwner",
-    }),
-    members: many(member),
-    invitations: many(invitation),
-  }),
-);
+export const organizationRelations = relations(organization, ({ many }) => ({
+  members: many(member),
+  invitations: many(invitation),
+}));
 
 export const memberRelations = relations(member, ({ one }) => ({
   organization: one(organization, {

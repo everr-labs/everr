@@ -58,6 +58,7 @@ import {
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
+import { isOrganizationOwner } from "@/lib/organization-role";
 import {
   getPolarCustomerForOrg,
   linkPolarCustomerToOrg,
@@ -89,7 +90,7 @@ type ProOrganizationSubscription = Omit<
 type FinalizedProOrganization = {
   id: string;
   name: string;
-  ownerId: string;
+  ownerRole: string | null;
   plan: "hobby" | "pro";
 };
 
@@ -100,21 +101,25 @@ async function findCheckoutOrganization(
     .select({
       id: organization.id,
       name: organization.name,
-      ownerId: organization.ownerId,
+      ownerRole: member.role,
       plan: organization.plan,
     })
     .from(organization)
+    .leftJoin(
+      member,
+      and(
+        eq(member.organizationId, organization.id),
+        eq(member.userId, metadata.everrOwnerId),
+      ),
+    )
     .where(eq(organization.slug, metadata.everrOrganizationSlug))
     .limit(1);
   return existing;
 }
 
-function assertCheckoutOrganization(
-  organization: FinalizedProOrganization,
-  metadata: ProOrganizationCheckoutMetadata,
-) {
+function assertCheckoutOrganization(organization: FinalizedProOrganization) {
   if (
-    organization.ownerId !== metadata.everrOwnerId ||
+    !isOrganizationOwner(organization.ownerRole) ||
     organization.plan !== "pro"
   ) {
     throw new Error("The checkout Organization does not match its metadata");
@@ -146,7 +151,7 @@ export async function finalizeProOrganizationCheckout(input: {
       createdOrganization = {
         id: created.id,
         name: created.name,
-        ownerId: input.metadata.everrOwnerId,
+        ownerRole: "owner",
         plan: "pro",
       };
     } catch (error) {
@@ -156,7 +161,7 @@ export async function finalizeProOrganizationCheckout(input: {
       if (!createdOrganization) throw error;
     }
   }
-  assertCheckoutOrganization(createdOrganization, input.metadata);
+  assertCheckoutOrganization(createdOrganization);
 
   try {
     await linkPolarCustomerToOrg({
@@ -504,16 +509,6 @@ export const auth = betterAuth({
       schema: {
         organization: {
           additionalFields: {
-            ownerId: {
-              type: "string",
-              required: true,
-              input: false,
-              references: {
-                model: "user",
-                field: "id",
-                onDelete: "restrict",
-              },
-            },
             plan: {
               type: ["hobby", "pro"],
               required: true,
@@ -538,13 +533,10 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
-        beforeCreateOrganization: async ({ organization, user }) => ({
-          data: { ...organization, ownerId: user.id },
-        }),
         beforeUpdateOrganization: async ({ organization }) => {
-          if ("plan" in organization || "ownerId" in organization) {
+          if ("plan" in organization) {
             throw new APIError("FORBIDDEN", {
-              message: "Organization plan and owner cannot be changed here.",
+              message: "Organization plan cannot be changed here.",
             });
           }
         },

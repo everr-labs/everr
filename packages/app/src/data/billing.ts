@@ -248,9 +248,8 @@ export const downgradeSuspendedOrganization = createServerFn({ method: "POST" })
       );
     }
     const result = await db.transaction(async (tx) => {
-      // The partial unique index is the final invariant, but checking it before
-      // revoking in Polar prevents a concurrent downgrade by this Owner from
-      // canceling a subscription that cannot be converted to Hobby.
+      // Serialize the application-level one-Hobby-per-Owner check before
+      // revoking a subscription that may not be convertible to Hobby.
       await lockHobbyOrganizationOwnership(tx, session.user.id);
       if (await userOwnsHobbyOrganization(session.user.id, orgId)) {
         throw new HobbyDowngradeUnavailableError(
@@ -281,7 +280,7 @@ export const downgradeSuspendedOrganization = createServerFn({ method: "POST" })
         .returning({ id: invitation.id });
       await tx
         .update(organization)
-        .set({ plan: "hobby", ownerId: session.user.id })
+        .set({ plan: "hobby" })
         .where(eq(organization.id, orgId));
       return {
         removedMembers: removedMembers.length,
