@@ -54,7 +54,6 @@
     "lucide-react": "catalog:",
     "mcp-handler": "^1.1.0",
     "mdast-util-from-markdown": "^2.0.3",
-    "motion": "catalog:",
     "nodemailer": "^8.0.7",
     "pg": "^8.20.0",
     "quick-lru": "^7.3.0",
