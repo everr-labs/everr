@@ -1,5 +1,5 @@
 {
-  "id": "296c598f-f1bf-4303-a066-5ba9c99caecd",
+  "id": "ad2f230e-6ddf-40c5-a41d-0c147926d54a",
   "prevId": "afff6cea-751e-411b-8a95-a2427c187bfe",
   "version": "7",
   "dialect": "postgresql",
@@ -3376,12 +3376,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "owner_id": {
-          "name": "owner_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "plan": {
           "name": "plan",
           "type": "text",
@@ -3405,39 +3399,9 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "organization_hobby_owner_uidx": {
-          "name": "organization_hobby_owner_uidx",
-          "columns": [
-            {
-              "expression": "owner_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"organization\".\"plan\" = 'hobby'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
-      "foreignKeys": {
-        "organization_owner_id_user_id_fk": {
-          "name": "organization_owner_id_user_id_fk",
-          "tableFrom": "organization",
-          "tableTo": "user",
-          "columnsFrom": [
-            "owner_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "organization_slug_unique": {
