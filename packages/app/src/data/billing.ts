@@ -13,6 +13,7 @@ import {
   polarProductIdForPlan,
 } from "@/lib/billing-catalog.server";
 import {
+  lockHobbyOrganizationOwnership,
   readOrgEntitlement,
   setOrganizationPlan,
   upsertOrgSubscription,
@@ -246,15 +247,19 @@ export const downgradeSuspendedOrganization = createServerFn({ method: "POST" })
         "Only a suspended Pro organization can be downgraded.",
       );
     }
-    if (await userOwnsHobbyOrganization(session.user.id, orgId)) {
-      throw new HobbyDowngradeUnavailableError(
-        "You already own a Hobby organization.",
-      );
-    }
-
-    await revokeOrgSubscriptionForDowngrade(orgId);
-
     const result = await db.transaction(async (tx) => {
+      // The partial unique index is the final invariant, but checking it before
+      // revoking in Polar prevents a concurrent downgrade by this Owner from
+      // canceling a subscription that cannot be converted to Hobby.
+      await lockHobbyOrganizationOwnership(tx, session.user.id);
+      if (await userOwnsHobbyOrganization(session.user.id, orgId)) {
+        throw new HobbyDowngradeUnavailableError(
+          "You already own a Hobby organization.",
+        );
+      }
+
+      await revokeOrgSubscriptionForDowngrade(orgId);
+
       const removedMembers = await tx
         .delete(member)
         .where(

@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   createAuthOrganization: vi.fn(),
   userOwnsHobbyOrganization: vi.fn(),
+  lockHobbyOrganizationOwnership: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock("@/env", () => ({
@@ -36,7 +38,12 @@ vi.mock("@/lib/auth.server", () => ({
 }));
 
 vi.mock("@/lib/billing-data.server", () => ({
+  lockHobbyOrganizationOwnership: mocks.lockHobbyOrganizationOwnership,
   userOwnsHobbyOrganization: mocks.userOwnsHobbyOrganization,
+}));
+
+vi.mock("@/db/client", () => ({
+  db: { transaction: mocks.transaction },
 }));
 
 vi.mock("@/lib/polar.server", () => ({
@@ -66,6 +73,8 @@ beforeEach(() => {
     session: { id: "test_session", activeOrganizationId: "test_org" },
   });
   mocks.userOwnsHobbyOrganization.mockResolvedValue(false);
+  mocks.transaction.mockImplementation(async (fn) => fn({}));
+  mocks.lockHobbyOrganizationOwnership.mockResolvedValue(undefined);
   mocks.assertEmailAvailable.mockResolvedValue(undefined);
   mocks.createCustomer.mockResolvedValue({ id: "polar_customer" });
   mocks.deleteCustomer.mockResolvedValue(undefined);
@@ -189,6 +198,10 @@ describe("createOrganization", () => {
         plan: "hobby",
       },
     });
+    expect(mocks.lockHobbyOrganizationOwnership).toHaveBeenCalledWith(
+      expect.anything(),
+      "test_user",
+    );
   });
 
   it("rejects a second owned Hobby organization", async () => {

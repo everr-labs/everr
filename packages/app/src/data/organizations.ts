@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
+import { db } from "@/db/client";
 import { env } from "@/env";
 import { auth, finalizeProOrganizationCheckout } from "@/lib/auth.server";
 import { generateOrgSlug } from "@/lib/auto-org";
@@ -7,7 +8,10 @@ import {
   assertPolarProductGrantsPlan,
   polarProductIdForPlan,
 } from "@/lib/billing-catalog.server";
-import { userOwnsHobbyOrganization } from "@/lib/billing-data.server";
+import {
+  lockHobbyOrganizationOwnership,
+  userOwnsHobbyOrganization,
+} from "@/lib/billing-data.server";
 import {
   assertPolarBillingEmailAvailable,
   createPolarCustomer,
@@ -58,28 +62,31 @@ export const createOrganization = createPartiallyAuthenticatedServerFn({
   .inputValidator(CreateOrganizationInputSchema)
   .handler(async ({ data, context: { session } }) => {
     if (data.plan === "hobby") {
-      if (await userOwnsHobbyOrganization(session.user.id)) {
-        throw new HobbyOrganizationLimitError();
-      }
+      return db.transaction(async (tx) => {
+        await lockHobbyOrganizationOwnership(tx, session.user.id);
+        if (await userOwnsHobbyOrganization(session.user.id)) {
+          throw new HobbyOrganizationLimitError();
+        }
 
-      const organization = await auth.api.createOrganization({
-        body: {
-          name: data.organizationName,
-          slug: generateOrgSlug(),
-          userId: session.user.id,
-          plan: "hobby",
-        },
+        const organization = await auth.api.createOrganization({
+          body: {
+            name: data.organizationName,
+            slug: generateOrgSlug(),
+            userId: session.user.id,
+            plan: "hobby",
+          },
+        });
+        if (!organization) {
+          throw new OrganizationCreationError(
+            "The organization could not be created.",
+          );
+        }
+
+        return {
+          kind: "created" as const,
+          organization: { id: organization.id, name: organization.name },
+        };
       });
-      if (!organization) {
-        throw new OrganizationCreationError(
-          "The organization could not be created.",
-        );
-      }
-
-      return {
-        kind: "created" as const,
-        organization: { id: organization.id, name: organization.name },
-      };
     }
 
     await assertPolarBillingEmailAvailable(data.billingEmail);
