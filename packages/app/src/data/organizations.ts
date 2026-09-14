@@ -13,10 +13,9 @@ import {
   userOwnsHobbyOrganization,
 } from "@/lib/billing-data.server";
 import {
-  assertPolarBillingEmailAvailable,
-  createPolarCustomer,
   deleteProvisionalPolarCustomer,
   polarClient,
+  prepareProOrganizationCheckoutCustomer,
 } from "@/lib/polar.server";
 import { ProOrganizationCheckoutMetadataSchema } from "@/lib/pro-organization-checkout";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
@@ -89,36 +88,51 @@ export const createOrganization = createPartiallyAuthenticatedServerFn({
       });
     }
 
-    await assertPolarBillingEmailAvailable(data.billingEmail);
-    const customer = await createPolarCustomer({
-      email: data.billingEmail,
-      name: data.organizationName,
-    });
     const organizationSlug = generateOrgSlug();
+    const metadata = {
+      everrPurpose: "create_pro_organization",
+      everrOwnerId: session.user.id,
+      everrOrganizationName: data.organizationName,
+      everrOrganizationSlug: organizationSlug,
+      everrSchemaVersion: 1,
+    } as const;
 
     const successUrl = new URL(
       "/organizations/checkout/success?checkout_id={CHECKOUT_ID}",
       env.BETTER_AUTH_URL,
     ).toString();
     const returnUrl = new URL("/", env.BETTER_AUTH_URL).toString();
+    const prepared = await prepareProOrganizationCheckoutCustomer({
+      email: data.billingEmail,
+      name: data.organizationName,
+      metadata,
+    });
+    if (prepared.kind === "checkout") {
+      if (prepared.checkout.status === "open") {
+        return { kind: "checkout" as const, url: prepared.checkout.url };
+      }
+      const completionUrl = new URL(
+        "/organizations/checkout/success",
+        env.BETTER_AUTH_URL,
+      );
+      completionUrl.searchParams.set("checkout_id", prepared.checkout.id);
+      return { kind: "checkout" as const, url: completionUrl.toString() };
+    }
+
     let checkout: Awaited<ReturnType<typeof polarClient.checkouts.create>>;
     try {
       checkout = await polarClient.checkouts.create({
         products: [polarProductIdForPlan("pro")],
-        customerId: customer.id,
+        customerId: prepared.customerId,
         allowTrial: false,
         successUrl,
         returnUrl,
-        metadata: {
-          everrPurpose: "create_pro_organization",
-          everrOwnerId: session.user.id,
-          everrOrganizationName: data.organizationName,
-          everrOrganizationSlug: organizationSlug,
-          everrSchemaVersion: 1,
-        },
+        metadata,
       });
     } catch (error) {
-      await rollbackPolarCustomer(customer.id);
+      if (prepared.created) {
+        await rollbackPolarCustomer(prepared.customerId);
+      }
       throw new OrganizationCreationError(
         "Pro checkout could not be started.",
         error,
