@@ -1,5 +1,7 @@
 # Provision Polar before billable Organizations
 
+Status: superseded by ADR 0006.
+
 An explicitly created Organization is billable and must have a Polar Customer. Everr first verifies the Billing email and creates an unlinked Polar Customer, then creates the Organization through the server-owned Better Auth flow, and finally assigns the Organization ID as the Customer's external ID. This ordering prevents an Organization from being reported as created when Polar has rejected its Billing email.
 
 ## Consequences

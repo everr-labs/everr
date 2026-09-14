@@ -9,10 +9,13 @@ import {
 } from "@everr/ui/components/card";
 import { Input } from "@everr/ui/components/input";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Building2, Loader2 } from "lucide-react";
+import { Building2, Check, Loader2, Sparkles, UserRound } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
-import { createOrganization } from "@/data/organizations";
+import {
+  createOrganization,
+  getOrganizationCreationOptions,
+} from "@/data/organizations";
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/organizations/new")({
@@ -25,10 +28,15 @@ export const Route = createFileRoute("/organizations/new")({
     }
   },
   head: () => ({ meta: [{ title: "Everr - Create organization" }] }),
+  loader: () => getOrganizationCreationOptions(),
   component: CreateOrganizationPage,
 });
 
 function CreateOrganizationPage() {
+  const { canCreateHobby } = Route.useLoaderData();
+  const [plan, setPlan] = useState<"hobby" | "pro">(
+    canCreateHobby ? "hobby" : "pro",
+  );
   const [organizationName, setOrganizationName] = useState("");
   const [billingEmail, setBillingEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -38,10 +46,11 @@ function CreateOrganizationPage() {
     event.preventDefault();
     if (isCreating) return;
 
-    const parsed = CreateOrganizationInputSchema.safeParse({
-      organizationName,
-      billingEmail,
-    });
+    const parsed = CreateOrganizationInputSchema.safeParse(
+      plan === "hobby"
+        ? { plan, organizationName }
+        : { plan, organizationName, billingEmail },
+    );
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Enter a valid name.");
       return;
@@ -51,7 +60,13 @@ function CreateOrganizationPage() {
     setIsCreating(true);
 
     try {
-      const organization = await createOrganization({ data: parsed.data });
+      const result = await createOrganization({ data: parsed.data });
+      if (result.kind === "checkout") {
+        window.location.assign(result.url);
+        return;
+      }
+
+      const organization = result.organization;
       const activation = await authClient.organization.setActive({
         organizationId: organization.id,
       });
@@ -87,11 +102,65 @@ function CreateOrganizationPage() {
               Create an organization
             </CardTitle>
             <CardDescription>
-              Give your team a name and a unique email for billing. You can
-              configure members and integrations after creation.
+              Choose an individual Hobby organization or create a collaborative
+              Pro organization.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {canCreateHobby ? (
+                <button
+                  type="button"
+                  disabled={isCreating}
+                  aria-pressed={plan === "hobby"}
+                  onClick={() => setPlan("hobby")}
+                  className={`rounded-lg border p-4 text-left transition-colors ${
+                    plan === "hobby"
+                      ? "border-primary bg-primary/5"
+                      : "hover:border-foreground/30"
+                  }`}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <UserRound className="size-5" />
+                    {plan === "hobby" ? (
+                      <Check className="size-4 text-primary" />
+                    ) : null}
+                  </div>
+                  <p className="font-medium">Hobby</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Free, for one Owner.
+                  </p>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                disabled={isCreating}
+                aria-pressed={plan === "pro"}
+                onClick={() => setPlan("pro")}
+                className={`rounded-lg border p-4 text-left transition-colors ${
+                  plan === "pro"
+                    ? "border-primary bg-primary/5"
+                    : "hover:border-foreground/30"
+                }`}
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <Sparkles className="size-5" />
+                  {plan === "pro" ? (
+                    <Check className="size-4 text-primary" />
+                  ) : null}
+                </div>
+                <p className="font-medium">Pro</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Paid, with team members.
+                </p>
+              </button>
+            </div>
+            {!canCreateHobby ? (
+              <p className="text-xs text-muted-foreground">
+                You already own a Hobby organization, so this organization must
+                use Pro.
+              </p>
+            ) : null}
             <div className="space-y-2">
               <label
                 htmlFor="organization-name"
@@ -111,30 +180,31 @@ function CreateOrganizationPage() {
                 onChange={(event) => setOrganizationName(event.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <label htmlFor="billing-email" className="text-sm font-medium">
-                Billing email
-              </label>
-              <Input
-                id="billing-email"
-                name="billingEmail"
-                type="email"
-                autoComplete="email"
-                value={billingEmail}
-                disabled={isCreating}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={
-                  error ? "organization-create-error" : undefined
-                }
-                placeholder="billing@example.com"
-                onChange={(event) => setBillingEmail(event.target.value)}
-              />
-              <p className="text-muted-foreground text-xs">
-                This address identifies the organization in Polar and receives
-                billing communications. It must not be used by another
-                organization.
-              </p>
-            </div>
+            {plan === "pro" ? (
+              <div className="space-y-2">
+                <label htmlFor="billing-email" className="text-sm font-medium">
+                  Billing email
+                </label>
+                <Input
+                  id="billing-email"
+                  name="billingEmail"
+                  type="email"
+                  autoComplete="email"
+                  value={billingEmail}
+                  disabled={isCreating}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={
+                    error ? "organization-create-error" : undefined
+                  }
+                  placeholder="billing@example.com"
+                  onChange={(event) => setBillingEmail(event.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  Polar uses this unique address for billing. The organization
+                  is created after Polar confirms an active Pro subscription.
+                </p>
+              </div>
+            ) : null}
             {error ? (
               <p
                 id="organization-create-error"
@@ -156,7 +226,7 @@ function CreateOrganizationPage() {
             </Button>
             <Button type="submit" disabled={isCreating}>
               {isCreating ? <Loader2 className="animate-spin" /> : null}
-              Create organization
+              {plan === "pro" ? "Continue to checkout" : "Create organization"}
             </Button>
           </CardFooter>
         </form>

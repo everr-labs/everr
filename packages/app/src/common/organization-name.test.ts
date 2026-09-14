@@ -5,6 +5,7 @@ describe("CreateOrganizationInputSchema", () => {
   it("rejects blank names", () => {
     expect(() =>
       CreateOrganizationInputSchema.parse({
+        plan: "pro",
         organizationName: " ",
         billingEmail: "billing@example.com",
       }),
@@ -14,10 +15,12 @@ describe("CreateOrganizationInputSchema", () => {
   it("accepts valid names and normalizes the billing email", () => {
     expect(
       CreateOrganizationInputSchema.parse({
+        plan: "pro",
         organizationName: "Acme Inc",
         billingEmail: " Billing@Example.COM ",
       }),
     ).toEqual({
+      plan: "pro",
       organizationName: "Acme Inc",
       billingEmail: "billing@example.com",
     });
@@ -26,6 +29,7 @@ describe("CreateOrganizationInputSchema", () => {
   it("rejects invalid billing emails", () => {
     expect(() =>
       CreateOrganizationInputSchema.parse({
+        plan: "pro",
         organizationName: "Acme Inc",
         billingEmail: "not-an-email",
       }),

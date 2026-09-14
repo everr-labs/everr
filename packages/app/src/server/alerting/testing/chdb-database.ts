@@ -207,7 +207,7 @@ export function createChdbDatabase(): ChdbDatabase {
     insert(rows, deduplicationToken) {
       if (rows.length === 0) return;
       // Direct fixture inserts need the retention stamp normally supplied by the writer.
-      const retention = resolveRetention("free");
+      const retention = resolveRetention("hobby");
       const stamped = rows.map((row) => {
         const eventType = "event_type" in row ? row.event_type : undefined;
         const isEvaluation =

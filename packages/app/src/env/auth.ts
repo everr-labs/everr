@@ -10,7 +10,8 @@ export const authEnv = createEnv({
     POLAR_ACCESS_TOKEN: z.string(),
     POLAR_WEBHOOK_SECRET: z.string(),
     POLAR_SERVER: z.enum(["sandbox", "production"]).default("sandbox"),
-    POLAR_PRO_PRODUCT_ID: z.string(),
+    POLAR_PRO_PRODUCT_ID: z.string().min(1),
+    POLAR_PRO_LEGACY_PRODUCT_IDS: z.string().optional(),
   },
   runtimeEnv: {
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
@@ -21,5 +22,6 @@ export const authEnv = createEnv({
     POLAR_WEBHOOK_SECRET: process.env.POLAR_WEBHOOK_SECRET,
     POLAR_SERVER: process.env.POLAR_SERVER,
     POLAR_PRO_PRODUCT_ID: process.env.POLAR_PRO_PRODUCT_ID,
+    POLAR_PRO_LEGACY_PRODUCT_IDS: process.env.POLAR_PRO_LEGACY_PRODUCT_IDS,
   },
 });
