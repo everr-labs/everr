@@ -9,6 +9,8 @@ import { retentionForOrg } from "./retention.server";
 
 const entitlement = {
   status: "active",
+  plan: "pro" as const,
+  appState: "pro" as const,
   currentPeriodEnd: null,
   cancelAtPeriodEnd: false,
 };
@@ -20,29 +22,29 @@ describe("retentionForOrg", () => {
 
   it.each([
     {
-      tier: "free" as const,
+      plan: "hobby" as const,
       telemetryDays: 14,
       evaluationDays: 14,
       lifecycleDays: 14,
     },
     {
-      tier: "pro" as const,
+      plan: "pro" as const,
       telemetryDays: 365,
       evaluationDays: 30,
       lifecycleDays: 365,
     },
-  ])("returns the $tier entitlements", async ({
-    tier,
+  ])("returns the $plan entitlements", async ({
+    plan,
     telemetryDays,
     evaluationDays,
     lifecycleDays,
   }) => {
     vi.mocked(readOrgEntitlement).mockResolvedValueOnce({
       ...entitlement,
-      tier,
+      plan,
     });
 
-    await expect(retentionForOrg(`org_${tier}`)).resolves.toEqual({
+    await expect(retentionForOrg(`org_${plan}`)).resolves.toEqual({
       tracesDays: telemetryDays,
       logsDays: telemetryDays,
       metricsDays: telemetryDays,
@@ -54,7 +56,8 @@ describe("retentionForOrg", () => {
   it("answers a repeated lookup without asking the database again", async () => {
     vi.mocked(readOrgEntitlement).mockResolvedValueOnce({
       ...entitlement,
-      tier: "free",
+      plan: "hobby",
+      appState: "hobby",
     });
 
     const first = await retentionForOrg("org_cached");

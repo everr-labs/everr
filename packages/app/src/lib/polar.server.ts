@@ -72,20 +72,3 @@ export async function getPolarCustomerForOrg(orgId: string) {
 export async function hasPolarCustomerForOrg(orgId: string) {
   return (await getPolarCustomerForOrg(orgId)) !== null;
 }
-
-export async function ensurePolarCustomerForOrg(args: {
-  orgId: string;
-  orgName: string;
-  fallbackEmail: string;
-}) {
-  try {
-    return await polarClient.customers.getExternal({ externalId: args.orgId });
-  } catch (err) {
-    if (!(err instanceof ResourceNotFound)) throw err;
-    return createPolarCustomer({
-      externalId: args.orgId,
-      email: args.fallbackEmail,
-      name: args.orgName,
-    });
-  }
-}

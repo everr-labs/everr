@@ -20,10 +20,17 @@ export const BillingEmailSchema = z
   .toLowerCase()
   .pipe(z.email("Enter a valid billing email"));
 
-export const CreateOrganizationInputSchema = z.object({
-  organizationName: OrganizationNameSchema,
-  billingEmail: BillingEmailSchema,
-});
+export const CreateOrganizationInputSchema = z.discriminatedUnion("plan", [
+  z.object({
+    plan: z.literal("hobby"),
+    organizationName: OrganizationNameSchema,
+  }),
+  z.object({
+    plan: z.literal("pro"),
+    organizationName: OrganizationNameSchema,
+    billingEmail: BillingEmailSchema,
+  }),
+]);
 
 export const ProvisionOrganizationBillingInputSchema = z.object({
   billingEmail: BillingEmailSchema,

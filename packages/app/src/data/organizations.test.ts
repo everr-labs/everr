@@ -1,26 +1,52 @@
-import { getRequestHeaders } from "@tanstack/react-start/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { auth } from "@/lib/auth.server";
-import { createOrganization } from "./organizations";
+import {
+  completeProOrganizationCheckout,
+  createOrganization,
+} from "./organizations";
 
-const polarMocks = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
   assertEmailAvailable: vi.fn(),
   createCustomer: vi.fn(),
   deleteCustomer: vi.fn(),
-  getCustomerForOrg: vi.fn(),
-  linkCustomerToOrg: vi.fn(),
+  checkoutCreate: vi.fn(),
+  checkoutGet: vi.fn(),
+  subscriptionGet: vi.fn(),
+  finalizeProOrganizationCheckout: vi.fn(),
+  getSession: vi.fn(),
+  createAuthOrganization: vi.fn(),
+  userOwnsHobbyOrganization: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-start/server", () => ({
-  getRequestHeaders: vi.fn(() => new Headers({ cookie: "session=test" })),
+vi.mock("@/env", () => ({
+  env: {
+    BETTER_AUTH_URL: "https://app.example",
+    POLAR_PRO_PRODUCT_ID: "product_pro",
+  },
+}));
+
+vi.mock("@/lib/auth.server", () => ({
+  auth: {
+    api: {
+      getSession: mocks.getSession,
+      createOrganization: mocks.createAuthOrganization,
+    },
+  },
+  finalizeProOrganizationCheckout: mocks.finalizeProOrganizationCheckout,
+}));
+
+vi.mock("@/lib/billing-data.server", () => ({
+  userOwnsHobbyOrganization: mocks.userOwnsHobbyOrganization,
 }));
 
 vi.mock("@/lib/polar.server", () => ({
-  assertPolarBillingEmailAvailable: polarMocks.assertEmailAvailable,
-  createPolarCustomer: polarMocks.createCustomer,
-  deleteProvisionalPolarCustomer: polarMocks.deleteCustomer,
-  getPolarCustomerForOrg: polarMocks.getCustomerForOrg,
-  linkPolarCustomerToOrg: polarMocks.linkCustomerToOrg,
+  assertPolarBillingEmailAvailable: mocks.assertEmailAvailable,
+  createPolarCustomer: mocks.createCustomer,
+  deleteProvisionalPolarCustomer: mocks.deleteCustomer,
+  polarClient: {
+    checkouts: { create: mocks.checkoutCreate, get: mocks.checkoutGet },
+    subscriptions: { get: mocks.subscriptionGet },
+  },
 }));
 
 vi.mock("@/telemetry/logger", () => ({
@@ -30,16 +56,115 @@ vi.mock("@/telemetry/logger", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  polarMocks.assertEmailAvailable.mockResolvedValue(undefined);
-  polarMocks.createCustomer.mockResolvedValue({ id: "polar_customer" });
-  polarMocks.linkCustomerToOrg.mockResolvedValue({});
-  polarMocks.getCustomerForOrg.mockResolvedValue(null);
-  polarMocks.deleteCustomer.mockResolvedValue(undefined);
-  vi.mocked(auth.api.deleteOrganization).mockResolvedValue({} as never);
+  mocks.getSession.mockResolvedValue({
+    user: {
+      id: "test_user",
+      email: "test@example.com",
+      name: "Test User",
+      image: null,
+    },
+    session: { id: "test_session", activeOrganizationId: "test_org" },
+  });
+  mocks.userOwnsHobbyOrganization.mockResolvedValue(false);
+  mocks.assertEmailAvailable.mockResolvedValue(undefined);
+  mocks.createCustomer.mockResolvedValue({ id: "polar_customer" });
+  mocks.deleteCustomer.mockResolvedValue(undefined);
+  mocks.checkoutCreate.mockResolvedValue({
+    id: "checkout_1",
+    url: "https://polar.example/checkout_1",
+  });
+  mocks.finalizeProOrganizationCheckout.mockResolvedValue({
+    status: "completed",
+    organization: { id: "org_new", name: "Acme" },
+  });
+});
+
+describe("completeProOrganizationCheckout", () => {
+  const metadata = {
+    everrPurpose: "create_pro_organization",
+    everrOwnerId: "test_user",
+    everrOrganizationName: "Acme",
+    everrOrganizationSlug: "acme-checkout",
+    everrSchemaVersion: 1,
+  } as const;
+
+  it("waits while Polar has only confirmed the checkout", async () => {
+    mocks.checkoutGet.mockResolvedValueOnce({
+      id: "checkout_1",
+      status: "confirmed",
+      metadata,
+    });
+
+    await expect(
+      completeProOrganizationCheckout({ data: { checkoutId: "checkout_1" } }),
+    ).resolves.toEqual({ status: "processing" });
+
+    expect(mocks.finalizeProOrganizationCheckout).not.toHaveBeenCalled();
+  });
+
+  it("finalizes only a succeeded checkout with an active Pro subscription", async () => {
+    mocks.checkoutGet.mockResolvedValueOnce({
+      id: "checkout_1",
+      status: "succeeded",
+      productId: "product_pro",
+      subscriptionId: "subscription_1",
+      customerId: "polar_customer",
+      metadata,
+    });
+    const createdAt = new Date("2026-09-11T12:00:00Z");
+    mocks.subscriptionGet.mockResolvedValueOnce({
+      id: "subscription_1",
+      productId: "product_pro",
+      status: "active",
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      modifiedAt: null,
+      createdAt,
+    });
+
+    await expect(
+      completeProOrganizationCheckout({ data: { checkoutId: "checkout_1" } }),
+    ).resolves.toEqual({
+      status: "completed",
+      organization: { id: "org_new", name: "Acme" },
+    });
+
+    expect(mocks.finalizeProOrganizationCheckout).toHaveBeenCalledWith({
+      metadata,
+      customerId: "polar_customer",
+      subscription: {
+        id: "subscription_1",
+        productId: "product_pro",
+        status: "active",
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+        modifiedAt: null,
+        createdAt,
+      },
+    });
+  });
+
+  it("rejects a checkout owned by another user", async () => {
+    mocks.checkoutGet.mockResolvedValueOnce({
+      id: "checkout_1",
+      status: "succeeded",
+      productId: "product_pro",
+      subscriptionId: "subscription_1",
+      customerId: "polar_customer",
+      metadata: { ...metadata, everrOwnerId: "another_user" },
+    });
+
+    await expect(
+      completeProOrganizationCheckout({ data: { checkoutId: "checkout_1" } }),
+    ).rejects.toThrow("This checkout is not available");
+
+    expect(mocks.subscriptionGet).not.toHaveBeenCalled();
+    expect(mocks.finalizeProOrganizationCheckout).not.toHaveBeenCalled();
+  });
 });
 
 describe("createOrganization", () => {
-  it("creates an organization for the authenticated user", async () => {
+  it("creates a Hobby organization without Polar", async () => {
     vi.mocked(auth.api.createOrganization).mockResolvedValueOnce({
       id: "org_new",
       name: "Acme",
@@ -47,154 +172,88 @@ describe("createOrganization", () => {
 
     await expect(
       createOrganization({
+        data: { plan: "hobby", organizationName: "  Acme  " },
+      }),
+    ).resolves.toEqual({
+      kind: "created",
+      organization: { id: "org_new", name: "Acme" },
+    });
+
+    expect(mocks.assertEmailAvailable).not.toHaveBeenCalled();
+    expect(mocks.createCustomer).not.toHaveBeenCalled();
+    expect(mocks.createAuthOrganization).toHaveBeenCalledWith({
+      body: {
+        name: "Acme",
+        slug: expect.any(String),
+        userId: "test_user",
+        plan: "hobby",
+      },
+    });
+  });
+
+  it("rejects a second owned Hobby organization", async () => {
+    mocks.userOwnsHobbyOrganization.mockResolvedValueOnce(true);
+
+    await expect(
+      createOrganization({
+        data: { plan: "hobby", organizationName: "Acme" },
+      }),
+    ).rejects.toThrow("already own a Hobby organization");
+
+    expect(auth.api.createOrganization).not.toHaveBeenCalled();
+  });
+
+  it("starts Pro checkout without creating the organization", async () => {
+    await expect(
+      createOrganization({
         data: {
+          plan: "pro",
           organizationName: "  Acme  ",
           billingEmail: " Billing@Example.com ",
         },
       }),
-    ).resolves.toEqual({ id: "org_new", name: "Acme" });
+    ).resolves.toEqual({
+      kind: "checkout",
+      url: "https://polar.example/checkout_1",
+    });
 
-    expect(polarMocks.assertEmailAvailable).toHaveBeenCalledWith(
+    expect(mocks.assertEmailAvailable).toHaveBeenCalledWith(
       "billing@example.com",
     );
-    expect(polarMocks.createCustomer).toHaveBeenCalledWith({
+    expect(mocks.createCustomer).toHaveBeenCalledWith({
       email: "billing@example.com",
       name: "Acme",
     });
-    expect(auth.api.createOrganization).toHaveBeenCalledWith({
-      body: {
-        name: "Acme",
-        slug: expect.stringMatching(/^org-/),
-        userId: "test_user",
-      },
-    });
-    expect(polarMocks.linkCustomerToOrg).toHaveBeenCalledWith({
-      customerId: "polar_customer",
-      orgId: "org_new",
-    });
-    expect(getRequestHeaders).toHaveBeenCalled();
-  });
-
-  it("rejects an invalid name before creating anything", async () => {
-    await expect(
-      createOrganization({
-        data: { organizationName: " ", billingEmail: "billing@example.com" },
-      }),
-    ).rejects.toThrow();
-
-    expect(auth.api.createOrganization).not.toHaveBeenCalled();
-    expect(polarMocks.assertEmailAvailable).not.toHaveBeenCalled();
-  });
-
-  it("does not create an organization when Polar rejects the billing email", async () => {
-    polarMocks.assertEmailAvailable.mockRejectedValueOnce(
-      new Error("email unavailable"),
-    );
-
-    await expect(
-      createOrganization({
-        data: {
-          organizationName: "Acme",
-          billingEmail: "billing@example.com",
+    expect(mocks.checkoutCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: "polar_customer",
+        allowTrial: false,
+        metadata: {
+          everrPurpose: "create_pro_organization",
+          everrOwnerId: "test_user",
+          everrOrganizationName: "Acme",
+          everrOrganizationSlug: expect.any(String),
+          everrSchemaVersion: 1,
         },
       }),
-    ).rejects.toThrow("email unavailable");
-
-    expect(polarMocks.createCustomer).not.toHaveBeenCalled();
+    );
     expect(auth.api.createOrganization).not.toHaveBeenCalled();
   });
 
-  it("deletes the provisional Polar customer when organization creation fails", async () => {
-    vi.mocked(auth.api.createOrganization).mockRejectedValueOnce(
-      new Error("database unavailable"),
-    );
+  it("removes the provisional customer when checkout fails", async () => {
+    mocks.checkoutCreate.mockRejectedValueOnce(new Error("Polar unavailable"));
 
     await expect(
       createOrganization({
         data: {
+          plan: "pro",
           organizationName: "Acme",
           billingEmail: "billing@example.com",
         },
       }),
-    ).rejects.toThrow("The organization could not be created.");
+    ).rejects.toThrow("Pro checkout could not be started");
 
-    expect(polarMocks.deleteCustomer).toHaveBeenCalledWith("polar_customer");
-  });
-
-  it("rolls both resources back when the Polar customer cannot be linked", async () => {
-    vi.mocked(auth.api.createOrganization).mockResolvedValueOnce({
-      id: "org_new",
-      name: "Acme",
-    } as never);
-    polarMocks.linkCustomerToOrg.mockRejectedValueOnce(
-      new Error("link failed"),
-    );
-
-    await expect(
-      createOrganization({
-        data: {
-          organizationName: "Acme",
-          billingEmail: "billing@example.com",
-        },
-      }),
-    ).rejects.toThrow(
-      "The billing customer could not be linked to the organization.",
-    );
-
-    expect(auth.api.deleteOrganization).toHaveBeenCalledWith({
-      headers: expect.any(Headers),
-      body: { organizationId: "org_new" },
-    });
-    expect(polarMocks.deleteCustomer).toHaveBeenCalledWith("polar_customer");
-    expect(polarMocks.deleteCustomer.mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(auth.api.deleteOrganization).mock.invocationCallOrder[0] ?? 0,
-    );
-  });
-
-  it("keeps the organization recoverable when Polar rollback fails", async () => {
-    vi.mocked(auth.api.createOrganization).mockResolvedValueOnce({
-      id: "org_new",
-      name: "Acme",
-    } as never);
-    polarMocks.linkCustomerToOrg.mockRejectedValueOnce(
-      new Error("link failed"),
-    );
-    polarMocks.deleteCustomer.mockRejectedValueOnce(new Error("delete failed"));
-
-    await expect(
-      createOrganization({
-        data: {
-          organizationName: "Acme",
-          billingEmail: "billing@example.com",
-        },
-      }),
-    ).rejects.toThrow(
-      "The billing customer could not be linked to the organization.",
-    );
-
-    expect(auth.api.deleteOrganization).not.toHaveBeenCalled();
-  });
-
-  it("accepts a successful link discovered after an uncertain response", async () => {
-    vi.mocked(auth.api.createOrganization).mockResolvedValueOnce({
-      id: "org_new",
-      name: "Acme",
-    } as never);
-    polarMocks.linkCustomerToOrg.mockRejectedValueOnce(new Error("timeout"));
-    polarMocks.getCustomerForOrg.mockResolvedValueOnce({
-      id: "polar_customer",
-    });
-
-    await expect(
-      createOrganization({
-        data: {
-          organizationName: "Acme",
-          billingEmail: "billing@example.com",
-        },
-      }),
-    ).resolves.toEqual({ id: "org_new", name: "Acme" });
-
-    expect(auth.api.deleteOrganization).not.toHaveBeenCalled();
-    expect(polarMocks.deleteCustomer).not.toHaveBeenCalled();
+    expect(mocks.deleteCustomer).toHaveBeenCalledWith("polar_customer");
+    expect(auth.api.createOrganization).not.toHaveBeenCalled();
   });
 });

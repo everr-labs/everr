@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   ErrorComponent,
@@ -18,6 +18,8 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { Loader2, Plus, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
+import { getActiveOrgAppAccess } from "@/data/billing";
+import { getOrganizationCreationOptions } from "@/data/organizations";
 import { auth } from "@/lib/auth.server";
 import { authClient } from "@/lib/auth-client";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
@@ -76,6 +78,13 @@ export const Route = createFileRoute("/_authenticated")({
     }
 
     const { activeOrganizationId } = await verifyActiveOrg();
+    const entitlement = await getActiveOrgAppAccess();
+    if (
+      entitlement.appState === "suspended" &&
+      pathname !== "/billing/suspended"
+    ) {
+      throw redirect({ to: "/billing/suspended" });
+    }
 
     return {
       session: {
@@ -108,6 +117,10 @@ function OrgSwitcher() {
   const queryClient = useQueryClient();
 
   const organizations = authClient.useListOrganizations();
+  const organizationCreationOptions = useQuery({
+    queryKey: ["organization-creation-options"],
+    queryFn: () => getOrganizationCreationOptions(),
+  });
   const orgs = organizations.data;
   const { refetch } = organizations;
   const [hasRefreshed, setHasRefreshed] = useState(false);
@@ -216,7 +229,7 @@ function OrgSwitcher() {
           ) : null}
           <Button
             className="mt-4 w-full"
-            disabled={switching !== null}
+            disabled={switching !== null || !organizationCreationOptions.data}
             onClick={() => setCreateOrgDialogOpen(true)}
           >
             <Plus />
@@ -234,10 +247,13 @@ function OrgSwitcher() {
           </Link>
         </CardContent>
       </Card>
-      <CreateOrganizationDialog
-        open={isCreateOrgDialogOpen}
-        onOpenChange={setCreateOrgDialogOpen}
-      />
+      {organizationCreationOptions.data ? (
+        <CreateOrganizationDialog
+          canCreateHobby={organizationCreationOptions.data.canCreateHobby}
+          open={isCreateOrgDialogOpen}
+          onOpenChange={setCreateOrgDialogOpen}
+        />
+      ) : null}
     </main>
   );
 }
