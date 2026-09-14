@@ -8,6 +8,7 @@ FROM
         Attributes['everr.usage.tenant.id'] AS customer,
         Attributes['everr.ingestion.signal'] AS signal,
         ResourceAttributes['service.instance.id'] AS instance,
+        Attributes['everr.usage.clock.generation'] AS clock_generation,
         StartTimeUnix AS counter_start,
         -- Float64 stores integers exactly through 2^53. Larger positive Int64
         -- counters can round up by at most 1024 bytes; subtract that bound.
@@ -29,7 +30,7 @@ FROM
       AND notEmpty(Attributes['everr.usage.tenant.id'])
       AND Attributes['everr.ingestion.signal'] IN ('logs', 'traces', 'metrics')
       AND Value >= 0
-    GROUP BY customer, signal, instance, counter_start
+    GROUP BY customer, signal, instance, clock_generation, counter_start
 )
 GROUP BY customer, signal
 ORDER BY customer, signal

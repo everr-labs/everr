@@ -25,7 +25,7 @@ usage connector -> delta_to_cumulative -> dedicated usage exporter
 | Stored type | Monotonic cumulative Sum |
 | Unit | `By` |
 | Publication interval | 60 seconds by default; no unchanged idle points |
-| Datapoint attributes | `everr.ingestion.signal`, `everr.usage.tenant.id`, `everr.usage.month` |
+| Datapoint attributes | `everr.ingestion.signal`, `everr.usage.tenant.id`, `everr.usage.month`, `everr.usage.clock.generation` |
 | Signals | `logs`, `traces`, `metrics` |
 | Month | UTC calendar month, `YYYY-MM`, assigned at successful admission |
 | Timestamp | Latest successful admission represented by the delta |
@@ -38,10 +38,15 @@ usage connector -> delta_to_cumulative -> dedicated usage exporter
 Monthly attribution and the point timestamp come from the same admission clock.
 A flush spanning midnight emits separate deltas for the two months, each
 timestamped at its latest admission. A delayed September publication therefore
-retains a September timestamp even if it is written in October. The admission
-clock advances by one nanosecond when the process clock repeats or moves
-backward, which preserves the ordering required by cumulative conversion. There
-is no per-flush sequence attribute.
+retains a September timestamp even if it is written in October. When the process
+clock repeats or moves backward, the meter advances `everr.usage.clock.generation`
+and starts new counter streams at the actual admission time. This preserves
+strict ordering within each stream without moving usage into a later month.
+The generation starts at zero, survives flushes, and changes only on a clock
+discontinuity accompanying a retained measurement, not on each publication.
+The meter retains one clock and generation, rather than unbounded per-customer
+clock history. A discontinuity starts new streams for subsequent admissions
+across all customers and signals, while pending older generations remain intact.
 
 ## Counter lifetimes and monthly totals
 
@@ -54,9 +59,11 @@ would instead emit 200 followed by 400. Both cases total 400 bytes.
 Use [customer-usage.sql](customer-usage.sql) for customer usage and billing. Supply
 `month` as a `YYYY-MM` string parameter. It selects cumulative points for that
 month, enforces the metric contract, takes the highest value per
-`(customer, signal, service.instance.id, StartTimeUnix)`, then sums across lifetimes. Retries and out-of-order delivery do
+`(customer, signal, service.instance.id, everr.usage.clock.generation, StartTimeUnix)`, then sums across lifetimes. Retries and out-of-order delivery do
 not inflate maxima. A collector restart creates a new instance identity, while
-idle expiry creates a new start timestamp. The exporter preserves both through
+idle expiry creates a new start timestamp. Clock corrections create a new
+generation, so even lifetimes whose timestamps collide at storage's one-second
+precision remain distinct. The exporter preserves these identities through
 queue recovery. Do not sum raw samples or discard these identities in a rollup.
 
 The month attribute controls billing, and sample timestamps constrain scans to
@@ -132,7 +139,9 @@ Convert once, before exporter retries. Do not replay a delta through the
 converter; retries belong after conversion. The pinned v0.160.0
 cumulative processor is alpha and keeps its state in memory. Its `max_streams`
 limit drops new streams rather than evicting active ones; size it for active
-customer/signal/month combinations, including rollover overlap. The usage
+customer/signal/month/generation combinations, including rollover overlap and
+old generations awaiting expiry after clock corrections. Repeated or unstable
+clocks can increase stream cardinality and exhaust this existing limit. The usage
 extension separately bounds each pending flush with `max_series` (default 30000).
 
 Reserve incoming `everr.*` metric names with the standard filter processor on
@@ -172,7 +181,7 @@ whose lifetime has expired or whose process has stopped.
 | Scenario | Ingestion behavior | Billing impact and remaining gap |
 | --- | --- | --- |
 | Usage queue is full | Its independent publisher waits for capacity with `block_on_overflow: true`. The connector's input remains a no-op returning success, so ingestion does not synchronously wait for the usage queue. | Waiting is bounded by the publication timeout, currently 10 seconds. If capacity returns in time, publication succeeds. Otherwise this becomes a failed publication. |
-| Publication fails after cumulative conversion | Source ingestion continues subject to its own queue and shared resource availability. The drained delta is never replayed through conversion. | A later snapshot in the same retained lifetime includes the failed amount. If the customer stops and the lifetime expires, or the process stops first, the unqueued tail is permanently lost. Shutdown does not re-emit the cumulative processor's cached state. |
+| Publication fails after cumulative conversion | Source ingestion continues subject to its own queue and shared resource availability. The drained delta is never replayed through conversion. | A later snapshot in the same retained lifetime includes the failed amount. If the customer stops, a clock correction starts a new generation, or the process stops before recovery, the unqueued tail can be permanently lost. Shutdown does not re-emit the cumulative processor's cached state. |
 | Conversion rejects a new stream, or the meter reaches its series/byte limit | Telemetry already admitted remains accepted. Accounting limits do not roll it back. | Measurements dropped before accumulation cannot converge later. Defaults are 30,000 pending series, 60,000 cumulative streams, and a `2^53` byte cap per pending delta. Capacity must include month rollover and idle lifetimes. |
 | Crash between telemetry admission and usage persistence | Persisted telemetry survives if the queue volume survives. Pending accounting and cumulative state are in memory. | Permanent undercount is possible, including a crash before `Record`, after `Record`, or after draining but before usage persistence. Usually this concerns the unpublished interval; failures can extend it. The two queue writes are not atomic. |
 | Forced termination or insufficient shutdown grace | The process may not finish upstream shutdown and final publication. | The connector closes orderly shutdown ordering, not `SIGKILL`, process crashes, or a failed final flush. Allow time for upstream shutdown, an in-flight publication, and the final attempt. |
@@ -199,9 +208,10 @@ repairs accounting.
   availability. Exercise configuration changes with the ingestion smoke test.
 - Source tenant identity must be stamped from trusted authentication before
   metering. Missing tenant identity cannot be charged. The collector's wall clock
-  determines the UTC admission month and timestamp. The in-process admission
-  clock prevents repeated or backward timestamps, but an incorrectly configured
-  host clock can still attribute usage to the wrong billing month.
+  determines the UTC admission month and timestamp. A new counter generation
+  handles repeated or backward readings, including corrections across month
+  boundaries. An incorrectly configured host clock can still attribute usage
+  to the wrong month until it is corrected.
 - Monthly invoice settlement is still outside these components. Late queued
   snapshots can change a closed month's visible total. We need a defined
   finalization policy and treatment of late arrivals; a fixed delay alone cannot
@@ -230,8 +240,8 @@ repairs accounting.
 
 Run `go test -race ./...` in each usage component module and `make build` in
 `collector`. Tests cover measurement, tenant isolation, admission errors, native
-queue retries/recovery, bounds, UTC monthly attribution, monotonic admission
-timestamps, restarts, and month rollover through the actual upstream cumulative
+queue retries/recovery, bounds, UTC monthly attribution, clock generations,
+restarts, and month rollover through the actual upstream cumulative
 processor. Failure tests cover a full persistent metrics queue while logs still
 admit successfully, recovery through a later cumulative snapshot, and permanent
 loss of an unpublished final value after native idle expiry. The expiry test uses

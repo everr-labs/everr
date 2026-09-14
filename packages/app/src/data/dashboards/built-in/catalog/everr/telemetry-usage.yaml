@@ -21,6 +21,8 @@ document:
     # metrics_sum timestamps have one-second precision. Ordering each monotonic
     # counter by value resolves distinct same-second samples, while exact retry
     # duplicates remain adjacent and contribute a zero delta.
+    # Clock generations keep counters distinct after repeated/backward readings,
+    # including lifetimes that share the same stored start second.
     panels:
       signal-totals:
         kind: Panel
@@ -81,6 +83,7 @@ document:
                             AND Value >= 0
                           WINDOW counter AS (
                             PARTITION BY Attributes['everr.usage.month'],
+                                         Attributes['everr.usage.clock.generation'],
                                          Attributes['everr.ingestion.signal'],
                                          ResourceAttributes['service.instance.id'],
                                          StartTimeUnix
@@ -142,6 +145,7 @@ document:
                             AND Value >= 0
                           WINDOW counter AS (
                             PARTITION BY Attributes['everr.usage.month'],
+                                         Attributes['everr.usage.clock.generation'],
                                          Attributes['everr.ingestion.signal'],
                                          ResourceAttributes['service.instance.id'],
                                          StartTimeUnix
@@ -226,6 +230,7 @@ document:
                               AND Value >= 0
                             WINDOW counter AS (
                               PARTITION BY Attributes['everr.usage.month'],
+                                           Attributes['everr.usage.clock.generation'],
                                            Attributes['everr.ingestion.signal'],
                                            ResourceAttributes['service.instance.id'],
                                            StartTimeUnix

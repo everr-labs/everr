@@ -36,7 +36,7 @@ func TestDrainContract(t *testing.T) {
 		point := metric.Sum().DataPoints().At(0)
 		require.Equal(t, expected[owner.Str()], point.IntValue())
 		delete(expected, owner.Str())
-		require.Equal(t, map[string]any{"everr.ingestion.signal": "logs", "everr.usage.tenant.id": owner.Str(), MonthKey: point.StartTimestamp().AsTime().UTC().Format("2006-01")}, point.Attributes().AsRaw())
+		require.Equal(t, map[string]any{"everr.ingestion.signal": "logs", "everr.usage.tenant.id": owner.Str(), MonthKey: point.StartTimestamp().AsTime().UTC().Format("2006-01"), GenerationKey: "0"}, point.Attributes().AsRaw())
 		require.NotZero(t, point.StartTimestamp())
 		require.GreaterOrEqual(t, point.Timestamp(), point.StartTimestamp())
 		require.Equal(t, point.Attributes().AsRaw()[MonthKey], point.Timestamp().AsTime().UTC().Format("2006-01"))
@@ -132,7 +132,22 @@ func TestMonthUsesUTC(t *testing.T) {
 	require.True(t, admitted.Equal(point.Timestamp().AsTime()))
 }
 
-func TestAdmissionClockNeverMovesBackward(t *testing.T) {
+func TestClockCorrectionAcrossMonth(t *testing.T) {
+	for _, tenant := range []string{"a", "b"} {
+		t.Run(tenant, func(t *testing.T) {
+			m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
+			m.recordAt(pipeline.SignalLogs, map[string]int64{"a": 100}, time.Date(2026, 10, 1, 0, 0, 1, 0, time.UTC))
+			m.Drain()
+			corrected := time.Date(2026, 9, 30, 23, 59, 59, 0, time.UTC)
+			m.recordAt(pipeline.SignalLogs, map[string]int64{tenant: 200}, corrected)
+			point := m.Drain().ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
+			require.Equal(t, "2026-09", point.Attributes().AsRaw()[MonthKey])
+			require.Equal(t, corrected, point.Timestamp().AsTime())
+		})
+	}
+}
+
+func TestAdmissionClockPreservesWallTime(t *testing.T) {
 	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
 	first := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
 	times := []time.Time{first, first, first.Add(-time.Hour)}
@@ -142,11 +157,42 @@ func TestAdmissionClockNeverMovesBackward(t *testing.T) {
 		return now
 	}
 
-	for i := range 3 {
+	for _, admitted := range []time.Time{first, first, first.Add(-time.Hour)} {
 		m.Record(pipeline.SignalLogs, map[string]int64{"a": 100})
 		point := m.Drain().ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
-		require.Equal(t, first.Add(time.Duration(i)*time.Nanosecond), point.Timestamp().AsTime())
+		require.Equal(t, admitted, point.Timestamp().AsTime())
 		require.Equal(t, "2026-09", point.Attributes().AsRaw()[MonthKey])
+	}
+}
+
+func TestClockGenerationIgnoresUnrecordedMeasurements(t *testing.T) {
+	m := newMeter(Config{MaxSeries: 1}, zap.NewNop())
+	at := time.Date(2026, 9, 30, 23, 59, 59, 0, time.UTC)
+	m.recordAt(pipeline.SignalLogs, map[string]int64{"a": 100}, at)
+	for _, measurements := range []map[string]int64{nil, {"a": 0}, {"a": -1}, {"a": maxBytes}, {"b": 100}} {
+		m.recordAt(pipeline.SignalLogs, measurements, at.Add(-time.Second))
+		require.Equal(t, uint64(0), m.generation)
+		require.Equal(t, pcommon.NewTimestampFromTime(at), m.lastAdmission)
+	}
+}
+
+func TestClockGenerationsRemainSeparateWithinFlush(t *testing.T) {
+	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
+	at := time.Date(2026, 9, 30, 23, 59, 59, 999999999, time.UTC)
+	for range 3 {
+		m.recordAt(pipeline.SignalLogs, map[string]int64{"a": 100}, at)
+	}
+	md := m.Drain()
+	require.Equal(t, 3, md.DataPointCount())
+	require.Equal(t, int64(300), totalValue(md))
+	generations := map[string]bool{}
+	for _, rm := range md.ResourceMetrics().All() {
+		point := rm.ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
+		require.Equal(t, at, point.Timestamp().AsTime())
+		require.Equal(t, "2026-09", point.Attributes().AsRaw()[MonthKey])
+		generation := point.Attributes().AsRaw()[GenerationKey].(string)
+		require.False(t, generations[generation])
+		generations[generation] = true
 	}
 }
 

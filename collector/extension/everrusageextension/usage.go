@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -18,11 +19,12 @@ import (
 )
 
 const (
-	Type         = "everr_usage"
-	MetricName   = "everr.ingestion.volume"
-	TenantKey    = "everr.tenant.id"
-	RetentionKey = "everr.retention.days"
-	MonthKey     = "everr.usage.month"
+	Type          = "everr_usage"
+	MetricName    = "everr.ingestion.volume"
+	TenantKey     = "everr.tenant.id"
+	RetentionKey  = "everr.retention.days"
+	MonthKey      = "everr.usage.month"
+	GenerationKey = "everr.usage.clock.generation"
 	// Integer values above this limit cannot be represented exactly in metrics_sum.Value.
 	maxBytes = int64(1 << 53)
 )
@@ -49,6 +51,7 @@ func NewFactory() extension.Factory {
 type key struct {
 	tenant, month string
 	signal        pipeline.Signal
+	generation    uint64
 }
 type total struct {
 	bytes int64
@@ -68,6 +71,7 @@ type Meter struct {
 	publisher     bool
 	now           func() time.Time
 	lastAdmission pcommon.Timestamp
+	generation    uint64
 }
 
 func newMeter(cfg Config, logger *zap.Logger) *Meter {
@@ -112,16 +116,19 @@ func (m *Meter) record(signal pipeline.Signal, bytesByTenant map[string]int64, n
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	at := pcommon.NewTimestampFromTime(now())
+	generation := m.generation
+	// A fresh stream preserves the real admission month without asking the
+	// cumulative processor to accept an equal or backward timestamp. Keep the
+	// generation through drains so second-precision storage cannot merge resets.
 	if at <= m.lastAdmission {
-		at = m.lastAdmission + 1
+		generation++
 	}
-	m.lastAdmission = at
 	month := at.AsTime().UTC().Format("2006-01")
 	for tenant, bytes := range bytesByTenant {
 		if bytes <= 0 {
 			continue
 		}
-		k := key{tenant: tenant, signal: signal, month: month}
+		k := key{tenant: tenant, signal: signal, month: month, generation: generation}
 		v, exists := m.totals[k]
 		if (!exists && len(m.totals) >= m.cfg.MaxSeries) || bytes > maxBytes-v.bytes {
 			m.dropped++
@@ -133,6 +140,8 @@ func (m *Meter) record(signal pipeline.Signal, bytesByTenant map[string]int64, n
 		v.bytes += bytes
 		v.end = at
 		m.totals[k] = v
+		m.lastAdmission = at
+		m.generation = generation
 	}
 }
 
@@ -176,6 +185,7 @@ func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total) {
 	point.SetStartTimestamp(v.start)
 	point.SetTimestamp(v.end)
 	point.Attributes().PutStr(MonthKey, k.month)
+	point.Attributes().PutStr(GenerationKey, strconv.FormatUint(k.generation, 10))
 	point.Attributes().PutStr("everr.ingestion.signal", k.signal.String())
 	point.Attributes().PutStr("everr.usage.tenant.id", k.tenant)
 }
