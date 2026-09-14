@@ -1,5 +1,5 @@
 import { and, eq, ne, sql } from "drizzle-orm";
-import { db } from "@/db/client";
+import { db, type Transaction } from "@/db/client";
 import { member, organization, orgSubscription } from "@/db/schema";
 import {
   assertPolarProductGrantsPlan,
@@ -154,6 +154,13 @@ export async function userOwnsHobbyOrganization(
     ),
   );
   return entitlements.some(({ plan }) => plan === "hobby");
+}
+
+export async function lockHobbyOrganizationOwnership(
+  tx: Transaction,
+  ownerId: string,
+) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${ownerId}))`);
 }
 
 type SubscriptionUpsert = {
