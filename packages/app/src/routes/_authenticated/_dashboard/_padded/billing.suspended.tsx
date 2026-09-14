@@ -56,8 +56,7 @@ function SuspendedOrganizationPage() {
     try {
       const result = await getOrgPortalUrl();
       if (result.status === "customer_missing") {
-        setError("Billing details are unavailable. Please contact support.");
-        setOpeningPortal(false);
+        window.location.assign("/billing");
         return;
       }
       window.location.assign(result.url);
@@ -99,7 +98,8 @@ function SuspendedOrganizationPage() {
           {recovery.canManageBilling ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Update the payment method in Polar to restore the organization.
+                Manage the subscription in Polar, or repair missing billing
+                details in Plan & Billing, to restore the organization.
               </p>
               <Button
                 onClick={() => void openPortal()}
@@ -110,7 +110,7 @@ function SuspendedOrganizationPage() {
                 ) : (
                   <CreditCard />
                 )}
-                {openingPortal ? "Opening billing..." : "Update payment method"}
+                {openingPortal ? "Opening billing..." : "Manage billing"}
                 {!openingPortal ? <ArrowUpRight /> : null}
               </Button>
             </>

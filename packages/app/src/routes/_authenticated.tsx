@@ -79,7 +79,8 @@ export const Route = createFileRoute("/_authenticated")({
     const entitlement = await getActiveOrgAppAccess();
     if (
       entitlement.appState === "suspended" &&
-      pathname !== "/billing/suspended"
+      pathname !== "/billing/suspended" &&
+      pathname !== "/billing"
     ) {
       throw redirect({ to: "/billing/suspended" });
     }
