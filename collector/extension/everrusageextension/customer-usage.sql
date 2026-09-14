@@ -18,6 +18,7 @@ FROM
       AND MetricName = 'everr.ingestion.volume'
       AND Attributes['everr.usage.month'] = {month:String}
       AND TimeUnix >= toDateTime(concat({month:String}, '-01 00:00:00'), 'UTC')
+      AND TimeUnix < addMonths(toDateTime(concat({month:String}, '-01 00:00:00'), 'UTC'), 1)
       AND AggregationTemporality = 2
       AND IsMonotonic
       AND MetricUnit = 'By'

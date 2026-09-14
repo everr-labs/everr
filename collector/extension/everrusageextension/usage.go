@@ -52,23 +52,26 @@ type key struct {
 }
 type total struct {
 	bytes int64
-	start time.Time
+	start pcommon.Timestamp
+	end   pcommon.Timestamp
 }
 
 type Meter struct {
 	component.StartFunc
 	component.ShutdownFunc
-	cfg       Config
-	logger    *zap.Logger
-	instance  string
-	mu        sync.Mutex
-	totals    map[key]total
-	dropped   uint64
-	publisher bool
+	cfg           Config
+	logger        *zap.Logger
+	instance      string
+	mu            sync.Mutex
+	totals        map[key]total
+	dropped       uint64
+	publisher     bool
+	now           func() time.Time
+	lastAdmission pcommon.Timestamp
 }
 
 func newMeter(cfg Config, logger *zap.Logger) *Meter {
-	return &Meter{cfg: cfg, logger: logger, instance: uuid.NewString(), totals: make(map[key]total)}
+	return &Meter{cfg: cfg, logger: logger, instance: uuid.NewString(), totals: make(map[key]total), now: time.Now}
 }
 
 func Lookup(host component.Host, id component.ID) (*Meter, error) {
@@ -92,10 +95,14 @@ func (m *Meter) ClaimPublisher() error {
 
 // Record retains only scalar measurements, never customer payloads. Overflow loses usage.
 func (m *Meter) Record(signal pipeline.Signal, bytesByTenant map[string]int64) {
-	m.recordAt(signal, bytesByTenant, time.Now())
+	m.record(signal, bytesByTenant, m.now)
 }
 
 func (m *Meter) recordAt(signal pipeline.Signal, bytesByTenant map[string]int64, now time.Time) {
+	m.record(signal, bytesByTenant, func() time.Time { return now })
+}
+
+func (m *Meter) record(signal pipeline.Signal, bytesByTenant map[string]int64, now func() time.Time) {
 	switch signal {
 	case pipeline.SignalLogs, pipeline.SignalTraces, pipeline.SignalMetrics:
 	default:
@@ -104,7 +111,12 @@ func (m *Meter) recordAt(signal pipeline.Signal, bytesByTenant map[string]int64,
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	month := now.UTC().Format("2006-01")
+	at := pcommon.NewTimestampFromTime(now())
+	if at <= m.lastAdmission {
+		at = m.lastAdmission + 1
+	}
+	m.lastAdmission = at
+	month := at.AsTime().UTC().Format("2006-01")
 	for tenant, bytes := range bytesByTenant {
 		if bytes <= 0 {
 			continue
@@ -116,9 +128,10 @@ func (m *Meter) recordAt(signal pipeline.Signal, bytesByTenant map[string]int64,
 			continue
 		}
 		if !exists {
-			v.start = now
+			v.start = at
 		}
 		v.bytes += bytes
+		v.end = at
 		m.totals[k] = v
 	}
 }
@@ -126,10 +139,6 @@ func (m *Meter) recordAt(signal pipeline.Signal, bytesByTenant map[string]int64,
 // Drain consumes a snapshot permanently before publication is attempted.
 // Convert these deltas to cumulative before the retrying exporter, never replay them here.
 func (m *Meter) Drain() pmetric.Metrics {
-	return m.drainAt(time.Now())
-}
-
-func (m *Meter) drainAt(end time.Time) pmetric.Metrics {
 	m.mu.Lock()
 	totals, dropped := m.totals, m.dropped
 	m.totals = make(map[key]total)
@@ -140,12 +149,12 @@ func (m *Meter) drainAt(end time.Time) pmetric.Metrics {
 	}
 	customer := pmetric.NewMetrics()
 	for k, v := range totals {
-		m.appendPoint(customer, k, v, end)
+		m.appendPoint(customer, k, v)
 	}
 	return customer
 }
 
-func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time) {
+func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total) {
 	rm := md.ResourceMetrics().AppendEmpty()
 	attrs := rm.Resource().Attributes()
 	attrs.PutStr(TenantKey, k.tenant)
@@ -164,8 +173,8 @@ func (m *Meter) appendPoint(md pmetric.Metrics, k key, v total, end time.Time) {
 	sum.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	point := sum.DataPoints().AppendEmpty()
 	point.SetIntValue(v.bytes)
-	point.SetStartTimestamp(pcommon.NewTimestampFromTime(v.start))
-	point.SetTimestamp(pcommon.NewTimestampFromTime(end))
+	point.SetStartTimestamp(v.start)
+	point.SetTimestamp(v.end)
 	point.Attributes().PutStr(MonthKey, k.month)
 	point.Attributes().PutStr("everr.ingestion.signal", k.signal.String())
 	point.Attributes().PutStr("everr.usage.tenant.id", k.tenant)

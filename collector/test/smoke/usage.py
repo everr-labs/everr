@@ -37,8 +37,8 @@ def post(url, body, headers=None):
 
 
 def verify_month_query(db):
-    # Read-only fixtures: late September snapshots, duplicates, a restart,
-    # a mismatched owner, October usage, and Float64 rounding above 2^53.
+    # Read-only fixtures: duplicates, a restart, a mismatched owner and month,
+    # October usage, and Float64 rounding above 2^53.
     fixture = """(
         SELECT 'everr-ingestion' AS ServiceName,
             'everr.ingestion.volume' AS MetricName,
@@ -46,22 +46,24 @@ def verify_month_query(db):
                 'everr.ingestion.signal', 'logs') AS Attributes,
             map('everr.tenant.id', owner, 'service.instance.id', instance) AS ResourceAttributes,
             started AS StartTimeUnix,
-            toDateTime('2026-10-01 00:00:05', 'UTC') AS TimeUnix,
+            observed AS TimeUnix,
             toFloat64(bytes) AS Value, 2 AS AggregationTemporality,
             true AS IsMonotonic, 'By' AS MetricUnit,
             'github.com/everr-labs/everr/collector/usage' AS ScopeName, '1' AS ScopeVersion
-        FROM values('month String, customer String, owner String, instance String, started DateTime, bytes Int64',
-            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 200),
-            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 400),
-            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 400),
-            ('2026-09', 'a', 'other', 'one', '2026-09-30 23:58:00', 400),
-            ('2026-09', 'a', 'a', 'two', '2026-09-30 23:59:00', 50),
-            ('2026-10', 'a', 'a', 'one', '2026-10-01 00:00:00', 300),
-            ('2026-09', 'large', 'large', 'one', '2026-09-30 23:58:00', 9007199254740995)
+        FROM values('month String, customer String, owner String, instance String, started DateTime, observed DateTime, bytes Int64',
+            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', '2026-09-30 23:58:00', 200),
+            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', '2026-09-30 23:59:00', 400),
+            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', '2026-09-30 23:59:00', 400),
+            ('2026-09', 'a', 'other', 'one', '2026-09-30 23:58:00', '2026-09-30 23:59:00', 400),
+            ('2026-09', 'a', 'a', 'two', '2026-09-30 23:59:30', '2026-09-30 23:59:30', 50),
+            ('2026-10', 'a', 'a', 'one', '2026-10-01 00:00:00', '2026-10-01 00:00:00', 300),
+            ('2026-09', 'large', 'large', 'one', '2026-09-30 23:58:00', '2026-09-30 23:59:45', 9007199254740995),
+            ('2026-09', 'wrong-month', 'wrong-month', 'one', '2026-09-30 23:58:00', '2026-10-01 00:00:05', 999)
         )
     )"""
     query = (ROOT / 'extension/everrusageextension/customer-usage.sql').read_text().replace('FROM metrics_sum', 'FROM ' + fixture)
     september = {r['customer']: int(r['bytes']) for r in db(query.replace('{month:String}', "'2026-09'"))}
+    assert set(september) == {'a', 'large'}, september
     assert september['a'] == 450, september
     assert 9007199254740995-1024 <= september['large'] <= 9007199254740995, september
     assert db(query.replace('{month:String}', "'2026-10'")) == [{'customer': 'a', 'signal': 'logs', 'bytes': 300}]
@@ -74,7 +76,7 @@ def verify_month_query(db):
     ]:
         malformed = query.replace(original, invalid).replace('{month:String}', "'2026-09'")
         assert db(malformed) == [], f'{field}: malformed usage was billed'
-    print('PASS: canonical monthly query enforces the metric contract and handles late publication, resets, copies, and large-counter rounding.', flush=True)
+    print('PASS: canonical monthly query enforces the metric contract and handles month bounds, resets, copies, and large-counter rounding.', flush=True)
 
 
 def main():
@@ -275,6 +277,8 @@ def main():
             print('Customer-owned totals after crash recovery and ambiguous retries:', before, flush=True)
             raw = db(f"SELECT count() AS rows, uniqExact(tuple(tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.usage.tenant.id'], Attributes['everr.ingestion.signal'], StartTimeUnix)) AS identities FROM app.metrics_sum WHERE {usage_where}")[0]
             assert raw['rows'] > raw['identities'], raw
+            mismatched_months = db(f"SELECT count() AS rows FROM app.metrics_sum WHERE {usage_where} AND formatDateTime(TimeUnix, '%Y-%m', 'UTC') != Attributes['everr.usage.month']")[0]
+            assert mismatched_months['rows'] == 0, mismatched_months
             repeated = db(f"SELECT count() AS copies FROM app.metrics_sum WHERE {usage_where} AND tenant_id=Attributes['everr.usage.tenant.id'] GROUP BY tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.ingestion.signal'], StartTimeUnix HAVING copies>1 LIMIT 1")
             assert repeated, 'must observe actual retried customer rows'
             print('Actual duplicate rows:', raw, flush=True)

@@ -29,19 +29,20 @@ func TestNativeCumulativeMonthlyStreams(t *testing.T) {
 	meter := newMeter(Config{MaxSeries: 10}, zap.NewNop())
 	september := time.Date(2026, 9, 30, 23, 58, 0, 0, time.UTC)
 	meter.recordAt(pipeline.SignalLogs, map[string]int64{"a": 200}, september)
-	require.NoError(t, proc.ConsumeMetrics(t.Context(), meter.drainAt(september.Add(time.Minute))))
+	require.NoError(t, proc.ConsumeMetrics(t.Context(), meter.Drain()))
 	// One flush spans the UTC boundary: these must remain different streams.
 	meter.recordAt(pipeline.SignalLogs, map[string]int64{"a": 200}, september.Add(90*time.Second))
 	meter.recordAt(pipeline.SignalLogs, map[string]int64{"a": 300}, september.Add(2*time.Minute))
-	require.NoError(t, proc.ConsumeMetrics(t.Context(), meter.drainAt(september.Add(3*time.Minute))))
+	require.NoError(t, proc.ConsumeMetrics(t.Context(), meter.Drain()))
 	md := sink.AllMetrics()[1]
 	require.Equal(t, 2, md.DataPointCount())
 	expected := map[string]struct {
 		bytes int64
 		start time.Time
+		end   time.Time
 	}{
-		"2026-09": {400, september},
-		"2026-10": {300, september.Add(2 * time.Minute)},
+		"2026-09": {bytes: 400, start: september, end: september.Add(90 * time.Second)},
+		"2026-10": {bytes: 300, start: september.Add(2 * time.Minute), end: september.Add(2 * time.Minute)},
 	}
 	for _, rm := range md.ResourceMetrics().All() {
 		sum := rm.ScopeMetrics().At(0).Metrics().At(0).Sum()
@@ -51,9 +52,59 @@ func TestNativeCumulativeMonthlyStreams(t *testing.T) {
 		require.Contains(t, expected, month)
 		require.Equal(t, expected[month].bytes, point.IntValue())
 		require.Equal(t, expected[month].start, point.StartTimestamp().AsTime())
+		require.Equal(t, expected[month].end, point.Timestamp().AsTime())
 		delete(expected, month)
 	}
 	require.Empty(t, expected)
+}
+
+func TestEqualAndBackwardAdmissionTimesRemainCumulative(t *testing.T) {
+	sink := new(consumertest.MetricsSink)
+	factory := deltatocumulativeprocessor.NewFactory()
+	proc, err := factory.CreateMetrics(t.Context(), processortest.NewNopSettings(factory.Type()), factory.CreateDefaultConfig(), sink)
+	require.NoError(t, err)
+	require.NoError(t, proc.Start(t.Context(), componenttest.NewNopHost()))
+	t.Cleanup(func() { require.NoError(t, proc.Shutdown(t.Context())) })
+	meter := newMeter(Config{MaxSeries: 10}, zap.NewNop())
+	first := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+
+	for i, admitted := range []time.Time{first, first, first.Add(-time.Hour)} {
+		meter.recordAt(pipeline.SignalLogs, map[string]int64{"a": 100}, admitted)
+		require.NoError(t, proc.ConsumeMetrics(t.Context(), meter.Drain()))
+		point := sink.AllMetrics()[i].ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
+		require.Equal(t, int64((i+1)*100), point.IntValue())
+		require.Equal(t, first.Add(time.Duration(i)*time.Nanosecond), point.Timestamp().AsTime())
+	}
+}
+
+func TestRestartAtSameAdmissionTimeStartsIndependentStream(t *testing.T) {
+	sink := new(consumertest.MetricsSink)
+	factory := deltatocumulativeprocessor.NewFactory()
+	proc, err := factory.CreateMetrics(t.Context(), processortest.NewNopSettings(factory.Type()), factory.CreateDefaultConfig(), sink)
+	require.NoError(t, err)
+	require.NoError(t, proc.Start(t.Context(), componenttest.NewNopHost()))
+	t.Cleanup(func() { require.NoError(t, proc.Shutdown(t.Context())) })
+	admitted := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+
+	instances := map[string]int64{}
+	for _, bytes := range []int64{100, 200} {
+		meter := newMeter(Config{MaxSeries: 10}, zap.NewNop())
+		meter.recordAt(pipeline.SignalLogs, map[string]int64{"a": bytes}, admitted)
+		require.NoError(t, proc.ConsumeMetrics(t.Context(), meter.Drain()))
+		point := sink.AllMetrics()[len(instances)].ResourceMetrics().At(0)
+		instance, _ := point.Resource().Attributes().Get("service.instance.id")
+		instances[instance.Str()] = point.ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0).IntValue()
+	}
+	require.Len(t, instances, 2)
+	require.ElementsMatch(t, []int64{100, 200}, int64Values(instances))
+}
+
+func int64Values(values map[string]int64) []int64 {
+	result := make([]int64, 0, len(values))
+	for _, value := range values {
+		result = append(result, value)
+	}
+	return result
 }
 
 // Exercise upstream's real one-minute cleanup ticker with virtual time.

@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/collector/pipeline"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 )
@@ -38,6 +39,7 @@ func TestDrainContract(t *testing.T) {
 		require.Equal(t, map[string]any{"everr.ingestion.signal": "logs", "everr.usage.tenant.id": owner.Str(), MonthKey: point.StartTimestamp().AsTime().UTC().Format("2006-01")}, point.Attributes().AsRaw())
 		require.NotZero(t, point.StartTimestamp())
 		require.GreaterOrEqual(t, point.Timestamp(), point.StartTimestamp())
+		require.Equal(t, point.Attributes().AsRaw()[MonthKey], point.Timestamp().AsTime().UTC().Format("2006-01"))
 	}
 	require.Empty(t, expected)
 	require.Zero(t, m.Drain().DataPointCount())
@@ -56,17 +58,26 @@ func TestConcurrentDrainAndBounds(t *testing.T) {
 		}()
 	}
 	var sum int64
-	for range 10 {
-		md := m.Drain()
+	var last pcommon.Timestamp
+	consume := func(md pmetric.Metrics) {
 		sum += totalValue(md)
+		if md.DataPointCount() == 0 {
+			return
+		}
+		point := md.ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
+		require.Greater(t, point.Timestamp(), last)
+		require.Equal(t, point.Attributes().AsRaw()[MonthKey], point.Timestamp().AsTime().UTC().Format("2006-01"))
+		last = point.Timestamp()
+	}
+	for range 10 {
+		consume(m.Drain())
 	}
 	wg.Wait()
-	md := m.Drain()
-	sum += totalValue(md)
+	consume(m.Drain())
 	require.Equal(t, int64(800), sum)
 	m.Record(pipeline.SignalLogs, map[string]int64{"a": maxBytes})
 	m.Record(pipeline.SignalLogs, map[string]int64{"a": 1, "b": 5})
-	md = m.Drain()
+	md := m.Drain()
 	require.Equal(t, maxBytes, totalValue(md))
 	require.Equal(t, 1, md.DataPointCount())
 	require.NoError(t, m.ClaimPublisher())
@@ -93,14 +104,18 @@ func TestMonthRolloverWithinOneFlush(t *testing.T) {
 	after := before.Add(time.Second)
 	m.recordAt(pipeline.SignalLogs, map[string]int64{"a": 200}, before)
 	m.recordAt(pipeline.SignalLogs, map[string]int64{"a": 300}, after)
-	md := m.drainAt(after.Add(time.Minute))
+	md := m.Drain()
 	require.Equal(t, 2, md.DataPointCount())
-	expected := map[string]int64{"2026-09": 200, "2026-10": 300}
+	expected := map[string]struct {
+		bytes int64
+		end   time.Time
+	}{"2026-09": {200, before}, "2026-10": {300, after}}
 	for _, rm := range md.ResourceMetrics().All() {
 		point := rm.ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
 		month := point.Attributes().AsRaw()[MonthKey].(string)
 		require.Contains(t, expected, month)
-		require.Equal(t, expected[month], point.IntValue())
+		require.Equal(t, expected[month].bytes, point.IntValue())
+		require.Equal(t, expected[month].end, point.Timestamp().AsTime())
 		delete(expected, month)
 	}
 	require.Empty(t, expected)
@@ -110,9 +125,29 @@ func TestMonthRolloverWithinOneFlush(t *testing.T) {
 
 func TestMonthUsesUTC(t *testing.T) {
 	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
-	m.recordAt(pipeline.SignalLogs, map[string]int64{"a": 200}, time.Date(2026, 10, 1, 1, 0, 0, 0, time.FixedZone("east", 2*60*60)))
+	admitted := time.Date(2026, 10, 1, 1, 0, 0, 0, time.FixedZone("east", 2*60*60))
+	m.recordAt(pipeline.SignalLogs, map[string]int64{"a": 200}, admitted)
 	point := m.Drain().ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
 	require.Equal(t, "2026-09", point.Attributes().AsRaw()[MonthKey])
+	require.True(t, admitted.Equal(point.Timestamp().AsTime()))
+}
+
+func TestAdmissionClockNeverMovesBackward(t *testing.T) {
+	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
+	first := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	times := []time.Time{first, first, first.Add(-time.Hour)}
+	m.now = func() time.Time {
+		now := times[0]
+		times = times[1:]
+		return now
+	}
+
+	for i := range 3 {
+		m.Record(pipeline.SignalLogs, map[string]int64{"a": 100})
+		point := m.Drain().ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).Sum().DataPoints().At(0)
+		require.Equal(t, first.Add(time.Duration(i)*time.Nanosecond), point.Timestamp().AsTime())
+		require.Equal(t, "2026-09", point.Attributes().AsRaw()[MonthKey])
+	}
 }
 
 func TestUnsupportedSignalsAreNotPublished(t *testing.T) {

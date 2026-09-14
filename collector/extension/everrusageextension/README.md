@@ -28,16 +28,20 @@ usage connector -> delta_to_cumulative -> dedicated usage exporter
 | Datapoint attributes | `everr.ingestion.signal`, `everr.usage.tenant.id`, `everr.usage.month` |
 | Signals | `logs`, `traces`, `metrics` |
 | Month | UTC calendar month, `YYYY-MM`, assigned at successful admission |
+| Timestamp | Latest successful admission represented by the delta |
 | Resource owner | `everr.tenant.id`, the measured tenant |
 | Resource service | `service.name=everr-ingestion` |
 | Resource instance | A new `service.instance.id` for each extension instance |
 | Scope | `github.com/everr-labs/everr/collector/usage`, version `1` |
 | Retention | Fixed 365 days, independent of plan and source retention |
 
-Monthly attribution happens before buffering measurements for publication. A
-flush spanning midnight emits separate deltas for the two months. A delayed
-September publication therefore still belongs to September, even if written
-in October. There is no per-flush sequence attribute.
+Monthly attribution and the point timestamp come from the same admission clock.
+A flush spanning midnight emits separate deltas for the two months, each
+timestamped at its latest admission. A delayed September publication therefore
+retains a September timestamp even if it is written in October. The admission
+clock advances by one nanosecond when the process clock repeats or moves
+backward, which preserves the ordering required by cumulative conversion. There
+is no per-flush sequence attribute.
 
 ## Counter lifetimes and monthly totals
 
@@ -55,10 +59,10 @@ not inflate maxima. A collector restart creates a new instance identity, while
 idle expiry creates a new start timestamp. The exporter preserves both through
 queue recovery. Do not sum raw samples or discard these identities in a rollup.
 
-The month attribute controls billing; sample timestamps only provide a lower
-scan bound. There is deliberately no end-of-month sample cutoff, because a final
-snapshot may be published after midnight. Finalize invoices only after pending
-writes have settled. Only monotonic cumulative points with unit `By`, scope name
+The month attribute controls billing, and sample timestamps constrain scans to
+that same UTC month using half-open bounds. Finalize invoices only after pending
+writes have settled because a delayed snapshot can still arrive after the month
+ends. Only monotonic cumulative points with unit `By`, scope name
 `github.com/everr-labs/everr/collector/usage`, and scope version `1` are included.
 Changing the scope version requires an explicit billing-query update.
 The invoice scheduler and customer usage UI must use this query contract; they
@@ -160,7 +164,7 @@ whose lifetime has expired or whose process has stopped.
 | Customer metrics fill their queue | Usage has a distinct exporter ID and persistent metrics queue. Customer metrics cannot consume usage queue capacity. | `TestDedicatedUsageQueueWaitsForCapacity`. |
 | Exporter retries after a lost database acknowledgment, or recovers queued data after restart | Cumulative snapshot identities survive retries and recovery. Billing uses lifetime maxima, and replayed source queues bypass admission metering. These internal retries do not add charges. | `TestPersistentAdmissionRecovery` and the storage smoke test, which produces actual duplicate rows. |
 | An already-persisted counter expires while the customer is idle | Returning traffic starts a new lifetime. Summing lifetime maxima preserves prior usage without synthetic idle points. | `TestNativeCumulativeMonthlyStreams` and the idle expiry/resumption smoke test. |
-| Publication crosses a UTC month boundary | Admission assigns the month before publication. The query includes late snapshots for that month. | UTC/month rollover tests and monthly query fixtures in the smoke test. |
+| Publication crosses a UTC month boundary | Admission assigns both the month and timestamp before publication. A delayed snapshot remains in its admission month. | UTC/month rollover tests and monthly query fixtures in the smoke test. |
 | Customer sends forged `everr.*` metrics, or usage feeds its own meter | The incoming reserved namespace filter drops forged metrics. The usage pipeline bypasses metering; startup validation rejects direct metering on that publication pipeline. | Namespace smoke test and topology tests. Trusted tenant stamping and correct downstream routing remain required. |
 
 ### Mitigated or open failure modes
@@ -195,8 +199,9 @@ repairs accounting.
   availability. Exercise configuration changes with the ingestion smoke test.
 - Source tenant identity must be stamped from trusted authentication before
   metering. Missing tenant identity cannot be charged. The collector's wall clock
-  determines the UTC month and timestamps; clock skew near rollover can attribute
-  usage to the wrong billing month. Clock-skew fault testing is not yet included.
+  determines the UTC admission month and timestamp. The in-process admission
+  clock prevents repeated or backward timestamps, but an incorrectly configured
+  host clock can still attribute usage to the wrong billing month.
 - Monthly invoice settlement is still outside these components. Late queued
   snapshots can change a closed month's visible total. We need a defined
   finalization policy and treatment of late arrivals; a fixed delay alone cannot
@@ -225,13 +230,13 @@ repairs accounting.
 
 Run `go test -race ./...` in each usage component module and `make build` in
 `collector`. Tests cover measurement, tenant isolation, admission errors, native
-queue retries/recovery, bounds, UTC monthly attribution, and month rollover
-through the actual upstream cumulative processor. Failure tests cover a full
-persistent metrics queue while logs still admit successfully, recovery through a
-later cumulative snapshot, and permanent loss of an unpublished final value
-after native idle expiry. The expiry test uses Go virtual time with the real
-upstream cleanup ticker. Shutdown tests cover admissions during graceful shutdown
-and the final flush.
+queue retries/recovery, bounds, UTC monthly attribution, monotonic admission
+timestamps, restarts, and month rollover through the actual upstream cumulative
+processor. Failure tests cover a full persistent metrics queue while logs still
+admit successfully, recovery through a later cumulative snapshot, and permanent
+loss of an unpublished final value after native idle expiry. The expiry test uses
+Go virtual time with the real upstream cleanup ticker. Shutdown tests cover
+admissions during graceful shutdown and the final flush.
 Queue tests cover customer metrics saturation, isolated usage capacity, and
 bounded waiting when the usage queue is full. The smoke test also sends SIGTERM
 before the first 60-second publication tick, requires shutdown within the
