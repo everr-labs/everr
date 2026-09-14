@@ -87,6 +87,29 @@ monthly totals exact across individually representable counter values. Integer
 overflow in an exceptionally large cumulative stream can undercount; negative
 samples are excluded. Pending deltas are individually capped at `2^53` bytes.
 
+### Deferred: dashboard rounding above 8 PiB per counter lifetime
+
+The telemetry usage dashboard applies the 1024-byte rounding allowance only to
+the first sample of a lifetime, while `customer-usage.sql` applies it to the
+lifetime maximum. If a counter starts at or below `2^53` bytes (8 PiB) and later
+crosses that threshold, all three dashboard query shapes omit the allowance.
+The dashboard can then exceed both the actual admitted bytes and the canonical
+billing total. The canonical billing query remains conservative.
+
+A reproduced two-sample lifetime, with values `9007199254740992` followed by
+`9007199254740995`, produces a dashboard total of `9007199254740996` and a
+canonical billing total of `9007199254739972`. The dashboard is 1 byte above
+actual usage and 1024 bytes above the billing query.
+
+This threshold is per customer/signal/month/instance/clock-generation counter
+lifetime, not combined usage across customers or lifetimes. The discrepancy is
+accepted for now because it requires an exceptionally large individual counter.
+Follow up by making dashboard totals and trends use the same conservative
+rounding policy as the canonical query, with a regression fixture that crosses
+the threshold during a lifetime. Exact accounting beyond the threshold would
+require preserving integer values in storage; SQL cannot recover Float64
+precision already lost.
+
 ## Measurement
 
 Bytes are the protobuf serialization size of decoded, nonempty telemetry grouped
