@@ -82,6 +82,42 @@ describe("dashboardSpecSchema datasources", () => {
   });
 });
 
+describe("dashboardSpecSchema time range", () => {
+  it("preserves an explicit default range", () => {
+    const result = dashboardSpecSchema.parse({
+      ...spec("#/spec/panels/cpu"),
+      timeRange: { from: "now/M", to: "now" },
+    });
+    expect(result.timeRange).toEqual({ from: "now/M", to: "now" });
+  });
+
+  it("rejects reversed ranges on the strict write path", () => {
+    const result = dashboardSpecSchemaStrict.safeParse({
+      ...spec("#/spec/panels/cpu"),
+      timeRange: { from: "now", to: "now-6h" },
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["timeRange"]);
+  });
+
+  it("keeps the read path lenient for stored reversed ranges", () => {
+    const result = dashboardSpecSchema.safeParse({
+      ...spec("#/spec/panels/cpu"),
+      timeRange: { from: "now", to: "now-6h" },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a zero-length legacy duration on the strict write path", () => {
+    const result = dashboardSpecSchemaStrict.safeParse({
+      ...spec("#/spec/panels/cpu"),
+      duration: "0h",
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["duration"]);
+  });
+});
+
 describe("dashboardSpecSchemaStrict plugin specs", () => {
   const specWithPlugin = (kind: string, pluginSpec: unknown) => ({
     panels: {
@@ -100,7 +136,10 @@ describe("dashboardSpecSchemaStrict plugin specs", () => {
 
   it("accepts valid options for a known kind", () => {
     const result = dashboardSpecSchemaStrict.safeParse(
-      specWithPlugin("TimeSeriesChart", { unit: "ms", lineWidth: 2 }),
+      specWithPlugin("TimeSeriesChart", {
+        valueFormat: { unit: "ms", scale: "duration" },
+        lineWidth: 2,
+      }),
     );
     expect(result.success).toBe(true);
   });

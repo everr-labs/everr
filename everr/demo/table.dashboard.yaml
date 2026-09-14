@@ -9,7 +9,9 @@ spec:
       Table regression sheet — stickyHeader option and behaviors (multi-query
       selector, NULL rendering, scroll, single-query empty, all-frames-empty)
       exercised with deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     table-sticky:
@@ -118,6 +120,168 @@ spec:
                   scenario: csv
                   columns: [severity, logs]
                   rows: []
+    format-none:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: none"
+          description: "valueFormat: none, unit: {connection}, decimals: 2, latency column override"
+        plugin:
+          kind: Table
+          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 }, columns: { latency: { valueFormat: { unit: s, scale: duration } } } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: name, const: api }, { name: value, const: 12500 }, { name: latency, const: 0.025 }]
+    format-decimal:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: decimal"
+          description: "valueFormat: decimal, unit: widgets/s, decimals: 2, latency column override"
+        plugin:
+          kind: Table
+          spec: { valueFormat: { unit: widgets/s, scale: decimal, decimals: 2 }, columns: { latency: { valueFormat: { unit: s, scale: duration } } } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: name, const: api }, { name: value, const: 12500 }, { name: latency, const: 0.025 }]
+    format-binary:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: binary"
+          description: "valueFormat: binary, unit: By/s, decimals: 2, latency column override"
+        plugin:
+          kind: Table
+          spec: { valueFormat: { unit: By/s, scale: binary, decimals: 2 }, columns: { latency: { valueFormat: { unit: s, scale: duration } } } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: name, const: api }, { name: value, const: 2621440 }, { name: latency, const: 0.025 }]
+    format-duration:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: duration"
+          description: "valueFormat: duration, unit: s, decimals: 1, latency column override"
+        plugin:
+          kind: Table
+          spec: { valueFormat: { unit: s, scale: duration, decimals: 1 }, columns: { latency: { valueFormat: { unit: s, scale: duration } } } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: name, const: api }, { name: value, const: 0.025 }, { name: latency, const: 0.025 }]
+    format-ucum:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: OTel / UCUM codes"
+          description: "By/s, Cel, us, 1, {request}, {request}/s, and an unknown custom unit"
+        plugin:
+          kind: Table
+          spec:
+            columns:
+              bandwidth: { valueFormat: { unit: By/s, scale: binary } }
+              temperature: { valueFormat: { unit: Cel } }
+              latency: { valueFormat: { unit: us } }
+              utilization: { valueFormat: { unit: "1" } }
+              count: { valueFormat: { unit: "{request}", scale: decimal } }
+              rate: { valueFormat: { unit: "{request}/s", scale: decimal } }
+              custom: { valueFormat: { unit: widgets/s, scale: decimal } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [bandwidth, temperature, latency, utilization, count, rate, custom]
+                  rows: [[2621440, 21.234, 25, 0.5, 12500, 3500, 4200]]
+    format-percent:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: ratio as percent"
+          description: "unit: 1, display: percent; raw query ratios are unchanged"
+        plugin:
+          kind: Table
+          spec:
+            valueFormat:
+              unit: "1"
+              display: percent
+            columns:
+              latency:
+                valueFormat:
+                  unit: s
+                  scale: duration
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns:
+                    - name: name
+                      const: api
+                    - name: value
+                      const: 0.75
+                    - name: latency
+                      const: 0.025
+    format-si:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: SI prefixes"
+          description: "unit: Hz, scale: decimal; conventional GHz label"
+        plugin:
+          kind: Table
+          spec:
+            valueFormat:
+              unit: Hz
+              scale: decimal
+            columns:
+              latency:
+                valueFormat:
+                  unit: s
+                  scale: duration
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns:
+                    - name: name
+                      const: api
+                    - name: value
+                      const: 3200000000
+                    - name: latency
+                      const: 0.025
   layouts:
     - kind: Grid
       spec:
@@ -126,3 +290,10 @@ spec:
           - { x: 0,  y: 10, width: 24, height: 8,  content: { $ref: "#/spec/panels/table-multi-query" } }
           - { x: 0,  y: 18, width: 12, height: 6,  content: { $ref: "#/spec/panels/table-empty" } }
           - { x: 12, y: 18, width: 12, height: 6,  content: { $ref: "#/spec/panels/table-multi-empty" } }
+          - { x: 0, y: 24, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
+          - { x: 12, y: 24, width: 12, height: 9, content: { $ref: "#/spec/panels/format-decimal" } }
+          - { x: 0, y: 33, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
+          - { x: 12, y: 33, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
+          - { x: 0, y: 42, width: 24, height: 6, content: { $ref: "#/spec/panels/format-ucum" } }
+          - { x: 0, y: 48, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
+          - { x: 12, y: 48, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }

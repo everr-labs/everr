@@ -21,7 +21,7 @@ panels:
       display: { name: Error rate }      # description optional
       plugin:
         kind: TimeSeriesChart            # TimeSeriesChart | BarChart | Table | StatChart | GaugeChart | GeoMap | Treemap | StateTimeline | StatusHistory | Heatmap | NodeGraph
-        spec: { unit: "%", showLegend: true }
+        spec: { showLegend: true, valueFormat: { unit: "%" } }
       queries:
         - kind: ClickHouseSQL            # outer query kind
           spec:
@@ -64,7 +64,7 @@ Data shape per visualization (the viz infers everything from your columns):
 | --- | --- |
 | `TimeSeriesChart` | a time column (aliased above) + numeric series columns. A non-numeric **string** column pivots one value column into one line per label (e.g. `GROUP BY ts, ServiceName`) — but **only with exactly one numeric column** (see `rules/timeseries.md`). |
 | `BarChart` | same as `TimeSeriesChart` (time column + numeric series, string pivot with exactly one numeric column) — or, **without** a time column, the first string column becomes the category axis (see `rules/barchart.md`). |
-| `Table` | any columns, rendered as-is in query order (no formatting — do it in SQL). |
+| `Table` | any columns, rendered in query order, with optional numeric value formatting. |
 | `StatChart` | one or more numeric columns — **one tile per numeric column** (each reduced by `calculation`). A string column creates no tile. Include a time column for per-tile sparklines. |
 | `GaugeChart` | same shape as `StatChart` — one gauge per numeric column, reduced by `calculation`. Pick the gauge's `min`/`max` in the spec; no time axis needed. |
 | `GeoMap` | points mode: numeric lat/lon columns (+ optional value/label); choropleth mode: an ISO-3166 alpha-2/alpha-3 country-code column + a numeric value column (see `rules/geomap.md`). No time axis. |
@@ -73,6 +73,8 @@ Data shape per visualization (the viz infers everything from your columns):
 | `StatusHistory` | same shapes as `StateTimeline`, but each sample is an **independent cell** — nothing holds until the next sample; missing samples stay visibly empty (see `rules/statushistory.md`). |
 | `Heatmap` | a time column (aliased above) + a bucket column (y-axis) + a numeric value column (cell color) — `GROUP BY` time and bucket; same-cell rows sum (see `rules/heatmap.md`). |
 | `NodeGraph` | an edge list: a source column + a target column + an optional numeric weight column (see `rules/nodegraph.md`). No time axis; always `LIMIT`. |
+
+Numeric value presentation: read `rules/value-format.md` when setting scaling, precision, arbitrary labels, rates, durations, or table column formats.
 
 ## Visualization options
 
@@ -144,7 +146,7 @@ For `allowAllValue`, "All" expands to every loaded option as a quoted list; set 
 | PromQL / `rate()` / `$__rate_interval` / `PrometheusTimeSeriesQuery` | Queries are **ClickHouse SQL**; the only query plugin is `ClickHouseSQL`. |
 | No `{from:String}`/`{to:String}` in the `WHERE` | Add `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` — it is not auto-injected. |
 | Time-series x-axis blank | Alias the time column to `ts`/`time`/`timestamp` so it's detected. |
-| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max) | Only the options in each viz's rule file exist. Format/round in SQL, not via spec. |
+| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max) | Only the options in each viz's rule file exist. Use `valueFormat` for supported numeric presentation. Shape values in SQL when no supported spec option applies. |
 | `PrometheusLabelValuesVariable` or other variable plugins | Only `StaticListVariable` and `ClickHouseSQLVariable`. |
 | Single `ClickHouseSQL` in the query block | Both the query `kind` and the inner `plugin.kind` are `ClickHouseSQL`. |
 | `Duration` treated as ms/seconds | It's **nanoseconds** — divide by `1e6` (ms) or `1e9` (s). |

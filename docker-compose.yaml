@@ -52,11 +52,6 @@ services:
       - "8080:8080"
       - "4317:4317"
       - "4318:4318"
-      # Dev-only unauthenticated self-telemetry ingest (otlp/dev receiver):
-      # the locally running app ships here; the collector fans out to both
-      # the dev clickhouse and the desktop everr instance.
-      - "127.0.0.1:4319:4319"
-      - "127.0.0.1:4320:4320"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

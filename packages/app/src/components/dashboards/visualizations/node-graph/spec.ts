@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { valueFormatSpec } from "../value-format-spec";
 
 /**
  * NodeGraph plugin options. Loose so unknown keys flow through verbatim
@@ -7,6 +8,7 @@ import * as z from "zod";
  * relies on it.
  */
 export const nodeGraphSpec = z.looseObject({
+  valueFormat: valueFormatSpec.optional(),
   /** Edge source column; falls back to the first column when absent. */
   sourceColumn: z.string().default("source"),
   /** Edge target column; falls back to the second column when absent. */
@@ -17,7 +19,6 @@ export const nodeGraphSpec = z.looseObject({
    */
   valueColumn: z.string().default("value"),
   /** Value formatting in tooltips and edge labels. */
-  unit: z.string().default(""),
   /** Draw arrowheads pointing at each edge's target. */
   directed: z.boolean().default(true),
   /** Render the edge's value at its midpoint. */

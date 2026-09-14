@@ -78,7 +78,7 @@ kind: Panel
 height: 280
 spec:
   display: { name: Error rate }
-  plugin: { kind: TimeSeriesChart, spec: { unit: "%", showLegend: true } }
+  plugin: { kind: TimeSeriesChart, spec: { showLegend: true, valueFormat: { unit: "%" } } }
   queries:
     - kind: ClickHouseSQL
       spec:

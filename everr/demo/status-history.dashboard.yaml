@@ -11,7 +11,9 @@ spec:
       rowHeight, colWidth) and behavior (spec defaults, missing-sample slots,
       numeric statuses, single sample fallback, multi-query lanes, empty, no
       time column) exercised with deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     # ── Formats and options ──────────────────────────────────────────

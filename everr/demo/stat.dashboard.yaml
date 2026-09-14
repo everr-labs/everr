@@ -6,11 +6,13 @@ spec:
   display:
     name: Stat
     description: >-
-      StatChart regression sheet — every option (all 9 calculations, unit,
-      decimals, sparkline, thresholds absolute/percent, colorMode, showLabel,
+      StatChart regression sheet: every option (all 9 calculations, unit,
+      valueFormat, decimals, sparkline, colors, thresholds absolute/percent, colorMode, showLabel,
       noValue) and behavior (multi-query, placeholder tile, row-order sparkline,
       multi-tile, empty) exercised with deterministic TestData.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     # ── Calculations + options ───────────────────────────────────────
@@ -24,8 +26,6 @@ spec:
           kind: StatChart
           spec:
             calculation: last
-            unit: ms
-            decimals: 1
             sparkline: true
             thresholds:
               mode: absolute
@@ -33,6 +33,9 @@ spec:
               steps:
                 - { value: 10000, color: "#f59e0b" }
                 - { value: 60000, color: "#ef4444" }
+            valueFormat:
+              unit: ms
+              decimals: 1
         queries:
           - kind: TestData
             spec:
@@ -53,7 +56,8 @@ spec:
           kind: StatChart
           spec:
             calculation: first
-            decimals: 0
+            valueFormat:
+              decimals: 0
         queries:
           - kind: TestData
             spec:
@@ -69,13 +73,12 @@ spec:
       spec:
         display:
           name: "Stat: mean"
-          description: "calculation: mean · unit: s · decimals: 2"
+          description: "calculation: mean · valueFormat: binary B · decimals: 2"
         plugin:
           kind: StatChart
           spec:
             calculation: mean
-            unit: s
-            decimals: 2
+            valueFormat: { unit: By, scale: binary, decimals: 2 }
         queries:
           - kind: TestData
             spec:
@@ -85,7 +88,7 @@ spec:
                   scenario: random_walk
                   seed: 23
                   series:
-                    - { name: avg_s, start: 0.6, noise: 0.1, min: 0 }
+                    - { name: avg_bytes, start: 6442450944, noise: 536870912, min: 0 }
     stat-min:
       kind: Panel
       spec:
@@ -96,7 +99,8 @@ spec:
           kind: StatChart
           spec:
             calculation: min
-            unit: ms
+            valueFormat:
+              unit: ms
         queries:
           - kind: TestData
             spec:
@@ -282,12 +286,16 @@ spec:
       spec:
         display:
           name: "Stat: multi-tile (3 columns)"
-          description: "One query, three numeric columns → one tile each (multi-tile layout) · sparkline"
+          description: "One query, three numeric columns → one tile each (multi-tile layout) · sparkline · colors"
         plugin:
           kind: StatChart
           spec:
             calculation: last
             sparkline: true
+            colors:
+              p50_ms: "#a78bfa"
+              p95_ms: "#fde047"
+              p99_ms: "#22d3ee"
         queries:
           - kind: TestData
             spec:
@@ -319,6 +327,128 @@ spec:
                   scenario: csv
                   columns: [ts, value]
                   rows: []
+    format-none:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: none"
+          description: "valueFormat: none, unit: {connection}, decimals: 2"
+        plugin:
+          kind: StatChart
+          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: value, walk: { start: 12500, noise: 1250, min: 0 } }]
+    format-decimal:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: decimal"
+          description: "valueFormat: decimal, unit: widgets/s, decimals: 2"
+        plugin:
+          kind: StatChart
+          spec: { valueFormat: { unit: widgets/s, scale: decimal, decimals: 2 } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: value, walk: { start: 12500, noise: 1250, min: 0 } }]
+    format-binary:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: binary"
+          description: "valueFormat: binary, unit: By/s, decimals: 2"
+        plugin:
+          kind: StatChart
+          spec: { valueFormat: { unit: By/s, scale: binary, decimals: 2 } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: value, walk: { start: 2621440, noise: 262144, min: 0 } }]
+    format-duration:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: duration"
+          description: "valueFormat: duration, unit: s, decimals: 1"
+        plugin:
+          kind: StatChart
+          spec: { valueFormat: { unit: s, scale: duration, decimals: 1 } }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns: [{ name: ts, time: true }, { name: value, walk: { start: 0.025, noise: 0.0025, min: 0 } }]
+    format-percent:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: ratio as percent"
+          description: "unit: 1, display: percent; raw query ratios are unchanged"
+        plugin:
+          kind: StatChart
+          spec:
+            valueFormat:
+              unit: "1"
+              display: percent
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns:
+                    - name: ts
+                      time: true
+                    - name: value
+                      const: 0.75
+    format-si:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: SI prefixes"
+          description: "unit: Hz, scale: decimal; conventional GHz label"
+        plugin:
+          kind: StatChart
+          spec:
+            valueFormat:
+              unit: Hz
+              scale: decimal
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 12
+                  columns:
+                    - name: ts
+                      time: true
+                    - name: value
+                      const: 3200000000
   layouts:
     - kind: Grid
       spec:
@@ -336,3 +466,9 @@ spec:
           - { x: 12, y: 15, width: 12, height: 6, content: { $ref: "#/spec/panels/stat-row-order-sparkline" } }
           - { x: 0,  y: 21, width: 16, height: 6, content: { $ref: "#/spec/panels/stat-multi-tile" } }
           - { x: 16, y: 21, width: 8,  height: 6, content: { $ref: "#/spec/panels/stat-empty" } }
+          - { x: 0, y: 27, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
+          - { x: 12, y: 27, width: 12, height: 9, content: { $ref: "#/spec/panels/format-decimal" } }
+          - { x: 0, y: 36, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
+          - { x: 12, y: 36, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
+          - { x: 0, y: 45, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
+          - { x: 12, y: 45, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }

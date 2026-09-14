@@ -10,7 +10,7 @@ import {
   SERIES_COLORS,
 } from "../data-utils";
 import type { VisualizationProps } from "../index";
-import { formatStatValue } from "../stat-chart/stat-calculations";
+import { createValueFormatter } from "../value-format";
 import { heatmapColor, heatmapColorRgb, isDarkColor } from "./heatmap-colors";
 import { buildHeatmapModel, type HeatmapCell } from "./heatmap-data";
 import type { HeatmapSpec } from "./spec";
@@ -20,10 +20,6 @@ const MAX_X_TICKS = 6;
 /** Bucket label gutter width — the axis row and brush overlay offset by the
  * same amount so they stay aligned with the cell tracks. */
 const LABEL_WIDTH = 96;
-
-function formatValue(value: number, unit: string): string {
-  return `${formatStatValue(value, undefined)}${unit ? ` ${unit}` : ""}`;
-}
 
 interface HoverState {
   bucket: string;
@@ -38,6 +34,7 @@ export function HeatmapVisualization({
   timeRange,
   onTimeRangeChange,
 }: VisualizationProps<HeatmapSpec>) {
+  const formatter = createValueFormatter(spec.valueFormat);
   const trackRef = useRef<HTMLDivElement>(null);
   const trackRectRef = useRef<DOMRect | null>(null);
   const [brushStart, setBrushStart] = useState<number | null>(null);
@@ -200,7 +197,7 @@ export function HeatmapVisualization({
                             className="hidden @[2rem]:block truncate text-[10px] font-medium tabular-nums"
                             style={{ color: dark ? "white" : "black" }}
                           >
-                            {formatValue(cell.value, spec.unit)}
+                            {formatter.format(cell.value)}
                           </span>
                         )}
                       </div>
@@ -250,7 +247,7 @@ export function HeatmapVisualization({
       {spec.showLegend && (
         <div className="flex shrink-0 items-center justify-center gap-2 pt-1.5 text-xs">
           <span className="text-muted-foreground tabular-nums">
-            {formatValue(d0, spec.unit)}
+            {formatter.format(d0)}
           </span>
           <span className="inline-block h-2.5 w-28 rounded-sm bg-muted align-middle">
             <span
@@ -271,7 +268,7 @@ export function HeatmapVisualization({
             />
           </span>
           <span className="text-muted-foreground tabular-nums">
-            {formatValue(d1, spec.unit)}
+            {formatter.format(d1)}
           </span>
         </div>
       )}
@@ -285,7 +282,7 @@ export function HeatmapVisualization({
                 key: hover.bucket,
                 color: cellAppearance(hover.cell.value).fill,
                 label: hover.bucket,
-                value: formatValue(hover.cell.value, spec.unit),
+                value: formatter.format(hover.cell.value),
               },
             ]}
           />

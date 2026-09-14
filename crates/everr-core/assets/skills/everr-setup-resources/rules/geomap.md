@@ -13,7 +13,7 @@ A world map. Two modes: `points` plots latitude/longitude markers sized by a val
 | `aggregation` | string | `sum` | `sum`, `avg`, `min`, `max`, `last` | Choropleth: how rows mapping to the same country combine. `sum` is only correct for additive metrics (request counts); use `avg`/`max` for latencies, percentiles, rates. `last` follows result-set order — only meaningful with an `ORDER BY`. |
 | `valueColumn` | string | `value` | column name | Sizes markers (points) / shades countries (choropleth). |
 | `labelColumn` | string | — | column name | Tooltip title. Falls back to the country name (choropleth) or raw coordinates (points). |
-| `unit` | string | `""` | any string | Suffix on tooltip and legend values (space-separated). |
+| `valueFormat` | object | none | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels. |
 | `showLegend` | boolean | `true` | `false` | Points: the value→marker-size mapping plus per-query color swatches when the panel has multiple queries. Choropleth: the color ramp with its bounds. |
 | `colorScheme` | string | `blue` | `blue`, `green`, `orange`, `red` | Marker base color / choropleth ramp color. |
 | `projection` | string | `naturalEarth1` | `naturalEarth1`, `mercator`, `equalEarth` | Map projection. |
@@ -29,7 +29,7 @@ plugin:
   spec: { mode: choropleth, regionColumn: country, valueColumn: requests, aggregation: sum, colorScheme: blue }
 ```
 
-These sixteen are the complete set. There is **no** zoom/pan config, custom geojson, city/state-level regions (countries only), heatmap mode, cluster mode, or per-marker color column. Marker color encodes which *query* a row came from, not a data column.
+The table lists the supported options. There is **no** zoom/pan config, custom geojson, city/state-level regions (countries only), heatmap mode, cluster mode, or per-marker color column. Marker color encodes which *query* a row came from, not a data column.
 
 ## Data shape
 

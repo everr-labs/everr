@@ -304,6 +304,28 @@ describe("getDashboard (project/slug)", () => {
     expect(result).toEqual({ document, previewStatus: undefined });
   });
 
+  it("normalizes a stored Perses duration before returning the dashboard", async () => {
+    selectImpl = () => [
+      {
+        document: {
+          kind: "Dashboard",
+          metadata: { name: "cpu" },
+          spec: { panels: {}, layouts: [], duration: "6h" },
+        },
+      },
+    ];
+
+    const result = await getDashboard({
+      data: { project: "team", slug: "cpu" },
+    });
+
+    expect(result.document.spec.timeRange).toEqual({
+      from: "now-6h",
+      to: "now",
+    });
+    expect(result.document.spec).not.toHaveProperty("duration");
+  });
+
   it("throws a notFound when the dashboard is missing", async () => {
     selectImpl = () => [];
     const error = await getDashboard({

@@ -25,7 +25,8 @@ import {
   decodeCapabilityRows,
 } from "./built-in/capabilities";
 import { interpolateVariables } from "./interpolate";
-import type { Dashboard } from "./schema";
+import { dashboardFromResource } from "./normalize";
+import type { DashboardResource } from "./schema";
 import { dashboardSpecSchema } from "./schema";
 import { generateTestData } from "./testdata/generate";
 import { testDataSpec } from "./testdata/spec";
@@ -78,7 +79,10 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
       // Typed binding (not an assertion) so the live and preview branches share
       // one return shape without widening `undefined` via a cast.
       const previewStatus: PreviewStatus | undefined = undefined;
-      return { document: row.document satisfies Dashboard, previewStatus };
+      return {
+        document: dashboardFromResource(row.document),
+        previewStatus,
+      };
     }
 
     // Live rows (previewId NULL) plus this preview's rows; `previewId` is the
@@ -114,7 +118,7 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
     if (!row) throw notFound();
     dashboardSpecSchema.parse(row.document.spec);
     return {
-      document: row.document satisfies Dashboard,
+      document: dashboardFromResource(row.document satisfies DashboardResource),
       previewStatus: row.previewStatus,
     };
   });

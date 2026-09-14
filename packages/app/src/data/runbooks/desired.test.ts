@@ -82,7 +82,7 @@ describe("buildDesiredRunbookSet", () => {
       "```panel",
       "kind: Panel",
       "spec:",
-      "  plugin: { kind: TimeSeriesChart, spec: { unit: 42 } }",
+      "  plugin: { kind: TimeSeriesChart, spec: { valueFormat: { unit: 42 } } }",
       "```",
     ].join("\n");
     const d = doc({ spec: { markdown: { inline: md } } });
@@ -119,7 +119,7 @@ describe("buildDesiredRunbookSet", () => {
       "```panel",
       "kind: Panel",
       "spec:",
-      "  plugin: { kind: TimeSeriesChart, spec: { unit: req } }",
+      "  plugin: { kind: TimeSeriesChart, spec: { valueFormat: { unit: req } } }",
       "```",
       "```panel",
       "ref: shared",

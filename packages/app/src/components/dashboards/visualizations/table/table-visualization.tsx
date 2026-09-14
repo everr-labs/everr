@@ -8,20 +8,28 @@ import { TableIcon } from "lucide-react";
 import { useState } from "react";
 import { queryLabel } from "../data-utils";
 import type { QueryResultRow, VisualizationProps } from "../index";
+import { createValueFormatter } from "../value-format";
 import type { TableSpec } from "./spec";
 
-function buildColumns(rows: QueryResultRow[]): Column<QueryResultRow>[] {
+function buildColumns(
+  rows: QueryResultRow[],
+  spec: TableSpec,
+): Column<QueryResultRow>[] {
   const first = rows[0];
   if (!first) return [];
-  return Object.keys(first).map((key) => ({
-    header: key,
-    cell: (row: QueryResultRow) => {
-      const val = row[key];
-      if (val == null)
-        return <span className="text-muted-foreground">NULL</span>;
-      return String(val);
-    },
-  }));
+  return Object.keys(first).map((key) => {
+    const valueFormat = spec.columns[key]?.valueFormat ?? spec.valueFormat;
+    const formatter = createValueFormatter(valueFormat);
+    return {
+      header: key,
+      cell: (row: QueryResultRow) => {
+        const val = row[key];
+        if (val == null)
+          return <span className="text-muted-foreground">NULL</span>;
+        return typeof val === "number" ? formatter.format(val) : String(val);
+      },
+    };
+  });
 }
 
 export function TableVisualization({
@@ -49,7 +57,7 @@ export function TableVisualization({
     );
   }
 
-  const columns = buildColumns(rows);
+  const columns = buildColumns(rows, spec);
 
   return (
     <div className="flex h-full flex-col border-t border-border">

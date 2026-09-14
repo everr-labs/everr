@@ -9,6 +9,52 @@ They infer their structure from the columns your query returns. See [Shaping dat
 
 Options are validated: `everr apply` rejects a dashboard whose option values don't match the tables below, naming the file and the offending option. Unknown option keys are accepted and preserved. If an already-stored dashboard contains an invalid value, the panel still renders with the default and shows a warning icon in its header listing the ignored options.
 
+## Value formatting
+
+Numeric visualizations accept `valueFormat` in `plugin.spec`. Omitting it uses an empty unit, no scaling, and at most two decimal places (trailing zeros dropped).
+
+Use the case-sensitive UCUM codes prescribed by [OpenTelemetry instrument units](https://opentelemetry.io/docs/specs/semconv/general/metrics/#instrument-units): prefer non-prefixed units such as `By`, seconds (`s`) for durations, `1` for dimensionless utilization, and singular annotations such as `{request}` for counts. The panel must declare the unit actually returned by the query, even when that query returns a prefixed unit such as `ms`. Quote `"1"` and annotations in YAML.
+
+Common codes receive readable display labels: `By` becomes `B`, `Cel` becomes `°C`, `us` becomes `µs`, `1` has no suffix, and `{request}` becomes `request`. These labels also work in rates with a supported time denominator, such as `By/s` and `{request}/s`. Codes remain unchanged in the configuration. Unknown expressions remain literal: this is a presentation subset, not a full UCUM validator or conversion engine. In particular, `B` is not a byte alias (UCUM defines it as bel), and `1` does not implicitly turn a fraction into a percentage.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `unit` | `""` | UCUM/OTel code of the query result; unknown custom units remain literal labels. |
+| `scale` | `none` | `none`, `decimal`, `binary`, or `duration`. |
+| `decimals` | omitted | Fixed fraction digits (0 to 10); omitted uses up to 2 without trailing zeros. |
+| `display` | `value` | `value` preserves ordinary unit formatting; `percent` displays a dimensionless ratio as a percentage. |
+
+```yaml
+valueFormat: { unit: "{request}/s", scale: decimal, decimals: 1 }
+```
+
+- `none`: preserve the input magnitude, e.g. `8200 connections` displays as `8,200 connections`.
+- `decimal`: abbreviate in powers of 1000 (`k`, `M`, `G`, etc.). `12500 widgets/s` displays as `12.5k widgets/s`.
+- With `Hz`, `W`, `J`, `V`, or `A`, decimal prefixes attach to the unit: `3200000000 Hz` displays as `3.2 GHz`, and `1500 W` as `1.5 kW`. This changes prefix placement only; values below 1000 retain their input unit, and already-prefixed inputs are not reinterpreted.
+- `binary`: abbreviate in powers of 1024 (`Ki`, `Mi`, `Gi`, etc.). `2621440 By/s` displays as `2.5 MiB/s`.
+- `duration`: choose a time unit from nanoseconds through days. Declare the query's actual unit: `ns`, `us`, `ms`, `s`, `min`, `h`, or `d`. With `unit: s`, `0.025` displays as `25 ms` and `90` as `1.5 min`. Other input units are rejected for duration scaling. Use the ASCII code `us`; its display label is `µs`.
+- With a time unit, `decimal` selects seconds or decimal subdivisions, so `90000 ms` displays as `90 s` without advancing to minutes.
+- Custom labels and rates need no registration. The query calculates the rate or percentage: `2.3` with `unit: "%"` means `2.3%`, not a fraction.
+- For decimal/binary scaling, the number is in the declared unit; existing prefixes are not interpreted. Use `By` or `By/s` for bytes, and `bit` or `bit/s` for bits. These attach the display prefix to the symbol; other units keep it with the number.
+- A missing label gives `12.5k`. Other labels are space-separated, except `%`.
+- Time-series, bar, and gauge axes share one display scale across their ticks. Individual values and tooltips choose their own scale. Formatting never changes geometry, aggregation, or threshold comparisons; thresholds remain in input units.
+
+Top-level `unit`, `decimals`, and `displayUnit` have been removed. Move them into `valueFormat`. For example, `unit: ms` with `decimals: 1` becomes `valueFormat: { unit: ms, decimals: 1 }`. Replace `unit: By, displayUnit: auto` with `valueFormat: { unit: By, scale: binary }`. Choose `scale: decimal` explicitly for abbreviated counts; the old implicit million/billion abbreviations no longer apply.
+
+Table supports a panel default and `columns.<column-name>.valueFormat` overrides. An override replaces the entire default format. Only numeric cells are formatted; text and null cells retain their existing behavior.
+
+To show an OTel utilization ratio as a percentage, use `valueFormat: { unit: "1", display: percent }`: `0.75` displays as `75%`. This requires `unit: "1"` and `scale: none` (the default). Precision applies to the displayed percentage; negative values and values above 1 are not clamped. Ordinary `unit: "1"` still displays `0.75`, while `unit: "%"` means the query already returns percentages and is not multiplied again. Gauge bounds and absolute thresholds remain raw ratios: use `max: 1` and a threshold of `0.8` for 80%. This is independent of bar stacking normalization and percent-mode thresholds.
+
+```yaml
+columns:
+  throughput:
+    valueFormat: { unit: "{request}/s", scale: decimal }
+  bandwidth:
+    valueFormat: { unit: By/s, scale: binary }
+  latency:
+    valueFormat: { unit: s, scale: duration }
+```
+
 ## TimeSeriesChart
 
 Line chart over time. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [Time series](#time-series).
@@ -17,17 +63,18 @@ Line chart over time. Supports drag-to-zoom (writes the new range to the URL). D
 plugin:
   kind: TimeSeriesChart
   spec:
-    unit: ms
     showLegend: true
     lineWidth: 1.5
     curveType: monotone
     connectNulls: false
     stacked: false
+    valueFormat:
+      unit: ms
 ```
 
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `unit` | string | `""` | Suffix appended to axis/values. |
+| `valueFormat` | object | none | Shared [value formatting](#value-formatting). |
 | `showLegend` | boolean | `false` | Show the series legend. |
 | `lineWidth` | number | `1.5` | Stroke width. |
 | `curveType` | enum | `monotone` | One of `monotone`, `linear`, `natural`, `stepBefore`, `stepAfter`. |
@@ -42,16 +89,17 @@ Bar chart over time or over categories. Data shape: see [Bar](#bar).
 plugin:
   kind: BarChart
   spec:
-    unit: req
     showLegend: true
     stacking: stacked
     orientation: vertical
     showValues: false
+    valueFormat:
+      unit: '{request}'
 ```
 
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `unit` | string | `""` | Suffix appended to axis/values. |
+| `valueFormat` | object | none | Shared [value formatting](#value-formatting). |
 | `showLegend` | boolean | `false` | Show the series legend. |
 | `stacking` | enum | `none` | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% (the value axis becomes percentages, tooltips keep raw values). |
 | `orientation` | enum | `vertical` | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis (best for categorical data with long labels). |
@@ -71,20 +119,20 @@ plugin:
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `stickyHeader` | boolean | `false` | Keep the header visible while scrolling. |
+| `valueFormat` | object | none | Default [value formatting](#value-formatting) for numeric columns. |
+| `columns` | map | `{}` | Column name to `{ valueFormat: { ... } }`; overrides the panel default for that column. |
 
 ## StatChart
 
 Reduces a numeric column to a single big value via a calculation, with an optional sparkline and threshold coloring. Data shape: see [Stat and gauge](#stat-and-gauge).
 
-Values at or above one million abbreviate (`1234567` → `1.23M`); smaller values keep thousands grouping. The tile label is shown automatically with multiple tiles and hidden for a single tile unless `showLabel` is set.
+Values use at most two decimal places by default. Set `valueFormat.scale: decimal` for abbreviated counts. The tile label is shown automatically with multiple tiles and hidden for a single tile unless `showLabel` is set.
 
 ```yaml
 plugin:
   kind: StatChart
   spec:
     calculation: last
-    unit: ms
-    decimals: 1
     sparkline: true
     thresholds:
       mode: percent
@@ -93,14 +141,17 @@ plugin:
       steps:
         - { value: 40, color: "#f59e0b" }
         - { value: 80, color: "#ef4444" }
+    valueFormat:
+      unit: ms
+      decimals: 1
 ```
 
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`. |
-| `unit` | string | `""` | Suffix appended to the value. |
-| `decimals` | number | none | Fixed fraction digits (0 to 10). Omitted: up to 2, trailing zeros dropped. |
+| `valueFormat` | object | none | Shared [value formatting](#value-formatting). |
 | `sparkline` | boolean | `false` | Draw a sparkline (in time order, or row order without a time column). |
+| `colors` | map | `{}` | Pin sparkline colors by series label. Unmapped series keep the default accent color. Threshold colors take precedence. |
 | `colorMode` | enum | `value` | `value` tints the number; `background` fills the whole tile with the threshold color. |
 | `showLabel` | boolean | `false` | Show the series label on a single-tile panel too. |
 | `noValue` | string | en dash | Text shown for a query that produced no value. |
@@ -121,7 +172,6 @@ plugin:
   kind: GaugeChart
   spec:
     calculation: last
-    unit: "%"
     min: 0
     max: 100
     thresholds:
@@ -129,13 +179,14 @@ plugin:
       steps:
         - { value: 70, color: "#f59e0b" }
         - { value: 90, color: "#ef4444" }
+    valueFormat:
+      unit: "%"
 ```
 
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`. |
-| `unit` | string | `""` | Suffix appended to the value. |
-| `decimals` | number | none | Fixed fraction digits (0 to 10). Omitted: up to 2, trailing zeros dropped. |
+| `valueFormat` | object | none | Shared [value formatting](#value-formatting). |
 | `min` | number | `0` | Gauge axis lower bound. |
 | `max` | number | `100` | Gauge axis upper bound. Set it to the metric's real ceiling: the arc reads as value ÷ range. |
 | `showLabel` | boolean | `false` | Show the series label on a single-gauge panel too. |
@@ -158,9 +209,10 @@ plugin:
     latColumn: lat
     lonColumn: lon
     valueColumn: value
-    unit: req
     showLegend: true
     colorScheme: blue
+    valueFormat:
+      unit: '{request}'
 ```
 
 | Option | Type | Default | Notes |
@@ -172,7 +224,7 @@ plugin:
 | `valueColumn` | string | `value` | Sizes markers / shades regions. |
 | `labelColumn` | string | none | Tooltip title; falls back to the region or coordinates. |
 | `aggregation` | enum | `sum` | Choropleth mode: how rows that map to the same region combine: `sum`, `avg`, `min`, `max`, or `last`. Use `avg`/`max` for non-additive metrics like latency percentiles or error rates; `sum` is only correct for additive metrics like request counts. |
-| `unit` | string | `""` | Value formatting in the tooltip and legend. |
+| `valueFormat` | object | none | Shared [value formatting](#value-formatting). |
 | `showLegend` | boolean | `true` | Points: the value→marker-size mapping, plus per-query swatches when the panel has multiple queries. Choropleth: the color ramp. |
 | `colorScheme` | enum | `blue` | One of `blue`, `green`, `orange`, `red`, setting the marker base / choropleth ramp. |
 | `projection` | enum | `naturalEarth1` | Map projection: `naturalEarth1`, `mercator`, or `equalEarth`. |
@@ -195,9 +247,10 @@ plugin:
     nameColumn: route
     valueColumn: requests
     groupColumn: service
-    unit: req
     showValues: true
     showLegend: true
+    valueFormat:
+      unit: '{request}'
 ```
 
 | Option | Type | Default | Notes |
@@ -206,7 +259,7 @@ plugin:
 | `valueColumn` | string | `value` | Tile size column; must be positive: rows at or below 0 are dropped. |
 | `groupColumn` | string | none | Group tiles by this column: one color per group, legend lists the groups. Rows with a null group are dropped. |
 | `maxTiles` | number | none | Cap the tile count (≥ 2): the largest `maxTiles - 1` tiles stay, the rest merge into a single muted "Other (n)" tile so long tails don't render as slivers. Unset renders every row. |
-| `unit` | string | `""` | Value formatting in tiles and the tooltip. |
+| `valueFormat` | object | none | Shared [value formatting](#value-formatting). |
 | `showValues` | boolean | `true` | Render the value inside tiles that are large enough to fit it. |
 | `showLegend` | boolean | `true` | Group color legend, only shown when there are groups (from `groupColumn` or multiple queries). |
 
@@ -279,16 +332,17 @@ plugin:
   spec:
     yColumn: duration_bucket
     valueColumn: requests
-    unit: req
     colorScheme: spectral
     scaleType: log
+    valueFormat:
+      unit: '{request}'
 ```
 
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `yColumn` | string | first non-time column | Y-bucket column. |
 | `valueColumn` | string | first remaining numeric column | Cell intensity column. |
-| `unit` | string | `""` | Value formatting in cells, tooltip and legend. |
+| `valueFormat` | object | none | Shared [value formatting](#value-formatting). |
 | `showLegend` | boolean | `true` | Color ramp legend (min → max) below the grid. |
 | `showValues` | boolean | `false` | Render the value inside cells wide enough to fit it. |
 | `colorScheme` | enum | `spectral` | Cell color ramp. Multi-hue: `spectral` (cool blue → yellow → hot red), `greenYellowRed`. Single-hue light→dark: `blues`, `greens`, `oranges`, `reds`. |
@@ -308,8 +362,9 @@ plugin:
     sourceColumn: client
     targetColumn: server
     valueColumn: calls
-    unit: req
     directed: true
+    valueFormat:
+      unit: '{request}'
 ```
 
 | Option | Type | Default | Notes |
@@ -317,7 +372,7 @@ plugin:
 | `sourceColumn` | string | `source` | Edge source column; falls back to the first column when absent. |
 | `targetColumn` | string | `target` | Edge target column; falls back to the second column when absent. |
 | `valueColumn` | string | `value` | Edge weight column, driving edge thickness and node size. Falls back to the first remaining numeric column; without one every edge weighs 1. |
-| `unit` | string | `""` | Value formatting in tooltips and edge labels. |
+| `valueFormat` | object | none | Shared [value formatting](#value-formatting). |
 | `directed` | boolean | `true` | Draw arrowheads pointing at each edge's target. |
 | `showValues` | boolean | `false` | Render the edge's value at its midpoint. |
 | `maxNodes` | number | none | Cap the node count (≥ 2): the highest-value nodes stay, the rest (and their edges) are hidden behind the "not shown" badge. The layout also has a built-in 250-node limit. |
@@ -369,7 +424,7 @@ This produces one bar per service, in the query's order. Multiple queries merge 
 
 ### Table [#shaping-table]
 
-Renders every column as-is, in query order. No special column naming is required, so return whatever you want to display:
+Renders every column in query order, with optional numeric value formatting. No special column naming is required, so return whatever you want to display:
 
 ```sql
 SELECT ServiceName, count() AS spans, round(avg(Duration) / 1e6, 1) AS avg_ms

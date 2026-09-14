@@ -3,10 +3,12 @@ import { cn } from "@everr/ui/lib/utils";
 import { Hash } from "lucide-react";
 import { useMemo } from "react";
 import { Area, AreaChart, XAxis } from "recharts";
-import { queryLabel, SERIES_COLORS } from "../data-utils";
+import { queryLabel } from "../data-utils";
 import type { VisualizationProps } from "../index";
+import { createValueFormatter } from "../value-format";
 import type { StatChartSpec } from "./spec";
-import { formatStatValue, resolveThresholdColor } from "./stat-calculations";
+import { resolveThresholdColor } from "./stat-calculations";
+import { resolveStatSparklineColor } from "./stat-colors";
 import { computeStatTiles } from "./stat-series";
 
 /** Value text scales down as tiles crowd the panel. */
@@ -26,11 +28,11 @@ export function StatChartVisualization({
   spec,
   data,
 }: VisualizationProps<StatChartSpec>) {
+  const formatter = createValueFormatter(spec.valueFormat);
   const {
     calculation,
-    unit,
-    decimals,
     sparkline: showSparkline,
+    colors,
     thresholds,
     colorMode,
     showLabel,
@@ -63,6 +65,8 @@ export function StatChartVisualization({
       {tiles.map((tile) => {
         const value = tile.value;
         const label = tile.label || queryLabel(tile.frame);
+        const formatted =
+          value === undefined ? undefined : formatter.parts(value);
         const seriesMax =
           tile.points.length > 0
             ? Math.max(...tile.points.map((p) => p.value))
@@ -72,9 +76,12 @@ export function StatChartVisualization({
             ? resolveThresholdColor(value, thresholds, seriesMax)
             : undefined;
         const background = colorMode === "background" && color !== undefined;
-        const sparklineColor = background
-          ? "rgba(255, 255, 255, 0.9)"
-          : (color ?? SERIES_COLORS[0]!);
+        const sparklineColor = resolveStatSparklineColor(
+          label,
+          colors,
+          color,
+          background,
+        );
         return (
           <div
             key={`${tile.frame}-${tile.label}`}
@@ -104,18 +111,16 @@ export function StatChartVisualization({
                 )}
                 style={!background && color ? { color } : undefined}
               >
-                {value === undefined
-                  ? noValue
-                  : formatStatValue(value, decimals)}
-                {value !== undefined && unit && (
+                {value === undefined ? noValue : formatted?.value}
+                {formatted?.unit && (
                   <span
                     className={cn(
                       unitSize,
-                      "ml-1",
+                      formatted.separator && "ml-1",
                       background ? "text-white/70" : "text-muted-foreground",
                     )}
                   >
-                    {unit}
+                    {formatted.unit}
                   </span>
                 )}
               </p>

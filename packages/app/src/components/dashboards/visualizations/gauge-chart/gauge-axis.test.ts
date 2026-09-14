@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ThresholdsSpec } from "../stat-chart/stat-calculations";
+import { createValueFormatter } from "../value-format";
 import {
   axisFraction,
   bandColors,
   fillSegments,
-  formatAxisEnd,
   thresholdMarks,
 } from "./gauge-axis";
 
@@ -41,6 +41,23 @@ describe("axisFraction", () => {
 });
 
 describe("thresholdMarks", () => {
+  it("formats ratio thresholds as percent without changing their positions", () => {
+    const labels = createValueFormatter({
+      unit: "1",
+      scale: "none",
+      display: "percent",
+    }).axis(1);
+    expect(
+      thresholdMarks(
+        { mode: "absolute", steps: [{ value: 0.8, color: RED }] },
+        0,
+        1,
+        labels,
+      ),
+    ).toEqual([{ fraction: 0.8, text: "80%", color: RED }]);
+    expect(axisFraction(0.75, 0, 1)).toBe(0.75);
+    expect([0, 1].map(labels)).toEqual(["0%", "100%"]);
+  });
   it("projects absolute steps and sorts along the axis", () => {
     expect(thresholdMarks(absolute, 0, 100)).toEqual([
       { fraction: 0.5, text: "50", color: AMBER },
@@ -60,7 +77,14 @@ describe("thresholdMarks", () => {
   });
 
   it("suffixes the unit on the label", () => {
-    expect(thresholdMarks(absolute, 0, 100, "ms")[0]?.text).toBe("50ms");
+    expect(
+      thresholdMarks(
+        absolute,
+        0,
+        100,
+        createValueFormatter({ unit: "ms", scale: "none" }).format,
+      )[0]?.text,
+    ).toBe("50 ms");
   });
 
   it("drops steps outside the axis span, inverted bounds included", () => {
@@ -148,20 +172,5 @@ describe("duplicate steps", () => {
       { from: 0, to: 0.5, color: GREEN },
       { from: 0.5, to: 0.9, color: RED },
     ]);
-  });
-});
-
-describe("formatAxisEnd", () => {
-  it("suffixes the unit on a non-zero end", () => {
-    expect(formatAxisEnd(100, "%")).toBe("100%");
-    expect(formatAxisEnd(-500, "ms")).toBe("-500ms");
-  });
-
-  it("leaves a zero end bare", () => {
-    expect(formatAxisEnd(0, "%")).toBe("0");
-  });
-
-  it("works without a unit", () => {
-    expect(formatAxisEnd(50)).toBe("50");
   });
 });

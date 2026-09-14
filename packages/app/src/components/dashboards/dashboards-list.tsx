@@ -11,6 +11,7 @@ import {
   CirclePlus,
   Cpu,
   Database,
+  Gauge,
   Globe,
   RotateCw,
   TriangleAlert,
@@ -82,6 +83,7 @@ const CATEGORY_ICON: Record<
   Runtime: Cpu,
   Databases: Database,
   Infrastructure: Boxes,
+  Everr: Gauge,
   Browser: Globe,
 };
 

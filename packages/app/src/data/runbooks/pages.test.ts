@@ -227,4 +227,18 @@ describe("toDashboardDocument", () => {
     expect(doc.spec.variables).toHaveLength(1);
     expect(Object.keys(doc.spec.panels)).toEqual(["p"]);
   });
+
+  it("adapts a runbook duration to the dashboard time range", () => {
+    const doc = toDashboardDocument(
+      {
+        kind: "Runbook",
+        metadata: { name: "rb" },
+        spec: { ...spec, duration: "6h" },
+      },
+      "demo",
+      "rb",
+    );
+
+    expect(doc.spec.timeRange).toEqual({ from: "now-6h", to: "now" });
+  });
 });

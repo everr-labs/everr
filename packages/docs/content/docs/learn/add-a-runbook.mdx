@@ -49,7 +49,7 @@ spec:
   display: { name: p99 event loop delay (ms) }
   plugin:
     kind: TimeSeriesChart
-    spec: { unit: ms, showLegend: true }
+    spec: { showLegend: true, valueFormat: { unit: ms } }
   queries:
     - kind: ClickHouseSQL
       spec:

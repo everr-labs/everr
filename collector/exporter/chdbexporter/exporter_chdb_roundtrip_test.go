@@ -29,7 +29,8 @@ import (
 // nanoseconds, and one encoding has to be right for both.
 
 var (
-	roundTripTime      = time.Date(2026, 9, 5, 12, 34, 56, 123456789, time.UTC)
+	roundTripTime = time.Now().UTC().Add(-time.Hour).Truncate(time.Second).
+			Add(123456789 * time.Nanosecond)
 	roundTripStartTime = roundTripTime.Add(-90 * time.Second)
 	roundTripExemplar  = roundTripTime.Add(-5 * time.Second)
 )

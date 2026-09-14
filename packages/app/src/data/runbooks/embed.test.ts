@@ -8,7 +8,7 @@ describe("parsePanelEmbed", () => {
         "kind: Panel",
         "height: 420",
         "spec:",
-        "  plugin: { kind: TimeSeriesChart, spec: { unit: req } }",
+        "  plugin: { kind: TimeSeriesChart, spec: { valueFormat: { unit: req } } }",
       ].join("\n"),
     );
     expect(embed).toMatchObject({

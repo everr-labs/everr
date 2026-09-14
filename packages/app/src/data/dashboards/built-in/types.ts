@@ -6,6 +6,7 @@ export const BUILTIN_CATEGORIES = [
   "Runtime",
   "Databases",
   "Infrastructure",
+  "Everr",
   "Browser",
 ] as const;
 

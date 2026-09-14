@@ -2,14 +2,10 @@ import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { LayoutGrid } from "lucide-react";
 import { useMemo } from "react";
 import type { VisualizationProps } from "../index";
-import { formatStatValue } from "../stat-chart/stat-calculations";
+import { createValueFormatter } from "../value-format";
 import type { TreemapSpec } from "./spec";
 import { TreemapChart } from "./treemap-chart";
 import { buildTreemapTiles } from "./treemap-data";
-
-function formatValue(value: number, unit: string): string {
-  return `${formatStatValue(value, undefined)}${unit ? ` ${unit}` : ""}`;
-}
 
 function EmptyState() {
   return (
@@ -24,6 +20,7 @@ export function TreemapVisualization({
   spec,
   data,
 }: VisualizationProps<TreemapSpec>) {
+  const formatter = createValueFormatter(spec.valueFormat);
   const model = useMemo(
     () => (data ? buildTreemapTiles(data, spec) : null),
     [data, spec],
@@ -54,7 +51,7 @@ export function TreemapVisualization({
         <TreemapChart
           data={chartData}
           tileValueText={
-            spec.showValues ? (t) => formatValue(t.value, spec.unit) : undefined
+            spec.showValues ? (t) => formatter.format(t.value) : undefined
           }
           renderTooltip={(t) => (
             <SeriesTooltipContent
@@ -64,7 +61,7 @@ export function TreemapVisualization({
                   key: t.name,
                   color: t.fill,
                   label: t.name,
-                  value: formatValue(t.value, spec.unit),
+                  value: formatter.format(t.value),
                 },
               ]}
             />

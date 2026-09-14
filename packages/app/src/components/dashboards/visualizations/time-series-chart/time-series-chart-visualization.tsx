@@ -30,6 +30,8 @@ import {
   SERIES_COLORS,
 } from "../data-utils";
 import type { VisualizationProps } from "../index";
+import { MIN_VALUE_AXIS_WIDTH, valueAxisWidth } from "../value-axis";
+import { createValueFormatter } from "../value-format";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 
@@ -59,8 +61,8 @@ export function TimeSeriesChartVisualization({
   timeRange,
   onTimeRangeChange,
 }: VisualizationProps<TimeSeriesChartSpec>) {
-  const { showLegend, connectNulls, lineWidth, unit, curveType, stacked } =
-    spec;
+  const formatter = createValueFormatter(spec.valueFormat);
+  const { showLegend, connectNulls, lineWidth, curveType, stacked } = spec;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRectRef = useRef<DOMRect | null>(null);
@@ -123,6 +125,9 @@ export function TimeSeriesChartVisualization({
     }
     return niceLinearDomain(lo, hi);
   }, [stackedData, seriesData, valueKeys]);
+  const formatAxisValue = formatter.axis(
+    Math.max(...yAxis.domain.map(Math.abs)),
+  );
 
   const handleChartMouseMove = useCallback(
     (e: React.MouseEvent) => {
@@ -273,6 +278,11 @@ export function TimeSeriesChartVisualization({
             allowDataOverflow
           />
           <YAxis
+            width={
+              spec.valueFormat
+                ? valueAxisWidth(yAxis.ticks, formatAxisValue)
+                : MIN_VALUE_AXIS_WIDTH
+            }
             tickLine={false}
             axisLine={false}
             tickMargin={8}
@@ -281,7 +291,7 @@ export function TimeSeriesChartVisualization({
             // would have chosen.
             domain={yAxis.domain}
             ticks={yAxis.ticks}
-            tickFormatter={(v) => (unit ? `${v}${unit}` : String(v))}
+            tickFormatter={(v) => formatAxisValue(Number(v))}
           />
           {showLegend && <ChartLegend content={<ChartLegendContent />} />}
           {valueKeys.map((key) =>
@@ -354,7 +364,7 @@ export function TimeSeriesChartVisualization({
                   key,
                   color: chartConfig[key]?.color,
                   label: chartConfig[key]?.label ?? key,
-                  value: unit ? `${val}${unit}` : String(val),
+                  value: formatter.format(val as number),
                   // Calls out the row the pointer is on, so overlapping series
                   // can be told apart by aiming at one of them.
                   active: nearestKeys.has(key),

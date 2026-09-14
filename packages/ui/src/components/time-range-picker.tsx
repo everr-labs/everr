@@ -46,7 +46,7 @@ export const QUICK_RANGE_GROUPS: QuickRangeGroup[] = [
       { label: "Today", from: "now/d", to: "now/d" },
       { label: "Yesterday", from: "now-1d/d", to: "now-1d/d" },
       { label: "This week", from: "now/w", to: "now/w" },
-      { label: "This month", from: "now/M", to: "now/M" },
+      { label: "This month so far", from: "now/M", to: "now" },
     ],
   },
 ];

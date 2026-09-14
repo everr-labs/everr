@@ -15,7 +15,9 @@ document:
   spec:
     display:
       name: Redis Overview
-    duration: 6h
+    timeRange:
+      from: now-6h
+      to: now
     refreshInterval: 1m
     panels:
       uptime:
@@ -28,8 +30,9 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: d
-              decimals: 1
+              valueFormat:
+                unit: d
+                decimals: 1
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -48,9 +51,10 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: MB
-              decimals: 1
               sparkline: true
+              valueFormat:
+                unit: MiBy
+                decimals: 1
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -72,8 +76,9 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: MB
-              decimals: 0
+              valueFormat:
+                unit: MiBy
+                decimals: 0
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -92,8 +97,9 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              decimals: 0
               sparkline: true
+              valueFormat:
+                decimals: 0
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -115,8 +121,9 @@ document:
             kind: StatChart
             spec:
               calculation: last
-              unit: "%"
-              decimals: 1
+              valueFormat:
+                unit: "%"
+                decimals: 1
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -142,8 +149,9 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: ""
               showLegend: false
+              valueFormat:
+                unit: ""
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -165,9 +173,10 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: ""
               showLegend: true
               stacked: false
+              valueFormat:
+                unit: ""
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -195,8 +204,9 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: MB
               showLegend: true
+              valueFormat:
+                unit: MiBy
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -218,9 +228,10 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: MB
               showLegend: true
               stacked: false
+              valueFormat:
+                unit: MiBy
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -247,8 +258,9 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: ""
               showLegend: true
+              valueFormat:
+                unit: ""
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -271,9 +283,10 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: ""
               showLegend: true
               stacked: false
+              valueFormat:
+                unit: ""
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -300,8 +313,9 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: ""
               showLegend: true
+              valueFormat:
+                unit: ""
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -329,8 +343,9 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: ""
               showLegend: true
+              valueFormat:
+                unit: ""
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -357,9 +372,10 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: ""
               showLegend: true
               stacked: false
+              valueFormat:
+                unit: ""
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -387,9 +403,10 @@ document:
           plugin:
             kind: TimeSeriesChart
             spec:
-              unit: ""
               showLegend: true
               stacked: false
+              valueFormat:
+                unit: ""
           queries:
             - kind: ClickHouseSQL
               spec:

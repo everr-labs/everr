@@ -29,7 +29,8 @@ spec:
 | `layouts` | [[Grid](#grid-layout)] | yes | Placement of panels on the grid. |
 | `display` | [Display](#display) | no | Dashboard title / description. |
 | `variables` | [[Variable](#variables)] | no | Template variables. |
-| `duration` | string | no | Default time-range window (e.g. `1h`, `24h`). [Seeds the time range.](#time-defaults) |
+| `timeRange` | `{ from: string, to: string }` | no | Default range in Everr date math, for example `{ from: now/M, to: now }`. [Seeds the time range.](#time-defaults) |
+| `duration` | string | no | Perses compatibility input, for example `1h` or `24h`. Everr normalizes it to `timeRange` when `timeRange` is absent. |
 | `refreshInterval` | string | no | Default auto-refresh (e.g. `30s`, `1m`). |
 | `datasources` | map&lt;string, object&gt; | no | Accepted for Perses compatibility; **no runtime effect**. |
 
@@ -148,7 +149,17 @@ A slug must be unique within a project; applying two files that resolve to the s
 
 ## Time defaults
 
-When a dashboard defines `duration` and/or `refreshInterval`, Everr seeds the URL time-range params from them once per visit if they're absent. Explicit URL params always win, so shared links keep their exact range.
+Use `timeRange` for a dashboard's default range:
+
+```yaml
+timeRange:
+  from: now/M
+  to: now
+```
+
+Everr date math supports fixed windows such as `now-24h` and calendar-aligned ranges such as `now/M` (the start of this month). Everr seeds missing URL time-range parameters from `timeRange` and `refreshInterval`. Explicit URL parameters always win, so shared links keep their exact range.
+
+Perses dashboards that declare `duration` are still accepted. At the resource boundary, Everr converts `duration: 24h` to `{ from: now-24h, to: now }`. If both fields are present, `timeRange` wins. Everr-authored dashboards should use `timeRange`.
 
 ## Compatibility boundaries
 

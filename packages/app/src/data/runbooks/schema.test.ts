@@ -107,6 +107,15 @@ describe("runbookSpecSchema", () => {
 });
 
 describe("runbookSpecSchemaStrict", () => {
+  it("rejects a zero-length duration", () => {
+    const r = runbookSpecSchemaStrict.safeParse({
+      markdown: md,
+      duration: "0h",
+    });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.path).toEqual(["duration"]);
+  });
+
   it("rejects a bad query plugin spec with path through collectPanelStrictIssues", () => {
     const r = runbookSpecSchemaStrict.safeParse({
       markdown: md,
@@ -149,12 +158,19 @@ describe("runbookSpecSchemaStrict", () => {
       panels: {
         bad: {
           kind: "Panel",
-          spec: { plugin: { kind: "TimeSeriesChart", spec: { unit: 42 } } },
+          spec: {
+            plugin: {
+              kind: "TimeSeriesChart",
+              spec: { valueFormat: { unit: 42 } },
+            },
+          },
         },
       },
     });
     expect(r.success).toBe(false);
     const issue = r.error?.issues[0];
-    expect(issue?.path.join(".")).toBe("panels.bad.spec.plugin.spec.unit");
+    expect(issue?.path.join(".")).toBe(
+      "panels.bad.spec.plugin.spec.valueFormat.unit",
+    );
   });
 });

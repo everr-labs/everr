@@ -22,7 +22,7 @@ spec:
     p99:
       kind: Panel
       spec:
-        plugin: { kind: TimeSeriesChart, spec: { unit: ms } }
+        plugin: { kind: TimeSeriesChart, spec: { valueFormat: { unit: ms } } }
         queries:
           - kind: ClickHouseSQL
             spec:

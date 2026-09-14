@@ -1,8 +1,8 @@
 import {
-  formatStatValue,
   resolveThresholdColor,
   type ThresholdsSpec,
 } from "../stat-chart/stat-calculations";
+import { createValueFormatter } from "../value-format";
 
 /**
  * Calculates the position of `value` on the gauge axis, from 0 to 1. The
@@ -13,24 +13,6 @@ import {
 export function axisFraction(value: number, min: number, max: number): number {
   if (max === min) return 0;
   return Math.min(1, Math.max(0, (value - min) / (max - min)));
-}
-
-/**
- * Formats a value on the axis: the min and max ends, and the threshold ticks.
- * The axis always uses the default precision. The `decimals` option applies
- * to the gauge value only.
- */
-function formatAxisValue(value: number, unit?: string): string {
-  return `${formatStatValue(value, undefined)}${unit ?? ""}`;
-}
-
-/**
- * Formats one end of the axis. If the end value is 0, the label does not show
- * the unit, because "0" is clear without it. The end labels are also the
- * smallest text on the gauge.
- */
-export function formatAxisEnd(value: number, unit?: string): string {
-  return formatAxisValue(value, value === 0 ? undefined : unit);
 }
 
 export interface ThresholdMark {
@@ -59,7 +41,7 @@ export function thresholdMarks(
   thresholds: ThresholdsSpec | undefined,
   min: number,
   max: number,
-  unit?: string,
+  formatValue: (value: number) => string = createValueFormatter().format,
 ): ThresholdMark[] {
   if (!thresholds?.steps) return [];
   const ref = thresholds.max ?? max;
@@ -72,7 +54,7 @@ export function thresholdMarks(
     if (value <= lower || value >= upper) continue;
     marks.push({
       fraction: axisFraction(value, min, max),
-      text: formatAxisValue(value, unit),
+      text: formatValue(value),
       color: step.color,
     });
   }

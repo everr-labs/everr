@@ -3,7 +3,7 @@ import { Share2 } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
-import { formatStatValue } from "../stat-chart/stat-calculations";
+import { createValueFormatter } from "../value-format";
 import { layoutGraph } from "./force-layout";
 import {
   buildNodeGraph,
@@ -20,10 +20,6 @@ const ARROW_LENGTH = 9;
 const MAX_LABEL_CHARS = 16;
 
 const NODE_COLOR = SERIES_COLORS[0]!;
-
-function formatValue(value: number, unit: string): string {
-  return `${formatStatValue(value, undefined)}${unit ? ` ${unit}` : ""}`;
-}
 
 /** Value → [min, max] with area (not radius/width) tracking the value. */
 function sqrtScale(
@@ -83,6 +79,7 @@ export function NodeGraphVisualization({
   spec,
   data,
 }: VisualizationProps<NodeGraphSpec>) {
+  const formatter = createValueFormatter(spec.valueFormat);
   const model = useMemo(
     () => (data ? buildNodeGraph(data, spec) : null),
     [data, spec],
@@ -236,7 +233,7 @@ export function NodeGraphVisualization({
                       textAnchor="middle"
                       pointerEvents="none"
                     >
-                      {formatValue(edge.value, spec.unit)}
+                      {formatter.format(edge.value)}
                     </text>
                   )}
                   {/* invisible wide hit area for the tooltip */}
@@ -320,7 +317,7 @@ export function NodeGraphVisualization({
                   />
                   <span className="text-muted-foreground">{hover.node.id}</span>
                   <span className="text-right font-medium tabular-nums">
-                    {formatValue(hover.node.value, spec.unit)}
+                    {formatter.format(hover.node.value)}
                   </span>
                 </div>
                 <div className="mt-1 text-muted-foreground">
@@ -333,7 +330,7 @@ export function NodeGraphVisualization({
                   {hover.edge.source} → {hover.edge.target}
                 </div>
                 <div className="text-right font-medium tabular-nums">
-                  {formatValue(hover.edge.value, spec.unit)}
+                  {formatter.format(hover.edge.value)}
                 </div>
               </>
             )}

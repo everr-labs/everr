@@ -59,6 +59,28 @@ describe("telemetry config", () => {
     });
   });
 
+  it("uses an authenticated custom Everr ingest endpoint", () => {
+    expect(
+      resolveTelemetryConfig(
+        {
+          EVERR_INGEST_ENDPOINT: "http://127.0.0.1:4318/",
+          EVERR_INGEST_KEY: "secret",
+          NODE_ENV: "development",
+        },
+        "instance-1",
+      ),
+    ).toEqual({
+      endpoint: "http://127.0.0.1:4318",
+      headers: { Authorization: "Bearer secret" },
+      resourceAttributes: telemetryResourceAttributes(
+        {
+          NODE_ENV: "development",
+        },
+        "instance-1",
+      ),
+    });
+  });
+
   it("derives stable service resource attributes", () => {
     expect(
       telemetryResourceAttributes(

@@ -9,7 +9,9 @@ spec:
       Variable toolbar regression sheet: ten variables at once, mixing
       single/multi selects, allow-all, hidden, text inputs, and a live
       ClickHouse-backed list, to check how the toolbar wraps and aligns.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   variables:
     - kind: ListVariable
@@ -113,11 +115,12 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ""
             showLegend: true
             lineWidth: 1.5
             curveType: monotone
             connectNulls: false
+            valueFormat:
+              unit: ""
         queries:
           - kind: TestData
             spec:
@@ -138,11 +141,12 @@ spec:
         plugin:
           kind: TimeSeriesChart
           spec:
-            unit: ms
             showLegend: true
             lineWidth: 2
             curveType: stepAfter
             connectNulls: false
+            valueFormat:
+              unit: ms
         queries:
           - kind: TestData
             spec:

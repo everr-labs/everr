@@ -12,7 +12,9 @@ spec:
       multi-query summing, dropped rows (nulls + self-loops), maxNodes
       trimming, and the empty state, driven by the deterministic csv
       TestData scenario.
-  duration: 7d
+  timeRange:
+    from: now-7d
+    to: now
   refreshInterval: 1m
   panels:
     node-graph-defaults:
@@ -47,14 +49,15 @@ spec:
       spec:
         display:
           name: "NodeGraph: custom columns + unit"
-          description: "sourceColumn: caller · targetColumn: callee · valueColumn: calls · unit: req"
+          description: "sourceColumn: caller · targetColumn: callee · valueColumn: calls · unit: {request}"
         plugin:
           kind: NodeGraph
           spec:
             sourceColumn: caller
             targetColumn: callee
             valueColumn: calls
-            unit: req
+            valueFormat:
+              unit: '{request}'
         queries:
           - kind: TestData
             spec:
@@ -119,7 +122,7 @@ spec:
           description: "showValues: true → value label at each edge midpoint · unit: ms"
         plugin:
           kind: NodeGraph
-          spec: { showValues: true, unit: ms }
+          spec: { showValues: true, valueFormat: { unit: ms } }
         queries:
           - kind: TestData
             spec:
@@ -163,7 +166,7 @@ spec:
           description: "a→b and b→a are distinct edges, drawn offset so both stay visible"
         plugin:
           kind: NodeGraph
-          spec: { unit: msg }
+          spec: { valueFormat: { unit: '{message}' } }
         queries:
           - kind: TestData
             spec:
@@ -269,6 +272,142 @@ spec:
               plugin:
                 kind: TestData
                 spec: { scenario: csv, columns: [source, target, value], rows: [] }
+    format-none:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: none"
+          description: "valueFormat: none, unit: {connection}, decimals: 2"
+        plugin:
+          kind: NodeGraph
+          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 }, showValues: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: source, values: [api, worker] }, { name: target, values: [db, cache] }, { name: value, const: 12500 }]
+    format-decimal:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: decimal"
+          description: "valueFormat: decimal, unit: widgets/s, decimals: 2"
+        plugin:
+          kind: NodeGraph
+          spec: { valueFormat: { unit: widgets/s, scale: decimal, decimals: 2 }, showValues: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: source, values: [api, worker] }, { name: target, values: [db, cache] }, { name: value, const: 12500 }]
+    format-binary:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: binary"
+          description: "valueFormat: binary, unit: By/s, decimals: 2"
+        plugin:
+          kind: NodeGraph
+          spec: { valueFormat: { unit: By/s, scale: binary, decimals: 2 }, showValues: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: source, values: [api, worker] }, { name: target, values: [db, cache] }, { name: value, const: 2621440 }]
+    format-duration:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: duration"
+          description: "valueFormat: duration, unit: s, decimals: 1"
+        plugin:
+          kind: NodeGraph
+          spec: { valueFormat: { unit: s, scale: duration, decimals: 1 }, showValues: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns: [{ name: source, values: [api, worker] }, { name: target, values: [db, cache] }, { name: value, const: 0.025 }]
+    format-percent:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: ratio as percent"
+          description: "unit: 1, display: percent; raw query ratios are unchanged"
+        plugin:
+          kind: NodeGraph
+          spec:
+            valueFormat:
+              unit: "1"
+              display: percent
+            showValues: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns:
+                    - name: source
+                      values:
+                        - api
+                        - worker
+                    - name: target
+                      values:
+                        - db
+                        - cache
+                    - name: value
+                      const: 0.75
+    format-si:
+      kind: Panel
+      spec:
+        display:
+          name: "Format: SI prefixes"
+          description: "unit: Hz, scale: decimal; conventional GHz label"
+        plugin:
+          kind: NodeGraph
+          spec:
+            valueFormat:
+              unit: Hz
+              scale: decimal
+            showValues: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  rows: 3
+                  columns:
+                    - name: source
+                      values:
+                        - api
+                        - worker
+                    - name: target
+                      values:
+                        - db
+                        - cache
+                    - name: value
+                      const: 3200000000
   layouts:
     - kind: Grid
       spec:
@@ -284,3 +423,9 @@ spec:
           - { x: 12, y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-dropped" } }
           - { x: 0,  y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-maxnodes" } }
           - { x: 12, y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-empty" } }
+          - { x: 0, y: 57, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
+          - { x: 12, y: 57, width: 12, height: 9, content: { $ref: "#/spec/panels/format-decimal" } }
+          - { x: 0, y: 66, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
+          - { x: 12, y: 66, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
+          - { x: 0, y: 75, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
+          - { x: 12, y: 75, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }
