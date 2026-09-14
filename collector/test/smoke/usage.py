@@ -15,10 +15,12 @@ import http.server
 import json
 import os
 from pathlib import Path
+import re
 import socket
 import subprocess
 import tempfile
 import threading
+import textwrap
 import time
 import urllib.error
 import urllib.parse
@@ -37,8 +39,8 @@ def post(url, body, headers=None):
 
 
 def verify_month_query(db):
-    # Read-only fixtures: late September snapshots, duplicates, a restart,
-    # a mismatched owner, October usage, and Float64 rounding above 2^53.
+    # Read-only fixtures: duplicates, a restart, a mismatched owner and month,
+    # October usage, and Float64 rounding above 2^53.
     fixture = """(
         SELECT 'everr-ingestion' AS ServiceName,
             'everr.ingestion.volume' AS MetricName,
@@ -46,22 +48,24 @@ def verify_month_query(db):
                 'everr.ingestion.signal', 'logs') AS Attributes,
             map('everr.tenant.id', owner, 'service.instance.id', instance) AS ResourceAttributes,
             started AS StartTimeUnix,
-            toDateTime('2026-10-01 00:00:05', 'UTC') AS TimeUnix,
+            observed AS TimeUnix,
             toFloat64(bytes) AS Value, 2 AS AggregationTemporality,
             true AS IsMonotonic, 'By' AS MetricUnit,
             'github.com/everr-labs/everr/collector/usage' AS ScopeName, '1' AS ScopeVersion
-        FROM values('month String, customer String, owner String, instance String, started DateTime, bytes Int64',
-            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 200),
-            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 400),
-            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', 400),
-            ('2026-09', 'a', 'other', 'one', '2026-09-30 23:58:00', 400),
-            ('2026-09', 'a', 'a', 'two', '2026-09-30 23:59:00', 50),
-            ('2026-10', 'a', 'a', 'one', '2026-10-01 00:00:00', 300),
-            ('2026-09', 'large', 'large', 'one', '2026-09-30 23:58:00', 9007199254740995)
+        FROM values('month String, customer String, owner String, instance String, started DateTime, observed DateTime, bytes Int64',
+            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', '2026-09-30 23:58:00', 200),
+            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', '2026-09-30 23:59:00', 400),
+            ('2026-09', 'a', 'a', 'one', '2026-09-30 23:58:00', '2026-09-30 23:59:00', 400),
+            ('2026-09', 'a', 'other', 'one', '2026-09-30 23:58:00', '2026-09-30 23:59:00', 400),
+            ('2026-09', 'a', 'a', 'two', '2026-09-30 23:59:30', '2026-09-30 23:59:30', 50),
+            ('2026-10', 'a', 'a', 'one', '2026-10-01 00:00:00', '2026-10-01 00:00:00', 300),
+            ('2026-09', 'large', 'large', 'one', '2026-09-30 23:58:00', '2026-09-30 23:59:45', 9007199254740995),
+            ('2026-09', 'wrong-month', 'wrong-month', 'one', '2026-09-30 23:58:00', '2026-10-01 00:00:05', 999)
         )
     )"""
     query = (ROOT / 'extension/everrusageextension/customer-usage.sql').read_text().replace('FROM metrics_sum', 'FROM ' + fixture)
     september = {r['customer']: int(r['bytes']) for r in db(query.replace('{month:String}', "'2026-09'"))}
+    assert set(september) == {'a', 'large'}, september
     assert september['a'] == 450, september
     assert 9007199254740995-1024 <= september['large'] <= 9007199254740995, september
     assert db(query.replace('{month:String}', "'2026-10'")) == [{'customer': 'a', 'signal': 'logs', 'bytes': 300}]
@@ -74,7 +78,56 @@ def verify_month_query(db):
     ]:
         malformed = query.replace(original, invalid).replace('{month:String}', "'2026-09'")
         assert db(malformed) == [], f'{field}: malformed usage was billed'
-    print('PASS: canonical monthly query enforces the metric contract and handles late publication, resets, copies, and large-counter rounding.', flush=True)
+    print('PASS: canonical monthly query enforces the metric contract and handles month bounds, resets, copies, and large-counter rounding.', flush=True)
+
+
+def verify_clock_queries(db):
+    # Each generation deliberately shares the stored start/end second with
+    # another lifetime. Values arrive out of order and include retry copies.
+    fixture = """(
+        SELECT 'everr-ingestion' AS ServiceName, 'everr.ingestion.volume' AS MetricName,
+            map('everr.usage.month', month, 'everr.usage.tenant.id', 'clock-fixture',
+                'everr.ingestion.signal', signal, 'everr.usage.clock.generation', generation) AS Attributes,
+            map('everr.tenant.id', 'clock-fixture', 'service.instance.id', 'one') AS ResourceAttributes,
+            toDateTime(if(month = '2026-09', '2026-09-30 23:59:59', '2026-10-01 00:00:00'), 'UTC') AS StartTimeUnix,
+            StartTimeUnix AS TimeUnix, toFloat64(bytes) AS Value,
+            2 AS AggregationTemporality, true AS IsMonotonic, 'By' AS MetricUnit,
+            'github.com/everr-labs/everr/collector/usage' AS ScopeName, '1' AS ScopeVersion
+        FROM values('month String, signal String, generation String, bytes Int64',
+            ('2026-09', 'logs', '0', 200), ('2026-09', 'logs', '0', 100),
+            ('2026-09', 'logs', '0', 200), ('2026-09', 'logs', '1', 50),
+            ('2026-09', 'logs', '1', 70), ('2026-09', 'logs', '1', 70),
+            ('2026-09', 'metrics', '0', 40), ('2026-09', 'metrics', '1', 60),
+            ('2026-09', 'traces', '0', 70), ('2026-10', 'logs', '2', 80)
+        )
+    )"""
+    canonical = (ROOT / 'extension/everrusageextension/customer-usage.sql').read_text().replace('FROM metrics_sum', 'FROM ' + fixture)
+    for month, expected in [('2026-09', {'logs': 270, 'metrics': 100, 'traces': 70}), ('2026-10', {'logs': 80})]:
+        actual = {r['signal']: int(r['bytes']) for r in db(canonical.replace('{month:String}', repr(month)))}
+        assert actual == expected, (month, actual, expected)
+
+    # Execute literal SQL blocks from the dashboard itself, not a rewritten
+    # approximation. The fourth panel aliases the first query's YAML anchor.
+    dashboard = (ROOT.parent / 'packages/app/src/data/dashboards/built-in/catalog/everr/telemetry-usage.yaml').read_text()
+    queries = [textwrap.dedent(m.group(2)).strip() for m in re.finditer(
+        r'(?m)^( +)query:.*\|-\n((?:(?:\1  ).*\n)+)', dashboard)]
+    assert len(queries) == 3, 'expected three executable dashboard query shapes'
+    for start, end, expected in [
+        ('2026-09-01 00:00:00', '2026-09-30 23:59:59', 440),
+        ('2026-09-30 23:59:59', '2026-09-30 23:59:59', 440),
+        ('2026-10-01 00:00:00', '2026-10-31 23:59:59', 80),
+        ('2026-09-01 00:00:00', '2026-10-31 23:59:59', 520),
+        ('2026-09-01 00:00:00', '2026-09-30 23:59:58', 0),
+    ]:
+        for step in [1, 3600, 86400]:
+            results = []
+            for query in queries:
+                sql = query.replace('FROM metrics_sum', 'FROM ' + fixture).replace('{from:String}', repr(start)).replace('{to:String}', repr(end)).replace('{step:UInt32}', str(step))
+                results.append(db(sql))
+            actual = [sum(r['Logs'] + r['Traces'] + r['Metrics'] for r in results[0]),
+                      results[1][0]['Selected range'], results[2][-1]['Total'] if results[2] else 0]
+            assert actual == [expected] * 3, (start, end, step, actual, expected)
+    print('PASS: clock generations preserve billing and all dashboard query totals across duplicate rows, timestamp collisions, signals, months, and bucket widths.', flush=True)
 
 
 def main():
@@ -82,6 +135,7 @@ def main():
     parser.add_argument('--container', default='ttl-improvements-clickhouse-1')
     parser.add_argument('--clickhouse', default='http://127.0.0.1:8123')
     parser.add_argument('--everr-cli', help='Also verify stored rows using local Everr, e.g. everr-dev')
+    parser.add_argument('--queries-only', action='store_true', help='Run read-only query fixtures, using --everr-cli when supplied')
     args = parser.parse_args()
     month = datetime.now(timezone.utc).strftime('%Y-%m')
     run = 'usage-smoke-' + uuid.uuid4().hex
@@ -157,6 +211,9 @@ def main():
         return result
 
     def db(sql):
+        if args.queries_only and args.everr_cli:
+            output = subprocess.check_output([args.everr_cli, 'local', 'query', '--', sql], text=True)
+            return [json.loads(line) for line in output.splitlines()]
         output = subprocess.check_output(['docker', 'exec', args.container, 'clickhouse-client',
                                           '--query', sql + ' FORMAT JSONEachRow'], text=True)
         return [json.loads(line) for line in output.splitlines()]
@@ -170,6 +227,9 @@ def main():
         raise AssertionError('condition did not become true within 30 seconds')
 
     verify_month_query(db)
+    verify_clock_queries(db)
+    if args.queries_only:
+        return
     verify, proxy = server(Verify), server(Proxy)
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0))
@@ -273,12 +333,14 @@ def main():
             before = totals()
             assert all(int(row['bytes']) > 0 for row in before)
             print('Customer-owned totals after crash recovery and ambiguous retries:', before, flush=True)
-            raw = db(f"SELECT count() AS rows, uniqExact(tuple(tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.usage.tenant.id'], Attributes['everr.ingestion.signal'], StartTimeUnix)) AS identities FROM app.metrics_sum WHERE {usage_where}")[0]
+            raw = db(f"SELECT count() AS rows, uniqExact(tuple(tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.usage.tenant.id'], Attributes['everr.ingestion.signal'], Attributes['everr.usage.clock.generation'], StartTimeUnix)) AS identities FROM app.metrics_sum WHERE {usage_where}")[0]
             assert raw['rows'] > raw['identities'], raw
-            repeated = db(f"SELECT count() AS copies FROM app.metrics_sum WHERE {usage_where} AND tenant_id=Attributes['everr.usage.tenant.id'] GROUP BY tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.ingestion.signal'], StartTimeUnix HAVING copies>1 LIMIT 1")
+            mismatched_months = db(f"SELECT count() AS rows FROM app.metrics_sum WHERE {usage_where} AND formatDateTime(TimeUnix, '%Y-%m', 'UTC') != Attributes['everr.usage.month']")[0]
+            assert mismatched_months['rows'] == 0, mismatched_months
+            repeated = db(f"SELECT count() AS copies FROM app.metrics_sum WHERE {usage_where} AND tenant_id=Attributes['everr.usage.tenant.id'] GROUP BY tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.ingestion.signal'], Attributes['everr.usage.clock.generation'], StartTimeUnix HAVING copies>1 LIMIT 1")
             assert repeated, 'must observe actual retried customer rows'
             print('Actual duplicate rows:', raw, flush=True)
-            copies = db(f"SELECT Attributes['everr.usage.tenant.id'] AS customer, Attributes['everr.ingestion.signal'] AS signal, ResourceAttributes['service.instance.id'] AS instance, StartTimeUnix AS counter_start, groupUniqArray(tenant_id) AS owners, uniqExact(tuple(Value, StartTimeUnix, TimeUnix)) AS values, min(retention_days) AS retention FROM app.metrics_sum WHERE {usage_where} GROUP BY customer, signal, instance, counter_start")
+            copies = db(f"SELECT Attributes['everr.usage.tenant.id'] AS customer, Attributes['everr.ingestion.signal'] AS signal, ResourceAttributes['service.instance.id'] AS instance, Attributes['everr.usage.clock.generation'] AS clock_generation, StartTimeUnix AS counter_start, groupUniqArray(tenant_id) AS owners, uniqExact(tuple(Value, StartTimeUnix, TimeUnix)) AS values, min(retention_days) AS retention FROM app.metrics_sum WHERE {usage_where} GROUP BY customer, signal, instance, clock_generation, counter_start")
             for row in copies:
                 assert set(row['owners']) == {row['customer']}, row
                 assert row['values'] == 1 and row['retention'] == 365, row
@@ -299,7 +361,7 @@ def main():
                 post(*item)
             expected = {(r['customer'], r['signal']): int(r['bytes'])*3 for r in before}
             eventually(lambda: {(r['customer'], r['signal']): int(r['bytes']) for r in totals()} == expected)
-            identities_before = db(f"SELECT uniqExact(tuple(tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.usage.tenant.id'], Attributes['everr.ingestion.signal'], StartTimeUnix)) AS n FROM app.metrics_sum WHERE {usage_where}")[0]['n']
+            identities_before = db(f"SELECT uniqExact(tuple(tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.usage.tenant.id'], Attributes['everr.ingestion.signal'], Attributes['everr.usage.clock.generation'], StartTimeUnix)) AS n FROM app.metrics_sum WHERE {usage_where}")[0]['n']
             rows_before = db(f"SELECT count() AS n FROM app.metrics_sum WHERE {usage_where}")[0]['n']
             print('Waiting 65 seconds for the standard processor to evict idle counters...', flush=True)
             # Uses the real upstream expiry path, with no custom clock or expiry implementation.
@@ -311,7 +373,7 @@ def main():
                 post(*item)
             expected = {(r['customer'], r['signal']): int(r['bytes'])*4 for r in before}
             eventually(lambda: {(r['customer'], r['signal']): int(r['bytes']) for r in totals()} == expected)
-            identities_after = db(f"SELECT uniqExact(tuple(tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.usage.tenant.id'], Attributes['everr.ingestion.signal'], StartTimeUnix)) AS n FROM app.metrics_sum WHERE {usage_where}")[0]['n']
+            identities_after = db(f"SELECT uniqExact(tuple(tenant_id, ResourceAttributes['service.instance.id'], Attributes['everr.usage.tenant.id'], Attributes['everr.ingestion.signal'], Attributes['everr.usage.clock.generation'], StartTimeUnix)) AS n FROM app.metrics_sum WHERE {usage_where}")[0]['n']
             assert identities_after == identities_before + 9, (identities_before, identities_after)
             assert db(f"SELECT uniqExact(AggregationTemporality) AS n, min(AggregationTemporality) AS temporality FROM app.metrics_sum WHERE {usage_where}")[0] == {'n': 1, 'temporality': 2}
             print('PASS: idle expiry and resumption created new lifetimes without losing or double-counting prior usage.', flush=True)

@@ -88,7 +88,7 @@ Administrative copies are not currently enabled. To add them, use a standard
 forward connector after cumulative conversion to feed customer and administrative
 metrics pipelines. Rewrite only the administrative resource's `everr.tenant.id`
 to the internal tenant. Preserve the measured customer attribute, month, signal,
-counter start, instance identity, and cumulative value. Route both pipelines to
+counter start, clock generation, instance identity, and cumulative value. Route both pipelines to
 `clickhouse/usage`, bypassing admission metering.
 
 This duplicates usage metrics only. The customer telemetry path and its exporter
