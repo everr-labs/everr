@@ -6,8 +6,7 @@ import {
 } from "./organizations";
 
 const mocks = vi.hoisted(() => ({
-  assertEmailAvailable: vi.fn(),
-  createCustomer: vi.fn(),
+  prepareCheckoutCustomer: vi.fn(),
   deleteCustomer: vi.fn(),
   checkoutCreate: vi.fn(),
   checkoutGet: vi.fn(),
@@ -47,9 +46,8 @@ vi.mock("@/db/client", () => ({
 }));
 
 vi.mock("@/lib/polar.server", () => ({
-  assertPolarBillingEmailAvailable: mocks.assertEmailAvailable,
-  createPolarCustomer: mocks.createCustomer,
   deleteProvisionalPolarCustomer: mocks.deleteCustomer,
+  prepareProOrganizationCheckoutCustomer: mocks.prepareCheckoutCustomer,
   polarClient: {
     checkouts: { create: mocks.checkoutCreate, get: mocks.checkoutGet },
     subscriptions: { get: mocks.subscriptionGet },
@@ -75,8 +73,11 @@ beforeEach(() => {
   mocks.userOwnsHobbyOrganization.mockResolvedValue(false);
   mocks.transaction.mockImplementation(async (fn) => fn({}));
   mocks.lockHobbyOrganizationOwnership.mockResolvedValue(undefined);
-  mocks.assertEmailAvailable.mockResolvedValue(undefined);
-  mocks.createCustomer.mockResolvedValue({ id: "polar_customer" });
+  mocks.prepareCheckoutCustomer.mockResolvedValue({
+    kind: "customer",
+    customerId: "polar_customer",
+    created: true,
+  });
   mocks.deleteCustomer.mockResolvedValue(undefined);
   mocks.checkoutCreate.mockResolvedValue({
     id: "checkout_1",
@@ -188,8 +189,7 @@ describe("createOrganization", () => {
       organization: { id: "org_new", name: "Acme" },
     });
 
-    expect(mocks.assertEmailAvailable).not.toHaveBeenCalled();
-    expect(mocks.createCustomer).not.toHaveBeenCalled();
+    expect(mocks.prepareCheckoutCustomer).not.toHaveBeenCalled();
     expect(mocks.createAuthOrganization).toHaveBeenCalledWith({
       body: {
         name: "Acme",
@@ -230,12 +230,16 @@ describe("createOrganization", () => {
       url: "https://polar.example/checkout_1",
     });
 
-    expect(mocks.assertEmailAvailable).toHaveBeenCalledWith(
-      "billing@example.com",
-    );
-    expect(mocks.createCustomer).toHaveBeenCalledWith({
+    expect(mocks.prepareCheckoutCustomer).toHaveBeenCalledWith({
       email: "billing@example.com",
       name: "Acme",
+      metadata: {
+        everrPurpose: "create_pro_organization",
+        everrOwnerId: "test_user",
+        everrOrganizationName: "Acme",
+        everrOrganizationSlug: expect.any(String),
+        everrSchemaVersion: 1,
+      },
     });
     expect(mocks.checkoutCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -268,5 +272,78 @@ describe("createOrganization", () => {
 
     expect(mocks.deleteCustomer).toHaveBeenCalledWith("polar_customer");
     expect(auth.api.createOrganization).not.toHaveBeenCalled();
+  });
+
+  it("keeps a reused provisional customer when checkout creation fails", async () => {
+    mocks.prepareCheckoutCustomer.mockResolvedValueOnce({
+      kind: "customer",
+      customerId: "polar_customer",
+      created: false,
+    });
+    mocks.checkoutCreate.mockRejectedValueOnce(new Error("Polar unavailable"));
+
+    await expect(
+      createOrganization({
+        data: {
+          plan: "pro",
+          organizationName: "Acme",
+          billingEmail: "billing@example.com",
+        },
+      }),
+    ).rejects.toThrow("Pro checkout could not be started");
+
+    expect(mocks.deleteCustomer).not.toHaveBeenCalled();
+  });
+
+  it("resumes an open checkout owned by the current user", async () => {
+    mocks.prepareCheckoutCustomer.mockResolvedValueOnce({
+      kind: "checkout",
+      checkout: {
+        id: "checkout_existing",
+        status: "open",
+        url: "https://polar.example/checkout_existing",
+      },
+    });
+
+    await expect(
+      createOrganization({
+        data: {
+          plan: "pro",
+          organizationName: "Acme",
+          billingEmail: "billing@example.com",
+        },
+      }),
+    ).resolves.toEqual({
+      kind: "checkout",
+      url: "https://polar.example/checkout_existing",
+    });
+
+    expect(mocks.checkoutCreate).not.toHaveBeenCalled();
+  });
+
+  it("continues finalization for an already confirmed checkout", async () => {
+    mocks.prepareCheckoutCustomer.mockResolvedValueOnce({
+      kind: "checkout",
+      checkout: {
+        id: "checkout_existing",
+        status: "confirmed",
+        url: "https://polar.example/checkout_existing",
+      },
+    });
+
+    await expect(
+      createOrganization({
+        data: {
+          plan: "pro",
+          organizationName: "Acme",
+          billingEmail: "billing@example.com",
+        },
+      }),
+    ).resolves.toEqual({
+      kind: "checkout",
+      url: "https://app.example/organizations/checkout/success?checkout_id=checkout_existing",
+    });
+
+    expect(mocks.checkoutCreate).not.toHaveBeenCalled();
   });
 });
