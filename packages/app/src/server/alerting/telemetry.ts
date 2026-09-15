@@ -8,6 +8,10 @@ import {
   TraceFlags,
   trace,
 } from "@opentelemetry/api";
+import {
+  setTelemetryIdentity,
+  withTelemetryIdentityScope,
+} from "@/telemetry/identity";
 
 /**
  * Every alerting hop is a queue hop, so a job's span links to its enqueuer
@@ -138,21 +142,22 @@ export async function withAlertJobSpan<T>(
       attributes: opts.attributes,
     },
     ROOT_CONTEXT,
-    async (span) => {
-      try {
-        return await run();
-      } catch (error) {
-        // The message matters: a status with an empty description tells an
-        // on-call nothing about which failure this was.
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      } finally {
-        span.end();
-      }
-    },
+    async (span) =>
+      withTelemetryIdentityScope(async () => {
+        try {
+          return await run();
+        } catch (error) {
+          // The message matters: a status with an empty description tells an
+          // on-call nothing about which failure this was.
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        } finally {
+          span.end();
+        }
+      }),
   );
 }
 
@@ -198,10 +203,11 @@ export function setAlertSpanAttributes(opts: {
   fired?: number;
   resolved?: number;
 }): void {
+  if (opts.tenant) setTelemetryIdentity({ organizationId: opts.tenant });
   const span = trace.getActiveSpan();
   if (!span) return;
   span.setAttributes({
-    ...(opts.tenant ? { "everr.alert.tenant": opts.tenant } : {}),
+    ...(opts.tenant ? { "everr.organization.id": opts.tenant } : {}),
     ...(opts.slug ? { "everr.alert.rule": opts.slug } : {}),
     ...(opts.episodeId ? { "everr.alert.episode_id": opts.episodeId } : {}),
     ...(opts.eventId ? { "everr.alert.event_id": opts.eventId } : {}),

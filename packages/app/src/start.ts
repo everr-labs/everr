@@ -3,9 +3,10 @@ import {
   createServerFnTelemetryMiddleware,
   type RouterLike,
 } from "@everr/tanstack-start-otel";
-import { createStart } from "@tanstack/react-start";
+import { createMiddleware, createStart } from "@tanstack/react-start";
 import { getRouter } from "@/router";
 import { isExpectedServerFunctionError } from "@/telemetry/expected-errors";
+import { withTelemetryIdentityScope } from "@/telemetry/identity";
 
 export const startInstance = createStart(() => ({
   // Loaders depend on browser state (localStorage, auth cookies via the
@@ -13,6 +14,9 @@ export const startInstance = createStart(() => ({
   // server.
   defaultSsr: false,
   requestMiddleware: [
+    createMiddleware({ type: "request" }).server(({ next }) =>
+      withTelemetryIdentityScope(() => next(), null),
+    ),
     createRequestTelemetryMiddleware({
       // Annotated so the router type does not flow back into this module:
       // routeTree.gen binds Register to getRouter, which would make the start

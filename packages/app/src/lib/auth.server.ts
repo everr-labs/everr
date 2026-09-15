@@ -40,6 +40,7 @@ import {
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
+import { identityAuthHooks } from "@/telemetry/auth-identity";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 type PolarSubscriptionPayload = {
@@ -175,6 +176,7 @@ const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
     : undefined;
 
 export const auth = betterAuth({
+  hooks: identityAuthHooks,
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
   // Trust both loopback forms of the base URL: in dev the app may be reached on

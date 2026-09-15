@@ -6,6 +6,10 @@ import {
 } from "@opentelemetry/api";
 import type { Task, TaskList } from "graphile-worker";
 import { db } from "@/db/client";
+import {
+  setTelemetryIdentity,
+  withTelemetryIdentityScope,
+} from "@/telemetry/identity";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { getTelemetryTracer } from "@/telemetry/node";
 import { replayWebhookToCollector } from "./collector";
@@ -59,54 +63,57 @@ function makeWebhookTask(
         },
         kind: SpanKind.INTERNAL,
       },
-      async (span) => {
-        try {
-          const installationId = installationIdFromQueuedEvent(parsed);
-          const organizationId = await resolveOrganizationId(installationId);
-          span.setAttribute("everr.organization.id", organizationId);
-          await action({ body, data, organizationId, parsed });
-        } catch (error) {
-          const err = error instanceof Error ? error : new Error(String(error));
-          const terminalAttributes = {
-            ...(eventType ? { "github.event.type": eventType } : {}),
-            ...eventAttributes,
-            ...installationAttribute(parsed),
-            "graphile_worker.job.id": jobId,
-          };
+      async (span) =>
+        withTelemetryIdentityScope(async () => {
+          try {
+            const installationId = installationIdFromQueuedEvent(parsed);
+            const organizationId = await resolveOrganizationId(installationId);
+            span.setAttribute("everr.organization.id", organizationId);
+            setTelemetryIdentity({ organizationId });
+            await action({ body, data, organizationId, parsed });
+          } catch (error) {
+            const err =
+              error instanceof Error ? error : new Error(String(error));
+            const terminalAttributes = {
+              ...(eventType ? { "github.event.type": eventType } : {}),
+              ...eventAttributes,
+              ...installationAttribute(parsed),
+              "graphile_worker.job.id": jobId,
+            };
 
-          if (error instanceof StaleInstallationError) {
-            if (shouldLogStaleInstallation(parsed)) {
-              serverLogger.info(
-                "github_events.jobs.stale_installation_dropped",
-                {
-                  ...terminalAttributes,
-                  "error.message": err.message,
-                  "error.type": err.name,
-                },
-              );
+            if (error instanceof StaleInstallationError) {
+              if (shouldLogStaleInstallation(parsed)) {
+                serverLogger.info(
+                  "github_events.jobs.stale_installation_dropped",
+                  {
+                    ...terminalAttributes,
+                    "error.message": err.message,
+                    "error.type": err.name,
+                  },
+                );
+              }
+              return;
             }
-            return;
-          }
 
-          span.recordException(err);
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: `${err.name}: ${err.message}`,
-          });
-
-          if (error instanceof TerminalEventError) {
-            serverLogger.error(terminalLogKey, {
-              ...exceptionAttributes(error),
-              ...terminalAttributes,
+            span.recordException(err);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: `${err.name}: ${err.message}`,
             });
-            return;
-          }
 
-          throw error;
-        } finally {
-          span.end();
-        }
-      },
+            if (error instanceof TerminalEventError) {
+              serverLogger.error(terminalLogKey, {
+                ...exceptionAttributes(error),
+                ...terminalAttributes,
+              });
+              return;
+            }
+
+            throw error;
+          } finally {
+            span.end();
+          }
+        }),
     );
   };
 }

@@ -26,7 +26,7 @@ export const Route = createFileRoute("/api/cli/sql")({
         if (span) {
           span.setAttribute("everr.feature", "cloud_query");
           if (orgId) {
-            span.setAttribute("everr.org_id", orgId);
+            span.setAttribute("everr.organization.id", orgId);
           }
         }
 

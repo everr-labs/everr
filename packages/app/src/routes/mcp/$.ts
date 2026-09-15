@@ -7,6 +7,7 @@ import { runSqlForConnection } from "@/data/mcp/run-sql";
 import { AUTH_ISSUER, MCP_RESOURCE } from "@/lib/mcp-resource";
 import { mcpResourceClient } from "@/lib/mcp-resource-client";
 import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
+import { setTelemetryIdentity } from "@/telemetry/identity";
 
 // Single source of truth: the tables the per-org ClickHouse role can read.
 const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
@@ -108,6 +109,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
   // Re-check membership at request time (revocation / removal after consent).
   // A non-member throws McpMembershipError -> withMcpAuth answers 401.
   await assertCurrentMember(userId, orgId);
+  setTelemetryIdentity({ organizationId: orgId, userId });
 
   return {
     token: bearerToken,
