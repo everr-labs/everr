@@ -18,6 +18,10 @@ on:
       - package.json
       - packages/app/**
       - packages/datemath/**
+      - packages/otel-errors/**
+      - packages/otel-web/**
+      - packages/tanstack-start-otel/**
+      - packages/telemetry-explorer/**
       - packages/ui/**
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -32,6 +36,10 @@ on:
       - package.json
       - packages/app/**
       - packages/datemath/**
+      - packages/otel-errors/**
+      - packages/otel-web/**
+      - packages/tanstack-start-otel/**
+      - packages/telemetry-explorer/**
       - packages/ui/**
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
