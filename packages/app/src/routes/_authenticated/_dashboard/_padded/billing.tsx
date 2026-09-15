@@ -39,7 +39,8 @@ import {
 import { authClient } from "@/lib/auth-client";
 
 type Entitlement = {
-  tier: "free" | "pro";
+  plan: "hobby" | "pro";
+  appState: "hobby" | "pro" | "suspended";
   status: string | null;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
@@ -81,7 +82,7 @@ function NotAdminMessage() {
   );
 }
 
-const FREE_FEATURES = [
+const HOBBY_FEATURES = [
   "Unlimited repositories",
   "Unlimited local telemetry",
   "AI-native CLI and structured APIs",
@@ -89,7 +90,7 @@ const FREE_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  "Everything in Free",
+  "Everything in Hobby",
   "Premium support",
   "White-glove onboarding",
 ];
@@ -133,17 +134,17 @@ function Body({
   if (!billingCustomerConfigured) {
     return (
       <>
-        {entitlement.tier === "pro" ? (
+        {entitlement.plan === "pro" ? (
           <ProHero entitlement={entitlement} />
         ) : (
-          <FreeHero />
+          <HobbyHero />
         )}
         <BillingSetupCard />
       </>
     );
   }
 
-  if (entitlement.tier === "pro") {
+  if (entitlement.plan === "pro") {
     return (
       <>
         <ProHero entitlement={entitlement} />
@@ -153,7 +154,7 @@ function Body({
   }
   return (
     <>
-      <FreeHero />
+      <HobbyHero />
       <PlanComparison />
     </>
   );
@@ -313,7 +314,7 @@ function ProHero({ entitlement }: { entitlement: Entitlement }) {
   );
 }
 
-function FreeHero() {
+function HobbyHero() {
   return (
     <Card>
       <CardHeader>
@@ -325,14 +326,14 @@ function FreeHero() {
             <p className="text-muted-foreground text-xs uppercase tracking-wider">
               Current plan
             </p>
-            <CardTitle className="text-2xl">Free</CardTitle>
+            <CardTitle className="text-2xl">Hobby</CardTitle>
           </div>
           <Badge variant="secondary">No subscription</Badge>
         </div>
       </CardHeader>
       <CardContent>
         <ul className="grid gap-2 sm:grid-cols-2">
-          {FREE_FEATURES.map((feature) => (
+          {HOBBY_FEATURES.map((feature) => (
             <li
               key={feature}
               className="text-muted-foreground flex items-center gap-2 text-sm"

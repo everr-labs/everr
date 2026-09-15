@@ -17,6 +17,7 @@ import {
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { Loader2, Plus, Settings } from "lucide-react";
 import { useState } from "react";
+import { getActiveOrgAppAccess } from "@/data/billing";
 import { auth } from "@/lib/auth.server";
 import { authClient } from "@/lib/auth-client";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
@@ -75,6 +76,14 @@ export const Route = createFileRoute("/_authenticated")({
     }
 
     const { activeOrganizationId } = await verifyActiveOrg();
+    const entitlement = await getActiveOrgAppAccess();
+    if (
+      entitlement.appState === "suspended" &&
+      pathname !== "/billing/suspended" &&
+      pathname !== "/billing"
+    ) {
+      throw redirect({ to: "/billing/suspended" });
+    }
 
     return {
       session: {

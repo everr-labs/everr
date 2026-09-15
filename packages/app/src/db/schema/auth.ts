@@ -91,6 +91,9 @@ export const organization = pgTable(
     logo: text("logo"),
     createdAt: timestamp("created_at").notNull(),
     metadata: text("metadata"),
+    plan: text("plan", { enum: ["hobby", "pro"] })
+      .default("hobby")
+      .notNull(),
   },
   (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
 );

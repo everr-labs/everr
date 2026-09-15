@@ -1,18 +1,29 @@
 import { ResourceNotFound } from "@polar-sh/sdk/models/errors/resourcenotfound";
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import * as z from "zod";
 import { ProvisionOrganizationBillingInputSchema } from "@/common/organization-name";
 import { db } from "@/db/client";
-import { organization } from "@/db/schema";
+import { invitation, member, organization, orgSubscription } from "@/db/schema";
 import { env } from "@/env";
 import { auth } from "@/lib/auth.server";
-import { readOrgEntitlement } from "@/lib/billing-data.server";
+import {
+  assertPolarProductGrantsPlan,
+  polarProductIdForPlan,
+} from "@/lib/billing-catalog.server";
+import {
+  lockHobbyOrganizationOwnership,
+  readOrgEntitlement,
+  setOrganizationPlan,
+  upsertOrgSubscription,
+  userOwnsHobbyOrganization,
+} from "@/lib/billing-data.server";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import {
   assertPolarBillingEmailAvailable,
   createPolarCustomer,
+  getPolarCheckoutSubscription,
   hasPolarCustomerForOrg,
   polarClient,
 } from "@/lib/polar.server";
@@ -20,6 +31,10 @@ import { requireOrgMiddleware } from "@/lib/serverFn";
 
 export class NotBillingAdminError extends Error {
   name = "NotBillingAdminError";
+}
+
+class HobbyDowngradeUnavailableError extends Error {
+  name = "HobbyDowngradeUnavailableError";
 }
 
 class BillingCustomerNotFoundError extends Error {
@@ -63,6 +78,33 @@ export const getOrgEntitlement = createBillingAdminServerFn({
   method: "GET",
 }).handler(async ({ context: { orgId } }) => readOrgEntitlement(orgId));
 
+export const getActiveOrgAppAccess = createServerFn()
+  .middleware([requireOrgMiddleware])
+  .handler(async ({ context: { session } }) =>
+    readOrgEntitlement(session.session.activeOrganizationId),
+  );
+
+export const getSuspendedOrgRecovery = createServerFn()
+  .middleware([requireOrgMiddleware])
+  .handler(async ({ context: { session } }) => {
+    const { role } = await auth.api.getActiveMemberRole({
+      headers: getRequestHeaders(),
+    });
+    const roles = role?.split(",") ?? [];
+    const isOwner = roles.includes("owner");
+    const isAdmin = isOwner || roles.includes("admin");
+    const orgId = session.session.activeOrganizationId;
+
+    return {
+      entitlement: await readOrgEntitlement(orgId),
+      canManageBilling: isAdmin,
+      canDowngrade: isOwner,
+      ownsAnotherHobby: isOwner
+        ? await userOwnsHobbyOrganization(session.user.id, orgId)
+        : false,
+    };
+  });
+
 export const getOrgBillingCustomerStatus = createBillingAdminServerFn({
   method: "GET",
 }).handler(async ({ context: { orgId } }) => ({
@@ -105,8 +147,9 @@ export const startOrgCheckout = createBillingAdminServerFn({
     ).toString();
 
     const checkout = await polarClient.checkouts.create({
-      products: [env.POLAR_PRO_PRODUCT_ID],
+      products: [polarProductIdForPlan("pro")],
       externalCustomerId: orgId,
+      allowTrial: false,
       successUrl,
       metadata: { orgId, userId: session.user.id },
     });
@@ -129,3 +172,123 @@ export const getOrgPortalUrl = createBillingAdminServerFn({
   });
   return { status: "ready" as const, url: result.customerPortalUrl };
 });
+
+async function revokeOrgSubscriptionForDowngrade(orgId: string) {
+  const [storedSubscription] = await db
+    .select({ id: orgSubscription.polarSubscriptionId })
+    .from(orgSubscription)
+    .where(eq(orgSubscription.orgId, orgId))
+    .limit(1);
+  if (!storedSubscription) return;
+
+  try {
+    const subscription = await polarClient.subscriptions.get({
+      id: storedSubscription.id,
+    });
+    if (
+      subscription.status !== "canceled" &&
+      subscription.status !== "incomplete_expired"
+    ) {
+      await polarClient.subscriptions.revoke({ id: subscription.id });
+    }
+  } catch (error) {
+    if (!(error instanceof ResourceNotFound)) throw error;
+  }
+}
+
+export const confirmOrgCheckout = createBillingAdminServerFn({ method: "POST" })
+  .inputValidator(z.object({ checkoutId: z.string().min(1) }))
+  .handler(async ({ data, context: { orgId } }) => {
+    const checkout = await polarClient.checkouts.get({ id: data.checkoutId });
+    if (
+      checkout.status !== "succeeded" ||
+      checkout.externalCustomerId !== orgId ||
+      !checkout.productId
+    ) {
+      return { status: "pending" as const };
+    }
+    assertPolarProductGrantsPlan(checkout.productId, "pro");
+
+    const subscription = await getPolarCheckoutSubscription(checkout);
+    if (
+      !subscription ||
+      subscription.status !== "active" ||
+      !subscription.productId
+    ) {
+      return { status: "pending" as const };
+    }
+    assertPolarProductGrantsPlan(subscription.productId, "pro");
+
+    await upsertOrgSubscription({
+      orgId,
+      polarSubscriptionId: subscription.id,
+      polarProductId: subscription.productId,
+      status: subscription.status,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      polarModifiedAt: subscription.modifiedAt ?? subscription.createdAt,
+    });
+    await setOrganizationPlan(orgId, "pro");
+    return { status: "completed" as const };
+  });
+
+export const downgradeSuspendedOrganization = createServerFn({ method: "POST" })
+  .middleware([requireOrgMiddleware])
+  .handler(async ({ context: { session } }) => {
+    const orgId = session.session.activeOrganizationId;
+    const { role } = await auth.api.getActiveMemberRole({
+      headers: getRequestHeaders(),
+    });
+    if (!role?.split(",").includes("owner")) {
+      throw new HobbyDowngradeUnavailableError(
+        "Only an Owner can downgrade this organization.",
+      );
+    }
+    if ((await readOrgEntitlement(orgId)).appState !== "suspended") {
+      throw new HobbyDowngradeUnavailableError(
+        "Only a suspended Pro organization can be downgraded.",
+      );
+    }
+    const result = await db.transaction(async (tx) => {
+      // Serialize the application-level one-Hobby-per-Owner check before
+      // revoking a subscription that may not be convertible to Hobby.
+      await lockHobbyOrganizationOwnership(tx, session.user.id);
+      if (await userOwnsHobbyOrganization(session.user.id, orgId)) {
+        throw new HobbyDowngradeUnavailableError(
+          "You already own a Hobby organization.",
+        );
+      }
+
+      await revokeOrgSubscriptionForDowngrade(orgId);
+
+      const removedMembers = await tx
+        .delete(member)
+        .where(
+          and(
+            eq(member.organizationId, orgId),
+            ne(member.userId, session.user.id),
+          ),
+        )
+        .returning({ id: member.id });
+      const canceledInvitations = await tx
+        .update(invitation)
+        .set({ status: "canceled" })
+        .where(
+          and(
+            eq(invitation.organizationId, orgId),
+            eq(invitation.status, "pending"),
+          ),
+        )
+        .returning({ id: invitation.id });
+      await tx
+        .update(organization)
+        .set({ plan: "hobby" })
+        .where(eq(organization.id, orgId));
+      return {
+        removedMembers: removedMembers.length,
+        canceledInvitations: canceledInvitations.length,
+      };
+    });
+
+    return { status: "completed" as const, ...result };
+  });

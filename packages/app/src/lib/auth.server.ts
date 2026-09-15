@@ -20,7 +20,13 @@ import {
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { invitation, member, session as sessionTable, user } from "@/db/schema";
+import {
+  invitation,
+  member,
+  organization,
+  session as sessionTable,
+  user,
+} from "@/db/schema";
 import { env } from "@/env";
 import {
   deriveOrgName,
@@ -28,7 +34,15 @@ import {
   selectSoleOrganization,
   shouldCreateAutomaticOrganization,
 } from "@/lib/auto-org";
-import { upsertOrgSubscription } from "@/lib/billing-data.server";
+import {
+  assertPolarProductGrantsPlan,
+  planForPolarProductId,
+} from "@/lib/billing-catalog.server";
+import {
+  readOrgEntitlement,
+  setOrganizationPlan,
+  upsertOrgSubscription,
+} from "@/lib/billing-data.server";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -44,11 +58,16 @@ import {
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
+import { isOrganizationOwner } from "@/lib/organization-role";
 import {
-  ensurePolarCustomerForOrg,
   getPolarCustomerForOrg,
+  linkPolarCustomerToOrg,
   polarClient,
 } from "@/lib/polar.server";
+import {
+  type ProOrganizationCheckoutMetadata,
+  ProOrganizationCheckoutMetadataSchema,
+} from "@/lib/pro-organization-checkout";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 type PolarSubscriptionPayload = {
@@ -59,8 +78,120 @@ type PolarSubscriptionPayload = {
   cancelAtPeriodEnd: boolean;
   modifiedAt: Date | null;
   createdAt: Date;
-  customer: { externalId?: string | null };
+  metadata: Record<string, string | number | boolean>;
+  customer: { id: string; externalId?: string | null };
 };
+
+type ProOrganizationSubscription = Omit<
+  PolarSubscriptionPayload,
+  "metadata" | "customer"
+>;
+
+type FinalizedProOrganization = {
+  id: string;
+  name: string;
+  ownerRole: string | null;
+  plan: "hobby" | "pro";
+};
+
+async function findCheckoutOrganization(
+  metadata: ProOrganizationCheckoutMetadata,
+) {
+  const [existing] = await db
+    .select({
+      id: organization.id,
+      name: organization.name,
+      ownerRole: member.role,
+      plan: organization.plan,
+    })
+    .from(organization)
+    .leftJoin(
+      member,
+      and(
+        eq(member.organizationId, organization.id),
+        eq(member.userId, metadata.everrOwnerId),
+      ),
+    )
+    .where(eq(organization.slug, metadata.everrOrganizationSlug))
+    .limit(1);
+  return existing;
+}
+
+function assertCheckoutOrganization(organization: FinalizedProOrganization) {
+  if (
+    !isOrganizationOwner(organization.ownerRole) ||
+    organization.plan !== "pro"
+  ) {
+    throw new Error("The checkout Organization does not match its metadata");
+  }
+}
+
+export async function finalizeProOrganizationCheckout(input: {
+  metadata: ProOrganizationCheckoutMetadata;
+  customerId: string;
+  subscription: ProOrganizationSubscription;
+}) {
+  if (input.subscription.status !== "active" || !input.subscription.productId) {
+    throw new Error("An active Pro subscription is required");
+  }
+  assertPolarProductGrantsPlan(input.subscription.productId, "pro");
+
+  let createdOrganization = await findCheckoutOrganization(input.metadata);
+  if (!createdOrganization) {
+    try {
+      const created = await auth.api.createOrganization({
+        body: {
+          name: input.metadata.everrOrganizationName,
+          slug: input.metadata.everrOrganizationSlug,
+          userId: input.metadata.everrOwnerId,
+          plan: "pro",
+        },
+      });
+      if (!created) throw new Error("Organization creation failed");
+      createdOrganization = {
+        id: created.id,
+        name: created.name,
+        ownerRole: "owner",
+        plan: "pro",
+      };
+    } catch (error) {
+      // The success callback and subscription webhook may finalize together.
+      // A concurrent winner is recovered through the unique Organization slug.
+      createdOrganization = await findCheckoutOrganization(input.metadata);
+      if (!createdOrganization) throw error;
+    }
+  }
+  assertCheckoutOrganization(createdOrganization);
+
+  try {
+    await linkPolarCustomerToOrg({
+      customerId: input.customerId,
+      orgId: createdOrganization.id,
+    });
+  } catch (error) {
+    const linked = await getPolarCustomerForOrg(createdOrganization.id);
+    if (linked?.id !== input.customerId) throw error;
+  }
+
+  await upsertOrgSubscription({
+    orgId: createdOrganization.id,
+    polarSubscriptionId: input.subscription.id,
+    polarProductId: input.subscription.productId,
+    status: input.subscription.status,
+    currentPeriodEnd: input.subscription.currentPeriodEnd,
+    cancelAtPeriodEnd: input.subscription.cancelAtPeriodEnd,
+    polarModifiedAt:
+      input.subscription.modifiedAt ?? input.subscription.createdAt,
+  });
+
+  return {
+    status: "completed" as const,
+    organization: {
+      id: createdOrganization.id,
+      name: createdOrganization.name,
+    },
+  };
+}
 
 async function getMarkedDeviceOrganizationId(session: { userId: string }) {
   // Captured by the /device/token before-hook (see cli-device-organization).
@@ -123,12 +254,24 @@ async function getLastUsedOrganizationId(session: { userId: string }) {
 async function syncSubscription({ data }: { data: PolarSubscriptionPayload }) {
   const orgId = data.customer.externalId;
   if (!orgId) {
+    const metadata = ProOrganizationCheckoutMetadataSchema.safeParse(
+      data.metadata,
+    );
+    if (metadata.success && data.status === "active") {
+      assertPolarProductGrantsPlan(data.productId, "pro");
+      await finalizeProOrganizationCheckout({
+        metadata: metadata.data,
+        customerId: data.customer.id,
+        subscription: data,
+      });
+      return;
+    }
     serverLogger.warn("polar.webhook.subscription_missing_external_id", {
       "polar.subscription.id": data.id,
     });
     return;
   }
-  await upsertOrgSubscription({
+  const subscriptionUpdated = await upsertOrgSubscription({
     orgId,
     polarSubscriptionId: data.id,
     polarProductId: data.productId,
@@ -137,6 +280,10 @@ async function syncSubscription({ data }: { data: PolarSubscriptionPayload }) {
     cancelAtPeriodEnd: data.cancelAtPeriodEnd,
     polarModifiedAt: data.modifiedAt ?? data.createdAt,
   });
+  const subscriptionPlan = planForPolarProductId(data.productId);
+  if (subscriptionUpdated && data.status === "active") {
+    await setOrganizationPlan(orgId, subscriptionPlan);
+  }
 }
 
 // Extend the org plugin's default access-control statement with apiKey
@@ -311,31 +458,14 @@ export const auth = betterAuth({
               );
 
               try {
-                const createdOrganization = await auth.api.createOrganization({
+                await auth.api.createOrganization({
                   body: {
                     name: orgName,
                     slug: generateOrgSlug(),
                     userId: session.userId,
+                    plan: "hobby",
                   },
                 });
-
-                if (createdOrganization) {
-                  try {
-                    await ensurePolarCustomerForOrg({
-                      orgId: createdOrganization.id,
-                      orgName: createdOrganization.name,
-                      fallbackEmail: userRecord[0].email,
-                    });
-                  } catch (error) {
-                    serverLogger.error(
-                      "polar.customer.create_for_auto_org.failed",
-                      {
-                        ...exceptionAttributes(error),
-                        "everr.organization.id": createdOrganization.id,
-                      },
-                    );
-                  }
-                }
 
                 // Re-query for the membership that was just created.
                 const newMembership = await db
@@ -376,6 +506,16 @@ export const auth = betterAuth({
     organizationPlugin({
       ac: orgAc,
       roles: orgRoles,
+      schema: {
+        organization: {
+          additionalFields: {
+            plan: {
+              type: ["hobby", "pro"],
+              required: true,
+            },
+          },
+        },
+      },
       // Organization creation is orchestrated by server-owned flows so a
       // billable Organization cannot bypass Polar customer provisioning.
       allowUserToCreateOrganization: false,
@@ -393,6 +533,51 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
+        beforeUpdateOrganization: async ({ organization }) => {
+          if ("plan" in organization) {
+            throw new APIError("FORBIDDEN", {
+              message: "Organization plan cannot be changed here.",
+            });
+          }
+        },
+        beforeAddMember: async ({ member: newMember }) => {
+          const existingMembers = await db
+            .select({ id: member.id })
+            .from(member)
+            .where(eq(member.organizationId, newMember.organizationId))
+            .limit(1);
+          if (existingMembers.length === 0) return;
+
+          const entitlement = await readOrgEntitlement(
+            newMember.organizationId,
+          );
+          if (entitlement.appState !== "pro") {
+            throw new APIError("FORBIDDEN", {
+              message: "An active Pro plan is required to add members.",
+            });
+          }
+        },
+        beforeCreateInvitation: async ({ invitation: newInvitation }) => {
+          const entitlement = await readOrgEntitlement(
+            newInvitation.organizationId,
+          );
+          if (entitlement.appState !== "pro") {
+            throw new APIError("FORBIDDEN", {
+              message: "An active Pro plan is required to invite members.",
+            });
+          }
+        },
+        beforeAcceptInvitation: async ({ invitation: acceptedInvitation }) => {
+          const entitlement = await readOrgEntitlement(
+            acceptedInvitation.organizationId,
+          );
+          if (entitlement.appState !== "pro") {
+            throw new APIError("FORBIDDEN", {
+              message:
+                "This organization needs an active Pro plan before the invitation can be accepted.",
+            });
+          }
+        },
         afterCreateOrganization: async ({ organization }) => {
           // Provision the per-org ClickHouse user + row policies that back
           // the /api/cli/sql endpoint's tenant isolation. Each /sql query

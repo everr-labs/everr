@@ -1,3 +1,4 @@
+import { Button } from "@everr/ui/components/button";
 import {
   Card,
   CardAction,
@@ -7,7 +8,7 @@ import {
 } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { PageHeader } from "@/components/page-header";
 import { InvitationsTable } from "@/components/users-management/invitations-table";
@@ -19,6 +20,7 @@ import {
 } from "@/components/users-management/queries";
 import { auth } from "@/lib/auth.server";
 import { authClient } from "@/lib/auth-client";
+import { readOrgEntitlement } from "@/lib/billing-data.server";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
@@ -28,11 +30,13 @@ const ensureOrgAdmin = createAuthenticatedServerFn.handler(
       headers: getRequestHeaders(),
       query: { organizationId: session.session.activeOrganizationId },
     });
-    if (!org) return { allowed: false };
+    if (!org) return { allowed: false, appState: "hobby" as const };
 
     const membership = org.members.find((m) => m.userId === session.user.id);
     return {
       allowed: isOrganizationAdmin(membership?.role),
+      appState: (await readOrgEntitlement(session.session.activeOrganizationId))
+        .appState,
     };
   },
 );
@@ -45,10 +49,11 @@ export const Route = createFileRoute(
     meta: [{ title: "Everr - Members" }],
   }),
   beforeLoad: async () => {
-    const { allowed } = await ensureOrgAdmin();
+    const { allowed, appState } = await ensureOrgAdmin();
     if (!allowed) {
       throw redirect({ to: "/" });
     }
+    return { appState };
   },
   component: MembersPage,
 });
@@ -64,6 +69,37 @@ function MembersSkeleton() {
 }
 
 function MembersPage() {
+  const { appState } = Route.useRouteContext();
+  if (appState === "hobby") return <HobbyMembersCta />;
+  return <ProMembersPage />;
+}
+
+function HobbyMembersCta() {
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      <PageHeader
+        title="Members"
+        lede="Collaboration is available with the Pro plan."
+      />
+      <Card>
+        <CardHeader>
+          <CardTitle>Invite your team with Pro</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Hobby organizations are individual and can only contain their Owner.
+            Upgrade to Pro to invite members and manage team access.
+          </p>
+          <Button nativeButton={false} render={<Link to="/billing" />}>
+            View Pro plan
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ProMembersPage() {
   const { data: session } = authClient.useSession();
   const currentUserId = session?.user?.id;
   const members = useQuery(membersQueryOptions());
