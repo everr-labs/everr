@@ -209,6 +209,7 @@ describe("resolveInvitationLoader", () => {
     expect(result).toEqual({
       status: "accept-ready",
       invitationId: "inv_1",
+      organizationId: "org_1",
       organizationName: "Acme",
       inviterName: "Gio",
       role: "admin",

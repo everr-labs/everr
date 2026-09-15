@@ -4,7 +4,7 @@ export type DeviceActionResult = { ok: true } | { ok: false; message: string };
 
 // better-auth requires a device code to be verified/claimed by the current
 // session before it can be approved or denied, so both helpers run that
-// two-step handshake. Centralized here so the device page and the onboarding
+// two-step handshake. Centralized here so the device page and authentication
 // "Authorize device" step don't reimplement the protocol.
 // https://better-auth.com/docs/plugins/device-authorization
 async function verifyDeviceCode(userCode: string): Promise<DeviceActionResult> {

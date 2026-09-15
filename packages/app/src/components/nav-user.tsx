@@ -3,10 +3,8 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
 import {
@@ -15,22 +13,28 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@everr/ui/components/sidebar";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import {
-  BadgeCheck,
-  Building2,
   Check,
   ChevronsUpDown,
   CookieIcon,
   CreditCard,
   Download,
+  GitPullRequest,
   KeyRound,
+  Loader2,
   LogOut,
+  Plus,
+  ReceiptText,
+  Settings,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
+import { getOrgPortalUrl } from "@/data/billing";
 import { PLATFORMS } from "@/lib/app-download";
 import { authClient } from "@/lib/auth-client";
+import { isOrganizationAdmin } from "@/lib/organization-role";
 import { useOpenConsentSettings } from "@/telemetry/consent-gate";
 
 export function NavUser() {
@@ -44,8 +48,22 @@ export function NavUser() {
   const userRole = activeOrg?.members?.find(
     (m) => m.userId === session?.user?.id,
   )?.role;
-  const isAdmin = userRole === "admin" || userRole === "owner";
-  const hasMultipleOrgs = orgs && orgs.length > 1;
+  const isAdmin = isOrganizationAdmin(userRole);
+  const portalMutation = useMutation({
+    mutationFn: () => getOrgPortalUrl(),
+    onSuccess: (result) => {
+      if (result.status === "customer_missing") {
+        void router.navigate({ to: "/billing" });
+        toast.error("Set up a billing email before opening billing details.");
+        return;
+      }
+
+      window.location.href = result.url;
+    },
+    onError: () => {
+      toast.error("We couldn't open billing details. Please try again.");
+    },
+  });
 
   const { isMobile } = useSidebar();
 
@@ -119,64 +137,104 @@ export function NavUser() {
               </div>
             </div>
             <DropdownMenuSeparator />
-            {hasMultipleOrgs && (
-              <DropdownMenuGroup>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Building2 />
-                    Switch organization
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {orgs.map((org) => (
-                      <DropdownMenuItem
-                        key={org.id}
-                        onClick={() => void handleSwitchOrg(org.id)}
-                      >
-                        {org.id === activeOrg?.id ? (
-                          <Check />
-                        ) : (
-                          <span className="size-4" />
-                        )}
-                        <span className="truncate">{org.name}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              </DropdownMenuGroup>
-            )}
             <DropdownMenuGroup>
+              <DropdownMenuLabel>Organization</DropdownMenuLabel>
+              {orgs?.map((org) => (
+                <DropdownMenuItem
+                  key={org.id}
+                  onClick={() => void handleSwitchOrg(org.id)}
+                >
+                  {org.id === activeOrg?.id ? (
+                    <Check />
+                  ) : (
+                    <span className="size-4" />
+                  )}
+                  <span className="truncate">{org.name}</span>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem
+                nativeButton={false}
+                render={<Link to="/organizations/new" />}
+              >
+                <Plus />
+                Create organization
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            {activeOrg ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Organization settings</DropdownMenuLabel>
+                  {isAdmin ? (
+                    <>
+                      <DropdownMenuItem
+                        render={<Link to="/users-management" />}
+                        nativeButton={false}
+                      >
+                        <Users />
+                        Members
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        render={<Link to="/api-keys" />}
+                        nativeButton={false}
+                      >
+                        <KeyRound />
+                        API keys
+                      </DropdownMenuItem>
+                    </>
+                  ) : null}
+                  <DropdownMenuItem
+                    render={<Link to="/github" />}
+                    nativeButton={false}
+                  >
+                    <GitPullRequest />
+                    GitHub
+                  </DropdownMenuItem>
+                  {isAdmin ? (
+                    <>
+                      <DropdownMenuItem
+                        closeOnClick={false}
+                        disabled={portalMutation.isPending}
+                        onClick={() => portalMutation.mutate()}
+                      >
+                        {portalMutation.isPending ? (
+                          <Loader2 className="animate-spin" />
+                        ) : (
+                          <ReceiptText />
+                        )}
+                        {portalMutation.isPending
+                          ? "Opening billing details..."
+                          : "Billing details"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        render={<Link to="/billing" />}
+                        nativeButton={false}
+                      >
+                        <CreditCard />
+                        Plan &amp; Billing
+                      </DropdownMenuItem>
+                    </>
+                  ) : null}
+                </DropdownMenuGroup>
+              </>
+            ) : null}
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Account &amp; privacy</DropdownMenuLabel>
               <DropdownMenuItem
                 render={<Link to="/account" />}
                 nativeButton={false}
               >
-                <BadgeCheck />
-                Account
+                <Settings />
+                Account settings
               </DropdownMenuItem>
-              {isAdmin && (
-                <>
-                  <DropdownMenuItem
-                    render={<Link to="/billing" />}
-                    nativeButton={false}
-                  >
-                    <CreditCard />
-                    Billing
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/users-management" />}
-                    nativeButton={false}
-                  >
-                    <Users />
-                    Users Management
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/api-keys" />}
-                    nativeButton={false}
-                  >
-                    <KeyRound />
-                    API keys
-                  </DropdownMenuItem>
-                </>
-              )}
+              <DropdownMenuItem onClick={openConsentSettings}>
+                <CookieIcon />
+                Privacy preferences
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
               <DropdownMenuItem
                 nativeButton={false}
                 render={
@@ -185,16 +243,8 @@ export function NavUser() {
                     Download App
                   </a>
                 }
-              >
-                <Download />
-                Download App
-              </DropdownMenuItem>
+              />
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={openConsentSettings}>
-              <CookieIcon />
-              Privacy preferences
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() =>

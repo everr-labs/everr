@@ -49,7 +49,7 @@ export const createAuthenticatedServerFn = createServerFn().middleware([
 /**
  * A server function that is authenticated but not necessarily has an active organization.
  * This is useful for routes or function that need to be authenticated but not necessarily have an
- * active organization yet, such as the onboarding flow.
+ * active organization yet, such as organization selection and creation.
  */
 export const createPartiallyAuthenticatedServerFn = createServerFn().middleware(
   [authMiddleware],

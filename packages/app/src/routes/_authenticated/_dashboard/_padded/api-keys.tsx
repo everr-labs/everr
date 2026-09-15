@@ -9,6 +9,7 @@ import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog"
 import { apiKeysQueryOptions } from "@/components/api-keys/queries";
 import { PageHeader } from "@/components/page-header";
 import { auth } from "@/lib/auth.server";
+import { isOrganizationAdmin } from "@/lib/organization-role";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
 const ensureOrgAdmin = createAuthenticatedServerFn.handler(
@@ -21,7 +22,7 @@ const ensureOrgAdmin = createAuthenticatedServerFn.handler(
 
     const membership = org.members.find((m) => m.userId === session.user.id);
     return {
-      allowed: membership?.role === "admin" || membership?.role === "owner",
+      allowed: isOrganizationAdmin(membership?.role),
     };
   },
 );

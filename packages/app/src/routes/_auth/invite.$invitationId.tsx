@@ -212,6 +212,17 @@ function AcceptReadyContent({
         return;
       }
 
+      const activation = await authClient.organization.setActive({
+        organizationId: data.organizationId,
+      });
+      if (activation.error) {
+        setError(
+          activation.error.message ??
+            "Invitation accepted, but the organization could not be selected.",
+        );
+        return;
+      }
+
       await navigate({ to: "/" });
     } catch {
       setError("An unexpected error occurred. Please try again.");
