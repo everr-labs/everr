@@ -14,6 +14,7 @@ import {
 } from "@/lib/billing-data.server";
 import {
   deleteProvisionalPolarCustomer,
+  getPolarCheckoutSubscription,
   polarClient,
   prepareProOrganizationCheckoutCustomer,
 } from "@/lib/polar.server";
@@ -161,7 +162,6 @@ export const completeProOrganizationCheckout =
       if (
         checkout.status !== "succeeded" ||
         !checkout.productId ||
-        !checkout.subscriptionId ||
         !checkout.customerId ||
         !metadata.success
       ) {
@@ -175,9 +175,10 @@ export const completeProOrganizationCheckout =
         throw new OrganizationCreationError("This checkout is not available.");
       }
 
-      const subscription = await polarClient.subscriptions.get({
-        id: checkout.subscriptionId,
-      });
+      const subscription = await getPolarCheckoutSubscription(checkout);
+      if (!subscription) {
+        return { status: "processing" as const };
+      }
       if (subscription.status !== "active" || !subscription.productId) {
         throw new OrganizationCreationError(
           "Polar has not confirmed an active Pro subscription.",

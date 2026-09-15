@@ -13,6 +13,7 @@ import {
   assertPolarBillingEmailAvailable,
   createPolarCustomer,
   deleteProvisionalPolarCustomer,
+  getPolarCheckoutSubscription,
   polarClient,
   prepareProOrganizationCheckoutCustomer,
 } from "./polar.server";
@@ -315,5 +316,71 @@ describe("Polar organization customers", () => {
         url: "https://polar.example/checkout_open",
       },
     });
+  });
+});
+
+describe("Polar checkout subscriptions", () => {
+  it("uses the subscription ID returned by the checkout when available", async () => {
+    const subscription = { id: "subscription_1" };
+    const get = vi
+      .spyOn(polarClient.subscriptions, "get")
+      .mockResolvedValue(subscription as never);
+    const list = vi.spyOn(polarClient.subscriptions, "list");
+
+    await expect(
+      getPolarCheckoutSubscription({
+        id: "checkout_1",
+        subscriptionId: "subscription_1",
+        customerId: "customer_1",
+        productId: "product_1",
+      }),
+    ).resolves.toBe(subscription);
+
+    expect(get).toHaveBeenCalledWith({ id: "subscription_1" });
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it("recovers the subscription through its checkout ID", async () => {
+    const subscription = {
+      id: "subscription_1",
+      checkoutId: "checkout_1",
+    };
+    const list = vi.spyOn(polarClient.subscriptions, "list").mockResolvedValue({
+      result: { items: [subscription], pagination: {} },
+    } as never);
+
+    await expect(
+      getPolarCheckoutSubscription({
+        id: "checkout_1",
+        subscriptionId: null,
+        customerId: "customer_1",
+        productId: "product_1",
+      }),
+    ).resolves.toBe(subscription);
+
+    expect(list).toHaveBeenCalledWith({
+      customerId: "customer_1",
+      productId: "product_1",
+      active: true,
+      limit: 1,
+    });
+  });
+
+  it("does not accept another active subscription for the same product", async () => {
+    vi.spyOn(polarClient.subscriptions, "list").mockResolvedValue({
+      result: {
+        items: [{ id: "subscription_old", checkoutId: "checkout_old" }],
+        pagination: {},
+      },
+    } as never);
+
+    await expect(
+      getPolarCheckoutSubscription({
+        id: "checkout_1",
+        subscriptionId: null,
+        customerId: "customer_1",
+        productId: "product_1",
+      }),
+    ).resolves.toBeNull();
   });
 });

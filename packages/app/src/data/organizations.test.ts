@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   deleteCustomer: vi.fn(),
   checkoutCreate: vi.fn(),
   checkoutGet: vi.fn(),
-  subscriptionGet: vi.fn(),
+  checkoutSubscription: vi.fn(),
   finalizeProOrganizationCheckout: vi.fn(),
   getSession: vi.fn(),
   createAuthOrganization: vi.fn(),
@@ -47,10 +47,10 @@ vi.mock("@/db/client", () => ({
 
 vi.mock("@/lib/polar.server", () => ({
   deleteProvisionalPolarCustomer: mocks.deleteCustomer,
+  getPolarCheckoutSubscription: mocks.checkoutSubscription,
   prepareProOrganizationCheckoutCustomer: mocks.prepareCheckoutCustomer,
   polarClient: {
     checkouts: { create: mocks.checkoutCreate, get: mocks.checkoutGet },
-    subscriptions: { get: mocks.subscriptionGet },
   },
 }));
 
@@ -122,7 +122,7 @@ describe("completeProOrganizationCheckout", () => {
       metadata,
     });
     const createdAt = new Date("2026-09-11T12:00:00Z");
-    mocks.subscriptionGet.mockResolvedValueOnce({
+    mocks.checkoutSubscription.mockResolvedValueOnce({
       id: "subscription_1",
       productId: "product_pro",
       status: "active",
@@ -168,7 +168,7 @@ describe("completeProOrganizationCheckout", () => {
       completeProOrganizationCheckout({ data: { checkoutId: "checkout_1" } }),
     ).rejects.toThrow("This checkout is not available");
 
-    expect(mocks.subscriptionGet).not.toHaveBeenCalled();
+    expect(mocks.checkoutSubscription).not.toHaveBeenCalled();
     expect(mocks.finalizeProOrganizationCheckout).not.toHaveBeenCalled();
   });
 });

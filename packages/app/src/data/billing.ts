@@ -23,6 +23,7 @@ import { isOrganizationAdmin } from "@/lib/organization-role";
 import {
   assertPolarBillingEmailAvailable,
   createPolarCustomer,
+  getPolarCheckoutSubscription,
   hasPolarCustomerForOrg,
   polarClient,
 } from "@/lib/polar.server";
@@ -202,17 +203,18 @@ export const confirmOrgCheckout = createBillingAdminServerFn({ method: "POST" })
     if (
       checkout.status !== "succeeded" ||
       checkout.externalCustomerId !== orgId ||
-      !checkout.productId ||
-      !checkout.subscriptionId
+      !checkout.productId
     ) {
       return { status: "pending" as const };
     }
     assertPolarProductGrantsPlan(checkout.productId, "pro");
 
-    const subscription = await polarClient.subscriptions.get({
-      id: checkout.subscriptionId,
-    });
-    if (subscription.status !== "active" || !subscription.productId) {
+    const subscription = await getPolarCheckoutSubscription(checkout);
+    if (
+      !subscription ||
+      subscription.status !== "active" ||
+      !subscription.productId
+    ) {
       return { status: "pending" as const };
     }
     assertPolarProductGrantsPlan(subscription.productId, "pro");
