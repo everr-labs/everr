@@ -15,7 +15,7 @@ export const startInstance = createStart(() => ({
   defaultSsr: false,
   requestMiddleware: [
     createMiddleware({ type: "request" }).server(({ next }) =>
-      withTelemetryIdentityScope(() => next(), null),
+      withTelemetryIdentityScope(() => next()),
     ),
     createRequestTelemetryMiddleware({
       // Annotated so the router type does not flow back into this module:

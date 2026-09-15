@@ -14,7 +14,7 @@ import { afterAll, beforeEach, expect, it } from "vitest";
 import {
   createIdentityLogProcessor,
   createIdentitySpanProcessor,
-  setTelemetryIdentity,
+  mergeTelemetryIdentity,
   withTelemetryIdentityScope,
 } from "./identity";
 
@@ -56,7 +56,7 @@ it("isolates concurrent requests and annotates the root when auth resolves insid
         withTelemetryIdentityScope(() =>
           tracer.startActiveSpan(`request-${id}`, async (root) => {
             await tracer.startActiveSpan(`auth-${id}`, async (auth) => {
-              setTelemetryIdentity({
+              mergeTelemetryIdentity({
                 organizationId: `org-${id}`,
                 userId: `user-${id}`,
               });
@@ -92,16 +92,16 @@ it("isolates concurrent requests and annotates the root when auth resolves insid
 it("leaves anonymous work and new background scopes free of user identity", async () => {
   await withTelemetryIdentityScope(() =>
     tracer.startActiveSpan("request", async (root) => {
-      setTelemetryIdentity({ organizationId: "org-a", userId: "user-a" });
+      mergeTelemetryIdentity({ organizationId: "org-a", userId: "user-a" });
       await context.with(ROOT_CONTEXT, () =>
-        tracer.startActiveSpan("job", async (job) => {
-          await withTelemetryIdentityScope(async () => {
-            setTelemetryIdentity({ organizationId: "org-b" });
+        withTelemetryIdentityScope(() =>
+          tracer.startActiveSpan("job", async (job) => {
+            mergeTelemetryIdentity({ organizationId: "org-b" });
             tracer.startActiveSpan("job-child", (child) => child.end());
             logger.emit({ body: "job" });
-          });
-          job.end();
-        }),
+            job.end();
+          }),
+        ),
       );
       root.end();
     }),
@@ -127,7 +127,7 @@ it("does not backfill ended pre-auth spans or create baggage", async () => {
   await withTelemetryIdentityScope(() =>
     tracer.startActiveSpan("request", async (root) => {
       tracer.startActiveSpan("pre-auth", (span) => span.end());
-      setTelemetryIdentity({ organizationId: "org-a", userId: "user-a" });
+      mergeTelemetryIdentity({ organizationId: "org-a", userId: "user-a" });
       expect(propagation.getBaggage(context.active())).toBeUndefined();
       logger.emit({
         body: "explicit",
@@ -146,6 +146,28 @@ it("does not backfill ended pre-auth spans or create baggage", async () => {
   });
 });
 
+it("merges verified fields and retains fields omitted by later calls", () => {
+  withTelemetryIdentityScope(() =>
+    tracer.startActiveSpan("request", (root) => {
+      mergeTelemetryIdentity({ userId: "user-a", organizationId: "org-a" });
+      mergeTelemetryIdentity({ organizationId: "org-b", userId: undefined });
+      tracer.startActiveSpan("child", (span) => span.end());
+      logger.emit({ body: "merged" });
+      root.end();
+    }),
+  );
+  for (const span of spans.getFinishedSpans()) {
+    expect(span.attributes).toEqual({
+      "user.id": "user-a",
+      "everr.organization.id": "org-b",
+    });
+  }
+  expect(records.getFinishedLogRecords()[0].attributes).toEqual({
+    "user.id": "user-a",
+    "everr.organization.id": "org-b",
+  });
+});
+
 it("continues a remote trace without trusting baggage or annotating its remote parent", async () => {
   const incoming = propagation.setBaggage(
     trace.setSpanContext(ROOT_CONTEXT, {
@@ -160,19 +182,17 @@ it("continues a remote trace without trusting baggage or annotating its remote p
     }),
   );
   await context.with(incoming, () =>
-    withTelemetryIdentityScope(
-      () =>
-        tracer.startActiveSpan("remote-request", async (root) => {
-          await tracer.startActiveSpan("auth", async (auth) => {
-            setTelemetryIdentity({
-              organizationId: "verified-org",
-              userId: "verified-user",
-            });
-            auth.end();
+    withTelemetryIdentityScope(() =>
+      tracer.startActiveSpan("remote-request", async (root) => {
+        await tracer.startActiveSpan("auth", async (auth) => {
+          mergeTelemetryIdentity({
+            organizationId: "verified-org",
+            userId: "verified-user",
           });
-          root.end();
-        }),
-      null,
+          auth.end();
+        });
+        root.end();
+      }),
     ),
   );
   const root = spans

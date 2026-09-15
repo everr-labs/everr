@@ -10,27 +10,23 @@ import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
 import type { SpanProcessor } from "@opentelemetry/sdk-trace-node";
 
 export type TelemetryIdentity = {
-  organizationId?: string | null;
-  userId?: string | null;
+  organizationId?: string;
+  userId?: string;
 };
 
 type IdentityScope = { attributes: Attributes; root?: Span };
 const identityKey = createContextKey("everr.telemetry.identity");
 
-/** Local context only: identity is never injected into network baggage. */
-export function withTelemetryIdentityScope<T>(
-  run: () => T,
-  root: Span | null = trace.getActiveSpan() ?? null,
-): T {
+/** Open before the request or job root span. Identity stays local, never in baggage. */
+export function withTelemetryIdentityScope<T>(run: () => T): T {
   const scope: IdentityScope = {
     attributes: {},
-    root: root ?? undefined,
   };
   return context.with(context.active().setValue(identityKey, scope), run);
 }
 
-/** Call only with an authenticated session or a job's resolved organization. */
-export function setTelemetryIdentity(identity: TelemetryIdentity): void {
+/** Merge verified identity fields. Omitted fields retain their values for this scope. */
+export function mergeTelemetryIdentity(identity: TelemetryIdentity): void {
   const attributes: Attributes = {
     ...(identity.organizationId
       ? { "everr.organization.id": identity.organizationId }

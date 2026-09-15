@@ -6,7 +6,7 @@ import { organization } from "@/db/schema";
 import { hasApiKeyScope } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
 import { createClickhouseQuery } from "@/lib/clickhouse";
-import { setTelemetryIdentity } from "@/telemetry/identity";
+import { mergeTelemetryIdentity } from "@/telemetry/identity";
 
 export interface ApplyAuth {
   organizationId: string;
@@ -88,7 +88,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
       throw new Error("API key is not authorized to apply resources");
     }
     const organizationId = result.key.referenceId;
-    setTelemetryIdentity({ organizationId });
+    mergeTelemetryIdentity({ organizationId });
     return {
       organizationId,
       organizationName: await organizationName(organizationId),

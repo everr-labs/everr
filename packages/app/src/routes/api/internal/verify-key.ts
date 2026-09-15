@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth.server";
 import { originPolicyAllows } from "@/lib/public-ingest-keys";
 import type { TenantRetention } from "@/lib/retention";
 import { retentionForOrg } from "@/lib/retention.server";
-import { setTelemetryIdentity } from "@/telemetry/identity";
+import { mergeTelemetryIdentity } from "@/telemetry/identity";
 
 const INGEST_CONFIG_ID = "ingest";
 
@@ -77,7 +77,7 @@ export const Route = createFileRoute("/api/internal/verify-key")({
           return new Response(null, { status: 403 });
         }
 
-        setTelemetryIdentity({ organizationId: result.key.referenceId });
+        mergeTelemetryIdentity({ organizationId: result.key.referenceId });
         const retention = await retentionForOrg(result.key.referenceId);
         const payload: VerifyKeyResponse = {
           tenantId: result.key.referenceId,

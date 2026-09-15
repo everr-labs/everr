@@ -176,7 +176,6 @@ const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
     : undefined;
 
 export const auth = betterAuth({
-  hooks: identityAuthHooks,
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
   // Trust both loopback forms of the base URL: in dev the app may be reached on
@@ -303,6 +302,7 @@ export const auth = betterAuth({
       },
     },
   },
+  hooks: identityAuthHooks,
   plugins: [
     cliDeviceOrganizationPlugin({
       onError: (stage, error) => {
@@ -338,7 +338,7 @@ export const auth = betterAuth({
           } catch (error) {
             serverLogger.error("polar.customer.create_for_org.failed", {
               ...exceptionAttributes(error),
-              "organization.id": organization.id,
+              "everr.organization.id": organization.id,
             });
           }
 
@@ -351,7 +351,7 @@ export const auth = betterAuth({
           } catch (error) {
             serverLogger.error("sql_api.org_user.provision.failed", {
               ...exceptionAttributes(error),
-              "organization.id": organization.id,
+              "everr.organization.id": organization.id,
             });
           }
         },
@@ -361,7 +361,7 @@ export const auth = betterAuth({
           } catch (error) {
             serverLogger.error("organization.postgres_data_cleanup.failed", {
               ...exceptionAttributes(error),
-              "organization.id": organization.id,
+              "everr.organization.id": organization.id,
             });
             throw error;
           }
@@ -371,7 +371,7 @@ export const auth = betterAuth({
           } catch (error) {
             serverLogger.error("sql_api.org_user.deprovision.failed", {
               ...exceptionAttributes(error),
-              "organization.id": organization.id,
+              "everr.organization.id": organization.id,
             });
           }
         },

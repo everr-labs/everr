@@ -1,5 +1,6 @@
 import {
   type Attributes,
+  context,
   type Link,
   metrics,
   ROOT_CONTEXT,
@@ -9,7 +10,7 @@ import {
   trace,
 } from "@opentelemetry/api";
 import {
-  setTelemetryIdentity,
+  mergeTelemetryIdentity,
   withTelemetryIdentityScope,
 } from "@/telemetry/identity";
 
@@ -134,30 +135,32 @@ export async function withAlertJobSpan<T>(
   opts: { traceparent?: string | null; attributes?: Attributes },
   run: () => Promise<T>,
 ): Promise<T> {
-  return tracer.startActiveSpan(
-    name,
-    {
-      kind: SpanKind.CONSUMER,
-      links: linksFrom(opts.traceparent),
-      attributes: opts.attributes,
-    },
-    ROOT_CONTEXT,
-    async (span) =>
-      withTelemetryIdentityScope(async () => {
-        try {
-          return await run();
-        } catch (error) {
-          // The message matters: a status with an empty description tells an
-          // on-call nothing about which failure this was.
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: error instanceof Error ? error.message : String(error),
-          });
-          throw error;
-        } finally {
-          span.end();
-        }
-      }),
+  return context.with(ROOT_CONTEXT, () =>
+    withTelemetryIdentityScope(() =>
+      tracer.startActiveSpan(
+        name,
+        {
+          kind: SpanKind.CONSUMER,
+          links: linksFrom(opts.traceparent),
+          attributes: opts.attributes,
+        },
+        async (span) => {
+          try {
+            return await run();
+          } catch (error) {
+            // The message matters: a status with an empty description tells an
+            // on-call nothing about which failure this was.
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error instanceof Error ? error.message : String(error),
+            });
+            throw error;
+          } finally {
+            span.end();
+          }
+        },
+      ),
+    ),
   );
 }
 
@@ -203,11 +206,10 @@ export function setAlertSpanAttributes(opts: {
   fired?: number;
   resolved?: number;
 }): void {
-  if (opts.tenant) setTelemetryIdentity({ organizationId: opts.tenant });
+  if (opts.tenant) mergeTelemetryIdentity({ organizationId: opts.tenant });
   const span = trace.getActiveSpan();
   if (!span) return;
   span.setAttributes({
-    ...(opts.tenant ? { "everr.organization.id": opts.tenant } : {}),
     ...(opts.slug ? { "everr.alert.rule": opts.slug } : {}),
     ...(opts.episodeId ? { "everr.alert.episode_id": opts.episodeId } : {}),
     ...(opts.eventId ? { "everr.alert.event_id": opts.eventId } : {}),
