@@ -40,7 +40,10 @@ import {
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
-import { identityAuthHooks } from "@/telemetry/auth-identity";
+import {
+  createIdentityAuthHooks,
+  type ResolvedSession,
+} from "@/telemetry/auth-identity";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 type PolarSubscriptionPayload = {
@@ -302,7 +305,12 @@ export const auth = betterAuth({
       },
     },
   },
-  hooks: identityAuthHooks,
+  hooks: createIdentityAuthHooks(
+    async (
+      headers,
+    ): Promise<{ response: ResolvedSession | null; headers: Headers }> =>
+      auth.api.getSession({ headers, returnHeaders: true }),
+  ),
   plugins: [
     cliDeviceOrganizationPlugin({
       onError: (stage, error) => {

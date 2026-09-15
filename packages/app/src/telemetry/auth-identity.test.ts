@@ -10,11 +10,12 @@ import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
-import { betterAuth } from "better-auth";
+import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
+import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { bearer, organization } from "better-auth/plugins";
 import { afterAll, beforeEach, expect, it, vi } from "vitest";
-import { identityAuthHooks } from "./auth-identity";
+import { createIdentityAuthHooks, type ResolvedSession } from "./auth-identity";
 import {
   identityLogProcessor,
   identitySpanProcessor,
@@ -40,8 +41,12 @@ afterAll(async () => {
   await logProvider.shutdown();
 });
 const tracer = trace.getTracer("auth-identity-test");
-function createTestAuth(afterUpdate = async () => {}) {
-  return betterAuth({
+function createTestAuth(
+  afterUpdate = async () => {},
+  cookieCache?: NonNullable<BetterAuthOptions["session"]>["cookieCache"],
+  resolveInBeforeHook = false,
+) {
+  const auth = betterAuth({
     database: memoryAdapter({
       user: [],
       session: [],
@@ -54,8 +59,28 @@ function createTestAuth(afterUpdate = async () => {}) {
     baseURL: "http://localhost:5173",
     secret: "identity-test-secret-only-never-used-outside-tests",
     emailAndPassword: { enabled: true },
-    hooks: identityAuthHooks,
+    session: { cookieCache },
+    hooks: createIdentityAuthHooks(
+      async (
+        headers,
+      ): Promise<{ response: ResolvedSession | null; headers: Headers }> =>
+        auth.api.getSession({ headers, returnHeaders: true }),
+    ),
     plugins: [
+      {
+        id: "early-session",
+        hooks: {
+          before: [
+            {
+              matcher: (ctx) =>
+                resolveInBeforeHook && ctx.path === "/organization/update",
+              handler: createAuthMiddleware(async (ctx) => {
+                await getSessionFromCtx(ctx);
+              }),
+            },
+          ],
+        },
+      },
       bearer(),
       organization({
         organizationHooks: {
@@ -70,6 +95,7 @@ function createTestAuth(afterUpdate = async () => {}) {
       }),
     ],
   });
+  return auth;
 }
 
 it.each([
@@ -77,7 +103,7 @@ it.each([
   "bearer",
   "signed-bearer",
 ])("attributes %s sessions and leaves invalid sessions anonymous", async (credential) => {
-  const auth = createTestAuth();
+  const auth = createTestAuth(undefined, undefined, credential === "cookie");
   const signedUp = await auth.api.signUpEmail({
     body: {
       email: "identity@example.test",
@@ -321,4 +347,212 @@ it("keeps concurrent authenticated organization requests isolated", async () => 
       expected.get(record.spanContext?.traceId ?? ""),
     );
   }
+});
+
+it.each(
+  (["compact", "jwt", "jwe"] as const).flatMap((strategy) =>
+    [false, true].map((early) => ({ strategy, early })),
+  ),
+)("attributes verified $strategy cache hits (before hook: $early) without a session lookup", async ({
+  strategy,
+  early,
+}) => {
+  const auth = createTestAuth(undefined, { enabled: true, strategy }, early);
+  const signedUp = await auth.api.signUpEmail({
+    body: {
+      email: "cached@example.test",
+      password: "test-password-123",
+      name: "Cached",
+    },
+    asResponse: true,
+  });
+  const { user, token } = await signedUp.json();
+  const headers = new Headers();
+  const cookies = new Map<string, string>();
+  function acceptCookies(response: Response) {
+    for (const value of response.headers.getSetCookie()) {
+      const pair = value.split(";")[0];
+      const index = pair.indexOf("=");
+      cookies.set(pair.slice(0, index), pair.slice(index + 1));
+    }
+    headers.set(
+      "cookie",
+      [...cookies].map(([name, value]) => `${name}=${value}`).join("; "),
+    );
+  }
+  acceptCookies(signedUp);
+  const org = await auth.api.createOrganization({
+    headers,
+    body: { name: "Cached", slug: "cached" },
+  });
+  if (!org) throw new Error("Expected organization");
+  acceptCookies(
+    await auth.api.getSession({
+      headers,
+      query: { disableCookieCache: true },
+      asResponse: true,
+    }),
+  );
+  const sessionLookup = vi.spyOn(
+    (await auth.$context).internalAdapter,
+    "findSession",
+  );
+  try {
+    await withTelemetryIdentityScope(() =>
+      tracer.startActiveSpan("cached-request", async (span) => {
+        try {
+          const result = await auth.handler(
+            new Request("http://localhost:5173/api/auth/organization/update", {
+              method: "POST",
+              headers: {
+                ...Object.fromEntries(headers),
+                origin: "http://localhost:5173",
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                organizationId: org.id,
+                data: { name: "Updated" },
+              }),
+            }),
+          );
+          expect(result.status).toBe(200);
+        } finally {
+          span.end();
+        }
+      }),
+    );
+    expect(sessionLookup).not.toHaveBeenCalled();
+  } finally {
+    sessionLookup.mockRestore();
+  }
+  const spans = exporter
+    .getFinishedSpans()
+    .filter((span) =>
+      ["cached-request", "organization-handler"].includes(span.name),
+    );
+  expect(spans).toHaveLength(2);
+  for (const span of spans)
+    expect(span.attributes).toEqual({
+      "user.id": user.id,
+      "everr.organization.id": org.id,
+    });
+  expect(records.getFinishedLogRecords()).toHaveLength(1);
+  expect(records.getFinishedLogRecords()[0].attributes).toEqual({
+    "user.id": user.id,
+    "everr.organization.id": org.id,
+  });
+
+  // A valid cache must not satisfy an endpoint's authoritative session check.
+  await (await auth.$context).internalAdapter.deleteSession(token);
+  const authoritativeLookup = vi.spyOn(
+    (await auth.$context).internalAdapter,
+    "findSession",
+  );
+  const revoked = await auth.handler(
+    new Request("http://localhost:5173/api/auth/revoke-sessions", {
+      method: "POST",
+      headers: {
+        ...Object.fromEntries(headers),
+        origin: "http://localhost:5173",
+      },
+    }),
+  );
+  expect(revoked.status).toBe(401);
+  expect(authoritativeLookup).toHaveBeenCalledTimes(1);
+  authoritativeLookup.mockRestore();
+});
+
+it("skips session lookups for requests without credentials and attributes sign-up", async () => {
+  const auth = createTestAuth();
+  const lookup = vi.spyOn((await auth.$context).internalAdapter, "findSession");
+  await withTelemetryIdentityScope(() =>
+    tracer.startActiveSpan("signup", async (span) => {
+      const result = await auth.api.signUpEmail({
+        headers: new Headers(),
+        body: {
+          email: "new@example.test",
+          password: "test-password-123",
+          name: "New",
+        },
+      });
+      span.end();
+      expect(
+        exporter.getFinishedSpans().find((span) => span.name === "signup")
+          ?.attributes["user.id"],
+      ).toBe(result.user.id);
+    }),
+  );
+  expect(lookup).not.toHaveBeenCalled();
+  lookup.mockRestore();
+});
+
+it("forwards session refresh cookies while reusing the lookup", async () => {
+  const auth = createTestAuth();
+  const signedUp = await auth.api.signUpEmail({
+    body: {
+      email: "refresh@example.test",
+      password: "test-password-123",
+      name: "Refresh",
+    },
+    asResponse: true,
+  });
+  const { token } = await signedUp.json();
+  const headers = new Headers({
+    cookie: signedUp.headers
+      .getSetCookie()
+      .map((value) => value.split(";")[0])
+      .join("; "),
+  });
+  const org = await auth.api.createOrganization({
+    headers,
+    body: { name: "Refresh", slug: "refresh" },
+  });
+  if (!org) throw new Error("Expected organization");
+  const adapter = (await auth.$context).internalAdapter;
+  await adapter.updateSession(token, {
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+  const lookup = vi.spyOn(adapter, "findSession");
+  const response = await auth.handler(
+    new Request("http://localhost:5173/api/auth/organization/update", {
+      method: "POST",
+      headers: {
+        ...Object.fromEntries(headers),
+        origin: "http://localhost:5173",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        organizationId: org.id,
+        data: { name: "Refreshed" },
+      }),
+    }),
+  );
+  expect(response.status).toBe(200);
+  expect(lookup).toHaveBeenCalledTimes(1);
+  lookup.mockRestore();
+  expect(
+    response.headers
+      .getSetCookie()
+      .some((value) => value.startsWith("better-auth.session_token=")),
+  ).toBe(true);
+  expect(response.headers.get("cache-control")).toBeNull();
+
+  await adapter.updateSession(token, {
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+  const signedOut = await auth.handler(
+    new Request("http://localhost:5173/api/auth/sign-out", {
+      method: "POST",
+      headers: {
+        ...Object.fromEntries(headers),
+        origin: "http://localhost:5173",
+      },
+    }),
+  );
+  expect(signedOut.status).toBe(200);
+  const sessionCookies = signedOut.headers
+    .getSetCookie()
+    .filter((cookie) => cookie.startsWith("better-auth.session_token="));
+  expect(sessionCookies).toHaveLength(1);
+  expect(sessionCookies[0]).toContain("Max-Age=0");
 });

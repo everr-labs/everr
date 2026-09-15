@@ -1,14 +1,18 @@
-import { getCurrentAuthContext } from "@better-auth/core/context";
+import type { Session, User } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
 import { mergeTelemetryIdentity } from "./identity";
 
-type ResolvedSession = {
-  session: { expiresAt: Date; activeOrganizationId?: unknown };
-  user: { id: string };
+export type ResolvedSession = {
+  session: Session & { activeOrganizationId?: unknown };
+  user: User;
 };
 
 function attributeSession(resolved: ResolvedSession | null | undefined): void {
-  if (!resolved || resolved.session.expiresAt.getTime() <= Date.now()) return;
+  if (
+    !resolved ||
+    !(new Date(resolved.session.expiresAt).getTime() > Date.now())
+  )
+    return;
   mergeTelemetryIdentity({
     userId: resolved.user.id,
     organizationId:
@@ -18,34 +22,42 @@ function attributeSession(resolved: ResolvedSession | null | undefined): void {
   });
 }
 
-// Read after before-hooks have normalized bearer credentials into a signed cookie.
-const callerSessionToken = createAuthMiddleware((ctx) =>
-  ctx.getSignedCookie(
-    ctx.context.authCookies.sessionToken.name,
-    ctx.context.secret,
-  ),
-);
-
-export const identityAuthHooks = {
-  before: createAuthMiddleware(async (ctx) => {
-    const adapter = ctx.context.internalAdapter;
-    const findSession = async (sessionToken: string) => {
-      const current = await getCurrentAuthContext();
-      const token = await callerSessionToken({
-        ...current,
-        returnHeaders: false,
-      });
-      const session = await adapter.findSession(sessionToken);
-      // A lookup for a session being revoked must not change caller identity.
-      if (sessionToken === token) attributeSession(session);
-      return session;
-    };
-    // Better Auth merges this override into the request's context. Observe the
-    // existing lookup because organization endpoints bypass global after hooks.
-    return { context: { context: { internalAdapter: { findSession } } } };
-  }),
-  // Also attribute newly issued sessions (sign-in and device login).
-  after: createAuthMiddleware(async (ctx) => {
-    attributeSession(ctx.context.newSession ?? ctx.context.session);
-  }),
-};
+// Resolve through auth.api so Better Auth applies its bearer and cookie handling.
+export function createIdentityAuthHooks(
+  resolveSession: (
+    headers: Headers,
+  ) => Promise<{ response: ResolvedSession | null; headers: Headers }>,
+) {
+  return {
+    before: createAuthMiddleware(async (ctx) => {
+      // The resolver itself calls this endpoint. Its after hook attributes the result.
+      if (ctx.path === "/get-session" || !ctx.headers) return;
+      if (!ctx.headers.has("cookie") && !ctx.headers.has("authorization"))
+        return;
+      const resolved = await resolveSession(ctx.headers).catch(() => null);
+      if (!resolved) return;
+      // Install immediately so plugin before hooks can reuse the session too.
+      ctx.context.session = resolved.response;
+      attributeSession(resolved.response);
+      Object.assign(ctx.context, { telemetrySessionHeaders: resolved.headers });
+    }),
+    after: createAuthMiddleware(async (ctx) => {
+      attributeSession(ctx.context.newSession ?? ctx.context.session);
+      if (
+        "telemetrySessionHeaders" in ctx.context &&
+        ctx.context.telemetrySessionHeaders instanceof Headers
+      ) {
+        ctx.context.responseHeaders ??= new Headers();
+        const responseHeaders = ctx.context.responseHeaders;
+        // The endpoint's cookies take precedence, especially when signing out.
+        const names = new Set(
+          responseHeaders.getSetCookie().map((cookie) => cookie.split("=")[0]),
+        );
+        for (const cookie of ctx.context.telemetrySessionHeaders.getSetCookie()) {
+          if (!names.has(cookie.split("=")[0]))
+            responseHeaders.append("set-cookie", cookie);
+        }
+      }
+    }),
+  };
+}
