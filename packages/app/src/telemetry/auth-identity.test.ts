@@ -557,7 +557,7 @@ it("forwards session refresh cookies while reusing the lookup", async () => {
   expect(sessionCookies[0]).toContain("Max-Age=0");
 });
 
-it("clears organization attribution for subsequent work when the active organization is unset", async () => {
+it("preserves existing span identity but clears subsequent attribution when the active organization is unset", async () => {
   const auth = createTestAuth();
   const signedUp = await auth.api.signUpEmail({
     body: {
@@ -582,18 +582,29 @@ it("clears organization attribution for subsequent work when the active organiza
   await withTelemetryIdentityScope(() =>
     tracer.startActiveSpan("clear-request", async (root) => {
       await auth.api.getSession({ headers });
+      tracer.startActiveSpan("before-clear", (span) => span.end());
       logger.emit({ body: "before-clear" });
-      await auth.api.setActiveOrganization({
-        headers,
-        body: { organizationId: null },
+      await tracer.startActiveSpan("spans-clear", async (active) => {
+        await auth.api.setActiveOrganization({
+          headers,
+          body: { organizationId: null },
+        });
+        const session = await auth.api.getSession({ headers });
+        expect(session?.session.activeOrganizationId).toBeNull();
+        tracer.startActiveSpan("after-clear", (span) => span.end());
+        logger.emit({ body: "after-clear" });
+        active.end();
       });
-      const session = await auth.api.getSession({ headers });
-      expect(session?.session.activeOrganizationId).toBeNull();
-      tracer.startActiveSpan("after-clear", (span) => span.end());
-      logger.emit({ body: "after-clear" });
       root.end();
     }),
   );
+  // Clearing changes future attribution, not the identity existing spans observed.
+  for (const name of ["clear-request", "before-clear", "spans-clear"]) {
+    expect(
+      exporter.getFinishedSpans().find((span) => span.name === name)
+        ?.attributes,
+    ).toEqual({ "user.id": user.id, "everr.organization.id": org?.id });
+  }
   expect(
     exporter.getFinishedSpans().find((span) => span.name === "after-clear")
       ?.attributes,
