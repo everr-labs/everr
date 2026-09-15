@@ -13,6 +13,30 @@ export const polarClient = new Polar({
   server: env.POLAR_SERVER,
 });
 
+export async function getPolarCheckoutSubscription(checkout: {
+  id: string;
+  subscriptionId?: string | null;
+  customerId?: string | null;
+  productId?: string | null;
+}) {
+  if (checkout.subscriptionId) {
+    return polarClient.subscriptions.get({ id: checkout.subscriptionId });
+  }
+  if (!checkout.customerId || !checkout.productId) return null;
+
+  const page = await polarClient.subscriptions.list({
+    customerId: checkout.customerId,
+    productId: checkout.productId,
+    active: true,
+    limit: 1,
+  });
+  return (
+    page.result.items.find(
+      (subscription) => subscription.checkoutId === checkout.id,
+    ) ?? null
+  );
+}
+
 function isBillingEmailConflict(error: unknown) {
   return (
     error instanceof HTTPValidationError &&
