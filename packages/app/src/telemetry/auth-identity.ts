@@ -18,7 +18,7 @@ function attributeSession(resolved: ResolvedSession | null | undefined): void {
     organizationId:
       typeof resolved.session.activeOrganizationId === "string"
         ? resolved.session.activeOrganizationId
-        : undefined,
+        : null,
   });
 }
 

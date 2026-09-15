@@ -556,3 +556,56 @@ it("forwards session refresh cookies while reusing the lookup", async () => {
   expect(sessionCookies).toHaveLength(1);
   expect(sessionCookies[0]).toContain("Max-Age=0");
 });
+
+it("clears organization attribution for subsequent work when the active organization is unset", async () => {
+  const auth = createTestAuth();
+  const signedUp = await auth.api.signUpEmail({
+    body: {
+      email: "clear@example.test",
+      password: "test-password-123",
+      name: "Clear",
+    },
+    asResponse: true,
+  });
+  const { user } = await signedUp.json();
+  const headers = new Headers({
+    cookie: signedUp.headers
+      .getSetCookie()
+      .map((v) => v.split(";")[0])
+      .join("; "),
+  });
+  const org = await auth.api.createOrganization({
+    headers,
+    body: { name: "Clear", slug: "clear" },
+  });
+  expect(org).toBeTruthy();
+  await withTelemetryIdentityScope(() =>
+    tracer.startActiveSpan("clear-request", async (root) => {
+      await auth.api.getSession({ headers });
+      logger.emit({ body: "before-clear" });
+      await auth.api.setActiveOrganization({
+        headers,
+        body: { organizationId: null },
+      });
+      const session = await auth.api.getSession({ headers });
+      expect(session?.session.activeOrganizationId).toBeNull();
+      tracer.startActiveSpan("after-clear", (span) => span.end());
+      logger.emit({ body: "after-clear" });
+      root.end();
+    }),
+  );
+  expect(
+    exporter.getFinishedSpans().find((span) => span.name === "after-clear")
+      ?.attributes,
+  ).toEqual({ "user.id": user.id });
+  expect(
+    records
+      .getFinishedLogRecords()
+      .find((record) => record.body === "before-clear")?.attributes,
+  ).toEqual({ "user.id": user.id, "everr.organization.id": org?.id });
+  expect(
+    records
+      .getFinishedLogRecords()
+      .find((record) => record.body === "after-clear")?.attributes,
+  ).toEqual({ "user.id": user.id });
+});

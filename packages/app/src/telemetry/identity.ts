@@ -21,9 +21,9 @@ export function withTelemetryIdentityScope<T>(run: () => T): T {
   return context.with(context.active().setValue(identityKey, scope), run);
 }
 
-/** Merge verified identity fields. Omitted fields retain their values for this scope. */
+/** Omitted fields retain their values; a null organization clears future attribution. */
 export function mergeTelemetryIdentity(identity: {
-  organizationId?: string;
+  organizationId?: string | null;
   userId?: string;
 }): void {
   const attributes: Attributes = {};
@@ -32,6 +32,8 @@ export function mergeTelemetryIdentity(identity: {
   if (identity.userId) attributes["user.id"] = identity.userId;
   const scope = identityScope();
   if (scope) {
+    if (identity.organizationId === null)
+      delete scope.attributes["everr.organization.id"];
     Object.assign(scope.attributes, attributes);
     scope.root?.setAttributes(attributes);
   }
