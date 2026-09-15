@@ -12,8 +12,8 @@ import {
 } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeEach, expect, it } from "vitest";
 import {
-  createIdentityLogProcessor,
-  createIdentitySpanProcessor,
+  identityLogProcessor,
+  identitySpanProcessor,
   mergeTelemetryIdentity,
   withTelemetryIdentityScope,
 } from "./identity";
@@ -21,17 +21,11 @@ import {
 const spans = new InMemorySpanExporter();
 const records = new InMemoryLogRecordExporter();
 const tracerProvider = new NodeTracerProvider({
-  spanProcessors: [
-    createIdentitySpanProcessor(),
-    new SimpleSpanProcessor(spans),
-  ],
+  spanProcessors: [identitySpanProcessor, new SimpleSpanProcessor(spans)],
 });
 tracerProvider.register();
 const logProvider = new LoggerProvider({
-  processors: [
-    createIdentityLogProcessor(),
-    new SimpleLogRecordProcessor(records),
-  ],
+  processors: [identityLogProcessor, new SimpleLogRecordProcessor(records)],
 });
 const tracer = trace.getTracer("identity-test");
 const logger = logProvider.getLogger("identity-test");
