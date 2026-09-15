@@ -40,6 +40,10 @@ import {
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
+import {
+  createIdentityAuthHooks,
+  type ResolvedSession,
+} from "@/telemetry/auth-identity";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 type PolarSubscriptionPayload = {
@@ -301,6 +305,12 @@ export const auth = betterAuth({
       },
     },
   },
+  hooks: createIdentityAuthHooks(
+    async (
+      headers,
+    ): Promise<{ response: ResolvedSession | null; headers: Headers }> =>
+      auth.api.getSession({ headers, returnHeaders: true }),
+  ),
   plugins: [
     cliDeviceOrganizationPlugin({
       onError: (stage, error) => {
@@ -336,7 +346,7 @@ export const auth = betterAuth({
           } catch (error) {
             serverLogger.error("polar.customer.create_for_org.failed", {
               ...exceptionAttributes(error),
-              "organization.id": organization.id,
+              "everr.organization.id": organization.id,
             });
           }
 
@@ -349,7 +359,7 @@ export const auth = betterAuth({
           } catch (error) {
             serverLogger.error("sql_api.org_user.provision.failed", {
               ...exceptionAttributes(error),
-              "organization.id": organization.id,
+              "everr.organization.id": organization.id,
             });
           }
         },
@@ -359,7 +369,7 @@ export const auth = betterAuth({
           } catch (error) {
             serverLogger.error("organization.postgres_data_cleanup.failed", {
               ...exceptionAttributes(error),
-              "organization.id": organization.id,
+              "everr.organization.id": organization.id,
             });
             throw error;
           }
@@ -369,16 +379,13 @@ export const auth = betterAuth({
           } catch (error) {
             serverLogger.error("sql_api.org_user.deprovision.failed", {
               ...exceptionAttributes(error),
-              "organization.id": organization.id,
+              "everr.organization.id": organization.id,
             });
           }
         },
       },
     }),
-    // Empty `schema` works around a better-auth@1.6.9 bug: its options Zod
-    // schema declares `schema` non-optional, so calling deviceAuthorization()
-    // without args fails parse with "expected nonoptional, received undefined".
-    deviceAuthorization({ schema: {} }),
+    deviceAuthorization(),
     apiKey([
       {
         configId: "ingest",

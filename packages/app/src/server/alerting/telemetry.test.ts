@@ -100,7 +100,7 @@ describe("an alerting job's span", () => {
       });
     });
 
-    expect(finished()[0].attributes["everr.alert.tenant"]).toBe("org_abc");
+    expect(finished()[0].attributes["everr.organization.id"]).toBe("org_abc");
   });
 
   // An id that never arrived must be absent, not empty: a query cannot tell

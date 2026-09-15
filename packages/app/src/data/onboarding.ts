@@ -111,7 +111,7 @@ export const importRepos = createAuthenticatedServerFn({ method: "POST" })
           ...exceptionAttributes(err),
           "github.installation.id": active.installationId,
           "github.repository.full_name": repo.full_name,
-          "organization.id": session.session.activeOrganizationId,
+          "everr.organization.id": session.session.activeOrganizationId,
         });
         totalErrors++;
         yield {
