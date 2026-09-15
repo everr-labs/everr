@@ -40,6 +40,53 @@ function traceRows(count: number): TraceSummary[] {
 }
 
 describe("TracesRepository.search", () => {
+  it("selects the page before computing full trace summaries", async () => {
+    query.mockResolvedValueOnce([]);
+    await makeRepo().search({
+      ...searchBase,
+      fromTs: "2026-05-20 12:00:00",
+      toTs: "2026-05-27 12:00:00",
+    });
+
+    const [sql] = query.mock.calls[0] ?? [];
+    const page = sql.split("WITH page AS (")[1]?.split("), aggregated AS (")[0];
+    expect(page).toBeDefined();
+    expect(page).toContain("min(Timestamp) AS startTsRaw");
+    expect(page).toContain("LIMIT {limit:UInt32}");
+    expect(page).not.toMatch(/argMin|groupUniqArray|dateDiff|StatusCode/);
+    expect(sql).toContain("AND TraceId IN (SELECT TraceId FROM page)");
+  });
+
+  it("applies trace filters and the cursor before selecting the page", async () => {
+    query.mockResolvedValueOnce([]);
+    await makeRepo().search({
+      ...searchBase,
+      fromTs: "2026-05-20 12:00:00",
+      toTs: "2026-05-27 12:00:00",
+      service: ["db"],
+      status: "error",
+      minDurationNs: "1000000",
+      cursorStartTs: "2026-05-26 12:00:00",
+      cursorTraceId: "trace-z",
+      attributes: [
+        { source: "span", key: "http.route", op: "missing", values: [] },
+      ],
+    });
+
+    const [sql] = query.mock.calls[0] ?? [];
+    const page = sql.split("WITH page AS (")[1]?.split("), aggregated AS (")[0];
+    expect(page).toBeDefined();
+    expect(page).toContain("ServiceName IN {service:Array(String)}");
+    expect(page).toContain("TraceId NOT IN");
+    expect(page).toContain("durationNsRaw >= toUInt64({minDurationNs:String})");
+    expect(page).toContain("countIf(StatusCode = 'Error') > 0");
+    expect(page).toContain("TraceId < {cursorTraceId:String}");
+    const summary = sql.split("), aggregated AS (")[1];
+    expect(summary).not.toMatch(/HAVING|NOT IN|ServiceName IN/);
+    expect(summary).toContain("parseDateTime64BestEffort({fromTs:String}, 9)");
+    expect(summary).toContain("parseDateTime64BestEffort({toTs:String}, 9)");
+  });
+
   it("returns rows from ClickHouse and forwards the time window + paging", async () => {
     const row: TraceSummary = {
       traceId: "t1",
@@ -477,7 +524,8 @@ describe("trace search attribute filtering", () => {
     expect(sql).toContain("TraceId NOT IN (");
     expect(sql).toContain("has(SpanAttributesKeys,");
     // No "any-span" candidate IN subquery, since there is no positive operator.
-    expect(sql).not.toContain("AND TraceId IN (");
+    const page = sql.split("WITH page AS (")[1]?.split("), aggregated AS (")[0];
+    expect(page).not.toContain("AND TraceId IN (");
     expect(Object.values(params)).toContain("http.route");
   });
 

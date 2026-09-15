@@ -53,6 +53,8 @@ type SpanRow = Omit<
 const FROM_TS_SQL = "parseDateTime64BestEffort({fromTs:String}, 9)";
 const TO_TS_SQL = "parseDateTime64BestEffort({toTs:String}, 9)";
 const TIME_WINDOW_SQL = `Timestamp BETWEEN ${FROM_TS_SQL} AND ${TO_TS_SQL}`;
+const TRACE_DURATION_SQL = `toUInt64(dateDiff('nanosecond', min(Timestamp),
+                            max(addNanoseconds(Timestamp, Duration))))`;
 const SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE = "service.namespace";
 
 // The HTTP status code of the root span. `http.response.status_code` is the
@@ -86,8 +88,8 @@ export class TracesRepository {
 
   async search(input: SearchTracesInput): Promise<TraceSummary[]> {
     validateTableName(this.tableName);
-    // Row-level predicates push down to WHERE in a candidate subquery so the
-    // outer aggregate only reads spans belonging to traces with at least one
+    // Row-level predicates push down to WHERE in a candidate subquery so
+    // page selection only reads spans belonging to traces with at least one
     // matching span. Without this, span-level HAVING via countIf forces a
     // full in-window scan + group-by on every tenant span.
     const spanPreds: string[] = [];
@@ -158,7 +160,7 @@ export class TracesRepository {
         Object.assign(params, built.params);
       });
 
-    // durationNsRaw is the inner-aggregate alias (UInt64); the outer query
+    // durationNsRaw is an aggregate alias (UInt64); the outer query
     // exposes it as a string. Filter on the raw int to avoid a double
     // toString → toUInt64 round-trip per row.
     if (input.minDurationNs !== undefined) {
@@ -200,12 +202,8 @@ export class TracesRepository {
       ? [...aggregateHavingParts, cursorHaving]
       : aggregateHavingParts;
 
-    // Two-pass when span-level filters are present: the inner subquery uses
-    // WHERE to prune spans before reading, then the outer aggregates the full
-    // trace (every in-window span) for matching trace ids. Without span
-    // filters, single-pass over the time window is cheapest.
-    // Root election: argMinIf returns the column default ('') when no row
-    // matches, not NULL — gate on countIf(ParentSpanId = '') > 0.
+    // A matching child span qualifies its trace. Keep every in-window span of
+    // that trace when evaluating duration, status, and the pagination cursor.
     const candidateFilter =
       spanPreds.length > 0
         ? `AND TraceId IN (
@@ -220,8 +218,28 @@ export class TracesRepository {
       .map((clause) => `\n          AND ${clause}`)
       .join("");
 
+    // Select the page using only the columns needed for ordering and filters.
+    // Root election, JSON attribute reads, and service lists are then computed
+    // for this page instead of every trace in the selected time window.
+    const pageColumns = ["TraceId", "min(Timestamp) AS startTsRaw"];
+    if (
+      input.minDurationNs !== undefined ||
+      input.maxDurationNs !== undefined
+    ) {
+      pageColumns.push(`${TRACE_DURATION_SQL} AS durationNsRaw`);
+    }
+
     const sql = /* sql */ `
-      WITH aggregated AS (
+      WITH page AS (
+        SELECT ${pageColumns.join(",\n          ")}
+        FROM ${this.tableName}
+        WHERE ${TIME_WINDOW_SQL}
+          ${candidateFilter}${negativeFilter}
+        GROUP BY TraceId
+        ${havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : ""}
+        ORDER BY startTsRaw DESC, TraceId DESC
+        LIMIT {limit:UInt32}
+      ), aggregated AS (
         SELECT
           TraceId,
           if(countIf(ParentSpanId = '') > 0,
@@ -240,18 +258,14 @@ export class TracesRepository {
              argMinIf(${ROOT_HTTP_STATUS_CODE_SQL}, (Timestamp, SpanId), ParentSpanId = ''),
              argMin  (${ROOT_HTTP_STATUS_CODE_SQL}, (Timestamp, SpanId))) AS rootStatusCode,
           min(Timestamp) AS startTsRaw,
-          toUInt64(dateDiff('nanosecond', min(Timestamp),
-                            max(addNanoseconds(Timestamp, Duration)))) AS durationNsRaw,
+          ${TRACE_DURATION_SQL} AS durationNsRaw,
           toUInt32(count())                       AS spanCount,
           toUInt32(countIf(StatusCode = 'Error')) AS errorCount,
           groupUniqArray(ServiceName)             AS services
         FROM ${this.tableName}
         WHERE ${TIME_WINDOW_SQL}
-          ${candidateFilter}${negativeFilter}
+          AND TraceId IN (SELECT TraceId FROM page)
         GROUP BY TraceId
-        ${havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : ""}
-        ORDER BY startTsRaw DESC, TraceId DESC
-        LIMIT {limit:UInt32}
       )
       SELECT
         TraceId             AS traceId,
@@ -266,6 +280,7 @@ export class TracesRepository {
         errorCount,
         services
       FROM aggregated
+      ORDER BY startTsRaw DESC, TraceId DESC
     `;
     return this.client.execute<TraceSummary>(sql, params);
   }
