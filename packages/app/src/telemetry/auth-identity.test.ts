@@ -12,8 +12,8 @@ import {
 } from "@opentelemetry/sdk-trace-node";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
-import { organization } from "better-auth/plugins";
-import { afterAll, expect, it, vi } from "vitest";
+import { bearer, organization } from "better-auth/plugins";
+import { afterAll, beforeEach, expect, it, vi } from "vitest";
 import { identityAuthHooks } from "./auth-identity";
 import {
   identityLogProcessor,
@@ -31,6 +31,10 @@ const logProvider = new LoggerProvider({
   processors: [identityLogProcessor, new SimpleLogRecordProcessor(records)],
 });
 const logger = logProvider.getLogger("auth-identity-test");
+beforeEach(() => {
+  exporter.reset();
+  records.reset();
+});
 afterAll(async () => {
   await provider.shutdown();
   await logProvider.shutdown();
@@ -52,6 +56,7 @@ function createTestAuth(afterUpdate = async () => {}) {
     emailAndPassword: { enabled: true },
     hooks: identityAuthHooks,
     plugins: [
+      bearer(),
       organization({
         organizationHooks: {
           afterUpdateOrganization: async () => {
@@ -67,7 +72,11 @@ function createTestAuth(afterUpdate = async () => {}) {
   });
 }
 
-it("attributes real authenticated session lookups and leaves invalid sessions anonymous", async () => {
+it.each([
+  "cookie",
+  "bearer",
+  "signed-bearer",
+])("attributes %s sessions and leaves invalid sessions anonymous", async (credential) => {
   const auth = createTestAuth();
   const signedUp = await auth.api.signUpEmail({
     body: {
@@ -91,7 +100,14 @@ it("attributes real authenticated session lookups and leaves invalid sessions an
     .getSetCookie()
     .map((value) => value.split(";")[0])
     .join("; ");
-  const headers = new Headers({ cookie });
+  const { token } = await response.json();
+  const headers = new Headers(
+    credential === "cookie"
+      ? { cookie }
+      : {
+          authorization: `Bearer ${credential === "bearer" ? token : response.headers.get("set-auth-token")}`,
+        },
+  );
   const org = await auth.api.createOrganization({
     headers,
     body: { name: "Identity Test", slug: "identity-test" },
@@ -111,7 +127,7 @@ it("attributes real authenticated session lookups and leaves invalid sessions an
         new Request("http://localhost:5173/api/auth/organization/update", {
           method: "POST",
           headers: {
-            cookie,
+            ...Object.fromEntries(headers),
             origin: "http://localhost:5173",
             "content-type": "application/json",
           },
@@ -139,7 +155,11 @@ it("attributes real authenticated session lookups and leaves invalid sessions an
     tracer.startActiveSpan("anonymous", async (root) => {
       expect(
         await auth.api.getSession({
-          headers: new Headers({ cookie: "better-auth.session_token=invalid" }),
+          headers: new Headers(
+            credential === "cookie"
+              ? { cookie: "better-auth.session_token=invalid" }
+              : { authorization: "Bearer invalid" },
+          ),
         }),
       ).toBeNull();
       root.end();
@@ -225,6 +245,13 @@ it("keeps concurrent authenticated organization requests isolated", async () => 
     });
     if (!org) throw new Error("Expected test organization");
     callers.push({
+      headers: new Headers(
+        name === "a"
+          ? { cookie }
+          : {
+              authorization: `Bearer ${response.headers.get("set-auth-token")}`,
+            },
+      ),
       name,
       cookie,
       userId: user.id as string,
@@ -254,7 +281,7 @@ it("keeps concurrent authenticated organization requests isolated", async () => 
                   {
                     method: "POST",
                     headers: {
-                      cookie: caller.cookie,
+                      ...Object.fromEntries(caller.headers),
                       origin: "http://localhost:5173",
                       "content-type": "application/json",
                     },
