@@ -70,6 +70,14 @@ const ROOT_HTTP_STATUS_CODE_SQL = `if(
   ${attributeText("SpanAttributes", "http.status_code")}
 )`;
 
+// Prefer the earliest root span, falling back to the earliest available span.
+// argMinIf returns a default value when no root exists, so test the root count.
+function rootSpanValueSql(expression: string): string {
+  return `if(countIf(ParentSpanId = '') > 0,
+    argMinIf(${expression}, (Timestamp, SpanId), ParentSpanId = ''),
+    argMin(${expression}, (Timestamp, SpanId)))`;
+}
+
 // Traces store Timestamp as DateTime64(9); attribute discovery must parse its
 // bounds the same way the search queries do, or sub-second rows near the upper
 // bound get dropped and the offered keys/values disagree with the results.
@@ -93,7 +101,7 @@ export class TracesRepository {
     // matching span. Without this, span-level HAVING via countIf forces a
     // full in-window scan + group-by on every tenant span.
     const spanPreds: string[] = [];
-    const aggregateHavingParts: string[] = [];
+    const havingParts: string[] = [];
     const hasCursor = Boolean(input.cursorStartTs && input.cursorTraceId);
     const params: Record<string, unknown> = {
       fromTs: input.fromTs,
@@ -133,7 +141,18 @@ export class TracesRepository {
     spanPreds.push(...attr.clauses);
     Object.assign(params, attr.params);
 
-    const negativeTraceClauses: string[] = [];
+    const pageWhereParts = [TIME_WINDOW_SQL];
+    // A matching child span qualifies its trace. Keep every in-window span of
+    // that trace when evaluating duration, status, and the pagination cursor.
+    if (spanPreds.length > 0) {
+      pageWhereParts.push(`TraceId IN (
+        SELECT DISTINCT TraceId
+        FROM ${this.tableName}
+        WHERE ${TIME_WINDOW_SQL}
+          AND ${spanPreds.join(" AND ")}
+      )`);
+    }
+
     attributes
       .filter((f) => f.op === "not_in" || f.op === "missing")
       .forEach((filter, i) => {
@@ -149,7 +168,7 @@ export class TracesRepository {
         );
         // `not_in` with no values is a no-op, matching buildAttributeClauses.
         if (built.clauses.length === 0) return;
-        negativeTraceClauses.push(
+        pageWhereParts.push(
           `TraceId NOT IN (
             SELECT DISTINCT TraceId
             FROM ${this.tableName}
@@ -164,15 +183,11 @@ export class TracesRepository {
     // exposes it as a string. Filter on the raw int to avoid a double
     // toString → toUInt64 round-trip per row.
     if (input.minDurationNs !== undefined) {
-      aggregateHavingParts.push(
-        "durationNsRaw >= toUInt64({minDurationNs:String})",
-      );
+      havingParts.push("durationNsRaw >= toUInt64({minDurationNs:String})");
       params.minDurationNs = input.minDurationNs;
     }
     if (input.maxDurationNs !== undefined) {
-      aggregateHavingParts.push(
-        "durationNsRaw <= toUInt64({maxDurationNs:String})",
-      );
+      havingParts.push("durationNsRaw <= toUInt64({maxDurationNs:String})");
       params.maxDurationNs = input.maxDurationNs;
     }
     // Span-level, matching the rest of the filters: 'error' = trace contains
@@ -180,43 +195,22 @@ export class TracesRepository {
     // Unset everywhere). Filtering on the root span alone hides traces whose
     // failure lives in a child.
     if (input.status === "error") {
-      aggregateHavingParts.push("countIf(StatusCode = 'Error') > 0");
+      havingParts.push("countIf(StatusCode = 'Error') > 0");
     } else if (input.status === "ok") {
-      aggregateHavingParts.push("countIf(StatusCode = 'Error') = 0");
+      havingParts.push("countIf(StatusCode = 'Error') = 0");
     }
 
-    const cursorHaving = hasCursor
-      ? `(
+    if (hasCursor) {
+      havingParts.push(`(
             startTsRaw < parseDateTime64BestEffort({cursorStartTs:String}, 9)
             OR (
               startTsRaw = parseDateTime64BestEffort({cursorStartTs:String}, 9)
               AND TraceId < {cursorTraceId:String}
             )
-          )`
-      : "";
-    if (hasCursor) {
+          )`);
       params.cursorStartTs = input.cursorStartTs;
       params.cursorTraceId = input.cursorTraceId;
     }
-    const havingParts = cursorHaving
-      ? [...aggregateHavingParts, cursorHaving]
-      : aggregateHavingParts;
-
-    // A matching child span qualifies its trace. Keep every in-window span of
-    // that trace when evaluating duration, status, and the pagination cursor.
-    const candidateFilter =
-      spanPreds.length > 0
-        ? `AND TraceId IN (
-            SELECT DISTINCT TraceId
-            FROM ${this.tableName}
-            WHERE ${TIME_WINDOW_SQL}
-              AND ${spanPreds.join(" AND ")}
-          )`
-        : "";
-
-    const negativeFilter = negativeTraceClauses
-      .map((clause) => `\n          AND ${clause}`)
-      .join("");
 
     // Select the page using only the columns needed for ordering and filters.
     // Root election, JSON attribute reads, and service lists are then computed
@@ -233,8 +227,7 @@ export class TracesRepository {
       WITH page AS (
         SELECT ${pageColumns.join(",\n          ")}
         FROM ${this.tableName}
-        WHERE ${TIME_WINDOW_SQL}
-          ${candidateFilter}${negativeFilter}
+        WHERE ${pageWhereParts.join("\n          AND ")}
         GROUP BY TraceId
         ${havingParts.length > 0 ? `HAVING ${havingParts.join(" AND ")}` : ""}
         ORDER BY startTsRaw DESC, TraceId DESC
@@ -242,21 +235,11 @@ export class TracesRepository {
       ), aggregated AS (
         SELECT
           TraceId,
-          if(countIf(ParentSpanId = '') > 0,
-             argMinIf(SpanName,    (Timestamp, SpanId), ParentSpanId = ''),
-             argMin  (SpanName,    (Timestamp, SpanId))) AS rootName,
-          if(countIf(ParentSpanId = '') > 0,
-             argMinIf(ServiceName, (Timestamp, SpanId), ParentSpanId = ''),
-             argMin  (ServiceName, (Timestamp, SpanId))) AS rootService,
-          if(countIf(ParentSpanId = '') > 0,
-             argMinIf(${resourceAttribute(SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE)}, (Timestamp, SpanId), ParentSpanId = ''),
-             argMin  (${resourceAttribute(SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE)}, (Timestamp, SpanId))) AS rootNamespace,
-          if(countIf(ParentSpanId = '') > 0,
-             argMinIf(StatusCode,  (Timestamp, SpanId), ParentSpanId = ''),
-             argMin  (StatusCode,  (Timestamp, SpanId))) AS rootStatus,
-          if(countIf(ParentSpanId = '') > 0,
-             argMinIf(${ROOT_HTTP_STATUS_CODE_SQL}, (Timestamp, SpanId), ParentSpanId = ''),
-             argMin  (${ROOT_HTTP_STATUS_CODE_SQL}, (Timestamp, SpanId))) AS rootStatusCode,
+          ${rootSpanValueSql("SpanName")} AS rootName,
+          ${rootSpanValueSql("ServiceName")} AS rootService,
+          ${rootSpanValueSql(resourceAttribute(SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE))} AS rootNamespace,
+          ${rootSpanValueSql("StatusCode")} AS rootStatus,
+          ${rootSpanValueSql(ROOT_HTTP_STATUS_CODE_SQL)} AS rootStatusCode,
           min(Timestamp) AS startTsRaw,
           ${TRACE_DURATION_SQL} AS durationNsRaw,
           toUInt32(count())                       AS spanCount,
