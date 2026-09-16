@@ -23,12 +23,7 @@ export const Route = createFileRoute("/api/cli/sql")({
         const span = trace.getActiveSpan();
         const orgId = context.session.session.activeOrganizationId;
 
-        if (span) {
-          span.setAttribute("everr.feature", "cloud_query");
-          if (orgId) {
-            span.setAttribute("everr.org_id", orgId);
-          }
-        }
+        span?.setAttribute("everr.feature", "cloud_query");
 
         if (!sql.trim()) {
           span?.setAttribute("everr.cloud_query.outcome", "user_error");

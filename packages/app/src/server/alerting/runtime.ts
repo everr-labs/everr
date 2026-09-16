@@ -1,4 +1,3 @@
-import { context, ROOT_CONTEXT } from "@opentelemetry/api";
 import {
   type ParsedCronItem,
   parseCronItems,
@@ -43,11 +42,11 @@ function alertJob(
   name: string,
   run: (payload: unknown) => Promise<void>,
 ): (payload: unknown) => Promise<void> {
-  return context.bind(ROOT_CONTEXT, async (payload: unknown) => {
+  return async (payload: unknown) => {
     await withAlertJobSpan(name, { traceparent: jobTraceparent(payload) }, () =>
       run(payload),
     );
-  });
+  };
 }
 
 export const alertTaskList: TaskList = {

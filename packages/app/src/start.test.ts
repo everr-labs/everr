@@ -8,7 +8,8 @@ const startMocks = vi.hoisted(() => ({
   createServerFnTelemetryMiddleware: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-start", () => ({
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   createStart: startMocks.createStart,
 }));
 
@@ -32,7 +33,15 @@ describe("startInstance", () => {
 
     expect(startInstance).toEqual({
       defaultSsr: false,
-      requestMiddleware: [startMocks.requestMiddleware],
+      requestMiddleware: [
+        expect.objectContaining({
+          options: expect.objectContaining({
+            type: "request",
+            server: expect.any(Function),
+          }),
+        }),
+        startMocks.requestMiddleware,
+      ],
       functionMiddleware: [startMocks.functionMiddleware],
     });
   });
