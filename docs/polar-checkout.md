@@ -1,41 +1,60 @@
-# Polar checkout and organization creation
+# Organization billing with Polar CustomerTeam
 
-Everr collects only the organization name and plan. Hobby creation makes no Polar calls. At the first checkout, Everr creates a Polar team customer with `externalId = orgId`, the organization name, and an owner member using the organization owner's user ID, name, and personal email. The customer itself has no email. All new checkouts specify the resulting `customerId`; new Pro checkouts also retain the reserved external ID for recovery and compatibility.
+The Better Auth organization stores an optional, unique `polarCustomerId`. The extension exposes this reference in responses and client types but rejects client writes (`input: false`). Billing verifies the team external ID before persisting or using the reference. Organizations without a reference recover an existing team through `externalId = orgId`; no separate customer-link table is needed. Polar is the source of truth for its team owner, who must remain an Everr owner; other owners and admins are billing managers. Hobby creation makes no Polar calls. The first checkout creates a Polar CustomerTeam with `externalId = orgId`, the organization name and the initial owner's personal identity. All checkouts use the verified `customerId`. There is no billing email form, individual customer conversion or email-based customer selection.
 
-Existing customers retain their Polar ID, external ID, billing details, and subscription history. At checkout or portal access, individual customers are converted to teams and their owner member is reconciled with the current Everr organization owner. Legacy owner members whose external ID defaults to the organization ID are reused only when their email matches. Multiple Everr owners are rejected because Polar supports exactly one owner.
+A person can own several teams with the same personal email. Within a team, Everr links its users to Polar members by `externalId = userId`, without a local member-mapping table. Member external IDs are reserved for Everr identities; independent contacts have no external ID. Email is a mutable contact field. An email collision with an independent contact fails explicitly rather than adopting that contact. Independent contacts, fiscal details, payment methods and history remain in Polar.
 
-Customer creation is reconciled by external ID after an uncertain response or concurrent creation. It never searches by email. The organization owner's identity comes from membership records, even when a different administrator starts checkout. No additional billing email input is required.
+## Module boundaries
 
-Team portal sessions include the authorized user's member ID. Organization administrators become billing managers when they open the portal. Missing customers produce a recoverable error without provisioning. Existing member email changes that cannot be updated through the installed SDK fail explicitly and require reconciliation. This change reconciles ownership on billing actions; it does not add background synchronization of membership removals or revoke existing Polar sessions. Deployment must account for that when managing billing permissions.
+`packages/app/src/lib/billing/module.ts` is the application interface. `server.ts` composes the database, Polar gateway, advisory locks and infrastructure provisioning. Better Auth supplies the organization-creation callback; the billing domain never imports `auth.server.ts`.
 
-The Polar token needs customer read/write, member read/write, checkout, and customer session permissions.
+- `identity.ts` owns team identity, reads and transfers the Polar owner, authorizes portal access and reconciles members during billing actions.
+- `members.ts` reconciles managed identities and revokes obsolete grants.
+- `checkout.ts` starts and resumes customer-bound sessions; `attempts.ts` handles reserved creation identity.
+- `subscription.ts` finalizes organizations and handles subscription events. `verification.ts` shares payment and identity checks with the redirect and checkout retry paths.
+- `store.ts` owns shared persistence operations and stale-event protection. `polar.server.ts` contains the SDK, pagination, email PATCH endpoint and safe provider-error translation.
+- Auth adapters and plugins connect actual Better Auth mutations to the module.
 
-## Database prerequisite
+## Owner and member changes
 
-Apply the Drizzle schema addition for `pro_organization_checkout` before deploying this flow. No migration is generated in this change, following the repository's schema iteration policy. The table reserves an organization ID before payment and retains completed requests for idempotent callbacks. Its partial unique index permits one incomplete request per owner and trimmed organization name. It intentionally has no foreign key to the future organization.
+Before the first checkout there is no billing owner to persist. For an existing organization the earliest current owner membership selects the initial team owner; an admin may start checkout. For a new Pro organization, the creator is the initial owner. Afterwards Polar alone stores the owner role, including transfers performed directly in its portal. Any Everr owner can transfer billing ownership to another Everr owner from Billing. Admins can see the responsible person but cannot transfer the role. The billing owner cannot be removed, demoted or delete their account until the responsibility is transferred. Downgrade requires the retained owner to be the billing owner.
 
-Version 1 checkout metadata remains supported for sessions created before deployment. Version 2 sessions store the reserved organization ID. Rollbacks must retain version 2 webhook/finalization support while those sessions and subscriptions exist.
+Role changes, removal, voluntary leave, accepted invitations and direct additions reconcile linked members. Profile writes use the actual database target, including anonymous email verification callbacks. Email synchronization uses only the definitive verified email. Revocation reaches Polar before local membership removal or demotion is committed. Removing a Polar member invalidates that member's existing portal token, as verified in sandbox.
 
-## Recovery
+Opening the portal verifies the current actor's local role, reconciles linked members, then creates a session scoped to that member. A missing customer returns a recoverable result without provisioning. Reconciliation makes Everr's committed membership and identity authoritative for linked members; it never removes independent contacts.
 
-Reopening the same name resumes the owner's incomplete request. A known live session is fetched directly. An expired session or a lost create response is reconciled by paging Polar checkouts and comparing their own external customer IDs before creating a replacement. Do not use the checkout list's `externalCustomerId` filter for this recovery: Polar implements it through the customer table, which excludes unpaid checkouts without a customer. See [Polar checkout implementation](https://github.com/polarsource/polar/blob/main/server/polar/checkout/service.py).
+## Durability and recovery
 
-A session advisory lock serializes submission and finalization for the owner and name. Lock connections use a separate pool capped at two connections per process, so their work cannot exhaust the application pool. Contention returns a retryable error instead of consuming all pool connections with waiting requests. A failed database write after a successful Polar request leaves the reservation available for reconciliation. Webhooks and the success page use the same finalizer. Existing organization membership and subscription state are recovered after partial failures; completed requests never recreate deleted organizations.
+Each organization mutation is serialized by a PostgreSQL advisory lock. Better Auth requests retain their locks through local writes and hooks. Nested operations reuse the request's connection. The separate lock pool preserves the `pg` password property and does not consume application query connections.
 
-## Email already used by another customer
+There is no durable operation journal or billing recovery worker. If Polar succeeds and a local write fails, the two systems may remain inconsistent until a later membership operation, checkout or portal access reconciles them. This risk is accepted. Failed operations do not leave a persistent block on checkout or portal access; those actions still require their own authorization and reconciliation to succeed. Locks and revocation-before-local-write ordering remain in place. No periodic scan replaces the removed worker.
 
-Owner emails are scoped to team members, so one person can own separate organization customers with the same email. Checkout receives an existing customer ID, preventing email-based selection of a different customer. Finalization still verifies customer, organization, product, and subscription identity.
+New Pro creation persists a reserved ID and owner/name/slug before contacting Polar, then records its customer and checkout. A partial unique index permits one incomplete attempt per owner and trimmed name. Completed attempts do not prevent later organizations using the same name. New Pro organizations are created only after payment through Better Auth's reserved-ID context, preserving membership and infrastructure hooks.
 
-Previously issued customerless checkout URLs are not resumed by the new flow; a new session is bound to the team customer. Old URLs can remain payable until they expire. Already confirmed or succeeded sessions still use the existing compatibility finalizer, including its billing-conflict guard. Do not repeat purchases for previously paid conflicting sessions: those payments still require reconciliation.
+Retries list sessions for the known customer and validate their metadata. Open sessions are reused, confirmed or paid sessions return to completion, and expired sessions are replaced with the same reserved org ID. Uncertain creation responses are reconciled before another creation. Paid upgrades are resumed while their webhook is pending. Checkout, customer, organization, product and subscription identity must agree. Webhook and redirect share finalization; duplicate delivery and partial provisioning failures are recoverable. Older subscription events cannot overwrite newer state.
 
-## Verification
+## Schema and local cutover
 
-Run the billing, organization creation, checkout recovery/finalization, and Better Auth ID-context tests plus the app typecheck. Exercise creation, cancellation/resumption, upgrade, existing customer portal, duplicate webhooks, and cross-organization email reuse in Polar sandbox. Manual authenticated app testing requires the main worktree's `.auth` credentials.
+Apply the Drizzle schema in `packages/app/src/db/schema/billing.ts` before starting the new application. Do not generate migrations while iterating locally. Required additions are:
 
-## Validation performed
+- `organization.polar_customer_id`: nullable unique customer reference, declared as a server-managed Better Auth additional field.
 
-Automated tests cover team provisioning, owner selection, shared owner emails, recovery after uncertain creation, existing customer conversion, member-scoped portal access, durable Pro checkout recovery/finalization, legacy compatibility, and the real Better Auth reserved-ID hook.
+- `pro_organization_checkout.polar_customer_id`, alongside the existing reservation and incomplete owner/name unique index.
 
-A real Polar sandbox API check created two team customers with the same existing user's email on their owner members and no customer email. Both accepted a fixed-price Pro checkout with explicit customer ID and a member-scoped portal session. Both temporary customers were deleted after validation. No payment was submitted, so paid invoices, notification delivery, and the complete payment lifecycle remain acceptance checks. Authenticated manual app testing was skipped because `.auth` is absent from the main worktree.
+The checkout schema changes were applied and inspected in the local PostgreSQL database during implementation. Other environments must apply and verify them before deployment. Back up local data before applying schema changes through the repository's normal Drizzle workflow.
 
-The local database now has the checkout-intent table and index applied. A live regression check exercised `startProOrganizationCheckout` with the real PostgreSQL advisory-lock pool and Polar sandbox, verified a team-bound checkout, and resumed the same checkout on retry. The temporary customer and intent were removed afterward. The lock pool explicitly preserves the non-enumerable `pg` password option when copying connection settings.
+Existing organizations can reuse a team found by organization external ID. Discovery verifies and stores the customer ID on the organization, without creating a customer outside checkout. Once saved, subsequent operations fetch that exact customer and reject identity mismatches instead of silently relinking. A new Pro attempt retains the ID before the organization exists, then finalization copies the verified reference onto the organization. The owner is read from that team's owner member and must map to a current Everr owner. Individual customers or inconsistent identities fail explicitly. Do not delete sandbox payments, subscriptions or customers to resolve a conflict. Unrelated sandbox records are preserved.
+
+The earlier refactor introduced `organization_billing`, `billing_member` and `billing_operation`. All three have been removed from the schema and local database. They contained no local rows at removal. No migration files were generated and no Polar resources were changed. Environments that applied the earlier refactor can remove these tables after stopping the old billing reconciliation worker.
+
+Only creation metadata version 2 with a persisted customer-bound attempt is supported. Version 1, customerless checkouts and mismatched identities fail without granting Pro. Previously issued unsupported checkout URLs may remain payable in Polar until they expire; they must not be used after cutover. There is no production migration or compatibility finalizer.
+
+## Verification and observability
+
+Run the app typecheck, Biome, Fallow dead-code/cycle checks, and tests under `src/lib/billing`, the billing and organization data tests, billing UI tests, account-settings tests and worker runtime tests. The module suite uses PGlite persistence and a controllable Polar gateway. Real Better Auth tests cover the reserved ID, hooks, blocked membership changes and anonymous verified-email updates. PostgreSQL tests preserve the real lock-pool contract.
+
+`pnpm --filter @everr/app test:billing:sandbox` requires the app `.env` to select Polar sandbox. It creates and removes only its own temporary team fixtures. It verifies shared personal email across teams, explicit customer checkout, ownership transfer, email PATCH and rejection of an already-issued portal token after member deletion. It does not make a payment. The token requires customer, member, checkout, subscription and customer-session permissions.
+
+Telemetry emits `billing.reconciliation.completed` and `billing.provider.failed`. Organization and provider-operation context uses `everr.*`; provider status uses `http.response.status_code` and failures use `error.type`. Technical causes remain attached to application errors; provider response bodies, tokens and personal email are not included in billing log attributes.
+
+Manual authenticated app testing requires `.auth` in the main worktree. It was unavailable during this refactor. Paid end-to-end browser flows therefore remain a manual acceptance check; automated tests simulate their payment events and sandbox tests validate the remote adapter contracts.

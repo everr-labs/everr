@@ -21,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { BillingOwnerCard } from "@/components/billing-owner-card";
 import { PageHeader } from "@/components/page-header";
 import {
   ensureOrgBillingAdmin,
@@ -101,6 +102,7 @@ function BillingPage() {
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <Header orgName={activeOrg?.name} />
       <Body entitlement={entitlement} />
+      {activeOrg?.id && <BillingOwnerCard orgId={activeOrg.id} />}
     </div>
   );
 }

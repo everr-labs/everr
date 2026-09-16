@@ -35,6 +35,7 @@ export const proOrganizationCheckout = pgTable(
     organizationName: text("organization_name").notNull(),
     organizationSlug: text("organization_slug").notNull().unique(),
     checkoutId: text("checkout_id"),
+    polarCustomerId: text("polar_customer_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     completedAt: timestamp("completed_at"),
   },

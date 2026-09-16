@@ -1,6 +1,7 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth.server";
+import { withBillingRequest } from "@/lib/billing/lock.server";
 import { isOrganizationOwner } from "@/lib/organization-role";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
 
@@ -104,8 +105,10 @@ export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
       });
     }
 
-    await auth.api.deleteUser({
-      headers,
-      body: {},
-    });
+    await withBillingRequest(() =>
+      auth.api.deleteUser({
+        headers,
+        body: {},
+      }),
+    );
   });

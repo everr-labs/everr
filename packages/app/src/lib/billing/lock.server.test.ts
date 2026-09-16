@@ -28,7 +28,7 @@ vi.mock("pg", () => ({
   },
 }));
 
-import { withCheckoutLock } from "./checkout-lock.server";
+import { withCheckoutLock } from "./lock.server";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -71,4 +71,19 @@ it("preserves authentication when deriving the checkout pool from a real pg pool
   expect(mocks.poolOptions.password).toBe("regression-test-password");
   expect(mocks.poolOptions.connectionTimeoutMillis).toBe(10000);
   expect(mocks.poolOptions.max).toBe(2);
+});
+
+it("retains and reuses nested organization locks until the whole request completes", async () => {
+  const { withBillingRequest } = await import("./lock.server");
+  await withBillingRequest(async () => {
+    await withCheckoutLock("billing:org", async () => {
+      await withCheckoutLock("billing:org", async () => "nested");
+    });
+    expect(mocks.release).not.toHaveBeenCalled();
+    expect(mocks.query).toHaveBeenCalledTimes(1);
+    await withCheckoutLock("billing:other", async () => "other");
+    expect(mocks.release).not.toHaveBeenCalled();
+  });
+  expect(mocks.query).toHaveBeenCalledTimes(4);
+  expect(mocks.release).toHaveBeenCalledTimes(1);
 });

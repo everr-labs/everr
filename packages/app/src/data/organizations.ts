@@ -1,16 +1,13 @@
 import * as z from "zod";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
 import { db } from "@/db/client";
-import { auth, finalizeProOrganizationCheckout } from "@/lib/auth.server";
+import { auth } from "@/lib/auth.server";
 import { generateOrgSlug } from "@/lib/auto-org";
-import { assertPolarProductGrantsPlan } from "@/lib/billing-catalog.server";
+import { billing } from "@/lib/billing/server";
 import {
   lockHobbyOrganizationOwnership,
   userOwnsHobbyOrganization,
 } from "@/lib/billing-data.server";
-import { getPolarCheckoutSubscription, polarClient } from "@/lib/polar.server";
-import { ProOrganizationCheckoutMetadataSchema } from "@/lib/pro-organization-checkout";
-import { startProOrganizationCheckout } from "@/lib/pro-organization-checkout.server";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
 
 class OrganizationCreationError extends Error {
@@ -70,7 +67,7 @@ export const createOrganization = createPartiallyAuthenticatedServerFn({
     }
 
     try {
-      return await startProOrganizationCheckout(
+      return await billing.startNewOrganizationCheckout(
         session.user.id,
         data.organizationName,
       );
@@ -88,56 +85,9 @@ export const completeProOrganizationCheckout =
   createPartiallyAuthenticatedServerFn({ method: "POST" })
     .inputValidator(CheckoutResultSchema)
     .handler(async ({ data, context: { session } }) => {
-      const checkout = await polarClient.checkouts.get({ id: data.checkoutId });
-      const metadata = ProOrganizationCheckoutMetadataSchema.safeParse(
-        checkout.metadata,
+      return billing.completeNewOrganizationCheckout(
+        data.checkoutId,
+        session.user.id,
+        (input) => auth.api.createOrganization(input),
       );
-      if (!metadata.success || metadata.data.everrOwnerId !== session.user.id) {
-        throw new OrganizationCreationError("This checkout is not available.");
-      }
-      if (
-        metadata.data.everrSchemaVersion === 2 &&
-        checkout.externalCustomerId !== metadata.data.everrOrganizationId
-      ) {
-        throw new OrganizationCreationError(
-          "Checkout organization does not match.",
-        );
-      }
-      if (checkout.status === "confirmed")
-        return { status: "processing" as const };
-      if (
-        checkout.status !== "succeeded" ||
-        !checkout.productId ||
-        !checkout.customerId
-      ) {
-        throw new OrganizationCreationError(
-          "Polar has not confirmed an active Pro subscription.",
-        );
-      }
-      assertPolarProductGrantsPlan(checkout.productId, "pro");
-
-      const subscription = await getPolarCheckoutSubscription(checkout);
-      if (!subscription) {
-        return { status: "processing" as const };
-      }
-      if (subscription.status !== "active" || !subscription.productId) {
-        throw new OrganizationCreationError(
-          "Polar has not confirmed an active Pro subscription.",
-        );
-      }
-      assertPolarProductGrantsPlan(subscription.productId, "pro");
-
-      return finalizeProOrganizationCheckout({
-        metadata: metadata.data,
-        customerId: checkout.customerId,
-        subscription: {
-          id: subscription.id,
-          productId: subscription.productId,
-          status: subscription.status,
-          currentPeriodEnd: subscription.currentPeriodEnd,
-          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-          modifiedAt: subscription.modifiedAt,
-          createdAt: subscription.createdAt,
-        },
-      });
     });

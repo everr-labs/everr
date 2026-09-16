@@ -12,7 +12,7 @@ import {
   planForPolarProductId,
   polarProductIdForPlan,
   UnknownPolarProductError,
-} from "./billing-catalog.server";
+} from "./catalog.server";
 
 beforeEach(() => {
   vi.clearAllMocks();

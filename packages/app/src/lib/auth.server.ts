@@ -1,6 +1,5 @@
 import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
-import { polar, webhooks } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -19,6 +18,7 @@ import {
 } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
+import { organizationBillingFields } from "@/common/organization-billing-fields";
 import { db } from "@/db/client";
 import { invitation, member, session as sessionTable, user } from "@/db/schema";
 import { env } from "@/env";
@@ -28,6 +28,14 @@ import {
   selectSoleOrganization,
   shouldCreateAutomaticOrganization,
 } from "@/lib/auto-org";
+import { billingIdentityAdapter } from "@/lib/billing/auth-adapter.server";
+import { billingAuthPlugin } from "@/lib/billing/auth-plugin.server";
+import {
+  billingMembershipPlugin,
+  billingOrganizationHooks,
+} from "@/lib/billing/membership-plugin.server";
+import { beforeCreateCheckoutOrganization } from "@/lib/billing/organization-context.server";
+import { billing } from "@/lib/billing/server";
 import { readOrgEntitlement } from "@/lib/billing-data.server";
 import {
   cliDeviceOrganizationPlugin,
@@ -43,18 +51,8 @@ import {
   sendVerificationEmail,
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
-import { beforeCreateCheckoutOrganization } from "@/lib/organization-creation-context.server";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
-import { getPolarCustomerForOrg, polarClient } from "@/lib/polar.server";
-import { createProOrganizationFinalizer } from "@/lib/pro-organization-finalization.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
-
-const { finalizeProOrganizationCheckout, syncSubscription } =
-  createProOrganizationFinalizer(
-    async (input): Promise<unknown> => auth.api.createOrganization(input),
-  );
-
-export { finalizeProOrganizationCheckout };
 
 async function getMarkedDeviceOrganizationId(session: { userId: string }) {
   // Captured by the /device/token before-hook (see cli-device-organization).
@@ -173,9 +171,11 @@ export const auth = betterAuth({
       env.BETTER_AUTH_URL.replace("127.0.0.1", "localhost"),
     ]),
   ),
-  database: drizzleAdapter(db, {
-    provider: "pg",
-  }),
+  database: billingIdentityAdapter(
+    drizzleAdapter(db, {
+      provider: "pg",
+    }),
+  ),
   ...(googleSocialProviders ? { socialProviders: googleSocialProviders } : {}),
   user: {
     deleteUser: {
@@ -207,6 +207,13 @@ export const auth = betterAuth({
     },
   },
   databaseHooks: {
+    user: {
+      delete: {
+        before: async (user) => {
+          await billing.beforeUserDelete(user.id);
+        },
+      },
+    },
     session: {
       create: {
         before: async (session) => {
@@ -323,6 +330,7 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    billingMembershipPlugin(),
     cliDeviceOrganizationPlugin({
       onError: (stage, error) => {
         serverLogger.error(
@@ -337,6 +345,7 @@ export const auth = betterAuth({
       schema: {
         organization: {
           additionalFields: {
+            ...organizationBillingFields,
             plan: {
               type: ["hobby", "pro"],
               required: true,
@@ -362,6 +371,7 @@ export const auth = betterAuth({
       },
       organizationHooks: {
         beforeCreateOrganization: beforeCreateCheckoutOrganization,
+        ...billingOrganizationHooks(),
         beforeUpdateOrganization: async ({ organization }) => {
           if ("plan" in organization) {
             throw new APIError("FORBIDDEN", {
@@ -385,6 +395,11 @@ export const auth = betterAuth({
               message: "An active Pro plan is required to add members.",
             });
           }
+          await billing.beforeMembershipChange(
+            newMember.organizationId,
+            newMember.userId,
+            newMember.role,
+          );
         },
         beforeCreateInvitation: async ({ invitation: newInvitation }) => {
           const entitlement = await readOrgEntitlement(
@@ -396,7 +411,10 @@ export const auth = betterAuth({
             });
           }
         },
-        beforeAcceptInvitation: async ({ invitation: acceptedInvitation }) => {
+        beforeAcceptInvitation: async ({
+          invitation: acceptedInvitation,
+          user,
+        }) => {
           const entitlement = await readOrgEntitlement(
             acceptedInvitation.organizationId,
           );
@@ -406,6 +424,11 @@ export const auth = betterAuth({
                 "This organization needs an active Pro plan before the invitation can be accepted.",
             });
           }
+          await billing.beforeMembershipChange(
+            acceptedInvitation.organizationId,
+            user.id,
+            acceptedInvitation.role,
+          );
         },
         afterCreateOrganization: async ({ organization }) => {
           // Provision the per-org ClickHouse user + row policies that back
@@ -422,13 +445,7 @@ export const auth = betterAuth({
           }
         },
         beforeDeleteOrganization: async ({ organization }) => {
-          const customer = await getPolarCustomerForOrg(organization.id);
-          if (customer) {
-            throw new APIError("BAD_REQUEST", {
-              message:
-                "Organizations connected to billing cannot be deleted yet.",
-            });
-          }
+          await billing.assertDeletable(organization.id);
         },
         afterDeleteOrganization: async ({ organization }) => {
           try {
@@ -481,21 +498,9 @@ export const auth = betterAuth({
       },
     ]),
     bearer(),
-    polar({
-      client: polarClient,
-      createCustomerOnSignUp: false,
-      use: [
-        webhooks({
-          secret: env.POLAR_WEBHOOK_SECRET,
-          onSubscriptionCreated: syncSubscription,
-          onSubscriptionUpdated: syncSubscription,
-          onSubscriptionActive: syncSubscription,
-          onSubscriptionUncanceled: syncSubscription,
-          onSubscriptionCanceled: syncSubscription,
-          onSubscriptionRevoked: syncSubscription,
-        }),
-      ],
-    }),
+    billingAuthPlugin(
+      async (input): Promise<unknown> => auth.api.createOrganization(input),
+    ),
     jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),
     oauthProvider({
       loginPage: "/auth/sign-in",

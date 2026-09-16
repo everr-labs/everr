@@ -9,10 +9,14 @@ const mocks = vi.hoisted(() => ({
   entitlement: vi.fn(),
   portal: vi.fn(),
   checkout: vi.fn(),
+  settings: vi.fn(),
+  transfer: vi.fn(),
 }));
 vi.mock("@/data/organizations", () => ({ createOrganization: mocks.create }));
 vi.mock("@/data/billing", () => ({
   ensureOrgBillingAdmin: vi.fn(),
+  getOrgBillingSettings: mocks.settings,
+  changeOrgBillingOwner: mocks.transfer,
   getOrgEntitlement: mocks.entitlement,
   getOrgPortalUrl: mocks.portal,
   startOrgCheckout: mocks.checkout,
@@ -48,7 +52,14 @@ function billingPage() {
     </QueryClientProvider>,
   );
 }
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  mocks.settings.mockResolvedValue({
+    owner: { id: "owner", name: "Owner", email: "owner@example.com" },
+    candidates: [],
+    canChangeOwner: false,
+  });
+});
 it("submits a new Pro organization with only its plan and name", async () => {
   mocks.create.mockRejectedValue(new Error("Test checkout failure"));
   render(
@@ -96,4 +107,27 @@ it("keeps the portal retryable when the customer is missing", async () => {
   );
   expect(portal).toBeEnabled();
   expect(screen.queryByLabelText(/billing email/i)).not.toBeInTheDocument();
+});
+
+it("allows an owner to select a different billing owner", async () => {
+  mocks.entitlement.mockResolvedValue({ plan: "pro", appState: "pro" });
+  const people = [
+    { id: "owner", name: "Owner", email: "owner@example.com" },
+    { id: "other", name: "Other", email: "other@example.com" },
+  ];
+  mocks.settings.mockResolvedValue({
+    owner: people[0],
+    candidates: people,
+    canChangeOwner: true,
+  });
+  mocks.transfer.mockResolvedValue({ status: "completed" });
+  billingPage();
+  await userEvent.selectOptions(
+    await screen.findByLabelText("Billing owner"),
+    "other",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Save billing owner" }),
+  );
+  expect(mocks.transfer).toHaveBeenCalledWith({ data: { userId: "other" } });
 });

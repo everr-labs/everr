@@ -1,10 +1,11 @@
 import { and, eq, ne, sql } from "drizzle-orm";
+import { z } from "zod";
 import { db, type Transaction } from "@/db/client";
 import { member, organization, orgSubscription } from "@/db/schema";
 import {
   assertPolarProductGrantsPlan,
   planForPolarProductId,
-} from "@/lib/billing-catalog.server";
+} from "@/lib/billing/catalog.server";
 
 export type OrganizationPlan = typeof organization.$inferSelect.plan;
 export type OrganizationAppState = "hobby" | "pro" | "suspended";
@@ -35,17 +36,18 @@ function appStateForPlan(
   return subscription?.status === "active" ? "pro" : "suspended";
 }
 
+const storageError = z.object({
+  code: z.unknown().optional(),
+  cause: z.unknown().optional(),
+});
+const unavailableStorageCodes = new Set<unknown>(["42P01", "42703"]);
 function isUnavailablePlanStorage(error: unknown) {
   let current = error;
   for (let depth = 0; depth < 4; depth += 1) {
-    if (typeof current !== "object" || current === null) return false;
-    if (
-      "code" in current &&
-      (current.code === "42P01" || current.code === "42703")
-    ) {
-      return true;
-    }
-    current = "cause" in current ? current.cause : undefined;
+    const parsed = storageError.safeParse(current);
+    if (!parsed.success) return false;
+    if (unavailableStorageCodes.has(parsed.data.code)) return true;
+    current = parsed.data.cause;
   }
   return false;
 }
@@ -100,13 +102,6 @@ export async function readOrgEntitlement(
   };
 }
 
-export async function setOrganizationPlan(
-  orgId: string,
-  plan: OrganizationPlan,
-) {
-  await db.update(organization).set({ plan }).where(eq(organization.id, orgId));
-}
-
 export async function userOwnsHobbyOrganization(
   userId: string,
   excludingOrgId?: string,
@@ -159,36 +154,4 @@ export async function lockHobbyOrganizationOwnership(
   userId: string,
 ) {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
-}
-
-type SubscriptionUpsert = {
-  orgId: string;
-  polarSubscriptionId: string;
-  polarProductId: string;
-  status: string;
-  currentPeriodEnd: Date | null;
-  cancelAtPeriodEnd: boolean;
-  polarModifiedAt: Date;
-};
-
-export async function upsertOrgSubscription(input: SubscriptionUpsert) {
-  const updated = await db
-    .insert(orgSubscription)
-    .values(input)
-    .onConflictDoUpdate({
-      target: orgSubscription.orgId,
-      set: {
-        polarSubscriptionId: input.polarSubscriptionId,
-        polarProductId: input.polarProductId,
-        status: input.status,
-        currentPeriodEnd: input.currentPeriodEnd,
-        cancelAtPeriodEnd: input.cancelAtPeriodEnd,
-        polarModifiedAt: input.polarModifiedAt,
-        updatedAt: new Date(),
-      },
-      setWhere: sql`${orgSubscription.polarModifiedAt} < ${input.polarModifiedAt}`,
-    })
-    .returning({ orgId: orgSubscription.orgId });
-
-  return updated.length > 0;
 }

@@ -7,8 +7,6 @@ import {
 
 const mocks = vi.hoisted(() => ({
   startCheckout: vi.fn(),
-  checkoutGet: vi.fn(),
-  checkoutSubscription: vi.fn(),
   finalizeProOrganizationCheckout: vi.fn(),
   getSession: vi.fn(),
   createAuthOrganization: vi.fn(),
@@ -31,7 +29,6 @@ vi.mock("@/lib/auth.server", () => ({
       createOrganization: mocks.createAuthOrganization,
     },
   },
-  finalizeProOrganizationCheckout: mocks.finalizeProOrganizationCheckout,
 }));
 
 vi.mock("@/lib/billing-data.server", () => ({
@@ -43,15 +40,11 @@ vi.mock("@/db/client", () => ({
   db: { transaction: mocks.transaction },
 }));
 
-vi.mock("@/lib/polar.server", () => ({
-  getPolarCheckoutSubscription: mocks.checkoutSubscription,
-  polarClient: {
-    checkouts: { get: mocks.checkoutGet },
+vi.mock("@/lib/billing/server", () => ({
+  billing: {
+    startNewOrganizationCheckout: mocks.startCheckout,
+    completeNewOrganizationCheckout: mocks.finalizeProOrganizationCheckout,
   },
-}));
-
-vi.mock("@/lib/pro-organization-checkout.server", () => ({
-  startProOrganizationCheckout: mocks.startCheckout,
 }));
 
 beforeEach(() => {
@@ -78,88 +71,13 @@ beforeEach(() => {
   });
 });
 
-describe("completeProOrganizationCheckout", () => {
-  const metadata = {
-    everrPurpose: "create_pro_organization",
-    everrOwnerId: "test_user",
-    everrOrganizationName: "Acme",
-    everrOrganizationSlug: "acme-checkout",
-    everrSchemaVersion: 1,
-  } as const;
-
-  it("waits while Polar has only confirmed the checkout", async () => {
-    mocks.checkoutGet.mockResolvedValueOnce({
-      id: "checkout_1",
-      status: "confirmed",
-      metadata,
-    });
-
-    await expect(
-      completeProOrganizationCheckout({ data: { checkoutId: "checkout_1" } }),
-    ).resolves.toEqual({ status: "processing" });
-
-    expect(mocks.finalizeProOrganizationCheckout).not.toHaveBeenCalled();
-  });
-
-  it("finalizes only a succeeded checkout with an active Pro subscription", async () => {
-    mocks.checkoutGet.mockResolvedValueOnce({
-      id: "checkout_1",
-      status: "succeeded",
-      productId: "product_pro",
-      subscriptionId: "subscription_1",
-      customerId: "polar_customer",
-      metadata,
-    });
-    const createdAt = new Date("2026-09-11T12:00:00Z");
-    mocks.checkoutSubscription.mockResolvedValueOnce({
-      id: "subscription_1",
-      productId: "product_pro",
-      status: "active",
-      currentPeriodEnd: null,
-      cancelAtPeriodEnd: false,
-      modifiedAt: null,
-      createdAt,
-    });
-
-    await expect(
-      completeProOrganizationCheckout({ data: { checkoutId: "checkout_1" } }),
-    ).resolves.toEqual({
-      status: "completed",
-      organization: { id: "org_new", name: "Acme" },
-    });
-
-    expect(mocks.finalizeProOrganizationCheckout).toHaveBeenCalledWith({
-      metadata,
-      customerId: "polar_customer",
-      subscription: {
-        id: "subscription_1",
-        productId: "product_pro",
-        status: "active",
-        currentPeriodEnd: null,
-        cancelAtPeriodEnd: false,
-        modifiedAt: null,
-        createdAt,
-      },
-    });
-  });
-
-  it("rejects a checkout owned by another user", async () => {
-    mocks.checkoutGet.mockResolvedValueOnce({
-      id: "checkout_1",
-      status: "succeeded",
-      productId: "product_pro",
-      subscriptionId: "subscription_1",
-      customerId: "polar_customer",
-      metadata: { ...metadata, everrOwnerId: "another_user" },
-    });
-
-    await expect(
-      completeProOrganizationCheckout({ data: { checkoutId: "checkout_1" } }),
-    ).rejects.toThrow("This checkout is not available");
-
-    expect(mocks.checkoutSubscription).not.toHaveBeenCalled();
-    expect(mocks.finalizeProOrganizationCheckout).not.toHaveBeenCalled();
-  });
+it("passes authenticated identity and checkout ID to the billing module", async () => {
+  await completeProOrganizationCheckout({ data: { checkoutId: "checkout" } });
+  expect(mocks.finalizeProOrganizationCheckout).toHaveBeenCalledWith(
+    "checkout",
+    "test_user",
+    expect.any(Function),
+  );
 });
 
 describe("createOrganization", () => {

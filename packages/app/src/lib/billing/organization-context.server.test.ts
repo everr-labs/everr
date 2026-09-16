@@ -6,7 +6,7 @@ import { expect, it, vi } from "vitest";
 import {
   beforeCreateCheckoutOrganization,
   withOrganizationCreationId,
-} from "./organization-creation-context.server";
+} from "./organization-context.server";
 
 it("preserves the reserved ID through real Better Auth creation and its membership/provisioning hooks", async () => {
   const db: MemoryDB = {
