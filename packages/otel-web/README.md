@@ -33,7 +33,7 @@ new WebSDK({
 });
 ```
 
-Without a key or an endpoint, a production build resolves to an inert client that never issues a request. In dev it falls back to the local collector on `127.0.0.1:54318`.
+Without a key or an endpoint, a production build resolves to an inert client that never issues a request. In dev it falls back to the local collector on `127.0.0.1:54418`.
 
 ## Instrumentations
 

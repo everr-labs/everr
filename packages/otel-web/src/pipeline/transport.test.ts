@@ -66,7 +66,7 @@ describe("resolveTransport: endpoint resolution", () => {
     const posted = stubFetch();
     resolveTransport({ dev: true })?.[0]("logs", "{}");
 
-    expect(posted[0].url).toBe("http://127.0.0.1:54318/v1/logs");
+    expect(posted[0].url).toBe("http://127.0.0.1:54418/v1/logs");
   });
 
   it("forwards keepalive on the exit path", () => {
