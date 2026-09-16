@@ -45,6 +45,7 @@ function createTestAuth(
   afterUpdate = async () => {},
   cookieCache?: NonNullable<BetterAuthOptions["session"]>["cookieCache"],
   resolveInBeforeHook = false,
+  socialProviders?: BetterAuthOptions["socialProviders"],
 ) {
   const auth = betterAuth({
     database: memoryAdapter({
@@ -60,6 +61,7 @@ function createTestAuth(
     secret: "identity-test-secret-only-never-used-outside-tests",
     emailAndPassword: { enabled: true },
     session: { cookieCache },
+    socialProviders,
     hooks: createIdentityAuthHooks(
       async (
         headers,
@@ -167,7 +169,7 @@ it.each([
       root.end();
     }),
   );
-  expect(sessionLookup).toHaveBeenCalledTimes(1);
+  expect(sessionLookup).toHaveBeenCalledTimes(2);
   sessionLookup.mockRestore();
   await withTelemetryIdentityScope(() =>
     tracer.startActiveSpan("authenticated", async (root) => {
@@ -326,7 +328,7 @@ it("keeps concurrent authenticated organization requests isolated", async () => 
         ),
       ),
     );
-    expect(sessionLookup).toHaveBeenCalledTimes(2);
+    expect(sessionLookup).toHaveBeenCalledTimes(4);
   } finally {
     sessionLookup.mockRestore();
   }
@@ -486,7 +488,7 @@ it("skips session lookups for requests without credentials and attributes sign-u
   lookup.mockRestore();
 });
 
-it("forwards session refresh cookies while reusing the lookup", async () => {
+it("preserves session refresh and sign-out cookies with independent lookups", async () => {
   const auth = createTestAuth();
   const signedUp = await auth.api.signUpEmail({
     body: {
@@ -528,7 +530,7 @@ it("forwards session refresh cookies while reusing the lookup", async () => {
     }),
   );
   expect(response.status).toBe(200);
-  expect(lookup).toHaveBeenCalledTimes(1);
+  expect(lookup).toHaveBeenCalledTimes(2);
   lookup.mockRestore();
   expect(
     response.headers
@@ -619,4 +621,106 @@ it("preserves existing span identity but clears subsequent attribution when the 
       .getFinishedLogRecords()
       .find((record) => record.body === "after-clear")?.attributes,
   ).toEqual({ "user.id": user.id });
+});
+
+it.each(
+  (["compact", "jwt", "jwe"] as const).flatMap((strategy) =>
+    ["/get-access-token", "/refresh-token", "/account-info"].map(
+      (endpoint) => ({ strategy, endpoint }),
+    ),
+  ),
+)("requires an authoritative session for $endpoint with a $strategy cookie cache", async ({
+  strategy,
+  endpoint,
+}) => {
+  const refreshAccessToken = vi.fn(async () => ({
+    accessToken: "refreshed-test-provider-token",
+    accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+  }));
+  const getUserInfo = vi.fn(async () => ({
+    user: { id: "provider-user", name: "Provider User", emailVerified: true },
+    data: {},
+  }));
+  const auth = createTestAuth(undefined, { enabled: true, strategy }, false, {
+    google: {
+      clientId: "test-client",
+      clientSecret: "test-secret",
+      refreshAccessToken,
+      getUserInfo,
+    },
+  });
+  const signedUp = await auth.api.signUpEmail({
+    body: {
+      name: "Authority",
+      email: "authority@example.test",
+      password: "test-password-123",
+    },
+    asResponse: true,
+  });
+  expect(signedUp.status).toBe(200);
+  const { user, token } = await signedUp.json();
+  const cookie = signedUp.headers
+    .getSetCookie()
+    .map((value) => value.split(";")[0])
+    .join("; ");
+  const adapter = (await auth.$context).internalAdapter;
+  await adapter.createAccount({
+    userId: user.id,
+    providerId: "google",
+    accountId: "provider-account",
+    accessToken: "test-provider-token",
+    refreshToken: "test-provider-refresh-token",
+    accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+  });
+  const request = () =>
+    auth.handler(
+      new Request(
+        `http://localhost:5173/api/auth${endpoint}${endpoint === "/account-info" ? "?providerId=google&accountId=provider-account" : ""}`,
+        {
+          method: endpoint === "/account-info" ? "GET" : "POST",
+          headers: {
+            cookie,
+            origin: "http://localhost:5173",
+            "content-type": "application/json",
+          },
+          ...(endpoint === "/account-info"
+            ? {}
+            : {
+                body: JSON.stringify({
+                  providerId: "google",
+                  accountId: "provider-account",
+                }),
+              }),
+        },
+      ),
+    );
+  const lookup = vi.spyOn(adapter, "findSession");
+  try {
+    const valid = await request();
+    expect(valid.status).toBe(200);
+    expect(await valid.json()).toMatchObject(
+      endpoint === "/account-info"
+        ? { user: { id: "provider-user" } }
+        : {
+            accessToken:
+              endpoint === "/refresh-token"
+                ? "refreshed-test-provider-token"
+                : "test-provider-token",
+          },
+    );
+    expect(lookup).toHaveBeenCalledTimes(1);
+
+    await adapter.deleteSession(token);
+    lookup.mockClear();
+    refreshAccessToken.mockClear();
+    getUserInfo.mockClear();
+    // Keep the still-valid signed cookie cache after server-side revocation.
+    const revoked = await request();
+    expect(revoked.status).toBe(401);
+    expect(lookup).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(getUserInfo).not.toHaveBeenCalled();
+  } finally {
+    lookup.mockRestore();
+  }
 });

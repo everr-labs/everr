@@ -36,8 +36,8 @@ export function createIdentityAuthHooks(
         return;
       const resolved = await resolveSession(ctx.headers).catch(() => null);
       if (!resolved) return;
-      // Install immediately so plugin before hooks can reuse the session too.
-      ctx.context.session = resolved.response;
+      // Keep telemetry separate from authentication: a preloaded session can
+      // bypass an endpoint's authoritative database check in Better Auth.
       attributeSession(resolved.response);
       Object.assign(ctx.context, { telemetrySessionHeaders: resolved.headers });
     }),
