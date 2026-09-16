@@ -236,23 +236,38 @@ export const downgradeSuspendedOrganization = createServerFn({ method: "POST" })
   .middleware([requireOrgMiddleware])
   .handler(async ({ context: { session } }) => {
     const orgId = session.session.activeOrganizationId;
-    const { role } = await auth.api.getActiveMemberRole({
-      headers: getRequestHeaders(),
-    });
-    if (!role?.split(",").includes("owner")) {
-      throw new HobbyDowngradeUnavailableError(
-        "Only an Owner can downgrade this organization.",
-      );
-    }
-    if ((await readOrgEntitlement(orgId)).appState !== "suspended") {
-      throw new HobbyDowngradeUnavailableError(
-        "Only a suspended Pro organization can be downgraded.",
-      );
-    }
     const result = await db.transaction(async (tx) => {
       // Serialize the application-level one-Hobby-per-Owner check before
       // revoking a subscription that may not be convertible to Hobby.
       await lockHobbyOrganizationOwnership(tx, session.user.id);
+      // Different Owners have different ownership locks. Serialize changes to
+      // this Organization before checking who may perform the downgrade.
+      await tx
+        .select({ id: organization.id })
+        .from(organization)
+        .where(eq(organization.id, orgId))
+        .for("update");
+
+      const [currentMember] = await tx
+        .select({ role: member.role })
+        .from(member)
+        .where(
+          and(
+            eq(member.organizationId, orgId),
+            eq(member.userId, session.user.id),
+          ),
+        )
+        .for("update");
+      if (!currentMember?.role.split(",").includes("owner")) {
+        throw new HobbyDowngradeUnavailableError(
+          "Only an Owner can downgrade this organization.",
+        );
+      }
+      if ((await readOrgEntitlement(orgId, tx)).appState !== "suspended") {
+        throw new HobbyDowngradeUnavailableError(
+          "Only a suspended Pro organization can be downgraded.",
+        );
+      }
       if (await userOwnsHobbyOrganization(session.user.id, orgId)) {
         throw new HobbyDowngradeUnavailableError(
           "You already own a Hobby organization.",

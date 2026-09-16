@@ -1,5 +1,5 @@
 import { and, eq, ne, sql } from "drizzle-orm";
-import { db, type Transaction } from "@/db/client";
+import { type DbExecutor, db, type Transaction } from "@/db/client";
 import { member, organization, orgSubscription } from "@/db/schema";
 import {
   assertPolarProductGrantsPlan,
@@ -50,9 +50,9 @@ function isUnavailablePlanStorage(error: unknown) {
   return false;
 }
 
-async function readExplicitPlan(orgId: string) {
+async function readExplicitPlan(orgId: string, executor: DbExecutor) {
   try {
-    const [plan] = await db
+    const [plan] = await executor
       .select({ plan: organization.plan })
       .from(organization)
       .where(eq(organization.id, orgId))
@@ -76,10 +76,11 @@ export type OrgEntitlement = {
 
 export async function readOrgEntitlement(
   orgId: string,
+  executor: DbExecutor = db,
 ): Promise<OrgEntitlement> {
   const [storedPlan, subscriptionRows] = await Promise.all([
-    readExplicitPlan(orgId),
-    db
+    readExplicitPlan(orgId, executor),
+    executor
       .select()
       .from(orgSubscription)
       .where(eq(orgSubscription.orgId, orgId))
