@@ -30,7 +30,9 @@ import {
   Settings,
   Users,
 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
 import { getOrgPortalUrl } from "@/data/billing";
 import { PLATFORMS } from "@/lib/app-download";
 import { authClient } from "@/lib/auth-client";
@@ -49,6 +51,7 @@ export function NavUser() {
     (m) => m.userId === session?.user?.id,
   )?.role;
   const isAdmin = isOrganizationAdmin(userRole);
+  const [isCreateOrgDialogOpen, setCreateOrgDialogOpen] = useState(false);
   const portalMutation = useMutation({
     mutationFn: () => getOrgPortalUrl(),
     onSuccess: (result) => {
@@ -87,182 +90,185 @@ export function NavUser() {
     (firstName.slice(0, 1) + lastName.slice(0, 1)).toUpperCase() || "?";
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <SidebarMenuButton
-                size="lg"
-                className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
-              />
-            }
-          >
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
-              {user.image ? (
-                <img
-                  src={user.image}
-                  alt={fullName}
-                  className="size-full object-cover rounded-sm"
+    <>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <SidebarMenuButton
+                  size="lg"
+                  className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
                 />
-              ) : (
-                initials
-              )}
-            </div>
-            <div className="grid flex-1 text-left text-sm leading-tight transition-opacity duration-200 ease-sidebar motion-reduce:transition-none group-data-[collapsible=icon]:opacity-0">
-              <span className="overflow-hidden whitespace-nowrap font-medium">
-                {fullName}
-              </span>
-              <span className="overflow-hidden whitespace-nowrap text-xs">
-                {activeOrg?.name ?? " "}
-              </span>
-            </div>
-            <ChevronsUpDown className="ml-auto size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-(--anchor-width) min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
-            align="end"
-            sideOffset={4}
-          >
-            <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
+              }
+            >
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
-                {initials}
+                {user.image ? (
+                  <img
+                    src={user.image}
+                    alt={fullName}
+                    className="size-full object-cover rounded-sm"
+                  />
+                ) : (
+                  initials
+                )}
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{fullName}</span>
-                <span className="truncate text-xs">
+              <div className="grid flex-1 text-left text-sm leading-tight transition-opacity duration-200 ease-sidebar motion-reduce:transition-none group-data-[collapsible=icon]:opacity-0">
+                <span className="overflow-hidden whitespace-nowrap font-medium">
+                  {fullName}
+                </span>
+                <span className="overflow-hidden whitespace-nowrap text-xs">
                   {activeOrg?.name ?? " "}
                 </span>
               </div>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Organization</DropdownMenuLabel>
-              {orgs?.map((org) => (
-                <DropdownMenuItem
-                  key={org.id}
-                  onClick={() => void handleSwitchOrg(org.id)}
-                >
-                  {org.id === activeOrg?.id ? (
-                    <Check />
-                  ) : (
-                    <span className="size-4" />
-                  )}
-                  <span className="truncate">{org.name}</span>
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem
-                nativeButton={false}
-                render={<Link to="/organizations/new" />}
-              >
-                <Plus />
-                Create organization
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            {activeOrg ? (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Organization settings</DropdownMenuLabel>
-                  {isAdmin ? (
-                    <>
-                      <DropdownMenuItem
-                        render={<Link to="/users-management" />}
-                        nativeButton={false}
-                      >
-                        <Users />
-                        Members
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        render={<Link to="/api-keys" />}
-                        nativeButton={false}
-                      >
-                        <KeyRound />
-                        API keys
-                      </DropdownMenuItem>
-                    </>
-                  ) : null}
-                  <DropdownMenuItem
-                    render={<Link to="/github" />}
-                    nativeButton={false}
-                  >
-                    <GitPullRequest />
-                    GitHub
-                  </DropdownMenuItem>
-                  {isAdmin ? (
-                    <>
-                      <DropdownMenuItem
-                        closeOnClick={false}
-                        disabled={portalMutation.isPending}
-                        onClick={() => portalMutation.mutate()}
-                      >
-                        {portalMutation.isPending ? (
-                          <Loader2 className="animate-spin" />
-                        ) : (
-                          <ReceiptText />
-                        )}
-                        {portalMutation.isPending
-                          ? "Opening billing details..."
-                          : "Billing details"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        render={<Link to="/billing" />}
-                        nativeButton={false}
-                      >
-                        <CreditCard />
-                        Plan &amp; Billing
-                      </DropdownMenuItem>
-                    </>
-                  ) : null}
-                </DropdownMenuGroup>
-              </>
-            ) : null}
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Account &amp; privacy</DropdownMenuLabel>
-              <DropdownMenuItem
-                render={<Link to="/account" />}
-                nativeButton={false}
-              >
-                <Settings />
-                Account settings
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={openConsentSettings}>
-                <CookieIcon />
-                Privacy preferences
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                nativeButton={false}
-                render={
-                  <a href={downloadUrl} download>
-                    <Download />
-                    Download App
-                  </a>
-                }
-              />
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() =>
-                void authClient.signOut({
-                  fetchOptions: {
-                    onSuccess: () => {
-                      window.location.href = "/";
-                    },
-                  },
-                })
-              }
+              <ChevronsUpDown className="ml-auto size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="w-(--anchor-width) min-w-56 rounded-lg"
+              side={isMobile ? "bottom" : "right"}
+              align="end"
+              sideOffset={4}
             >
-              <LogOut />
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+              <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
+                  {initials}
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">{fullName}</span>
+                  <span className="truncate text-xs">
+                    {activeOrg?.name ?? " "}
+                  </span>
+                </div>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Organization</DropdownMenuLabel>
+                {orgs?.map((org) => (
+                  <DropdownMenuItem
+                    key={org.id}
+                    onClick={() => void handleSwitchOrg(org.id)}
+                  >
+                    {org.id === activeOrg?.id ? (
+                      <Check />
+                    ) : (
+                      <span className="size-4" />
+                    )}
+                    <span className="truncate">{org.name}</span>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuItem onClick={() => setCreateOrgDialogOpen(true)}>
+                  <Plus />
+                  Create organization
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              {activeOrg ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Organization settings</DropdownMenuLabel>
+                    {isAdmin ? (
+                      <>
+                        <DropdownMenuItem
+                          render={<Link to="/users-management" />}
+                          nativeButton={false}
+                        >
+                          <Users />
+                          Members
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          render={<Link to="/api-keys" />}
+                          nativeButton={false}
+                        >
+                          <KeyRound />
+                          API keys
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+                    <DropdownMenuItem
+                      render={<Link to="/github" />}
+                      nativeButton={false}
+                    >
+                      <GitPullRequest />
+                      GitHub
+                    </DropdownMenuItem>
+                    {isAdmin ? (
+                      <>
+                        <DropdownMenuItem
+                          closeOnClick={false}
+                          disabled={portalMutation.isPending}
+                          onClick={() => portalMutation.mutate()}
+                        >
+                          {portalMutation.isPending ? (
+                            <Loader2 className="animate-spin" />
+                          ) : (
+                            <ReceiptText />
+                          )}
+                          {portalMutation.isPending
+                            ? "Opening billing details..."
+                            : "Billing details"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          render={<Link to="/billing" />}
+                          nativeButton={false}
+                        >
+                          <CreditCard />
+                          Plan &amp; Billing
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+                  </DropdownMenuGroup>
+                </>
+              ) : null}
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Account &amp; privacy</DropdownMenuLabel>
+                <DropdownMenuItem
+                  render={<Link to="/account" />}
+                  nativeButton={false}
+                >
+                  <Settings />
+                  Account settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={openConsentSettings}>
+                  <CookieIcon />
+                  Privacy preferences
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  nativeButton={false}
+                  render={
+                    <a href={downloadUrl} download>
+                      <Download />
+                      Download App
+                    </a>
+                  }
+                />
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() =>
+                  void authClient.signOut({
+                    fetchOptions: {
+                      onSuccess: () => {
+                        window.location.href = "/";
+                      },
+                    },
+                  })
+                }
+              >
+                <LogOut />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuItem>
+      </SidebarMenu>
+      <CreateOrganizationDialog
+        open={isCreateOrgDialogOpen}
+        onOpenChange={setCreateOrgDialogOpen}
+      />
+    </>
   );
 }

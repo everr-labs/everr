@@ -1,40 +1,33 @@
 import { Button } from "@everr/ui/components/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { Label } from "@everr/ui/components/label";
 import { Building2, Loader2 } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
 import { createOrganization } from "@/data/organizations";
 import { authClient } from "@/lib/auth-client";
 
-export const Route = createFileRoute("/organizations/new")({
-  beforeLoad: ({ context: { session } }) => {
-    if (!session?.user) {
-      throw redirect({
-        to: "/auth/sign-in",
-        search: { redirect: "/organizations/new" },
-      });
-    }
-  },
-  head: () => ({ meta: [{ title: "Everr - Create organization" }] }),
-  component: CreateOrganizationPage,
-});
-
-function CreateOrganizationPage() {
+export function CreateOrganizationDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [organizationName, setOrganizationName] = useState("");
   const [billingEmail, setBillingEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
     if (isCreating) return;
 
@@ -76,29 +69,36 @@ function CreateOrganizationPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <Card className="w-full max-w-lg">
-        <form onSubmit={handleSubmit}>
-          <CardHeader>
+    <Dialog
+      open={open}
+      onOpenChange={(open) => {
+        if (!isCreating) onOpenChange(open);
+      }}
+      onOpenChangeComplete={(open) => {
+        if (!open) {
+          setOrganizationName("");
+          setBillingEmail("");
+          setError(null);
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-lg" showCloseButton={!isCreating}>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <DialogHeader>
             <div className="mb-2 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
               <Building2 className="size-5" />
             </div>
-            <CardTitle className="font-heading text-2xl">
+            <DialogTitle className="font-heading text-2xl">
               Create an organization
-            </CardTitle>
-            <CardDescription>
+            </DialogTitle>
+            <DialogDescription>
               Give your team a name and a unique email for billing. You can
               configure members and integrations after creation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
             <div className="space-y-2">
-              <label
-                htmlFor="organization-name"
-                className="text-sm font-medium"
-              >
-                Organization name
-              </label>
+              <Label htmlFor="organization-name">Organization name</Label>
               <Input
                 id="organization-name"
                 name="organizationName"
@@ -112,9 +112,7 @@ function CreateOrganizationPage() {
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="billing-email" className="text-sm font-medium">
-                Billing email
-              </label>
+              <Label htmlFor="billing-email">Billing email</Label>
               <Input
                 id="billing-email"
                 name="billingEmail"
@@ -144,13 +142,13 @@ function CreateOrganizationPage() {
                 {error}
               </p>
             ) : null}
-          </CardContent>
-          <CardFooter className="justify-end gap-2 border-t pt-6">
+          </div>
+          <DialogFooter className="justify-end gap-2 border-t pt-6">
             <Button
               variant="outline"
               disabled={isCreating}
-              nativeButton={false}
-              render={<Link to="/" />}
+              type="button"
+              onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
@@ -158,9 +156,9 @@ function CreateOrganizationPage() {
               {isCreating ? <Loader2 className="animate-spin" /> : null}
               Create organization
             </Button>
-          </CardFooter>
+          </DialogFooter>
         </form>
-      </Card>
-    </main>
+      </DialogContent>
+    </Dialog>
   );
 }

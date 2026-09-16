@@ -32,6 +32,10 @@ vi.mock("@/data/billing", () => ({
   getOrgPortalUrl: vi.fn(),
 }));
 
+vi.mock("@/data/organizations", () => ({
+  createOrganization: vi.fn(),
+}));
+
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
     organization: { setActive: vi.fn() },
