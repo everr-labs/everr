@@ -629,7 +629,7 @@ it.each(
       (endpoint) => ({ strategy, endpoint }),
     ),
   ),
-)("requires an authoritative session for $endpoint with a $strategy cookie cache", async ({
+)("requires an authoritative session for $endpoint while retaining $strategy cache identity in telemetry", async ({
   strategy,
   endpoint,
 }) => {
@@ -659,10 +659,29 @@ it.each(
   });
   expect(signedUp.status).toBe(200);
   const { user, token } = await signedUp.json();
-  const cookie = signedUp.headers
+  let cookie = signedUp.headers
     .getSetCookie()
     .map((value) => value.split(";")[0])
     .join("; ");
+  const org = await auth.api.createOrganization({
+    headers: new Headers({ cookie }),
+    body: { name: "Authority", slug: "authority" },
+  });
+  if (!org) throw new Error("Expected organization");
+  const refreshed = await auth.api.getSession({
+    headers: new Headers({ cookie }),
+    query: { disableCookieCache: true },
+    asResponse: true,
+  });
+  const cookies = new Map<string, string>();
+  for (const response of [signedUp, refreshed]) {
+    for (const value of response.headers.getSetCookie()) {
+      const pair = value.split(";")[0];
+      const separator = pair.indexOf("=");
+      cookies.set(pair.slice(0, separator), pair.slice(separator + 1));
+    }
+  }
+  cookie = [...cookies].map(([name, value]) => `${name}=${value}`).join("; ");
   const adapter = (await auth.$context).internalAdapter;
   await adapter.createAccount({
     userId: user.id,
@@ -715,11 +734,36 @@ it.each(
     refreshAccessToken.mockClear();
     getUserInfo.mockClear();
     // Keep the still-valid signed cookie cache after server-side revocation.
-    const revoked = await request();
-    expect(revoked.status).toBe(401);
+    await withTelemetryIdentityScope(() =>
+      tracer.startActiveSpan("rejected-request", async (root) => {
+        try {
+          const revoked = await request();
+          expect(revoked.status).toBe(401);
+          tracer.startActiveSpan("after-rejection", (span) => span.end());
+          logger.emit({ body: "after-rejection" });
+        } finally {
+          root.end();
+        }
+      }),
+    );
     expect(lookup).toHaveBeenCalledTimes(1);
     expect(refreshAccessToken).not.toHaveBeenCalled();
     expect(getUserInfo).not.toHaveBeenCalled();
+    const attemptedIdentity = {
+      "user.id": user.id,
+      "everr.organization.id": org.id,
+    };
+    for (const name of ["rejected-request", "after-rejection"]) {
+      expect(
+        exporter.getFinishedSpans().find((span) => span.name === name)
+          ?.attributes,
+      ).toEqual(attemptedIdentity);
+    }
+    expect(
+      records
+        .getFinishedLogRecords()
+        .find((record) => record.body === "after-rejection")?.attributes,
+    ).toEqual(attemptedIdentity);
   } finally {
     lookup.mockRestore();
   }

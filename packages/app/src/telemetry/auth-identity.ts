@@ -8,6 +8,8 @@ export type ResolvedSession = {
 };
 
 function attributeSession(resolved: ResolvedSession | null | undefined): void {
+  // A valid signed cache identifies attempted credentials, not authorization.
+  // Retain that identity even if a later database check rejects the session.
   if (
     !resolved ||
     !(new Date(resolved.session.expiresAt).getTime() > Date.now())
