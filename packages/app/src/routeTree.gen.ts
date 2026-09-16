@@ -21,7 +21,6 @@ import { Route as ApiCliRouteImport } from './routes/api/cli'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as McpSplatRouteImport } from './routes/mcp/$'
 import { Route as McpConsentRouteImport } from './routes/mcp/consent'
-import { Route as OrganizationsNewRouteImport } from './routes/organizations.new'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
 import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
 import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
@@ -148,11 +147,6 @@ const McpSplatRoute = McpSplatRouteImport.update({
 const McpConsentRoute = McpConsentRouteImport.update({
   id: '/mcp/consent',
   path: '/mcp/consent',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OrganizationsNewRoute = OrganizationsNewRouteImport.update({
-  id: '/organizations/new',
-  path: '/organizations/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WebhookGithubRoute = WebhookGithubRouteImport.update({
@@ -555,7 +549,6 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
-  '/organizations/new': typeof OrganizationsNewRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -632,7 +625,6 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
-  '/organizations/new': typeof OrganizationsNewRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -708,7 +700,6 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
-  '/organizations/new': typeof OrganizationsNewRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/_auth/auth/error': typeof AuthAuthErrorRoute
   '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
@@ -791,7 +782,6 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
-    | '/organizations/new'
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
@@ -868,7 +858,6 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
-    | '/organizations/new'
     | '/webhook/github'
     | '/auth/error'
     | '/invite/$invitationId'
@@ -943,7 +932,6 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
-    | '/organizations/new'
     | '/webhook/github'
     | '/_auth/auth/error'
     | '/_auth/invite/$invitationId'
@@ -1025,7 +1013,6 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   McpSplatRoute: typeof McpSplatRoute
   McpConsentRoute: typeof McpConsentRoute
-  OrganizationsNewRoute: typeof OrganizationsNewRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
@@ -1118,13 +1105,6 @@ declare module '@tanstack/react-router' {
       path: '/mcp/consent'
       fullPath: '/mcp/consent'
       preLoaderRoute: typeof McpConsentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/organizations/new': {
-      id: '/organizations/new'
-      path: '/organizations/new'
-      fullPath: '/organizations/new'
-      preLoaderRoute: typeof OrganizationsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/webhook/github': {
@@ -2022,7 +2002,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   McpSplatRoute: McpSplatRoute,
   McpConsentRoute: McpConsentRoute,
-  OrganizationsNewRoute: OrganizationsNewRoute,
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,

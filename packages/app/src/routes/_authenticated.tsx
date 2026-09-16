@@ -16,7 +16,8 @@ import {
 } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { Loader2, Plus, Settings } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
 import { auth } from "@/lib/auth.server";
 import { authClient } from "@/lib/auth-client";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
@@ -106,15 +107,50 @@ function OrgSwitcher() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { data: orgs, isPending } = authClient.useListOrganizations();
+  const organizations = authClient.useListOrganizations();
+  const orgs = organizations.data;
+  const { refetch } = organizations;
+  const [hasRefreshed, setHasRefreshed] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    // The menu may have cached memberships before access was revoked.
+    void refetch().then(() => {
+      if (mounted) setHasRefreshed(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [refetch]);
 
   const [switching, setSwitching] = useState<string | null>(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const [isCreateOrgDialogOpen, setCreateOrgDialogOpen] = useState(false);
+  const isLoading =
+    !hasRefreshed || organizations.isPending || organizations.isRefetching;
+  const hasOrganizations = Boolean(orgs?.length);
 
   async function handleSwitch(orgId: string) {
     setSwitching(orgId);
-    await authClient.organization.setActive({ organizationId: orgId });
-    await queryClient.invalidateQueries();
-    router.invalidate();
+    setSwitchError(null);
+    try {
+      const { error } = await authClient.organization.setActive({
+        organizationId: orgId,
+      });
+      if (error)
+        throw new Error(error.message ?? "Could not select this organization.");
+      await queryClient.invalidateQueries();
+      await router.invalidate();
+    } catch (error) {
+      setSwitchError(
+        error instanceof Error
+          ? error.message
+          : "Could not select this organization.",
+      );
+      await organizations.refetch();
+    } finally {
+      setSwitching(null);
+    }
   }
 
   return (
@@ -122,17 +158,38 @@ function OrgSwitcher() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-xl font-heading">
-            Choose an organization
+            {isLoading || organizations.error
+              ? "Your organizations"
+              : hasOrganizations
+                ? "Choose an organization"
+                : "You don't belong to an organization"}
           </CardTitle>
           <CardDescription>
-            Select an organization to continue, or create a new one for your
-            team.
+            {isLoading
+              ? "Checking your organization memberships."
+              : organizations.error
+                ? "Your organization memberships could not be loaded."
+                : hasOrganizations
+                  ? "Select an organization to continue, or create a new one for your team."
+                  : "Create an organization to get started, or manage your account settings."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isPending ? (
+          {isLoading ? (
             <div className="flex justify-center py-4">
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : organizations.error ? (
+            <div className="space-y-2">
+              <p role="alert" className="text-sm text-destructive">
+                Could not load your organizations. Please try again.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => void organizations.refetch()}
+              >
+                Retry
+              </Button>
             </div>
           ) : orgs && orgs.length > 0 ? (
             <div className="space-y-2">
@@ -151,18 +208,20 @@ function OrgSwitcher() {
                 </Button>
               ))}
             </div>
-          ) : (
-            <p className="text-center text-sm text-muted-foreground">
-              You don't belong to any organizations yet.
+          ) : null}
+          {switchError ? (
+            <p role="alert" className="mt-2 text-sm text-destructive">
+              {switchError}
             </p>
-          )}
-          <Link
-            to="/organizations/new"
-            className={buttonVariants({ className: "mt-4 w-full" })}
+          ) : null}
+          <Button
+            className="mt-4 w-full"
+            disabled={switching !== null}
+            onClick={() => setCreateOrgDialogOpen(true)}
           >
             <Plus />
             Create organization
-          </Link>
+          </Button>
           <Link
             to="/account"
             className={buttonVariants({
@@ -171,10 +230,14 @@ function OrgSwitcher() {
             })}
           >
             <Settings />
-            Account &amp; privacy
+            Account settings
           </Link>
         </CardContent>
       </Card>
+      <CreateOrganizationDialog
+        open={isCreateOrgDialogOpen}
+        onOpenChange={setCreateOrgDialogOpen}
+      />
     </main>
   );
 }
