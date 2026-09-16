@@ -37,7 +37,7 @@
 // program of this package. That program has no Node types, and this is
 // correct.
 import { capture } from "@everr/otel-errors/core";
-import { context } from "@opentelemetry/api";
+import { context, type Tracer, trace } from "@opentelemetry/api";
 import {
   type LogAttributes,
   type Logger,
@@ -85,6 +85,16 @@ export type {
 export { epoch } from "./time.js";
 export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 export { logger };
+
+/** Capture segments through the app's OpenTelemetry provider and context manager. */
+export const tracer: Tracer = {
+  startSpan: (...args) =>
+    trace.getTracer(SDK_NAME, SDK_VERSION).startSpan(...args),
+  startActiveSpan: ((...args: Parameters<Tracer["startActiveSpan"]>) =>
+    trace
+      .getTracer(SDK_NAME, SDK_VERSION)
+      .startActiveSpan(...args)) as Tracer["startActiveSpan"],
+};
 
 /**
  * The WebSDK for the server. It connects to the OpenTelemetry SDK that the app

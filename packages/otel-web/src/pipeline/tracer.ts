@@ -9,8 +9,8 @@
 // The implementation has these limits. The SDK always samples a span. The code
 // makes the ids locally and gives them with spanContext(), and thus an
 // instrumentation can send them to a server. The kind is CLIENT, the same as
-// each span of the SDK. The tracer accepts the events and the links, but it
-// discards them, because the payload carries neither of them.
+// each built-in span, unless options.kind overrides it. The tracer accepts
+// events and links but discards them, because the payload carries neither.
 //
 // There is no context manager, and the active span has a rule of its own. In
 // OTel, a span is active for the synchronous duration of the function of
@@ -27,7 +27,7 @@ import type { Exception, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
 import type { AttrValue, EmitSpan } from "./emitter.js";
 
-export function createTracer(emitSpan: EmitSpan): Tracer {
+export function createTracer(emitSpan?: EmitSpan): Tracer {
   // The active spans, the most recent last.
   const active: Span[] = [];
 
@@ -38,11 +38,11 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
     // signal. A child keeps the trace id of its parent, and thus it reads only
     // the bytes of its span id.
     const parent = active[active.length - 1]?.spanContext();
-    const ids = randomHex(parent ? 8 : 24);
+    const ids = emitSpan ? randomHex(parent ? 8 : 24) : "0".repeat(48);
     const spanContext = {
       traceId: parent?.traceId ?? ids.slice(0, 32),
       spanId: ids.slice(-16),
-      traceFlags: 1, // always sampled
+      traceFlags: emitSpan ? 1 : 0,
     };
     const attributes: Record<string, AttrValue> = {};
     const start = (options?.startTime as number | undefined) ?? Date.now();
@@ -74,7 +74,7 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
         spanName = next;
         return span;
       },
-      isRecording: () => !ended,
+      isRecording: () => !!emitSpan && !ended,
       recordException: (exception: Exception) => {
         const error = exception as { name?: string; message?: string };
         // The exception event of semconv. The code puts it in the span
@@ -94,7 +94,7 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
         ended = true;
         const index = active.indexOf(span);
         if (index >= 0) active.splice(index, 1);
-        emitSpan(
+        emitSpan?.(
           spanContext.traceId,
           spanContext.spanId,
           spanName,
@@ -103,6 +103,7 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
           attributes,
           errored,
           parent?.spanId,
+          (options?.kind ?? 2) + 1, // OTel API kinds are zero-based; OTLP is one-based.
         );
       },
     };
@@ -119,7 +120,7 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
     startActiveSpan: ((name: string, ...rest: unknown[]) => {
       const fn = rest.pop() as (span: Span) => unknown;
       const span = make(name, rest[0] as SpanOptions | undefined);
-      active.push(span);
+      if (emitSpan) active.push(span);
       return fn(span);
     }) as Tracer["startActiveSpan"],
   };
