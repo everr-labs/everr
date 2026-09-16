@@ -1,5 +1,13 @@
 # @everr/desktop-app
 
+## 0.8.1
+
+### Patch Changes
+
+- Updated dependencies [bf3cdea]
+- Updated dependencies [34eb270]
+  - @everr/otel-web@0.3.1
+
 ## 0.8.0
 
 ### Minor Changes
