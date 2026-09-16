@@ -57,6 +57,14 @@ vi.mock("@tanstack/react-start/server", () => ({ getRequestHeaders: vi.fn() }));
 vi.mock("@/components/create-organization-dialog", () => ({
   CreateOrganizationDialog: () => null,
 }));
+vi.mock("@/data/billing", () => ({
+  getActiveOrgAppAccess: vi.fn(),
+}));
+vi.mock("@/data/organizations", () => ({
+  getOrganizationCreationOptions: vi
+    .fn()
+    .mockResolvedValue({ canCreateHobby: true }),
+}));
 
 import { authClient } from "@/lib/auth-client";
 import { Route } from "./_authenticated";

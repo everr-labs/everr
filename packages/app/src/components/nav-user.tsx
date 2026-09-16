@@ -13,7 +13,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@everr/ui/components/sidebar";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import {
   Check,
@@ -34,6 +34,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
 import { getOrgPortalUrl } from "@/data/billing";
+import { getOrganizationCreationOptions } from "@/data/organizations";
 import { PLATFORMS } from "@/lib/app-download";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationAdmin } from "@/lib/organization-role";
@@ -52,6 +53,10 @@ export function NavUser() {
   )?.role;
   const isAdmin = isOrganizationAdmin(userRole);
   const [isCreateOrgDialogOpen, setCreateOrgDialogOpen] = useState(false);
+  const organizationCreationOptions = useQuery({
+    queryKey: ["organization-creation-options"],
+    queryFn: () => getOrganizationCreationOptions(),
+  });
   const portalMutation = useMutation({
     mutationFn: () => getOrgPortalUrl(),
     onSuccess: (result) => {
@@ -156,7 +161,10 @@ export function NavUser() {
                     <span className="truncate">{org.name}</span>
                   </DropdownMenuItem>
                 ))}
-                <DropdownMenuItem onClick={() => setCreateOrgDialogOpen(true)}>
+                <DropdownMenuItem
+                  disabled={!organizationCreationOptions.data}
+                  onClick={() => setCreateOrgDialogOpen(true)}
+                >
                   <Plus />
                   Create organization
                 </DropdownMenuItem>
@@ -265,10 +273,13 @@ export function NavUser() {
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
-      <CreateOrganizationDialog
-        open={isCreateOrgDialogOpen}
-        onOpenChange={setCreateOrgDialogOpen}
-      />
+      {organizationCreationOptions.data ? (
+        <CreateOrganizationDialog
+          canCreateHobby={organizationCreationOptions.data.canCreateHobby}
+          open={isCreateOrgDialogOpen}
+          onOpenChange={setCreateOrgDialogOpen}
+        />
+      ) : null}
     </>
   );
 }
