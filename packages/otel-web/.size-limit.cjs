@@ -12,7 +12,15 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK }",
     gzip: true,
-    limit: "3.5 KB",
+    // Includes the shared tracer binding and span-kind support.
+    limit: "3.6 KB",
+  },
+  {
+    name: "core + public tracer",
+    path: "dist/index.js",
+    import: "{ WebSDK, tracer }",
+    gzip: true,
+    limit: "3.8 KB",
   },
   {
     // Raised for the parent span support in the tracer.
@@ -47,7 +55,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, performance }",
     gzip: true,
-    limit: "7.25 KB",
+    limit: "7.35 KB",
   },
   {
     // The load window: the PageLoad root that ends at LCP, the asset
@@ -57,7 +65,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, pageLoad }",
     gzip: true,
-    limit: "4.6 KB",
+    limit: "4.7 KB",
   },
   {
     name: "core + network",
@@ -75,6 +83,6 @@ module.exports = [
     import:
       "{ WebSDK, errors, pageviews, interactions, performance, pageLoad, network, sampled }",
     gzip: true,
-    limit: "9.9 KB",
+    limit: "10 KB",
   },
 ];

@@ -15,6 +15,7 @@ import {
   setPersistence,
   visitorId,
 } from "./state/session.js";
+import { bindTracer } from "./tracer.js";
 import type { WebSDKOptions } from "./types.js";
 
 /**
@@ -98,6 +99,8 @@ export class WebSDK {
     // captureError, to this pipeline. Each call reads the pipeline from
     // current.ts.
     const unbindEmit = bindEmit(emit);
+    const sdkTracer = createTracer(emitSpan);
+    const unbindTracer = bindTracer(sdkTracer);
 
     // The instrumentations are the only sources of the capture. The SDK starts
     // them after it finds the identity, in the sequence of the array. The
@@ -113,7 +116,7 @@ export class WebSDK {
     const hideListeners = new Set<() => void>();
     const ctx: InstrumentationContext = {
       emit,
-      tracer: createTracer(emitSpan),
+      tracer: sdkTracer,
       ids: () => ({ visitorId: visitorId(), sessionId: sessionId() }),
       route: () => routePattern(current().url) ?? null,
       page: current,
@@ -169,6 +172,7 @@ export class WebSDK {
       // The opposite sequence to the setup, before the pipeline disconnects.
       for (let i = teardowns.length - 1; i >= 0; i--) teardowns[i]?.();
       unbindEmit();
+      unbindTracer();
       stopWatching();
       return flush();
     };
