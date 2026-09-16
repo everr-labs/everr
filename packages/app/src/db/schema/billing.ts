@@ -1,5 +1,12 @@
-import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { organization } from "./auth";
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+import { organization, user } from "./auth";
 
 export const orgSubscription = pgTable("org_subscription", {
   orgId: text("org_id")
@@ -16,3 +23,24 @@ export const orgSubscription = pgTable("org_subscription", {
     .$onUpdate(() => new Date())
     .notNull(),
 });
+
+// The ID is reserved before payment, so it deliberately has no organization FK.
+export const proOrganizationCheckout = pgTable(
+  "pro_organization_checkout",
+  {
+    orgId: text("org_id").primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    organizationName: text("organization_name").notNull(),
+    organizationSlug: text("organization_slug").notNull().unique(),
+    checkoutId: text("checkout_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => [
+    uniqueIndex("pro_organization_checkout_pending_owner_name_uidx")
+      .on(table.ownerId, table.organizationName)
+      .where(sql`${table.completedAt} is null`),
+  ],
+);

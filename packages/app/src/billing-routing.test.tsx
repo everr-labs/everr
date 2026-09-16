@@ -17,9 +17,7 @@ vi.mock("@/data/billing", () => ({
   ...billing,
   NotBillingAdminError: class NotBillingAdminError extends Error {},
   getOrgEntitlement: vi.fn(),
-  getOrgBillingCustomerStatus: vi.fn(),
   getOrgPortalUrl: vi.fn(),
-  provisionOrgBillingCustomer: vi.fn(),
   startOrgCheckout: vi.fn(),
   downgradeSuspendedOrganization: vi.fn(),
 }));

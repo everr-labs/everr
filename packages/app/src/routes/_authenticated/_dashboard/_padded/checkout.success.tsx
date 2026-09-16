@@ -8,7 +8,7 @@ import {
 } from "@everr/ui/components/card";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import * as z from "zod";
 import { confirmOrgCheckout } from "@/data/billing";
 
@@ -35,10 +35,29 @@ function CheckoutSuccessPage() {
     queryFn: () =>
       confirmOrgCheckout({ data: { checkoutId: checkout_id ?? "" } }),
     refetchInterval: (query) =>
-      query.state.data?.status === "completed" ? false : 1_000,
+      query.state.status === "error" ||
+      (query.state.data && query.state.data.status !== "pending")
+        ? false
+        : 1_000,
     retry: 3,
   });
   const completed = confirmation.data?.status === "completed";
+  const billingConflict = confirmation.data?.status === "billing_conflict";
+  const unavailable = !checkout_id || confirmation.isError;
+  const title = completed
+    ? "Pro is active"
+    : billingConflict
+      ? "Billing association needs attention"
+      : unavailable
+        ? "Payment confirmation unavailable"
+        : "Confirming payment";
+  const description = completed
+    ? "The active Pro subscription has been confirmed."
+    : billingConflict
+      ? "Polar confirmed the payment, but its billing customer does not match this organization. Contact support with the checkout ID below to reconcile the payment. Do not repeat the purchase."
+      : unavailable
+        ? "The subscription could not be confirmed. Return to billing or reload this page to try again."
+        : "Everr is verifying the subscription with Polar.";
 
   return (
     <div className="flex justify-center py-10">
@@ -46,16 +65,16 @@ function CheckoutSuccessPage() {
         <CardHeader className="items-center text-center">
           {completed ? (
             <CheckCircle2 className="text-green-600 size-10" />
+          ) : billingConflict || unavailable ? (
+            <CircleAlert className="text-destructive size-10" />
           ) : (
             <Loader2 className="text-primary size-10 animate-spin" />
           )}
-          <CardTitle>
-            {completed ? "Pro is active" : "Confirming payment"}
-          </CardTitle>
-          <CardDescription>
-            {completed
-              ? "The active Pro subscription has been confirmed."
-              : "Everr is verifying the subscription with Polar."}
+          <CardTitle>{title}</CardTitle>
+          <CardDescription
+            role={billingConflict || unavailable ? "alert" : undefined}
+          >
+            {description}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -64,19 +83,13 @@ function CheckoutSuccessPage() {
               Checkout ID: {checkout_id}
             </p>
           ) : null}
-          {confirmation.error ? (
-            <p role="alert" className="text-center text-sm text-destructive">
-              The subscription could not be confirmed. Reload this page to try
-              again.
-            </p>
-          ) : null}
           <Button
             className="w-full"
-            disabled={!completed}
+            disabled={!completed && !billingConflict && !unavailable}
             nativeButton={false}
-            render={<Link to="/" />}
+            render={<Link to={completed ? "/" : "/billing"} />}
           >
-            Back to dashboard
+            {completed ? "Back to dashboard" : "Back to billing"}
           </Button>
         </CardContent>
       </Card>

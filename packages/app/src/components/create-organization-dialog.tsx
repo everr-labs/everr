@@ -28,7 +28,6 @@ export function CreateOrganizationDialog({
     canCreateHobby ? "hobby" : "pro",
   );
   const [organizationName, setOrganizationName] = useState("");
-  const [billingEmail, setBillingEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -36,11 +35,10 @@ export function CreateOrganizationDialog({
     event.preventDefault();
     if (isCreating) return;
 
-    const parsed = CreateOrganizationInputSchema.safeParse(
-      plan === "hobby"
-        ? { plan, organizationName }
-        : { plan, organizationName, billingEmail },
-    );
+    const parsed = CreateOrganizationInputSchema.safeParse({
+      plan,
+      organizationName,
+    });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Enter a valid name.");
       return;
@@ -63,7 +61,7 @@ export function CreateOrganizationDialog({
 
       if (activation.error) {
         setError(
-          "The organization and billing customer were created, but the organization could not be selected. You can select it from the organization menu.",
+          "The organization was created, but the organization could not be selected. You can select it from the organization menu.",
         );
         setIsCreating(false);
         return;
@@ -90,7 +88,6 @@ export function CreateOrganizationDialog({
         if (!open) {
           setPlan(canCreateHobby ? "hobby" : "pro");
           setOrganizationName("");
-          setBillingEmail("");
           setError(null);
         }
       }}
@@ -178,29 +175,6 @@ export function CreateOrganizationDialog({
                 onChange={(event) => setOrganizationName(event.target.value)}
               />
             </div>
-            {plan === "pro" ? (
-              <div className="space-y-2">
-                <Label htmlFor="billing-email">Billing email</Label>
-                <Input
-                  id="billing-email"
-                  name="billingEmail"
-                  type="email"
-                  autoComplete="email"
-                  value={billingEmail}
-                  disabled={isCreating}
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={
-                    error ? "organization-create-error" : undefined
-                  }
-                  placeholder="billing@example.com"
-                  onChange={(event) => setBillingEmail(event.target.value)}
-                />
-                <p className="text-muted-foreground text-xs">
-                  Polar uses this unique address for billing. The organization
-                  is created after Polar confirms an active Pro subscription.
-                </p>
-              </div>
-            ) : null}
             {error ? (
               <p
                 id="organization-create-error"

@@ -3,7 +3,6 @@ import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { and, eq, ne } from "drizzle-orm";
 import * as z from "zod";
-import { ProvisionOrganizationBillingInputSchema } from "@/common/organization-name";
 import { db } from "@/db/client";
 import { invitation, member, organization, orgSubscription } from "@/db/schema";
 import { env } from "@/env";
@@ -21,12 +20,15 @@ import {
 } from "@/lib/billing-data.server";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import {
-  assertPolarBillingEmailAvailable,
-  createPolarCustomer,
   getPolarCheckoutSubscription,
-  hasPolarCustomerForOrg,
+  getPolarCustomerForOrg,
   polarClient,
 } from "@/lib/polar.server";
+import {
+  ensureOrganizationTeamCustomer,
+  ensurePolarBillingMember,
+  readBillingPerson,
+} from "@/lib/polar-team.server";
 import { requireOrgMiddleware } from "@/lib/serverFn";
 
 export class NotBillingAdminError extends Error {
@@ -35,20 +37,6 @@ export class NotBillingAdminError extends Error {
 
 class HobbyDowngradeUnavailableError extends Error {
   name = "HobbyDowngradeUnavailableError";
-}
-
-class BillingCustomerNotFoundError extends Error {
-  name = "BillingCustomerNotFoundError";
-}
-
-async function getOrganizationName(orgId: string) {
-  const [org] = await db
-    .select({ name: organization.name })
-    .from(organization)
-    .where(eq(organization.id, orgId))
-    .limit(1);
-  if (!org) throw new Error("Organization not found");
-  return org.name;
 }
 
 const billingAdminMiddleware = createMiddleware()
@@ -105,41 +93,12 @@ export const getSuspendedOrgRecovery = createServerFn()
     };
   });
 
-export const getOrgBillingCustomerStatus = createBillingAdminServerFn({
-  method: "GET",
-}).handler(async ({ context: { orgId } }) => ({
-  configured: await hasPolarCustomerForOrg(orgId),
-}));
-
-export const provisionOrgBillingCustomer = createBillingAdminServerFn({
-  method: "POST",
-})
-  .inputValidator(ProvisionOrganizationBillingInputSchema)
-  .handler(async ({ data, context: { orgId } }) => {
-    if (await hasPolarCustomerForOrg(orgId)) {
-      return { configured: true };
-    }
-
-    await assertPolarBillingEmailAvailable(data.billingEmail);
-    await createPolarCustomer({
-      externalId: orgId,
-      email: data.billingEmail,
-      name: await getOrganizationName(orgId),
-    });
-
-    return { configured: true };
-  });
-
 export const startOrgCheckout = createBillingAdminServerFn({
   method: "POST",
 })
   .inputValidator(z.object({ slug: z.literal("pro") }))
   .handler(async ({ context: { session, orgId } }) => {
-    if (!(await hasPolarCustomerForOrg(orgId))) {
-      throw new BillingCustomerNotFoundError(
-        "Set up billing details before starting checkout.",
-      );
-    }
+    const customer = await ensureOrganizationTeamCustomer(orgId);
 
     const successUrl = new URL(
       "/checkout/success?checkout_id={CHECKOUT_ID}",
@@ -148,7 +107,7 @@ export const startOrgCheckout = createBillingAdminServerFn({
 
     const checkout = await polarClient.checkouts.create({
       products: [polarProductIdForPlan("pro")],
-      externalCustomerId: orgId,
+      customerId: customer.id,
       allowTrial: false,
       successUrl,
       metadata: { orgId, userId: session.user.id },
@@ -159,16 +118,19 @@ export const startOrgCheckout = createBillingAdminServerFn({
 
 export const getOrgPortalUrl = createBillingAdminServerFn({
   method: "POST",
-}).handler(async ({ context: { orgId } }) => {
-  try {
-    await polarClient.customers.getExternal({ externalId: orgId });
-  } catch (error) {
-    if (!(error instanceof ResourceNotFound)) throw error;
-    return { status: "customer_missing" as const };
-  }
-
+}).handler(async ({ context: { orgId, session } }) => {
+  const customer = await getPolarCustomerForOrg(orgId);
+  if (!customer) return { status: "customer_missing" as const };
+  const team = await ensureOrganizationTeamCustomer(orgId);
+  const billingMember = await ensurePolarBillingMember(
+    team.id,
+    await readBillingPerson(session.user.id),
+    "billing_manager",
+    orgId,
+  );
   const result = await polarClient.customerSessions.create({
-    externalCustomerId: orgId,
+    customerId: team.id,
+    memberId: billingMember.id,
   });
   return { status: "ready" as const, url: result.customerPortalUrl };
 });
@@ -202,11 +164,20 @@ export const confirmOrgCheckout = createBillingAdminServerFn({ method: "POST" })
     const checkout = await polarClient.checkouts.get({ id: data.checkoutId });
     if (
       checkout.status !== "succeeded" ||
-      checkout.externalCustomerId !== orgId ||
+      !checkout.customerId ||
       !checkout.productId
     ) {
       return { status: "pending" as const };
     }
+    if (
+      checkout.externalCustomerId != null &&
+      checkout.externalCustomerId !== orgId
+    ) {
+      return { status: "billing_conflict" as const };
+    }
+    const customer = await getPolarCustomerForOrg(orgId);
+    if (!customer || checkout.customerId !== customer.id)
+      return { status: "billing_conflict" as const };
     assertPolarProductGrantsPlan(checkout.productId, "pro");
 
     const subscription = await getPolarCheckoutSubscription(checkout);

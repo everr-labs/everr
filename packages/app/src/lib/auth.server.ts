@@ -20,13 +20,7 @@ import {
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import {
-  invitation,
-  member,
-  organization,
-  session as sessionTable,
-  user,
-} from "@/db/schema";
+import { invitation, member, session as sessionTable, user } from "@/db/schema";
 import { env } from "@/env";
 import {
   deriveOrgName,
@@ -34,15 +28,7 @@ import {
   selectSoleOrganization,
   shouldCreateAutomaticOrganization,
 } from "@/lib/auto-org";
-import {
-  assertPolarProductGrantsPlan,
-  planForPolarProductId,
-} from "@/lib/billing-catalog.server";
-import {
-  readOrgEntitlement,
-  setOrganizationPlan,
-  upsertOrgSubscription,
-} from "@/lib/billing-data.server";
+import { readOrgEntitlement } from "@/lib/billing-data.server";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -57,141 +43,18 @@ import {
   sendVerificationEmail,
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
+import { beforeCreateCheckoutOrganization } from "@/lib/organization-creation-context.server";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
-import { isOrganizationOwner } from "@/lib/organization-role";
-import {
-  getPolarCustomerForOrg,
-  linkPolarCustomerToOrg,
-  polarClient,
-} from "@/lib/polar.server";
-import {
-  type ProOrganizationCheckoutMetadata,
-  ProOrganizationCheckoutMetadataSchema,
-} from "@/lib/pro-organization-checkout";
+import { getPolarCustomerForOrg, polarClient } from "@/lib/polar.server";
+import { createProOrganizationFinalizer } from "@/lib/pro-organization-finalization.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
-type PolarSubscriptionPayload = {
-  id: string;
-  status: string;
-  productId: string;
-  currentPeriodEnd: Date | null;
-  cancelAtPeriodEnd: boolean;
-  modifiedAt: Date | null;
-  createdAt: Date;
-  metadata: Record<string, string | number | boolean>;
-  customer: { id: string; externalId?: string | null };
-};
+const { finalizeProOrganizationCheckout, syncSubscription } =
+  createProOrganizationFinalizer(
+    async (input): Promise<unknown> => auth.api.createOrganization(input),
+  );
 
-type ProOrganizationSubscription = Omit<
-  PolarSubscriptionPayload,
-  "metadata" | "customer"
->;
-
-type FinalizedProOrganization = {
-  id: string;
-  name: string;
-  ownerRole: string | null;
-  plan: "hobby" | "pro";
-};
-
-async function findCheckoutOrganization(
-  metadata: ProOrganizationCheckoutMetadata,
-) {
-  const [existing] = await db
-    .select({
-      id: organization.id,
-      name: organization.name,
-      ownerRole: member.role,
-      plan: organization.plan,
-    })
-    .from(organization)
-    .leftJoin(
-      member,
-      and(
-        eq(member.organizationId, organization.id),
-        eq(member.userId, metadata.everrOwnerId),
-      ),
-    )
-    .where(eq(organization.slug, metadata.everrOrganizationSlug))
-    .limit(1);
-  return existing;
-}
-
-function assertCheckoutOrganization(organization: FinalizedProOrganization) {
-  if (
-    !isOrganizationOwner(organization.ownerRole) ||
-    organization.plan !== "pro"
-  ) {
-    throw new Error("The checkout Organization does not match its metadata");
-  }
-}
-
-export async function finalizeProOrganizationCheckout(input: {
-  metadata: ProOrganizationCheckoutMetadata;
-  customerId: string;
-  subscription: ProOrganizationSubscription;
-}) {
-  if (input.subscription.status !== "active" || !input.subscription.productId) {
-    throw new Error("An active Pro subscription is required");
-  }
-  assertPolarProductGrantsPlan(input.subscription.productId, "pro");
-
-  let createdOrganization = await findCheckoutOrganization(input.metadata);
-  if (!createdOrganization) {
-    try {
-      const created = await auth.api.createOrganization({
-        body: {
-          name: input.metadata.everrOrganizationName,
-          slug: input.metadata.everrOrganizationSlug,
-          userId: input.metadata.everrOwnerId,
-          plan: "pro",
-        },
-      });
-      if (!created) throw new Error("Organization creation failed");
-      createdOrganization = {
-        id: created.id,
-        name: created.name,
-        ownerRole: "owner",
-        plan: "pro",
-      };
-    } catch (error) {
-      // The success callback and subscription webhook may finalize together.
-      // A concurrent winner is recovered through the unique Organization slug.
-      createdOrganization = await findCheckoutOrganization(input.metadata);
-      if (!createdOrganization) throw error;
-    }
-  }
-  assertCheckoutOrganization(createdOrganization);
-
-  try {
-    await linkPolarCustomerToOrg({
-      customerId: input.customerId,
-      orgId: createdOrganization.id,
-    });
-  } catch (error) {
-    const linked = await getPolarCustomerForOrg(createdOrganization.id);
-    if (linked?.id !== input.customerId) throw error;
-  }
-
-  await upsertOrgSubscription({
-    orgId: createdOrganization.id,
-    polarSubscriptionId: input.subscription.id,
-    polarProductId: input.subscription.productId,
-    status: input.subscription.status,
-    currentPeriodEnd: input.subscription.currentPeriodEnd,
-    cancelAtPeriodEnd: input.subscription.cancelAtPeriodEnd,
-    polarModifiedAt:
-      input.subscription.modifiedAt ?? input.subscription.createdAt,
-  });
-
-  return {
-    status: "completed" as const,
-    organization: {
-      id: createdOrganization.id,
-      name: createdOrganization.name,
-    },
-  };
-}
+export { finalizeProOrganizationCheckout };
 
 async function getMarkedDeviceOrganizationId(session: { userId: string }) {
   // Captured by the /device/token before-hook (see cli-device-organization).
@@ -249,41 +112,6 @@ async function getLastUsedOrganizationId(session: { userId: string }) {
     .limit(1);
 
   return membership[0]?.organizationId ?? null;
-}
-
-async function syncSubscription({ data }: { data: PolarSubscriptionPayload }) {
-  const orgId = data.customer.externalId;
-  if (!orgId) {
-    const metadata = ProOrganizationCheckoutMetadataSchema.safeParse(
-      data.metadata,
-    );
-    if (metadata.success && data.status === "active") {
-      assertPolarProductGrantsPlan(data.productId, "pro");
-      await finalizeProOrganizationCheckout({
-        metadata: metadata.data,
-        customerId: data.customer.id,
-        subscription: data,
-      });
-      return;
-    }
-    serverLogger.warn("polar.webhook.subscription_missing_external_id", {
-      "polar.subscription.id": data.id,
-    });
-    return;
-  }
-  const subscriptionUpdated = await upsertOrgSubscription({
-    orgId,
-    polarSubscriptionId: data.id,
-    polarProductId: data.productId,
-    status: data.status,
-    currentPeriodEnd: data.currentPeriodEnd ?? null,
-    cancelAtPeriodEnd: data.cancelAtPeriodEnd,
-    polarModifiedAt: data.modifiedAt ?? data.createdAt,
-  });
-  const subscriptionPlan = planForPolarProductId(data.productId);
-  if (subscriptionUpdated && data.status === "active") {
-    await setOrganizationPlan(orgId, subscriptionPlan);
-  }
 }
 
 // Extend the org plugin's default access-control statement with apiKey
@@ -517,7 +345,7 @@ export const auth = betterAuth({
         },
       },
       // Organization creation is orchestrated by server-owned flows so a
-      // billable Organization cannot bypass Polar customer provisioning.
+      // billable Organization cannot bypass a confirmed Polar payment.
       allowUserToCreateOrganization: false,
       creatorRole: "owner",
       // Preserve pre-1.6.11 behavior: don't require the recipient's email to be
@@ -533,6 +361,7 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
+        beforeCreateOrganization: beforeCreateCheckoutOrganization,
         beforeUpdateOrganization: async ({ organization }) => {
           if ("plan" in organization) {
             throw new APIError("FORBIDDEN", {
