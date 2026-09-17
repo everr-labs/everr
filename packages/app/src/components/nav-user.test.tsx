@@ -34,6 +34,9 @@ vi.mock("@/data/billing", () => ({
 
 vi.mock("@/data/organizations", () => ({
   createOrganization: vi.fn(),
+  getOrganizationCreationOptions: vi
+    .fn()
+    .mockResolvedValue({ canCreateHobby: true }),
 }));
 
 vi.mock("@/lib/auth-client", () => ({

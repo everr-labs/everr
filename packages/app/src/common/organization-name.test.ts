@@ -1,33 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { CreateOrganizationInputSchema } from "./organization-name";
 
-describe("CreateOrganizationInputSchema", () => {
+describe("organization creation input", () => {
+  it.each(["hobby", "pro"])("accepts %s without a billing email", (plan) => {
+    expect(
+      CreateOrganizationInputSchema.parse({
+        plan,
+        organizationName: "  Acme  ",
+      }),
+    ).toEqual({ plan, organizationName: "Acme" });
+  });
   it("rejects blank names", () => {
     expect(() =>
       CreateOrganizationInputSchema.parse({
+        plan: "pro",
         organizationName: " ",
-        billingEmail: "billing@example.com",
-      }),
-    ).toThrow();
-  });
-
-  it("accepts valid names and normalizes the billing email", () => {
-    expect(
-      CreateOrganizationInputSchema.parse({
-        organizationName: "Acme Inc",
-        billingEmail: " Billing@Example.COM ",
-      }),
-    ).toEqual({
-      organizationName: "Acme Inc",
-      billingEmail: "billing@example.com",
-    });
-  });
-
-  it("rejects invalid billing emails", () => {
-    expect(() =>
-      CreateOrganizationInputSchema.parse({
-        organizationName: "Acme Inc",
-        billingEmail: "not-an-email",
       }),
     ).toThrow();
   });

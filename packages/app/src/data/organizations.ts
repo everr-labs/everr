@@ -1,16 +1,14 @@
-import { getRequestHeaders } from "@tanstack/react-start/server";
+import * as z from "zod";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
+import { db } from "@/db/client";
 import { auth } from "@/lib/auth.server";
 import { generateOrgSlug } from "@/lib/auto-org";
+import { billing } from "@/lib/billing/server";
 import {
-  assertPolarBillingEmailAvailable,
-  createPolarCustomer,
-  deleteProvisionalPolarCustomer,
-  getPolarCustomerForOrg,
-  linkPolarCustomerToOrg,
-} from "@/lib/polar.server";
+  lockHobbyOrganizationOwnership,
+  userOwnsHobbyOrganization,
+} from "@/lib/billing-data.server";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 class OrganizationCreationError extends Error {
   name = "OrganizationCreationError";
@@ -20,115 +18,76 @@ class OrganizationCreationError extends Error {
   }
 }
 
-async function rollbackPolarCustomer(
-  customerId: string,
-  organizationId?: string,
-) {
-  try {
-    await deleteProvisionalPolarCustomer(customerId);
-    return true;
-  } catch (error) {
-    serverLogger.error("polar.customer.rollback.failed", {
-      ...exceptionAttributes(error),
-      "everr.polar.customer.id": customerId,
-      ...(organizationId
-        ? { "everr.organization.id": organizationId }
-        : undefined),
-    });
-    return false;
+class HobbyOrganizationLimitError extends Error {
+  name = "HobbyOrganizationLimitError";
+
+  constructor() {
+    super("You already own a Hobby organization. Create this one on Pro.");
   }
 }
 
-async function rollbackOrganization(
-  organizationId: string,
-  customerId: string,
-  headers: Headers,
-) {
-  // Remove the just-created, subscription-free customer first. If the Polar
-  // link succeeded but its response was lost, this also clears the external
-  // ID so the Organization deletion guard can safely allow compensation.
-  const customerDeleted = await rollbackPolarCustomer(
-    customerId,
-    organizationId,
+export const getOrganizationCreationOptions =
+  createPartiallyAuthenticatedServerFn({ method: "GET" }).handler(
+    async ({ context: { session } }) => ({
+      canCreateHobby: !(await userOwnsHobbyOrganization(session.user.id)),
+    }),
   );
-  if (!customerDeleted) return;
-
-  try {
-    await auth.api.deleteOrganization({
-      headers,
-      body: { organizationId },
-    });
-  } catch (error) {
-    serverLogger.error("organization.create.rollback.failed", {
-      ...exceptionAttributes(error),
-      "everr.organization.id": organizationId,
-    });
-  }
-}
 
 export const createOrganization = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(CreateOrganizationInputSchema)
   .handler(async ({ data, context: { session } }) => {
-    await assertPolarBillingEmailAvailable(data.billingEmail);
-    const headers = getRequestHeaders();
-
-    const customer = await createPolarCustomer({
-      email: data.billingEmail,
-      name: data.organizationName,
-    });
-
-    let organization: Awaited<ReturnType<typeof auth.api.createOrganization>>;
-
-    try {
-      organization = await auth.api.createOrganization({
-        body: {
-          name: data.organizationName,
-          slug: generateOrgSlug(),
-          userId: session.user.id,
-        },
-      });
-    } catch (error) {
-      await rollbackPolarCustomer(customer.id);
-      throw new OrganizationCreationError(
-        "The organization could not be created.",
-        error,
-      );
-    }
-
-    if (!organization) {
-      await rollbackPolarCustomer(customer.id);
-      throw new OrganizationCreationError(
-        "The organization could not be created.",
-      );
-    }
-
-    try {
-      await linkPolarCustomerToOrg({
-        customerId: customer.id,
-        orgId: organization.id,
-      });
-    } catch (error) {
-      try {
-        const linkedCustomer = await getPolarCustomerForOrg(organization.id);
-        if (linkedCustomer?.id === customer.id) {
-          return { id: organization.id, name: organization.name };
+    if (data.plan === "hobby") {
+      return db.transaction(async (tx) => {
+        await lockHobbyOrganizationOwnership(tx, session.user.id);
+        if (await userOwnsHobbyOrganization(session.user.id)) {
+          throw new HobbyOrganizationLimitError();
         }
-      } catch (verificationError) {
-        serverLogger.error("polar.customer.link_verification.failed", {
-          ...exceptionAttributes(verificationError),
-          "everr.organization.id": organization.id,
-          "everr.polar.customer.id": customer.id,
-        });
-      }
 
-      await rollbackOrganization(organization.id, customer.id, headers);
+        const organization = await auth.api.createOrganization({
+          body: {
+            name: data.organizationName,
+            slug: generateOrgSlug(),
+            userId: session.user.id,
+            plan: "hobby",
+          },
+        });
+        if (!organization) {
+          throw new OrganizationCreationError(
+            "The organization could not be created.",
+          );
+        }
+
+        return {
+          kind: "created" as const,
+          organization: { id: organization.id, name: organization.name },
+        };
+      });
+    }
+
+    try {
+      return await billing.startNewOrganizationCheckout(
+        session.user.id,
+        data.organizationName,
+      );
+    } catch (error) {
       throw new OrganizationCreationError(
-        "The billing customer could not be linked to the organization.",
+        "Pro checkout could not be started. Please try again.",
         error,
       );
     }
-
-    return { id: organization.id, name: organization.name };
   });
+
+const CheckoutResultSchema = z.object({ checkoutId: z.string().min(1) });
+
+export const completeProOrganizationCheckout =
+  createPartiallyAuthenticatedServerFn({ method: "POST" })
+    .inputValidator(CheckoutResultSchema)
+    .handler(async ({ data, context: { session } }) => {
+      return billing.completeNewOrganizationCheckout(
+        data.checkoutId,
+        session.user.id,
+        (input) => auth.api.createOrganization(input),
+      );
+    });

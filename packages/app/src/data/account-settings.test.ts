@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { auth } from "@/lib/auth.server";
 import { deleteCurrentUserAccount } from "./account-settings";
 
+vi.mock("@/lib/billing/lock.server", () => ({
+  withBillingRequest: (run: () => Promise<unknown>) => run(),
+}));
+
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeaders: vi.fn(() => new Headers({ cookie: "session=test" })),
 }));
@@ -12,11 +16,12 @@ type OrgMember = {
   role: string;
 };
 
-function activeOrg(members: OrgMember[]) {
+function activeOrg(members: OrgMember[], plan: "hobby" | "pro" = "hobby") {
   return {
     id: "test_org",
     name: "Test Org",
     members,
+    plan,
   };
 }
 
@@ -112,6 +117,32 @@ describe("deleteCurrentUserAccount", () => {
     await expect(
       deleteCurrentUserAccount({ data: { confirmation: "DELETE" } }),
     ).rejects.toThrow("You are the only owner of: Other Org");
+
+    expect(auth.api.deleteOrganization).not.toHaveBeenCalled();
+    expect(auth.api.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("blocks deletion while the user owns a Pro organization", async () => {
+    vi.mocked(auth.api.listOrganizations).mockResolvedValueOnce([
+      orgSummary("test_org", "Test Org"),
+    ] as never);
+    vi.mocked(auth.api.getFullOrganization).mockResolvedValueOnce(
+      activeOrg(
+        [
+          { userId: "test_user", role: "owner" },
+          { userId: "co_owner", role: "owner" },
+        ],
+        "pro",
+      ) as never,
+    );
+
+    await expect(
+      deleteCurrentUserAccount({
+        data: { confirmation: "DELETE", deleteOrganization: true },
+      }),
+    ).rejects.toThrow(
+      "You can't delete your account while you are an owner of one or more Pro organizations.",
+    );
 
     expect(auth.api.deleteOrganization).not.toHaveBeenCalled();
     expect(auth.api.deleteUser).not.toHaveBeenCalled();

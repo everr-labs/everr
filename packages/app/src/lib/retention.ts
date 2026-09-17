@@ -1,4 +1,4 @@
-export type Tier = "free" | "pro";
+export type Plan = "hobby" | "pro";
 
 export type TenantRetention = {
   tracesDays: number;
@@ -10,8 +10,8 @@ export type TenantRetention = {
 
 // Daily partitions are keyed by retention_days. Keep the distinct windows
 // bounded; their sum determines the approximate live partition count per table.
-const RETENTION_BY_TIER: Record<Tier, TenantRetention> = {
-  free: {
+const RETENTION_BY_PLAN: Record<Plan, TenantRetention> = {
+  hobby: {
     tracesDays: 14,
     logsDays: 14,
     metricsDays: 14,
@@ -27,6 +27,6 @@ const RETENTION_BY_TIER: Record<Tier, TenantRetention> = {
   },
 };
 
-export function resolveRetention(tier: Tier): TenantRetention {
-  return RETENTION_BY_TIER[tier];
+export function resolveRetention(plan: Plan): TenantRetention {
+  return RETENTION_BY_PLAN[plan];
 }

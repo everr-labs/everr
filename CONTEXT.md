@@ -32,8 +32,28 @@ A User who belongs to an Organization through a current Membership. Access is de
 _Avoid_: collaborator, Membership
 
 **Owner**:
-The Membership role with full control of an Organization. An Organization can have multiple Owners.
+The Membership role with full control of an Organization. A Pro Organization can have multiple Owners. A Hobby Organization has one Member, who is its Owner.
 _Avoid_: creator, administrator
+
+**Plan**:
+The Organization's `plan`, Hobby or Pro, which determines its available capabilities. It is stored directly on the Organization.
+_Avoid_: Tier, User plan, subscription status
+
+**Polar Product**:
+The billing-provider configuration used to sell a Plan in one deployment environment. Its identifier differs between environments, while Polar retains each subscription's agreed price. A Polar Product does not define application capabilities directly.
+_Avoid_: Plan, price
+
+**Hobby**:
+The free, individual Plan with only its Owner as a Member. A User can own at most one Hobby Organization, independently of Memberships in Pro Organizations; a Hobby Organization may have no billing-provider customer or an inactive subscription.
+_Avoid_: Free (synonym; use Hobby)
+
+**Pro**:
+The paid Plan that supports collaboration between multiple Members and requires an active subscription. Pro has no trial.
+_Avoid_: Team (synonym; use Pro)
+
+**Suspended Organization**:
+A Pro Organization whose subscription is no longer active. Its recovery page provides payment-method updates and a downgrade process.
+_Avoid_: Hobby Organization, deleted Organization
 
 **Billing details**:
 The legal name, tax identifier, billing email, and postal address used to bill an Organization. They may differ from the Organization's display name.

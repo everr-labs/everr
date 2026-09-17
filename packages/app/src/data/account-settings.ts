@@ -1,6 +1,7 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth.server";
+import { withBillingRequest } from "@/lib/billing/lock.server";
 import { isOrganizationOwner } from "@/lib/organization-role";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
 
@@ -29,6 +30,25 @@ export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
   .handler(async ({ data, context: { session } }) => {
     const headers = getRequestHeaders();
     const organizations = await getFullOrganizations(headers);
+    const ownedProOrganizations = organizations.filter((organization) => {
+      if (!organization || organization.plan === "hobby") return false;
+
+      const currentMember = organization.members.find(
+        (member) => member.userId === session.user.id,
+      );
+      return isOrganizationOwner(currentMember?.role);
+    });
+
+    if (ownedProOrganizations.length > 0) {
+      const organizationNames = ownedProOrganizations
+        .map((organization) => organization?.name)
+        .filter((name): name is string => Boolean(name))
+        .join(", ");
+      throw new Error(
+        `You can't delete your account while you are an owner of one or more Pro organizations. Transfer ownership of: ${organizationNames}.`,
+      );
+    }
+
     const soleOwnedOrganizations = organizations.filter((organization) => {
       if (!organization) return false;
       if (
@@ -85,8 +105,10 @@ export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
       });
     }
 
-    await auth.api.deleteUser({
-      headers,
-      body: {},
-    });
+    await withBillingRequest(() =>
+      auth.api.deleteUser({
+        headers,
+        body: {},
+      }),
+    );
   });

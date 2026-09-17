@@ -273,4 +273,30 @@ describe("/account route", () => {
       });
     });
   });
+
+  it("shows the Pro organization ownership block from the server", async () => {
+    const user = userEvent.setup();
+    mocks.deleteCurrentUserAccount.mockRejectedValueOnce(
+      new Error(
+        "You can't delete your account while you are an owner of one or more Pro organizations. Transfer ownership of: Acme.",
+      ),
+    );
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await user.type(screen.getByLabelText("Confirmation"), "DELETE");
+    await user.click(
+      screen.getByRole("button", { name: "Delete permanently" }),
+    );
+
+    expect(
+      await screen.findByRole("alert", {
+        name: "",
+      }),
+    ).toHaveTextContent(
+      "You can't delete your account while you are an owner of one or more Pro organizations. Transfer ownership of: Acme.",
+    );
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
 });

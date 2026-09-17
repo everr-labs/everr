@@ -6,9 +6,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import * as z from "zod";
+import { confirmOrgCheckout } from "@/data/billing";
 
 const SearchSchema = z.object({
   checkout_id: z.string().optional(),
@@ -27,15 +29,52 @@ export const Route = createFileRoute(
 
 function CheckoutSuccessPage() {
   const { checkout_id } = Route.useSearch();
+  const confirmation = useQuery({
+    queryKey: ["organization-checkout", checkout_id],
+    enabled: Boolean(checkout_id),
+    queryFn: () =>
+      confirmOrgCheckout({ data: { checkoutId: checkout_id ?? "" } }),
+    refetchInterval: (query) =>
+      query.state.status === "error" ||
+      (query.state.data && query.state.data.status !== "pending")
+        ? false
+        : 1_000,
+    retry: 3,
+  });
+  const completed = confirmation.data?.status === "completed";
+  const billingConflict = confirmation.data?.status === "billing_conflict";
+  const unavailable = !checkout_id || confirmation.isError;
+  const title = completed
+    ? "Pro is active"
+    : billingConflict
+      ? "Billing association needs attention"
+      : unavailable
+        ? "Payment confirmation unavailable"
+        : "Confirming payment";
+  const description = completed
+    ? "The active Pro subscription has been confirmed."
+    : billingConflict
+      ? "Polar confirmed the payment, but its billing customer does not match this organization. Contact support with the checkout ID below to reconcile the payment. Do not repeat the purchase."
+      : unavailable
+        ? "The subscription could not be confirmed. Return to billing or reload this page to try again."
+        : "Everr is verifying the subscription with Polar.";
 
   return (
     <div className="flex justify-center py-10">
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
-          <CheckCircle2 className="text-green-600 size-10" />
-          <CardTitle>Payment successful</CardTitle>
-          <CardDescription>
-            Your subscription is being provisioned. This may take a few seconds.
+          {completed ? (
+            <CheckCircle2 className="text-green-600 size-10" />
+          ) : billingConflict || unavailable ? (
+            <CircleAlert className="text-destructive size-10" />
+          ) : (
+            <Loader2 className="text-primary size-10 animate-spin" />
+          )}
+          <CardTitle>{title}</CardTitle>
+          <CardDescription
+            role={billingConflict || unavailable ? "alert" : undefined}
+          >
+            {description}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -46,10 +85,11 @@ function CheckoutSuccessPage() {
           ) : null}
           <Button
             className="w-full"
+            disabled={!completed && !billingConflict && !unavailable}
             nativeButton={false}
-            render={<Link to="/" />}
+            render={<Link to={completed ? "/" : "/billing"} />}
           >
-            Back to dashboard
+            {completed ? "Back to dashboard" : "Back to billing"}
           </Button>
         </CardContent>
       </Card>
