@@ -1,10 +1,15 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveTransport } from "./transport.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { startNetwork } from "../instrumentations/network/network.js";
+import { createTracer } from "./tracer.js";
+
+let resolveTransport: typeof import("./transport.js").resolveTransport;
+let posted: Posted[];
+let stopNetwork: (() => void) | undefined;
 
 type Posted = { url: string; init: RequestInit | undefined };
 
 function stubFetch() {
-  const posted: Posted[] = [];
+  posted = [];
   vi.stubGlobal(
     "fetch",
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
@@ -15,13 +20,49 @@ function stubFetch() {
   return posted;
 }
 
+beforeEach(async () => {
+  vi.resetModules();
+  stubFetch();
+  ({ resolveTransport } = await import("./transport.js"));
+});
+
 afterEach(() => {
+  stopNetwork?.();
+  stopNetwork = undefined;
   vi.unstubAllGlobals();
+});
+
+describe("export self-tracing", () => {
+  it.each([
+    "/api/telemetry",
+    "http://127.0.0.1:54318",
+  ])("does not trace exports to %s when network instrumentation starts first", async (endpoint) => {
+    const emitSpan = vi.fn();
+    stopNetwork = startNetwork(createTracer(emitSpan), undefined);
+    const transport = resolveTransport({ endpoint });
+    expect(transport).not.toBeNull();
+    const [send] = transport ?? [];
+
+    await fetch("/api/users");
+    await send?.("logs", '{"resourceLogs":[]}');
+    await send?.("traces", '{"resourceSpans":[]}', true);
+
+    expect(posted.map((p) => p.url)).toEqual([
+      "/api/users",
+      `${endpoint}/v1/logs`,
+      `${endpoint}/v1/traces`,
+    ]);
+    expect(emitSpan.mock.calls.map((call) => call[2])).toEqual([
+      "GET /api/users",
+    ]);
+    for (const post of posted.slice(1)) {
+      expect(new Headers(post.init?.headers).has("traceparent")).toBe(false);
+    }
+  });
 });
 
 describe("resolveTransport: endpoint resolution", () => {
   it("sends to the hosted ingest with a Bearer header when a key is set", () => {
-    const posted = stubFetch();
     const [send, truncateAtExit] =
       resolveTransport({ ingestKey: "pub_abc" }) ?? [];
     send?.("logs", "{}");
@@ -39,7 +80,6 @@ describe("resolveTransport: endpoint resolution", () => {
   });
 
   it("prefers an explicit endpoint override, appending the OTLP path and keeping the key's header", () => {
-    const posted = stubFetch();
     resolveTransport({
       ingestKey: "pub_abc",
       endpoint: "https://collector.example/",
@@ -52,7 +92,6 @@ describe("resolveTransport: endpoint resolution", () => {
   });
 
   it("carries no Authorization header without a key", () => {
-    const posted = stubFetch();
     resolveTransport({ endpoint: "https://collector.example" })?.[0](
       "traces",
       "{}",
@@ -63,14 +102,12 @@ describe("resolveTransport: endpoint resolution", () => {
   });
 
   it("falls back to the local collector in dev with no key", () => {
-    const posted = stubFetch();
     resolveTransport({ dev: true })?.[0]("logs", "{}");
 
     expect(posted[0].url).toBe("http://127.0.0.1:54418/v1/logs");
   });
 
   it("forwards keepalive on the exit path", () => {
-    const posted = stubFetch();
     resolveTransport({ dev: true })?.[0]("logs", "{}", true);
 
     expect(posted[0].init?.keepalive).toBe(true);
@@ -84,7 +121,6 @@ describe("resolveTransport: endpoint resolution", () => {
 
 describe("resolveTransport: caller-supplied send", () => {
   it("routes both signals to send and issues no request of its own", () => {
-    const posted = stubFetch();
     const send = vi.fn();
     const [deliver] = resolveTransport({ send }) ?? [];
 
@@ -103,7 +139,6 @@ describe("resolveTransport: caller-supplied send", () => {
   });
 
   it("wins over a key and an endpoint", () => {
-    const posted = stubFetch();
     const send = vi.fn();
     resolveTransport({
       send,

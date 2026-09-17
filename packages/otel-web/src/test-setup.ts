@@ -1,3 +1,9 @@
+import { stubTransportFetch } from "./test-fetch.js";
+
+stubTransportFetch(() => {
+  throw new Error("Unexpected fetch: configure the test transport first");
+});
+
 // jsdom declares no CSS namespace, so the tests get the escape function of the
 // CSSOM specification. It is the same algorithm as the browsers use:
 // https://drafts.csswg.org/cssom/#the-css.escape()-method

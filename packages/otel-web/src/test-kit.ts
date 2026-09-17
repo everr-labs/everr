@@ -6,6 +6,7 @@ import { network } from "./instrumentations/network/index.js";
 import { pageviews } from "./instrumentations/pageviews/index.js";
 import { performance as performanceInstrumentation } from "./instrumentations/performance/index.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
+import { stubTransportFetch } from "./test-fetch.js";
 import type { WebSDKOptions } from "./types.js";
 
 /** All the built-in instrumentations. The tests use this set by default. */
@@ -18,7 +19,7 @@ export const allInstrumentations = (): Instrumentation[] => [
 ];
 
 // The shared tools that capture the OTLP data in the integration tests of this
-// package. They replace the global fetch, which the emitter reads at each call.
+// package. They configure the fetch mock captured when the SDK module loads.
 // Then they change each batch into a simple structure, and a test can examine
 // that structure.
 
@@ -54,8 +55,7 @@ export type OtlpBatch = {
  * the code adds each new batch to that list. */
 function stubOtlpFetch(): OtlpBatch[] {
   const batches: OtlpBatch[] = [];
-  vi.stubGlobal(
-    "fetch",
+  stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
       const payload = JSON.parse(String(init?.body));
       const resourceLog = payload.resourceLogs?.[0];

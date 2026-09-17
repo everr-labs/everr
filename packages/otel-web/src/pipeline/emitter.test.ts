@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stubTransportFetch } from "../test-fetch.js";
 import type { OtlpSpan } from "../test-kit.js";
 import {
   type BeforeSend,
@@ -41,8 +42,7 @@ function makeEmitter(
   beforeSend?: BeforeSend,
 ) {
   sent = [];
-  vi.stubGlobal(
-    "fetch",
+  stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
       sent.push({
         url: String(url),
@@ -220,8 +220,7 @@ describe("createEmitter", () => {
   });
 
   it("never throws from exitFlush, even when fetch throws synchronously", () => {
-    vi.stubGlobal(
-      "fetch",
+    stubTransportFetch(
       vi.fn(() => {
         throw new Error("keepalive unsupported");
       }),
@@ -231,10 +230,7 @@ describe("createEmitter", () => {
   });
 
   it("swallows transport failures", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.reject(new Error("network down"))),
-    );
+    stubTransportFetch(vi.fn(() => Promise.reject(new Error("network down"))));
     const [failingEmit, failingFlush] = createEmitter(
       fetchSend(
         "https://ingest.example/v1/logs",
@@ -547,11 +543,9 @@ describe("exit budget and transport hardening", () => {
   });
 
   it("swallows a synchronously-throwing fetch on every delivery path", async () => {
-    // The transport keeps its reference to fetch when the code makes it. Thus
-    // the replacement that throws an error must be in place before the code
-    // makes the emitter, and then the test examines the true catch path.
-    vi.stubGlobal(
-      "fetch",
+    // Change the behavior of the fetch mock captured at module load so this
+    // test exercises the transport's synchronous failure path.
+    stubTransportFetch(
       vi.fn(() => {
         throw new Error("blocked");
       }),
