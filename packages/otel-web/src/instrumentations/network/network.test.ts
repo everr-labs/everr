@@ -114,6 +114,24 @@ describe("startNetwork", () => {
     expect(sentHeaders().get("traceparent")).not.toBeNull();
   });
 
+  it.each([
+    "g",
+    "y",
+  ])("preserves stateful regex targets with flag %s", async (flag) => {
+    const target = new RegExp("https://api\\.backend\\.example/", flag);
+    target.lastIndex = 7;
+    start([target]);
+    for (const matches of [true, true, false, true]) {
+      await fetch(
+        matches
+          ? "https://api.backend.example/data"
+          : "https://other.example/data",
+      );
+      expect(sentHeaders().has("traceparent")).toBe(matches);
+      expect(target.lastIndex).toBe(7);
+    }
+  });
+
   it("preserves existing headers when injecting, init over Request input", async () => {
     start();
     const request = new Request(`${location.origin}/api`, {

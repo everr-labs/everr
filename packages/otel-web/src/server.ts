@@ -192,7 +192,7 @@ export const performance = (_options?: PerformanceOptions): Instrumentation =>
   inert;
 /** Does nothing on the server. The load window belongs to the browser. */
 export const pageLoad = (_options?: PageLoadOptions): Instrumentation => inert;
-/** Does nothing on the server. The change to fetch belongs to the browser. */
+/** Does nothing on the server. Network instrumentation belongs to the browser. */
 export const network = (_options?: NetworkOptions): Instrumentation => inert;
 
 // Connects the shared logger functions to the OTel Logs API. It uses the same

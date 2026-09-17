@@ -1,8 +1,9 @@
 import type { Tracer } from "@opentelemetry/api";
 import { errorTypeOf } from "../../errors.js";
-import { requestTemplate } from "../../state/route.js";
+import { shouldPropagate, startRequest } from "./request.js";
+import { startXHR } from "./xhr.js";
 
-// The network signal. This module changes window.fetch. Thus each request does
+// The network signal patches fetch and XMLHttpRequest. Each request does
 // two things. First, it becomes an OTel CLIENT span on the traces pipeline.
 // Second, it carries a W3C traceparent header when that is safe. Thus the
 // request of the browser is the root of the distributed trace, and the spans of
@@ -17,9 +18,9 @@ import { requestTemplate } from "../../state/route.js";
 // only the header.
 //
 // The Tracer of the SDK makes the spans, and the instrumentations use that same
-// Tracer. Each request is its own trace, and the SDK always samples it. The ids
-// of that trace go into the traceparent header. The envelope attributes on the
-// span connect the span to the page view and the session.
+// Tracer. Requests join the active span when there is one, otherwise they start
+// a trace. The ids go into traceparent. The envelope attributes connect each
+// span to the page view and session.
 //
 // The telemetry POST operations of the SDK never come to this changed fetch.
 // The emitter kept its reference to fetch before this module changed the
@@ -49,6 +50,7 @@ export function startNetwork(
   tracer: Tracer,
   targets: PropagationTarget[] | undefined,
 ): () => void {
+  const stopXHR = startXHR(tracer, targets);
   const original = fetch;
 
   const patched = function (
@@ -68,40 +70,15 @@ export function startNetwork(
     const method = (
       init?.method ?? (input instanceof Request ? input.method : "GET")
     ).toUpperCase();
-    // The code reads the parts of the URL one time. Thus the function at the
-    // end keeps only strings, and it does not keep the URL object.
-    const path = url.pathname;
-    // The route template of the request, from the `request` route resolver.
-    // A server of a different origin must list x-everr-route in its
-    // Access-Control-Expose-Headers for the echo below to be readable.
-    // The route pattern of the page describes the document, and it does not
-    // describe the endpoint of this request. Thus the network signal never
-    // uses that pattern.
-    //
-    // With this function, the name of the span has a small number of different
-    // values, also when the path contains an id. Without it, the name is the
-    // path. In the two conditions, url.full contains the exact target.
-    const template = requestTemplate(url);
-    const name = `${method} ${template ?? path}`;
-    const urlFull = url.origin + path;
-    const hostname = url.hostname;
-
-    const span = tracer.startSpan(name);
-    const { traceId, spanId } = span.spanContext();
+    const { traceparent, end } = startRequest(tracer, method, url);
 
     // A value here makes an init object for the call below. It stays undefined
     // when the code writes the header on the Request of the caller, and also
     // when the code can set no header. The two conditions send the arguments of
     // the caller without a change, and thus one value serves them.
     let headers: Headers | undefined;
-    if (
-      url.origin === location.origin ||
-      targets?.some((t) =>
-        typeof t === "string" ? url.href.includes(t) : t.test(url.href),
-      )
-    ) {
+    if (shouldPropagate(url, targets)) {
       try {
-        const traceparent = `00-${traceId}-${spanId}-01`;
         // The sequence is the same as in fetch: the headers in init replace the
         // headers of a Request object. Thus a Request whose headers the init
         // replaces takes the second path, because those headers win and they
@@ -124,31 +101,6 @@ export function startNetwork(
       }
     }
 
-    const end = (
-      status: number | undefined,
-      errorType?: string,
-      echoed?: string | null,
-    ) => {
-      // A server that stamps its own route on the x-everr-route response
-      // header is the exact source: the value is the http.route of the server
-      // span, so the two sides of the trace cannot disagree. The header wins
-      // over the resolver, and the span takes its final name here, before the
-      // end call exports it.
-      if (echoed) span.updateName(`${method} ${echoed}`);
-      span.setAttributes({
-        "http.request.method": method,
-        "url.full": urlFull,
-        "url.template": echoed ?? template ?? undefined,
-        "server.address": hostname,
-        "http.response.status_code": status,
-        "error.type": errorType,
-      });
-      // The value 2 is SpanStatusCode.ERROR. An import of the enum adds many
-      // bytes to the build.
-      if (errorType !== undefined) span.setStatus({ code: 2 });
-      span.end();
-    };
-
     let result: Promise<Response>;
     try {
       result = original.call(
@@ -162,11 +114,7 @@ export function startNetwork(
     }
     return result.then(
       (res) => {
-        end(
-          res.status,
-          res.status >= 400 ? String(res.status) : undefined,
-          res.headers.get("x-everr-route"),
-        );
+        end(res.status, undefined, res.headers.get("x-everr-route"));
         return res;
       },
       (e: unknown) => {
@@ -178,6 +126,7 @@ export function startNetwork(
 
   globalThis.fetch = patched;
   return () => {
+    stopXHR();
     if (globalThis.fetch === patched) globalThis.fetch = original;
   };
 }

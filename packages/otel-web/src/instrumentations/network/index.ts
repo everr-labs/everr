@@ -17,10 +17,10 @@ export type NetworkOptions = {
 };
 
 /**
- * The network instrumentation. It changes window.fetch. Thus each request
- * becomes a CLIENT span on the traces pipeline, and it carries the W3C trace
- * context when that is safe. The teardown restores the original fetch, but not
- * when a different module changed fetch after this module.
+ * Captures fetch and XMLHttpRequest as CLIENT spans, propagating W3C trace
+ * context to the same origin and configured targets. Everr owns XHR trace
+ * headers. Teardown restores methods unless another
+ * module replaced them, and detaches listeners from unfinished XHR requests.
  */
 export function network(options?: NetworkOptions): Instrumentation {
   // This function has a name and it is not an arrow function. Thus sampled()

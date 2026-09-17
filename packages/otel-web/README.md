@@ -48,6 +48,12 @@ Without a key or an endpoint, a production build resolves to an inert client tha
 
 Wrap any instrumentation in `sampled(instrumentation, rate)` to capture a fraction of sessions, for example `sampled(pageLoad(), 0.1)`.
 
+### Network requests
+
+`network()` captures both `fetch` and XMLHttpRequest. XHR spans run from `send()` through completion, including synchronous requests. Both transports use the same request route resolver, `x-everr-route` response header, URL sanitization, and `tracePropagationTargets` option. Cross-origin propagation requires the server to allow `traceparent` in its CORS headers; reading a cross-origin route echo also requires `Access-Control-Expose-Headers: x-everr-route`.
+
+Everr owns XHR trace propagation: do not set `traceparent` yourself or use another XHR tracing library alongside `network()`. XHR appends repeated header values, which would produce an invalid trace header. HTTP 4xx/5xx responses, timeouts, and network failures mark the span as an error; intentional XHR cancellation does not. Shutdown restores the patched methods and discards unfinished XHR observations without cancelling application requests.
+
 ### Event and span timestamps
 
 Custom instrumentations can set the time when an event happened as integer epoch milliseconds. Browser APIs expose values such as `Event.timeStamp` and `PerformanceEntry.startTime` relative to `performance.timeOrigin`; convert those values with `epoch()`. Without a timestamp, the SDK uses the instant `emit` is called.
