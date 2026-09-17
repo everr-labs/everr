@@ -82,29 +82,11 @@ func (c *ChDBConn) PrepareBatch(ctx context.Context, query string, _ ...driver.P
 		return nil, err
 	}
 
-	rows, err := c.Query(ctx, "DESCRIBE TABLE "+table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	columnTypes := make(map[string]string)
-	for rows.Next() {
-		var name, columnType string
-		if err := rows.Scan(&name, &columnType); err != nil {
-			return nil, err
-		}
-		columnTypes[name] = columnType
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
 	return &chDBBatch{
-		ctx:         ctx,
-		handle:      c.handle,
-		table:       table,
-		columns:     columns,
-		columnTypes: columnTypes,
+		ctx:     ctx,
+		handle:  c.handle,
+		table:   table,
+		columns: columns,
 	}, nil
 }
 
@@ -134,13 +116,12 @@ func (c *ChDBConn) Stats() driver.Stats        { return driver.Stats{} }
 func (c *ChDBConn) Close() error               { return nil }
 
 type chDBBatch struct {
-	ctx         context.Context
-	handle      *chdb.Handle
-	table       string
-	columns     []string
-	columnTypes map[string]string
-	rows        []map[string]any
-	sent        bool
+	ctx     context.Context
+	handle  *chdb.Handle
+	table   string
+	columns []string
+	rows    []map[string]any
+	sent    bool
 }
 
 func (b *chDBBatch) Abort() error {
@@ -159,7 +140,7 @@ func (b *chDBBatch) Append(values ...any) error {
 
 	row := make(map[string]any, len(values))
 	for i, value := range values {
-		row[b.columns[i]] = normalizeColumnValue(value, b.columnTypes[b.columns[i]])
+		row[b.columns[i]] = normalizeJSONValue(value)
 	}
 	b.rows = append(b.rows, row)
 	return nil
@@ -257,28 +238,6 @@ func cleanColumnName(name string) string {
 	name = strings.TrimSpace(name)
 	name = strings.Trim(name, "`\"")
 	return name
-}
-
-// The ClickHouse driver treats strings in JSON columns as serialized objects.
-// Preserve that contract when writing JSONEachRow, without parsing String data.
-func normalizeColumnValue(value any, columnType string) any {
-	if columnType == "JSON" || strings.HasPrefix(columnType, "JSON(") {
-		if encoded, ok := value.(string); ok {
-			return json.RawMessage(encoded)
-		}
-	}
-	if strings.HasPrefix(columnType, "Array(") && strings.HasSuffix(columnType, ")") {
-		reflected := reflect.ValueOf(value)
-		if reflected.IsValid() && reflected.Kind() == reflect.Slice {
-			elementType := columnType[len("Array(") : len(columnType)-1]
-			out := make([]any, 0, reflected.Len())
-			for i := 0; i < reflected.Len(); i++ {
-				out = append(out, normalizeColumnValue(reflected.Index(i).Interface(), elementType))
-			}
-			return out
-		}
-	}
-	return normalizeJSONValue(value)
 }
 
 func normalizeJSONValue(value any) any {

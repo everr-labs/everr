@@ -90,33 +90,3 @@ func TestFormatTimestampInsertsIntoEveryTimeColumnType(t *testing.T) {
 		fmt.Sprintf(`{"nanos":"%d","seconds":"%d","list":["%d"]}`, localTime.UnixNano(), localTime.Unix(), localTime.Unix()),
 		string(bytes.TrimSpace(buf)))
 }
-
-func TestChDBBatchUsesColumnTypesForJSONStrings(t *testing.T) {
-	t.Cleanup(chdb.ResetForTesting)
-	handle, err := chdb.Open(filepath.Join(t.TempDir(), "chdb"))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = handle.Close() })
-	conn, err := NewChDBConn(handle)
-	require.NoError(t, err)
-	require.NoError(t, conn.Exec(t.Context(), `CREATE TABLE json_batch_test (
-		payload JSON(max_dynamic_paths=16), items Array(JSON),
-		label String, labels Array(String)
-	) ENGINE = Memory`))
-
-	// The same Go values must become JSON objects or literal strings based
-	// on the destination columns, just as with the ClickHouse driver.
-	object := `{"answer":42,"enabled":true,"text":"{\"nested\":true}"}`
-	batch, err := conn.PrepareBatch(t.Context(), `INSERT INTO json_batch_test (labels, payload, label, items) VALUES (?, ?, ?, ?)`)
-	require.NoError(t, err)
-	require.NoError(t, batch.Append([]string{object, "{}"}, object, object, []string{object, "{}"}))
-	require.NoError(t, batch.Send())
-
-	var actual string
-	require.NoError(t, conn.QueryRow(t.Context(), `SELECT toJSONString(tuple(payload, items, label, labels)) AS name FROM json_batch_test`).Scan(&actual))
-	expected, err := json.Marshal([]any{
-		json.RawMessage(object), []json.RawMessage{json.RawMessage(object), json.RawMessage(`{}`)},
-		object, []string{object, "{}"},
-	})
-	require.NoError(t, err)
-	require.JSONEq(t, string(expected), actual)
-}
