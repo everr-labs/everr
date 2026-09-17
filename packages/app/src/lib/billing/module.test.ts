@@ -563,6 +563,62 @@ it("revokes removed members before the downgrade commits", async () => {
     code: "forbidden",
   });
 });
+it("keeps one owner when two owners downgrade concurrently without a billing customer", async () => {
+  let enter = () => {};
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
+  let proceed = () => {};
+  const ready = new Promise<void>((resolve) => {
+    proceed = resolve;
+  });
+  const first = billing.downgrade("org", "owner", async (revoke) => {
+    enter();
+    await ready;
+    await revoke();
+    await client.exec("DELETE FROM member WHERE user_id <> 'owner'");
+  });
+  await entered;
+  const secondCommit = vi.fn();
+  try {
+    await expect(
+      billing.downgrade("org", "other", secondCommit),
+    ).rejects.toThrow("busy");
+    expect(secondCommit).not.toHaveBeenCalled();
+  } finally {
+    proceed();
+    await first;
+  }
+  expect(
+    await database
+      .select({ userId: schema.member.userId, role: schema.member.role })
+      .from(schema.member),
+  ).toEqual([{ userId: "owner", role: "owner" }]);
+});
+
+it("rechecks local ownership inside the downgrade lock", async () => {
+  await database.delete(schema.member).where(eq(schema.member.userId, "other"));
+  const commit = vi.fn();
+  await expect(billing.downgrade("org", "other", commit)).rejects.toMatchObject(
+    {
+      code: "forbidden",
+    },
+  );
+  expect(commit).not.toHaveBeenCalled();
+  expect(gateway.revokeSubscription).not.toHaveBeenCalled();
+});
+
+it("requires the current Polar team owner before downgrading", async () => {
+  await upgrade();
+  const commit = vi.fn();
+  await expect(billing.downgrade("org", "other", commit)).rejects.toMatchObject(
+    {
+      code: "owner_required",
+    },
+  );
+  expect(commit).not.toHaveBeenCalled();
+  expect(gateway.revokeSubscription).not.toHaveBeenCalled();
+});
 it("rejects an individual customer without conversion", async () => {
   customers.set("individual", {
     id: "individual",

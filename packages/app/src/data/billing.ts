@@ -120,11 +120,6 @@ export const downgradeSuspendedOrganization = createServerFn({ method: "POST" })
         "Only an Owner can downgrade this organization.",
       );
     }
-    if ((await readOrgEntitlement(orgId)).appState !== "suspended") {
-      throw new HobbyDowngradeUnavailableError(
-        "Only a suspended Pro organization can be downgraded.",
-      );
-    }
     const result = await billing.downgrade(
       orgId,
       session.user.id,
@@ -133,6 +128,14 @@ export const downgradeSuspendedOrganization = createServerFn({ method: "POST" })
           // Serialize the application-level one-Hobby-per-Owner check before
           // revoking a subscription that may not be convertible to Hobby.
           await lockHobbyOrganizationOwnership(tx, session.user.id);
+          // Billing holds the organization lock and has rechecked ownership.
+          // Re-read suspension after both locks: a subscription may have
+          // recovered since this request started.
+          if ((await readOrgEntitlement(orgId)).appState !== "suspended") {
+            throw new HobbyDowngradeUnavailableError(
+              "Only a suspended Pro organization can be downgraded.",
+            );
+          }
           if (await userOwnsHobbyOrganization(session.user.id, orgId)) {
             throw new HobbyDowngradeUnavailableError(
               "You already own a Hobby organization.",
