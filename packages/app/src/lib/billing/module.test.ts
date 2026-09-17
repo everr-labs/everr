@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { afterAll, beforeEach, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import * as schema from "@/db/schema";
+import { billingOrganizationHooks } from "./membership-plugin.server";
 import { createBillingModule } from "./module";
 import { beforeCreateCheckoutOrganization } from "./organization-context.server";
 import type {
@@ -17,6 +18,7 @@ import type {
 } from "./types";
 
 vi.mock("@/env", () => ({ env: { POLAR_PRO_PRODUCT_ID: "pro" } }));
+vi.mock("./server", () => ({ billing: {} }));
 vi.mock("@/telemetry/logger", () => ({
   serverLogger: { info: vi.fn(), error: vi.fn() },
 }));
@@ -220,6 +222,50 @@ async function paidNew() {
     },
   };
 }
+
+it("does not contact Polar for a new Hobby owner, then creates its team at the first checkout", async () => {
+  await client.exec("DELETE FROM member WHERE user_id <> 'owner'");
+  const hooks = billingOrganizationHooks(billing);
+  await hooks.afterAddMember({
+    member: { organizationId: "org", userId: "owner" },
+  });
+  expect(await billing.getSettings("org", "owner")).toMatchObject({
+    connected: false,
+    owner: null,
+  });
+  expect(await billing.openPortal("org", "owner")).toEqual({
+    status: "customer_missing",
+  });
+  for (const operation of Object.values(gateway)) {
+    expect(operation).not.toHaveBeenCalled();
+  }
+
+  await billing.startUpgradeCheckout("org", "owner");
+  const [org] = await database.select().from(schema.organization);
+  expect(org.plan).toBe("hobby");
+  expect(org.polarCustomerId).toBe([...customers.keys()][0]);
+  expect(gateway.createTeam).toHaveBeenCalledOnce();
+  await billing.openPortal("org", "owner");
+  expect(gateway.getCustomer).toHaveBeenCalledWith(org.polarCustomerId);
+  await billing.startUpgradeCheckout("org", "owner");
+  expect(gateway.createTeam).toHaveBeenCalledOnce();
+  expect(gateway.createCheckout).toHaveBeenCalledOnce();
+});
+
+it("recovers a Pro organization's missing customer reference through Polar", async () => {
+  await database.update(schema.organization).set({ plan: "pro" });
+  const customer = await gateway.createTeam({
+    orgId: "org",
+    owner: { id: "owner", name: "Owner", email: "owner@example.com" },
+  });
+  vi.clearAllMocks();
+  await billing.afterMembershipChange("org");
+  expect(gateway.findCustomer).toHaveBeenCalledWith("org");
+  expect(
+    (await database.select().from(schema.organization))[0].polarCustomerId,
+  ).toBe(customer.id);
+  expect(gateway.createTeam).not.toHaveBeenCalled();
+});
 
 it("uses the designated owner despite multiple owners and an admin initiating checkout", async () => {
   await upgrade();

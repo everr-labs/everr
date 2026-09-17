@@ -52,6 +52,10 @@ export function createBillingIdentity(
   }
   async function customerForOrganization(orgId: string) {
     const org = await store.organization(orgId);
+
+    if (org.polarCustomerId === null && org.plan === "hobby") {
+      return null;
+    }
     const customer = org.polarCustomerId
       ? await polar.getCustomer(org.polarCustomerId)
       : await polar.findCustomer(orgId);
