@@ -1,5 +1,14 @@
 # @everr/desktop-app
 
+## 0.8.2
+
+### Patch Changes
+
+- d301d9e: Fix local collector batch rejection when spans contain events or links, including BullMQ's `job completed` event. Preserve event and link attributes as JSON objects with their original value types.
+- Updated dependencies [21b3838]
+- Updated dependencies [2ecad0b]
+  - @everr/otel-web@0.3.2
+
 ## 0.8.1
 
 ### Patch Changes
