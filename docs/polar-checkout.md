@@ -35,19 +35,19 @@ Retries list sessions for the known customer and validate their metadata. Open s
 
 ## Schema and local cutover
 
-Apply the Drizzle schema in `packages/app/src/db/schema/billing.ts` before starting the new application. Do not generate migrations while iterating locally. Required additions are:
+Apply `packages/app/drizzle/0013_organization_customer_teams.sql` through the normal Drizzle migration workflow before deploying the new application. This final migration was generated after explicit approval at the end of schema iteration. It adds:
 
 - `organization.polar_customer_id`: nullable unique customer reference, declared as a server-managed Better Auth additional field.
 
 - `pro_organization_checkout.polar_customer_id`, alongside the existing reservation and incomplete owner/name unique index.
 
-The checkout schema changes were applied and inspected in the local PostgreSQL database during implementation. Other environments must apply and verify them before deployment. Back up local data before applying schema changes through the repository's normal Drizzle workflow.
+The checkout schema changes were applied and inspected in the local PostgreSQL database during implementation. The final migration was not applied to that local database because those changes already exist there. Other environments must apply and verify the migration before deployment. Back up local data before applying schema changes through the repository's normal Drizzle workflow.
 
 Existing organizations can reuse a team found by organization external ID. Discovery verifies and stores the customer ID on the organization, without creating a customer outside checkout. Once saved, subsequent operations fetch that exact customer and reject identity mismatches instead of silently relinking. A new Pro attempt retains the ID before the organization exists, then finalization copies the verified reference onto the organization. The owner is read from that team's owner member and must map to a current Everr owner. Individual customers or inconsistent identities fail explicitly. Do not delete sandbox payments, subscriptions or customers to resolve a conflict. Unrelated sandbox records are preserved.
 
-The earlier refactor introduced `organization_billing`, `billing_member` and `billing_operation`. All three have been removed from the schema and local database. They contained no local rows at removal. No migration files were generated and no Polar resources were changed. Environments that applied the earlier refactor can remove these tables after stopping the old billing reconciliation worker.
+The earlier refactor introduced `organization_billing`, `billing_member` and `billing_operation`. All three have been removed from the schema and local database. They contained no local rows at removal. These temporary-table removals were local schema iteration, not migration files; no Polar resources were changed. Environments that applied the earlier refactor can remove these tables after stopping the old billing reconciliation worker.
 
-Only creation metadata version 2 with a persisted customer-bound attempt is supported. Version 1, customerless checkouts and mismatched identities fail without granting Pro. Previously issued unsupported checkout URLs may remain payable in Polar until they expire; they must not be used after cutover. There is no production migration or compatibility finalizer.
+Only creation metadata version 2 with a persisted customer-bound attempt is supported. Version 1, customerless checkouts and mismatched identities fail without granting Pro. Previously issued unsupported checkout URLs may remain payable in Polar until they expire; they must not be used after cutover. There is no legacy-data conversion or compatibility finalizer.
 
 ## Verification and observability
 
