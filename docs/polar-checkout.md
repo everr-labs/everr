@@ -35,15 +35,21 @@ Retries list sessions for the known customer and validate their metadata. Open s
 
 ## Schema and local cutover
 
-Apply `packages/app/drizzle/0013_organization_customer_teams.sql` through the normal Drizzle migration workflow before deploying the new application. This final migration was generated after explicit approval at the end of schema iteration. It adds:
+Apply `packages/app/drizzle/0012_organization_customer_teams.sql` through the normal Drizzle migration workflow before deploying the new application. This migration consolidates the branch's schema changes relative to main's `0011` snapshot. It adds:
+
+- `organization.plan`: non-null text with a `hobby` default.
 
 - `organization.polar_customer_id`: nullable unique customer reference, declared as a server-managed Better Auth additional field.
 
-- `pro_organization_checkout.polar_customer_id`, alongside the existing reservation and incomplete owner/name unique index.
+- The `pro_organization_checkout` table, including the reserved organization ID, owner reference, organization name and unique slug, checkout and customer references, timestamps, and incomplete owner/name unique index.
 
-The checkout schema changes were applied and inspected in the local PostgreSQL database during implementation. The final migration was not applied to that local database because those changes already exist there. Other environments must apply and verify the migration before deployment. Back up local data before applying schema changes through the repository's normal Drizzle workflow.
+For this cutover, no paid plans are currently active and all existing billing data is intentionally reset. The migration deletes local subscriptions and checkout attempts, clears organization customer references, and sets every organization to Hobby. The checkout table is newly created and therefore already empty on a database coming from main. Organization memberships and invitations are preserved. Existing Hobby membership and ownership-limit conflicts are not automatically repaired.
 
-Existing organizations can reuse a team found by organization external ID. Discovery verifies and stores the customer ID on the organization, without creating a customer outside checkout. Once saved, subsequent operations fetch that exact customer and reject identity mismatches instead of silently relinking. A new Pro attempt retains the ID before the organization exists, then finalization copies the verified reference onto the organization. The owner is read from that team's owner member and must map to a current Everr owner. Individual customers or inconsistent identities fail explicitly. Do not delete sandbox payments, subscriptions or customers to resolve a conflict. Unrelated sandbox records are preserved.
+Polar customer deletion is performed manually by the operator, separately from the PostgreSQL migration. Coordinate this reset while billing writes and webhook processing are stopped, then resume with the new application and freshly provisioned customers on future checkouts. No paid-plan backfill or legacy-customer conversion is required for this cutover.
+
+The checkout schema changes were applied and inspected in the local PostgreSQL database during earlier implementation. The consolidated migration has not been applied to that database. Environments that already applied intermediate schema changes or the former branch migrations must reconcile their schema and migration history before using this consolidated migration. Environments still at main's `0011` can apply it through the normal Drizzle workflow. Back up local data before applying schema changes.
+
+During normal operation after the reset, Pro organizations can recover a missing customer reference by verified team discovery using the organization external ID. Hobby organizations without a customer reference start billing through checkout. Once saved, subsequent operations fetch that exact customer and reject identity mismatches instead of silently relinking. A new Pro attempt retains the ID before the organization exists, then finalization copies the verified reference onto the organization. The owner is read from that team's owner member and must map to a current Everr owner. Individual customers or inconsistent identities fail explicitly. Outside the deliberate cutover reset, resolve identity conflicts through reconciliation rather than deleting billing history.
 
 The earlier refactor introduced `organization_billing`, `billing_member` and `billing_operation`. All three have been removed from the schema and local database. They contained no local rows at removal. These temporary-table removals were local schema iteration, not migration files; no Polar resources were changed. Environments that applied the earlier refactor can remove these tables after stopping the old billing reconciliation worker.
 

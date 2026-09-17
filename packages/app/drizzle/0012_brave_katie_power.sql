@@ -1,1 +1,0 @@
-ALTER TABLE "organization" ADD COLUMN "plan" text DEFAULT 'hobby' NOT NULL;
