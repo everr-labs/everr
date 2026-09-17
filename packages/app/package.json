@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:billing:sandbox": "vitest run --config vitest.billing-sandbox.config.ts"
   },
   "dependencies": {
     "@better-auth/api-key": "^1.6.20",

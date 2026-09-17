@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { auth } from "@/lib/auth.server";
 import { deleteCurrentUserAccount } from "./account-settings";
 
+vi.mock("@/lib/billing/lock.server", () => ({
+  withBillingRequest: (run: () => Promise<unknown>) => run(),
+}));
+
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeaders: vi.fn(() => new Headers({ cookie: "session=test" })),
 }));
