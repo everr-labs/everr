@@ -232,14 +232,14 @@ func (e *tracesJSONExporter) pushTraceData(ctx context.Context, td ptrace.Traces
 	return nil
 }
 
-func convertEventsJSON(events ptrace.SpanEventSlice) (times []time.Time, names []string, attrs []json.RawMessage, err error) {
+func convertEventsJSON(events ptrace.SpanEventSlice) (times []time.Time, names, attrs []string, err error) {
 	n := events.Len()
 	if n == 0 {
 		return nil, nil, nil, nil
 	}
 	times = make([]time.Time, 0, n)
 	names = make([]string, 0, n)
-	attrs = make([]json.RawMessage, 0, n)
+	attrs = make([]string, 0, n)
 	for i := range n {
 		event := events.At(i)
 		times = append(times, event.Timestamp().AsTime())
@@ -249,13 +249,13 @@ func convertEventsJSON(events ptrace.SpanEventSlice) (times []time.Time, names [
 		if eventAttrErr != nil {
 			return nil, nil, nil, fmt.Errorf("failed to marshal json trace event attributes: %w", eventAttrErr)
 		}
-		attrs = append(attrs, json.RawMessage(eventAttrBytes))
+		attrs = append(attrs, string(eventAttrBytes))
 	}
 
 	return times, names, attrs, nil
 }
 
-func convertLinksJSON(links ptrace.SpanLinkSlice) (traceIDs, spanIDs, states []string, attrs []json.RawMessage, err error) {
+func convertLinksJSON(links ptrace.SpanLinkSlice) (traceIDs, spanIDs, states, attrs []string, err error) {
 	n := links.Len()
 	if n == 0 {
 		return nil, nil, nil, nil, nil
@@ -263,7 +263,7 @@ func convertLinksJSON(links ptrace.SpanLinkSlice) (traceIDs, spanIDs, states []s
 	traceIDs = make([]string, 0, n)
 	spanIDs = make([]string, 0, n)
 	states = make([]string, 0, n)
-	attrs = make([]json.RawMessage, 0, n)
+	attrs = make([]string, 0, n)
 	for i := range n {
 		link := links.At(i)
 		traceIDs = append(traceIDs, link.TraceID().String())
@@ -274,7 +274,7 @@ func convertLinksJSON(links ptrace.SpanLinkSlice) (traceIDs, spanIDs, states []s
 		if linkAttrErr != nil {
 			return nil, nil, nil, nil, fmt.Errorf("failed to marshal json trace link attributes: %w", linkAttrErr)
 		}
-		attrs = append(attrs, json.RawMessage(linkAttrBytes))
+		attrs = append(attrs, string(linkAttrBytes))
 	}
 
 	return traceIDs, spanIDs, states, attrs, nil
