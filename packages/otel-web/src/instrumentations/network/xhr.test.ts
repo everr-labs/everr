@@ -357,6 +357,73 @@ describe("XHR network instrumentation", () => {
     ]);
   });
 
+  it.each([
+    ["error", "NetworkError"],
+    ["timeout", "TimeoutError"],
+    ["abort", undefined],
+  ])("preserves %s when a DONE callback starts another request", (event, errorType) => {
+    start();
+    const xhr = new TestXHR();
+    let reopened = false;
+    xhr.addEventListener(
+      "readystatechange",
+      () => {
+        if (xhr.readyState !== 4 || reopened) return;
+        reopened = true;
+        xhr.open("GET", "/retry");
+        xhr.send();
+      },
+      true,
+    );
+    xhr.open("GET", "/first");
+    xhr.send();
+    xhr.complete(0, event);
+    expect(spans()).toHaveLength(1);
+    expect(spans()[0]).toMatchObject({
+      name: "GET /first",
+      error: Boolean(errorType),
+    });
+    expect(spans()[0].attrs["error.type"]).toBe(errorType);
+    expect(spans()[0].attrs["http.response.status_code"]).toBeUndefined();
+    xhr.complete(200);
+    expect(spans()).toHaveLength(2);
+    expect(spans()[1]).toMatchObject({ name: "GET /retry", error: false });
+    expect(spans()[1].attrs["http.response.status_code"]).toBe(200);
+  });
+
+  it.each([
+    "sync",
+    "abort",
+  ])("keeps a nested %s retry separate from the original timeout", (retry) => {
+    start();
+    const xhr = new TestXHR();
+    let reopened = false;
+    xhr.addEventListener(
+      "readystatechange",
+      () => {
+        if (xhr.readyState !== 4 || reopened) return;
+        reopened = true;
+        xhr.open("GET", "/retry", retry !== "sync");
+        xhr.responseHeaders.set("x-everr-route", "/retry-route");
+        xhr.send();
+        if (retry === "abort") xhr.abort();
+      },
+      true,
+    );
+    xhr.open("GET", "/first");
+    xhr.send();
+    xhr.complete(0, "timeout");
+    expect(spans()).toHaveLength(2);
+    const first = spans().find((s) => s.name === "GET /first");
+    expect(first).toMatchObject({
+      error: true,
+      attrs: { "error.type": "TimeoutError" },
+    });
+    expect(first?.attrs["http.response.status_code"]).toBeUndefined();
+    expect(first?.attrs["url.template"]).toBeUndefined();
+    expect(spans().find((s) => s.name !== "GET /first")?.error).toBe(false);
+  });
+
   it("continues requests when header injection fails", () => {
     start();
     const xhr = new TestXHR();

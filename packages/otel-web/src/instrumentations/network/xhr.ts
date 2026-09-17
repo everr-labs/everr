@@ -6,6 +6,8 @@ import { shouldPropagate, startRequest } from "./request.js";
 type RequestState = {
   method: string;
   url: URL;
+  done?: boolean;
+  sending?: boolean;
   finish?: (errorType?: string, cancelled?: boolean) => void;
 };
 
@@ -30,7 +32,10 @@ export function startXHR(tracer: Tracer, targets?: PropagationTarget[]) {
     const previous = requests?.get(this);
     // A pre-existing DONE callback may reopen before our listener runs.
     // Capture its response before native open resets status and headers.
-    if (this.readyState === 4 && this.status) previous?.finish?.();
+    if (previous && this.readyState === 4) {
+      previous.done = true;
+      if (this.status) previous.finish?.();
+    }
     requests?.delete(this);
     try {
       requests?.set(this, {
@@ -43,7 +48,8 @@ export function startXHR(tracer: Tracer, targets?: PropagationTarget[]) {
     try {
       // Install state before open dispatches OPENED: a callback can send there.
       const result = Reflect.apply(open, this, args);
-      previous?.finish?.(undefined, true);
+      // DONE with status 0 still has an error, timeout, abort or load pending.
+      if (!previous?.done) previous?.finish?.(undefined, true);
       return result;
     } catch (error) {
       if (previous) requests?.set(this, previous);
@@ -87,24 +93,42 @@ export function startXHR(tracer: Tracer, targets?: PropagationTarget[]) {
     const onEvent = (event: Event) => {
       // Capture successful DONE before user callbacks can reopen the object.
       // Failures need their terminal event to distinguish timeout from error.
-      if (requests?.get(this) !== state || this.readyState !== 4) return;
-      if (event.type === "readystatechange" && !this.status) return;
+      const current = requests?.get(this);
+      if (event.type === "readystatechange") {
+        if (current !== state || this.readyState !== 4) return;
+        state.done = true;
+        if (!this.status) return;
+      } else if (current === state) {
+        if (this.readyState !== 4) return;
+      } else {
+        // A nested retry can complete before the old terminal event resumes.
+        if (
+          !state.done ||
+          current?.sending ||
+          (current?.done && current.finish)
+        )
+          return;
+      }
       finish(
         event.type === "error"
           ? "NetworkError"
           : event.type === "timeout"
             ? "TimeoutError"
             : undefined,
+        current !== state,
       );
     };
     state.finish = finish;
     pending.add(finish);
     for (const event of events) this.addEventListener(event, onEvent, true);
     try {
+      state.sending = true;
       return send.call(this, body);
     } catch (error) {
       finish(error instanceof DOMException ? error.name : errorTypeOf(error));
       throw error;
+    } finally {
+      state.sending = false;
     }
   };
 
