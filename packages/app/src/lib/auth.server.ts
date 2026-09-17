@@ -17,17 +17,13 @@ import {
   ownerAc,
 } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { organizationBillingFields } from "@/common/organization-billing-fields";
 import { db } from "@/db/client";
-import { invitation, member, session as sessionTable, user } from "@/db/schema";
+import { member, session as sessionTable } from "@/db/schema";
 import { env } from "@/env";
-import {
-  deriveOrgName,
-  generateOrgSlug,
-  selectSoleOrganization,
-  shouldCreateAutomaticOrganization,
-} from "@/lib/auto-org";
+import { selectSoleOrganization } from "@/lib/auto-org";
+import { ensureAutomaticOrganization } from "@/lib/auto-org.server";
 import { billingIdentityAdapter } from "@/lib/billing/auth-adapter.server";
 import { billingAuthPlugin } from "@/lib/billing/auth-plugin.server";
 import {
@@ -247,75 +243,17 @@ export const auth = betterAuth({
             );
           }
 
-          // A valid invitation is an organization destination even before it
-          // becomes a membership. Let the invitation flow complete instead of
-          // creating an unrelated organization during sign-up.
           if (!activeOrganizationId && membershipCount === 0) {
-            const userRecord = await db
-              .select({ name: user.name, email: user.email })
-              .from(user)
-              .where(eq(user.id, session.userId))
-              .limit(1);
-
-            if (userRecord[0]) {
-              const pendingInvitations = await db
-                .select({ id: invitation.id })
-                .from(invitation)
-                .where(
-                  and(
-                    eq(
-                      sql<string>`lower(${invitation.email})`,
-                      userRecord[0].email.toLowerCase(),
-                    ),
-                    eq(invitation.status, "pending"),
-                    gt(invitation.expiresAt, new Date()),
-                  ),
-                )
-                .limit(1);
-
-              if (
-                !shouldCreateAutomaticOrganization({
-                  membershipCount,
-                  hasPendingInvitation: pendingInvitations.length > 0,
-                })
-              ) {
-                return {
-                  data: {
-                    ...session,
-                    activeOrganizationId: null,
-                  },
-                };
-              }
-
-              const orgName = deriveOrgName(
-                userRecord[0].name,
-                userRecord[0].email,
+            try {
+              activeOrganizationId = await ensureAutomaticOrganization(
+                session.userId,
+                (body) => auth.api.createOrganization({ body }),
               );
-
-              try {
-                await auth.api.createOrganization({
-                  body: {
-                    name: orgName,
-                    slug: generateOrgSlug(),
-                    userId: session.userId,
-                    plan: "hobby",
-                  },
-                });
-
-                // Re-query for the membership that was just created.
-                const newMembership = await db
-                  .select({ organizationId: member.organizationId })
-                  .from(member)
-                  .where(eq(member.userId, session.userId))
-                  .limit(1);
-
-                activeOrganizationId = newMembership[0]?.organizationId ?? null;
-              } catch (error) {
-                serverLogger.error("auto_org.create_personal_org.failed", {
-                  ...exceptionAttributes(error),
-                  "user.id": session.userId,
-                });
-              }
+            } catch (error) {
+              serverLogger.error("auto_org.create_personal_org.failed", {
+                ...exceptionAttributes(error),
+                "user.id": session.userId,
+              });
             }
           }
 
