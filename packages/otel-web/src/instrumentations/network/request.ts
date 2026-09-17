@@ -8,7 +8,7 @@ export function shouldPropagate(url: URL, targets?: PropagationTarget[]) {
     targets?.some((target) =>
       typeof target === "string"
         ? url.href.includes(target)
-        : target.test(url.href),
+        : url.href.search(target) !== -1,
     )
   );
 }

@@ -151,6 +151,25 @@ describe("XHR network instrumentation", () => {
     expect(spans()).toHaveLength(1);
   });
 
+  it.each([
+    "g",
+    "y",
+  ])("preserves stateful regex targets with flag %s", (flag) => {
+    const target = new RegExp("https://api\\.backend\\.example/", flag);
+    target.lastIndex = 7;
+    start([target]);
+    for (const matches of [true, true, false, true]) {
+      const xhr = request(
+        matches
+          ? "https://api.backend.example/data"
+          : "https://other.example/data",
+      );
+      expect(xhr.headers.has("traceparent")).toBe(matches);
+      expect(target.lastIndex).toBe(7);
+      xhr.complete();
+    }
+  });
+
   it("honors the document base URL and avoids cross-origin propagation", () => {
     document.head.innerHTML = '<base href="https://cdn.example/assets/">';
     start();
