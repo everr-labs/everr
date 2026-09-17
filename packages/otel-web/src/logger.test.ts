@@ -3,6 +3,7 @@ import { logger } from "./logger.js";
 import { createEmitter } from "./pipeline/emitter.js";
 import { fetchSend } from "./pipeline/transport.js";
 import { bindEmit } from "./state/emit.js";
+import { stubTransportFetch } from "./test-fetch.js";
 
 type SentRecord = {
   timeUnixNano: string;
@@ -18,8 +19,7 @@ let stop: () => void;
 
 function wire(envelope: () => Record<string, string> = () => ({})) {
   sent = [];
-  vi.stubGlobal(
-    "fetch",
+  stubTransportFetch(
     vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
       const payload = JSON.parse(String(init?.body));
       sent.push(...payload.resourceLogs[0].scopeLogs[0].logRecords);

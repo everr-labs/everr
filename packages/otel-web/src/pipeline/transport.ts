@@ -39,6 +39,10 @@ export type HostSend = (signal: Signal, body: string) => unknown;
 
 type TransportConfig = [send: Send, truncateAtExit: boolean];
 
+// Capture before any SDK instance installs network instrumentation. Capturing
+// in fetchSend is too late when an earlier instance already patched fetch.
+const doFetch = globalThis.fetch;
+
 /** Sends each batch with POST to the OTLP endpoint that the code found. */
 export function fetchSend(
   logsUrl: string,
@@ -46,13 +50,6 @@ export function fetchSend(
   extraHeaders: Record<string, string> | undefined,
 ): Send {
   const headers = { "Content-Type": "application/json", ...extraHeaders };
-  // The code keeps this reference to fetch when it constructs the WebSDK. This
-  // occurs before the network signal changes the global fetch. Thus the changed
-  // fetch cannot see the POST operations of the SDK. Thus the SDK cannot make a
-  // span for its own batch, and the code needs no list of URLs to ignore. A
-  // test replaces the global fetch before it constructs the SDK, and thus the
-  // SDK keeps the replacement.
-  const doFetch = fetch;
   return (signal, body, keepalive) =>
     doFetch(signal === "logs" ? logsUrl : tracesUrl, {
       method: "POST",

@@ -1,5 +1,6 @@
 import fc from "fast-check";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { stubTransportFetch } from "../test-fetch.js";
 import { createEmitter } from "./emitter.js";
 import { fetchSend } from "./transport.js";
 
@@ -23,8 +24,7 @@ type Sent = {
 
 function makeEmitter() {
   const sent: Sent[] = [];
-  vi.stubGlobal(
-    "fetch",
+  stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
       const body = String(init?.body);
       const payload = JSON.parse(body);
