@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { generateId } from "better-auth";
 import { and, eq, isNull } from "drizzle-orm";
 import { proOrganizationCheckout } from "@/db/schema";
 import { generateOrgSlug } from "@/lib/auto-org";
@@ -37,7 +37,7 @@ export function createBillingCheckouts(
           [intent] = await db
             .insert(proOrganizationCheckout)
             .values({
-              orgId: randomUUID(),
+              orgId: generateId(),
               ownerId,
               organizationName: name,
               organizationSlug: generateOrgSlug(),

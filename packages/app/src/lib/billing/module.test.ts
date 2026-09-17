@@ -262,6 +262,11 @@ it("lets the same person own different customers without using their email as cu
 });
 it("resumes new Pro checkout and does not create the org before payment", async () => {
   const first = await billing.startNewOrganizationCheckout("owner", "New");
+  const [attempt] = await database
+    .select()
+    .from(schema.proOrganizationCheckout);
+  expect(attempt.orgId).toMatch(/^[a-zA-Z0-9]{32}$/);
+  expect([...checkouts.values()][0].externalCustomerId).toBe(attempt.orgId);
   expect(await billing.startNewOrganizationCheckout("owner", "New")).toEqual(
     first,
   );

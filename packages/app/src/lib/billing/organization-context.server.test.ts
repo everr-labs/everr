@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { betterAuth } from "better-auth";
+import { betterAuth, generateId } from "better-auth";
 import { type MemoryDB, memoryAdapter } from "better-auth/adapters/memory";
 import { organization } from "better-auth/plugins";
 import { expect, it, vi } from "vitest";
@@ -44,26 +44,29 @@ it("preserves the reserved ID through real Better Auth creation and its membersh
       password: "password-12345",
     },
   });
+  const reservedId = generateId();
   const created = await withOrganizationCreationId(
-    { id: "reserved", ownerId: user.id, slug: "acme" },
+    { id: reservedId, ownerId: user.id, slug: "acme" },
     () =>
       auth.api.createOrganization({
         body: { name: "Acme", slug: "acme", userId: user.id },
       }),
   );
-  expect(created?.id).toBe("reserved");
+  expect(created?.id).toBe(reservedId);
   expect(db.member).toEqual([
     expect.objectContaining({
-      organizationId: "reserved",
+      organizationId: reservedId,
       userId: user.id,
       role: "owner",
     }),
   ]);
-  expect(provision).toHaveBeenCalledWith("reserved");
+  expect(provision).toHaveBeenCalledWith(reservedId);
   const other = await auth.api.createOrganization({
     body: { name: "Other", slug: "other", userId: user.id },
   });
-  expect(other?.id).not.toBe("reserved");
+  expect(other?.id).not.toBe(reservedId);
+  expect(created?.id).toMatch(/^[a-zA-Z0-9]{32}$/);
+  expect(other?.id).toMatch(/^[a-zA-Z0-9]{32}$/);
   await expect(
     withOrganizationCreationId(
       { id: "forged", ownerId: "other", slug: "bad" },
