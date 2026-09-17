@@ -33,7 +33,7 @@ new WebSDK({
 });
 ```
 
-Without a key or an endpoint, a production build resolves to an inert client that never issues a request. In dev it falls back to the local collector on `127.0.0.1:54318`.
+Without a key or an endpoint, a production build resolves to an inert client that never issues a request. In dev it falls back to the local collector on `127.0.0.1:54418`.
 
 ## Instrumentations
 
@@ -90,6 +90,37 @@ import { ErrorBoundary } from "@everr/otel-web/react";
 
 <ErrorBoundary fallback={<Oops />}>{children}</ErrorBoundary>;
 ```
+
+### Custom interaction segments
+
+Import `tracer` alongside `logger` to time application work after constructing a `WebSDK`. Custom spans use the same batching, context envelope, and `beforeSend` hook as built-in instrumentation. They default to `INTERNAL` spans; `options.kind` can override that.
+
+```ts
+import { tracer } from "@everr/otel-web";
+
+await tracer.startActiveSpan("checkout", async (interaction) => {
+  try {
+    const segment = tracer.startSpan("prepare checkout", {
+      attributes: { "everr.checkout.step": "prepare" },
+    });
+    try {
+      await prepareCheckout();
+    } finally {
+      segment.end();
+    }
+
+    await submitCheckout();
+  } finally {
+    interaction.end();
+  }
+});
+```
+
+`startSpan()` measures one segment without making it active. In the browser, `startActiveSpan()` makes a span active until `span.end()`, including across `await`. Both share the active stack with built-in instrumentation, so network requests made while an interaction is active become its children. Always end spans in `finally`; returning or throwing from the callback does not end them automatically.
+
+Browser parenting follows time, not async execution context: overlapping work joins the most recently active span, even when it comes from another interaction. Explicit OTel context arguments are ignored. The browser tracer accepts epoch-millisecond timestamps, ignores span events and links, and records exceptions as span attributes. `recordException()` does not set error status automatically; use `setStatus({ code: 2 })` for failed segments.
+
+Before initialization, after shutdown, or with only a keyless production SDK, the browser tracer returns non-recording spans and still runs callbacks. An imported tracer follows SDK replacement. On the server, it uses the application's registered OpenTelemetry provider and context manager, without requiring a `WebSDK`; the provider controls export and async context propagation there.
 
 ## Identity
 

@@ -407,7 +407,7 @@ export async function* backfillRepo(
     "github.installation.id": installationId,
     "github.repository.full_name": repo.full_name,
     "github.repository.id": repo.id,
-    "organization.id": organizationId,
+    "everr.organization.id": organizationId,
   });
 
   const result: BackfillResult = {
@@ -525,7 +525,7 @@ export async function* backfillRepo(
     "github.installation.id": installationId,
     "github.repository.full_name": repo.full_name,
     "github.repository.id": repo.id,
-    "organization.id": organizationId,
+    "everr.organization.id": organizationId,
     "result.error_count": result.errors.length,
     "result.jobs_replayed": result.jobsReplayed,
     "result.runs_replayed": result.runsReplayed,

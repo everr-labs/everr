@@ -28,6 +28,7 @@ import {
   revoke,
   setAttributes,
   setRouteResolver,
+  tracer,
   WebSDK,
 } from "./server.js";
 
@@ -124,6 +125,19 @@ describe("init (server)", () => {
     expect(record.spanContext?.spanId).toBe(span.spanContext().spanId);
   });
 
+  it("exports a tracer using the app's provider and async context without a WebSDK", async () => {
+    await tracer.startActiveSpan("checkout", async (parent) => {
+      await Promise.resolve();
+      tracer.startSpan("prepare checkout").end();
+      parent.end();
+    });
+    const [child, parent] = spanExporter.getFinishedSpans();
+    expect(child.parentSpanContext?.spanId).toBe(parent.spanContext().spanId);
+    expect(child.spanContext().traceId).toBe(parent.spanContext().traceId);
+    expect(child.kind).toBe(0);
+    expect(parent.instrumentationScope.name).toBe("@everr/otel-web");
+  });
+
   it("reports captureError with the shared exception wire contract", () => {
     client = new WebSDK({ serviceName: "everr-docs-test" });
     captureError(new Error("ssr boom"), { "everr.loader.route": "/x" });
@@ -195,6 +209,10 @@ describe("init (server)", () => {
     setLogger(logs.getLogger("test"));
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     client = new WebSDK({ serviceName: "everr-docs-test" });
+    tracer.startActiveSpan("no provider", (span) => {
+      expect(span.isRecording()).toBe(false);
+      span.end();
+    });
     logger.info("into the void");
     captureError(new Error("also into the void"));
     await client.flush();

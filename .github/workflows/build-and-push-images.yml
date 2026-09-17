@@ -8,6 +8,10 @@ on:
       - packages/app/**
       - packages/datemath/**
       - packages/docs/**
+      - packages/otel-errors/**
+      - packages/otel-web/**
+      - packages/tanstack-start-otel/**
+      - packages/telemetry-explorer/**
       - packages/ui/**
       - collector/**
       - package.json
@@ -51,6 +55,10 @@ jobs:
               - .github/workflows/build-and-push-images.yml
               - packages/app/**
               - packages/datemath/**
+              - packages/otel-errors/**
+              - packages/otel-web/**
+              - packages/tanstack-start-otel/**
+              - packages/telemetry-explorer/**
               - packages/ui/**
               - package.json
               - pnpm-lock.yaml
@@ -61,6 +69,8 @@ jobs:
             docs:
               - .github/workflows/build-and-push-images.yml
               - packages/docs/**
+              - packages/otel-errors/**
+              - packages/otel-web/**
               - packages/ui/**
               - package.json
               - pnpm-lock.yaml

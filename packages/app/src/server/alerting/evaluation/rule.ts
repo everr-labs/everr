@@ -355,7 +355,7 @@ async function recordEvaluationFailure(
   serverLogger.warn("alerts.evaluate.query_failed", {
     ...exceptionAttributes(cause),
     "everr.alert.definition_id": def.id,
-    "everr.alert.organization_id": def.organizationId,
+    "everr.organization.id": def.organizationId,
   });
 }
 
@@ -672,7 +672,7 @@ async function evaluateAlertRule(
       serverLogger.warn("alerts.evaluate.for_clock_restarted", {
         "everr.alert.rule": historyDef.slug,
         "everr.alert.definition_id": def.id,
-        "everr.alert.organization_id": def.organizationId,
+        "everr.organization.id": def.organizationId,
         "everr.alert.restarted_instances": forClockRestarts.length,
         "everr.alert.unobserved_gap_ms": Math.max(...forClockRestarts),
         "everr.alert.interval_secs": def.spec.interval_secs,

@@ -9,7 +9,9 @@ import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { resolveTelemetryConfig, signalUrl } from "./config";
+import { identityLogProcessor, identitySpanProcessor } from "./identity";
 
 const sensitiveQueryParams = [
   "AWSAccessKeyId",
@@ -61,10 +63,15 @@ function startTelemetry(): TelemetryState {
   const headers = config.headers;
   const sdk = new NodeSDK({
     resource: resourceFromAttributes(config.resourceAttributes),
-    traceExporter: new OTLPTraceExporter({
-      headers,
-      url: signalUrl(config.endpoint, "traces"),
-    }),
+    spanProcessors: [
+      identitySpanProcessor,
+      new BatchSpanProcessor(
+        new OTLPTraceExporter({
+          headers,
+          url: signalUrl(config.endpoint, "traces"),
+        }),
+      ),
+    ],
     metricReaders: [
       new PeriodicExportingMetricReader({
         exporter: new OTLPMetricExporter({
@@ -74,6 +81,7 @@ function startTelemetry(): TelemetryState {
       }),
     ],
     logRecordProcessors: [
+      identityLogProcessor,
       new BatchLogRecordProcessor(
         new OTLPLogExporter({
           headers,

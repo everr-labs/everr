@@ -23,6 +23,7 @@ const taskMocks = vi.hoisted(() => {
   let activeSpan = false;
 
   return {
+    mergeTelemetryIdentity: vi.fn(),
     handleStatusEvent: vi.fn(),
     logActiveSpan,
     replayWebhookToCollector: vi.fn(),
@@ -76,6 +77,11 @@ vi.mock("@/telemetry/node", () => ({
   getTelemetryTracer: () => ({
     startActiveSpan: taskMocks.startActiveSpan,
   }),
+}));
+
+vi.mock("@/telemetry/identity", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/telemetry/identity")>()),
+  mergeTelemetryIdentity: taskMocks.mergeTelemetryIdentity,
 }));
 
 vi.mock("./collector", () => ({
@@ -135,6 +141,7 @@ async function runTask(
 }
 
 beforeEach(() => {
+  taskMocks.mergeTelemetryIdentity.mockClear();
   taskMocks.handleStatusEvent.mockReset().mockResolvedValue(undefined);
   taskMocks.logActiveSpan.length = 0;
   taskMocks.replayWebhookToCollector.mockReset().mockResolvedValue(undefined);
@@ -179,10 +186,9 @@ describe("github events tasks", () => {
       },
       expect.any(Function),
     );
-    expect(taskMocks.span.setAttribute).toHaveBeenCalledWith(
-      "everr.organization.id",
-      "org-1",
-    );
+    expect(taskMocks.mergeTelemetryIdentity).toHaveBeenCalledWith({
+      organizationId: "org-1",
+    });
   });
 
   it("status tasks pass the parsed workflow event to the status writer", async () => {

@@ -86,7 +86,7 @@ export function resolveTransport(options: {
     (key
       ? "https://ingest.everr.dev"
       : options.dev
-        ? "http://127.0.0.1:54318"
+        ? "http://127.0.0.1:54418"
         : null);
   if (!base) return null;
   return [
