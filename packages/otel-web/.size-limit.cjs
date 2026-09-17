@@ -72,7 +72,8 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, network }",
     gzip: true,
-    limit: "4.1 KB",
+    // Includes XHR lifecycle tracking alongside fetch.
+    limit: "4.9 KB",
   },
   {
     // All instrumentation factories composed: verifies the sampled runtime is
@@ -83,6 +84,7 @@ module.exports = [
     import:
       "{ WebSDK, errors, pageviews, interactions, performance, pageLoad, network, sampled }",
     gzip: true,
-    limit: "10 KB",
+    // Includes XHR lifecycle tracking alongside fetch.
+    limit: "11 KB",
   },
 ];
