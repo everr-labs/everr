@@ -12,7 +12,7 @@ type RequestState = {
 export function startXHR(tracer: Tracer, targets?: PropagationTarget[]) {
   if (typeof XMLHttpRequest === "undefined") return () => {};
   const proto = XMLHttpRequest.prototype;
-  const { open, send, setRequestHeader } = proto;
+  const { open, send } = proto;
   let requests: WeakMap<XMLHttpRequest, RequestState> | undefined =
     new WeakMap();
   const pending = new Set<() => void>();
@@ -62,7 +62,7 @@ export function startXHR(tracer: Tracer, targets?: PropagationTarget[]) {
     const request = startRequest(tracer, state.method, state.url);
     if (shouldPropagate(state.url, targets)) {
       try {
-        setRequestHeader.call(this, "traceparent", request.traceparent);
+        this.setRequestHeader("traceparent", request.traceparent);
       } catch {
         // A failed header injection must not prevent the request.
       }
