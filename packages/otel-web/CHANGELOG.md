@@ -1,5 +1,12 @@
 # @everr/otel-web
 
+## 0.3.2
+
+### Patch Changes
+
+- 21b3838: Capture fetch before SDK initialization so OTLP exports do not create network spans when an earlier SDK instance has already instrumented fetch.
+- 2ecad0b: Capture XMLHttpRequest calls in network() with client spans, trace propagation, route naming, and sanitized URLs. Handle request reuse, synchronous requests, failures, cancellation, and cleanup on shutdown without adding dependencies.
+
 ## 0.3.1
 
 ### Patch Changes
