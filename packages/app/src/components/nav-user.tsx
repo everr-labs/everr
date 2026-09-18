@@ -13,7 +13,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@everr/ui/components/sidebar";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import {
   Check,
@@ -23,17 +23,13 @@ import {
   Download,
   GitPullRequest,
   KeyRound,
-  Loader2,
   LogOut,
   Plus,
-  ReceiptText,
   Settings,
   Users,
 } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
-import { getOrgPortalUrl } from "@/data/billing";
 import { getOrganizationCreationOptions } from "@/data/organizations";
 import { PLATFORMS } from "@/lib/app-download";
 import { authClient } from "@/lib/auth-client";
@@ -57,22 +53,6 @@ export function NavUser() {
     queryKey: ["organization-creation-options"],
     queryFn: () => getOrganizationCreationOptions(),
   });
-  const portalMutation = useMutation({
-    mutationFn: () => getOrgPortalUrl(),
-    onSuccess: (result) => {
-      if (result.status === "customer_missing") {
-        void router.navigate({ to: "/billing" });
-        toast.error("Set up a billing email before opening billing details.");
-        return;
-      }
-
-      window.location.href = result.url;
-    },
-    onError: () => {
-      toast.error("We couldn't open billing details. Please try again.");
-    },
-  });
-
   const { isMobile } = useSidebar();
 
   async function handleSwitchOrg(orgId: string) {
@@ -200,29 +180,13 @@ export function NavUser() {
                       GitHub
                     </DropdownMenuItem>
                     {isAdmin ? (
-                      <>
-                        <DropdownMenuItem
-                          closeOnClick={false}
-                          disabled={portalMutation.isPending}
-                          onClick={() => portalMutation.mutate()}
-                        >
-                          {portalMutation.isPending ? (
-                            <Loader2 className="animate-spin" />
-                          ) : (
-                            <ReceiptText />
-                          )}
-                          {portalMutation.isPending
-                            ? "Opening billing details..."
-                            : "Billing details"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          render={<Link to="/billing" />}
-                          nativeButton={false}
-                        >
-                          <CreditCard />
-                          Plan &amp; Billing
-                        </DropdownMenuItem>
-                      </>
+                      <DropdownMenuItem
+                        render={<Link to="/billing" />}
+                        nativeButton={false}
+                      >
+                        <CreditCard />
+                        Plan &amp; Billing
+                      </DropdownMenuItem>
                     ) : null}
                   </DropdownMenuGroup>
                 </>
