@@ -1,6 +1,6 @@
 import { generateId } from "better-auth";
 import { and, eq, isNull } from "drizzle-orm";
-import { proOrganizationCheckout } from "@/db/schema";
+import { orgSubscription, proOrganizationCheckout } from "@/db/schema";
 import { generateOrgSlug } from "@/lib/auto-org";
 import { creationLock, metadataFor } from "./attempts";
 import type { createBillingIdentity } from "./identity";
@@ -103,6 +103,13 @@ export function createBillingCheckouts(
     },
     async startUpgrade(orgId: string, actorId: string) {
       return lock(`billing:${orgId}`, async () => {
+        await store.authorize(orgId, actorId);
+        const [subscription] = await db
+          .select({ status: orgSubscription.status })
+          .from(orgSubscription)
+          .where(eq(orgSubscription.orgId, orgId));
+        if (subscription?.status === "active")
+          throw new BillingError("already_active", "Pro is already active.");
         const customer = await identity.prepareCheckout(orgId, actorId);
         const sessions = (await polar.checkouts(customer.id)).filter(
           (s) => s.metadata.orgId === orgId && !s.metadata.everrPurpose,

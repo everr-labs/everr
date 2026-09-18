@@ -6,7 +6,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { organization, user } from "./auth";
+import { organization } from "./auth";
 
 export const orgSubscription = pgTable("org_subscription", {
   orgId: text("org_id")
@@ -29,9 +29,8 @@ export const proOrganizationCheckout = pgTable(
   "pro_organization_checkout",
   {
     orgId: text("org_id").primaryKey(),
-    ownerId: text("owner_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    // Historical creator identity must survive account deletion for webhook verification.
+    ownerId: text("owner_id").notNull(),
     organizationName: text("organization_name").notNull(),
     organizationSlug: text("organization_slug").notNull().unique(),
     checkoutId: text("checkout_id"),

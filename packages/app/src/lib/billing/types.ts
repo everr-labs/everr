@@ -78,6 +78,7 @@ export type BillingDependencies = {
   appUrl: string;
 };
 export type BillingErrorCode =
+  | "already_active"
   | "unavailable"
   | "identity_conflict"
   | "customer_missing"

@@ -3823,21 +3823,7 @@
           "with": {}
         }
       },
-      "foreignKeys": {
-        "pro_organization_checkout_owner_id_user_id_fk": {
-          "name": "pro_organization_checkout_owner_id_user_id_fk",
-          "tableFrom": "pro_organization_checkout",
-          "tableTo": "user",
-          "columnsFrom": [
-            "owner_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "pro_organization_checkout_organization_slug_unique": {
