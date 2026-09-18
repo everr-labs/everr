@@ -63,7 +63,7 @@ function GithubPage() {
   }, [queryClient]);
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
       <PageHeader
         title="GitHub"
         lede="Connect GitHub and import recent workflow history into this organization."

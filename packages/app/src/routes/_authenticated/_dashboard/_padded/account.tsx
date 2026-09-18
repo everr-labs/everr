@@ -180,7 +180,7 @@ function AccountSettingsPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
       <PageHeader
         title="Account Settings"
         lede="Manage your profile and account lifecycle."
