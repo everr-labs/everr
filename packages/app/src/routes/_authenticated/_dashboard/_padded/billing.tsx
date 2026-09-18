@@ -280,21 +280,14 @@ function RedirectButton({
   label,
   loadingLabel,
 }: {
-  mutationFn: () => Promise<{ url: string } | { status: "customer_missing" }>;
+  mutationFn: () => Promise<{ url: string }>;
   variant?: "default" | "outline";
   icon: LucideIcon;
   label: ReactNode;
   loadingLabel: ReactNode;
 }) {
   const m = useMutation({
-    mutationFn: async () => {
-      const result = await mutationFn();
-      if ("status" in result)
-        throw new Error(
-          "Billing is currently unavailable. Please try again or contact support.",
-        );
-      return result;
-    },
+    mutationFn,
     onSuccess: (result) => {
       window.location.href = result.url;
     },

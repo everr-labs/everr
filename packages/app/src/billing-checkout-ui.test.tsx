@@ -96,7 +96,11 @@ it("shows upgrade immediately for a Hobby organization", async () => {
 });
 it("keeps the portal retryable when the customer is missing", async () => {
   mocks.entitlement.mockResolvedValue({ plan: "pro", appState: "pro" });
-  mocks.portal.mockResolvedValue({ status: "customer_missing" });
+  mocks.portal.mockRejectedValue(
+    new Error(
+      "Billing is currently unavailable. Please try again or contact support.",
+    ),
+  );
   billingPage();
   const portal = await screen.findByRole("button", {
     name: "Open billing portal",
