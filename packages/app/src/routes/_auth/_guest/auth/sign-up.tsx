@@ -11,7 +11,7 @@ import {
   AuthPageHeader,
   AuthProviderSeparator,
   buildAuthErrorCallbackURL,
-  buildOnboardingCallbackURL,
+  buildPostAuthenticationURL,
   GoogleAuthButton,
 } from "../-components/auth-page";
 
@@ -30,9 +30,7 @@ function SignUp() {
   const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // New accounts always run onboarding first (org + GitHub setup); any caller
-  // redirect (e.g. CLI device approval) is forwarded once onboarding completes.
-  const callbackURL = buildOnboardingCallbackURL(redirectTo);
+  const callbackURL = buildPostAuthenticationURL(redirectTo);
   const errorCallbackURL = buildAuthErrorCallbackURL("/auth/sign-up", {
     redirect: redirectTo,
     email: prefillEmail,
@@ -60,10 +58,7 @@ function SignUp() {
           return;
         }
 
-        await navigate({
-          to: "/onboarding",
-          search: redirectTo ? { redirect: redirectTo } : {},
-        });
+        await navigate({ to: redirectTo ?? "/" });
       } catch {
         setError("An unexpected error occurred. Please try again.");
       } finally {

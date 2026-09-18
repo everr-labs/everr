@@ -13,7 +13,7 @@
  *
  * All GitHub API calls (repos, runs, jobs) are made sequentially on purpose to
  * stay well within GitHub's rate limits. The backfill runs in the background
- * during onboarding, so wall-clock time is acceptable.
+ * during an interactive import, so wall-clock time is acceptable.
  */
 
 import { createHash, createHmac } from "node:crypto";

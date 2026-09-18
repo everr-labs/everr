@@ -15,7 +15,7 @@ describe("replayWebhookToCollector", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("sends tenant and retention headers to the collector", async () => {
-    vi.mocked(retentionForOrg).mockResolvedValueOnce(resolveRetention("free"));
+    vi.mocked(retentionForOrg).mockResolvedValueOnce(resolveRetention("hobby"));
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(null, { status: 204 }));

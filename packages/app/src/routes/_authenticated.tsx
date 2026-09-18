@@ -1,4 +1,4 @@
-import { Button } from "@everr/ui/components/button";
+import { Button, buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
@@ -6,16 +6,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   ErrorComponent,
+  Link,
   redirect,
   useRouter,
 } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
+import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
+import { getActiveOrgAppAccess } from "@/data/billing";
+import { getOrganizationCreationOptions } from "@/data/organizations";
 import { auth } from "@/lib/auth.server";
 import { authClient } from "@/lib/auth-client";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
@@ -59,7 +63,29 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to, search: { redirect: redirectTo } });
     }
 
+    if (pathname === "/account") {
+      return {
+        session: {
+          ...session,
+          session: {
+            ...session.session,
+            // Account settings do not consume organization context. Preserve
+            // the narrowed parent type for organization-scoped descendants.
+            activeOrganizationId: session.session.activeOrganizationId ?? "",
+          },
+        },
+      };
+    }
+
     const { activeOrganizationId } = await verifyActiveOrg();
+    const entitlement = await getActiveOrgAppAccess();
+    if (
+      entitlement.appState === "suspended" &&
+      pathname !== "/billing/suspended" &&
+      pathname !== "/billing"
+    ) {
+      throw redirect({ to: "/billing/suspended" });
+    }
 
     return {
       session: {
@@ -91,19 +117,54 @@ function OrgSwitcher() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { data: orgs, isPending, refetch } = authClient.useListOrganizations();
+  const organizations = authClient.useListOrganizations();
+  const organizationCreationOptions = useQuery({
+    queryKey: ["organization-creation-options"],
+    queryFn: () => getOrganizationCreationOptions(),
+  });
+  const orgs = organizations.data;
+  const { refetch } = organizations;
+  const [hasRefreshed, setHasRefreshed] = useState(false);
 
   useEffect(() => {
-    refetch();
-  }, []);
+    let mounted = true;
+    // The menu may have cached memberships before access was revoked.
+    void refetch().then(() => {
+      if (mounted) setHasRefreshed(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [refetch]);
 
   const [switching, setSwitching] = useState<string | null>(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const [isCreateOrgDialogOpen, setCreateOrgDialogOpen] = useState(false);
+  const isLoading =
+    !hasRefreshed || organizations.isPending || organizations.isRefetching;
+  const hasOrganizations = Boolean(orgs?.length);
 
   async function handleSwitch(orgId: string) {
     setSwitching(orgId);
-    await authClient.organization.setActive({ organizationId: orgId });
-    await queryClient.invalidateQueries();
-    router.invalidate();
+    setSwitchError(null);
+    try {
+      const { error } = await authClient.organization.setActive({
+        organizationId: orgId,
+      });
+      if (error)
+        throw new Error(error.message ?? "Could not select this organization.");
+      await queryClient.invalidateQueries();
+      await router.invalidate();
+    } catch (error) {
+      setSwitchError(
+        error instanceof Error
+          ? error.message
+          : "Could not select this organization.",
+      );
+      await organizations.refetch();
+    } finally {
+      setSwitching(null);
+    }
   }
 
   return (
@@ -111,17 +172,38 @@ function OrgSwitcher() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-xl font-heading">
-            Organization unavailable
+            {isLoading || organizations.error
+              ? "Your organizations"
+              : hasOrganizations
+                ? "Choose an organization"
+                : "You don't belong to an organization"}
           </CardTitle>
           <CardDescription>
-            You no longer have access to this organization. Switch to another
-            one to continue.
+            {isLoading
+              ? "Checking your organization memberships."
+              : organizations.error
+                ? "Your organization memberships could not be loaded."
+                : hasOrganizations
+                  ? "Select an organization to continue, or create a new one for your team."
+                  : "Create an organization to get started, or manage your account settings."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isPending ? (
+          {isLoading ? (
             <div className="flex justify-center py-4">
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : organizations.error ? (
+            <div className="space-y-2">
+              <p role="alert" className="text-sm text-destructive">
+                Could not load your organizations. Please try again.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => void organizations.refetch()}
+              >
+                Retry
+              </Button>
             </div>
           ) : orgs && orgs.length > 0 ? (
             <div className="space-y-2">
@@ -140,21 +222,39 @@ function OrgSwitcher() {
                 </Button>
               ))}
             </div>
-          ) : (
-            <div className="space-y-4 text-center">
-              <p className="text-sm text-muted-foreground">
-                You don't belong to any organizations.
-              </p>
-              <Button
-                className="w-full"
-                onClick={() => void router.navigate({ to: "/onboarding" })}
-              >
-                Create an organization
-              </Button>
-            </div>
-          )}
+          ) : null}
+          {switchError ? (
+            <p role="alert" className="mt-2 text-sm text-destructive">
+              {switchError}
+            </p>
+          ) : null}
+          <Button
+            className="mt-4 w-full"
+            disabled={switching !== null || !organizationCreationOptions.data}
+            onClick={() => setCreateOrgDialogOpen(true)}
+          >
+            <Plus />
+            Create organization
+          </Button>
+          <Link
+            to="/account"
+            className={buttonVariants({
+              variant: "outline",
+              className: "mt-2 w-full",
+            })}
+          >
+            <Settings />
+            Account settings
+          </Link>
         </CardContent>
       </Card>
+      {organizationCreationOptions.data ? (
+        <CreateOrganizationDialog
+          canCreateHobby={organizationCreationOptions.data.canCreateHobby}
+          open={isCreateOrgDialogOpen}
+          onOpenChange={setCreateOrgDialogOpen}
+        />
+      ) : null}
     </main>
   );
 }

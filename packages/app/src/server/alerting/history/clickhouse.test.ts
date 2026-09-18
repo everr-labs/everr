@@ -153,7 +153,7 @@ describe("ClickHouse alert history", () => {
 
   it("stamps mixed tenants and event classes with their alert entitlements", async () => {
     vi.mocked(retentionForOrg).mockImplementation(async (orgId) =>
-      resolveRetention(orgId === "org-2" ? "free" : "pro"),
+      resolveRetention(orgId === "org-2" ? "hobby" : "pro"),
     );
     const rowFor = (organizationId: string) =>
       evaluationHistoryRow({

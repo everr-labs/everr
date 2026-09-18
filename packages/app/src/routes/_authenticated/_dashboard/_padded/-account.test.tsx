@@ -76,12 +76,14 @@ describe("/account route", () => {
     expect(screen.getByText("Delete account")).toBeInTheDocument();
   });
 
-  it("renders GitHub connection card", () => {
+  it("does not include organization GitHub settings", () => {
     const Component = Route.options.component as React.ComponentType;
     render(<Component />);
 
-    expect(screen.getByText("GitHub Connection")).toBeInTheDocument();
-    expect(screen.getByText("Connect GitHub")).toBeInTheDocument();
+    expect(screen.queryByText("GitHub Connection")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Manage GitHub" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders Google connection card", async () => {
@@ -251,5 +253,50 @@ describe("/account route", () => {
         data: { confirmation: "DELETE", deleteOrganization: true },
       });
     });
+  });
+
+  it("allows account deletion to start without an active organization", async () => {
+    const user = userEvent.setup();
+    mocks.useActiveOrganization.mockReturnValue({ data: null });
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await user.type(screen.getByLabelText("Confirmation"), "DELETE");
+    await user.click(
+      screen.getByRole("button", { name: "Delete permanently" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.deleteCurrentUserAccount).toHaveBeenCalledWith({
+        data: { confirmation: "DELETE" },
+      });
+    });
+  });
+
+  it("shows the Pro organization ownership block from the server", async () => {
+    const user = userEvent.setup();
+    mocks.deleteCurrentUserAccount.mockRejectedValueOnce(
+      new Error(
+        "You can't delete your account while you are an owner of one or more Pro organizations. Transfer ownership of: Acme.",
+      ),
+    );
+    const Component = Route.options.component as React.ComponentType;
+    render(<Component />);
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await user.type(screen.getByLabelText("Confirmation"), "DELETE");
+    await user.click(
+      screen.getByRole("button", { name: "Delete permanently" }),
+    );
+
+    expect(
+      await screen.findByRole("alert", {
+        name: "",
+      }),
+    ).toHaveTextContent(
+      "You can't delete your account while you are an owner of one or more Pro organizations. Transfer ownership of: Acme.",
+    );
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 });

@@ -8,8 +8,8 @@ import {
 } from "@/components/home/setup-cards";
 import { StatSection, StatTile } from "@/components/home/stat-tile";
 import { costOverviewOptions } from "@/data/cost-analysis/options";
+import { getGithubAppInstallStatus } from "@/data/github";
 import { homeOverviewOptions } from "@/data/home/options";
-import { getGithubAppInstallStatus } from "@/data/onboarding";
 import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 

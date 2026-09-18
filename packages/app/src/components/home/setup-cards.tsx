@@ -6,7 +6,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import { ArrowUpRight, Download, GitBranch } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Download, GitBranch } from "lucide-react";
 import { INSTALL_COMMAND } from "@/common/install-command";
 import { InstallCommandBlock } from "@/components/install-command-block";
 
@@ -45,14 +46,7 @@ export function ConnectGithubCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button
-          render={
-            <a href="/api/github/install/start" target="_blank" rel="noopener">
-              Install GitHub app
-              <ArrowUpRight className="size-4" />
-            </a>
-          }
-        />
+        <Button render={<Link to="/github">Connect GitHub</Link>} />
       </CardContent>
     </Card>
   );

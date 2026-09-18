@@ -1,34 +1,76 @@
-import { eq, sql } from "drizzle-orm";
-import { db } from "@/db/client";
-import { orgSubscription } from "@/db/schema";
-import type { Tier } from "@/lib/retention";
+import { and, eq, ne, sql } from "drizzle-orm";
+import { z } from "zod";
+import { db, type Transaction } from "@/db/client";
+import { member, organization, orgSubscription } from "@/db/schema";
+import {
+  assertPolarProductGrantsPlan,
+  planForPolarProductId,
+} from "@/lib/billing/catalog.server";
 
-const ACTIVE_STATUSES = new Set(["active", "trialing"]);
+export type OrganizationPlan = typeof organization.$inferSelect.plan;
+export type OrganizationAppState = "hobby" | "pro" | "suspended";
 
-// Keep paid-through retention during payment retries or scheduled cancellation:
-// retention stamped at ingestion cannot be extended later.
-const PAID_THROUGH_STATUSES = new Set(["past_due", "unpaid", "canceled"]);
-
-type SubscriptionTierInput = {
+type SubscriptionPlanInput = {
+  polarProductId: string;
   status: string | null;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean | null;
 };
 
-function tierForSubscription(row: SubscriptionTierInput | undefined): Tier {
-  if (!row?.status) return "free";
-  if (ACTIVE_STATUSES.has(row.status)) return "pro";
-  if (!PAID_THROUGH_STATUSES.has(row.status)) return "free";
-  // A cancellation scheduled for the period end keeps the paid period;
-  // an immediate revoke leaves cancelAtPeriodEnd false and ends it now.
-  if (row.status === "canceled" && !row.cancelAtPeriodEnd) return "free";
-  return row.currentPeriodEnd && row.currentPeriodEnd > new Date()
-    ? "pro"
-    : "free";
+function hasRole(role: string, expected: string) {
+  return role.split(",").includes(expected);
+}
+
+function appStateForPlan(
+  plan: OrganizationPlan,
+  subscription: SubscriptionPlanInput | undefined,
+): OrganizationAppState {
+  if (subscription) {
+    if (plan === "hobby") {
+      planForPolarProductId(subscription.polarProductId);
+    } else {
+      assertPolarProductGrantsPlan(subscription.polarProductId, plan);
+    }
+  }
+  if (plan === "hobby") return "hobby";
+  return subscription?.status === "active" ? "pro" : "suspended";
+}
+
+const storageError = z.object({
+  code: z.unknown().optional(),
+  cause: z.unknown().optional(),
+});
+const unavailableStorageCodes = new Set<unknown>(["42P01", "42703"]);
+function isUnavailablePlanStorage(error: unknown) {
+  let current = error;
+  for (let depth = 0; depth < 4; depth += 1) {
+    const parsed = storageError.safeParse(current);
+    if (!parsed.success) return false;
+    if (unavailableStorageCodes.has(parsed.data.code)) return true;
+    current = parsed.data.cause;
+  }
+  return false;
+}
+
+async function readExplicitPlan(orgId: string) {
+  try {
+    const [plan] = await db
+      .select({ plan: organization.plan })
+      .from(organization)
+      .where(eq(organization.id, orgId))
+      .limit(1);
+    return plan;
+  } catch (error) {
+    // Keeps reads available during a rolling deployment before the new
+    // Organization columns are applied. Writes still fail closed.
+    if (isUnavailablePlanStorage(error)) return undefined;
+    throw error;
+  }
 }
 
 export type OrgEntitlement = {
-  tier: "free" | "pro";
+  plan: OrganizationPlan;
+  appState: OrganizationAppState;
   status: string | null;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
@@ -37,45 +79,79 @@ export type OrgEntitlement = {
 export async function readOrgEntitlement(
   orgId: string,
 ): Promise<OrgEntitlement> {
-  const [row] = await db
-    .select()
-    .from(orgSubscription)
-    .where(eq(orgSubscription.orgId, orgId))
-    .limit(1);
+  const [storedPlan, subscriptionRows] = await Promise.all([
+    readExplicitPlan(orgId),
+    db
+      .select()
+      .from(orgSubscription)
+      .where(eq(orgSubscription.orgId, orgId))
+      .limit(1),
+  ]);
+  const row = subscriptionRows[0];
+  // Organizations predating the Plan column keep their active Pro access.
+  const plan: OrganizationPlan =
+    storedPlan?.plan ?? (row?.status === "active" ? "pro" : "hobby");
+  const appState = appStateForPlan(plan, row);
 
   return {
-    tier: tierForSubscription(row),
+    plan,
+    appState,
     status: row?.status ?? null,
     currentPeriodEnd: row?.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: row?.cancelAtPeriodEnd ?? false,
   };
 }
 
-type SubscriptionUpsert = {
-  orgId: string;
-  polarSubscriptionId: string;
-  polarProductId: string;
-  status: string;
-  currentPeriodEnd: Date | null;
-  cancelAtPeriodEnd: boolean;
-  polarModifiedAt: Date;
-};
+export async function userOwnsHobbyOrganization(
+  userId: string,
+  excludingOrgId?: string,
+) {
+  try {
+    const memberships = await db
+      .select({ role: member.role })
+      .from(member)
+      .innerJoin(organization, eq(organization.id, member.organizationId))
+      .where(
+        and(
+          eq(member.userId, userId),
+          eq(organization.plan, "hobby"),
+          excludingOrgId
+            ? ne(member.organizationId, excludingOrgId)
+            : undefined,
+        ),
+      );
+    return memberships.some(({ role }) => hasRole(role, "owner"));
+  } catch (error) {
+    if (!isUnavailablePlanStorage(error)) throw error;
+  }
 
-export async function upsertOrgSubscription(input: SubscriptionUpsert) {
-  await db
-    .insert(orgSubscription)
-    .values(input)
-    .onConflictDoUpdate({
-      target: orgSubscription.orgId,
-      set: {
-        polarSubscriptionId: input.polarSubscriptionId,
-        polarProductId: input.polarProductId,
-        status: input.status,
-        currentPeriodEnd: input.currentPeriodEnd,
-        cancelAtPeriodEnd: input.cancelAtPeriodEnd,
-        polarModifiedAt: input.polarModifiedAt,
-        updatedAt: new Date(),
-      },
-      setWhere: sql`${orgSubscription.polarModifiedAt} < ${input.polarModifiedAt}`,
-    });
+  // Fall back to Memberships during a rolling deployment before the new
+  // Organization columns are available.
+  const memberships = await db
+    .select({ organizationId: member.organizationId, role: member.role })
+    .from(member)
+    .where(
+      excludingOrgId
+        ? and(
+            eq(member.userId, userId),
+            ne(member.organizationId, excludingOrgId),
+          )
+        : eq(member.userId, userId),
+    );
+  const ownedOrganizations = memberships.filter(({ role }) =>
+    hasRole(role, "owner"),
+  );
+  const entitlements = await Promise.all(
+    ownedOrganizations.map(({ organizationId }) =>
+      readOrgEntitlement(organizationId),
+    ),
+  );
+  return entitlements.some(({ plan }) => plan === "hobby");
+}
+
+export async function lockHobbyOrganizationOwnership(
+  tx: Transaction,
+  userId: string,
+) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
 }

@@ -1,3 +1,4 @@
+import { Button } from "@everr/ui/components/button";
 import {
   Card,
   CardAction,
@@ -7,8 +8,7 @@ import {
 } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { getRequestHeaders } from "@tanstack/react-start/server";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/page-header";
 import { InvitationsTable } from "@/components/users-management/invitations-table";
 import { InviteMemberDialog } from "@/components/users-management/invite-member-dialog";
@@ -17,39 +17,21 @@ import {
   invitationsQueryOptions,
   membersQueryOptions,
 } from "@/components/users-management/queries";
-import { auth } from "@/lib/auth.server";
+import { getActiveOrgAppAccess } from "@/data/billing";
 import { authClient } from "@/lib/auth-client";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
-
-const ensureOrgAdmin = createAuthenticatedServerFn.handler(
-  async ({ context: { session } }) => {
-    const org = await auth.api.getFullOrganization({
-      headers: getRequestHeaders(),
-      query: { organizationId: session.session.activeOrganizationId },
-    });
-    if (!org) return { allowed: false };
-
-    const membership = org.members.find((m) => m.userId === session.user.id);
-    return {
-      allowed: membership?.role === "admin" || membership?.role === "owner",
-    };
-  },
-);
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/users-management",
+  "/_authenticated/_dashboard/_padded/_organization/users-management",
 )({
-  staticData: { breadcrumb: "Users Management", hideTimeRangePicker: true },
+  staticData: { breadcrumb: "Members", hideTimeRangePicker: true },
   head: () => ({
-    meta: [{ title: "Everr - Users Management" }],
+    meta: [{ title: "Everr - Members" }],
   }),
   beforeLoad: async () => {
-    const { allowed } = await ensureOrgAdmin();
-    if (!allowed) {
-      throw redirect({ to: "/" });
-    }
+    const { appState } = await getActiveOrgAppAccess();
+    return { appState };
   },
-  component: UsersManagementPage,
+  component: MembersPage,
 });
 
 function MembersSkeleton() {
@@ -62,7 +44,38 @@ function MembersSkeleton() {
   );
 }
 
-function UsersManagementPage() {
+function MembersPage() {
+  const { appState } = Route.useRouteContext();
+  if (appState === "hobby") return <HobbyMembersCta />;
+  return <ProMembersPage />;
+}
+
+function HobbyMembersCta() {
+  return (
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      <PageHeader
+        title="Members"
+        lede="Collaboration is available with the Pro plan."
+      />
+      <Card>
+        <CardHeader>
+          <CardTitle>Invite your team with Pro</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Hobby organizations are individual and can only contain their Owner.
+            Upgrade to Pro to invite members and manage team access.
+          </p>
+          <Button nativeButton={false} render={<Link to="/billing" />}>
+            View Pro plan
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ProMembersPage() {
   const { data: session } = authClient.useSession();
   const currentUserId = session?.user?.id;
   const members = useQuery(membersQueryOptions());
@@ -73,7 +86,7 @@ function UsersManagementPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <PageHeader
-        title="Users Management"
+        title="Members"
         lede="Manage organization members, invitations, and access."
       />
 

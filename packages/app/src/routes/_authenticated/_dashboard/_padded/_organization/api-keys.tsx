@@ -2,43 +2,19 @@ import { Card, CardContent } from "@everr/ui/components/card";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { getRequestHeaders } from "@tanstack/react-start/server";
+import { createFileRoute } from "@tanstack/react-router";
 import { ApiKeysSections } from "@/components/api-keys/api-keys-table";
 import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
 import { apiKeysQueryOptions } from "@/components/api-keys/queries";
 import { PageHeader } from "@/components/page-header";
-import { auth } from "@/lib/auth.server";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
-
-const ensureOrgAdmin = createAuthenticatedServerFn.handler(
-  async ({ context: { session } }) => {
-    const org = await auth.api.getFullOrganization({
-      headers: getRequestHeaders(),
-      query: { organizationId: session.session.activeOrganizationId },
-    });
-    if (!org) return { allowed: false };
-
-    const membership = org.members.find((m) => m.userId === session.user.id);
-    return {
-      allowed: membership?.role === "admin" || membership?.role === "owner",
-    };
-  },
-);
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/api-keys",
+  "/_authenticated/_dashboard/_padded/_organization/api-keys",
 )({
   staticData: { breadcrumb: "API keys", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - API keys" }],
   }),
-  beforeLoad: async () => {
-    const { allowed } = await ensureOrgAdmin();
-    if (!allowed) {
-      throw redirect({ to: "/" });
-    }
-  },
   component: ApiKeysPage,
 });
 

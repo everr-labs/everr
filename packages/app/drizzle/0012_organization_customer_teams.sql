@@ -1,0 +1,20 @@
+CREATE TABLE "pro_organization_checkout" (
+	"org_id" text PRIMARY KEY NOT NULL,
+	"owner_id" text NOT NULL,
+	"organization_name" text NOT NULL,
+	"organization_slug" text NOT NULL,
+	"checkout_id" text,
+	"polar_customer_id" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"completed_at" timestamp,
+	CONSTRAINT "pro_organization_checkout_organization_slug_unique" UNIQUE("organization_slug")
+);
+--> statement-breakpoint
+ALTER TABLE "organization" ADD COLUMN "polar_customer_id" text;--> statement-breakpoint
+ALTER TABLE "organization" ADD COLUMN "plan" text DEFAULT 'hobby' NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "pro_organization_checkout_pending_owner_name_uidx" ON "pro_organization_checkout" USING btree ("owner_id","organization_name") WHERE "pro_organization_checkout"."completed_at" is null;--> statement-breakpoint
+ALTER TABLE "organization" ADD CONSTRAINT "organization_polar_customer_id_unique" UNIQUE("polar_customer_id");--> statement-breakpoint
+-- Billing cutover: no paid plans remain active. Polar customers are removed manually.
+DELETE FROM "org_subscription";--> statement-breakpoint
+DELETE FROM "pro_organization_checkout";--> statement-breakpoint
+UPDATE "organization" SET "polar_customer_id" = NULL, "plan" = 'hobby';

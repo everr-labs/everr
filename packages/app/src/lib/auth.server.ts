@@ -1,6 +1,5 @@
 import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
-import { polar, webhooks } from "@polar-sh/better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -19,11 +18,21 @@ import {
 } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { organizationBillingFields } from "@/common/organization-billing-fields";
 import { db } from "@/db/client";
-import { member, session as sessionTable, user } from "@/db/schema";
+import { member, session as sessionTable } from "@/db/schema";
 import { env } from "@/env";
-import { deriveOrgName, generateOrgSlug } from "@/lib/auto-org";
-import { upsertOrgSubscription } from "@/lib/billing-data.server";
+import { selectSoleOrganization } from "@/lib/auto-org";
+import { ensureAutomaticOrganization } from "@/lib/auto-org.server";
+import { billingIdentityAdapter } from "@/lib/billing/auth-adapter.server";
+import { billingAuthPlugin } from "@/lib/billing/auth-plugin.server";
+import {
+  billingMembershipPlugin,
+  billingOrganizationHooks,
+} from "@/lib/billing/membership-plugin.server";
+import { beforeCreateCheckoutOrganization } from "@/lib/billing/organization-context.server";
+import { billing } from "@/lib/billing/server";
+import { readOrgEntitlement } from "@/lib/billing-data.server";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -39,23 +48,11 @@ import {
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
-import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
 import {
   createIdentityAuthHooks,
   type ResolvedSession,
 } from "@/telemetry/auth-identity";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
-
-type PolarSubscriptionPayload = {
-  id: string;
-  status: string;
-  productId: string;
-  currentPeriodEnd: Date | null;
-  cancelAtPeriodEnd: boolean;
-  modifiedAt: Date | null;
-  createdAt: Date;
-  customer: { externalId?: string | null };
-};
 
 async function getMarkedDeviceOrganizationId(session: { userId: string }) {
   // Captured by the /device/token before-hook (see cli-device-organization).
@@ -113,25 +110,6 @@ async function getLastUsedOrganizationId(session: { userId: string }) {
     .limit(1);
 
   return membership[0]?.organizationId ?? null;
-}
-
-async function syncSubscription({ data }: { data: PolarSubscriptionPayload }) {
-  const orgId = data.customer.externalId;
-  if (!orgId) {
-    serverLogger.warn("polar.webhook.subscription_missing_external_id", {
-      "polar.subscription.id": data.id,
-    });
-    return;
-  }
-  await upsertOrgSubscription({
-    orgId,
-    polarSubscriptionId: data.id,
-    polarProductId: data.productId,
-    status: data.status,
-    currentPeriodEnd: data.currentPeriodEnd ?? null,
-    cancelAtPeriodEnd: data.cancelAtPeriodEnd,
-    polarModifiedAt: data.modifiedAt ?? data.createdAt,
-  });
 }
 
 // Extend the org plugin's default access-control statement with apiKey
@@ -193,9 +171,11 @@ export const auth = betterAuth({
       env.BETTER_AUTH_URL.replace("127.0.0.1", "localhost"),
     ]),
   ),
-  database: drizzleAdapter(db, {
-    provider: "pg",
-  }),
+  database: billingIdentityAdapter(
+    drizzleAdapter(db, {
+      provider: "pg",
+    }),
+  ),
   ...(googleSocialProviders ? { socialProviders: googleSocialProviders } : {}),
   user: {
     deleteUser: {
@@ -227,6 +207,13 @@ export const auth = betterAuth({
     },
   },
   databaseHooks: {
+    user: {
+      delete: {
+        before: async (user) => {
+          await billing.beforeUserDelete(user.id);
+        },
+      },
+    },
     session: {
       create: {
         before: async (session) => {
@@ -239,59 +226,38 @@ export const auth = betterAuth({
             activeOrganizationId = await getLastUsedOrganizationId(session);
           }
 
-          // Look for an existing membership to set as active org.
+          // A single membership is unambiguous. If there are several and no
+          // previous selection, leave the session without an active org so the
+          // user can choose rather than depending on database row order.
+          let membershipCount = 0;
           if (!activeOrganizationId) {
-            const existingMembership = await db
+            const existingMemberships = await db
               .select({
                 organizationId: member.organizationId,
               })
               .from(member)
               .where(eq(member.userId, session.userId))
-              .limit(1);
+              .limit(2);
 
-            activeOrganizationId =
-              existingMembership[0]?.organizationId ?? null;
+            membershipCount = existingMemberships.length;
+            activeOrganizationId = selectSoleOrganization(
+              existingMemberships.map(
+                (membership) => membership.organizationId,
+              ),
+            );
           }
 
-          // If the user has no org (fresh signup, not via invite),
-          // create a personal org so the session starts with one.
-          if (!activeOrganizationId) {
-            const userRecord = await db
-              .select({ name: user.name, email: user.email })
-              .from(user)
-              .where(eq(user.id, session.userId))
-              .limit(1);
-
-            if (userRecord[0]) {
-              const orgName = deriveOrgName(
-                userRecord[0].name,
-                userRecord[0].email,
+          if (!activeOrganizationId && membershipCount === 0) {
+            try {
+              activeOrganizationId = await ensureAutomaticOrganization(
+                session.userId,
+                (body) => auth.api.createOrganization({ body }),
               );
-
-              try {
-                await auth.api.createOrganization({
-                  body: {
-                    name: orgName,
-                    slug: generateOrgSlug(),
-                    metadata: { onboardingCompleted: false },
-                    userId: session.userId,
-                  },
-                });
-
-                // Re-query for the membership that was just created.
-                const newMembership = await db
-                  .select({ organizationId: member.organizationId })
-                  .from(member)
-                  .where(eq(member.userId, session.userId))
-                  .limit(1);
-
-                activeOrganizationId = newMembership[0]?.organizationId ?? null;
-              } catch (error) {
-                serverLogger.error("auto_org.create_personal_org.failed", {
-                  ...exceptionAttributes(error),
-                  "user.id": session.userId,
-                });
-              }
+            } catch (error) {
+              serverLogger.error("auto_org.create_personal_org.failed", {
+                ...exceptionAttributes(error),
+                "user.id": session.userId,
+              });
             }
           }
 
@@ -312,6 +278,7 @@ export const auth = betterAuth({
       auth.api.getSession({ headers, returnHeaders: true }),
   ),
   plugins: [
+    billingMembershipPlugin(),
     cliDeviceOrganizationPlugin({
       onError: (stage, error) => {
         serverLogger.error(
@@ -323,6 +290,21 @@ export const auth = betterAuth({
     organizationPlugin({
       ac: orgAc,
       roles: orgRoles,
+      schema: {
+        organization: {
+          additionalFields: {
+            ...organizationBillingFields,
+            plan: {
+              type: ["hobby", "pro"],
+              required: true,
+            },
+          },
+        },
+      },
+      // Organization creation is orchestrated by server-owned flows so a
+      // billable Organization cannot bypass a confirmed Polar payment.
+      allowUserToCreateOrganization: false,
+      creatorRole: "owner",
       // Preserve pre-1.6.11 behavior: don't require the recipient's email to be
       // verified to view/accept an invitation. 1.6.11 flipped this default to true.
       requireEmailVerificationOnInvitation: false,
@@ -336,20 +318,67 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
-        afterCreateOrganization: async ({ organization, user: creator }) => {
-          try {
-            await ensurePolarCustomerForOrg({
-              orgId: organization.id,
-              orgName: organization.name,
-              fallbackEmail: creator.email,
-            });
-          } catch (error) {
-            serverLogger.error("polar.customer.create_for_org.failed", {
-              ...exceptionAttributes(error),
-              "everr.organization.id": organization.id,
+        beforeCreateOrganization: beforeCreateCheckoutOrganization,
+        ...billingOrganizationHooks(),
+        beforeUpdateOrganization: async ({ organization }) => {
+          if ("plan" in organization) {
+            throw new APIError("FORBIDDEN", {
+              message: "Organization plan cannot be changed here.",
             });
           }
+        },
+        beforeAddMember: async ({ member: newMember }) => {
+          const existingMembers = await db
+            .select({ id: member.id })
+            .from(member)
+            .where(eq(member.organizationId, newMember.organizationId))
+            .limit(1);
+          if (existingMembers.length === 0) return;
 
+          const entitlement = await readOrgEntitlement(
+            newMember.organizationId,
+          );
+          if (entitlement.appState !== "pro") {
+            throw new APIError("FORBIDDEN", {
+              message: "An active Pro plan is required to add members.",
+            });
+          }
+          await billing.beforeMembershipChange(
+            newMember.organizationId,
+            newMember.userId,
+            newMember.role,
+          );
+        },
+        beforeCreateInvitation: async ({ invitation: newInvitation }) => {
+          const entitlement = await readOrgEntitlement(
+            newInvitation.organizationId,
+          );
+          if (entitlement.appState !== "pro") {
+            throw new APIError("FORBIDDEN", {
+              message: "An active Pro plan is required to invite members.",
+            });
+          }
+        },
+        beforeAcceptInvitation: async ({
+          invitation: acceptedInvitation,
+          user,
+        }) => {
+          const entitlement = await readOrgEntitlement(
+            acceptedInvitation.organizationId,
+          );
+          if (entitlement.appState !== "pro") {
+            throw new APIError("FORBIDDEN", {
+              message:
+                "This organization needs an active Pro plan before the invitation can be accepted.",
+            });
+          }
+          await billing.beforeMembershipChange(
+            acceptedInvitation.organizationId,
+            user.id,
+            acceptedInvitation.role,
+          );
+        },
+        afterCreateOrganization: async ({ organization }) => {
           // Provision the per-org ClickHouse user + row policies that back
           // the /api/cli/sql endpoint's tenant isolation. Each /sql query
           // authenticates as exactly this org's user; without provisioning,
@@ -362,6 +391,9 @@ export const auth = betterAuth({
               "everr.organization.id": organization.id,
             });
           }
+        },
+        beforeDeleteOrganization: async ({ organization }) => {
+          await billing.assertDeletable(organization.id);
         },
         afterDeleteOrganization: async ({ organization }) => {
           try {
@@ -411,21 +443,9 @@ export const auth = betterAuth({
       },
     ]),
     bearer(),
-    polar({
-      client: polarClient,
-      createCustomerOnSignUp: false,
-      use: [
-        webhooks({
-          secret: env.POLAR_WEBHOOK_SECRET,
-          onSubscriptionCreated: syncSubscription,
-          onSubscriptionUpdated: syncSubscription,
-          onSubscriptionActive: syncSubscription,
-          onSubscriptionUncanceled: syncSubscription,
-          onSubscriptionCanceled: syncSubscription,
-          onSubscriptionRevoked: syncSubscription,
-        }),
-      ],
-    }),
+    billingAuthPlugin(
+      async (input): Promise<unknown> => auth.api.createOrganization(input),
+    ),
     jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),
     oauthProvider({
       loginPage: "/auth/sign-in",

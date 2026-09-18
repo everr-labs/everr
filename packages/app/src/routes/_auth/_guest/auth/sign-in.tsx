@@ -11,6 +11,7 @@ import {
   AuthPageHeader,
   AuthProviderSeparator,
   buildAuthErrorCallbackURL,
+  buildPostAuthenticationURL,
   GoogleAuthButton,
 } from "../-components/auth-page";
 
@@ -30,6 +31,7 @@ function SignIn() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const callbackURL = redirectTo ?? "/";
+  const newUserCallbackURL = buildPostAuthenticationURL(redirectTo);
   const errorCallbackURL = buildAuthErrorCallbackURL("/auth/sign-in", {
     redirect: redirectTo,
     email: prefillEmail,
@@ -75,7 +77,7 @@ function SignIn() {
         <GoogleAuthButton
           label="Sign in with Google"
           callbackURL={callbackURL}
-          newUserCallbackURL={redirectTo ?? "/onboarding"}
+          newUserCallbackURL={newUserCallbackURL}
           errorCallbackURL={errorCallbackURL}
           disabled={isSubmitting}
           onError={setError}

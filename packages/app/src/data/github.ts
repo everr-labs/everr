@@ -2,7 +2,10 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { githubInstallationOrganizations } from "@/db/schema";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import {
+  createAuthenticatedServerFn,
+  createOrganizationAdminServerFn,
+} from "@/lib/serverFn";
 import {
   backfillRepo,
   JOB_QUOTA_PER_REPO,
@@ -37,53 +40,57 @@ export const getGithubAppInstallStatus = createAuthenticatedServerFn({
   }));
 });
 
-export const getInstallationRepos = createAuthenticatedServerFn({
+export const getInstallationRepos = createOrganizationAdminServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
   const installations = await getInstallationsForOrganization(
     session.session.activeOrganizationId,
   );
-  const active = installations.find((i) => i.status === "active");
+  const active = installations.find(
+    (installation) => installation.status === "active",
+  );
 
   if (!active) {
     return [];
   }
 
   const repos = await listInstallationRepos(active.installationId);
-  return repos.map((r) => ({ id: r.id, fullName: r.full_name }));
+  return repos.map((repo) => ({ id: repo.id, fullName: repo.full_name }));
 });
 
-export const importRepos = createAuthenticatedServerFn({ method: "POST" })
+export const importRepos = createOrganizationAdminServerFn({ method: "POST" })
   .inputValidator(z.object({ repos: z.array(z.string().min(1)).min(1) }))
   .handler(async function* ({ data, context: { session } }) {
     const installations = await getInstallationsForOrganization(
       session.session.activeOrganizationId,
     );
-    const active = installations.find((i) => i.status === "active");
+    const active = installations.find(
+      (installation) => installation.status === "active",
+    );
     if (!active) {
       throw new Error("No active GitHub installation found");
     }
 
     const allRepos = await listInstallationRepos(active.installationId);
     const repos = data.repos
-      .map((name) => allRepos.find((r) => r.full_name === name))
-      .filter((r) => r != null);
+      .map((name) => allRepos.find((repo) => repo.full_name === name))
+      .filter((repo) => repo != null);
 
     const totalQuota = repos.length * JOB_QUOTA_PER_REPO;
     let totalJobs = 0;
     let totalErrors = 0;
     let runsOffset = 0;
 
-    for (let i = 0; i < repos.length; i++) {
-      const repo = repos[i];
+    for (let index = 0; index < repos.length; index++) {
+      const repo = repos[index];
       yield {
         type: "repo-start" as const,
         repoFullName: repo.full_name,
-        repoIndex: i,
+        repoIndex: index,
         reposTotal: repos.length,
       };
 
-      const jobsBase = i * JOB_QUOTA_PER_REPO;
+      const jobsBase = index * JOB_QUOTA_PER_REPO;
       const currentRunsOffset = runsOffset;
 
       try {
@@ -106,9 +113,9 @@ export const importRepos = createAuthenticatedServerFn({ method: "POST" })
             totalErrors += update.errors?.length ?? 0;
           }
         }
-      } catch (err) {
-        serverLogger.error("onboarding.repo_import.failed", {
-          ...exceptionAttributes(err),
+      } catch (error) {
+        serverLogger.error("github.repo_import.failed", {
+          ...exceptionAttributes(error),
           "github.installation.id": active.installationId,
           "github.repository.full_name": repo.full_name,
           "everr.organization.id": session.session.activeOrganizationId,

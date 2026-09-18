@@ -95,6 +95,7 @@ export type InviteLoaderResult =
   | {
       status: "accept-ready";
       invitationId: string;
+      organizationId: string;
       organizationName: string;
       inviterName: string;
       role: string | null;
@@ -151,6 +152,7 @@ export async function resolveInvitationLoader({
   return {
     status: "accept-ready",
     invitationId,
+    organizationId: lookup.organizationId,
     organizationName: lookup.organizationName,
     inviterName: lookup.inviterName,
     role: lookup.role,

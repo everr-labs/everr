@@ -3,10 +3,8 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
 import {
@@ -15,22 +13,27 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@everr/ui/components/sidebar";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import {
-  BadgeCheck,
-  Building2,
   Check,
   ChevronsUpDown,
   CookieIcon,
   CreditCard,
   Download,
+  GitPullRequest,
   KeyRound,
   LogOut,
+  Plus,
+  Settings,
   Users,
 } from "lucide-react";
+import { useState } from "react";
+import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
+import { getOrganizationCreationOptions } from "@/data/organizations";
 import { PLATFORMS } from "@/lib/app-download";
 import { authClient } from "@/lib/auth-client";
+import { isOrganizationAdmin } from "@/lib/organization-role";
 import { useOpenConsentSettings } from "@/telemetry/consent-gate";
 
 export function NavUser() {
@@ -44,9 +47,12 @@ export function NavUser() {
   const userRole = activeOrg?.members?.find(
     (m) => m.userId === session?.user?.id,
   )?.role;
-  const isAdmin = userRole === "admin" || userRole === "owner";
-  const hasMultipleOrgs = orgs && orgs.length > 1;
-
+  const isAdmin = isOrganizationAdmin(userRole);
+  const [isCreateOrgDialogOpen, setCreateOrgDialogOpen] = useState(false);
+  const organizationCreationOptions = useQuery({
+    queryKey: ["organization-creation-options"],
+    queryFn: () => getOrganizationCreationOptions(),
+  });
   const { isMobile } = useSidebar();
 
   async function handleSwitchOrg(orgId: string) {
@@ -69,150 +75,169 @@ export function NavUser() {
     (firstName.slice(0, 1) + lastName.slice(0, 1)).toUpperCase() || "?";
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <SidebarMenuButton
-                size="lg"
-                className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
-              />
-            }
-          >
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
-              {user.image ? (
-                <img
-                  src={user.image}
-                  alt={fullName}
-                  className="size-full object-cover rounded-sm"
+    <>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <SidebarMenuButton
+                  size="lg"
+                  className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
                 />
-              ) : (
-                initials
-              )}
-            </div>
-            <div className="grid flex-1 text-left text-sm leading-tight transition-opacity duration-200 ease-sidebar motion-reduce:transition-none group-data-[collapsible=icon]:opacity-0">
-              <span className="overflow-hidden whitespace-nowrap font-medium">
-                {fullName}
-              </span>
-              <span className="overflow-hidden whitespace-nowrap text-xs">
-                {activeOrg?.name ?? " "}
-              </span>
-            </div>
-            <ChevronsUpDown className="ml-auto size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-(--anchor-width) min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
-            align="end"
-            sideOffset={4}
-          >
-            <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
+              }
+            >
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
-                {initials}
+                {user.image ? (
+                  <img
+                    src={user.image}
+                    alt={fullName}
+                    className="size-full object-cover rounded-sm"
+                  />
+                ) : (
+                  initials
+                )}
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{fullName}</span>
-                <span className="truncate text-xs">
+              <div className="grid flex-1 text-left text-sm leading-tight transition-opacity duration-200 ease-sidebar motion-reduce:transition-none group-data-[collapsible=icon]:opacity-0">
+                <span className="overflow-hidden whitespace-nowrap font-medium">
+                  {fullName}
+                </span>
+                <span className="overflow-hidden whitespace-nowrap text-xs">
                   {activeOrg?.name ?? " "}
                 </span>
               </div>
-            </div>
-            <DropdownMenuSeparator />
-            {hasMultipleOrgs && (
+              <ChevronsUpDown className="ml-auto size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="w-(--anchor-width) min-w-56 rounded-lg"
+              side={isMobile ? "bottom" : "right"}
+              align="end"
+              sideOffset={4}
+            >
+              <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
+                  {initials}
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">{fullName}</span>
+                  <span className="truncate text-xs">
+                    {activeOrg?.name ?? " "}
+                  </span>
+                </div>
+              </div>
+              <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Building2 />
-                    Switch organization
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {orgs.map((org) => (
-                      <DropdownMenuItem
-                        key={org.id}
-                        onClick={() => void handleSwitchOrg(org.id)}
-                      >
-                        {org.id === activeOrg?.id ? (
-                          <Check />
-                        ) : (
-                          <span className="size-4" />
-                        )}
-                        <span className="truncate">{org.name}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
+                <DropdownMenuLabel>Organization</DropdownMenuLabel>
+                {orgs?.map((org) => (
+                  <DropdownMenuItem
+                    key={org.id}
+                    onClick={() => void handleSwitchOrg(org.id)}
+                  >
+                    {org.id === activeOrg?.id ? (
+                      <Check />
+                    ) : (
+                      <span className="size-4" />
+                    )}
+                    <span className="truncate">{org.name}</span>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuItem
+                  disabled={!organizationCreationOptions.data}
+                  onClick={() => setCreateOrgDialogOpen(true)}
+                >
+                  <Plus />
+                  Create organization
+                </DropdownMenuItem>
               </DropdownMenuGroup>
-            )}
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                render={<Link to="/account" />}
-                nativeButton={false}
-              >
-                <BadgeCheck />
-                Account
-              </DropdownMenuItem>
-              {isAdmin && (
+              {activeOrg && isAdmin ? (
                 <>
-                  <DropdownMenuItem
-                    render={<Link to="/billing" />}
-                    nativeButton={false}
-                  >
-                    <CreditCard />
-                    Billing
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/users-management" />}
-                    nativeButton={false}
-                  >
-                    <Users />
-                    Users Management
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/api-keys" />}
-                    nativeButton={false}
-                  >
-                    <KeyRound />
-                    API keys
-                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Organization settings</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      render={<Link to="/users-management" />}
+                      nativeButton={false}
+                    >
+                      <Users />
+                      Members
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      render={<Link to="/api-keys" />}
+                      nativeButton={false}
+                    >
+                      <KeyRound />
+                      API keys
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      render={<Link to="/github" />}
+                      nativeButton={false}
+                    >
+                      <GitPullRequest />
+                      GitHub
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      render={<Link to="/billing" />}
+                      nativeButton={false}
+                    >
+                      <CreditCard />
+                      Plan &amp; Billing
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
                 </>
-              )}
+              ) : null}
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Account &amp; privacy</DropdownMenuLabel>
+                <DropdownMenuItem
+                  render={<Link to="/account" />}
+                  nativeButton={false}
+                >
+                  <Settings />
+                  Account settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={openConsentSettings}>
+                  <CookieIcon />
+                  Privacy preferences
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  nativeButton={false}
+                  render={
+                    <a href={downloadUrl} download>
+                      <Download />
+                      Download App
+                    </a>
+                  }
+                />
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
-                nativeButton={false}
-                render={
-                  <a href={downloadUrl} download>
-                    <Download />
-                    Download App
-                  </a>
+                onClick={() =>
+                  void authClient.signOut({
+                    fetchOptions: {
+                      onSuccess: () => {
+                        window.location.href = "/";
+                      },
+                    },
+                  })
                 }
               >
-                <Download />
-                Download App
+                <LogOut />
+                Log out
               </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={openConsentSettings}>
-              <CookieIcon />
-              Privacy preferences
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() =>
-                void authClient.signOut({
-                  fetchOptions: {
-                    onSuccess: () => {
-                      window.location.href = "/";
-                    },
-                  },
-                })
-              }
-            >
-              <LogOut />
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuItem>
+      </SidebarMenu>
+      {organizationCreationOptions.data ? (
+        <CreateOrganizationDialog
+          canCreateHobby={organizationCreationOptions.data.canCreateHobby}
+          open={isCreateOrgDialogOpen}
+          onOpenChange={setCreateOrgDialogOpen}
+        />
+      ) : null}
+    </>
   );
 }

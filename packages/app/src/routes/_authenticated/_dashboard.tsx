@@ -96,6 +96,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
 });
 
 function RouteComponent() {
+  const { session } = Route.useRouteContext();
   const search = Route.useSearch();
 
   const matches = useMatches();
@@ -104,6 +105,10 @@ function RouteComponent() {
     if (match.staticData?.hideTimeRangePicker !== undefined) {
       hideTimeRangePicker = match.staticData.hideTimeRangePicker;
     }
+  }
+
+  if (!session.session.activeOrganizationId) {
+    return <Outlet />;
   }
 
   return (

@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
@@ -40,6 +39,7 @@ import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
 import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/verify-key'
+import { Route as OrganizationsCheckoutSuccessRouteImport } from './routes/organizations.checkout.success'
 import { Route as DotwellKnownOauthAuthorizationServerApiAuthRouteImport } from './routes/[.]well-known/oauth-authorization-server/api/auth'
 import { Route as AuthGuestAuthForgotPasswordRouteImport } from './routes/_auth/_guest/auth/forgot-password'
 import { Route as AuthGuestAuthResetPasswordRouteImport } from './routes/_auth/_guest/auth/reset-password'
@@ -49,18 +49,15 @@ import { Route as AuthenticatedDashboardExploreErrorsRouteImport } from './route
 import { Route as AuthenticatedDashboardExploreLogsRouteImport } from './routes/_authenticated/_dashboard/_explore/logs'
 import { Route as AuthenticatedDashboardExploreTracesRouteImport } from './routes/_authenticated/_dashboard/_explore/traces'
 import { Route as AuthenticatedDashboardPaddedIndexRouteImport } from './routes/_authenticated/_dashboard/_padded/index'
+import { Route as AuthenticatedDashboardPaddedOrganizationRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization'
 import { Route as AuthenticatedDashboardPaddedAccountRouteImport } from './routes/_authenticated/_dashboard/_padded/account'
-import { Route as AuthenticatedDashboardPaddedApiKeysRouteImport } from './routes/_authenticated/_dashboard/_padded/api-keys'
-import { Route as AuthenticatedDashboardPaddedBillingRouteImport } from './routes/_authenticated/_dashboard/_padded/billing'
 import { Route as AuthenticatedDashboardPaddedCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/_padded/cost-analysis'
 import { Route as AuthenticatedDashboardPaddedReposRouteImport } from './routes/_authenticated/_dashboard/_padded/repos'
-import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
 import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
 import { Route as AuthenticatedDashboardPreviewableDashboardsRouteRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/route'
 import { Route as AuthenticatedDashboardPreviewableRunbooksRouteRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/route'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
-import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
 import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/histogram'
@@ -69,6 +66,11 @@ import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/githu
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as AuthenticatedDashboardExploreErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/_explore/errors_.$fingerprint'
 import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
+import { Route as AuthenticatedDashboardPaddedOrganizationApiKeysRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization/api-keys'
+import { Route as AuthenticatedDashboardPaddedOrganizationBillingRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization/billing'
+import { Route as AuthenticatedDashboardPaddedOrganizationGithubRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization/github'
+import { Route as AuthenticatedDashboardPaddedOrganizationUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization/users-management'
+import { Route as AuthenticatedDashboardPaddedBillingSuspendedRouteImport } from './routes/_authenticated/_dashboard/_padded/billing_.suspended'
 import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
 import { Route as AuthenticatedDashboardPreviewableAlertsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/index'
 import { Route as AuthenticatedDashboardPreviewableAlertsNotificationsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/notifications'
@@ -98,11 +100,6 @@ const AuthRoute = AuthRouteImport.update({
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DotwellKnownOauthAuthorizationServerRoute =
@@ -246,6 +243,12 @@ const ApiInternalVerifyKeyRoute = ApiInternalVerifyKeyRouteImport.update({
   path: '/api/internal/verify-key',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrganizationsCheckoutSuccessRoute =
+  OrganizationsCheckoutSuccessRouteImport.update({
+    id: '/organizations/checkout/success',
+    path: '/organizations/checkout/success',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const DotwellKnownOauthAuthorizationServerApiAuthRoute =
   DotwellKnownOauthAuthorizationServerApiAuthRouteImport.update({
     id: '/api/auth',
@@ -298,22 +301,15 @@ const AuthenticatedDashboardPaddedIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
+const AuthenticatedDashboardPaddedOrganizationRoute =
+  AuthenticatedDashboardPaddedOrganizationRouteImport.update({
+    id: '/_organization',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+  } as any)
 const AuthenticatedDashboardPaddedAccountRoute =
   AuthenticatedDashboardPaddedAccountRouteImport.update({
     id: '/account',
     path: '/account',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardPaddedApiKeysRoute =
-  AuthenticatedDashboardPaddedApiKeysRouteImport.update({
-    id: '/api-keys',
-    path: '/api-keys',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardPaddedBillingRoute =
-  AuthenticatedDashboardPaddedBillingRouteImport.update({
-    id: '/billing',
-    path: '/billing',
     getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
 const AuthenticatedDashboardPaddedCostAnalysisRoute =
@@ -326,12 +322,6 @@ const AuthenticatedDashboardPaddedReposRoute =
   AuthenticatedDashboardPaddedReposRouteImport.update({
     id: '/repos',
     path: '/repos',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardPaddedUsersManagementRoute =
-  AuthenticatedDashboardPaddedUsersManagementRouteImport.update({
-    id: '/users-management',
-    path: '/users-management',
     getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
 const AuthenticatedDashboardPreviewableAlertsRoute =
@@ -364,11 +354,6 @@ const AuthenticatedDashboardRunsTraceIdRouteRoute =
     path: '/$traceId',
     getParentRoute: () => AuthenticatedDashboardRunsRoute,
   } as any)
-const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
-  id: '/name',
-  path: '/name',
-  getParentRoute: () => ApiCliOrgRoute,
-} as any)
 const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
   id: '/$traceId',
   path: '/$traceId',
@@ -411,6 +396,36 @@ const AuthenticatedDashboardExploreTracesTraceIdRoute =
     id: '/traces_/$traceId',
     path: '/traces/$traceId',
     getParentRoute: () => AuthenticatedDashboardExploreRoute,
+  } as any)
+const AuthenticatedDashboardPaddedOrganizationApiKeysRoute =
+  AuthenticatedDashboardPaddedOrganizationApiKeysRouteImport.update({
+    id: '/api-keys',
+    path: '/api-keys',
+    getParentRoute: () => AuthenticatedDashboardPaddedOrganizationRoute,
+  } as any)
+const AuthenticatedDashboardPaddedOrganizationBillingRoute =
+  AuthenticatedDashboardPaddedOrganizationBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => AuthenticatedDashboardPaddedOrganizationRoute,
+  } as any)
+const AuthenticatedDashboardPaddedOrganizationGithubRoute =
+  AuthenticatedDashboardPaddedOrganizationGithubRouteImport.update({
+    id: '/github',
+    path: '/github',
+    getParentRoute: () => AuthenticatedDashboardPaddedOrganizationRoute,
+  } as any)
+const AuthenticatedDashboardPaddedOrganizationUsersManagementRoute =
+  AuthenticatedDashboardPaddedOrganizationUsersManagementRouteImport.update({
+    id: '/users-management',
+    path: '/users-management',
+    getParentRoute: () => AuthenticatedDashboardPaddedOrganizationRoute,
+  } as any)
+const AuthenticatedDashboardPaddedBillingSuspendedRoute =
+  AuthenticatedDashboardPaddedBillingSuspendedRouteImport.update({
+    id: '/billing_/suspended',
+    path: '/billing/suspended',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
 const AuthenticatedDashboardPaddedCheckoutSuccessRoute =
   AuthenticatedDashboardPaddedCheckoutSuccessRouteImport.update({
@@ -546,7 +561,6 @@ const AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedDashboardPaddedIndexRoute
-  '/onboarding': typeof OnboardingRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
@@ -563,13 +577,14 @@ export interface FileRoutesByFullPath {
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
-  '/api/cli/org': typeof ApiCliOrgRouteWithChildren
+  '/api/cli/org': typeof ApiCliOrgRoute
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
+  '/organizations/checkout/success': typeof OrganizationsCheckoutSuccessRoute
   '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
   '/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
@@ -582,13 +597,9 @@ export interface FileRoutesByFullPath {
   '/logs': typeof AuthenticatedDashboardExploreLogsRoute
   '/traces': typeof AuthenticatedDashboardExploreTracesRouteWithChildren
   '/account': typeof AuthenticatedDashboardPaddedAccountRoute
-  '/api-keys': typeof AuthenticatedDashboardPaddedApiKeysRoute
-  '/billing': typeof AuthenticatedDashboardPaddedBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
-  '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRouteWithChildren
-  '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
   '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
@@ -598,6 +609,11 @@ export interface FileRoutesByFullPath {
   '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
+  '/api-keys': typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
+  '/billing': typeof AuthenticatedDashboardPaddedOrganizationBillingRoute
+  '/github': typeof AuthenticatedDashboardPaddedOrganizationGithubRoute
+  '/users-management': typeof AuthenticatedDashboardPaddedOrganizationUsersManagementRoute
+  '/billing/suspended': typeof AuthenticatedDashboardPaddedBillingSuspendedRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/notifications': typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
   '/alerts/silences': typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
@@ -623,7 +639,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof AuthenticatedDashboardPaddedIndexRoute
-  '/onboarding': typeof OnboardingRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
@@ -639,13 +654,14 @@ export interface FileRoutesByTo {
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
-  '/api/cli/org': typeof ApiCliOrgRouteWithChildren
+  '/api/cli/org': typeof ApiCliOrgRoute
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
+  '/organizations/checkout/success': typeof OrganizationsCheckoutSuccessRoute
   '/.well-known/oauth-authorization-server/api/auth': typeof DotwellKnownOauthAuthorizationServerApiAuthRoute
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
@@ -655,12 +671,8 @@ export interface FileRoutesByTo {
   '/logs': typeof AuthenticatedDashboardExploreLogsRoute
   '/traces': typeof AuthenticatedDashboardExploreTracesRouteWithChildren
   '/account': typeof AuthenticatedDashboardPaddedAccountRoute
-  '/api-keys': typeof AuthenticatedDashboardPaddedApiKeysRoute
-  '/billing': typeof AuthenticatedDashboardPaddedBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
-  '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
-  '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
   '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
@@ -670,6 +682,11 @@ export interface FileRoutesByTo {
   '/runs': typeof AuthenticatedDashboardRunsIndexRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
+  '/api-keys': typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
+  '/billing': typeof AuthenticatedDashboardPaddedOrganizationBillingRoute
+  '/github': typeof AuthenticatedDashboardPaddedOrganizationGithubRoute
+  '/users-management': typeof AuthenticatedDashboardPaddedOrganizationUsersManagementRoute
+  '/billing/suspended': typeof AuthenticatedDashboardPaddedBillingSuspendedRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/notifications': typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
   '/alerts/silences': typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
@@ -697,7 +714,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_auth': typeof AuthRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteWithChildren
-  '/onboarding': typeof OnboardingRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/_auth/_guest': typeof AuthGuestRouteWithChildren
@@ -719,13 +735,14 @@ export interface FileRoutesById {
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/notification': typeof ApiCliNotificationRoute
-  '/api/cli/org': typeof ApiCliOrgRouteWithChildren
+  '/api/cli/org': typeof ApiCliOrgRoute
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
+  '/organizations/checkout/success': typeof OrganizationsCheckoutSuccessRoute
   '/_authenticated/_dashboard/_previewable/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
   '/_authenticated/_dashboard/_previewable/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
@@ -737,14 +754,11 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_explore/errors': typeof AuthenticatedDashboardExploreErrorsRouteWithChildren
   '/_authenticated/_dashboard/_explore/logs': typeof AuthenticatedDashboardExploreLogsRoute
   '/_authenticated/_dashboard/_explore/traces': typeof AuthenticatedDashboardExploreTracesRouteWithChildren
+  '/_authenticated/_dashboard/_padded/_organization': typeof AuthenticatedDashboardPaddedOrganizationRouteWithChildren
   '/_authenticated/_dashboard/_padded/account': typeof AuthenticatedDashboardPaddedAccountRoute
-  '/_authenticated/_dashboard/_padded/api-keys': typeof AuthenticatedDashboardPaddedApiKeysRoute
-  '/_authenticated/_dashboard/_padded/billing': typeof AuthenticatedDashboardPaddedBillingRoute
   '/_authenticated/_dashboard/_padded/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   '/_authenticated/_dashboard/_padded/repos': typeof AuthenticatedDashboardPaddedReposRoute
-  '/_authenticated/_dashboard/_padded/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/_authenticated/_dashboard/_previewable/alerts': typeof AuthenticatedDashboardPreviewableAlertsRouteWithChildren
-  '/api/cli/org/name': typeof ApiCliOrgNameRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
   '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
@@ -755,6 +769,11 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
   '/_authenticated/_dashboard/_explore/errors_/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
+  '/_authenticated/_dashboard/_padded/_organization/api-keys': typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
+  '/_authenticated/_dashboard/_padded/_organization/billing': typeof AuthenticatedDashboardPaddedOrganizationBillingRoute
+  '/_authenticated/_dashboard/_padded/_organization/github': typeof AuthenticatedDashboardPaddedOrganizationGithubRoute
+  '/_authenticated/_dashboard/_padded/_organization/users-management': typeof AuthenticatedDashboardPaddedOrganizationUsersManagementRoute
+  '/_authenticated/_dashboard/_padded/billing_/suspended': typeof AuthenticatedDashboardPaddedBillingSuspendedRoute
   '/_authenticated/_dashboard/_padded/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/_authenticated/_dashboard/_previewable/alerts/notifications': typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
   '/_authenticated/_dashboard/_previewable/alerts/silences': typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
@@ -782,7 +801,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/onboarding'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/device'
@@ -806,6 +824,7 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
+    | '/organizations/checkout/success'
     | '/dashboards'
     | '/runbooks'
     | '/runs/$traceId'
@@ -818,13 +837,9 @@ export interface FileRouteTypes {
     | '/logs'
     | '/traces'
     | '/account'
-    | '/api-keys'
-    | '/billing'
     | '/cost-analysis'
     | '/repos'
-    | '/users-management'
     | '/alerts'
-    | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
     | '/api/cli/runs/histogram'
@@ -834,6 +849,11 @@ export interface FileRouteTypes {
     | '/runs/'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
+    | '/api-keys'
+    | '/billing'
+    | '/github'
+    | '/users-management'
+    | '/billing/suspended'
     | '/checkout/success'
     | '/alerts/notifications'
     | '/alerts/silences'
@@ -859,7 +879,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/onboarding'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/device'
@@ -882,6 +901,7 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
+    | '/organizations/checkout/success'
     | '/.well-known/oauth-authorization-server/api/auth'
     | '/auth/forgot-password'
     | '/auth/reset-password'
@@ -891,12 +911,8 @@ export interface FileRouteTypes {
     | '/logs'
     | '/traces'
     | '/account'
-    | '/api-keys'
-    | '/billing'
     | '/cost-analysis'
     | '/repos'
-    | '/users-management'
-    | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
     | '/api/cli/runs/histogram'
@@ -906,6 +922,11 @@ export interface FileRouteTypes {
     | '/runs'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
+    | '/api-keys'
+    | '/billing'
+    | '/github'
+    | '/users-management'
+    | '/billing/suspended'
     | '/checkout/success'
     | '/alerts/notifications'
     | '/alerts/silences'
@@ -932,7 +953,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_auth'
     | '/_authenticated'
-    | '/onboarding'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/_auth/_guest'
@@ -961,6 +981,7 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
+    | '/organizations/checkout/success'
     | '/_authenticated/_dashboard/_previewable/dashboards'
     | '/_authenticated/_dashboard/_previewable/runbooks'
     | '/_authenticated/_dashboard/runs/$traceId'
@@ -972,14 +993,11 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_explore/errors'
     | '/_authenticated/_dashboard/_explore/logs'
     | '/_authenticated/_dashboard/_explore/traces'
+    | '/_authenticated/_dashboard/_padded/_organization'
     | '/_authenticated/_dashboard/_padded/account'
-    | '/_authenticated/_dashboard/_padded/api-keys'
-    | '/_authenticated/_dashboard/_padded/billing'
     | '/_authenticated/_dashboard/_padded/cost-analysis'
     | '/_authenticated/_dashboard/_padded/repos'
-    | '/_authenticated/_dashboard/_padded/users-management'
     | '/_authenticated/_dashboard/_previewable/alerts'
-    | '/api/cli/org/name'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
     | '/api/cli/runs/histogram'
@@ -990,6 +1008,11 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/runs/'
     | '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
     | '/_authenticated/_dashboard/_explore/traces_/$traceId'
+    | '/_authenticated/_dashboard/_padded/_organization/api-keys'
+    | '/_authenticated/_dashboard/_padded/_organization/billing'
+    | '/_authenticated/_dashboard/_padded/_organization/github'
+    | '/_authenticated/_dashboard/_padded/_organization/users-management'
+    | '/_authenticated/_dashboard/_padded/billing_/suspended'
     | '/_authenticated/_dashboard/_padded/checkout/success'
     | '/_authenticated/_dashboard/_previewable/alerts/notifications'
     | '/_authenticated/_dashboard/_previewable/alerts/silences'
@@ -1017,7 +1040,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
-  OnboardingRoute: typeof OnboardingRoute
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   ApiApplyRoute: typeof ApiApplyRoute
@@ -1029,6 +1051,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
   ApiInternalVerifyKeyRoute: typeof ApiInternalVerifyKeyRoute
+  OrganizationsCheckoutSuccessRoute: typeof OrganizationsCheckoutSuccessRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
 }
@@ -1047,13 +1070,6 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-authorization-server': {
@@ -1252,6 +1268,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalVerifyKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/organizations/checkout/success': {
+      id: '/organizations/checkout/success'
+      path: '/organizations/checkout/success'
+      fullPath: '/organizations/checkout/success'
+      preLoaderRoute: typeof OrganizationsCheckoutSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.well-known/oauth-authorization-server/api/auth': {
       id: '/.well-known/oauth-authorization-server/api/auth'
       path: '/api/auth'
@@ -1315,25 +1338,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPaddedIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardPaddedRoute
     }
+    '/_authenticated/_dashboard/_padded/_organization': {
+      id: '/_authenticated/_dashboard/_padded/_organization'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedOrganizationRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
     '/_authenticated/_dashboard/_padded/account': {
       id: '/_authenticated/_dashboard/_padded/account'
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AuthenticatedDashboardPaddedAccountRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
-    '/_authenticated/_dashboard/_padded/api-keys': {
-      id: '/_authenticated/_dashboard/_padded/api-keys'
-      path: '/api-keys'
-      fullPath: '/api-keys'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedApiKeysRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
-    '/_authenticated/_dashboard/_padded/billing': {
-      id: '/_authenticated/_dashboard/_padded/billing'
-      path: '/billing'
-      fullPath: '/billing'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedBillingRouteImport
       parentRoute: typeof AuthenticatedDashboardPaddedRoute
     }
     '/_authenticated/_dashboard/_padded/cost-analysis': {
@@ -1348,13 +1364,6 @@ declare module '@tanstack/react-router' {
       path: '/repos'
       fullPath: '/repos'
       preLoaderRoute: typeof AuthenticatedDashboardPaddedReposRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
-    '/_authenticated/_dashboard/_padded/users-management': {
-      id: '/_authenticated/_dashboard/_padded/users-management'
-      path: '/users-management'
-      fullPath: '/users-management'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedUsersManagementRouteImport
       parentRoute: typeof AuthenticatedDashboardPaddedRoute
     }
     '/_authenticated/_dashboard/_previewable/alerts': {
@@ -1391,13 +1400,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/runs/$traceId'
       preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsRoute
-    }
-    '/api/cli/org/name': {
-      id: '/api/cli/org/name'
-      path: '/name'
-      fullPath: '/api/cli/org/name'
-      preLoaderRoute: typeof ApiCliOrgNameRouteImport
-      parentRoute: typeof ApiCliOrgRoute
     }
     '/api/cli/runs/$traceId': {
       id: '/api/cli/runs/$traceId'
@@ -1454,6 +1456,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/traces/$traceId'
       preLoaderRoute: typeof AuthenticatedDashboardExploreTracesTraceIdRouteImport
       parentRoute: typeof AuthenticatedDashboardExploreRoute
+    }
+    '/_authenticated/_dashboard/_padded/_organization/api-keys': {
+      id: '/_authenticated/_dashboard/_padded/_organization/api-keys'
+      path: '/api-keys'
+      fullPath: '/api-keys'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedOrganizationApiKeysRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedOrganizationRoute
+    }
+    '/_authenticated/_dashboard/_padded/_organization/billing': {
+      id: '/_authenticated/_dashboard/_padded/_organization/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedOrganizationBillingRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedOrganizationRoute
+    }
+    '/_authenticated/_dashboard/_padded/_organization/github': {
+      id: '/_authenticated/_dashboard/_padded/_organization/github'
+      path: '/github'
+      fullPath: '/github'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedOrganizationGithubRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedOrganizationRoute
+    }
+    '/_authenticated/_dashboard/_padded/_organization/users-management': {
+      id: '/_authenticated/_dashboard/_padded/_organization/users-management'
+      path: '/users-management'
+      fullPath: '/users-management'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedOrganizationUsersManagementRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedOrganizationRoute
+    }
+    '/_authenticated/_dashboard/_padded/billing_/suspended': {
+      id: '/_authenticated/_dashboard/_padded/billing_/suspended'
+      path: '/billing/suspended'
+      fullPath: '/billing/suspended'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedBillingSuspendedRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
     }
     '/_authenticated/_dashboard/_padded/checkout/success': {
       id: '/_authenticated/_dashboard/_padded/checkout/success'
@@ -1701,34 +1738,55 @@ const AuthenticatedDashboardExploreRouteWithChildren =
     AuthenticatedDashboardExploreRouteChildren,
   )
 
+interface AuthenticatedDashboardPaddedOrganizationRouteChildren {
+  AuthenticatedDashboardPaddedOrganizationApiKeysRoute: typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
+  AuthenticatedDashboardPaddedOrganizationBillingRoute: typeof AuthenticatedDashboardPaddedOrganizationBillingRoute
+  AuthenticatedDashboardPaddedOrganizationGithubRoute: typeof AuthenticatedDashboardPaddedOrganizationGithubRoute
+  AuthenticatedDashboardPaddedOrganizationUsersManagementRoute: typeof AuthenticatedDashboardPaddedOrganizationUsersManagementRoute
+}
+
+const AuthenticatedDashboardPaddedOrganizationRouteChildren: AuthenticatedDashboardPaddedOrganizationRouteChildren =
+  {
+    AuthenticatedDashboardPaddedOrganizationApiKeysRoute:
+      AuthenticatedDashboardPaddedOrganizationApiKeysRoute,
+    AuthenticatedDashboardPaddedOrganizationBillingRoute:
+      AuthenticatedDashboardPaddedOrganizationBillingRoute,
+    AuthenticatedDashboardPaddedOrganizationGithubRoute:
+      AuthenticatedDashboardPaddedOrganizationGithubRoute,
+    AuthenticatedDashboardPaddedOrganizationUsersManagementRoute:
+      AuthenticatedDashboardPaddedOrganizationUsersManagementRoute,
+  }
+
+const AuthenticatedDashboardPaddedOrganizationRouteWithChildren =
+  AuthenticatedDashboardPaddedOrganizationRoute._addFileChildren(
+    AuthenticatedDashboardPaddedOrganizationRouteChildren,
+  )
+
 interface AuthenticatedDashboardPaddedRouteChildren {
+  AuthenticatedDashboardPaddedOrganizationRoute: typeof AuthenticatedDashboardPaddedOrganizationRouteWithChildren
   AuthenticatedDashboardPaddedAccountRoute: typeof AuthenticatedDashboardPaddedAccountRoute
-  AuthenticatedDashboardPaddedApiKeysRoute: typeof AuthenticatedDashboardPaddedApiKeysRoute
-  AuthenticatedDashboardPaddedBillingRoute: typeof AuthenticatedDashboardPaddedBillingRoute
   AuthenticatedDashboardPaddedCostAnalysisRoute: typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   AuthenticatedDashboardPaddedReposRoute: typeof AuthenticatedDashboardPaddedReposRoute
-  AuthenticatedDashboardPaddedUsersManagementRoute: typeof AuthenticatedDashboardPaddedUsersManagementRoute
   AuthenticatedDashboardPaddedIndexRoute: typeof AuthenticatedDashboardPaddedIndexRoute
+  AuthenticatedDashboardPaddedBillingSuspendedRoute: typeof AuthenticatedDashboardPaddedBillingSuspendedRoute
   AuthenticatedDashboardPaddedCheckoutSuccessRoute: typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute: typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
 }
 
 const AuthenticatedDashboardPaddedRouteChildren: AuthenticatedDashboardPaddedRouteChildren =
   {
+    AuthenticatedDashboardPaddedOrganizationRoute:
+      AuthenticatedDashboardPaddedOrganizationRouteWithChildren,
     AuthenticatedDashboardPaddedAccountRoute:
       AuthenticatedDashboardPaddedAccountRoute,
-    AuthenticatedDashboardPaddedApiKeysRoute:
-      AuthenticatedDashboardPaddedApiKeysRoute,
-    AuthenticatedDashboardPaddedBillingRoute:
-      AuthenticatedDashboardPaddedBillingRoute,
     AuthenticatedDashboardPaddedCostAnalysisRoute:
       AuthenticatedDashboardPaddedCostAnalysisRoute,
     AuthenticatedDashboardPaddedReposRoute:
       AuthenticatedDashboardPaddedReposRoute,
-    AuthenticatedDashboardPaddedUsersManagementRoute:
-      AuthenticatedDashboardPaddedUsersManagementRoute,
     AuthenticatedDashboardPaddedIndexRoute:
       AuthenticatedDashboardPaddedIndexRoute,
+    AuthenticatedDashboardPaddedBillingSuspendedRoute:
+      AuthenticatedDashboardPaddedBillingSuspendedRoute,
     AuthenticatedDashboardPaddedCheckoutSuccessRoute:
       AuthenticatedDashboardPaddedCheckoutSuccessRoute,
     AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute:
@@ -1924,18 +1982,6 @@ const DotwellKnownOauthAuthorizationServerRouteWithChildren =
     DotwellKnownOauthAuthorizationServerRouteChildren,
   )
 
-interface ApiCliOrgRouteChildren {
-  ApiCliOrgNameRoute: typeof ApiCliOrgNameRoute
-}
-
-const ApiCliOrgRouteChildren: ApiCliOrgRouteChildren = {
-  ApiCliOrgNameRoute: ApiCliOrgNameRoute,
-}
-
-const ApiCliOrgRouteWithChildren = ApiCliOrgRoute._addFileChildren(
-  ApiCliOrgRouteChildren,
-)
-
 interface ApiCliResourcesKindProjectSlugRouteChildren {
   ApiCliResourcesKindProjectSlugAdoptRoute: typeof ApiCliResourcesKindProjectSlugAdoptRoute
 }
@@ -1997,7 +2043,7 @@ interface ApiCliRouteChildren {
   ApiCliImportRoute: typeof ApiCliImportRoute
   ApiCliMeRoute: typeof ApiCliMeRoute
   ApiCliNotificationRoute: typeof ApiCliNotificationRoute
-  ApiCliOrgRoute: typeof ApiCliOrgRouteWithChildren
+  ApiCliOrgRoute: typeof ApiCliOrgRoute
   ApiCliReposRoute: typeof ApiCliReposRoute
   ApiCliResourcesRoute: typeof ApiCliResourcesRouteWithChildren
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
@@ -2008,7 +2054,7 @@ const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliImportRoute: ApiCliImportRoute,
   ApiCliMeRoute: ApiCliMeRoute,
   ApiCliNotificationRoute: ApiCliNotificationRoute,
-  ApiCliOrgRoute: ApiCliOrgRouteWithChildren,
+  ApiCliOrgRoute: ApiCliOrgRoute,
   ApiCliReposRoute: ApiCliReposRoute,
   ApiCliResourcesRoute: ApiCliResourcesRouteWithChildren,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
@@ -2021,7 +2067,6 @@ const ApiCliRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
-  OnboardingRoute: OnboardingRoute,
   DotwellKnownOauthAuthorizationServerRoute:
     DotwellKnownOauthAuthorizationServerRouteWithChildren,
   DotwellKnownOauthProtectedResourceRoute:
@@ -2035,6 +2080,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,
   ApiInternalVerifyKeyRoute: ApiInternalVerifyKeyRoute,
+  OrganizationsCheckoutSuccessRoute: OrganizationsCheckoutSuccessRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
 }

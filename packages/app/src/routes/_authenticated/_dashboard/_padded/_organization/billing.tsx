@@ -21,60 +21,34 @@ import {
   Zap,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { BillingOwnerCard } from "@/components/billing-owner-card";
 import { PageHeader } from "@/components/page-header";
 import {
-  ensureOrgBillingAdmin,
   getOrgEntitlement,
   getOrgPortalUrl,
-  NotBillingAdminError,
   startOrgCheckout,
 } from "@/data/billing";
 import { authClient } from "@/lib/auth-client";
 
 type Entitlement = {
-  tier: "free" | "pro";
+  plan: "hobby" | "pro";
+  appState: "hobby" | "pro" | "suspended";
   status: string | null;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
 };
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/billing",
+  "/_authenticated/_dashboard/_padded/_organization/billing",
 )({
-  staticData: { breadcrumb: "Billing", hideTimeRangePicker: true },
+  staticData: { breadcrumb: "Plan & Billing", hideTimeRangePicker: true },
   head: () => ({
-    meta: [{ title: "Everr - Billing" }],
+    meta: [{ title: "Everr - Plan & Billing" }],
   }),
-  beforeLoad: async () => {
-    await ensureOrgBillingAdmin();
-  },
-  errorComponent: ({ error }) => {
-    if (
-      error instanceof NotBillingAdminError ||
-      error.name === "NotBillingAdminError"
-    ) {
-      return <NotAdminMessage />;
-    }
-    throw error;
-  },
   component: BillingPage,
 });
 
-function NotAdminMessage() {
-  return (
-    <div className="mx-auto w-full max-w-4xl">
-      <Card>
-        <CardContent className="py-10 text-center">
-          <p className="text-muted-foreground text-sm">
-            Only organization admins can manage billing.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-const FREE_FEATURES = [
+const HOBBY_FEATURES = [
   "Unlimited repositories",
   "Unlimited local telemetry",
   "AI-native CLI and structured APIs",
@@ -82,7 +56,7 @@ const FREE_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  "Everything in Free",
+  "Everything in Hobby",
   "Premium support",
   "White-glove onboarding",
 ];
@@ -100,13 +74,15 @@ function BillingPage() {
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <Header orgName={activeOrg?.name} />
       <Body entitlement={entitlement} />
+      {activeOrg?.id && <BillingOwnerCard orgId={activeOrg.id} />}
     </div>
   );
 }
 
 function Body({ entitlement }: { entitlement: Entitlement | undefined }) {
   if (!entitlement) return <Skeleton className="h-40 w-full rounded-xl" />;
-  if (entitlement.tier === "pro") {
+
+  if (entitlement.plan === "pro") {
     return (
       <>
         <ProHero entitlement={entitlement} />
@@ -116,7 +92,7 @@ function Body({ entitlement }: { entitlement: Entitlement | undefined }) {
   }
   return (
     <>
-      <FreeHero />
+      <HobbyHero />
       <PlanComparison />
     </>
   );
@@ -125,7 +101,7 @@ function Body({ entitlement }: { entitlement: Entitlement | undefined }) {
 function Header({ orgName }: { orgName?: string }) {
   return (
     <PageHeader
-      title="Billing"
+      title="Plan & Billing"
       lede={
         <>
           Manage the plan and billing for{" "}
@@ -187,7 +163,7 @@ function ProHero({ entitlement }: { entitlement: Entitlement }) {
   );
 }
 
-function FreeHero() {
+function HobbyHero() {
   return (
     <Card>
       <CardHeader>
@@ -199,14 +175,14 @@ function FreeHero() {
             <p className="text-muted-foreground text-xs uppercase tracking-wider">
               Current plan
             </p>
-            <CardTitle className="text-2xl">Free</CardTitle>
+            <CardTitle className="text-2xl">Hobby</CardTitle>
           </div>
           <Badge variant="secondary">No subscription</Badge>
         </div>
       </CardHeader>
       <CardContent>
         <ul className="grid gap-2 sm:grid-cols-2">
-          {FREE_FEATURES.map((feature) => (
+          {HOBBY_FEATURES.map((feature) => (
             <li
               key={feature}
               className="text-muted-foreground flex items-center gap-2 text-sm"
@@ -284,17 +260,24 @@ function RedirectButton({
 }) {
   const m = useMutation({
     mutationFn,
-    onSuccess: ({ url }) => {
-      window.location.href = url;
+    onSuccess: (result) => {
+      window.location.href = result.url;
     },
   });
   const busy = m.isPending || m.isSuccess;
   return (
-    <Button variant={variant} onClick={() => m.mutate()} disabled={busy}>
-      {busy ? <Loader2 className="animate-spin" /> : <Icon />}
-      {busy ? loadingLabel : label}
-      {!busy ? <ArrowUpRight /> : null}
-    </Button>
+    <div className="space-y-2">
+      <Button variant={variant} onClick={() => m.mutate()} disabled={busy}>
+        {busy ? <Loader2 className="animate-spin" /> : <Icon />}
+        {busy ? loadingLabel : label}
+        {!busy ? <ArrowUpRight /> : null}
+      </Button>
+      {m.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {m.error.message}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
