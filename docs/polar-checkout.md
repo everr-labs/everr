@@ -41,7 +41,9 @@ Apply `packages/app/drizzle/0012_organization_customer_teams.sql` through the no
 
 - `organization.polar_customer_id`: nullable unique customer reference, declared as a server-managed Better Auth additional field.
 
-- The `pro_organization_checkout` table, including the reserved organization ID, owner reference, organization name and unique slug, checkout and customer references, timestamps, and incomplete owner/name unique index.
+- The `pro_organization_checkout` table, including the reserved organization ID, historical creator ID, organization name and unique slug, checkout and customer references, timestamps, and incomplete owner/name unique index. The creator ID has no user foreign key: payment-verification records survive account deletion after ownership is transferred.
+
+Environments that already applied a branch version with the creator foreign key must remove `pro_organization_checkout_owner_id_user_id_fk` before allowing creator account deletion. The unmerged `0012` migration and its snapshot omit this constraint; no additional migration is generated during schema iteration.
 
 For this cutover, no paid plans are currently active and all existing billing data is intentionally reset. The migration deletes local subscriptions and checkout attempts, clears organization customer references, and sets every organization to Hobby. The checkout table is newly created and therefore already empty on a database coming from main. Organization memberships and invitations are preserved. Existing Hobby membership and ownership-limit conflicts are not automatically repaired.
 

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
@@ -31,12 +32,19 @@ const client = new PGlite();
 const database = drizzle(client, { schema });
 await client.exec(`
 CREATE TABLE "user" (id text PRIMARY KEY, name text NOT NULL, email text NOT NULL UNIQUE, updated_at timestamp NOT NULL DEFAULT now());
-CREATE TABLE organization (id text PRIMARY KEY, name text NOT NULL, slug text NOT NULL UNIQUE, logo text, metadata text, created_at timestamp NOT NULL DEFAULT now(), plan text NOT NULL DEFAULT 'hobby', polar_customer_id text UNIQUE);
+CREATE TABLE organization (id text PRIMARY KEY, name text NOT NULL, slug text NOT NULL UNIQUE, logo text, metadata text, created_at timestamp NOT NULL DEFAULT now());
 CREATE TABLE member (id text PRIMARY KEY, organization_id text NOT NULL REFERENCES organization(id), user_id text NOT NULL REFERENCES "user"(id), role text NOT NULL, created_at timestamp NOT NULL DEFAULT now());
-CREATE TABLE pro_organization_checkout (org_id text PRIMARY KEY, owner_id text NOT NULL REFERENCES "user"(id), organization_name text NOT NULL, organization_slug text NOT NULL UNIQUE, checkout_id text, polar_customer_id text, created_at timestamp NOT NULL DEFAULT now(), completed_at timestamp);
-CREATE UNIQUE INDEX pending_owner_name ON pro_organization_checkout(owner_id,organization_name) WHERE completed_at IS NULL;
 CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(id), polar_subscription_id text NOT NULL, polar_product_id text NOT NULL, status text NOT NULL, current_period_end timestamp, cancel_at_period_end boolean NOT NULL DEFAULT false, polar_modified_at timestamp NOT NULL, updated_at timestamp NOT NULL DEFAULT now());
 `);
+await client.exec(
+  await readFile(
+    new URL(
+      "../../../drizzle/0012_organization_customer_teams.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 afterAll(() => client.close());
 const customers = new Map<string, Customer>();
 const members = new Map<string, BillingMember>();
@@ -385,6 +393,54 @@ it("retries a partial provisioning failure without recreating the org", async ()
   );
   expect(createOrganization).toHaveBeenCalledTimes(1);
 });
+it("keeps processing subscription events after the original creator transfers ownership and deletes their account", async () => {
+  const { c, s, event } = await paidNew();
+  await billing.syncSubscription(event, createOrganization);
+  const orgId = required(c.externalCustomerId);
+  await database.insert(schema.member).values({
+    id: randomUUID(),
+    organizationId: orgId,
+    userId: "other",
+    role: "owner",
+    createdAt: new Date(),
+  });
+  await billing.afterMembershipChange(orgId);
+  await billing.changeOwner(orgId, "owner", "other");
+  await billing.beforeUserDelete("owner");
+  await database.delete(schema.member).where(eq(schema.member.userId, "owner"));
+  await database.delete(schema.user).where(eq(schema.user.id, "owner"));
+  await billing.afterMembershipChange(orgId);
+
+  const canceled = {
+    ...s,
+    status: "canceled",
+    modifiedAt: new Date(s.createdAt.getTime() + 1000),
+  };
+  subscriptions.set(s.id, canceled);
+  await billing.syncSubscription(
+    { data: { ...event.data, ...canceled } },
+    createOrganization,
+  );
+  expect(
+    (await database.select().from(schema.orgSubscription))[0],
+  ).toMatchObject({
+    orgId,
+    status: "canceled",
+  });
+  expect(
+    await database.select().from(schema.proOrganizationCheckout),
+  ).toHaveLength(1);
+  expect(createOrganization).toHaveBeenCalledOnce();
+});
+
+it("rejects an upgrade checkout for an active organization created on Pro", async () => {
+  const { c, event } = await paidNew();
+  await billing.syncSubscription(event, createOrganization);
+  await expect(
+    billing.startUpgradeCheckout(required(c.externalCustomerId), "owner"),
+  ).rejects.toMatchObject({ code: "already_active" });
+  expect(gateway.createCheckout).toHaveBeenCalledOnce();
+});
 it("rejects foreign checkout ownership, wrong customer and version 1", async () => {
   const { c } = await paidNew();
   await expect(
@@ -565,6 +621,12 @@ it("resumes a paid upgrade before the webhook instead of selling another subscri
   expect((await billing.startUpgradeCheckout("org", "owner")).url).toContain(
     `/checkout/success?checkout_id=${c.id}`,
   );
+  await billing.confirmUpgradeCheckout("org", "owner", c.id);
+  await expect(
+    billing.startUpgradeCheckout("org", "owner"),
+  ).rejects.toMatchObject({
+    code: "already_active",
+  });
   expect(gateway.createCheckout).toHaveBeenCalledTimes(1);
 });
 it("serializes concurrent attempts for the same owner and trimmed name", async () => {

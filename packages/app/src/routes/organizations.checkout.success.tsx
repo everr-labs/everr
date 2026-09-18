@@ -17,11 +17,11 @@ import { authClient } from "@/lib/auth-client";
 const SearchSchema = z.object({ checkout_id: z.string().optional() });
 
 export const Route = createFileRoute("/organizations/checkout/success")({
-  beforeLoad: ({ context: { session } }) => {
+  beforeLoad: ({ context: { session }, location }) => {
     if (!session?.user) {
       throw redirect({
         to: "/auth/sign-in",
-        search: { redirect: "/organizations/checkout/success" },
+        search: { redirect: location.href },
       });
     }
   },
