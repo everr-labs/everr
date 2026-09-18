@@ -178,17 +178,24 @@ export function createBillingIdentity(
       return lock(`billing:${orgId}`, async () => {
         await store.authorize(orgId, actorId);
         const customer = await customerForOrganization(orgId);
-        if (!customer?.id) return { status: "customer_missing" as const };
+        if (!customer?.id) {
+          serverLogger.error("billing.portal.failed", {
+            "everr.billing.error.code": "customer_missing",
+            "everr.organization.id": orgId,
+            "error.type": "BillingError",
+          });
+          throw new BillingError(
+            "customer_missing",
+            "Billing is currently unavailable. Please try again or contact support.",
+          );
+        }
         await reconcile(orgId);
         const current = (await polar.members(customer.id)).find(
           (m) => m.externalId === actorId,
         );
         if (!current)
           throw new BillingError("forbidden", "Billing access is unavailable.");
-        return {
-          status: "ready" as const,
-          url: await polar.portal(customer.id, current.id),
-        };
+        return { url: await polar.portal(customer.id, current.id) };
       });
     },
     async changeOwner(orgId: string, actorId: string, ownerUserId: string) {

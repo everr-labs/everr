@@ -1,5 +1,6 @@
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { auth } from "@/lib/auth.server";
+import { isOrganizationAdmin } from "@/lib/organization-role";
 import { createClickhouseQuery } from "./clickhouse";
 
 const authMiddleware = createMiddleware().server(async ({ request, next }) => {
@@ -44,6 +45,33 @@ export const requireOrgMiddleware = createMiddleware()
 
 export const createAuthenticatedServerFn = createServerFn().middleware([
   requireOrgMiddleware,
+]);
+
+export class NotOrganizationAdminError extends Error {
+  name = "NotOrganizationAdminError";
+
+  constructor() {
+    super("Not authorized");
+  }
+}
+
+const requireOrganizationAdminMiddleware = createMiddleware()
+  .middleware([requireOrgMiddleware])
+  .server(async ({ request, next, context: { session } }) => {
+    const { role } = await auth.api.getActiveMemberRole({
+      headers: request.headers,
+    });
+    if (!isOrganizationAdmin(role)) {
+      throw new NotOrganizationAdminError();
+    }
+
+    return next({
+      context: { orgId: session.session.activeOrganizationId },
+    });
+  });
+
+export const createOrganizationAdminServerFn = createServerFn().middleware([
+  requireOrganizationAdminMiddleware,
 ]);
 
 /**

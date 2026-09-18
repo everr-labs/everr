@@ -24,10 +24,8 @@ import type { ReactNode } from "react";
 import { BillingOwnerCard } from "@/components/billing-owner-card";
 import { PageHeader } from "@/components/page-header";
 import {
-  ensureOrgBillingAdmin,
   getOrgEntitlement,
   getOrgPortalUrl,
-  NotBillingAdminError,
   startOrgCheckout,
 } from "@/data/billing";
 import { authClient } from "@/lib/auth-client";
@@ -41,40 +39,14 @@ type Entitlement = {
 };
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/billing",
+  "/_authenticated/_dashboard/_padded/_organization/billing",
 )({
   staticData: { breadcrumb: "Plan & Billing", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Plan & Billing" }],
   }),
-  beforeLoad: async () => {
-    await ensureOrgBillingAdmin();
-  },
-  errorComponent: ({ error }) => {
-    if (
-      error instanceof NotBillingAdminError ||
-      error.name === "NotBillingAdminError"
-    ) {
-      return <NotAdminMessage />;
-    }
-    throw error;
-  },
   component: BillingPage,
 });
-
-function NotAdminMessage() {
-  return (
-    <div className="mx-auto w-full max-w-4xl">
-      <Card>
-        <CardContent className="py-10 text-center">
-          <p className="text-muted-foreground text-sm">
-            Only organization admins can manage billing.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
 
 const HOBBY_FEATURES = [
   "Unlimited repositories",
@@ -280,21 +252,14 @@ function RedirectButton({
   label,
   loadingLabel,
 }: {
-  mutationFn: () => Promise<{ url: string } | { status: "customer_missing" }>;
+  mutationFn: () => Promise<{ url: string }>;
   variant?: "default" | "outline";
   icon: LucideIcon;
   label: ReactNode;
   loadingLabel: ReactNode;
 }) {
   const m = useMutation({
-    mutationFn: async () => {
-      const result = await mutationFn();
-      if ("status" in result)
-        throw new Error(
-          "Billing is currently unavailable. Please try again or contact support.",
-        );
-      return result;
-    },
+    mutationFn,
     onSuccess: (result) => {
       window.location.href = result.url;
     },

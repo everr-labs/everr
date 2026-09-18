@@ -1,14 +1,14 @@
 import { SidebarProvider } from "@everr/ui/components/sidebar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { forwardRef, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   invalidate: vi.fn(),
-  navigate: vi.fn(),
   openConsentSettings: vi.fn(),
+  role: "owner",
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -24,12 +24,7 @@ vi.mock("@tanstack/react-router", () => ({
   }),
   useRouter: () => ({
     invalidate: mocks.invalidate,
-    navigate: mocks.navigate,
   }),
-}));
-
-vi.mock("@/data/billing", () => ({
-  getOrgPortalUrl: vi.fn(),
 }));
 
 vi.mock("@/data/organizations", () => ({
@@ -47,7 +42,7 @@ vi.mock("@/lib/auth-client", () => ({
       data: {
         id: "org_1",
         name: "Acme",
-        members: [{ userId: "user_1", role: "owner" }],
+        members: [{ userId: "user_1", role: mocks.role }],
       },
     }),
     useListOrganizations: () => ({
@@ -70,10 +65,13 @@ vi.mock("@/telemetry/consent-gate", () => ({
   useOpenConsentSettings: () => mocks.openConsentSettings,
 }));
 
-import { getOrgPortalUrl } from "@/data/billing";
 import { NavUser } from "./nav-user";
 
 describe("NavUser", () => {
+  beforeEach(() => {
+    mocks.role = "owner";
+  });
+
   it("opens the flat menu without losing the menu group context", async () => {
     const user = userEvent.setup();
     const queryClient = new QueryClient();
@@ -94,13 +92,28 @@ describe("NavUser", () => {
       name: "Download App",
     });
     expect(downloadItem.querySelector(".sr-only")).toBeNull();
-    vi.mocked(getOrgPortalUrl).mockResolvedValueOnce({
-      status: "customer_missing",
-    } as never);
-    await user.click(screen.getByText("Billing details"));
+    expect(screen.queryByText("Billing details")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Plan & Billing" }),
+    ).toHaveAttribute("href", "/billing");
+  });
 
-    await waitFor(() => {
-      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/billing" });
-    });
+  it("hides organization settings from ordinary members", async () => {
+    mocks.role = "member";
+    const user = userEvent.setup();
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SidebarProvider>
+          <NavUser />
+        </SidebarProvider>
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Test User/ }));
+
+    expect(await screen.findByText("Account & privacy")).toBeVisible();
+    expect(screen.queryByText("Organization settings")).not.toBeInTheDocument();
   });
 });

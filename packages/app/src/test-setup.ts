@@ -148,6 +148,7 @@ vi.mock("@/lib/serverFn", async () => {
   return {
     requireOrgMiddleware: { __handler: vi.fn() },
     createAuthenticatedServerFn: vi.fn(makeAuthChain),
+    createOrganizationAdminServerFn: vi.fn(makeAuthChain),
     createPartiallyAuthenticatedServerFn: vi.fn(makePartialAuthChain),
   };
 });

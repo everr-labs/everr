@@ -8,8 +8,7 @@ import {
 } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { getRequestHeaders } from "@tanstack/react-start/server";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/page-header";
 import { InvitationsTable } from "@/components/users-management/invitations-table";
 import { InviteMemberDialog } from "@/components/users-management/invite-member-dialog";
@@ -18,41 +17,18 @@ import {
   invitationsQueryOptions,
   membersQueryOptions,
 } from "@/components/users-management/queries";
-import { auth } from "@/lib/auth.server";
+import { getActiveOrgAppAccess } from "@/data/billing";
 import { authClient } from "@/lib/auth-client";
-import { readOrgEntitlement } from "@/lib/billing-data.server";
-import { isOrganizationAdmin } from "@/lib/organization-role";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
-
-const ensureOrgAdmin = createAuthenticatedServerFn.handler(
-  async ({ context: { session } }) => {
-    const org = await auth.api.getFullOrganization({
-      headers: getRequestHeaders(),
-      query: { organizationId: session.session.activeOrganizationId },
-    });
-    if (!org) return { allowed: false, appState: "hobby" as const };
-
-    const membership = org.members.find((m) => m.userId === session.user.id);
-    return {
-      allowed: isOrganizationAdmin(membership?.role),
-      appState: (await readOrgEntitlement(session.session.activeOrganizationId))
-        .appState,
-    };
-  },
-);
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/users-management",
+  "/_authenticated/_dashboard/_padded/_organization/users-management",
 )({
   staticData: { breadcrumb: "Members", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Members" }],
   }),
   beforeLoad: async () => {
-    const { allowed, appState } = await ensureOrgAdmin();
-    if (!allowed) {
-      throw redirect({ to: "/" });
-    }
+    const { appState } = await getActiveOrgAppAccess();
     return { appState };
   },
   component: MembersPage,
@@ -76,7 +52,7 @@ function MembersPage() {
 
 function HobbyMembersCta() {
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
       <PageHeader
         title="Members"
         lede="Collaboration is available with the Pro plan."

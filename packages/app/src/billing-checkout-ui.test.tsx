@@ -14,13 +14,11 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/data/organizations", () => ({ createOrganization: mocks.create }));
 vi.mock("@/data/billing", () => ({
-  ensureOrgBillingAdmin: vi.fn(),
   getOrgBillingSettings: mocks.settings,
   changeOrgBillingOwner: mocks.transfer,
   getOrgEntitlement: mocks.entitlement,
   getOrgPortalUrl: mocks.portal,
   startOrgCheckout: mocks.checkout,
-  NotBillingAdminError: class extends Error {},
 }));
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
@@ -33,7 +31,7 @@ vi.mock("@/components/page-header", () => ({
 }));
 
 import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
-import { Route } from "@/routes/_authenticated/_dashboard/_padded/billing";
+import { Route } from "@/routes/_authenticated/_dashboard/_padded/_organization/billing";
 
 const BillingPage = Route.options.component as ComponentType;
 function billingPage() {
@@ -96,7 +94,11 @@ it("shows upgrade immediately for a Hobby organization", async () => {
 });
 it("keeps the portal retryable when the customer is missing", async () => {
   mocks.entitlement.mockResolvedValue({ plan: "pro", appState: "pro" });
-  mocks.portal.mockResolvedValue({ status: "customer_missing" });
+  mocks.portal.mockRejectedValue(
+    new Error(
+      "Billing is currently unavailable. Please try again or contact support.",
+    ),
+  );
   billingPage();
   const portal = await screen.findByRole("button", {
     name: "Open billing portal",

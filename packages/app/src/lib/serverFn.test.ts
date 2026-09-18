@@ -17,6 +17,7 @@ const mocked = vi.hoisted(() => ({
   createServerFnMiddleware: vi.fn(),
   createServerFnResult: {},
   getRequest: vi.fn(),
+  getActiveMemberRole: vi.fn(),
   getSession: vi.fn(),
 }));
 
@@ -28,6 +29,14 @@ function getHandler(): FunctionMiddlewareHandler {
   return mocked.handler;
 }
 
+function getRequireOrgHandler(): FunctionMiddlewareHandler {
+  const definition = mocked.allDefinitions[1];
+  if (!definition) {
+    throw new Error("Expected organization middleware to be registered.");
+  }
+  return definition.__handler;
+}
+
 beforeEach(() => {
   vi.resetModules();
   mocked.handler = null;
@@ -36,6 +45,8 @@ beforeEach(() => {
   mocked.createServerFnMiddleware.mockReset();
   mocked.createServerFnMiddleware.mockReturnValue(mocked.createServerFnResult);
   mocked.getRequest.mockReset();
+  mocked.getActiveMemberRole.mockReset();
+  mocked.getActiveMemberRole.mockResolvedValue({ role: "owner" });
   mocked.getSession.mockReset();
 });
 
@@ -80,6 +91,7 @@ async function loadModule() {
   vi.doMock("./auth.server", () => ({
     auth: {
       api: {
+        getActiveMemberRole: mocked.getActiveMemberRole,
         getSession: mocked.getSession,
       },
     },
@@ -101,6 +113,56 @@ describe("createAuthenticatedServerFn", () => {
   });
 });
 
+describe("createOrganizationAdminServerFn", () => {
+  it("wires the organization admin middleware into createServerFn", async () => {
+    const { createOrganizationAdminServerFn } = await loadModule();
+
+    const [, , requireOrganizationAdminDef] = mocked.allDefinitions;
+    expect(createOrganizationAdminServerFn).toBe(mocked.createServerFnResult);
+    expect(mocked.createServerFnMiddleware).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        options: requireOrganizationAdminDef?.options,
+        __handler: expect.any(Function),
+      }),
+    ]);
+  });
+
+  it.each(["admin", "owner"])("allows an %s", async (role) => {
+    await loadModule();
+    const request = new Request("http://localhost/_server");
+    const nextResult = new Response(null, { status: 204 });
+    const next = vi.fn().mockResolvedValue(nextResult);
+    mocked.getSession.mockResolvedValue({
+      user: { id: "user_123" },
+      session: { id: "session_123", activeOrganizationId: "org_123" },
+    });
+    mocked.getActiveMemberRole.mockResolvedValue({ role });
+
+    const response = await getHandler()({ request, next });
+
+    expect(response).toBe(nextResult);
+    expect(mocked.getActiveMemberRole).toHaveBeenCalledWith({
+      headers: request.headers,
+    });
+  });
+
+  it("rejects an ordinary member", async () => {
+    const { NotOrganizationAdminError } = await loadModule();
+    const request = new Request("http://localhost/_server");
+    const next = vi.fn();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "user_123" },
+      session: { id: "session_123", activeOrganizationId: "org_123" },
+    });
+    mocked.getActiveMemberRole.mockResolvedValue({ role: "member" });
+
+    await expect(getHandler()({ request, next })).rejects.toBeInstanceOf(
+      NotOrganizationAdminError,
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+});
+
 describe("authMiddleware", () => {
   it("authenticates via better-auth session and populates context", async () => {
     await loadModule();
@@ -113,7 +175,7 @@ describe("authMiddleware", () => {
       session: { id: "session_123", activeOrganizationId: "org_123" },
     });
 
-    const response = await getHandler()({ request, next });
+    const response = await getRequireOrgHandler()({ request, next });
 
     expect(response).toBe(nextResult);
     expect(next).toHaveBeenCalledWith({
@@ -139,7 +201,7 @@ describe("authMiddleware", () => {
     mocked.getRequest.mockReturnValue(request);
     mocked.getSession.mockResolvedValue(null);
 
-    await expect(getHandler()({ request, next })).rejects.toThrow(
+    await expect(getRequireOrgHandler()({ request, next })).rejects.toThrow(
       "Unauthenticated",
     );
 
@@ -156,7 +218,7 @@ describe("authMiddleware", () => {
       session: { id: "session_123", activeOrganizationId: null },
     });
 
-    await expect(getHandler()({ request, next })).rejects.toThrow(
+    await expect(getRequireOrgHandler()({ request, next })).rejects.toThrow(
       "No active organization",
     );
 

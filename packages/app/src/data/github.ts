@@ -2,7 +2,10 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { githubInstallationOrganizations } from "@/db/schema";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import {
+  createAuthenticatedServerFn,
+  createOrganizationAdminServerFn,
+} from "@/lib/serverFn";
 import {
   backfillRepo,
   JOB_QUOTA_PER_REPO,
@@ -37,7 +40,7 @@ export const getGithubAppInstallStatus = createAuthenticatedServerFn({
   }));
 });
 
-export const getInstallationRepos = createAuthenticatedServerFn({
+export const getInstallationRepos = createOrganizationAdminServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
   const installations = await getInstallationsForOrganization(
@@ -55,7 +58,7 @@ export const getInstallationRepos = createAuthenticatedServerFn({
   return repos.map((repo) => ({ id: repo.id, fullName: repo.full_name }));
 });
 
-export const importRepos = createAuthenticatedServerFn({ method: "POST" })
+export const importRepos = createOrganizationAdminServerFn({ method: "POST" })
   .inputValidator(z.object({ repos: z.array(z.string().min(1)).min(1) }))
   .handler(async function* ({ data, context: { session } }) {
     const installations = await getInstallationsForOrganization(

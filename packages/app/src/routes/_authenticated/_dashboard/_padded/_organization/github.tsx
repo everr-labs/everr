@@ -37,7 +37,7 @@ const githubReposOptions = queryOptions({
 });
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/github",
+  "/_authenticated/_dashboard/_padded/_organization/github",
 )({
   staticData: { breadcrumb: "GitHub", hideTimeRangePicker: true },
   head: () => ({ meta: [{ title: "Everr - GitHub" }] }),
@@ -63,7 +63,7 @@ function GithubPage() {
   }, [queryClient]);
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
       <PageHeader
         title="GitHub"
         lede="Connect GitHub and import recent workflow history into this organization."

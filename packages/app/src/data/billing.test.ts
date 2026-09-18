@@ -31,7 +31,13 @@ vi.mock("@/env", () => ({
   env: { BETTER_AUTH_URL: "https://app.example", POLAR_PRO_PRODUCT_ID: "pro" },
 }));
 vi.mock("@/db/client", () => ({ db: {} }));
-vi.mock("@/lib/serverFn", () => ({ requireOrgMiddleware: {} }));
+vi.mock("@/lib/serverFn", async () => {
+  const { createServerFn } = await import("@tanstack/react-start");
+  return {
+    requireOrgMiddleware: {},
+    createOrganizationAdminServerFn: createServerFn(),
+  };
+});
 vi.mock("@/lib/auth.server", () => ({ auth: { api: {} } }));
 vi.mock("@/lib/billing-data.server", () => ({}));
 vi.mock("@/lib/billing/server", () => ({

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentType, ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -50,5 +50,30 @@ it("stops confirming and polling when a paid checkout belongs to a different cus
     await vi.advanceTimersByTimeAsync(5_000);
   });
   expect(mocks.confirm).toHaveBeenCalledTimes(1);
+  client.clear();
+});
+
+it("refreshes Hobby organization eligibility after an upgrade completes", async () => {
+  vi.spyOn(Route, "useSearch").mockReturnValue({
+    checkout_id: "d0dc6191-d1e3-4a1e-a8e7-6ba69a6112e7",
+  });
+  mocks.confirm.mockResolvedValue({ status: "completed" });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const invalidateQueries = vi.spyOn(client, "invalidateQueries");
+
+  render(
+    <QueryClientProvider client={client}>
+      <Page />
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByText("Pro is active")).toBeVisible();
+  await waitFor(() => {
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["organization-creation-options"],
+    });
+  });
   client.clear();
 });

@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import * as z from "zod";
@@ -29,11 +29,21 @@ export const Route = createFileRoute(
 
 function CheckoutSuccessPage() {
   const { checkout_id } = Route.useSearch();
+  const queryClient = useQueryClient();
   const confirmation = useQuery({
     queryKey: ["organization-checkout", checkout_id],
     enabled: Boolean(checkout_id),
-    queryFn: () =>
-      confirmOrgCheckout({ data: { checkoutId: checkout_id ?? "" } }),
+    queryFn: async () => {
+      const result = await confirmOrgCheckout({
+        data: { checkoutId: checkout_id ?? "" },
+      });
+      if (result.status === "completed") {
+        await queryClient.invalidateQueries({
+          queryKey: ["organization-creation-options"],
+        });
+      }
+      return result;
+    },
     refetchInterval: (query) =>
       query.state.status === "error" ||
       (query.state.data && query.state.data.status !== "pending")

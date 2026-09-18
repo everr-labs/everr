@@ -55,10 +55,6 @@ function SuspendedOrganizationPage() {
     setOpeningPortal(true);
     try {
       const result = await getOrgPortalUrl();
-      if (result.status === "customer_missing") {
-        window.location.assign("/billing");
-        return;
-      }
       window.location.assign(result.url);
     } catch {
       setError("The billing portal could not be opened. Please try again.");

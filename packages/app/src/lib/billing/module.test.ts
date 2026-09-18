@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { afterAll, beforeEach, expect, it, vi } from "vitest";
 import type { Database } from "@/db/client";
 import * as schema from "@/db/schema";
+import { serverLogger } from "@/telemetry/logger";
 import { billingOrganizationHooks } from "./membership-plugin.server";
 import { createBillingModule } from "./module";
 import { beforeCreateCheckoutOrganization } from "./organization-context.server";
@@ -233,8 +234,8 @@ it("does not contact Polar for a new Hobby owner, then creates its team at the f
     connected: false,
     owner: null,
   });
-  expect(await billing.openPortal("org", "owner")).toEqual({
-    status: "customer_missing",
+  await expect(billing.openPortal("org", "owner")).rejects.toMatchObject({
+    code: "customer_missing",
   });
   for (const operation of Object.values(gateway)) {
     expect(operation).not.toHaveBeenCalled();
@@ -287,12 +288,19 @@ it("uses the designated owner despite multiple owners and an admin initiating ch
   expect([...checkouts.values()][0].customerId).toBe([...customers.keys()][0]);
 });
 it("uses a member-scoped portal and never provisions missing customers", async () => {
-  expect(await billing.openPortal("org", "admin")).toEqual({
-    status: "customer_missing",
+  await expect(billing.openPortal("org", "admin")).rejects.toMatchObject({
+    code: "customer_missing",
+  });
+  expect(serverLogger.error).toHaveBeenCalledWith("billing.portal.failed", {
+    "everr.billing.error.code": "customer_missing",
+    "everr.organization.id": "org",
+    "error.type": "BillingError",
   });
   expect(gateway.createTeam).not.toHaveBeenCalled();
   await upgrade();
-  await billing.openPortal("org", "admin");
+  await expect(billing.openPortal("org", "admin")).resolves.toEqual({
+    url: expect.stringContaining("https://polar.example/portal/"),
+  });
   expect(gateway.portal).toHaveBeenCalledWith(
     [...customers.keys()][0],
     [...members.values()].find((m) => m.externalId === "admin")?.id,
@@ -479,7 +487,7 @@ it("blocks a failed revocation without leaving a persistent portal block", async
     ),
   ).toBe(true);
   await expect(billing.openPortal("org", "owner")).resolves.toMatchObject({
-    status: "ready",
+    url: expect.stringContaining("https://polar.example/portal/"),
   });
 });
 it.each([

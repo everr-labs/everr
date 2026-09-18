@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { githubInstallationOrganizations, member } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { parseInstallState } from "@/lib/github-install-state";
+import { isOrganizationAdmin } from "@/lib/organization-role";
 
 function redirectToGithub(
   origin: string,
@@ -70,7 +71,7 @@ export const Route = createFileRoute("/api/github/install/callback")({
         }
 
         const [currentMembership] = await db
-          .select({ id: member.id })
+          .select({ id: member.id, role: member.role })
           .from(member)
           .where(
             and(
@@ -84,6 +85,13 @@ export const Route = createFileRoute("/api/github/install/callback")({
             callbackURL.origin,
             "error",
             "membership_missing",
+          );
+        }
+        if (!isOrganizationAdmin(currentMembership.role)) {
+          return redirectToGithub(
+            callbackURL.origin,
+            "error",
+            "not_authorized",
           );
         }
 

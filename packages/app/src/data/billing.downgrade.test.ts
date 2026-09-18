@@ -24,7 +24,13 @@ vi.mock("@tanstack/react-start", () => {
   };
   return { createServerFn: chain, createMiddleware: chain };
 });
-vi.mock("@/lib/serverFn", () => ({ requireOrgMiddleware: {} }));
+vi.mock("@/lib/serverFn", async () => {
+  const { createServerFn } = await import("@tanstack/react-start");
+  return {
+    requireOrgMiddleware: {},
+    createOrganizationAdminServerFn: createServerFn(),
+  };
+});
 vi.mock("@/lib/auth.server", () => ({
   auth: { api: { getActiveMemberRole: mocks.getRole } },
 }));
