@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { env } from "@/env";
 import { auth } from "@/lib/auth.server";
 import { createInstallState } from "@/lib/github-install-state";
+import { isOrganizationAdmin } from "@/lib/organization-role";
 
 export const Route = createFileRoute("/api/github/install/start")({
   server: {
@@ -18,6 +19,12 @@ export const Route = createFileRoute("/api/github/install/start")({
           return new Response("missing active organization", {
             status: 400,
           });
+        }
+        const { role } = await auth.api.getActiveMemberRole({
+          headers: request.headers,
+        });
+        if (!isOrganizationAdmin(role)) {
+          return new Response("not authorized", { status: 403 });
         }
 
         const installURL = new URL(env.GITHUB_APP_INSTALL_URL);

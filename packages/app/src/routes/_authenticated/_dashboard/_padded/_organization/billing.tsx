@@ -24,10 +24,8 @@ import type { ReactNode } from "react";
 import { BillingOwnerCard } from "@/components/billing-owner-card";
 import { PageHeader } from "@/components/page-header";
 import {
-  ensureOrgBillingAdmin,
   getOrgEntitlement,
   getOrgPortalUrl,
-  NotBillingAdminError,
   startOrgCheckout,
 } from "@/data/billing";
 import { authClient } from "@/lib/auth-client";
@@ -41,41 +39,14 @@ type Entitlement = {
 };
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/billing",
+  "/_authenticated/_dashboard/_padded/_organization/billing",
 )({
   staticData: { breadcrumb: "Plan & Billing", hideTimeRangePicker: true },
   head: () => ({
     meta: [{ title: "Everr - Plan & Billing" }],
   }),
-  beforeLoad: async () => {
-    await ensureOrgBillingAdmin();
-  },
-  errorComponent: ({ error }) => {
-    if (
-      error instanceof NotBillingAdminError ||
-      (error instanceof Error && error.message === "Not authorized")
-    ) {
-      return <BillingUnauthorized />;
-    }
-    throw error;
-  },
   component: BillingPage,
 });
-
-function BillingUnauthorized() {
-  return (
-    <div className="mx-auto w-full max-w-4xl">
-      <Card>
-        <CardContent className="space-y-1 py-10 text-center">
-          <h1 className="text-lg font-semibold">Not authorized</h1>
-          <p className="text-muted-foreground text-sm">
-            You don't have permission to view this page.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
 
 const HOBBY_FEATURES = [
   "Unlimited repositories",

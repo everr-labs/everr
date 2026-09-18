@@ -37,7 +37,7 @@ const githubReposOptions = queryOptions({
 });
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/_padded/github",
+  "/_authenticated/_dashboard/_padded/_organization/github",
 )({
   staticData: { breadcrumb: "GitHub", hideTimeRangePicker: true },
   head: () => ({ meta: [{ title: "Everr - GitHub" }] }),

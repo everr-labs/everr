@@ -149,29 +149,25 @@ export function NavUser() {
                   Create organization
                 </DropdownMenuItem>
               </DropdownMenuGroup>
-              {activeOrg ? (
+              {activeOrg && isAdmin ? (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuGroup>
                     <DropdownMenuLabel>Organization settings</DropdownMenuLabel>
-                    {isAdmin ? (
-                      <>
-                        <DropdownMenuItem
-                          render={<Link to="/users-management" />}
-                          nativeButton={false}
-                        >
-                          <Users />
-                          Members
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          render={<Link to="/api-keys" />}
-                          nativeButton={false}
-                        >
-                          <KeyRound />
-                          API keys
-                        </DropdownMenuItem>
-                      </>
-                    ) : null}
+                    <DropdownMenuItem
+                      render={<Link to="/users-management" />}
+                      nativeButton={false}
+                    >
+                      <Users />
+                      Members
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      render={<Link to="/api-keys" />}
+                      nativeButton={false}
+                    >
+                      <KeyRound />
+                      API keys
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       render={<Link to="/github" />}
                       nativeButton={false}
@@ -179,15 +175,13 @@ export function NavUser() {
                       <GitPullRequest />
                       GitHub
                     </DropdownMenuItem>
-                    {isAdmin ? (
-                      <DropdownMenuItem
-                        render={<Link to="/billing" />}
-                        nativeButton={false}
-                      >
-                        <CreditCard />
-                        Plan &amp; Billing
-                      </DropdownMenuItem>
-                    ) : null}
+                    <DropdownMenuItem
+                      render={<Link to="/billing" />}
+                      nativeButton={false}
+                    >
+                      <CreditCard />
+                      Plan &amp; Billing
+                    </DropdownMenuItem>
                   </DropdownMenuGroup>
                 </>
               ) : null}

@@ -35,6 +35,7 @@ vi.mock("@/db/schema", () => ({
     id: "member_id",
     organizationId: "organization_id",
     userId: "user_id",
+    role: "role",
   },
 }));
 
@@ -73,13 +74,13 @@ function mockDbExistingLink(link: {
   organizationId: string;
 }) {
   vi.mocked(db.select)
-    .mockReturnValueOnce(selectResult([{ id: "member_1" }]))
+    .mockReturnValueOnce(selectResult([{ id: "member_1", role: "admin" }]))
     .mockReturnValueOnce(selectResult([link]));
 }
 
 function mockDbNoExistingLink() {
   vi.mocked(db.select)
-    .mockReturnValueOnce(selectResult([{ id: "member_1" }]))
+    .mockReturnValueOnce(selectResult([{ id: "member_1", role: "admin" }]))
     .mockReturnValueOnce(selectResult([]));
 }
 
@@ -163,6 +164,29 @@ describe("/api/github/install/callback", () => {
       "http://localhost/github?github_install=error&reason=membership_missing",
     );
     expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects the callback when the user is an ordinary member", async () => {
+    await mockBetterAuthSession({
+      user: { id: "user_1" },
+      session: { activeOrganizationId: "org_1" },
+    });
+    vi.mocked(db.select).mockReturnValueOnce(
+      selectResult([{ id: "member_1", role: "member" }]),
+    );
+
+    const response = await getHandler()({
+      request: new Request(
+        "http://localhost/api/github/install/callback?installation_id=123&state=ok",
+      ),
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost/github?github_install=error&reason=not_authorized",
+    );
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("treats an existing link for the same org as a successful reactivation", async () => {

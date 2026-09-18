@@ -3,11 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { forwardRef, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   invalidate: vi.fn(),
   openConsentSettings: vi.fn(),
+  role: "owner",
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -41,7 +42,7 @@ vi.mock("@/lib/auth-client", () => ({
       data: {
         id: "org_1",
         name: "Acme",
-        members: [{ userId: "user_1", role: "owner" }],
+        members: [{ userId: "user_1", role: mocks.role }],
       },
     }),
     useListOrganizations: () => ({
@@ -67,6 +68,10 @@ vi.mock("@/telemetry/consent-gate", () => ({
 import { NavUser } from "./nav-user";
 
 describe("NavUser", () => {
+  beforeEach(() => {
+    mocks.role = "owner";
+  });
+
   it("opens the flat menu without losing the menu group context", async () => {
     const user = userEvent.setup();
     const queryClient = new QueryClient();
@@ -91,5 +96,24 @@ describe("NavUser", () => {
     expect(
       screen.getByRole("menuitem", { name: "Plan & Billing" }),
     ).toHaveAttribute("href", "/billing");
+  });
+
+  it("hides organization settings from ordinary members", async () => {
+    mocks.role = "member";
+    const user = userEvent.setup();
+    const queryClient = new QueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SidebarProvider>
+          <NavUser />
+        </SidebarProvider>
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Test User/ }));
+
+    expect(await screen.findByText("Account & privacy")).toBeVisible();
+    expect(screen.queryByText("Organization settings")).not.toBeInTheDocument();
   });
 });

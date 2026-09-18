@@ -13,7 +13,7 @@ import {
   type PublicKeyMetadata,
   publicKeyInputError,
 } from "@/lib/public-ingest-keys";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { createOrganizationAdminServerFn } from "@/lib/serverFn";
 
 /**
  * The shape of an `ek_` key as the UI receives it. Derived from the DB row
@@ -85,7 +85,7 @@ export function permissionsForScopes(scopes: readonly ApiKeyScope[]): {
   return permissions;
 }
 
-export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
+export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
   .inputValidator(CreateApiKeyInput)
   .handler(async ({ data, context: { session } }) => {
     const permissions = permissionsForScopes(data.scopes);
@@ -136,7 +136,7 @@ export const createApiKey = createAuthenticatedServerFn({ method: "POST" })
     };
   });
 
-export const listApiKeys = createAuthenticatedServerFn({
+export const listApiKeys = createOrganizationAdminServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }): Promise<ApiKey[]> => {
   // The org comes from the authenticated server-fn context — no extra

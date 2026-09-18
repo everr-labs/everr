@@ -1,4 +1,4 @@
-import { createMiddleware, createServerFn } from "@tanstack/react-start";
+import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { and, eq, ne } from "drizzle-orm";
 import * as z from "zod";
@@ -11,45 +11,16 @@ import {
   readOrgEntitlement,
   userOwnsHobbyOrganization,
 } from "@/lib/billing-data.server";
-import { isOrganizationAdmin } from "@/lib/organization-role";
-import { requireOrgMiddleware } from "@/lib/serverFn";
-
-export class NotBillingAdminError extends Error {
-  name = "NotBillingAdminError";
-
-  constructor() {
-    super("Not authorized");
-  }
-}
+import {
+  createOrganizationAdminServerFn,
+  requireOrgMiddleware,
+} from "@/lib/serverFn";
 
 class HobbyDowngradeUnavailableError extends Error {
   name = "HobbyDowngradeUnavailableError";
 }
 
-const billingAdminMiddleware = createMiddleware()
-  .middleware([requireOrgMiddleware])
-  .server(async ({ next, context: { session } }) => {
-    const { role } = await auth.api.getActiveMemberRole({
-      headers: getRequestHeaders(),
-    });
-    if (!isOrganizationAdmin(role)) {
-      throw new NotBillingAdminError();
-    }
-
-    return next({
-      context: { orgId: session.session.activeOrganizationId },
-    });
-  });
-
-const createBillingAdminServerFn = createServerFn().middleware([
-  billingAdminMiddleware,
-]);
-
-export const ensureOrgBillingAdmin = createBillingAdminServerFn({
-  method: "GET",
-}).handler(async () => ({ ok: true }));
-
-export const getOrgEntitlement = createBillingAdminServerFn({
+export const getOrgEntitlement = createOrganizationAdminServerFn({
   method: "GET",
 }).handler(async ({ context: { orgId } }) => readOrgEntitlement(orgId));
 
@@ -80,7 +51,7 @@ export const getSuspendedOrgRecovery = createServerFn()
     };
   });
 
-export const startOrgCheckout = createBillingAdminServerFn({
+export const startOrgCheckout = createOrganizationAdminServerFn({
   method: "POST",
 })
   .inputValidator(z.object({ slug: z.literal("pro") }))
@@ -88,17 +59,17 @@ export const startOrgCheckout = createBillingAdminServerFn({
     return billing.startUpgradeCheckout(orgId, session.user.id);
   });
 
-export const getOrgPortalUrl = createBillingAdminServerFn({
+export const getOrgPortalUrl = createOrganizationAdminServerFn({
   method: "POST",
 }).handler(({ context: { orgId, session } }) =>
   billing.openPortal(orgId, session.user.id),
 );
-export const getOrgBillingSettings = createBillingAdminServerFn({
+export const getOrgBillingSettings = createOrganizationAdminServerFn({
   method: "GET",
 }).handler(({ context: { orgId, session } }) =>
   billing.getSettings(orgId, session.user.id),
 );
-export const changeOrgBillingOwner = createBillingAdminServerFn({
+export const changeOrgBillingOwner = createOrganizationAdminServerFn({
   method: "POST",
 })
   .inputValidator(z.object({ userId: z.string().min(1) }))
@@ -106,7 +77,9 @@ export const changeOrgBillingOwner = createBillingAdminServerFn({
     await billing.changeOwner(orgId, session.user.id, data.userId);
     return { status: "completed" as const };
   });
-export const confirmOrgCheckout = createBillingAdminServerFn({ method: "POST" })
+export const confirmOrgCheckout = createOrganizationAdminServerFn({
+  method: "POST",
+})
   .inputValidator(z.object({ checkoutId: z.string().min(1) }))
   .handler(({ data, context: { orgId, session } }) =>
     billing.confirmUpgradeCheckout(orgId, session.user.id, data.checkoutId),
