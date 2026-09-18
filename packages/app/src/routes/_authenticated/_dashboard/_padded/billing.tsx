@@ -53,22 +53,23 @@ export const Route = createFileRoute(
   errorComponent: ({ error }) => {
     if (
       error instanceof NotBillingAdminError ||
-      error.name === "NotBillingAdminError"
+      (error instanceof Error && error.message === "Not authorized")
     ) {
-      return <NotAdminMessage />;
+      return <BillingUnauthorized />;
     }
     throw error;
   },
   component: BillingPage,
 });
 
-function NotAdminMessage() {
+function BillingUnauthorized() {
   return (
     <div className="mx-auto w-full max-w-4xl">
       <Card>
-        <CardContent className="py-10 text-center">
+        <CardContent className="space-y-1 py-10 text-center">
+          <h1 className="text-lg font-semibold">Not authorized</h1>
           <p className="text-muted-foreground text-sm">
-            Only organization admins can manage billing.
+            You don't have permission to view this page.
           </p>
         </CardContent>
       </Card>

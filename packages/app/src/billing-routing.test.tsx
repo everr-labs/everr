@@ -90,14 +90,13 @@ test.each([
   }
 });
 
-test("ordinary billing still requires admin access", async () => {
-  billing.ensureOrgBillingAdmin.mockRejectedValue(
-    Object.assign(new Error("Not allowed"), { name: "NotBillingAdminError" }),
-  );
-  await visit("/billing");
+test("ordinary billing shows unauthorized without changing the URL", async () => {
+  billing.ensureOrgBillingAdmin.mockRejectedValue(new Error("Not authorized"));
+  const router = await visit("/billing");
   expect(
-    await screen.findByText("Only organization admins can manage billing."),
+    await screen.findByRole("heading", { name: "Not authorized" }),
   ).toBeVisible();
+  expect(router.state.location.pathname).toBe("/billing");
   expect(billing.ensureOrgBillingAdmin).toHaveBeenCalledOnce();
   expect(billing.getSuspendedOrgRecovery).not.toHaveBeenCalled();
 });

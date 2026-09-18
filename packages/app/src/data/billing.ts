@@ -16,6 +16,10 @@ import { requireOrgMiddleware } from "@/lib/serverFn";
 
 export class NotBillingAdminError extends Error {
   name = "NotBillingAdminError";
+
+  constructor() {
+    super("Not authorized");
+  }
 }
 
 class HobbyDowngradeUnavailableError extends Error {
@@ -29,7 +33,7 @@ const billingAdminMiddleware = createMiddleware()
       headers: getRequestHeaders(),
     });
     if (!isOrganizationAdmin(role)) {
-      throw new NotBillingAdminError("Only org admins can manage billing");
+      throw new NotBillingAdminError();
     }
 
     return next({
