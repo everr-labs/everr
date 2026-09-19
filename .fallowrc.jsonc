@@ -67,6 +67,8 @@
     "@opentelemetry/sdk-trace-web",
     // Stryker loads its runner plugin from stryker.config.json at runtime.
     "@stryker-mutator/vitest-runner",
+    // Vite resolves the ESM entry with createRequire in packages/app/vite.config.ts.
+    "tslib",
   ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
