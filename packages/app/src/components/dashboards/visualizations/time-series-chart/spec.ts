@@ -15,6 +15,17 @@ export const timeSeriesChartSpec = z.looseObject({
     .default("monotone"),
   connectNulls: z.boolean().default(false),
   stacked: z.boolean().default(false),
+  yAxis: z
+    .looseObject({
+      min: z.union([z.number().finite(), z.literal("auto")]).optional(),
+      max: z.union([z.number().finite(), z.literal("auto")]).optional(),
+    })
+    .refine(
+      ({ min, max }) =>
+        typeof min !== "number" || typeof max !== "number" || min < max,
+      { path: ["max"], message: "must be greater than min" },
+    )
+    .optional(),
 });
 
 export type TimeSeriesChartSpec = z.infer<typeof timeSeriesChartSpec>;

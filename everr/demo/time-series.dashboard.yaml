@@ -7,8 +7,8 @@ spec:
     name: Time Series
     description: >-
       TimeSeriesChart regression sheet: every option (unit, valueFormat, showLegend,
-      lineWidth, curveType, connectNulls, stacked) and behavior (grouped pivot,
-      multi-column, multi-query, null gaps, empty result) exercised with
+      lineWidth, curveType, connectNulls, stacked, yAxis min/max/auto) and behavior (grouped pivot,
+      multi-column, multi-query, null gaps, empty result, 20 series) exercised with
       deterministic TestData.
   timeRange:
     from: now-7d
@@ -235,6 +235,50 @@ spec:
                   seed: 52
                   series:
                     - { name: errors, start: 30, noise: 12, min: 0 }
+    ts-twenty-series:
+      kind: Panel
+      spec:
+        display:
+          name: "TS: 20 series"
+          description: "Twenty numeric columns from one query with the legend visible"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+            connectNulls: false
+            valueFormat:
+              unit: ""
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 71
+                  series:
+                    - { name: service-01, start: 100, noise: 12, min: 0 }
+                    - { name: service-02, start: 150, noise: 12, min: 0 }
+                    - { name: service-03, start: 200, noise: 12, min: 0 }
+                    - { name: service-04, start: 250, noise: 12, min: 0 }
+                    - { name: service-05, start: 300, noise: 12, min: 0 }
+                    - { name: service-06, start: 350, noise: 12, min: 0 }
+                    - { name: service-07, start: 400, noise: 12, min: 0 }
+                    - { name: service-08, start: 450, noise: 12, min: 0 }
+                    - { name: service-09, start: 500, noise: 12, min: 0 }
+                    - { name: service-10, start: 550, noise: 12, min: 0 }
+                    - { name: service-11, start: 600, noise: 12, min: 0 }
+                    - { name: service-12, start: 650, noise: 12, min: 0 }
+                    - { name: service-13, start: 700, noise: 12, min: 0 }
+                    - { name: service-14, start: 750, noise: 12, min: 0 }
+                    - { name: service-15, start: 800, noise: 12, min: 0 }
+                    - { name: service-16, start: 850, noise: 12, min: 0 }
+                    - { name: service-17, start: 900, noise: 12, min: 0 }
+                    - { name: service-18, start: 950, noise: 12, min: 0 }
+                    - { name: service-19, start: 1000, noise: 12, min: 0 }
+                    - { name: service-20, start: 1050, noise: 12, min: 0 }
     ts-empty:
       kind: Panel
       spec:
@@ -264,10 +308,10 @@ spec:
       spec:
         display:
           name: "Format: none"
-          description: "valueFormat: none, unit: {connection}, decimals: 2"
+          description: "valueFormat: none, unit: {connection}, decimals: 2, yAxis: auto/auto"
         plugin:
           kind: TimeSeriesChart
-          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 } }
+          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 }, yAxis: { min: auto, max: auto } }
         queries:
           - kind: TestData
             spec:
@@ -282,10 +326,10 @@ spec:
       spec:
         display:
           name: "Format: decimal"
-          description: "valueFormat: decimal, unit: widgets/s, decimals: 2"
+          description: "valueFormat: decimal, unit: widgets/s, decimals: 2, yAxis: min 0, max auto"
         plugin:
           kind: TimeSeriesChart
-          spec: { valueFormat: { unit: widgets/s, scale: decimal, decimals: 2 } }
+          spec: { valueFormat: { unit: widgets/s, scale: decimal, decimals: 2 }, yAxis: { min: 0, max: auto } }
         queries:
           - kind: TestData
             spec:
@@ -300,10 +344,10 @@ spec:
       spec:
         display:
           name: "Format: binary"
-          description: "valueFormat: binary, unit: By/s, decimals: 2"
+          description: "valueFormat: binary, unit: By/s, decimals: 2, yAxis: max 3000000"
         plugin:
           kind: TimeSeriesChart
-          spec: { valueFormat: { unit: By/s, scale: binary, decimals: 2 } }
+          spec: { valueFormat: { unit: By/s, scale: binary, decimals: 2 }, yAxis: { max: 3000000 } }
         queries:
           - kind: TestData
             spec:
@@ -336,13 +380,14 @@ spec:
       spec:
         display:
           name: "Format: ratio as percent"
-          description: "unit: 1, display: percent; raw query ratios are unchanged"
+          description: "unit: 1, display: percent, yAxis: 0 to 1; raw query ratios are unchanged"
         plugin:
           kind: TimeSeriesChart
           spec:
             valueFormat:
               unit: "1"
               display: percent
+            yAxis: { min: 0, max: 1 }
         queries:
           - kind: TestData
             spec:
@@ -400,3 +445,4 @@ spec:
           - { x: 12, y: 40, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
           - { x: 0, y: 49, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
           - { x: 12, y: 49, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }
+          - { x: 0, y: 57, width: 24, height: 12, content: { $ref: "#/spec/panels/ts-twenty-series" } }

@@ -8,7 +8,7 @@ The file format mirrors [Perses](https://perses.dev), so the structure (`kind`/`
 
 1. **Queries are ClickHouse SQL, not PromQL.** The only query plugin is `ClickHouseSQL`. No Prometheus, no `rate()`, no `$__rate_interval`, no `PrometheusTimeSeriesQuery`.
 2. **Time range is two SQL params:** `{from:String}` and `{to:String}`. You must put them in your `WHERE`. There is no auto-injection.
-3. **Visualizations are eleven kinds with simple specs:** `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, `StatusHistory`, `Heatmap`, `NodeGraph`. They infer structure from the columns you `SELECT` — there is no `yAxis`, `legend`, `columnSettings`, `format.unit`, etc.
+3. **Visualizations are eleven kinds with simple specs:** `TimeSeriesChart`, `BarChart`, `Table`, `StatChart`, `GaugeChart`, `GeoMap`, `Treemap`, `StateTimeline`, `StatusHistory`, `Heatmap`, `NodeGraph`. They infer structure from the columns you `SELECT`; TimeSeriesChart optionally configures `yAxis.min` and `yAxis.max`. Read the relevant visualization rule for its exact options.
 4. **Variable options come from `StaticListVariable` or `ClickHouseSQLVariable` only** — not `PrometheusLabelValuesVariable`. `$name` interpolates to a quoted ClickHouse literal.
 
 ## Panel
@@ -146,7 +146,7 @@ For `allowAllValue`, "All" expands to every loaded option as a quoted list; set 
 | PromQL / `rate()` / `$__rate_interval` / `PrometheusTimeSeriesQuery` | Queries are **ClickHouse SQL**; the only query plugin is `ClickHouseSQL`. |
 | No `{from:String}`/`{to:String}` in the `WHERE` | Add `WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}` — it is not auto-injected. |
 | Time-series x-axis blank | Alias the time column to `ts`/`time`/`timestamp` so it's detected. |
-| Inventing viz options (`yAxis`, `legend`, `columnSettings`, `format.unit`, `calculation: last-number`, axis min/max) | Only the options in each viz's rule file exist. Use `valueFormat` for supported numeric presentation. Shape values in SQL when no supported spec option applies. |
+| Inventing viz options (`legend`, `columnSettings`, `format.unit`, `calculation: last-number`, or bounds on unsupported visualizations) | Only the options in each viz's rule file exist. Use `valueFormat` for supported numeric presentation. Shape values in SQL when no supported spec option applies. |
 | `PrometheusLabelValuesVariable` or other variable plugins | Only `StaticListVariable` and `ClickHouseSQLVariable`. |
 | Single `ClickHouseSQL` in the query block | Both the query `kind` and the inner `plugin.kind` are `ClickHouseSQL`. |
 | `Duration` treated as ms/seconds | It's **nanoseconds** — divide by `1e6` (ms) or `1e9` (s). |
