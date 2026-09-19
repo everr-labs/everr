@@ -1,7 +1,7 @@
 /* oxlint-disable query/no-unstable-deps -- Preserve the existing per-render panel result identity during the linter migration. */
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
-import { useQueries } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { keepPreviousData, useQueries } from "@tanstack/react-query";
+import { useMemo, useRef } from "react";
 import {
   extractVariableTokens,
   type VariableMeta,
@@ -82,6 +82,7 @@ export interface SingleQueryState {
   missingName?: string;
   optionsError?: string;
   isPending: boolean;
+  isPlaceholderData?: boolean;
   isError: boolean;
   error?: unknown;
   rows?: QueryResultRow[];
@@ -109,7 +110,7 @@ export function combineQueryStates(states: SingleQueryState[]): CombinedPanelRes
 
   const active = states.filter((s) => s.active);
   if (active.length === 0) return { status: "success", data: undefined };
-  if (active.some((s) => s.isPending || s.rows === undefined)) {
+  if (active.some((s) => s.isPending || s.isPlaceholderData || s.rows === undefined)) {
     return { status: "pending" };
   }
   return { status: "success", data: active.map((s) => s.rows ?? []) };
@@ -136,6 +137,7 @@ export function useDashboardPanelData(
   panel: Panel,
   options?: { enabled?: boolean },
 ): DashboardPanelData {
+  const lastComplete = useRef<{ panel: Panel; result: DashboardPanelData }>(null);
   const active = options?.enabled ?? true;
   // Effective range: explicit URL params, else the dashboard's route defaults,
   // else the global default — resolved before first render (no flash). The
@@ -160,6 +162,7 @@ export function useDashboardPanelData(
   const results = useQueries({
     queries: requests.map((r) => ({
       ...panelQueryOptions(r.source, timeRange.from, timeRange.to, r.variables, r.variableMeta),
+      placeholderData: keepPreviousData,
       enabled:
         active &&
         sourceIsActive(r.source) &&
@@ -177,6 +180,7 @@ export function useDashboardPanelData(
           missingName: r.missingName,
           optionsError: r.optionsError,
           isPending: results[i]?.isPending ?? false,
+          isPlaceholderData: results[i]?.isPlaceholderData,
           isError: results[i]?.isError ?? false,
           error: results[i]?.error,
           rows: results[i]?.data?.rows,
@@ -189,5 +193,18 @@ export function useDashboardPanelData(
   // so depending on it directly would never hit the cache.
   const { from, to } = timeRange;
   const viz = useMemo(() => resolveTimeRange({ from, to }), [from, to]);
-  return { ...combined, timeRange: { from: viz.fromDate, to: viz.toDate } };
+  // Keep the last complete batch and its axis range together while replacement
+  // queries finish. A panel can have several queries that resolve separately.
+  const current = {
+    ...combined,
+    timeRange: { from: viz.fromDate, to: viz.toDate },
+  };
+  if (combined.status === "success") {
+    lastComplete.current = { panel, result: current };
+    return current;
+  }
+  if (combined.status === "pending" && lastComplete.current?.panel === panel) {
+    return lastComplete.current.result;
+  }
+  return current;
 }
