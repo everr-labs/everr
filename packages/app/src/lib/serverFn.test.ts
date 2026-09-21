@@ -37,6 +37,14 @@ function getRequireOrgHandler(): FunctionMiddlewareHandler {
   return definition.__handler;
 }
 
+function getAuthHandler(): FunctionMiddlewareHandler {
+  const definition = mocked.allDefinitions[0];
+  if (!definition) {
+    throw new Error("Expected authentication middleware to be registered.");
+  }
+  return definition.__handler;
+}
+
 beforeEach(() => {
   vi.resetModules();
   mocked.handler = null;
@@ -164,6 +172,28 @@ describe("createOrganizationAdminServerFn", () => {
 });
 
 describe("authMiddleware", () => {
+  it("exposes request cancellation to downstream handlers", async () => {
+    await loadModule();
+    const request = new Request("http://localhost/_server");
+    const next = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    mocked.getSession.mockResolvedValue({
+      user: { id: "user_123" },
+      session: { id: "session_123", activeOrganizationId: "org_123" },
+    });
+
+    await getAuthHandler()({ request, next });
+
+    expect(next).toHaveBeenCalledWith({
+      context: {
+        requestSignal: request.signal,
+        session: {
+          user: { id: "user_123" },
+          session: { id: "session_123", activeOrganizationId: "org_123" },
+        },
+      },
+    });
+  });
+
   it("authenticates via better-auth session and populates context", async () => {
     await loadModule();
     const request = new Request("http://localhost/_server");

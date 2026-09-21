@@ -15,6 +15,7 @@ const authMiddleware = createMiddleware().server(async ({ request, next }) => {
   return next({
     context: {
       session,
+      requestSignal: request.signal,
     },
   });
 });

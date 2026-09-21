@@ -121,6 +121,9 @@ describe("runPanelQuery – variable interpolation", () => {
     // User SQL must run through the per-org SQL API user (row-policy tenant
     // isolation), scoped to the active org — not the SETTINGS-based app path.
     expect(mockedClickhouse.mock.calls[0]![1]).toBe("test_org");
+    expect(mockedClickhouse.mock.calls[0]![3]).toEqual({
+      abortSignal: expect.any(AbortSignal),
+    });
   });
 
   it("expands the All sentinel using variableMeta options", async () => {
@@ -213,6 +216,9 @@ describe("runVariableOptionsQuery", () => {
     });
 
     expect(result).toEqual({ options: ["api", "web", "42"], truncated: false });
+    expect(mockedClickhouse.mock.calls[0]![3]).toEqual({
+      abortSignal: expect.any(AbortSignal),
+    });
   });
 
   it("binds the same from/to/step params as a panel query", async () => {
