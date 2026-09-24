@@ -33,6 +33,20 @@
   }
 }
 
+@media (width < 64rem) {
+  #nd-nav div:has(> div > [data-nav-actions]) {
+    margin-inline-start: 0;
+  }
+
+  #nd-nav div:has(> div > [data-nav-actions]) > [role="separator"] {
+    display: none;
+  }
+
+  #nd-nav div:has(> [data-nav-actions]) {
+    flex: 1;
+  }
+}
+
 ::view-transition-group(*) {
   animation-duration: 300ms;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);

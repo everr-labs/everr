@@ -29,50 +29,53 @@ export function baseOptions(): BaseLayoutProps {
       {
         text: "Docs",
         url: "/docs",
-        on: "nav",
       },
       {
         text: "Pricing",
         url: "/pricing",
-        on: "nav",
       },
       {
         text: "Devlog",
         url: "/devlog",
-        on: "nav",
         active: "nested-url",
       },
       {
         type: "custom",
-        children: <GithubInfo owner="everr-labs" repo="everr" />,
         secondary: true,
-        on: "nav",
-      },
-      {
-        type: "icon",
-        text: "Discord",
-        label: "Discord",
-        icon: <SiDiscord />,
-        url: "https://discord.gg/hd6yYDjAuw",
-        external: true,
-        on: "nav",
-        secondary: true,
-      },
-      {
-        on: "nav",
-        secondary: true,
-        type: "custom",
         children: (
-          <Button
-            className="rounded-full"
-            nativeButton={false}
-            render={
-              // biome-ignore lint/a11y/useAnchorContent: content is injected
-              <a href="https://app.everr.dev" />
-            }
+          <div
+            data-nav-actions
+            className="flex items-center gap-2 max-lg:grid max-lg:w-full max-lg:grid-cols-2 max-lg:gap-3 max-lg:border-t max-lg:pt-4"
           >
-            Sign In <ArrowRight />
-          </Button>
+            <GithubInfo
+              aria-label="GitHub"
+              owner="everr-labs"
+              repo="everr"
+              className="items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary max-lg:min-h-11 max-lg:rounded-lg max-lg:border max-lg:px-3"
+            >
+              <span className="lg:hidden">GitHub</span>
+            </GithubInfo>
+            <a
+              href="https://discord.gg/hd6yYDjAuw"
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="Discord"
+              className="inline-flex items-center justify-center gap-2 rounded-full p-2 text-sm text-fd-foreground/80 transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary max-lg:min-h-11 max-lg:rounded-lg max-lg:border max-lg:px-3"
+            >
+              <SiDiscord className="size-5 shrink-0" aria-hidden="true" />
+              <span className="lg:hidden">Discord</span>
+            </a>
+            <Button
+              className="rounded-full max-lg:col-span-2 max-lg:min-h-11 max-lg:w-full max-lg:rounded-lg"
+              nativeButton={false}
+              render={
+                // biome-ignore lint/a11y/useAnchorContent: content is injected
+                <a href="https://app.everr.dev" />
+              }
+            >
+              Sign In <ArrowRight />
+            </Button>
+          </div>
         ),
       },
     ],
@@ -84,6 +87,7 @@ export function docsOptions(): DocsLayoutOptions {
 
   return {
     ...options,
+    links: options.links?.map((link) => ({ ...link, on: "nav" })),
     searchToggle: {
       ...options.searchToggle,
       enabled: false,
