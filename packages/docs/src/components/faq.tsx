@@ -4,9 +4,9 @@ import {
   CollapsibleTrigger,
 } from "@everr/ui/components/collapsible";
 import { Plus } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
-type FaqItem = {
+export type FaqItem = {
   q: string;
   a: ReactNode;
 };
@@ -90,7 +90,15 @@ const FAQS: FaqItem[] = [
   */
 ];
 
-export function FAQ() {
+export function FAQ({
+  items = FAQS,
+  title,
+}: {
+  items?: FaqItem[];
+  title?: string;
+}) {
+  const [openQuestion, setOpenQuestion] = useState<string | null>(null);
+
   return (
     <section className="relative">
       <div className="mx-auto max-w-7xl px-6 py-24 md:py-32">
@@ -100,10 +108,14 @@ export function FAQ() {
               FAQ
             </p>
             <h2 className="mt-4 font-heading text-4xl leading-none sm:text-5xl md:text-6xl">
-              Questions{" "}
-              <span className="relative everr-decoration everr-decoration-primary">
-                worth answering
-              </span>
+              {title ?? (
+                <>
+                  Questions{" "}
+                  <span className="relative everr-decoration everr-decoration-primary">
+                    worth answering
+                  </span>
+                </>
+              )}
             </h2>
             <p className="mt-6 max-w-sm text-base leading-relaxed text-fd-muted-foreground">
               Still curious?{" "}
@@ -118,8 +130,13 @@ export function FAQ() {
           </div>
 
           <ul>
-            {FAQS.map((item) => (
-              <FaqRow key={item.q} item={item} />
+            {items.map((item) => (
+              <FaqRow
+                key={item.q}
+                item={item}
+                open={openQuestion === item.q}
+                onOpenChange={(open) => setOpenQuestion(open ? item.q : null)}
+              />
             ))}
           </ul>
         </div>
@@ -128,10 +145,22 @@ export function FAQ() {
   );
 }
 
-function FaqRow({ item }: { item: FaqItem }) {
+function FaqRow({
+  item,
+  open,
+  onOpenChange,
+}: {
+  item: FaqItem;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   return (
     <li>
-      <Collapsible className="group/faq border-b border-fd-border py-5">
+      <Collapsible
+        open={open}
+        onOpenChange={onOpenChange}
+        className="group/faq border-b border-fd-border py-5"
+      >
         <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between gap-6 text-left outline-none">
           <span className="font-heading text-base leading-snug text-fd-foreground transition-colors group-hover/faq:text-primary md:text-lg">
             {item.q}
