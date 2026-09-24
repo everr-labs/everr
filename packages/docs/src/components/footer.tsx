@@ -6,22 +6,26 @@ import { DISCORD_URL } from "@/constants";
 export function Footer() {
   return (
     <footer className="border-t border-fd-border">
-      <div className="footer-contact-layout">
-        <section className="footer-contact">
-          <SiDiscord className="footer-contact-mark" aria-hidden="true" />
-          <div className="footer-contact-inner">
-            <div className="footer-contact-copy">
-              <h2>
-                Help shape Everr<span>Join us on Discord.</span>
+      <div className="w-full">
+        <section className="relative overflow-hidden bg-primary text-primary-foreground selection:bg-primary-foreground selection:text-primary">
+          <SiDiscord
+            className="pointer-events-none absolute top-[-70px] right-[8%] size-[280px] opacity-[0.08] max-[760px]:-right-[60px]"
+            aria-hidden="true"
+          />
+          <div className="relative mx-auto flex max-w-7xl flex-col items-start gap-6 px-6 py-10 min-[761px]:flex-row min-[761px]:items-center min-[761px]:justify-between min-[761px]:gap-12">
+            <div>
+              <h2 className="text-[clamp(30px,8vw,40px)] font-medium leading-[1.08] tracking-[-0.03em] min-[761px]:text-[40px]">
+                Help shape Everr
+                <span className="block font-semibold">Join us on Discord.</span>
               </h2>
-              <p>
+              <p className="mt-3.5 max-w-[48ch] text-base leading-[1.6]">
                 Drop your feature requests, share feedback, and help us decide
                 what to build next. We’ll throw in a discount code as a thank
                 you for helping us out.
               </p>
             </div>
             <a
-              className="footer-discord-link"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2.5 rounded-lg bg-primary-foreground px-5 py-3 font-semibold text-primary hover:brightness-125 focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-primary-foreground [&>svg]:size-5 [&>svg]:shrink-0"
               href={DISCORD_URL}
               target="_blank"
               rel="noopener noreferrer"
@@ -40,7 +44,7 @@ export function Footer() {
 
 function FooterDirectory() {
   return (
-    <div className="footer-directory mx-auto max-w-7xl px-4 py-12 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
       <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-4 md:text-left">
         {/* Brand */}
         <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">

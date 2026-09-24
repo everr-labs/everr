@@ -2,7 +2,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { Check, Copy } from "lucide-react";
 import { useCopyToClipboard } from "../../lib/use-copy";
 
-export const INSTALL_COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
+const INSTALL_COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
 
 /** The one-line install command in a copyable terminal box. Container styling
  *  (border, background, width) is overridable via `className`. */

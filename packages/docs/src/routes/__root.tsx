@@ -5,7 +5,6 @@ import {
   HeadContent,
   Outlet,
   Scripts,
-  useRouterState,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { HomeLayout } from "fumadocs-ui/layouts/home";
@@ -15,7 +14,6 @@ import { baseOptions } from "@/lib/layout.shared";
 import { posthog } from "@/lib/posthog";
 import "@/lib/telemetry";
 import docsCss from "@/styles/docs.css?url";
-import ImpeccableLiveRoot from '../impeccable/ImpeccableLiveRoot';
 
 export const Route = createRootRoute({
   head: () => ({
@@ -48,10 +46,6 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  const isHomeNext = useRouterState({
-    select: (state) =>
-      state.location.pathname.replace(/\/$/, "") === "/home-next",
-  });
   return (
     <html lang="en" className="dark">
       <head>
@@ -66,11 +60,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               enabled: false,
             }}
           >
-            {isHomeNext ? (
-              children
-            ) : (
-              <HomeLayout {...baseOptions()}>{children}</HomeLayout>
-            )}
+            <HomeLayout {...baseOptions()}>{children}</HomeLayout>
             <TanStackDevtools
               config={{ position: "bottom-right" }}
               plugins={[
@@ -82,9 +72,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             />
           </RootProvider>
         </PostHogProvider>
-        {/* impeccable-live-tanstack-start */}
-        <ImpeccableLiveRoot />
-        {/* impeccable-live-tanstack-end */}
         <Scripts />
       </body>
     </html>

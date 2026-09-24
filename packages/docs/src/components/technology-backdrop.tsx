@@ -44,15 +44,21 @@ export function TechnologyBackdrop({ items }: { items: Technology[] }) {
   const technologies = [...items, ...extraTechnologies];
 
   return (
-    <div className="technology-static" aria-hidden="true">
-      <div className="technology-static-grid">
+    <div
+      className="pointer-events-none absolute inset-0 overflow-hidden opacity-35 [mask-image:radial-gradient(ellipse_at_32%_50%,rgba(0,0,0,0.22)_12%,#000_75%)] max-[760px]:[mask-image:linear-gradient(180deg,rgba(0,0,0,0.2),#000_65%)]"
+      aria-hidden="true"
+    >
+      <div className="absolute -inset-x-[100px] -inset-y-[140px] grid grid-cols-16 grid-rows-8 place-items-center rotate-[-14deg] scale-[1.12] max-[760px]:-inset-y-20 max-[760px]:inset-x-auto max-[760px]:left-1/2 max-[760px]:w-[960px] max-[760px]:-translate-x-1/2 max-[760px]:scale-100 max-[760px]:grid-cols-12 max-[760px]:grid-rows-11">
         {Array.from({ length: 128 }, (_, index) => {
           const item =
             technologies[
               (index * 7 + Math.floor(index / 16) * 3) % technologies.length
             ];
           return (
-            <span className="technology-static-mark" key={index}>
+            <span
+              className="grid size-full place-items-center [&>img]:size-11 [&>img]:rotate-[14deg] [&>img]:object-contain [&>svg]:size-11 [&>svg]:rotate-[14deg] max-[760px]:[&>img]:size-8 max-[760px]:[&>svg]:size-8"
+              key={index}
+            >
               {"image" in item ? (
                 <img src={item.image} alt="" />
               ) : (
