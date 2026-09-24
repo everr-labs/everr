@@ -13,7 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiAssistedRouteImport } from './routes/ai-assisted'
 import { Route as HomeNextRouteImport } from './routes/home-next'
 import { Route as PricingRouteImport } from './routes/pricing'
-import { Route as SmallTeamsRouteImport } from './routes/small-teams'
+import { Route as WhyObservabilityRouteImport } from './routes/why-observability'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
@@ -43,9 +43,9 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SmallTeamsRoute = SmallTeamsRouteImport.update({
-  id: '/small-teams',
-  path: '/small-teams',
+const WhyObservabilityRoute = WhyObservabilityRouteImport.update({
+  id: '/why-observability',
+  path: '/why-observability',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSearchRoute = ApiSearchRouteImport.update({
@@ -94,7 +94,7 @@ export interface FileRoutesByFullPath {
   '/ai-assisted': typeof AiAssistedRoute
   '/home-next': typeof HomeNextRoute
   '/pricing': typeof PricingRoute
-  '/small-teams': typeof SmallTeamsRoute
+  '/why-observability': typeof WhyObservabilityRoute
   '/api/search': typeof ApiSearchRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
@@ -109,7 +109,7 @@ export interface FileRoutesByTo {
   '/ai-assisted': typeof AiAssistedRoute
   '/home-next': typeof HomeNextRoute
   '/pricing': typeof PricingRoute
-  '/small-teams': typeof SmallTeamsRoute
+  '/why-observability': typeof WhyObservabilityRoute
   '/api/search': typeof ApiSearchRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
@@ -125,7 +125,7 @@ export interface FileRoutesById {
   '/ai-assisted': typeof AiAssistedRoute
   '/home-next': typeof HomeNextRoute
   '/pricing': typeof PricingRoute
-  '/small-teams': typeof SmallTeamsRoute
+  '/why-observability': typeof WhyObservabilityRoute
   '/api/search': typeof ApiSearchRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
@@ -142,7 +142,7 @@ export interface FileRouteTypes {
     | '/ai-assisted'
     | '/home-next'
     | '/pricing'
-    | '/small-teams'
+    | '/why-observability'
     | '/api/search'
     | '/blog/$slug'
     | '/devlog/$slug'
@@ -157,7 +157,7 @@ export interface FileRouteTypes {
     | '/ai-assisted'
     | '/home-next'
     | '/pricing'
-    | '/small-teams'
+    | '/why-observability'
     | '/api/search'
     | '/blog/$slug'
     | '/devlog/$slug'
@@ -172,7 +172,7 @@ export interface FileRouteTypes {
     | '/ai-assisted'
     | '/home-next'
     | '/pricing'
-    | '/small-teams'
+    | '/why-observability'
     | '/api/search'
     | '/blog/$slug'
     | '/devlog/$slug'
@@ -188,7 +188,7 @@ export interface RootRouteChildren {
   AiAssistedRoute: typeof AiAssistedRoute
   HomeNextRoute: typeof HomeNextRoute
   PricingRoute: typeof PricingRoute
-  SmallTeamsRoute: typeof SmallTeamsRoute
+  WhyObservabilityRoute: typeof WhyObservabilityRoute
   ApiSearchRoute: typeof ApiSearchRoute
   BlogSlugRoute: typeof BlogSlugRoute
   DevlogSlugRoute: typeof DevlogSlugRoute
@@ -229,11 +229,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/small-teams': {
-      id: '/small-teams'
-      path: '/small-teams'
-      fullPath: '/small-teams'
-      preLoaderRoute: typeof SmallTeamsRouteImport
+    '/why-observability': {
+      id: '/why-observability'
+      path: '/why-observability'
+      fullPath: '/why-observability'
+      preLoaderRoute: typeof WhyObservabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/search': {
@@ -300,7 +300,7 @@ const rootRouteChildren: RootRouteChildren = {
   AiAssistedRoute: AiAssistedRoute,
   HomeNextRoute: HomeNextRoute,
   PricingRoute: PricingRoute,
-  SmallTeamsRoute: SmallTeamsRoute,
+  WhyObservabilityRoute: WhyObservabilityRoute,
   ApiSearchRoute: ApiSearchRoute,
   BlogSlugRoute: BlogSlugRoute,
   DevlogSlugRoute: DevlogSlugRoute,
