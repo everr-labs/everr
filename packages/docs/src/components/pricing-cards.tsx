@@ -12,7 +12,7 @@ type DataRow = {
 };
 
 type PlanCard = {
-  id: "hobby" | "pro" | "enterprise";
+  id: "hobby" | "pro";
   name: string;
   price: string;
   unit?: string;
@@ -34,10 +34,14 @@ const CARDS: PlanCard[] = [
     data: [
       { signal: "Ingestion", included: "30 GB / month" },
       { signal: "Query allowance", included: "5x", overage: "150 GB scanned" },
-      { signal: "Uptime monitors", included: "1" },
+      // { signal: "Uptime monitors", included: "1" },
       { signal: "Users", included: "1" },
     ],
-    features: ["14-day retention", "5 alerts", "1 uptime monitor"],
+    features: [
+      "14-day retention",
+      "5 alerts",
+      // "1 uptime monitor",
+    ],
     cta: "Get started",
     href: "https://app.everr.dev",
   },
@@ -54,30 +58,17 @@ const CARDS: PlanCard[] = [
         overage: "then €0.10 per GB",
       },
       { signal: "Query allowance", included: "20x", overage: "6 TB scanned" },
-      { signal: "Uptime monitors", included: "10", overage: "then €1 each" },
+      // { signal: "Uptime monitors", included: "10", overage: "then €1 each" },
       { signal: "Users", included: "Unlimited" },
     ],
     features: [
-      "12-month retention, window-limited",
+      "12-month retention",
       "Unlimited alerts",
       "Organization management",
     ],
     cta: "Get started",
     href: "https://app.everr.dev",
     recommended: true,
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    price: "Custom",
-    tagline: "For higher volumes or dedicated instances.",
-    data: [
-      { signal: "Ingestion", included: "Higher volumes" },
-      { signal: "Instances", included: "Dedicated" },
-    ],
-    features: ["Contact us to discuss your requirements"],
-    cta: "Contact us",
-    href: "https://calendar.app.google/XnYJ4rHuTzDaNetFA",
   },
 ];
 
@@ -199,6 +190,36 @@ export function PricingCards() {
               </a>
             </motion.article>
           ))}
+          <motion.article
+            initial={{ opacity: 0, y: 24 }}
+            animate={inView ? { opacity: 1, y: 0 } : undefined}
+            transition={{ duration: 0.7, delay: 0.26, ease: EASE }}
+            className="relative flex flex-col rounded-2xl border border-primary/30 bg-primary/[0.06] p-8"
+          >
+            <span className="font-heading text-xs font-bold uppercase tracking-[0.25em] text-primary">
+              Enterprise
+            </span>
+            <h2 className="mt-4 font-mono text-4xl font-bold leading-none tracking-tight text-fd-foreground md:text-5xl">
+              Custom
+            </h2>
+            <p className="mt-5 max-w-xs text-sm leading-relaxed text-fd-muted-foreground">
+              Higher volumes or dedicated instances? Let us build a plan around
+              your needs.
+            </p>
+            <div className="mt-auto pt-12">
+              <a
+                href="https://calendar.app.google/XnYJ4rHuTzDaNetFA"
+                className="group flex min-h-20 w-full items-center justify-between gap-4 rounded-2xl bg-primary px-6 py-5 font-heading text-lg font-bold tracking-tight text-fd-background outline-none transition-colors duration-200 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background"
+              >
+                Contact us
+                <ArrowRight
+                  className="size-6 shrink-0 transition-transform duration-200 group-hover:translate-x-1"
+                  strokeWidth={2.5}
+                  aria-hidden
+                />
+              </a>
+            </div>
+          </motion.article>
         </div>
       </div>
     </section>
