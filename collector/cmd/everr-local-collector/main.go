@@ -13,8 +13,6 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/otelcol"
-	"go.opentelemetry.io/collector/processor"
-	batchprocessor "go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
 	otelconftelemetry "go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
@@ -249,16 +247,6 @@ func collectorFactories(handle *chdb.Handle) func() (otelcol.Factories, error) {
 		}
 		factories.ExporterModules = makeModulesMap(factories.Exporters, map[component.Type]string{
 			chdbexporter.NewFactory().Type(): "github.com/everr-labs/everr/collector/exporter/chdbexporter v0.160.0",
-		})
-
-		factories.Processors, err = otelcol.MakeFactoryMap[processor.Factory](
-			batchprocessor.NewFactory(),
-		)
-		if err != nil {
-			return otelcol.Factories{}, err
-		}
-		factories.ProcessorModules = makeModulesMap(factories.Processors, map[component.Type]string{
-			batchprocessor.NewFactory().Type(): "go.opentelemetry.io/collector/processor/batchprocessor v0.152.0",
 		})
 
 		return factories, nil
