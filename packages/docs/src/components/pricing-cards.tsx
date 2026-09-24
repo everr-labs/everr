@@ -1,7 +1,8 @@
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowRight, Check } from "lucide-react";
 import { motion, useInView } from "motion/react";
-import { useRef } from "react";
+import { type ReactNode, useRef } from "react";
+import { Button } from "@/components/ui/button";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -71,6 +72,36 @@ const CARDS: PlanCard[] = [
     recommended: true,
   },
 ];
+
+function PricingCta({
+  href,
+  children,
+  primary = false,
+}: {
+  href: string;
+  children: ReactNode;
+  primary?: boolean;
+}) {
+  return (
+    <Button
+      variant={primary ? "default" : "outline"}
+      size="xl"
+      nativeButton={false}
+      render={
+        // biome-ignore lint/a11y/useAnchorContent: content is injected by Button
+        <a href={href} />
+      }
+      className="group w-full gap-2 font-heading text-sm font-bold tracking-tight"
+    >
+      {children}
+      <ArrowRight
+        className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
+        strokeWidth={2.5}
+        aria-hidden
+      />
+    </Button>
+  );
+}
 
 export function PricingCards() {
   const ref = useRef<HTMLDivElement>(null);
@@ -172,31 +203,20 @@ export function PricingCards() {
               </ul>
 
               {/* CTA */}
-              <a
-                href={card.href}
-                className={cn(
-                  "group mt-8 flex w-full items-center justify-center gap-2 rounded-full px-6 py-3.5 font-heading text-sm font-bold tracking-tight outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background",
-                  card.recommended
-                    ? "bg-primary text-fd-background hover:bg-primary/90"
-                    : "border-2 border-primary bg-transparent text-primary hover:bg-primary hover:text-fd-background",
-                )}
-              >
-                {card.cta}
-                <ArrowRight
-                  className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
-                  strokeWidth={2.5}
-                  aria-hidden
-                />
-              </a>
+              <div className="mt-8">
+                <PricingCta href={card.href} primary={card.recommended}>
+                  {card.cta}
+                </PricingCta>
+              </div>
             </motion.article>
           ))}
           <motion.article
             initial={{ opacity: 0, y: 24 }}
             animate={inView ? { opacity: 1, y: 0 } : undefined}
             transition={{ duration: 0.7, delay: 0.26, ease: EASE }}
-            className="relative flex flex-col rounded-2xl border border-primary/30 bg-primary/[0.06] p-8"
+            className="relative flex flex-col rounded-2xl border border-fd-border bg-fd-card/30 p-8"
           >
-            <span className="font-heading text-xs font-bold uppercase tracking-[0.25em] text-primary">
+            <span className="font-heading text-xs font-bold uppercase tracking-[0.25em] text-fd-muted-foreground">
               Enterprise
             </span>
             <h2 className="mt-4 font-mono text-4xl font-bold leading-none tracking-tight text-fd-foreground md:text-5xl">
@@ -207,17 +227,9 @@ export function PricingCards() {
               your needs.
             </p>
             <div className="mt-auto pt-12">
-              <a
-                href="https://calendar.app.google/XnYJ4rHuTzDaNetFA"
-                className="group flex min-h-20 w-full items-center justify-between gap-4 rounded-2xl bg-primary px-6 py-5 font-heading text-lg font-bold tracking-tight text-fd-background outline-none transition-colors duration-200 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-fd-background"
-              >
-                Contact us
-                <ArrowRight
-                  className="size-6 shrink-0 transition-transform duration-200 group-hover:translate-x-1"
-                  strokeWidth={2.5}
-                  aria-hidden
-                />
-              </a>
+              <PricingCta href="https://calendar.app.google/XnYJ4rHuTzDaNetFA">
+                Let's talk
+              </PricingCta>
             </div>
           </motion.article>
         </div>

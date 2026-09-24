@@ -25,7 +25,7 @@ export function Footer() {
               </p>
             </div>
             <a
-              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2.5 rounded-lg bg-primary-foreground px-5 py-3 font-semibold text-primary hover:brightness-125 focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-primary-foreground [&>svg]:size-5 [&>svg]:shrink-0"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2.5 rounded-full bg-primary-foreground px-5 py-3 font-semibold text-primary hover:brightness-125 focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-primary-foreground [&>svg]:size-5 [&>svg]:shrink-0"
               href={DISCORD_URL}
               target="_blank"
               rel="noopener noreferrer"

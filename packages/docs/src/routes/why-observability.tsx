@@ -48,7 +48,7 @@ function MonitoringLink({
   return (
     <a
       className={cn(
-        "inline-flex min-h-12 items-center justify-center gap-3 rounded-md border border-primary bg-primary px-6 py-3 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-4",
+        "inline-flex min-h-12 items-center justify-center gap-3 rounded-full border border-primary bg-primary px-6 py-3 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-4",
         secondary &&
           "border-border bg-transparent text-foreground hover:bg-card",
       )}
@@ -115,7 +115,7 @@ function WhyObservabilityStandards() {
       <div className={sectionClassName}>
         <p className={eyebrowClassName}>02 / The foundation</p>
         <a
-          className="mt-8 inline-flex items-center gap-3 rounded-md border border-border px-4 py-2 text-sm text-foreground transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-4"
+          className="mt-8 inline-flex items-center gap-3 rounded-full border border-border px-4 py-2 text-sm text-foreground transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-4"
           href="https://opentelemetry.io/docs/what-is-opentelemetry/"
         >
           <img src={otelLogo} alt="" width="25" height="25" />

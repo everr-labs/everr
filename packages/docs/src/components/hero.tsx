@@ -1,5 +1,5 @@
-import { Button } from "@everr/ui/components/button";
 import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 
 export function Hero() {
   return (
@@ -34,7 +34,7 @@ export function Hero() {
             <br />
             Focus shipping features, not hunting down issues.
           </p>
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5 min-[701px]:gap-3 [&_[data-slot=button]]:h-[50px] [&_[data-slot=button]]:rounded-md [&_[data-slot=button]]:px-[18px] [&_[data-slot=button]]:text-base min-[701px]:[&_[data-slot=button]]:px-6 [&_[data-slot=button]]:focus-visible:outline-2 [&_[data-slot=button]]:focus-visible:outline-offset-[5px]">
+          <div className="flex shrink-0 flex-wrap items-center gap-2.5 min-[701px]:gap-3 [&_[data-slot=button]]:h-[50px] [&_[data-slot=button]]:px-[18px] [&_[data-slot=button]]:text-base min-[701px]:[&_[data-slot=button]]:px-6 [&_[data-slot=button]]:focus-visible:outline-2 [&_[data-slot=button]]:focus-visible:outline-offset-[5px]">
             <Button
               variant="default"
               size="xl"

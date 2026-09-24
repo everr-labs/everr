@@ -21,7 +21,7 @@ export function LandingLink({
 }) {
   return (
     <a
-      className={`inline-flex items-center justify-center gap-3 rounded-lg border px-5 py-3.5 text-sm font-semibold transition-opacity duration-150 hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-primary motion-reduce:transition-none max-[700px]:px-4 max-[700px]:py-[13px] ${secondary ? "border-foreground/10 bg-transparent text-foreground" : "border-primary bg-primary text-primary-foreground"}`}
+      className={`inline-flex items-center justify-center gap-3 rounded-full border px-5 py-3.5 text-sm font-semibold transition-opacity duration-150 hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-primary motion-reduce:transition-none max-[700px]:px-4 max-[700px]:py-[13px] ${secondary ? "border-foreground/10 bg-transparent text-foreground" : "border-primary bg-primary text-primary-foreground"}`}
       href={href}
     >
       {children}

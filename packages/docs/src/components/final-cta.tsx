@@ -1,7 +1,7 @@
-import { Button } from "@everr/ui/components/button";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
+import { Button } from "@/components/ui/button";
 
 export function FinalCTA() {
   return (
