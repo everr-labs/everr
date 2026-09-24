@@ -319,8 +319,9 @@ function ConnectedMonitoringExamples() {
                 />
               </CollapsibleTrigger>
             </h3>
+            {/* A pixel flex basis keeps intrinsic content height out of the row animation. */}
             <CollapsibleContent
-              className="flex h-0 min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-150 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 max-[899px]:h-[var(--collapsible-panel-height)] max-[899px]:flex-none max-[899px]:transition-[height,opacity] max-[899px]:data-[starting-style]:h-0 max-[899px]:data-[ending-style]:h-0 motion-reduce:transition-none"
+              className="flex h-0 min-h-0 flex-[1_1_0px] flex-col overflow-hidden transition-opacity duration-150 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 max-[899px]:h-[var(--collapsible-panel-height)] max-[899px]:flex-none max-[899px]:transition-[height,opacity] max-[899px]:data-[starting-style]:h-0 max-[899px]:data-[ending-style]:h-0 motion-reduce:transition-none"
               keepMounted
             >
               <p className="px-6 pt-0.5 pb-6 pl-[52px] text-sm leading-[1.65] text-muted-foreground max-sm:pt-0 max-sm:pr-[18px] max-sm:pb-5 max-sm:pl-[46px]">
