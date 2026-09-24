@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { baseOptions, docsOptions } from "./layout.shared";
 
 describe("layout options", () => {
+  it("makes shared navigation links available in the mobile menu", () => {
+    const links = baseOptions().links;
+
+    expect(links?.length).toBeGreaterThan(0);
+    expect(links?.filter((link) => link.on === "nav")).toEqual([]);
+    expect(links?.filter((link) => link.on === "menu")).toEqual([]);
+  });
+
   it("keeps repeated chrome out of the nested docs sidebar", () => {
     const docs = docsOptions();
     const docsNavTitle = docs.slots?.navTitle;

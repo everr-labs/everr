@@ -105,6 +105,7 @@ export function GithubInfo({
     >
       <p className="flex items-center gap-2 truncate">
         <SiGithub className="text-foreground size-5" />
+        {props.children}
       </p>
       <div className="flex text-xs items-center gap-1 text-fd-muted-foreground">
         <Star className="size-3 fill-primary stroke-primary" />
