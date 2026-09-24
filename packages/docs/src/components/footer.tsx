@@ -1,6 +1,6 @@
 import { SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
 import { Link } from "@tanstack/react-router";
-import { Citrus } from "lucide-react";
+import { Citrus, Sparkles } from "lucide-react";
 
 export function Footer() {
   return (
@@ -61,6 +61,21 @@ export function Footer() {
               >
                 <SiDiscord className="size-5" />
               </a>
+            </div>
+            <div className="mt-6 flex justify-center sm:justify-start">
+              <div className="inline-flex items-center gap-3 rounded-full border border-primary/30 bg-primary/[0.06] py-2 pr-5 pl-2">
+                <span className="flex size-8 items-center justify-center rounded-full bg-primary/15 text-primary">
+                  <Sparkles className="size-4" aria-hidden="true" />
+                </span>
+                <span className="text-left leading-tight">
+                  <span className="block font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
+                    Proudly
+                  </span>
+                  <span className="block font-heading text-sm font-bold text-fd-foreground">
+                    Made in Europe
+                  </span>
+                </span>
+              </div>
             </div>
             <p className="mt-4 text-sm text-fd-muted-foreground">
               &copy; {new Date().getFullYear()} Everr
