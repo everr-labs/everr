@@ -8,7 +8,7 @@ import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
 import { MonitoringSection } from "@/components/monitoring-section";
 import { ObservabilityVision } from "@/components/observability-vision";
-import { SkepticSection } from "@/components/skeptic-section";
+// import { SkepticSection } from "@/components/skeptic-section";
 import { TechnologySection } from "@/components/technology-section";
 
 export const Route = createFileRoute("/")({
@@ -21,7 +21,7 @@ function RouteComponent() {
       <Hero />
       <MonitoringSection />
       <ObservabilityVision />
-      <SkepticSection />
+      {/* <SkepticSection /> */}
       <CapabilitiesSection />
       <TechnologySection />
       <FeaturedTestimonial />

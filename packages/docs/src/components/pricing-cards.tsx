@@ -44,7 +44,7 @@ const CARDS: PlanCard[] = [
       // "1 uptime monitor",
     ],
     cta: "Get started",
-    href: "https://app.everr.dev",
+    href: "https://app.everr.dev/auth/sign-up",
   },
   {
     id: "pro",
@@ -68,7 +68,7 @@ const CARDS: PlanCard[] = [
       "Organization management",
     ],
     cta: "Get started",
-    href: "https://app.everr.dev",
+    href: "https://app.everr.dev/auth/sign-up",
     recommended: true,
   },
 ];

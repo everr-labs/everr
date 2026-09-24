@@ -147,7 +147,7 @@ function FooterDirectory() {
             </li>
             <li>
               <a
-                href="https://app.everr.dev"
+                href="https://app.everr.dev/auth/sign-up"
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
                 Get started

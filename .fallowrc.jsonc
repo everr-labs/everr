@@ -75,6 +75,11 @@
         "packages/docs/src/components/pricing-toggle.tsx"
       ],
       "rules": { "unused-files": "off", "unused-exports": "off" }
+    },
+    {
+      // Keep the homepage skeptic section until /why-observability is redesigned.
+      "files": ["packages/docs/src/components/skeptic-section.tsx"],
+      "rules": { "unused-files": "off", "unused-exports": "off" }
     }
   ],
   // Internal workspace libraries whose exported API surface is intentional —

@@ -39,7 +39,8 @@ export function Hero() {
               variant="default"
               size="xl"
               nativeButton={false}
-              render={<Link to="/docs/$" params={{ _splat: "" }} />}
+              // biome-ignore lint/a11y/useAnchorContent: content is injected by Button
+              render={<a href="https://app.everr.dev/auth/sign-up" />}
             >
               Get started
             </Button>
