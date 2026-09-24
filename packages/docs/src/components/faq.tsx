@@ -4,9 +4,10 @@ import {
   CollapsibleTrigger,
 } from "@everr/ui/components/collapsible";
 import { Plus } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { Eyebrow } from "@/components/ui/eyebrow";
 
-type FaqItem = {
+export type FaqItem = {
   q: string;
   a: ReactNode;
 };
@@ -90,36 +91,48 @@ const FAQS: FaqItem[] = [
   */
 ];
 
-export function FAQ() {
+export function FAQ({
+  items = FAQS,
+  title,
+  contactPrompt = "Something we haven’t covered?",
+  contactLinkText = "Ask us on Discord",
+}: {
+  items?: FaqItem[];
+  title?: string;
+  contactPrompt?: string;
+  contactLinkText?: string;
+}) {
+  const [openQuestion, setOpenQuestion] = useState<string | null>(null);
+
   return (
     <section className="relative">
       <div className="mx-auto max-w-7xl px-6 py-24 md:py-32">
         <div className="grid gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] md:gap-20">
           <div>
-            <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
-              FAQ
-            </p>
+            <Eyebrow>FAQ</Eyebrow>
             <h2 className="mt-4 font-heading text-4xl leading-none sm:text-5xl md:text-6xl">
-              Questions{" "}
-              <span className="relative everr-decoration everr-decoration-primary">
-                worth answering
-              </span>
+              {title ?? "Questions worth answering"}
             </h2>
             <p className="mt-6 max-w-sm text-base leading-relaxed text-fd-muted-foreground">
-              Still curious?{" "}
+              {contactPrompt}{" "}
               <a
                 href="https://everr.dev/discord"
                 className="text-fd-foreground underline decoration-primary decoration-2 underline-offset-4 hover:text-primary"
               >
-                Ask us on Discord
+                {contactLinkText}
               </a>
               .
             </p>
           </div>
 
           <ul>
-            {FAQS.map((item) => (
-              <FaqRow key={item.q} item={item} />
+            {items.map((item) => (
+              <FaqRow
+                key={item.q}
+                item={item}
+                open={openQuestion === item.q}
+                onOpenChange={(open) => setOpenQuestion(open ? item.q : null)}
+              />
             ))}
           </ul>
         </div>
@@ -128,10 +141,22 @@ export function FAQ() {
   );
 }
 
-function FaqRow({ item }: { item: FaqItem }) {
+function FaqRow({
+  item,
+  open,
+  onOpenChange,
+}: {
+  item: FaqItem;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   return (
     <li>
-      <Collapsible className="group/faq border-b border-fd-border py-5">
+      <Collapsible
+        open={open}
+        onOpenChange={onOpenChange}
+        className="group/faq border-b border-fd-border py-5"
+      >
         <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between gap-6 text-left outline-none">
           <span className="font-heading text-base leading-snug text-fd-foreground transition-colors group-hover/faq:text-primary md:text-lg">
             {item.q}

@@ -1,5 +1,6 @@
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import skillvueLogo from "../assets/logos/skillvue.svg?url";
 import marcelloPhoto from "../assets/testimonials/marcello.jpeg?url";
 import { GravityStarsBackground } from "./animate-ui/components/backgrounds/gravity-stars";
@@ -20,13 +21,11 @@ export function FeaturedTestimonial() {
           animate={inView ? { opacity: 1, y: 0 } : undefined}
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         >
-          <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
-            Why teams switch
-          </p>
+          <Eyebrow>Why teams switch</Eyebrow>
 
           <img src={skillvueLogo} alt="SkillVue" className="mt-6 h-8 w-auto" />
 
-          <blockquote className="mt-6 font-heading text-2xl leading-[1.2] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
+          <blockquote className="mt-6 font-heading text-2xl leading-[1.45] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
             “The first tool we tried took a whole team just to keep running. We
             moved to something cheaper and still ended up paying{" "}
             <span className="text-primary">$700 a month</span> for data I

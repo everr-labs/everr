@@ -4,15 +4,32 @@
 
 @source "../../../ui/src/**/*.{ts,tsx}";
 
+@theme inline {
+  --animate-marquee: marquee var(--duration) infinite linear;
+  --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(calc(-100% - var(--gap)));
+    }
+  }
+  @keyframes marquee-vertical {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(calc(-100% - var(--gap)));
+    }
+  }
+}
+
 @layer base {
   *::selection {
     background-color: var(--primary);
     color: var(--primary-foreground);
-  }
-
-  .everr-decoration:not(.everr-decoration-primary)::selection {
-    background-color: var(--primary-foreground);
-    color: var(--primary);
   }
 }
 
@@ -28,21 +45,5 @@
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
-  }
-}
-
-@theme inline {
-  --animate-orbit: orbit calc(var(--duration) * 1s) linear infinite;
-
-  @keyframes orbit {
-    0% {
-      transform: rotate(calc(var(--angle) * 1deg))
-        translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg));
-    }
-    100% {
-      transform: rotate(calc(var(--angle) * 1deg + 360deg))
-        translateY(calc(var(--radius) * 1px))
-        rotate(calc((var(--angle) * -1deg) - 360deg));
-    }
   }
 }

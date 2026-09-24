@@ -2,7 +2,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { Check, Copy } from "lucide-react";
 import { useCopyToClipboard } from "../../lib/use-copy";
 
-export const INSTALL_COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
+const INSTALL_COMMAND = "curl -fsSL https://everr.dev/install.sh | sh";
 
 /** The one-line install command in a copyable terminal box. Container styling
  *  (border, background, width) is overridable via `className`. */
@@ -26,7 +26,7 @@ export function InstallCommand({ className }: { className?: string }) {
         type="button"
         onClick={copy}
         aria-label={copied ? "Copied" : "Copy install command"}
-        className="-mr-1.5 shrink-0 rounded-md p-1.5 text-fd-muted-foreground transition-colors hover:bg-fd-muted/50 hover:text-fd-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="-mr-1.5 shrink-0 rounded-full p-1.5 text-fd-muted-foreground transition-colors hover:bg-fd-muted/50 hover:text-fd-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         {copied ? (
           <Check className="size-4 text-primary" aria-hidden />

@@ -32,6 +32,11 @@ export function baseOptions(): BaseLayoutProps {
         on: "nav",
       },
       {
+        text: "Pricing",
+        url: "/pricing",
+        on: "nav",
+      },
+      {
         text: "Devlog",
         url: "/devlog",
         on: "nav",

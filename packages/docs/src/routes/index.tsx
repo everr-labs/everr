@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AgentsCompare } from "@/components/agents-compare";
-import { Community } from "@/components/community";
+import { AskAiSection } from "@/components/ask-ai-section";
+import { CapabilitiesSection } from "@/components/capabilities-section";
 import { FAQ } from "@/components/faq";
 import { FeaturedTestimonial } from "@/components/featured-testimonial";
-import { FeaturesZigzag } from "@/components/features-zigzag";
 import { FinalCTA } from "@/components/final-cta";
 import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
-import { OpenStandardsBento } from "@/components/open-standards-bento";
-import { QuickstartFriction } from "@/components/quickstart-friction";
+import { MonitoringSection } from "@/components/monitoring-section";
+import { ObservabilityVision } from "@/components/observability-vision";
+// import { SkepticSection } from "@/components/skeptic-section";
+import { TechnologySection } from "@/components/technology-section";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
@@ -18,14 +19,15 @@ function RouteComponent() {
   return (
     <div className="overflow-x-clip">
       <Hero />
-      <FeaturesZigzag />
-      <QuickstartFriction />
-      <AgentsCompare />
-      <OpenStandardsBento />
+      <MonitoringSection />
+      <ObservabilityVision />
+      {/* <SkepticSection /> */}
+      <CapabilitiesSection />
+      <TechnologySection />
       <FeaturedTestimonial />
-      <FAQ />
-      <Community />
+      <AskAiSection />
       <FinalCTA />
+      <FAQ />
       <Footer />
     </div>
   );

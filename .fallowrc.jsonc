@@ -66,13 +66,19 @@
       "rules": { "unresolved-imports": "off" }
     },
     {
-      // The /pricing page renders the cards + calculator. The feature-matrix
+      // The /pricing page renders the cards. The calculator, feature matrix,
       // and self-host/Cloud toggle are kept in-tree for possible reuse but are
       // not rendered right now.
       "files": [
+        "packages/docs/src/components/pricing-calculator.tsx",
         "packages/docs/src/components/pricing-matrix.tsx",
         "packages/docs/src/components/pricing-toggle.tsx"
       ],
+      "rules": { "unused-files": "off", "unused-exports": "off" }
+    },
+    {
+      // Keep the homepage skeptic section until /why-observability is redesigned.
+      "files": ["packages/docs/src/components/skeptic-section.tsx"],
       "rules": { "unused-files": "off", "unused-exports": "off" }
     }
   ],
