@@ -12,7 +12,7 @@ type DataRow = {
 };
 
 type PlanCard = {
-  id: "free" | "pro" | "enterprise";
+  id: "hobby" | "pro" | "enterprise";
   name: string;
   price: string;
   unit?: string;
@@ -26,38 +26,41 @@ type PlanCard = {
 
 const CARDS: PlanCard[] = [
   {
-    id: "free",
-    name: "Free",
-    price: "$0",
+    id: "hobby",
+    name: "Hobby",
+    price: "€0",
     unit: "/month",
-    tagline: "For your side-project and trying things out",
+    tagline: "For personal projects and solo developers",
     data: [
-      { signal: "Logs", included: "5 GB" },
-      { signal: "Traces", included: "5 GB" },
-      { signal: "Metrics", included: "5 GB" },
-      { signal: "Users", included: "3" },
+      { signal: "Ingestion", included: "30 GB / month" },
+      { signal: "Query allowance", included: "5x", overage: "150 GB scanned" },
+      { signal: "Uptime monitors", included: "1" },
+      { signal: "Users", included: "1" },
     ],
-    features: ["14-day retention", "Max 5 Alerts", "Community support"],
+    features: ["14-day retention", "5 alerts", "1 uptime monitor"],
     cta: "Get started",
     href: "https://app.everr.dev",
   },
   {
     id: "pro",
     name: "Pro",
-    price: "$39",
-    unit: "/month",
-    tagline: "Start to get serious about observability",
+    price: "€39",
+    unit: "/ month",
+    tagline: "More capacity and collaboration for growing teams",
     data: [
-      { signal: "Logs", included: "100 GB", overage: "then $0.40 per GB" },
-      { signal: "Traces", included: "100 GB", overage: "then $0.40 per GB" },
-      { signal: "Metrics", included: "100 GB", overage: "then $0.40 per GB" },
-      { signal: "Users", included: "3", overage: "then $8 per seat" },
+      {
+        signal: "Ingestion",
+        included: "300 GB / month",
+        overage: "then €0.10 per GB",
+      },
+      { signal: "Query allowance", included: "20x", overage: "6 TB scanned" },
+      { signal: "Uptime monitors", included: "10", overage: "then €1 each" },
+      { signal: "Users", included: "Unlimited" },
     ],
     features: [
-      "30-day retention",
+      "12-month retention, window-limited",
       "Unlimited alerts",
-      "Priority support",
-      "Configurable spending limits",
+      "Organization management",
     ],
     cta: "Get started",
     href: "https://app.everr.dev",
@@ -66,24 +69,14 @@ const CARDS: PlanCard[] = [
   {
     id: "enterprise",
     name: "Enterprise",
-    price: "From $2,000",
-    tagline:
-      "Tailored pricing for high-volume teams with dedicated support and custom retention.",
+    price: "Custom",
+    tagline: "For higher volumes or dedicated instances.",
     data: [
-      { signal: "Logs", included: "Custom" },
-      { signal: "Traces", included: "Custom" },
-      { signal: "Metrics", included: "Custom" },
-      { signal: "Users", included: "Custom" },
+      { signal: "Ingestion", included: "Higher volumes" },
+      { signal: "Instances", included: "Dedicated" },
     ],
-    features: [
-      "Custom retention",
-      "SSO / SAML",
-      "Priority & dedicated support + SLA",
-      "Hands-on help improving your OTel data",
-      "Unlimited alerts",
-      "Configurable spending limits",
-    ],
-    cta: "Talk to us",
+    features: ["Contact us to discuss your requirements"],
+    cta: "Contact us",
     href: "https://calendar.app.google/XnYJ4rHuTzDaNetFA",
   },
 ];
@@ -103,11 +96,11 @@ export function PricingCards() {
           className="max-w-3xl"
         >
           <h1 className="text-balance font-heading text-4xl leading-[1.05] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-            Best Pricing Everr.
+            Pricing that grows with you.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            You should focus building, not into avoiding get caught in hidden
-            cost traps.
+            Start with a solo project, scale with your team, or contact us for
+            higher volumes and dedicated instances.
           </p>
         </motion.div>
 
@@ -159,11 +152,9 @@ export function PricingCards() {
                       <span className="font-mono text-sm font-medium text-fd-foreground">
                         {row.included}
                       </span>
-                      {row.overage && (
-                        <span className="mt-0.5 block font-mono text-[10px] text-fd-muted-foreground/60">
-                          {row.overage}
-                        </span>
-                      )}
+                      <span className="mt-0.5 block font-mono text-[10px] text-fd-muted-foreground/60">
+                        {row.overage}&nbsp;
+                      </span>
                     </dd>
                   </div>
                 ))}

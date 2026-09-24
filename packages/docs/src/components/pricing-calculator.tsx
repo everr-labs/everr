@@ -8,28 +8,23 @@ import { cn } from "@everr/ui/lib/utils";
 import { ArrowRight } from "lucide-react";
 import { motion, useInView } from "motion/react";
 import { useId, useMemo, useRef, useState } from "react";
+import {
+  calculateEverrCharges,
+  EVERR_PRICING,
+} from "@/components/pricing-calculator-model";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 /* ------------------------------------------------------------------ */
 /*  Cost model                                                         */
 /*                                                                     */
-/*  Every provider is a single list of rows. Each row carries both the  */
-/*  vendor's charge and Everr's charge for the same thing, so the two    */
-/*  columns mirror each other line-for-line. Rates are published list    */
-/*  prices as of 2026; all figures are estimates (see disclaimer).       */
+/*  Provider list prices are estimated in USD and converted to EUR for     */
+/*  comparison. Everr's 300 GB ingestion allowance is pooled across all   */
+/*  signals, so its overage appears as one row.                           */
 /* ------------------------------------------------------------------ */
 
-const EVERR = {
-  base: 39,
-  // Each signal (logs / traces / metrics) gets its own 100 GB allotment, then
-  // bills overage per GB. This mirrors the Pro plan cards; a single pooled
-  // allotment would let 300 GB of one signal ride free, which it shouldn't.
-  includedGbPerSignal: 100,
-  overagePerGb: 0.4,
-  perSeat: 8,
-  includedSeats: 3,
-};
+// ECB reference rate for 23 September 2026: €1 = $1.1411.
+const EUR_USD_REFERENCE_RATE = 1.1411;
 
 const LOG_KB = 2;
 // A log/error event is ~2 KB (500k ≈ 1 GB); a metric series counts as ~1 GB
@@ -56,7 +51,7 @@ type Control = {
 };
 
 // `trap` holds the tooltip text explaining why a vendor line is a hidden cost.
-type Cell = { amount: number; trap?: string };
+type Cell = { amount: number; trap?: string; display?: string };
 // `control` is the slider key that drives this row; it orders the summary.
 type Row = { label: string; control?: string; everr: Cell; provider: Cell };
 
@@ -67,9 +62,6 @@ type Provider = {
   rows: (v: Values) => Row[];
 };
 
-const billedSeats = (teamSize: number) =>
-  Math.max(0, teamSize - EVERR.includedSeats);
-
 const seatsRow = (
   teamSize: number,
   providerPerSeat: number,
@@ -77,7 +69,7 @@ const seatsRow = (
 ): Row => ({
   label: "Seats",
   control: "teamSize",
-  everr: { amount: billedSeats(teamSize) * EVERR.perSeat },
+  everr: { amount: 0 },
   provider: {
     amount: Math.max(0, teamSize - providerFreeSeats) * providerPerSeat,
   },
@@ -85,19 +77,48 @@ const seatsRow = (
 
 const baseRow = (providerAmount: number): Row => ({
   label: "Base",
-  everr: { amount: EVERR.base },
+  everr: { amount: EVERR_PRICING.baseEur },
   provider: { amount: providerAmount },
 });
 
-type Cat = { label: string; control: string; gb: number; provider: Cell };
+function ingestionRow(v: Values, includeErrors = false): Row {
+  const ingestionGb =
+    v.metricSeries +
+    v.logVolume +
+    v.traceVolume +
+    (includeErrors ? kEventsToGb(v.errorEvents) : 0);
+  return {
+    label: "Ingestion overage",
+    everr: {
+      amount: calculateEverrCharges({
+        ingestionGb,
+        uptimeMonitors: EVERR_PRICING.includedUptimeMonitors,
+      }).ingestionOverageEur,
+    },
+    provider: { amount: 0, display: "See signal rows" },
+  };
+}
+
+function uptimeRow(v: Values): Row {
+  return {
+    label: "Uptime monitors",
+    control: "uptimeMonitors",
+    everr: {
+      amount: calculateEverrCharges({
+        ingestionGb: 0,
+        uptimeMonitors: v.uptimeMonitors,
+      }).uptimeMonitorsEur,
+    },
+    provider: { amount: 0, display: "Not modeled" },
+  };
+}
+
+type Cat = { label: string; control: string; provider: Cell };
 function dataRows(cats: Cat[]): Row[] {
   return cats.map((c) => ({
     label: c.label,
     control: c.control,
-    everr: {
-      amount:
-        Math.max(0, c.gb - EVERR.includedGbPerSignal) * EVERR.overagePerGb,
-    },
+    everr: { amount: 0 },
     provider: c.provider,
   }));
 }
@@ -113,14 +134,19 @@ const PROVIDERS: Provider[] = [
   {
     id: "grafana",
     label: "Grafana Cloud",
-    controls: [METRIC_SERIES(), LOG_VOLUME(), TRACE_VOLUME(), TEAM_SIZE()],
+    controls: [
+      METRIC_SERIES(),
+      LOG_VOLUME(),
+      TRACE_VOLUME(),
+      TEAM_SIZE(),
+      UPTIME_MONITORS(),
+    ],
     rows: (v) => [
       baseRow(19),
       ...dataRows([
         {
           label: "Metrics",
           control: "metricSeries",
-          gb: v.metricSeries,
           provider: {
             amount: Math.max(0, v.metricSeries - 10) * 6.5,
             trap: "Billed per active time series past 10k free. It scales with metric cardinality, so high-cardinality tags multiply the count fast.",
@@ -129,17 +155,17 @@ const PROVIDERS: Provider[] = [
         {
           label: "Logs",
           control: "logVolume",
-          gb: v.logVolume,
           provider: { amount: Math.max(0, v.logVolume - 50) * 0.5 },
         },
         {
           label: "Traces",
           control: "traceVolume",
-          gb: v.traceVolume,
           provider: { amount: Math.max(0, v.traceVolume - 50) * 0.5 },
         },
       ]),
       seatsRow(v.teamSize, 8, 3),
+      ingestionRow(v),
+      uptimeRow(v),
     ],
   },
   {
@@ -153,6 +179,7 @@ const PROVIDERS: Provider[] = [
       LOG_VOLUME(),
       TRACE_VOLUME(),
       TEAM_SIZE(),
+      UPTIME_MONITORS(),
       {
         key: "apmHosts",
         label: "APM hosts",
@@ -196,7 +223,6 @@ const PROVIDERS: Provider[] = [
         {
           label: "Logs",
           control: "logVolume",
-          gb: v.logVolume,
           provider: {
             amount: v.logVolume * 0.36,
             trap: "The per-GB rate is ingestion only. Indexing and retention are billed separately and usually dwarf it.",
@@ -205,7 +231,6 @@ const PROVIDERS: Provider[] = [
         {
           label: "Traces",
           control: "traceVolume",
-          gb: v.traceVolume,
           provider: {
             // Ingested spans beyond the 150 GB/APM-host allotment: $0.10/GB.
             amount:
@@ -219,7 +244,6 @@ const PROVIDERS: Provider[] = [
         {
           label: "Metrics",
           control: "metricSeries",
-          gb: v.metricSeries,
           provider: {
             // Custom metrics beyond the 100/host allotment: ~$0.05 each.
             amount:
@@ -232,6 +256,8 @@ const PROVIDERS: Provider[] = [
         },
       ]),
       seatsRow(v.teamSize, 0),
+      ingestionRow(v),
+      uptimeRow(v),
     ],
   },
   {
@@ -242,6 +268,7 @@ const PROVIDERS: Provider[] = [
       LOG_VOLUME(),
       TRACE_VOLUME(),
       TEAM_SIZE(),
+      UPTIME_MONITORS(),
       {
         key: "errorEvents",
         label: "Error events",
@@ -258,7 +285,6 @@ const PROVIDERS: Provider[] = [
         {
           label: "Errors",
           control: "errorEvents",
-          gb: kEventsToGb(v.errorEvents),
           provider: {
             amount: Math.max(0, v.errorEvents - 50) * 0.3,
             trap: "50k errors are included, but past that they add up fast at production volume. On Everr, errors are just logs, billed at the normal log rate.",
@@ -267,23 +293,22 @@ const PROVIDERS: Provider[] = [
         {
           label: "Logs",
           control: "logVolume",
-          gb: v.logVolume,
           provider: { amount: Math.max(0, v.logVolume - 5) * 0.5 },
         },
         {
           label: "Traces",
           control: "traceVolume",
-          gb: v.traceVolume,
           provider: { amount: Math.max(0, v.traceVolume - 5) * 0.5 },
         },
         {
           label: "Metrics",
           control: "metricSeries",
-          gb: v.metricSeries,
           provider: { amount: v.metricSeries * 0.5 },
         },
       ]),
       seatsRow(v.teamSize, 0),
+      ingestionRow(v, true),
+      uptimeRow(v),
     ],
   },
 ];
@@ -346,8 +371,23 @@ function TEAM_SIZE(): Control {
   };
 }
 
-function usd(n: number): string {
-  return `$${Math.round(n).toLocaleString("en-US")}`;
+function UPTIME_MONITORS(): Control {
+  return {
+    key: "uptimeMonitors",
+    label: "Uptime monitors",
+    unit: "monitors",
+    min: 0,
+    max: 100,
+    step: 1,
+    default: 10,
+  };
+}
+
+function eur(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "EUR",
+  }).format(n);
 }
 
 function initialValues(): Record<string, Values> {
@@ -402,18 +442,16 @@ export function PricingCalculator() {
     () => rows.reduce((s, r) => s + r.everr.amount, 0),
     [rows],
   );
-  const providerTotal = useMemo(
+  const providerTotalUsd = useMemo(
     () => rows.reduce((s, r) => s + r.provider.amount, 0),
     [rows],
   );
+  const providerTotalEur = providerTotalUsd / EUR_USD_REFERENCE_RATE;
 
-  const savings = providerTotal - everrTotal;
+  const savings = providerTotalEur - everrTotal;
   const savingsPct =
-    providerTotal > 0 ? Math.round((savings / providerTotal) * 100) : 0;
+    providerTotalEur > 0 ? Math.round((savings / providerTotalEur) * 100) : 0;
   const yearly = savings * 12;
-  const yearlyLabel =
-    yearly >= 1000 ? `$${(yearly / 1000).toFixed(1)}k` : usd(yearly);
-  const bananaKg = Math.round(yearly / 5); // bananas at $5/kg
 
   const setValue = (key: string, val: number) => {
     if (key === "apmHosts") setApmDirty(true);
@@ -515,14 +553,14 @@ export function PricingCalculator() {
                 </span>
                 <div className="mt-3 flex items-end gap-1.5">
                   <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-foreground md:text-5xl">
-                    {usd(everrTotal)}
+                    {eur(everrTotal)}
                   </span>
                   <span className="pb-1 font-mono text-sm text-fd-muted-foreground/70">
                     / mo
                   </span>
                 </div>
                 <p className="mt-2 font-mono text-[11px] text-fd-muted-foreground/60">
-                  Pro plan
+                  Pro plan, 300 GB ingestion and 10 uptime monitors included
                 </p>
                 <dl className="mt-6 space-y-3">
                   {orderedRows.map((row) => (
@@ -534,7 +572,7 @@ export function PricingCalculator() {
                         {row.label}
                       </dt>
                       <dd className="font-mono text-sm font-medium text-primary">
-                        {usd(row.everr.amount)}
+                        {eur(row.everr.amount)}
                       </dd>
                     </div>
                   ))}
@@ -548,14 +586,14 @@ export function PricingCalculator() {
                 </span>
                 <div className="mt-3 flex items-end gap-1.5">
                   <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-muted-foreground/70 md:text-5xl">
-                    {usd(providerTotal)}
+                    {eur(providerTotalEur)}
                   </span>
                   <span className="pb-1 font-mono text-sm text-fd-muted-foreground/50">
                     / mo
                   </span>
                 </div>
                 <p className="mt-2 font-mono text-[11px] text-fd-muted-foreground/40">
-                  Estimated
+                  Estimated, converted from USD
                 </p>
                 <dl className="mt-6 space-y-3">
                   {orderedRows.map((row) => (
@@ -567,10 +605,16 @@ export function PricingCalculator() {
                         {row.label}
                       </dt>
                       <dd className="font-mono text-sm">
-                        {row.provider.trap ? (
+                        {row.provider.display ? (
+                          <span className="text-fd-muted-foreground/60">
+                            {row.provider.display}
+                          </span>
+                        ) : row.provider.trap ? (
                           <Tooltip>
                             <TooltipTrigger className="cursor-help rounded font-medium text-rose-400 underline decoration-rose-400/40 decoration-dotted underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50">
-                              {usd(row.provider.amount)}
+                              {eur(
+                                row.provider.amount / EUR_USD_REFERENCE_RATE,
+                              )}
                             </TooltipTrigger>
                             <TooltipContent className="max-w-xs text-left leading-relaxed">
                               {row.provider.trap}
@@ -578,7 +622,7 @@ export function PricingCalculator() {
                           </Tooltip>
                         ) : (
                           <span className="text-fd-muted-foreground/80">
-                            {usd(row.provider.amount)}
+                            {eur(row.provider.amount / EUR_USD_REFERENCE_RATE)}
                           </span>
                         )}
                       </dd>
@@ -601,20 +645,16 @@ export function PricingCalculator() {
                   <>
                     <p className="font-heading text-2xl font-bold tracking-tight text-fd-foreground md:text-3xl">
                       Save{" "}
-                      <span className="text-primary">{usd(savings)}/month</span>
+                      <span className="text-primary">{eur(savings)}/month</span>
                     </p>
                     <p className="mt-1.5 text-sm text-fd-muted-foreground">
                       That's {savingsPct}% less than {provider.label}, or{" "}
-                      {yearlyLabel}/year back in your budget.
-                    </p>
-                    <p className="mt-1 text-sm text-fd-muted-foreground/70">
-                      That's {bananaKg.toLocaleString("en-US")}kg of
-                      bananas/year. 🍌
+                      {eur(yearly)}/year back in your budget.
                     </p>
                   </>
                 ) : (
-                  <p className="font-heading text-3xl font-bold text-primary">
-                    Waaaat
+                  <p className="font-heading text-xl font-bold text-fd-foreground md:text-2xl">
+                    Everr is {eur(-savings)}/month more for this usage.
                   </p>
                 )}
               </div>
@@ -633,10 +673,19 @@ export function PricingCalculator() {
           </motion.div>
 
           <p className="mt-6 max-w-3xl font-mono text-[11px] leading-relaxed tracking-[0.05em] text-fd-muted-foreground/50">
-            Estimates based on published pricing as of 2026. Actual costs vary
-            with contract terms, volume discounts, and features. Everr figure
-            uses the Pro plan: $39/mo + $8/user (first 3 free), with 100 GB
-            included per signal, then $0.40/GB. Hosts are never billed.
+            Estimates based on provider list prices in USD. Conversion uses the{" "}
+            <a
+              href="https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html"
+              className="underline underline-offset-2 hover:text-fd-foreground"
+            >
+              ECB reference rate
+            </a>{" "}
+            for 23 September 2026 (€1 = $1.1411). Everr Pro includes 300 GB
+            pooled ingestion, then costs €0.10/GB, plus €1 for each uptime
+            monitor beyond 10. Users are unlimited. Query overage and provider
+            uptime monitoring are excluded because their prices are not
+            specified here. Actual provider costs vary by contract, volume, and
+            features.
           </p>
         </div>
       </section>

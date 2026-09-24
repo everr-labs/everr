@@ -81,6 +81,14 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link
+                  to="/pricing"
+                  className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+                >
+                  Pricing
+                </Link>
+              </li>
+              <li>
                 <a
                   href="https://app.everr.dev"
                   className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
