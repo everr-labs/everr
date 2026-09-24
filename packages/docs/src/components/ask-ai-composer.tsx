@@ -2,7 +2,7 @@ import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 
 const defaultPrompt =
-  "Look into Everr at https://everr.dev and its documentation. What does it do, where might it help my project, and what are its limitations? Ask me about my stack before recommending it. Be critical and cite your sources.";
+  "Look into Everr at https://everr.dev. How can we benefit from it and how would it help us? Is it worth trying?";
 
 export function AskAiComposer() {
   const [prompt, setPrompt] = useState(defaultPrompt);
