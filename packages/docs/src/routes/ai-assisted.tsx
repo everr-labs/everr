@@ -289,9 +289,9 @@ function AiAssistedInstall() {
       </div>
       <a
         className="mx-auto mt-8 block w-fit text-[13px] text-muted-foreground underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-primary"
-        href="/small-teams"
+        href="/why-observability"
       >
-        New to observability? Explore Everr for small teams →
+        New to observability? See why it matters →
       </a>
     </section>
   );
