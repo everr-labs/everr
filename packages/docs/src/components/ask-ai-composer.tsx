@@ -30,7 +30,7 @@ export function AskAiComposer() {
         </div>
         <div className="ml-6 rounded-[16px_16px_4px_16px] border border-border bg-background px-[18px] pt-[18px] pb-3 focus-within:border-primary">
           <textarea
-            className="block min-h-[210px] w-full resize-y border-0 bg-transparent p-0 font-sans text-base leading-[1.6] text-foreground caret-primary outline-none placeholder:text-muted-foreground min-[481px]:min-h-[150px]"
+            className="block min-h-[210px] w-full resize-none border-0 bg-transparent p-0 font-sans text-base leading-[1.6] text-foreground caret-primary outline-none placeholder:text-muted-foreground min-[481px]:min-h-[150px]"
             aria-label="Prompt for your AI"
             placeholder="Write your prompt…"
             value={prompt}
@@ -40,10 +40,7 @@ export function AskAiComposer() {
             }}
             spellCheck={false}
           />
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <span className="text-xs text-muted-foreground">
-              Edit your prompt, then copy
-            </span>
+          <div className="mt-3 flex items-center justify-end gap-3">
             <button
               className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-full bg-primary text-primary-foreground hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
               type="button"
