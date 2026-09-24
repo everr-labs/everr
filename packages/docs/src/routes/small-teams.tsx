@@ -1,23 +1,15 @@
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@everr/ui/components/tabs";
+import { cn } from "@everr/ui/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Activity,
   ArrowRight,
   ChartNoAxesCombined,
   Code2,
-  Fingerprint,
   Laptop,
-  Workflow,
 } from "lucide-react";
-import { useId } from "react";
+import type { ReactNode } from "react";
 import otelLogo from "@/assets/logos/otel.svg?url";
-import { LandingLink, LandingShell } from "@/components/landing-shell";
-import "@/styles/production-monitoring.css";
+import { LandingShell } from "@/components/landing-shell";
 
 export const Route = createFileRoute("/small-teams")({
   head: () => ({
@@ -33,357 +25,131 @@ export const Route = createFileRoute("/small-teams")({
   component: ProductionMonitoringPage,
 });
 
-const examples = [
-  {
-    id: "performance",
-    label: "How your application performs",
-    icon: Workflow,
-    view: TraceExample,
-    description:
-      "A successful request can still be too slow. Follow its trace to see where time goes, from application code to database queries and external services.",
-  },
-  {
-    id: "traffic",
-    label: "How it handles traffic spikes",
-    icon: ChartNoAxesCombined,
-    view: TrafficExample,
-    description:
-      "More traffic is only part of the picture. Read request volume alongside response times and error rates to see how your application behaves under load.",
-  },
-  {
-    id: "failures",
-    label: "Why requests fail",
-    icon: Fingerprint,
-    view: ErrorExample,
-    description:
-      "An error message is a starting point. Read the stack trace and related logs in the context of the failed request to understand what happened and where to investigate.",
-  },
-];
+const sectionClassName =
+  "mx-auto max-w-[1280px] scroll-mt-20 px-8 py-[88px] max-[700px]:px-6 max-[700px]:py-14";
+const sectionHeadingClassName =
+  "max-w-[790px] text-[clamp(30px,3.5vw,46px)] font-[550] leading-[1.12] tracking-[-0.035em]";
+const introClassName =
+  "mt-6 max-w-[740px] text-[1.0625rem] leading-[1.7] text-muted-foreground";
+const cardHeadingClassName =
+  "my-3 text-[21px] font-semibold leading-[1.3] tracking-[-0.02em]";
+const showOpenTelemetryBadge = false;
 
-function TraceExample() {
+function MonitoringLink({
+  href,
+  children,
+  secondary = false,
+  inverted = false,
+}: {
+  href: string;
+  children: ReactNode;
+  secondary?: boolean;
+  inverted?: boolean;
+}) {
   return (
-    <div className="monitor-demo">
-      <div className="monitor-demo-bar">
-        <span>Trace detail</span>
-        <span>Illustrative example</span>
-      </div>
-      <div className="monitor-demo-body">
-        <div className="monitor-request">
-          <div>
-            <span className="monitor-method">GET</span> <code>/projects</code>
-          </div>
-          <span>
-            200 OK <strong>2.10 s</strong>
-          </span>
-        </div>
-        <div className="monitor-waterfall">
-          <div className="monitor-trace-row monitor-trace-axis">
-            <span>Operation</span>
-            <div>
-              <span>0 s</span>
-              <span>1 s</span>
-              <span>2.1 s</span>
-            </div>
-            <span>Duration</span>
-          </div>
-          {[
-            { label: "Request", duration: "2.10 s", start: 0, width: 100 },
-            { label: "Authenticate", duration: "20 ms", start: 0, width: 0.95 },
-            {
-              label: "Database",
-              duration: "2.04 s",
-              start: 0.95,
-              width: 97.14,
-            },
-            { label: "Response", duration: "40 ms", start: 98.09, width: 1.91 },
-          ].map((row) => (
-            <div
-              className={`monitor-trace-row ${row.label === "Database" ? "monitor-trace-highlight" : ""}`}
-              key={row.label}
-            >
-              <span>{row.label}</span>
-              <div className="monitor-span-track">
-                <span
-                  style={{
-                    marginLeft: `${row.start}%`,
-                    width: `${row.width}%`,
-                  }}
-                />
-              </div>
-              <span>{row.duration}</span>
-            </div>
-          ))}
-        </div>
-        <div className="monitor-demo-insight">
-          <Activity size={16} aria-hidden="true" /> The database accounts for
-          97% of request time.
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TrafficExample() {
-  const chartTitle = useId();
-  return (
-    <div className="monitor-demo">
-      <div className="monitor-demo-bar">
-        <span>Traffic overview</span>
-        <span>Illustrative example</span>
-      </div>
-      <div className="monitor-demo-body">
-        <div className="monitor-request">
-          <strong>
-            Request rate <small>req/s</small>
-          </strong>
-          <span>10:00 - 10:15</span>
-        </div>
-        <div className="monitor-traffic-grid">
-          <svg
-            className="monitor-chart"
-            viewBox="0 0 600 230"
-            role="img"
-            aria-labelledby={chartTitle}
-          >
-            <title id={chartTitle}>
-              Request rate from 10:00 to 10:15, with two spikes reaching
-              approximately 400 and 800 requests per second.
-            </title>
-            {[30, 110, 190].map((y) => (
-              <line
-                key={y}
-                x1="45"
-                y1={y}
-                x2="580"
-                y2={y}
-                className="monitor-chart-grid"
-              />
-            ))}
-            <text x="0" y="35">
-              800
-            </text>
-            <text x="0" y="115">
-              400
-            </text>
-            <text x="20" y="195">
-              0
-            </text>
-            <path
-              d="M45 187 L80 185 L110 184 L145 185 L175 180 L195 112 L215 172 L240 182 L275 174 L300 30 L325 86 L345 178 L380 183 L415 179 L450 184 L490 181 L535 185 L580 182 L580 190 L45 190 Z"
-              className="monitor-chart-area"
-            />
-            <path
-              d="M45 187 L80 185 L110 184 L145 185 L175 180 L195 112 L215 172 L240 182 L275 174 L300 30 L325 86 L345 178 L380 183 L415 179 L450 184 L490 181 L535 185 L580 182"
-              className="monitor-chart-line"
-            />
-            <text x="45" y="220">
-              10:00
-            </text>
-            <text x="310" y="220" textAnchor="middle">
-              10:07
-            </text>
-            <text x="580" y="220" textAnchor="end">
-              10:15
-            </text>
-          </svg>
-          <div className="monitor-metrics">
-            <div>
-              <p>P95 response time</p>
-              <strong>
-                420 <span>ms</span>
-              </strong>
-              <meter
-                min={0}
-                max={1000}
-                value={420}
-                aria-label="P95 response time: 420 milliseconds on a 0 to 1000 millisecond scale"
-              />
-              <div className="monitor-meter-scale">
-                <span>0 ms</span>
-                <span>1,000 ms</span>
-              </div>
-            </div>
-            <div>
-              <p>Error rate</p>
-              <strong>
-                0.7<span>%</span>
-              </strong>
-              <meter
-                min={0}
-                max={10}
-                value={0.7}
-                aria-label="Error rate: 0.7 percent on a 0 to 10 percent scale"
-              />
-              <div className="monitor-meter-scale">
-                <span>0%</span>
-                <span>10%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ErrorExample() {
-  return (
-    <div className="monitor-demo">
-      <div className="monitor-demo-bar">
-        <span>Error detail</span>
-        <span>Illustrative example</span>
-      </div>
-      <div className="monitor-demo-body">
-        <div className="monitor-request">
-          <div>
-            <span className="monitor-error-label">ERROR</span>{" "}
-            <code>POST /checkout</code>
-          </div>
-          <span>10:12:08</span>
-        </div>
-        <div className="monitor-stack">
-          <strong>PaymentProviderError: upstream returned 503</strong>
-          <pre>
-            <code>
-              {
-                "at chargeCustomer (payments.ts:84)\nat checkout       (checkout.ts:37)"
-              }
-            </code>
-          </pre>
-        </div>
-        <div className="monitor-log-heading">
-          <span>Related logs</span>
-          <code>req_demo_42</code>
-        </div>
-        <div className="monitor-log-row">
-          <time>10:12:07</time>
-          <span>Payment request started</span>
-        </div>
-        <div className="monitor-log-row">
-          <time>10:12:08</time>
-          <span>Payment provider returned 503</span>
-        </div>
-      </div>
-    </div>
+    <a
+      className={cn(
+        "inline-flex items-center justify-center gap-3 rounded-full border border-primary bg-primary px-5 py-3.5 text-sm font-semibold text-primary-foreground transition-[transform,box-shadow,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-[3px] hover:opacity-100 hover:shadow-[0_8px_28px_color-mix(in_srgb,var(--primary)_12%,transparent)] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[5px] motion-reduce:transform-none motion-reduce:transition-none",
+        secondary &&
+          "border-[var(--landing-line)] bg-transparent text-foreground",
+        inverted &&
+          "border-primary-foreground bg-primary-foreground text-primary",
+      )}
+      href={href}
+    >
+      {children}
+      <ArrowRight size={16} aria-hidden="true" />
+    </a>
   );
 }
 
 function ProductionMonitoringPage() {
   return (
     <LandingShell>
-      <div className="production-monitoring">
-        <section className="monitor-hero">
-          <h1>
-            Monitoring should be part of shipping.
-            <br />
-            <span>Not a project of its own.</span>
+      <div>
+        <section
+          className={cn(
+            sectionClassName,
+            "bg-[radial-gradient(ellipse_at_90%_0%,color-mix(in_srgb,var(--primary)_15%,transparent),transparent_55%),radial-gradient(ellipse_at_5%_80%,color-mix(in_srgb,#32c8cc_6%,transparent),transparent_45%)] pt-[104px] pb-[88px] text-left max-[700px]:pt-16 max-[700px]:pb-14",
+          )}
+        >
+          {/*<h1 className="m-0 max-w-[1160px] animate-in text-balance fade-in slide-in-from-bottom-3 text-[clamp(2.5rem,5.8vw,5.25rem)] font-[550] leading-[1.06] tracking-[-0.05em] duration-[650ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:animate-none max-[700px]:text-[clamp(2.25rem,8vw,3.25rem)]">
+            Your app can be up <br />
+            <span className="text-primary">and still let users down</span>
+          </h1>*/}
+
+          <h1 className="m-0 max-w-[1160px] animate-in text-balance fade-in slide-in-from-bottom-3 text-[clamp(2.5rem,5.8vw,5.25rem)] font-[550] leading-[1.06] tracking-[-0.05em] duration-[650ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:animate-none max-[700px]:text-[clamp(2.25rem,8vw,3.25rem)]">
+            Your app can be up <br />
+            <span className="text-primary">and still let users down</span>
           </h1>
-          <div className="monitor-hero-footer">
-            <p>
-              Understand how your application performs, how it handles traffic
-              spikes, and why requests fail. Everr turns established
-              observability practices into a guided workflow, from AI-assisted
-              setup to everyday monitoring and investigation.
+          <h2 className="!text-4xl text-white mt-8">
+            The observability platform that helps you ship faster.
+          </h2>
+
+          <div className="mt-9 grid animate-in grid-cols-[minmax(0,1fr)_auto] items-center gap-16 fade-in slide-in-from-bottom-3 duration-[750ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:animate-none max-[900px]:grid-cols-1 max-[900px]:gap-7">
+            <p className="m-0 max-w-[720px] text-lg leading-[1.7] text-muted-foreground max-[700px]:text-base">
+              Everr helps you understand your app’s performance and failures,
+              from local development to production. Your coding agent can help
+              instrument and investigate; your team gets useful dashboards,
+              alerts, and answers.
             </p>
-            <div className="landing-actions">
-              <LandingLink href="#start-local">
+            <div className="flex flex-col items-stretch gap-3 max-[900px]:flex-row max-[900px]:flex-wrap">
+              <MonitoringLink href="#start-local">
                 Start monitoring your app
-              </LandingLink>
-              <LandingLink href="#how-everr-works" secondary>
+              </MonitoringLink>
+              <MonitoringLink href="#how-everr-works" secondary>
                 See how Everr works
-              </LandingLink>
+              </MonitoringLink>
             </div>
           </div>
         </section>
 
         <section
-          className="monitor-section monitor-examples"
-          aria-labelledby="monitor-examples-title"
-        >
-          <h2 id="monitor-examples-title">
-            An app can be up and still let users down.
-          </h2>
-          <p className="monitor-intro">
-            Monitoring goes beyond error reporting. See where your app slows
-            down, how it responds to demand, and what led to a failure.
-          </p>
-          <Tabs
-            defaultValue="performance"
-            orientation="vertical"
-            className="monitor-tabs"
-          >
-            <TabsList
-              className="monitor-tab-list"
-              aria-label="Explore production monitoring"
-            >
-              {examples.map(({ id, label, icon: Icon }, index) => (
-                <TabsTrigger className="monitor-tab" key={id} value={id}>
-                  <span className="monitor-tab-icon">
-                    <Icon aria-hidden="true" />
-                  </span>
-                  <span className="monitor-tab-label">
-                    <span className="monitor-tab-number" aria-hidden="true">
-                      0{index + 1}
-                    </span>
-                    {label}
-                  </span>
-                  <ArrowRight
-                    className="monitor-tab-arrow"
-                    aria-hidden="true"
-                  />
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            {examples.map(({ id, description, view: View }) => (
-              <TabsContent className="monitor-tab-panel" key={id} value={id}>
-                <figure>
-                  <View />
-                  <figcaption>{description}</figcaption>
-                </figure>
-              </TabsContent>
-            ))}
-          </Tabs>
-        </section>
-
-        <section
-          className="monitor-section monitor-standards"
+          className={cn(sectionClassName, "py-64 text-center")}
           aria-labelledby="monitor-standards-title"
         >
-          <a
-            className="monitor-otel"
-            href="https://opentelemetry.io/docs/what-is-opentelemetry/"
+          {showOpenTelemetryBadge && (
+            <a
+              className="mb-7 inline-flex items-center gap-3 rounded-full border border-[var(--landing-line)] bg-card px-[18px] py-2.5 text-base focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[5px]"
+              href="https://opentelemetry.io/docs/what-is-opentelemetry/"
+            >
+              <img src={otelLogo} alt="" width="32" height="32" />
+              OpenTelemetry
+            </a>
+          )}
+          <h2
+            className={cn(sectionHeadingClassName, "mx-auto")}
+            id="monitor-standards-title"
           >
-            <img src={otelLogo} alt="" width="32" height="32" />
-            OpenTelemetry
-          </a>
-          <h2 id="monitor-standards-title">
             The foundations are established.
             <br />
             You don't have to reinvent them.
           </h2>
-          <p className="monitor-intro">
+          <p className={cn(introClassName, "mx-auto")}>
             Monitoring has established practices, and OpenTelemetry provides a
             shared, vendor-neutral foundation for generating, collecting, and
             exporting traces, metrics, and logs.
           </p>
-          <p className="monitor-intro">
+          <p className={cn(introClassName, "mx-auto")}>
             The building blocks exist. Adopting them is where the work begins.
           </p>
-          <p className="monitor-question">So why aren't you monitoring yet?</p>
+          <p className="mx-auto mt-14 w-fit -rotate-[1.5deg] rounded-xl bg-primary px-8 py-[22px] text-[clamp(1.5rem,3vw,2.25rem)] leading-tight tracking-[-0.03em] text-primary-foreground!">
+            So why aren't you monitoring yet?
+          </p>
         </section>
 
         <section
-          className="monitor-section monitor-barrier"
+          className={sectionClassName}
           aria-labelledby="monitor-cost-title"
         >
-          <h2 id="monitor-cost-title">
+          <h2 className={sectionHeadingClassName} id="monitor-cost-title">
             Because the tools are only part of the cost.
           </h2>
-          <p className="monitor-intro">
+          <p className={introClassName}>
             The subscription is one cost. Learning what to collect, deciding
             what matters, and keeping the setup useful are others.
           </p>
-          <div className="monitor-decisions">
+          <div className="my-10 grid grid-cols-3 gap-8 max-[900px]:gap-5 max-[700px]:grid-cols-1">
             {[
               [
                 "What should you instrument?",
@@ -398,19 +164,24 @@ function ProductionMonitoringPage() {
                 "As your application changes, which instrumentation, dashboards, and alert rules need attention?",
               ],
             ].map(([title, body], index) => (
-              <article key={title}>
-                <span className="monitor-step-number">0{index + 1}</span>
-                <h3>{title}</h3>
-                <p>{body}</p>
+              <article
+                className="rounded-[20px] border border-[var(--landing-line)] bg-card p-7"
+                key={title}
+              >
+                <span className="text-[2.5rem] font-medium tracking-[-0.06em] text-[color-mix(in_srgb,var(--primary)_55%,var(--muted-foreground))]">
+                  0{index + 1}
+                </span>
+                <h3 className={cardHeadingClassName}>{title}</h3>
+                <p className="leading-[1.7] text-muted-foreground">{body}</p>
               </article>
             ))}
           </div>
-          <p className="monitor-intro">
+          <p className={introClassName}>
             Those decisions take experience. Keeping them useful takes time. It
             is understandable to put monitoring off when getting value from it
             looks like a project of its own.
           </p>
-          <p className="monitor-answer">
+          <p className="mt-9 max-w-[900px] border-l-2 border-primary pl-6 text-[1.375rem] leading-normal text-foreground!">
             That's why Everr exists: to make that experience part of the
             product, so you don't have to figure everything out yourself.
           </p>
@@ -418,20 +189,20 @@ function ProductionMonitoringPage() {
 
         <section
           id="how-everr-works"
-          className="monitor-section"
+          className={sectionClassName}
           aria-labelledby="monitor-guidance-title"
         >
-          <h2 id="monitor-guidance-title">
+          <h2 className={sectionHeadingClassName} id="monitor-guidance-title">
             You shouldn't have to become an observability expert to get useful
             answers.
           </h2>
-          <p className="monitor-intro">
+          <p className={introClassName}>
             Everr condenses years of observability experience into an
             opinionated getting-started flow. From AI-assisted instrumentation
             to dashboards and alerting, established practices guide the
             decisions that would otherwise be yours to research and maintain.
           </p>
-          <ol className="monitor-journey">
+          <ol className="mt-12 grid list-none grid-cols-3 gap-6 px-0 pb-8 max-[700px]:grid-cols-1">
             {[
               {
                 title: "Instrument",
@@ -452,18 +223,29 @@ function ProductionMonitoringPage() {
                 ],
               },
             ].map(({ title, icon: Icon, items }, index) => (
-              <li key={title}>
-                <div className="monitor-journey-top">
+              <li
+                className={cn(
+                  "relative rounded-[20px] border border-[var(--landing-line)] bg-card p-7 transition-[transform,border-color] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-[5px] hover:border-primary motion-reduce:transform-none motion-reduce:transition-none",
+                  index === 1 && "mt-4 -mb-4 max-[700px]:my-0",
+                  index === 2 && "mt-8 -mb-8 max-[700px]:my-0",
+                )}
+                key={title}
+              >
+                <div className="mb-6 flex items-center justify-between text-primary">
                   <Icon size={24} aria-hidden="true" />
-                  <span>0{index + 1}</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    0{index + 1}
+                  </span>
                 </div>
-                <h3>{title}</h3>
+                <h3 className={cardHeadingClassName}>{title}</h3>
                 {items.map((item) => (
-                  <p key={item}>{item}</p>
+                  <p className="leading-[1.7] text-muted-foreground" key={item}>
+                    {item}
+                  </p>
                 ))}
                 {index < 2 && (
                   <ArrowRight
-                    className="monitor-journey-arrow"
+                    className="absolute top-1/2 -right-[23px] text-primary max-[700px]:top-auto max-[700px]:right-1/2 max-[700px]:-bottom-[23px] max-[700px]:rotate-90"
                     size={20}
                     aria-hidden="true"
                   />
@@ -475,36 +257,38 @@ function ProductionMonitoringPage() {
 
         <section
           id="start-local"
-          className="monitor-section monitor-local"
+          className="mx-auto mt-14 w-[calc(100%-64px)] max-w-[1216px] scroll-mt-20 rounded-[32px] bg-primary p-14 text-primary-foreground max-[900px]:w-[calc(100%-48px)] max-[900px]:p-9 max-[700px]:w-[calc(100%-32px)] max-[700px]:px-5 max-[700px]:py-7"
           aria-labelledby="monitor-local-title"
         >
-          <div className="monitor-local-header">
+          <div className="grid grid-cols-[minmax(0,1fr)_280px] items-center gap-16 max-[900px]:grid-cols-[minmax(0,1fr)_230px] max-[900px]:gap-8 max-[700px]:grid-cols-1">
             <div>
-              <h2 id="monitor-local-title">
+              <h2 className={sectionHeadingClassName} id="monitor-local-title">
                 Start locally.
                 <br />
-                <span>Start for free.</span>
+                <span className="text-inherit">Start for free.</span>
               </h2>
-              <p className="monitor-intro">
+              <p className={cn(introClassName, "text-primary-foreground/80!")}>
                 Try Everr Local on your local environment. Collect and explore
                 your telemetry on your machine, for free. No account required.
               </p>
-              <div className="landing-actions">
-                <LandingLink href="/docs/learn/install">
+              <div className="mt-[30px] flex flex-wrap gap-3">
+                <MonitoringLink href="/docs/learn/install" inverted>
                   Try Everr for free
-                </LandingLink>
+                </MonitoringLink>
               </div>
             </div>
-            <div className="monitor-local-badge">
+            <div className="flex rotate-3 flex-col items-center gap-[18px] rounded-[14px] border border-[color-mix(in_srgb,var(--primary-foreground)_14%,transparent)] bg-[color-mix(in_srgb,var(--primary-foreground)_5%,transparent)] px-4 py-9 max-[700px]:transform-none max-[700px]:flex-row max-[700px]:flex-wrap max-[700px]:justify-center max-[700px]:gap-4 max-[700px]:p-5">
               <Laptop size={42} strokeWidth={1.2} aria-hidden="true" />
-              <strong>Everr Local</strong>
-              <span>Free. No account required.</span>
+              <strong className="text-2xl font-medium">Everr Local</strong>
+              <span className="text-sm">Free. No account required.</span>
             </div>
           </div>
-          <div className="monitor-local-details">
+          <div className="mt-12 grid grid-cols-2 gap-12 border-t border-[color-mix(in_srgb,var(--primary-foreground)_18%,transparent)] pt-7 max-[700px]:mt-8 max-[700px]:grid-cols-1 max-[700px]:gap-6">
             <article>
-              <h3>See it working before you deploy.</h3>
-              <p>
+              <h3 className={cardHeadingClassName}>
+                See it working before you deploy.
+              </h3>
+              <p className="leading-[1.7] text-primary-foreground/80!">
                 Let your coding assistant guide the instrumentation, run your
                 app, and query the telemetry locally. Check what you are
                 capturing, investigate real requests, and verify the setup
@@ -512,21 +296,29 @@ function ProductionMonitoringPage() {
               </p>
             </article>
             <article>
-              <h3>Take it to production with Hobby.</h3>
-              <p>
+              <h3 className={cardHeadingClassName}>
+                Take it to production with Hobby.
+              </h3>
+              <p className="leading-[1.7] text-primary-foreground/80!">
                 When you are ready,{" "}
-                <a href="https://app.everr.dev">create an account</a> and start
-                monitoring in production with the Hobby plan's generous free
-                allowance. Put monitoring to work before committing to a paid
-                plan.
+                <a
+                  className="text-inherit underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-primary-foreground focus-visible:outline-offset-[5px]"
+                  href="https://app.everr.dev"
+                >
+                  create an account
+                </a>{" "}
+                and start monitoring in production with the Hobby plan's
+                generous free allowance. Put monitoring to work before
+                committing to a paid plan.
               </p>
             </article>
           </div>
         </section>
 
-        <section className="monitor-closing">
-          <h2>
-            Everr, <span>observability made easy.</span>
+        <section className={cn(sectionClassName, "text-center")}>
+          <h2 className="mx-auto max-w-[790px] text-balance text-[clamp(2rem,4.5vw,3.75rem)]! font-[550] leading-[1.12] tracking-[-0.035em]">
+            Everr,{" "}
+            <span className="text-primary">observability made easy.</span>
           </h2>
         </section>
       </div>

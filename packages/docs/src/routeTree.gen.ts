@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiAssistedRouteImport } from './routes/ai-assisted'
+import { Route as HomeNextRouteImport } from './routes/home-next'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as SmallTeamsRouteImport } from './routes/small-teams'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
@@ -30,6 +31,11 @@ const IndexRoute = IndexRouteImport.update({
 const AiAssistedRoute = AiAssistedRouteImport.update({
   id: '/ai-assisted',
   path: '/ai-assisted',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeNextRoute = HomeNextRouteImport.update({
+  id: '/home-next',
+  path: '/home-next',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricingRoute = PricingRouteImport.update({
@@ -86,6 +92,7 @@ const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai-assisted': typeof AiAssistedRoute
+  '/home-next': typeof HomeNextRoute
   '/pricing': typeof PricingRoute
   '/small-teams': typeof SmallTeamsRoute
   '/api/search': typeof ApiSearchRoute
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-assisted': typeof AiAssistedRoute
+  '/home-next': typeof HomeNextRoute
   '/pricing': typeof PricingRoute
   '/small-teams': typeof SmallTeamsRoute
   '/api/search': typeof ApiSearchRoute
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ai-assisted': typeof AiAssistedRoute
+  '/home-next': typeof HomeNextRoute
   '/pricing': typeof PricingRoute
   '/small-teams': typeof SmallTeamsRoute
   '/api/search': typeof ApiSearchRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/ai-assisted'
+    | '/home-next'
     | '/pricing'
     | '/small-teams'
     | '/api/search'
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/ai-assisted'
+    | '/home-next'
     | '/pricing'
     | '/small-teams'
     | '/api/search'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/ai-assisted'
+    | '/home-next'
     | '/pricing'
     | '/small-teams'
     | '/api/search'
@@ -174,6 +186,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiAssistedRoute: typeof AiAssistedRoute
+  HomeNextRoute: typeof HomeNextRoute
   PricingRoute: typeof PricingRoute
   SmallTeamsRoute: typeof SmallTeamsRoute
   ApiSearchRoute: typeof ApiSearchRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-assisted'
       fullPath: '/ai-assisted'
       preLoaderRoute: typeof AiAssistedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home-next': {
+      id: '/home-next'
+      path: '/home-next'
+      fullPath: '/home-next'
+      preLoaderRoute: typeof HomeNextRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -278,6 +298,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiAssistedRoute: AiAssistedRoute,
+  HomeNextRoute: HomeNextRoute,
   PricingRoute: PricingRoute,
   SmallTeamsRoute: SmallTeamsRoute,
   ApiSearchRoute: ApiSearchRoute,

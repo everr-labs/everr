@@ -2,7 +2,6 @@ import { Button } from "@everr/ui/components/button";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
-import { InstallCommand } from "./ui/install-command";
 
 export function FinalCTA() {
   return (
@@ -19,16 +18,6 @@ export function FinalCTA() {
           <br />
           Start observing.
         </motion.h2>
-
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-20% 0px" }}
-          transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-          className="mx-auto mt-12 w-full max-w-xl"
-        >
-          <InstallCommand className="border-2 py-3.5 text-left" />
-        </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 16 }}

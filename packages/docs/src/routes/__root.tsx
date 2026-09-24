@@ -5,6 +5,7 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  useRouterState,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { HomeLayout } from "fumadocs-ui/layouts/home";
@@ -46,6 +47,10 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const isHomeNext = useRouterState({
+    select: (state) =>
+      state.location.pathname.replace(/\/$/, "") === "/home-next",
+  });
   return (
     <html lang="en" className="dark">
       <head>
@@ -60,7 +65,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               enabled: false,
             }}
           >
-            <HomeLayout {...baseOptions()}>{children}</HomeLayout>
+            {isHomeNext ? (
+              children
+            ) : (
+              <HomeLayout {...baseOptions()}>{children}</HomeLayout>
+            )}
             <TanStackDevtools
               config={{ position: "bottom-right" }}
               plugins={[
