@@ -5,6 +5,7 @@ import {
 } from "@everr/ui/components/collapsible";
 import { Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { Eyebrow } from "@/components/ui/eyebrow";
 
 export type FaqItem = {
   q: string;
@@ -93,9 +94,13 @@ const FAQS: FaqItem[] = [
 export function FAQ({
   items = FAQS,
   title,
+  contactPrompt = "Something we haven’t covered?",
+  contactLinkText = "Ask us on Discord",
 }: {
   items?: FaqItem[];
   title?: string;
+  contactPrompt?: string;
+  contactLinkText?: string;
 }) {
   const [openQuestion, setOpenQuestion] = useState<string | null>(null);
 
@@ -104,26 +109,17 @@ export function FAQ({
       <div className="mx-auto max-w-7xl px-6 py-24 md:py-32">
         <div className="grid gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] md:gap-20">
           <div>
-            <p className="font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
-              FAQ
-            </p>
+            <Eyebrow>FAQ</Eyebrow>
             <h2 className="mt-4 font-heading text-4xl leading-none sm:text-5xl md:text-6xl">
-              {title ?? (
-                <>
-                  Questions{" "}
-                  <span className="relative everr-decoration everr-decoration-primary">
-                    worth answering
-                  </span>
-                </>
-              )}
+              {title ?? "Questions worth answering"}
             </h2>
             <p className="mt-6 max-w-sm text-base leading-relaxed text-fd-muted-foreground">
-              Still curious?{" "}
+              {contactPrompt}{" "}
               <a
                 href="https://everr.dev/discord"
                 className="text-fd-foreground underline decoration-primary decoration-2 underline-offset-4 hover:text-primary"
               >
-                Ask us on Discord
+                {contactLinkText}
               </a>
               .
             </p>

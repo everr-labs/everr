@@ -31,11 +31,6 @@
     background-color: var(--primary);
     color: var(--primary-foreground);
   }
-
-  .everr-decoration:not(.everr-decoration-primary)::selection {
-    background-color: var(--primary-foreground);
-    color: var(--primary);
-  }
 }
 
 ::view-transition-group(*) {

@@ -74,7 +74,11 @@ function PricingPage() {
       <PricingCards />
       {/* <PricingCalculator /> */}
       <SelfHostedBanner />
-      <FAQ items={PRICING_FAQS} title="Pricing questions" />
+      <FAQ
+        items={PRICING_FAQS}
+        title="Pricing questions"
+        contactPrompt="Need help choosing a plan?"
+      />
       <Footer />
     </div>
   );

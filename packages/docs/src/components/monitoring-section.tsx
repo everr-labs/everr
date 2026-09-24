@@ -11,6 +11,7 @@ import {
   Fingerprint,
   Workflow,
 } from "lucide-react";
+import { motion } from "motion/react";
 import { useId, useState } from "react";
 
 const demoClassName =
@@ -353,7 +354,12 @@ export function MonitoringSection() {
   return (
     <section className="relative overflow-hidden border-y-2 border-fd-border bg-fd-background">
       <div className="mx-auto max-w-7xl px-6 py-10 text-foreground sm:py-[72px]">
-        <div className="mb-8 grid items-end gap-5 min-[900px]:grid-cols-2 min-[900px]:gap-16">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-8 grid items-end gap-5 min-[900px]:grid-cols-2 min-[900px]:gap-16"
+        >
           <h2 className="max-w-[18ch] text-balance text-[clamp(30px,3.5vw,44px)] leading-[1.12] tracking-[-0.025em]">
             An app can be up and still let users down
           </h2>
@@ -361,8 +367,14 @@ export function MonitoringSection() {
             Monitoring goes beyond error reporting. See where your app slows
             down, how it responds to demand, and what led to a failure.
           </p>
-        </div>
-        <ConnectedMonitoringExamples />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <ConnectedMonitoringExamples />
+        </motion.div>
       </div>
     </section>
   );
