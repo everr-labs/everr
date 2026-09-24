@@ -29,13 +29,13 @@ func TestBuildCollectorConfigUsesLocalDefaults(t *testing.T) {
 	conf := BuildCollectorConfig(cfg)
 	raw := conf.ToStringMap()
 
-	processors := raw["processors"].(map[string]any)
-	batch := processors["batch"].(map[string]any)
-	require.Equal(t, "250ms", batch["timeout"])
-	require.Equal(t, 512, batch["send_batch_size"])
+	require.NotContains(t, raw, "processors")
 
 	exporters := raw["exporters"].(map[string]any)
 	chdb := exporters["chdb"].(map[string]any)
+	batch := chdb["sending_queue"].(map[string]any)["batch"].(map[string]any)
+	require.Equal(t, "2s", batch["flush_timeout"])
+	require.Equal(t, 8192, batch["min_size"])
 	require.Equal(t, "168h0m0s", chdb["ttl"])
 	require.NotContains(t, chdb, "path")
 

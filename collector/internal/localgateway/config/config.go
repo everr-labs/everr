@@ -67,14 +67,16 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 				},
 			},
 		},
-		"processors": map[string]any{
-			"batch": map[string]any{
-				"timeout":         "250ms",
-				"send_batch_size": 512,
-			},
-		},
 		"exporters": map[string]any{
 			"chdb": map[string]any{
+				// Every insert creates a part that background merges rewrite,
+				// so flush few large batches instead of many small ones.
+				"sending_queue": map[string]any{
+					"batch": map[string]any{
+						"flush_timeout": "2s",
+						"min_size":      8192,
+					},
+				},
 				// The same JSON attribute columns as the cloud tables, so the
 				// shared explorer queries run unchanged.
 				"json": true,
@@ -95,19 +97,16 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 		"service": map[string]any{
 			"pipelines": map[string]any{
 				"traces": map[string]any{
-					"receivers":  []any{"otlp"},
-					"processors": []any{"batch"},
-					"exporters":  []any{"chdb"},
+					"receivers": []any{"otlp"},
+					"exporters": []any{"chdb"},
 				},
 				"logs": map[string]any{
-					"receivers":  []any{"otlp"},
-					"processors": []any{"batch"},
-					"exporters":  []any{"chdb"},
+					"receivers": []any{"otlp"},
+					"exporters": []any{"chdb"},
 				},
 				"metrics": map[string]any{
-					"receivers":  []any{"otlp"},
-					"processors": []any{"batch"},
-					"exporters":  []any{"chdb"},
+					"receivers": []any{"otlp"},
+					"exporters": []any{"chdb"},
 				},
 			},
 			"telemetry": map[string]any{
