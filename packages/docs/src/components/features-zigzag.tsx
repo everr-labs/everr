@@ -408,12 +408,9 @@ function ErrorExample() {
 }
 
 function ConnectedMonitoringExamples() {
-  const [selection, setSelection] = useState({
-    shown: "performance",
-    expanded: true,
-  });
+  const [selection, setSelection] = useState("performance");
   const selected =
-    examples.find((example) => example.id === selection.shown) ?? examples[0];
+    examples.find((example) => example.id === selection) ?? examples[0];
 
   return (
     <div className="monitoring-connected">
@@ -425,11 +422,16 @@ function ConnectedMonitoringExamples() {
           <Collapsible
             key={id}
             className="monitoring-item"
-            open={selection.shown === id && selection.expanded}
-            onOpenChange={(expanded) => setSelection({ shown: id, expanded })}
+            open={selection === id}
+            onOpenChange={(expanded) => {
+              if (expanded) setSelection(id);
+            }}
           >
             <h3>
-              <CollapsibleTrigger className="monitoring-toggle">
+              <CollapsibleTrigger
+                className="monitoring-toggle"
+                aria-disabled={selection === id}
+              >
                 <Icon className="monitoring-icon" aria-hidden="true" />
                 <span>{label}</span>
                 <ChevronDown
@@ -449,9 +451,9 @@ function ConnectedMonitoringExamples() {
           <div
             className="monitoring-example"
             key={id}
-            data-active={selection.shown === id ? "" : undefined}
-            aria-hidden={selection.shown !== id}
-            inert={selection.shown !== id}
+            data-active={selection === id ? "" : undefined}
+            aria-hidden={selection !== id}
+            inert={selection !== id}
           >
             <View />
           </div>

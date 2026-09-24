@@ -16,8 +16,6 @@ import {
   SiSwift,
   SiVuedotjs,
 } from "@icons-pack/react-simple-icons";
-import { Pause, Play } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
 
 type Technology =
   | { label: string; image: string }
@@ -43,62 +41,33 @@ const extraTechnologies: Technology[] = [
 ];
 
 export function TechnologyBackdrop({ items }: { items: Technology[] }) {
-  const root = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-  const [paused, setPaused] = useState(false);
   const technologies = [...items, ...extraTechnologies];
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(([entry]) =>
-      setVisible(entry.isIntersecting),
-    );
-    if (root.current) observer.observe(root.current);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <div
-      className="technology-motion"
-      ref={root}
-      data-running={visible && !paused}
-    >
-      <div className="technology-field" aria-hidden="true">
-        <div className="technology-plane">
-          {[0, 1, 2, 3].map((row) => (
-            <div className="technology-track" key={row}>
-              {[0, 1].map((copy) => (
-                <div className="technology-sequence" key={copy}>
-                  {technologies
-                    .filter((_, index) => index % 4 === row)
-                    .map((item) => (
-                      <span className="technology-mark" key={item.label}>
-                        {"image" in item ? (
-                          <img src={item.image} alt="" />
-                        ) : (
-                          <item.icon
-                            color={
-                              item.color.toLowerCase() === "#000000"
-                                ? "currentColor"
-                                : item.color
-                            }
-                          />
-                        )}
-                      </span>
-                    ))}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
+    <div className="technology-static" aria-hidden="true">
+      <div className="technology-static-grid">
+        {Array.from({ length: 128 }, (_, index) => {
+          const item =
+            technologies[
+              (index * 7 + Math.floor(index / 16) * 3) % technologies.length
+            ];
+          return (
+            <span className="technology-static-mark" key={index}>
+              {"image" in item ? (
+                <img src={item.image} alt="" />
+              ) : (
+                <item.icon
+                  color={
+                    item.color.toLowerCase() === "#000000"
+                      ? "currentColor"
+                      : item.color
+                  }
+                />
+              )}
+            </span>
+          );
+        })}
       </div>
-      <button
-        type="button"
-        className="technology-pause"
-        onClick={() => setPaused(!paused)}
-        aria-label={paused ? "Play logo animation" : "Pause logo animation"}
-      >
-        {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
-      </button>
     </div>
   );
 }

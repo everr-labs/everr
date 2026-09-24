@@ -15,6 +15,7 @@ import { baseOptions } from "@/lib/layout.shared";
 import { posthog } from "@/lib/posthog";
 import "@/lib/telemetry";
 import docsCss from "@/styles/docs.css?url";
+import ImpeccableLiveRoot from '../impeccable/ImpeccableLiveRoot';
 
 export const Route = createRootRoute({
   head: () => ({
@@ -81,6 +82,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             />
           </RootProvider>
         </PostHogProvider>
+        {/* impeccable-live-tanstack-start */}
+        <ImpeccableLiveRoot />
+        {/* impeccable-live-tanstack-end */}
         <Scripts />
       </body>
     </html>

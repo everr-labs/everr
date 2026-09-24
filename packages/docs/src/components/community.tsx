@@ -16,10 +16,9 @@ export function Community() {
           Community
         </p>
 
-        <h2 className="mt-4 max-w-3xl font-heading text-4xl uppercase leading-[0.9] sm:text-5xl md:text-6xl lg:text-7xl">
-          Talk to the team.
-          <br />
-          Shape what ships next.
+        <h2 className="community-invitation">
+          Help shape Everr.
+          <span className="community-destination">Join us on Discord.</span>
         </h2>
 
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-primary-foreground/80 md:text-xl">

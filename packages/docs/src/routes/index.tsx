@@ -27,18 +27,12 @@ import {
   SiTypescriptHex,
 } from "@icons-pack/react-simple-icons";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  Activity,
-  ArrowUpRight,
-  Bell,
-  ChartNoAxesCombined,
-  Clapperboard,
-  ListFilter,
-  Monitor,
-} from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import elixirLogo from "@/assets/logos/elixir.svg?url";
 import javaLogo from "@/assets/logos/java.svg?url";
 import pythonLogo from "@/assets/logos/python.svg?url";
+import { AskAiComposer } from "@/components/ask-ai-composer";
+import { CapabilityMarquee } from "@/components/capability-marquee";
 import { Community } from "@/components/community";
 import { FAQ } from "@/components/faq";
 import { FeaturedTestimonial } from "@/components/featured-testimonial";
@@ -46,22 +40,40 @@ import { FeaturesZigzag } from "@/components/features-zigzag";
 import { FinalCTA } from "@/components/final-cta";
 import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
+import { ObservabilityVision } from "@/components/observability-vision";
 import { TechnologyBackdrop } from "@/components/technology-backdrop";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
 });
 
-const observabilityFeatures = [
-  { label: "Metrics", icon: ChartNoAxesCombined },
-  { label: "Logs", icon: ListFilter },
-  { label: "Traces", icon: Activity },
-  { label: "Alerting", icon: Bell },
-];
-
-const additionalFeatures = [
-  { label: "Session replay", icon: Clapperboard, planned: true },
-  { label: "Frontend observability", icon: Monitor, planned: false },
+const platformFeatures = [
+  { label: "APM", planned: false },
+  { label: "Frontend observability", planned: false },
+  { label: "Session replay", planned: true },
+  { label: "Database observability", planned: false },
+  { label: "Kubernetes observability", planned: false },
+  { label: "Error tracking", planned: false },
+  { label: "Metrics", planned: false },
+  { label: "Logs", planned: false },
+  { label: "Distributed tracing", planned: false },
+  { label: "Alerting", planned: false },
+  { label: "Dashboards", planned: false },
+  { label: "CI observability", planned: false },
+  { label: "Synthetic monitoring", planned: true },
+  { label: "Hosted status pages", planned: true },
+  { label: "Uptime monitoring", planned: true },
+  { label: "Infrastructure monitoring", planned: false },
+  { label: "Serverless observability", planned: false },
+  { label: "Real user monitoring", planned: false },
+  { label: "Mobile observability", planned: false },
+  { label: "Service maps", planned: false },
+  { label: "SLO monitoring", planned: false },
+  { label: "Anomaly detection", planned: true },
+  { label: "Deployment tracking", planned: true },
+  { label: "LLM observability", planned: true },
+  { label: "AI-assisted investigation", planned: false },
+  { label: "Observability as code", planned: false },
 ];
 
 type Technology =
@@ -95,6 +107,7 @@ function RouteComponent() {
     <div className="overflow-x-clip">
       <Hero />
       <FeaturesZigzag />
+      <ObservabilityVision />
       <section className="everr-skeptic">
         <div className="skeptic-note">
           <h2>Still don't believe it can be that simple?</h2>
@@ -108,31 +121,11 @@ function RouteComponent() {
         </div>
       </section>
       <section className="everr-capabilities">
-        <div className="capabilities-inner">
-          <div className="capabilities-heading">
-            <h2>Everything you expect from a modern observability platform.</h2>
-          </div>
-          <ul className="capabilities-core">
-            TODO: more keywords.
-            {observabilityFeatures.map(({ label, icon: Icon }) => (
-              <li key={label}>
-                <Icon aria-hidden="true" />
-                <span>{label}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="capabilities-browser">
-            <h3>For the work happening in your browser.</h3>
-            <ul>
-              {additionalFeatures.map(({ label, icon: Icon, planned }) => (
-                <li key={label}>
-                  <Icon aria-hidden="true" />
-                  <span>{label}</span>
-                  {planned && <small>Planned</small>}
-                </li>
-              ))}
-            </ul>
-          </div>
+        <div className="cap-motion">
+          <h2 className="cap-motion-title">
+            Everything you expect from a modern observability platform.
+          </h2>
+          <CapabilityMarquee features={platformFeatures} />
         </div>
       </section>
       <section className="technology-section bg-fd-card/40">
@@ -148,24 +141,21 @@ function RouteComponent() {
       </section>
       <FeaturedTestimonial />
       <section className="everr-local">
-        <div className="local-inner">
-          <div className="local-copy">
-            <h2>
-              Let your own code
-              <br />
-              convince you.
-            </h2>
-            <p className="local-description">
-              Run Everr on your machine. Explore your telemetry and give your
-              coding agent an immediate feedback loop.
+        <div className="ask-layout">
+          <div className="ask-intro">
+            <h2>Let your AI kick the tires.</h2>
+            <p>
+              Ask it to read the docs, question the fit, and tell you where
+              Everr could help your project.
             </p>
           </div>
-          <div className="local-action">Ask your AI about us.</div>
+          <div className="ask-chat">
+            <AskAiComposer />
+          </div>
         </div>
       </section>
-      <FAQ />
-      <Community />
       <FinalCTA />
+      <FAQ />
       <Footer />
     </div>
   );

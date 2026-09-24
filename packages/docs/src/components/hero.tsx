@@ -12,6 +12,9 @@ export function Hero() {
             in minutes, not months<span className="asterisk-reference">*</span>
           </span>
         </h1>
+        <p className="asterisk-note">
+          <span aria-hidden="true">*</span>No observability team required
+        </p>
         <div className="asterisk-under">
           <p className="asterisk-description">
             Everr turns established observability practices into guided
@@ -38,11 +41,6 @@ export function Hero() {
               See how Everr works
             </Button>
           </div>
-        </div>
-        <div className="asterisk-body">
-          <p className="asterisk-note">
-            <span aria-hidden="true">*</span>No observability team required
-          </p>
         </div>
       </div>
     </div>
