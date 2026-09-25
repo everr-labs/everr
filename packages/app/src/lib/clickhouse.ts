@@ -17,6 +17,18 @@ const clickhouse = createClient({
   keep_alive: clickhouseKeepAlive,
 });
 
+// The SQL API profile stops queries after 30 seconds. Keep the transport alive
+// slightly longer so ClickHouse reports and cancels the query before the HTTP
+// client can abandon the request on its own timeout.
+const sqlApiClickhouse = createClient({
+  url: env.CLICKHOUSE_URL,
+  username: env.CLICKHOUSE_USERNAME,
+  password: env.CLICKHOUSE_PASSWORD,
+  database: env.CLICKHOUSE_DATABASE,
+  keep_alive: clickhouseKeepAlive,
+  request_timeout: 35_000,
+});
+
 export type ClickhouseQuery = <T>(
   sql: string,
   params?: Record<string, unknown>,
@@ -90,6 +102,7 @@ function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
   organizationId: string,
   query_params: Record<string, unknown> | undefined,
   format: Format,
+  options?: SqlApiQueryOptions,
 ) {
   if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
@@ -101,10 +114,11 @@ function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
   return instrumentClickhouseOperation(
     { client: "sql_api", operation: "QUERY" },
     () =>
-      clickhouse.query({
+      sqlApiClickhouse.query({
         query,
         query_params,
         format,
+        abort_signal: options?.abortSignal,
         auth: { username, password },
         // Per-tenant quota bucket. sql_api_quota is KEYED BY client_key, so each
         // org gets its own counters. The header value is server-derived from
@@ -114,16 +128,22 @@ function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
   );
 }
 
+export interface SqlApiQueryOptions {
+  abortSignal?: AbortSignal;
+}
+
 export async function querySqlApi<T>(
   query: string,
   organizationId: string,
   query_params?: Record<string, unknown>,
+  options?: SqlApiQueryOptions,
 ): Promise<T[]> {
   const result = await runSqlApiQuery(
     query,
     organizationId,
     query_params,
     "JSONEachRow",
+    options,
   );
   return result.json<T>();
 }
@@ -139,6 +159,7 @@ export async function querySqlApiWithMeta<T>(
   query: string,
   organizationId: string,
   query_params?: Record<string, unknown>,
+  options?: SqlApiQueryOptions,
 ): Promise<SqlApiResult<T>> {
   // JSON (not JSONEachRow) so column metadata is present even for empty results.
   const result = await runSqlApiQuery(
@@ -146,6 +167,7 @@ export async function querySqlApiWithMeta<T>(
     organizationId,
     query_params,
     "JSON",
+    options,
   );
 
   const body = (await result.json()) as {

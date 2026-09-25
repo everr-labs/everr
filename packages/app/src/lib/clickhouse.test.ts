@@ -5,6 +5,8 @@ const {
   mockQuery,
   mockInsert,
   mockCommand,
+  mockCreateClient,
+  clientConfigs,
   mockJson,
   mockInstrumentClickhouseOperation,
   MASTER_KEY,
@@ -12,6 +14,8 @@ const {
   mockQuery: vi.fn(),
   mockInsert: vi.fn(),
   mockCommand: vi.fn(),
+  mockCreateClient: vi.fn(),
+  clientConfigs: [] as Array<Record<string, unknown>>,
   mockJson: vi.fn(),
   mockInstrumentClickhouseOperation: vi.fn(
     async (_attributes: unknown, run: () => Promise<unknown>) => run(),
@@ -20,11 +24,16 @@ const {
 }));
 
 vi.mock("@clickhouse/client", () => ({
-  createClient: vi.fn(() => ({
-    query: mockQuery,
-    insert: mockInsert,
-    command: mockCommand,
-  })),
+  createClient: mockCreateClient.mockImplementation(
+    (config: Record<string, unknown>) => {
+      clientConfigs.push(config);
+      return {
+        query: mockQuery,
+        insert: mockInsert,
+        command: mockCommand,
+      };
+    },
+  ),
 }));
 
 vi.mock("@/env", () => ({
@@ -109,6 +118,12 @@ describe("query", () => {
 });
 
 describe("querySqlApi", () => {
+  it("uses a client timeout longer than the server execution limit", () => {
+    expect(clientConfigs).toContainEqual(
+      expect.objectContaining({ request_timeout: 35_000 }),
+    );
+  });
+
   it("authenticates per-query as the org user and forwards query params", async () => {
     await querySqlApi("SELECT {n:UInt8}", ORG, { n: 1 });
 
@@ -148,6 +163,18 @@ describe("querySqlApi", () => {
       /tenant context/i,
     );
     expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it("forwards cancellation to the ClickHouse request", async () => {
+    const controller = new AbortController();
+
+    await querySqlApi("SELECT 1", ORG, undefined, {
+      abortSignal: controller.signal,
+    });
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ abort_signal: controller.signal }),
+    );
   });
 });
 
