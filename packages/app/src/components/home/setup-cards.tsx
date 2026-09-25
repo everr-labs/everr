@@ -1,4 +1,3 @@
-import { Button } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
@@ -6,8 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import { Link } from "@tanstack/react-router";
-import { Download, GitBranch } from "lucide-react";
+import { Download } from "lucide-react";
 import { INSTALL_COMMAND } from "@/common/install-command";
 import { InstallCommandBlock } from "@/components/install-command-block";
 
@@ -26,27 +24,6 @@ export function InstallEverrCard() {
       </CardHeader>
       <CardContent>
         <InstallCommandBlock command={INSTALL_COMMAND} />
-      </CardContent>
-    </Card>
-  );
-}
-
-/** Stands in for the CI tiles until a GitHub app installation is active. */
-export function ConnectGithubCard() {
-  return (
-    <Card className="sm:col-span-2 lg:col-span-3">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <GitBranch className="size-4 text-primary" />
-          Connect GitHub
-        </CardTitle>
-        <CardDescription>
-          Install the Everr GitHub app to track workflow runs, test results, and
-          CI cost for your repositories.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button render={<Link to="/github">Connect GitHub</Link>} />
       </CardContent>
     </Card>
   );

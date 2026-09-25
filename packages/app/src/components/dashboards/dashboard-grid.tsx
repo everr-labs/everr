@@ -13,9 +13,12 @@ const ROW_HEIGHT = 30;
 export function DashboardGrid({
   actions,
   notice,
+  frameToggle = true,
 }: {
   actions?: ReactNode;
   notice?: ReactNode;
+  /** Off where the grid is not seated next to a rail (the home page). */
+  frameToggle?: boolean;
 }) {
   const dashboard = useDashboard();
   const hasVariables = useHasVisibleVariables();
@@ -32,10 +35,12 @@ export function DashboardGrid({
   return (
     <div>
       <div className="mb-3 flex items-start gap-x-3">
-        <div className="flex h-8 shrink-0 items-center">
-          <FrameToggle />
-        </div>
-        {hasVariables && (
+        {frameToggle && (
+          <div className="flex h-8 shrink-0 items-center">
+            <FrameToggle />
+          </div>
+        )}
+        {frameToggle && hasVariables && (
           <div aria-hidden className="flex h-8 items-center">
             <div className="h-5 w-px bg-border" />
           </div>
