@@ -141,6 +141,14 @@ describe("combineQueryStates", () => {
     expect(result.status).toBe("pending");
   });
 
+  it("waits for every query before replacing a multi-query panel", () => {
+    const result = combineQueryStates([
+      state({ rows: [{ x: 1 }] }),
+      state({ rows: [{ x: 2 }], isPlaceholderData: true }),
+    ]);
+    expect(result.status).toBe("pending");
+  });
+
   it("is success with undefined data when no queries are active", () => {
     const result = combineQueryStates([
       state({ active: false, rows: undefined }),

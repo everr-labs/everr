@@ -149,10 +149,18 @@ describe("niceLinearDomain", () => {
     }
   });
 
-  it("keeps the floor at zero, so a line's height is its value", () => {
-    // Cropping to the data's own min would make a series that wanders between
-    // 900 and 1000 look like it swings from nothing to everything.
-    expect(niceLinearDomain(900, 1000).domain[0]).toBe(0);
+  it("uses the data range unless a bound is set", () => {
+    const automatic = niceLinearDomain(900, 1000);
+    expect(automatic.domain[0]).toBeGreaterThan(0);
+    expect(automatic.domain[0]).toBeLessThan(900);
+    expect(automatic.domain[1]).toBeGreaterThan(1000);
+    expect(niceLinearDomain(900, 1000, 5, { min: 0 }).domain).toEqual([
+      0, 1000,
+    ]);
+    expect(niceLinearDomain(900, 1000, 5, { max: 1200 }).domain[1]).toBe(1200);
+    expect(
+      niceLinearDomain(900, 1000, 5, { min: 925, max: 975 }).domain,
+    ).toEqual([925, 975]);
   });
 
   it("extends below zero only when the data goes there", () => {
@@ -166,12 +174,19 @@ describe("niceLinearDomain", () => {
   it("gives a flat series an axis with height instead of plotting on the edge", () => {
     const { domain } = niceLinearDomain(0, 0);
     expect(domain[1]).toBeGreaterThan(domain[0]);
+    expect(niceLinearDomain(0, 0).domain).toEqual([-1, 1]);
+    const small = niceLinearDomain(0.001, 0.001).domain;
+    expect(small[0]).toBeGreaterThan(0);
+    expect(small[0]).toBeLessThan(0.001);
+    expect(small[1]).toBeGreaterThan(0.001);
   });
 
   it("labels fractional ticks cleanly, without binary-addition dust", () => {
     // Adding a 0.2 step repeatedly reaches 0.6000000000000001, which recharts
     // would print verbatim on the axis.
-    expect(niceLinearDomain(0, 1).ticks).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    expect(niceLinearDomain(0, 1, 5, { min: 0 }).ticks).toEqual([
+      0, 0.25, 0.5, 0.75, 1,
+    ]);
   });
 
   it("survives data that carries no usable numbers", () => {

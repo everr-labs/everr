@@ -71,7 +71,7 @@ export function generateTimeTicks(
 
   const ideal = span / maxTicks;
   const interval =
-    TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1)!;
+    TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1) ?? 1_000;
 
   const first = Math.ceil(domain[0] / interval) * interval;
   const ticks: number[] = [];
@@ -93,31 +93,66 @@ function niceStep(raw: number): number {
  * A value axis stated outright: round bounds, round ticks, and the numbers
  * available to the caller.
  *
- * recharts will size a value axis on its own, but it keeps the result to
- * itself, so anything that has to turn a cursor height back into a value (the
- * hover highlight) has nowhere to read it from. Declaring the axis fixes that
- * and picks rounder steps besides: recharts' own algorithm is happy to land on
- * 35, 65 or 1500, where this one holds to 1, 2, 2.5 and 5.
- *
- * The floor is pinned at zero unless the data goes below it, so a series'
- * height on the plot stays proportional to its value.
+ * The cursor and hover highlight use the same bounds as the rendered axis.
+ * Round steps stay at 1, 2, 2.5 and 5 times a power of ten. An automatic
+ * range leaves room around the data. Explicit bounds stay exact and may clip
+ * data outside the configured range.
  */
 export function niceLinearDomain(
   min: number,
   max: number,
   tickCount = 5,
+  bounds: { min?: number; max?: number } = {},
 ): { domain: [number, number]; ticks: number[] } {
-  const lo0 = Math.min(0, Number.isFinite(min) ? min : 0);
-  const hi0 = Math.max(lo0, Number.isFinite(max) ? max : 0);
+  const dataMin = Number.isFinite(min) ? min : 0;
+  const dataMax = Number.isFinite(max) ? max : 0;
+  const span = Math.max(0, dataMax - dataMin);
+  const flatZero = dataMin === 0 && dataMax === 0;
+  const padding =
+    span > 0 ? span * 0.1 : flatZero ? 1 : Math.abs(dataMin) * 0.1;
+  let lo0 =
+    bounds.min !== undefined
+      ? bounds.min
+      : flatZero
+        ? -padding
+        : dataMin >= 0
+          ? Math.max(0, dataMin - padding)
+          : dataMin - padding;
+  let hi0 =
+    bounds.max !== undefined
+      ? bounds.max
+      : flatZero
+        ? padding
+        : dataMax <= 0
+          ? Math.min(0, dataMax + padding)
+          : dataMax + padding;
+  // A single fixed bound determines one edge. Fit the other to the data
+  // without adding a second padding term; round it to a readable tick below.
+  if (bounds.min !== undefined && bounds.max === undefined) hi0 = dataMax;
+  if (bounds.max !== undefined && bounds.min === undefined) lo0 = dataMin;
+  if (hi0 <= lo0) {
+    const fallbackSpan = Math.max(Math.abs(lo0 || hi0) * 0.1, 1);
+    if (bounds.min !== undefined) hi0 = lo0 + fallbackSpan;
+    else lo0 = hi0 - fallbackSpan;
+  }
   // A flat series still needs an axis with height, or it plots on the edge.
   const step = niceStep(Math.max(hi0 - lo0, Number.EPSILON) / (tickCount - 1));
-  const lo = Math.floor(lo0 / step) * step;
-  const hi = Math.ceil(hi0 / step) * step;
+  const lo = bounds.min ?? Math.floor(lo0 / step) * step;
+  const hi = bounds.max ?? Math.ceil(hi0 / step) * step;
   const ticks: number[] = [];
   // Rounded per tick: repeated addition of a step like 0.2 accumulates binary
   // error into labels such as "0.6000000000000001".
-  for (let i = 0; lo + i * step <= hi + step / 2; i++) {
-    ticks.push(Number((lo + i * step).toPrecision(12)));
+  if (bounds.min !== undefined || bounds.max !== undefined) {
+    ticks.push(lo);
+    const first = Math.ceil(lo / step) * step;
+    for (let tick = first; tick < hi; tick += step) {
+      if (tick > lo) ticks.push(Number(tick.toPrecision(12)));
+    }
+    ticks.push(hi);
+  } else {
+    for (let i = 0; lo + i * step <= hi + step / 2; i++) {
+      ticks.push(Number((lo + i * step).toPrecision(12)));
+    }
   }
   return { domain: [lo, hi === lo ? lo + step : hi], ticks };
 }
