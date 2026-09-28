@@ -18,8 +18,10 @@ export const env = createEnv({
   ],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
-    // TODO: Resend API key is required only in production, so we should make it optional in non-production environments by using createFinalSchema
-    RESEND_API_KEY: z.string(),
+    TEM_SMTP_HOST: z.string().optional(),
+    TEM_SMTP_PORT: z.coerce.number().int().positive().optional(),
+    TEM_SMTP_USER: z.string().optional(),
+    TEM_SMTP_PASSWORD: z.string().optional(),
     EMAIL_FROM: z.union([
       z.email(),
       z
@@ -51,7 +53,10 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    TEM_SMTP_HOST: process.env.TEM_SMTP_HOST,
+    TEM_SMTP_PORT: process.env.TEM_SMTP_PORT,
+    TEM_SMTP_USER: process.env.TEM_SMTP_USER,
+    TEM_SMTP_PASSWORD: process.env.TEM_SMTP_PASSWORD,
     EMAIL_FROM: process.env.EMAIL_FROM,
     EMAIL_REPLY_TO: process.env.EMAIL_REPLY_TO,
     EVERR_PREVIEW_ALERTS: process.env.EVERR_PREVIEW_ALERTS,

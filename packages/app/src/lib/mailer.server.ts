@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { Resend } from "resend";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { env } from "@/env";
 
 interface SendEmailParams {
@@ -16,44 +16,17 @@ interface Mailer {
   send(params: SendEmailParams): Promise<void>;
 }
 
-class ResendMailer implements Mailer {
-  private resend: Resend;
-  private from: string;
-  private replyTo?: string;
-
-  constructor(apiKey: string, from: string, replyTo?: string) {
-    this.resend = new Resend(apiKey);
-    this.from = from;
-    this.replyTo = replyTo;
-  }
-
-  async send({ to, subject, text, html }: SendEmailParams): Promise<void> {
-    // Resend reports API failures via the error field instead of rejecting.
-    const { error } = await this.resend.emails.send({
-      from: this.from,
-      replyTo: this.replyTo,
-      to,
-      subject,
-      text,
-      html,
-    });
-    if (error) {
-      throw new Error(`resend send failed: ${error.name}: ${error.message}`);
-    }
-  }
-}
-
 class NodemailerMailer implements Mailer {
   private transport: nodemailer.Transporter;
   private from: string;
   private replyTo?: string;
 
-  constructor(from: string, replyTo?: string) {
-    this.transport = nodemailer.createTransport({
-      host: "localhost",
-      port: 1025,
-      secure: false,
-    });
+  constructor(
+    from: string,
+    replyTo: string | undefined,
+    transport: SMTPTransport.Options,
+  ) {
+    this.transport = nodemailer.createTransport(transport);
     this.from = from;
     this.replyTo = replyTo;
   }
@@ -72,17 +45,30 @@ class NodemailerMailer implements Mailer {
 
 function createMailer(): Mailer {
   if (env.NODE_ENV === "production") {
-    if (!env.RESEND_API_KEY) {
-      throw new Error("RESEND_API_KEY is required in production");
+    if (
+      !env.TEM_SMTP_HOST ||
+      !env.TEM_SMTP_PORT ||
+      !env.TEM_SMTP_USER ||
+      !env.TEM_SMTP_PASSWORD
+    ) {
+      throw new Error("TEM SMTP configuration is required in production");
     }
-    return new ResendMailer(
-      env.RESEND_API_KEY,
-      env.EMAIL_FROM,
-      env.EMAIL_REPLY_TO,
-    );
+    return new NodemailerMailer(env.EMAIL_FROM, env.EMAIL_REPLY_TO, {
+      host: env.TEM_SMTP_HOST,
+      port: env.TEM_SMTP_PORT,
+      secure: true,
+      auth: {
+        user: env.TEM_SMTP_USER,
+        pass: env.TEM_SMTP_PASSWORD,
+      },
+    });
   }
 
-  return new NodemailerMailer(env.EMAIL_FROM, env.EMAIL_REPLY_TO);
+  return new NodemailerMailer(env.EMAIL_FROM, env.EMAIL_REPLY_TO, {
+    host: "localhost",
+    port: 1025,
+    secure: false,
+  });
 }
 
 export const mailer = createMailer();
