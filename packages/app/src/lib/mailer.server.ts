@@ -24,7 +24,7 @@ class NodemailerMailer implements Mailer {
   constructor(
     from: string,
     replyTo: string | undefined,
-    transport: SMTPTransport.Options,
+    transport: SMTPTransport.Options | string,
   ) {
     this.transport = nodemailer.createTransport(transport);
     this.from = from;
@@ -45,23 +45,14 @@ class NodemailerMailer implements Mailer {
 
 function createMailer(): Mailer {
   if (env.NODE_ENV === "production") {
-    if (
-      !env.EMAIL_SMTP_HOST ||
-      !env.EMAIL_SMTP_PORT ||
-      !env.EMAIL_SMTP_USER ||
-      !env.EMAIL_SMTP_PASSWORD
-    ) {
-      throw new Error("Email SMTP configuration is required in production");
+    if (!env.EMAIL_DSN) {
+      throw new Error("EMAIL_DSN is required in production");
     }
-    return new NodemailerMailer(env.EMAIL_FROM, env.EMAIL_REPLY_TO, {
-      host: env.EMAIL_SMTP_HOST,
-      port: env.EMAIL_SMTP_PORT,
-      secure: true,
-      auth: {
-        user: env.EMAIL_SMTP_USER,
-        pass: env.EMAIL_SMTP_PASSWORD,
-      },
-    });
+    return new NodemailerMailer(
+      env.EMAIL_FROM,
+      env.EMAIL_REPLY_TO,
+      env.EMAIL_DSN,
+    );
   }
 
   return new NodemailerMailer(env.EMAIL_FROM, env.EMAIL_REPLY_TO, {

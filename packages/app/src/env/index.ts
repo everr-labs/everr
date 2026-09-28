@@ -18,10 +18,15 @@ export const env = createEnv({
   ],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
-    EMAIL_SMTP_HOST: z.string().optional(),
-    EMAIL_SMTP_PORT: z.coerce.number().int().positive().optional(),
-    EMAIL_SMTP_USER: z.string().optional(),
-    EMAIL_SMTP_PASSWORD: z.string().optional(),
+    EMAIL_DSN: z
+      .url()
+      .refine(
+        (value) => ["smtp:", "smtps:"].includes(new URL(value).protocol),
+        {
+          message: "Must be an SMTP URL",
+        },
+      )
+      .optional(),
     EMAIL_FROM: z.union([
       z.email(),
       z
@@ -53,10 +58,7 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    EMAIL_SMTP_HOST: process.env.EMAIL_SMTP_HOST,
-    EMAIL_SMTP_PORT: process.env.EMAIL_SMTP_PORT,
-    EMAIL_SMTP_USER: process.env.EMAIL_SMTP_USER,
-    EMAIL_SMTP_PASSWORD: process.env.EMAIL_SMTP_PASSWORD,
+    EMAIL_DSN: process.env.EMAIL_DSN,
     EMAIL_FROM: process.env.EMAIL_FROM,
     EMAIL_REPLY_TO: process.env.EMAIL_REPLY_TO,
     EVERR_PREVIEW_ALERTS: process.env.EVERR_PREVIEW_ALERTS,
