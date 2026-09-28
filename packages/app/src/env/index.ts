@@ -18,10 +18,26 @@ export const env = createEnv({
   ],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
-    // TODO: Resend API key is required only in production, so we should make it optional in non-production environments by using createFinalSchema
-    RESEND_API_KEY: z.string(),
-    // TODO: this should be a string so we can alo set the sender name, ie. Everr "Team <hello@everr.dev>"
-    EMAIL_FROM: z.email(),
+    EMAIL_DSN: z
+      .url()
+      .refine(
+        (value) => ["smtp:", "smtps:"].includes(new URL(value).protocol),
+        {
+          message: "Must be an SMTP URL",
+        },
+      )
+      .optional(),
+    EMAIL_FROM: z.union([
+      z.email(),
+      z
+        .string()
+        .trim()
+        .refine((value) => {
+          const match = value.match(/^[^<>\r\n]+ <([^<>]+)>$/);
+          return match !== null && z.email().safeParse(match[1]).success;
+        }, "Must be an email address or a named email address"),
+    ]),
+    EMAIL_REPLY_TO: z.email().optional(),
     // Preview apply controls: the alert-evaluation kill-switch ("off" stops
     // scheduling preview alert rows) and the hard-delete retention window.
     EVERR_PREVIEW_ALERTS: z.enum(["on", "off"]).default("on"),
@@ -42,8 +58,9 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    EMAIL_DSN: process.env.EMAIL_DSN,
     EMAIL_FROM: process.env.EMAIL_FROM,
+    EMAIL_REPLY_TO: process.env.EMAIL_REPLY_TO,
     EVERR_PREVIEW_ALERTS: process.env.EVERR_PREVIEW_ALERTS,
     EVERR_PREVIEW_RETENTION_DAYS: process.env.EVERR_PREVIEW_RETENTION_DAYS,
   },

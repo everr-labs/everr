@@ -10,7 +10,8 @@ it.skipIf(process.env.EVERR_POLAR_SANDBOX_TEST !== "1")(
     expect(env.POLAR_SERVER).toBe("sandbox");
     const gateway = createPolarGateway();
     const id = randomUUID();
-    const domain = env.EMAIL_FROM.split("@")[1];
+    const address = env.EMAIL_FROM.match(/<([^<>]+)>$/)?.[1] ?? env.EMAIL_FROM;
+    const domain = address.split("@")[1];
     const email = `billing-test-${id}@${domain}`;
     const owner = { id: `owner-${id}`, name: "Billing contract test", email };
     const orgId = `billing-contract-${id}`;

@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { Resend } from "resend";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { env } from "@/env";
 
 interface SendEmailParams {
@@ -16,57 +16,50 @@ interface Mailer {
   send(params: SendEmailParams): Promise<void>;
 }
 
-class ResendMailer implements Mailer {
-  private resend: Resend;
+class NodemailerMailer implements Mailer {
+  private transport: nodemailer.Transporter;
   private from: string;
+  private replyTo?: string;
 
-  constructor(apiKey: string, from: string) {
-    this.resend = new Resend(apiKey);
+  constructor(
+    from: string,
+    replyTo: string | undefined,
+    transport: SMTPTransport.Options | string,
+  ) {
+    this.transport = nodemailer.createTransport(transport);
     this.from = from;
+    this.replyTo = replyTo;
   }
 
   async send({ to, subject, text, html }: SendEmailParams): Promise<void> {
-    // Resend reports API failures via the error field instead of rejecting.
-    const { error } = await this.resend.emails.send({
+    await this.transport.sendMail({
       from: this.from,
+      replyTo: this.replyTo,
       to,
       subject,
       text,
       html,
     });
-    if (error) {
-      throw new Error(`resend send failed: ${error.name}: ${error.message}`);
-    }
-  }
-}
-
-class NodemailerMailer implements Mailer {
-  private transport: nodemailer.Transporter;
-  private from: string;
-
-  constructor(from: string) {
-    this.transport = nodemailer.createTransport({
-      host: "localhost",
-      port: 1025,
-      secure: false,
-    });
-    this.from = from;
-  }
-
-  async send({ to, subject, text, html }: SendEmailParams): Promise<void> {
-    await this.transport.sendMail({ from: this.from, to, subject, text, html });
   }
 }
 
 function createMailer(): Mailer {
   if (env.NODE_ENV === "production") {
-    if (!env.RESEND_API_KEY) {
-      throw new Error("RESEND_API_KEY is required in production");
+    if (!env.EMAIL_DSN) {
+      throw new Error("EMAIL_DSN is required in production");
     }
-    return new ResendMailer(env.RESEND_API_KEY, env.EMAIL_FROM);
+    return new NodemailerMailer(
+      env.EMAIL_FROM,
+      env.EMAIL_REPLY_TO,
+      env.EMAIL_DSN,
+    );
   }
 
-  return new NodemailerMailer(env.EMAIL_FROM);
+  return new NodemailerMailer(env.EMAIL_FROM, env.EMAIL_REPLY_TO, {
+    host: "localhost",
+    port: 1025,
+    secure: false,
+  });
 }
 
 export const mailer = createMailer();
