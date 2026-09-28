@@ -71,18 +71,18 @@ class NodemailerMailer implements Mailer {
 }
 
 function createMailer(): Mailer {
-  const from = env.EMAIL_FROM_NAME
-    ? `${env.EMAIL_FROM_NAME} <${env.EMAIL_FROM}>`
-    : env.EMAIL_FROM;
-
   if (env.NODE_ENV === "production") {
     if (!env.RESEND_API_KEY) {
       throw new Error("RESEND_API_KEY is required in production");
     }
-    return new ResendMailer(env.RESEND_API_KEY, from, env.EMAIL_REPLY_TO);
+    return new ResendMailer(
+      env.RESEND_API_KEY,
+      env.EMAIL_FROM,
+      env.EMAIL_REPLY_TO,
+    );
   }
 
-  return new NodemailerMailer(from, env.EMAIL_REPLY_TO);
+  return new NodemailerMailer(env.EMAIL_FROM, env.EMAIL_REPLY_TO);
 }
 
 export const mailer = createMailer();

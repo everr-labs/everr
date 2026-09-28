@@ -20,8 +20,16 @@ export const env = createEnv({
     NODE_ENV: z.enum(["development", "production", "test"]),
     // TODO: Resend API key is required only in production, so we should make it optional in non-production environments by using createFinalSchema
     RESEND_API_KEY: z.string(),
-    EMAIL_FROM: z.email(),
-    EMAIL_FROM_NAME: z.string().trim().min(1).optional(),
+    EMAIL_FROM: z.union([
+      z.email(),
+      z
+        .string()
+        .trim()
+        .refine((value) => {
+          const match = value.match(/^[^<>\r\n]+ <([^<>]+)>$/);
+          return match !== null && z.email().safeParse(match[1]).success;
+        }, "Must be an email address or a named email address"),
+    ]),
     EMAIL_REPLY_TO: z.email().optional(),
     // Preview apply controls: the alert-evaluation kill-switch ("off" stops
     // scheduling preview alert rows) and the hard-delete retention window.
@@ -45,7 +53,6 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM: process.env.EMAIL_FROM,
-    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
     EMAIL_REPLY_TO: process.env.EMAIL_REPLY_TO,
     EVERR_PREVIEW_ALERTS: process.env.EVERR_PREVIEW_ALERTS,
     EVERR_PREVIEW_RETENTION_DAYS: process.env.EVERR_PREVIEW_RETENTION_DAYS,
