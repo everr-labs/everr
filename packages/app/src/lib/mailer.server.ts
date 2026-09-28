@@ -46,20 +46,20 @@ class NodemailerMailer implements Mailer {
 function createMailer(): Mailer {
   if (env.NODE_ENV === "production") {
     if (
-      !env.TEM_SMTP_HOST ||
-      !env.TEM_SMTP_PORT ||
-      !env.TEM_SMTP_USER ||
-      !env.TEM_SMTP_PASSWORD
+      !env.EMAIL_SMTP_HOST ||
+      !env.EMAIL_SMTP_PORT ||
+      !env.EMAIL_SMTP_USER ||
+      !env.EMAIL_SMTP_PASSWORD
     ) {
-      throw new Error("TEM SMTP configuration is required in production");
+      throw new Error("Email SMTP configuration is required in production");
     }
     return new NodemailerMailer(env.EMAIL_FROM, env.EMAIL_REPLY_TO, {
-      host: env.TEM_SMTP_HOST,
-      port: env.TEM_SMTP_PORT,
+      host: env.EMAIL_SMTP_HOST,
+      port: env.EMAIL_SMTP_PORT,
       secure: true,
       auth: {
-        user: env.TEM_SMTP_USER,
-        pass: env.TEM_SMTP_PASSWORD,
+        user: env.EMAIL_SMTP_USER,
+        pass: env.EMAIL_SMTP_PASSWORD,
       },
     });
   }

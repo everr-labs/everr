@@ -18,10 +18,10 @@ export const env = createEnv({
   ],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
-    TEM_SMTP_HOST: z.string().optional(),
-    TEM_SMTP_PORT: z.coerce.number().int().positive().optional(),
-    TEM_SMTP_USER: z.string().optional(),
-    TEM_SMTP_PASSWORD: z.string().optional(),
+    EMAIL_SMTP_HOST: z.string().optional(),
+    EMAIL_SMTP_PORT: z.coerce.number().int().positive().optional(),
+    EMAIL_SMTP_USER: z.string().optional(),
+    EMAIL_SMTP_PASSWORD: z.string().optional(),
     EMAIL_FROM: z.union([
       z.email(),
       z
@@ -53,10 +53,10 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    TEM_SMTP_HOST: process.env.TEM_SMTP_HOST,
-    TEM_SMTP_PORT: process.env.TEM_SMTP_PORT,
-    TEM_SMTP_USER: process.env.TEM_SMTP_USER,
-    TEM_SMTP_PASSWORD: process.env.TEM_SMTP_PASSWORD,
+    EMAIL_SMTP_HOST: process.env.EMAIL_SMTP_HOST,
+    EMAIL_SMTP_PORT: process.env.EMAIL_SMTP_PORT,
+    EMAIL_SMTP_USER: process.env.EMAIL_SMTP_USER,
+    EMAIL_SMTP_PASSWORD: process.env.EMAIL_SMTP_PASSWORD,
     EMAIL_FROM: process.env.EMAIL_FROM,
     EMAIL_REPLY_TO: process.env.EMAIL_REPLY_TO,
     EVERR_PREVIEW_ALERTS: process.env.EVERR_PREVIEW_ALERTS,
