@@ -1,16 +1,8 @@
-/**
- * Public ingest keys: `ek_` API keys marked `{ public: true }` in their
- * better-auth metadata. A public key ships in browser page source, so it is
- * origin-bound (allowlist) and browser-only: it never authenticates
- * server-to-server ingestion, and a secret key never authenticates a
- * browser (Origin-bearing) request. This module is the single home of that
- * policy; verify-key, the create server fn, and the UI all delegate here.
- */
+/** Browser key metadata contains only the allowed-origin policy. */
 
 import type { ApiKeyScope } from "./api-key-scopes";
 
 export type PublicKeyMetadata = {
-  public: true;
   allowedOrigins: string[];
 };
 
@@ -47,7 +39,7 @@ export function normalizeOrigin(raw: string): string | null {
 }
 
 /**
- * Read a key's public-browser metadata. Returns null for secret keys.
+ * Read a browser key's origin policy. Returns null for malformed metadata.
  * better-auth stores metadata in a JSON text column and, depending on the
  * code path, hands back a parsed object or the raw string; accept both.
  */
@@ -64,13 +56,11 @@ export function publicKeyMetadataOf(
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  if (record.public !== true) return null;
-  const allowedOrigins = Array.isArray(record.allowedOrigins)
-    ? record.allowedOrigins.filter(
-        (origin): origin is string => typeof origin === "string",
-      )
-    : [];
-  return { public: true, allowedOrigins };
+  if (!Array.isArray(record.allowedOrigins)) return null;
+  const allowedOrigins = record.allowedOrigins.filter(
+    (origin): origin is string => typeof origin === "string",
+  );
+  return { allowedOrigins };
 }
 
 /**
@@ -83,7 +73,6 @@ export function buildPublicKeyMetadata(
   origins: readonly string[],
 ): PublicKeyMetadata {
   return {
-    public: true,
     allowedOrigins: origins
       .map(normalizeOrigin)
       .filter((origin): origin is string => origin !== null),
@@ -100,11 +89,13 @@ export function buildPublicKeyMetadata(
  * - public key, origin:    allow iff the normalized origin is allowlisted
  */
 export function originPolicyAllows(
+  configId: string,
   metadata: unknown,
   origin: string | null,
 ): boolean {
+  if (configId === "secret") return origin === null;
+  if (configId !== "public" || origin === null) return false;
   const publicMeta = publicKeyMetadataOf(metadata);
-  if (origin === null) return publicMeta === null;
   if (!publicMeta) return false;
   const normalized = normalizeOrigin(origin);
   if (!normalized) return false;

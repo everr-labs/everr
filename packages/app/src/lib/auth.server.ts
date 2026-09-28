@@ -1,4 +1,3 @@
-import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -53,6 +52,7 @@ import {
   type ResolvedSession,
 } from "@/telemetry/auth-identity";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import { apiKeyPlugin } from "./api-key-plugin.server";
 
 async function getMarkedDeviceOrganizationId(session: { userId: string }) {
   // Captured by the /device/token before-hook (see cli-device-organization).
@@ -418,30 +418,7 @@ export const auth = betterAuth({
       },
     }),
     deviceAuthorization(),
-    apiKey([
-      {
-        configId: "ingest",
-        references: "organization",
-        defaultPrefix: "ek_",
-        requireName: true,
-        // The collector hits the verify endpoint on every cache miss; better-
-        // auth's default rate limit (10 / 24h) would quickly disable real
-        // keys. Rate limiting against abuse lives in the collector cache and
-        // the shared-secret-guarded verify endpoint, not here.
-        rateLimit: { enabled: false },
-        // Public browser keys store `{ public: true, allowedOrigins }` in
-        // the metadata JSON column; the plugin rejects metadata on create
-        // unless this is on.
-        enableMetadata: true,
-        // No default permissions on purpose: capability choice is explicit.
-        // A key created without a `permissions` map grants nothing — the
-        // collector verify and apply endpoints check the scope and reject a
-        // key with no capabilities. The API keys UI always sends an explicit,
-        // least-privilege scope set (at least one capability). Keys minted
-        // before scopes existed are backfilled with the full set by
-        // drizzle/0006_backfill_api_key_capabilities.sql.
-      },
-    ]),
+    apiKeyPlugin(),
     bearer(),
     billingAuthPlugin(
       async (input): Promise<unknown> => auth.api.createOrganization(input),

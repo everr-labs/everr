@@ -42,7 +42,7 @@ Apply each repo independently with `everr apply ./everr`, once per repo; each st
 
 ## If you apply from CI
 
-Install the CLI with `everr-action` (CI runners don't include it), then set `EVERR_API_KEY` to an org API key with the `apply` scope: the same `ek_` keys you mint for ingest; the Capabilities column shows what each key can do (the legacy `EVERR_API_TOKEN` is still accepted). Outside CI, `everr apply` uses your `everr cloud login` session and prints the destination org before writing; if `EVERR_API_URL` isn't set, the base URL falls back to the one saved by that login.
+Install the CLI with `everr-action` (CI runners don't include it), then set `EVERR_API_KEY` to an org API key with the `apply` scope: the same `sk_` keys you mint for ingest; the Capabilities column shows what each key can do (the legacy `EVERR_API_TOKEN` is still accepted). Outside CI, `everr apply` uses your `everr cloud login` session and prints the destination org before writing; if `EVERR_API_URL` isn't set, the base URL falls back to the one saved by that login.
 
 ```yaml
 # .github/workflows/dashboards.yml

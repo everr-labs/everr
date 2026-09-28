@@ -52,12 +52,12 @@ beforeEach(() => {
 
 describe("extractBearerKey", () => {
   it("reads a Bearer token from the Authorization header", () => {
-    expect(extractBearerKey(headers({ authorization: "Bearer ek_abc" }))).toBe(
-      "ek_abc",
+    expect(extractBearerKey(headers({ authorization: "Bearer sk_abc" }))).toBe(
+      "sk_abc",
     );
   });
   it("reads the x-api-key header", () => {
-    expect(extractBearerKey(headers({ "x-api-key": "ek_xyz" }))).toBe("ek_xyz");
+    expect(extractBearerKey(headers({ "x-api-key": "sk_xyz" }))).toBe("sk_xyz");
   });
   it("returns null when no key header is present", () => {
     expect(extractBearerKey(headers({}))).toBeNull();
@@ -71,7 +71,15 @@ describe("resolveApplyAuth", () => {
     );
   });
 
-  it("resolves an ek_ key with the apply scope to its org (+name)", async () => {
+  it("rejects public keys before any session or secret-key lookup", async () => {
+    await expect(
+      resolveApplyAuth(headers({ authorization: "Bearer pk_browser" })),
+    ).rejects.toThrow("API key is not authorized to apply resources");
+    expect(verifyApiKey).not.toHaveBeenCalled();
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
+  it("resolves an sk_ key with the apply scope to its org (+name)", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
       // Real apply keys carry the concrete action set, not a wildcard.
@@ -83,7 +91,7 @@ describe("resolveApplyAuth", () => {
     });
     orgRows = [{ name: "Acme" }];
     const result = await resolveApplyAuth(
-      headers({ authorization: "Bearer ek_abc" }),
+      headers({ authorization: "Bearer sk_abc" }),
     );
     expect(result).toEqual({
       organizationId: "org-1",
@@ -92,7 +100,7 @@ describe("resolveApplyAuth", () => {
       applyActions: ["read", "write", "delete"],
     });
     expect(verifyApiKey).toHaveBeenCalledWith({
-      body: { key: "ek_abc", configId: "ingest" },
+      body: { key: "sk_abc", configId: "secret" },
     });
     expect(getSession).not.toHaveBeenCalled();
   });
@@ -108,12 +116,12 @@ describe("resolveApplyAuth", () => {
     });
     orgRows = [{ name: "Acme" }];
     const result = await resolveApplyAuth(
-      headers({ authorization: "Bearer ek_abc" }),
+      headers({ authorization: "Bearer sk_abc" }),
     );
     expect(result.applyActions).toEqual(["read"]);
   });
 
-  it("rejects an ek_ key with no permissions map", async () => {
+  it("rejects an sk_ key with no permissions map", async () => {
     // A key with no capabilities grants nothing. Legacy keys are backfilled
     // with explicit capabilities by the 0006 migration, so a null map only
     // reaches here for a key that genuinely has none.
@@ -122,11 +130,11 @@ describe("resolveApplyAuth", () => {
       key: { id: "k1", referenceId: "org-1", permissions: null },
     });
     await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })),
+      resolveApplyAuth(headers({ authorization: "Bearer sk_abc" })),
     ).rejects.toThrow(/not authorized to apply/i);
   });
 
-  it("rejects an ek_ key that only has the ingest scope", async () => {
+  it("rejects an sk_ key that only has the ingest scope", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
       key: {
@@ -136,7 +144,7 @@ describe("resolveApplyAuth", () => {
       },
     });
     await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })),
+      resolveApplyAuth(headers({ authorization: "Bearer sk_abc" })),
     ).rejects.toThrow(/not authorized to apply/i);
   });
 
@@ -150,7 +158,7 @@ describe("resolveApplyAuth", () => {
       key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
     });
     const viaKey = await resolveApplyAuth(
-      headers({ authorization: "Bearer ek_abc" }),
+      headers({ authorization: "Bearer sk_abc" }),
     );
     expect(parseAlertingPrincipal(viaKey.principalId)).toEqual({
       kind: "apikey",
@@ -179,15 +187,15 @@ describe("resolveApplyAuth", () => {
     });
     orgRows = [];
     const result = await resolveApplyAuth(
-      headers({ authorization: "Bearer ek_abc" }),
+      headers({ authorization: "Bearer sk_abc" }),
     );
     expect(result.organizationName).toBe("org-1");
   });
 
-  it("throws when an ek_ key is invalid", async () => {
+  it("throws when an sk_ key is invalid", async () => {
     verifyApiKey.mockResolvedValueOnce({ valid: false, key: null });
     await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer ek_nope" })),
+      resolveApplyAuth(headers({ authorization: "Bearer sk_nope" })),
     ).rejects.toThrow(/invalid api key/i);
   });
 
@@ -373,7 +381,7 @@ describe("requireOrgOrApiKeyMiddleware", () => {
     orgRows = [{ name: "Acme" }];
     const next = vi.fn(async (_arg?: unknown) => "ok");
     const result = await handler({
-      request: { headers: headers({ authorization: "Bearer ek_abc" }) },
+      request: { headers: headers({ authorization: "Bearer sk_abc" }) },
       context: {},
       next,
     });

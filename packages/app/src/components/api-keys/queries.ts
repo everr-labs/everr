@@ -4,14 +4,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createApiKey, listApiKeys } from "@/data/api-keys";
+import type { ApiKeyKind } from "@/lib/api-key-config";
 import type { ApiKeyScope } from "@/lib/api-key-scopes";
 import { authClient } from "@/lib/auth-client";
 
 export type { ApiKey } from "@/data/api-keys";
-
-// better-auth groups keys by `configId`. The value stays "ingest" so keys
-// minted before the rename keep resolving; only the UI vocabulary changed.
-const API_KEY_CONFIG_ID = "ingest";
 
 const apiKeysQueryKey = ["api-keys"] as const;
 
@@ -58,10 +55,16 @@ export function useCreateApiKey() {
 export function useRevokeApiKey() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (keyId: string) => {
+    mutationFn: async ({
+      keyId,
+      configId,
+    }: {
+      keyId: string;
+      configId: ApiKeyKind;
+    }) => {
       const res = await authClient.apiKey.delete({
         keyId,
-        configId: API_KEY_CONFIG_ID,
+        configId,
       });
       if (res.error)
         throw new Error(res.error.message ?? "Failed to revoke API key");

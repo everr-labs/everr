@@ -106,6 +106,7 @@ describe("/api/internal/verify-key", () => {
       error: null,
       key: {
         id: "ak_3",
+        configId: "secret",
         referenceId: "org_42",
         permissions: { ingest: ["write"] },
       },
@@ -128,7 +129,7 @@ describe("/api/internal/verify-key", () => {
     // can't be used for ingest — assert we still pass it.
     const { auth } = await import("@/lib/auth.server");
     expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
-      body: { key: "the-key", configId: "ingest" },
+      body: { key: "the-key", configId: "secret" },
     });
   });
 
@@ -174,12 +175,14 @@ describe("/api/internal/verify-key", () => {
 describe("/api/internal/verify-key browser origin policy", () => {
   const publicKey = {
     id: "ak_public",
+    configId: "public",
     referenceId: "org_42",
     permissions: { ingest: ["write"] },
-    metadata: { public: true, allowedOrigins: ["https://app.example.com"] },
+    metadata: { allowedOrigins: ["https://app.example.com"] },
   };
   const secretKey = {
     id: "ak_secret",
+    configId: "secret",
     referenceId: "org_42",
     permissions: { ingest: ["write"] },
   };

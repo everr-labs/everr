@@ -1,6 +1,9 @@
-import { getRequestHeaders } from "@tanstack/react-start/server";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
+import { db } from "@/db/client";
 import type { ApiKeyRow } from "@/db/schema/auth";
+import { apikey } from "@/db/schema/auth";
+import { API_KEY_CONFIG } from "@/lib/api-key-config";
 import {
   ALL_API_KEY_SCOPES,
   API_KEY_SCOPES,
@@ -12,25 +15,21 @@ import {
   buildPublicKeyMetadata,
   type PublicKeyMetadata,
   publicKeyInputError,
+  publicKeyMetadataOf,
 } from "@/lib/public-ingest-keys";
 import { createOrganizationAdminServerFn } from "@/lib/serverFn";
 
-/**
- * The shape of an `ek_` key as the UI receives it. Derived from the DB row
- * (`ApiKeyRow`) so column names stay in lock-step with the schema, but the
- * list endpoint transforms two groups of fields on the way out: JSON
- * serializes `timestamp` columns to ISO strings, and better-auth parses the
- * `permissions` text column into an object. Override exactly those fields.
- */
-export type ApiKey = Omit<
+/** Safe list projection: the authentication hash never leaves the database. */
+export type ApiKey = Pick<
   ApiKeyRow,
-  "createdAt" | "expiresAt" | "lastRequest" | "permissions" | "metadata"
+  "id" | "configId" | "name" | "start" | "prefix" | "enabled"
 > & {
   createdAt?: string | Date | null;
   expiresAt?: string | Date | null;
   lastRequest?: string | Date | null;
   permissions?: ApiKeyPermissions;
   metadata?: PublicKeyMetadata | string | null;
+  publicKey: string | null;
 };
 
 const SCOPE_INPUT = z.enum(ALL_API_KEY_SCOPES);
@@ -63,10 +62,6 @@ const CreateApiKeyInput = z
       });
     }
   });
-
-// The single better-auth config shared by every `ek_` key, whatever its
-// capabilities. The value stays "ingest" for backward compatibility.
-const API_KEY_CONFIG_ID = "ingest";
 
 /**
  * Resolve the user's chosen scopes into the better-auth `permissions` map.
@@ -106,7 +101,9 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
     // organizationId against the DB, no session needed.
     const result = await auth.api.createApiKey({
       body: {
-        configId: API_KEY_CONFIG_ID,
+        configId: data.public
+          ? API_KEY_CONFIG.public.configId
+          : API_KEY_CONFIG.secret.configId,
         name: data.name,
         organizationId: session.session.activeOrganizationId,
         userId: session.user.id,
@@ -122,7 +119,7 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
       permissions?: Record<string, string[]> | null;
     } | null;
 
-    // The full key is only ever returned at creation; a missing/null one means
+    // Better Auth returns the full key at creation; a missing/null one means
     // creation didn't actually succeed, so fail loudly rather than handing the
     // caller a null key.
     if (!created || typeof created.key !== "string" || !created.id) {
@@ -139,19 +136,43 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
 export const listApiKeys = createOrganizationAdminServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }): Promise<ApiKey[]> => {
-  // The org comes from the authenticated server-fn context — no extra
-  // client round-trip to fetch the session. better-auth's list endpoint
-  // reads the session from the request, so forward the headers.
-  const result = await auth.api.listApiKeys({
-    query: {
-      configId: API_KEY_CONFIG_ID,
-      organizationId: session.session.activeOrganizationId,
-    },
-    headers: getRequestHeaders(),
-  });
-  const keys = (result?.apiKeys ?? []) as ApiKey[];
-  // Defense-in-depth: the query already scopes to our configId, but pin it.
-  return keys.filter((k) => k.configId === API_KEY_CONFIG_ID);
+  const rows = await db
+    .select({
+      id: apikey.id,
+      configId: apikey.configId,
+      name: apikey.name,
+      start: apikey.start,
+      prefix: apikey.prefix,
+      enabled: apikey.enabled,
+      createdAt: apikey.createdAt,
+      expiresAt: apikey.expiresAt,
+      lastRequest: apikey.lastRequest,
+      permissions: apikey.permissions,
+      metadata: apikey.metadata,
+      // Only public values are returned; secret hashes stay in Postgres.
+      publicKey: sql<
+        string | null
+      >`case when ${apikey.configId} = ${API_KEY_CONFIG.public.configId} then ${apikey.key} else null end`,
+    })
+    .from(apikey)
+    .where(
+      and(
+        eq(apikey.referenceId, session.session.activeOrganizationId),
+        inArray(apikey.configId, [
+          API_KEY_CONFIG.public.configId,
+          API_KEY_CONFIG.secret.configId,
+        ]),
+      ),
+    )
+    .orderBy(desc(apikey.createdAt));
+  return rows.map((row) => ({
+    ...row,
+    permissions: row.permissions ? JSON.parse(row.permissions) : null,
+    metadata:
+      row.configId === API_KEY_CONFIG.public.configId
+        ? publicKeyMetadataOf(row.metadata)
+        : null,
+  }));
 });
 
 export const ApiKeyCreateInputSchema = CreateApiKeyInput;

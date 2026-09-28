@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   alertChannels,
@@ -79,7 +79,7 @@ export async function deletePostgresOrganizationData(
       .delete(apikey)
       .where(
         and(
-          eq(apikey.configId, "ingest"),
+          inArray(apikey.configId, ["public", "secret", "ingest"]),
           eq(apikey.referenceId, organizationId),
         ),
       );
