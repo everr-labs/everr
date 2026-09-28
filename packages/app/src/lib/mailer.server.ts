@@ -19,16 +19,19 @@ interface Mailer {
 class ResendMailer implements Mailer {
   private resend: Resend;
   private from: string;
+  private replyTo?: string;
 
-  constructor(apiKey: string, from: string) {
+  constructor(apiKey: string, from: string, replyTo?: string) {
     this.resend = new Resend(apiKey);
     this.from = from;
+    this.replyTo = replyTo;
   }
 
   async send({ to, subject, text, html }: SendEmailParams): Promise<void> {
     // Resend reports API failures via the error field instead of rejecting.
     const { error } = await this.resend.emails.send({
       from: this.from,
+      replyTo: this.replyTo,
       to,
       subject,
       text,
@@ -43,30 +46,43 @@ class ResendMailer implements Mailer {
 class NodemailerMailer implements Mailer {
   private transport: nodemailer.Transporter;
   private from: string;
+  private replyTo?: string;
 
-  constructor(from: string) {
+  constructor(from: string, replyTo?: string) {
     this.transport = nodemailer.createTransport({
       host: "localhost",
       port: 1025,
       secure: false,
     });
     this.from = from;
+    this.replyTo = replyTo;
   }
 
   async send({ to, subject, text, html }: SendEmailParams): Promise<void> {
-    await this.transport.sendMail({ from: this.from, to, subject, text, html });
+    await this.transport.sendMail({
+      from: this.from,
+      replyTo: this.replyTo,
+      to,
+      subject,
+      text,
+      html,
+    });
   }
 }
 
 function createMailer(): Mailer {
+  const from = env.EMAIL_FROM_NAME
+    ? `${env.EMAIL_FROM_NAME} <${env.EMAIL_FROM}>`
+    : env.EMAIL_FROM;
+
   if (env.NODE_ENV === "production") {
     if (!env.RESEND_API_KEY) {
       throw new Error("RESEND_API_KEY is required in production");
     }
-    return new ResendMailer(env.RESEND_API_KEY, env.EMAIL_FROM);
+    return new ResendMailer(env.RESEND_API_KEY, from, env.EMAIL_REPLY_TO);
   }
 
-  return new NodemailerMailer(env.EMAIL_FROM);
+  return new NodemailerMailer(from, env.EMAIL_REPLY_TO);
 }
 
 export const mailer = createMailer();
