@@ -15,7 +15,7 @@ If the current tool cannot ask for a blanket permission grant, request scoped co
 
 # Working With CI Using Everr
 
-Use Everr from the repository root for CI state, workflow logs, test results, and pipeline timing. Start with Everr's structured GitHub Actions data before `gh`, the GitHub UI, memory, or pasted logs.
+From the repository root, run `everr ci status` to check the current commit's pipeline state. Use Everr's structured GitHub Actions data for workflow logs, test results, and pipeline timing before `gh`, the GitHub UI, memory, or pasted logs.
 
 If Everr fails, capture the exact command and error, then investigate wrong repo context, missing auth, missing import, no matching run, stale data, or CLI bugs. Use `gh` only after Everr cannot answer, or as a cross-check.
 

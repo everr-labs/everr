@@ -48,9 +48,9 @@ For most runtime work, read `resolve-values`, `resources`, `sensitive-data`, `va
 
 ### Telemetry Setup
 
-1. Run `everr local status`.
-2. If the collector is stopped, run `everr local start` or ask the user to open Everr Desktop.
-3. Use the `otlp:` URL from `everr local status` in local exporters. Do not guess or mention a default localhost port unless status returned it.
+1. Run `everr local status`. If the collector is running, use its `otlp:` URL.
+2. If the collector is stopped, open Everr Desktop and run `everr local status` again, or run `everr local start` in a separate terminal or persistent command session. The CLI command stays in the foreground and prints `otlp: <url>` once ready; keep that session alive while you work.
+3. Use the OTLP URL from `everr local status` or `everr local start` in local exporters. Do not guess or mention a default localhost port before one of those commands returns the endpoint.
 4. Inspect the app before adding packages: framework, runtime, existing OTel setup, startup path, logger, test runner, deployment manifests, and existing environment variables.
 5. Resolve `service.name`, `service.version`, `deployment.environment.name`, OTLP endpoint, and auth configuration using `rules/resolve-values.md`.
 6. Add the smallest standard OTel setup for the stack: stable service identity, useful resource attributes, traces, logs, metrics when supported, automatic error capture, safe redaction, and an OTLP/HTTP exporter.
@@ -65,8 +65,8 @@ For most runtime work, read `resolve-values`, `resources`, `sensitive-data`, `va
 | Need | Command |
 | --- | --- |
 | Check collector state | `everr local status` |
-| Start the CLI collector | `everr local start` |
-| Get the OTLP/HTTP endpoint | `everr local status` |
+| Start the CLI collector in a separate session | `everr local start` |
+| Get the OTLP/HTTP endpoint | Output of `everr local status` or `everr local start` |
 | Verify telemetry arrived | `everr local query "<SQL>"` |
 | Capture build/lint output | `everr wrap -- <command>` |
 
