@@ -45,7 +45,7 @@ Useful flags: `--branch`, `--current-branch`, `--conclusion`, `--workflow-name`,
 
 ## Historical Queries
 
-Use `everr cloud query "<SQL>"` when the answer needs history, comparison, or aggregation: recurring test failures in step logs, slow jobs, retries, failure rates, or "real regression?" questions. Start with `traces` for runs, jobs, and steps; `logs` for step and test output; and metrics tables for resource signals. The GitHub Actions receiver does not emit individual test cases as spans.
+Use `everr cloud query "<SQL>"` when the answer needs history, comparison, or aggregation: recurring test failures in step logs, slow jobs, retries, failure rates, or "real regression?" questions. Start with `traces` for runs, jobs, and steps; `logs` for step and test output; and metrics tables for resource signals.
 
 Always include a time filter, scoped repo/branch/run/workflow/job filters when known, and a `LIMIT` under 1000. Filter test names or failure text in `logs`, not `traces`. For CI trace queries, include `ServiceName = 'github-actions'`. Do not add tenant filters or `PREWHERE`.
 
