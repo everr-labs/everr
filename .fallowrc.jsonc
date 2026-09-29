@@ -41,6 +41,8 @@
     // size-limit resolves its preset from package.json at runtime; nothing
     // imports it.
     "@size-limit/preset-small-lib",
+    // React Email loads its preview UI through the email CLI.
+    "@react-email/ui",
     "@opentelemetry/exporter-trace-otlp-http",
     "@opentelemetry/sdk-trace-web",
     // Stryker loads its runner plugin from stryker.config.json at runtime.

@@ -9,6 +9,16 @@ pnpm install
 pnpm dev
 ```
 
+To preview and edit the transactional email templates, run `pnpm dev:email` from
+this directory. The preview opens at `http://localhost:3000` (or the next
+available port) and reads templates from `src/emails`. Verification, password
+reset, and invitation emails use these templates for HTML and include a plain
+text fallback. Style the templates with Tailwind utility classes through React
+Email's `Tailwind` component and `pixelBasedPreset`. The shared branding and
+layout live in `src/lib/email-layout.tsx`. Dedicated copies of the logo and
+social icons live in `public/email` and are available to the preview through
+`src/emails/static`.
+
 # Building For Production
 
 To build this application for production:
