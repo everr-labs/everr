@@ -214,7 +214,7 @@ export function PricingCards() {
               your needs.
             </p>
             <div className="mt-auto pt-12">
-              <PricingCta href="https://calendar.app.google/XnYJ4rHuTzDaNetFA">
+              <PricingCta href="https://calendar.app.google/kgnoxBsk4QyoLywG8">
                 Let's talk
               </PricingCta>
             </div>

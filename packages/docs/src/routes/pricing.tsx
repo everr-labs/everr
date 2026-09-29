@@ -19,7 +19,7 @@ const PRICING_FAQS: FaqItem[] = [
         queries scan, not the number of queries you run. If you need a different
         allowance,{" "}
         <a
-          href="https://calendar.app.google/XnYJ4rHuTzDaNetFA"
+          href="https://calendar.app.google/kgnoxBsk4QyoLywG8"
           className="text-fd-foreground underline decoration-primary decoration-2 underline-offset-4 hover:text-primary"
         >
           contact us
