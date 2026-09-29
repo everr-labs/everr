@@ -15,7 +15,7 @@ If the current tool cannot ask for a blanket permission grant, request scoped co
 
 # Working With CI Using Everr
 
-From the repository root, run `everr ci status` to check the current commit's pipeline state. Use Everr's structured GitHub Actions data for workflow logs, test results, and pipeline timing before `gh`, the GitHub UI, memory, or pasted logs.
+From the repository root, run `everr ci status` to check the current commit's pipeline state. Use Everr's structured GitHub Actions data for workflow logs, test output in step logs, and pipeline timing before `gh`, the GitHub UI, memory, or pasted logs.
 
 If Everr fails, capture the exact command and error, then investigate wrong repo context, missing auth, missing import, no matching run, stale data, or CLI bugs. Use `gh` only after Everr cannot answer, or as a cross-check.
 
@@ -39,15 +39,15 @@ If Everr fails, capture the exact command and error, then investigate wrong repo
 | Only failed jobs and steps | `everr ci show <trace_id> --failed` |
 | Logs for a step | `everr ci logs <trace_id> --job-name <job> --step-number <n>` |
 | First failed step logs | `everr ci logs <trace_id> --job-name <job> --log-failed` |
-| Historical CI/test analysis | `everr cloud query "<SQL>"` |
+| Historical CI and test-log analysis | `everr cloud query "<SQL>"` |
 
 Useful flags: `--branch`, `--current-branch`, `--conclusion`, `--workflow-name`, and `--run-id` narrow runs; `--job-id` is safer than `--job-name`; `--egrep` filters logs; `--tail`, `--limit`, and `--offset` page large logs.
 
 ## Historical Queries
 
-Use `everr cloud query "<SQL>"` when the answer needs history, comparison, or aggregation: flaky tests, slow jobs, retries, failure rates, or "real regression?" questions. Start with `traces` for runs/jobs/steps/test spans, `logs` for step logs, and metrics tables for resource signals.
+Use `everr cloud query "<SQL>"` when the answer needs history, comparison, or aggregation: recurring test failures in step logs, slow jobs, retries, failure rates, or "real regression?" questions. Start with `traces` for runs, jobs, and steps; `logs` for step and test output; and metrics tables for resource signals. The GitHub Actions receiver does not emit individual test cases as spans.
 
-Always include a time filter, scoped repo/branch/run/workflow/job/test filters when known, and a `LIMIT` under 1000. For CI trace queries, include `ServiceName = 'github-actions'`. Do not add tenant filters or `PREWHERE`.
+Always include a time filter, scoped repo/branch/run/workflow/job filters when known, and a `LIMIT` under 1000. Filter test names or failure text in `logs`, not `traces`. For CI trace queries, include `ServiceName = 'github-actions'`. Do not add tenant filters or `PREWHERE`.
 
 ## Querying The Everr DB
 
@@ -113,7 +113,7 @@ LIMIT 50
 
 - Starting with `gh pr checks` because it feels faster: run Everr first.
 - Running `everr ci status <sha>`: use `everr ci status --commit <sha>`.
-- Treating one failed log as proof: compare runs, attempts, tests, jobs, and failure signatures.
+- Treating one failed log as proof: compare runs, attempts, jobs, step logs, and failure signatures.
 - Ignoring an Everr CLI error: diagnose repo context, auth, import state, or CLI behavior.
 - Asking for pasted logs: fetch them with `everr ci logs` unless access is unavailable.
 
