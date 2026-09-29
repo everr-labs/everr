@@ -1,6 +1,7 @@
+import { EverrLogo } from "@everr/ui/components/everr-logo";
 import { SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, Citrus } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { DISCORD_URL } from "@/constants";
 
 export function Footer() {
@@ -48,10 +49,10 @@ function FooterDirectory() {
       <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-4 md:text-left">
         {/* Brand */}
         <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">
-          <div className="flex items-center justify-center gap-2 font-semibold sm:justify-start font-heading">
-            <Citrus className="size-8 text-primary" />
-            <span className="text-2xl">Everr</span>
-          </div>
+          <EverrLogo
+            size="lg"
+            className="flex w-full justify-center sm:justify-start"
+          />
           <p className="mt-4 text-sm text-fd-muted-foreground">
             Observability made simple.
           </p>

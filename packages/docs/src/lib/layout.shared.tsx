@@ -1,8 +1,9 @@
 import { Button } from "@everr/ui/components/button";
+import { EverrLogo } from "@everr/ui/components/everr-logo";
 import { SiDiscord } from "@icons-pack/react-simple-icons";
 import type { DocsLayoutProps } from "fumadocs-ui/layouts/docs";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
-import { ArrowRight, Citrus } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { ComponentProps, CSSProperties } from "react";
 import { GithubInfo } from "@/components/github-info";
 
@@ -14,12 +15,7 @@ const docsTopNavHeight = "3.5rem";
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: (
-        <span className="flex items-center gap-1.5 font-semibold font-heading">
-          <Citrus className="size-5 text-primary" />
-          Everr
-        </span>
-      ),
+      title: <EverrLogo />,
       url: "/",
     },
     themeSwitch: {
