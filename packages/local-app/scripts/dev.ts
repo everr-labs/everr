@@ -159,7 +159,7 @@ async function main() {
   const required = [
     path.join(assetsDir, "everr-local-collector.gz"),
     path.join(assetsDir, "libchdb.so.gz"),
-    path.join(appDir, "dist/client/_shell.html"),
+    path.join(appDir, "dist/index.html"),
   ];
   if (!required.every(existsSync)) {
     console.log("[local dev] Preparing embedded assets for the first run...");

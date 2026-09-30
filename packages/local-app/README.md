@@ -1,6 +1,6 @@
 # Everr Local
 
-TanStack Start browser UI for the local telemetry collector. The CLI embeds the SPA build and serves it on loopback.
+Vite and TanStack Router browser UI for the local telemetry collector. The CLI embeds the static build and serves it on loopback.
 
 Run `pnpm dev:local` from the repository root. It prepares embedded assets on the first run, builds and starts the Rust CLI and collector, and opens the Vite UI at `http://127.0.0.1:1420`. UI edits hot reload. Rust CLI edits rebuild the backend, restart it after successful compilation, and refresh the browser. Failed compilations leave the previous backend running. Ctrl+C stops Vite, the backend, and the collector.
 
