@@ -145,9 +145,11 @@ function startTelemetry() {
     ],
     instrumentations: [
       // Error capture. It owns the uncaughtException/unhandledRejection
-      // handlers (flush logs, spans, and metrics, then exit), active-span
-      // ERROR marking, rate limiting, and redaction. Pass
-      // { onFatal: 'continue' } to capture without exiting on a fatal error.
+      // handlers, active-span ERROR marking, rate limiting, and redaction.
+      // An uncaught exception is flushed, then the process exits; pass
+      // { onFatal: 'continue' } to keep it alive. An unhandled rejection is
+      // captured and the process keeps running; pass
+      // { onUnhandledRejection: 'strict' } to treat it as fatal.
       new ErrorsInstrumentation(),
       getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-fs': { enabled: false },
@@ -214,7 +216,7 @@ function installShutdownHandlers(sdk: NodeSDK) {
 
 ```
 
-`@everr/otel-errors` owns crash handling, so there is no `installFatalErrorHandlers` here: the instrumentation installs the `uncaughtException`/`unhandledRejection` handlers, flushes, and exits.
+`@everr/otel-errors` owns crash handling, so there is no `installFatalErrorHandlers` here: the instrumentation installs the `uncaughtException`/`unhandledRejection` handlers. An uncaught exception flushes and exits; an unhandled rejection is captured and the process keeps running.
 
 If the app has a singleton/hot-reload pattern already, use that pattern instead of the `Symbol.for` guard.
 
@@ -279,12 +281,12 @@ For incoming requests, rely on HTTP or framework instrumentation to extract cont
 
 Error capture is `@everr/otel-errors`, registered in the setup module above as `new ErrorsInstrumentation()` in the SDK's `instrumentations`. This is the path for Node: do not hand-roll `process.on('uncaughtException')`, `unhandledRejection`, `console` patches, or per-call exception logging.
 
-- It installs the `uncaughtException`/`unhandledRejection` handlers (flush logs, spans, and metrics, then exit; pass `onFatal: 'continue'` to capture without exiting), marks the active span `ERROR`, and applies rate limiting and redaction.
+- It installs the `uncaughtException`/`unhandledRejection` handlers. An uncaught exception flushes logs, spans, and metrics, then exits (pass `onFatal: 'continue'` to capture without exiting). An unhandled rejection is captured with `ERROR` severity and the process keeps running (pass `onUnhandledRejection: 'strict'` to flush and exit instead). It marks the active span `ERROR`, and applies rate limiting and redaction.
 - The SDK injects its own `LoggerProvider`, so records go to the app's log pipeline rather than through a global lookup.
 - Use `captureError(error, attributes)` in catch blocks for manual capture (see Custom Spans above).
 - There are no framework adapters. Express and Fastify errors already reach the `uncaughtException` path or the framework's own error hook; call `captureError` there if the framework swallows them.
 
-Options are `onFatal`, `rateLimit`, `redactPatterns`, `redactKeys`, and `beforeSend`. See `sensitive-data.md` for redaction.
+Options are `onFatal`, `onUnhandledRejection`, `rateLimit`, `redactPatterns`, `redactKeys`, and `beforeSend`. See `sensitive-data.md` for redaction.
 
 What a captured error must look like: span status `ERROR` only on the span of the failed operation (with a short, non-sensitive message), one exception log in the active span context carrying `exception.type`, `exception.message`, and `exception.stacktrace`. Crashes are distinguished by `FATAL` severity and by `everr.error.mechanism`, both of which the package sets, so do not add a handled flag of your own. Each error is recorded exactly once: check the framework's own error hook before adding capture so the same exception does not land twice.
 

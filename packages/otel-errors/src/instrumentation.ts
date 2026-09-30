@@ -1,3 +1,4 @@
+import { isMainThread } from "node:worker_threads";
 import {
   diag,
   type MeterProvider,
@@ -29,6 +30,20 @@ export interface ErrorsInstrumentationConfig extends InstrumentationConfig {
    * installed. With "continue", the process continues to operate.
    */
   onFatal?: "exit" | "continue";
+  /**
+   * The treatment of an unhandled rejection. The default value is "warn".
+   *
+   * - `"warn"`: the instrumentation captures the rejection with the severity
+   *   ERROR, writes it to stderr, and the process continues to operate. The
+   *   code does no flush and no exit. This is the same behavior that Sentry
+   *   has. Note: with this listener installed, Node does not do its default
+   *   crash on an unhandled rejection.
+   * - `"strict"`: the instrumentation treats the rejection as a fatal error,
+   *   as an uncaught exception. It captures it with the severity FATAL,
+   *   flushes, and stops the process. `onFatal` and
+   *   `exitEvenIfOtherHandlersAreRegistered` apply.
+   */
+  onUnhandledRejection?: "warn" | "strict";
   /**
    * The time limit in milliseconds for the flush of the providers before the
    * process stops. The default value is 2000. The three signals share this one
@@ -156,6 +171,14 @@ export class ErrorsInstrumentation
       return;
     }
 
+    // A crash in a worker thread ends only that thread, and the parent gets
+    // it as an "error" event on the Worker. A process.exit in the worker ends
+    // the thread without that event. Thus the code installs no crash handlers
+    // in a worker. The captureError function continues to operate there.
+    if (!isMainThread) {
+      return;
+    }
+
     if (installed && installed !== this) {
       diag.warn(
         `${PKG_NAME}: a second ErrorsInstrumentation was installed; every crash is now captured twice`,
@@ -175,17 +198,32 @@ export class ErrorsInstrumentation
         // on the capture, on the flush, or on the exit decision below.
         console.error(reason);
 
+        const fatal =
+          eventName === "uncaughtException" ||
+          this._config.onUnhandledRejection === "strict";
+
         capture({
           error: reason,
           mechanism,
-          severity: "fatal",
+          severity: fatal ? "fatal" : "error",
         });
 
-        // Read the count now and not after the flush. The list can change
+        // The process continues after a rejection in "warn" mode. Thus the
+        // batch processors send the record at their usual time, and the code
+        // does not flush.
+        if (!fatal) {
+          return;
+        }
+
+        // Read the list now and not after the flush. The list can change
         // while the flush operates, and the decision belongs to the condition
-        // at the time of the crash. This handler is in the list at this time.
-        // Thus a count of more than one shows a listener of the app.
-        const otherHandlers = process.listenerCount(eventName) > 1;
+        // at the time of the crash. Use process.listeners and not
+        // process.listenerCount: Next.js keeps the "unhandledRejection"
+        // listeners in a private queue behind one filter listener, and it
+        // patches only process.listeners to show that queue.
+        const otherHandlers = process
+          .listeners(eventName)
+          .some((listener) => listener !== handler);
 
         void this.flush().finally(() => {
           if (this._config.onFatal === "continue") {
