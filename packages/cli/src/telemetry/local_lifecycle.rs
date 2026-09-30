@@ -1,6 +1,5 @@
 use std::{
     fs::{self, File, OpenOptions},
-    io::{Read, Seek, SeekFrom},
     os::unix::process::CommandExt,
     path::Path,
     process::Stdio,
@@ -9,11 +8,12 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use fs2::FileExt;
-use tokio::process::Command;
+use tokio::{io::AsyncReadExt, process::Command};
 
 use super::{
     collector::terminate_child,
     local_instance::{LocalStatus, ServiceState},
+    local_log,
     local_server::StopLocalArgs,
 };
 use crate::build;
@@ -42,22 +42,15 @@ pub(super) fn lock(telemetry_dir: &Path) -> Result<File> {
 }
 
 pub(super) async fn start_detached() -> Result<LocalStatus> {
-    let telemetry_dir = build::telemetry_dir()?;
-    fs::create_dir_all(&telemetry_dir)?;
-    let log_path = telemetry_dir.join("local.log");
-    let log = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)?;
-    let log_start = log.metadata()?.len();
+    let log_path = local_log::path()?;
     let instance_id = new_instance_id()?;
     let mut command = Command::new(std::env::current_exe()?);
     command
         .args(["local", "start", "--no-open"])
         .env(BACKGROUND_INSTANCE_ID, &instance_id)
         .stdin(Stdio::null())
-        .stdout(Stdio::from(log.try_clone()?))
-        .stderr(Stdio::from(log));
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
     // The child must leave the terminal's session before running the supervisor.
     // setsid is async-signal-safe; no allocation or runtime work belongs here.
     unsafe {
@@ -90,11 +83,15 @@ pub(super) async fn start_detached() -> Result<LocalStatus> {
         tokio::time::sleep(Duration::from_millis(100)).await;
     };
     terminate_child(&mut child).await;
-    let mut log = File::open(&log_path)?;
-    log.seek(SeekFrom::Start(log_start))?;
     let mut output = Vec::new();
-    log.take(8192).read_to_end(&mut output)?;
-    let output = String::from_utf8_lossy(&output);
+    if let Some(stderr) = child.stderr.take() {
+        stderr.take(8192).read_to_end(&mut output).await?;
+    }
+    let output = if output.is_empty() {
+        local_log::tail(&log_path).unwrap_or_default()
+    } else {
+        String::from_utf8_lossy(&output).into_owned()
+    };
     bail!("{failure}; log: {}\n{}", log_path.display(), output.trim());
 }
 

@@ -34,6 +34,7 @@ impl Instance {
             .env("EVERR_OTLP_HTTP_ORIGIN", &self.origins[1])
             .env("EVERR_LOCAL_UI_ORIGIN", &self.origins[2])
             .env("EVERR_TELEMETRY_DIR", self.data.path())
+            .env("EVERR_LOCAL_LOG_DIR", self.data.path().join("logs"))
             .env("OTEL_EXPORTER_OTLP_ENDPOINT", &self.origins[1]);
         command
     }
@@ -109,6 +110,11 @@ impl Drop for Foreground {
 #[test]
 fn detached_and_foreground_instances_share_the_full_lifecycle() {
     let instance = Instance::new();
+    let log_dir = instance.data.path().join("logs");
+    std::fs::create_dir(&log_dir).unwrap();
+    // Force rotation from real supervisor output, without restarting it.
+    let seed = vec![b'x'; 5 * 1024 * 1024 - 64];
+    std::fs::write(log_dir.join("local.log"), &seed).unwrap();
     let output = instance.run(&["local", "start", "-d", "--no-open"]);
     assert!(output.contains("collector: running") && output.contains("log:"));
     let identity = instance.identity();
@@ -152,6 +158,20 @@ fn detached_and_foreground_instances_share_the_full_lifecycle() {
 
     assert!(instance.run(&["local", "stop"]).contains("Everr stopped"));
     instance.assert_stopped();
+    let archived = std::fs::read(log_dir.join("local.log.1")).unwrap();
+    assert_eq!(archived.len(), 5 * 1024 * 1024);
+    assert!(archived.starts_with(&seed));
+    let log = std::fs::read_to_string(log_dir.join("local.log")).unwrap();
+    let output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&archived[seed.len()..]),
+        log
+    );
+    assert!(
+        output.contains("collector: running"),
+        "captured output: {output}"
+    );
+    assert!(!instance.data.path().join("local.log").exists());
     assert!(instance.run(&["local", "stop"]).contains("already stopped"));
 
     let mut foreground = Foreground(
@@ -174,12 +194,33 @@ fn detached_and_foreground_instances_share_the_full_lifecycle() {
         instance
             .data
             .path()
-            .join("local.log")
+            .join("logs/local.log")
             .metadata()
             .unwrap()
             .len()
             > 0
     );
+}
+
+#[test]
+fn unavailable_log_directory_does_not_start_a_supervisor() {
+    let instance = Instance::new();
+    let blocker = instance.data.path().join("not-a-directory");
+    std::fs::write(&blocker, "blocked").unwrap();
+    let mut command = instance.command();
+    command.env("EVERR_LOCAL_LOG_DIR", &blocker);
+    let mut command = assert_cmd::Command::from_std(command);
+    let assertion = command
+        .args(["local", "start", "-d", "--no-open"])
+        .timeout(Duration::from_secs(30))
+        .assert()
+        .failure();
+    let error = String::from_utf8_lossy(&assertion.get_output().stderr);
+    assert!(
+        error.contains("background process exited") && error.contains("create local log directory"),
+        "{error}"
+    );
+    instance.assert_stopped();
 }
 
 #[test]
@@ -200,6 +241,11 @@ fn failed_detached_start_cleans_up_and_reports_its_log() {
         "{error}"
     );
     assert!(TcpStream::connect(instance.origins[2].trim_start_matches("http://")).is_err());
+    assert!(
+        std::fs::read_to_string(instance.data.path().join("logs/local.log"))
+            .unwrap()
+            .contains("is unavailable")
+    );
     drop(blocker);
     assert_eq!(instance.run(&["local", "start", "-d", "--quiet"]), "");
     instance.run(&["local", "stop"]);
