@@ -14,7 +14,6 @@ import {
   Bug,
   CircleUser,
   Code,
-  GitPullRequestArrow,
   LogIn,
   LogOut,
   ScrollText,
@@ -66,7 +65,6 @@ export function AppShell() {
               <SidebarLink to="/errors" label="Errors">
                 <Bug className="size-[18px]" />
               </SidebarLink>
-              <NotificationsLink />
               <SidebarLink to="/settings" label="Settings">
                 <Settings className="size-[18px]" />
               </SidebarLink>
@@ -110,18 +108,6 @@ function SidebarLink({
       className="flex size-9 items-center justify-center rounded-md text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[var(--settings-text)] [&.active]:bg-white/[0.08] [&.active]:text-[var(--settings-text)]"
     >
       {children}
-    </Link>
-  );
-}
-
-function NotificationsLink() {
-  return (
-    <Link
-      to="/ci"
-      aria-label="Your CI runs"
-      className="relative flex size-9 items-center justify-center rounded-md text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[var(--settings-text)] [&.active]:bg-white/[0.08] [&.active]:text-[var(--settings-text)]"
-    >
-      <GitPullRequestArrow className="size-[18px]" />
     </Link>
   );
 }

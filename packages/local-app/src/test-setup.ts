@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import "@everr/ui/testing/jsdom-shims";
 import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
 
 class ResizeObserverMock {
   observe() {}
@@ -9,7 +9,9 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+});
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,

@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ShellRouteImport } from './routes/_shell'
 import { Route as ShellIndexRouteImport } from './routes/_shell.index'
-import { Route as ShellCiRouteImport } from './routes/_shell.ci'
 import { Route as ShellDeveloperRouteImport } from './routes/_shell.developer'
 import { Route as ShellErrorsRouteImport } from './routes/_shell.errors'
 import { Route as ShellLogsRouteImport } from './routes/_shell.logs'
@@ -27,11 +26,6 @@ const ShellRoute = ShellRouteImport.update({
 const ShellIndexRoute = ShellIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellCiRoute = ShellCiRouteImport.update({
-  id: '/ci',
-  path: '/ci',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellDeveloperRoute = ShellDeveloperRouteImport.update({
@@ -72,7 +66,6 @@ const ShellTracesTraceIdRoute = ShellTracesTraceIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof ShellIndexRoute
-  '/ci': typeof ShellCiRoute
   '/developer': typeof ShellDeveloperRoute
   '/errors': typeof ShellErrorsRouteWithChildren
   '/logs': typeof ShellLogsRoute
@@ -82,7 +75,6 @@ export interface FileRoutesByFullPath {
   '/traces/$traceId': typeof ShellTracesTraceIdRoute
 }
 export interface FileRoutesByTo {
-  '/ci': typeof ShellCiRoute
   '/developer': typeof ShellDeveloperRoute
   '/errors': typeof ShellErrorsRouteWithChildren
   '/logs': typeof ShellLogsRoute
@@ -95,7 +87,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_shell': typeof ShellRouteWithChildren
-  '/_shell/ci': typeof ShellCiRoute
   '/_shell/developer': typeof ShellDeveloperRoute
   '/_shell/errors': typeof ShellErrorsRouteWithChildren
   '/_shell/logs': typeof ShellLogsRoute
@@ -109,7 +100,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/ci'
     | '/developer'
     | '/errors'
     | '/logs'
@@ -119,7 +109,6 @@ export interface FileRouteTypes {
     | '/traces/$traceId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/ci'
     | '/developer'
     | '/errors'
     | '/logs'
@@ -131,7 +120,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_shell'
-    | '/_shell/ci'
     | '/_shell/developer'
     | '/_shell/errors'
     | '/_shell/logs'
@@ -160,13 +148,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof ShellIndexRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/ci': {
-      id: '/_shell/ci'
-      path: '/ci'
-      fullPath: '/ci'
-      preLoaderRoute: typeof ShellCiRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/developer': {
@@ -246,7 +227,6 @@ const ShellTracesRouteWithChildren = ShellTracesRoute._addFileChildren(
 )
 
 interface ShellRouteChildren {
-  ShellCiRoute: typeof ShellCiRoute
   ShellDeveloperRoute: typeof ShellDeveloperRoute
   ShellErrorsRoute: typeof ShellErrorsRouteWithChildren
   ShellLogsRoute: typeof ShellLogsRoute
@@ -256,7 +236,6 @@ interface ShellRouteChildren {
 }
 
 const ShellRouteChildren: ShellRouteChildren = {
-  ShellCiRoute: ShellCiRoute,
   ShellDeveloperRoute: ShellDeveloperRoute,
   ShellErrorsRoute: ShellErrorsRouteWithChildren,
   ShellLogsRoute: ShellLogsRoute,

@@ -1,5 +1,14 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use crate::{
+    api::ApiClient,
+    build,
+    device_auth::{
+        DeviceAuthorization, DevicePollStatus, build_auth_http_client, poll_device_authorization,
+        session_from_device_token, start_device_authorization,
+    },
+    skill_store::{self as skills, SkillOperationOptions, SkillProvider, SkillScope},
+};
 use anyhow::{Context, Result, anyhow, bail};
 #[cfg(everr_embedded_local_ui)]
 use axum::body::Body;
@@ -12,15 +21,6 @@ use axum::{
     routing::{get, post},
 };
 use chrono::{DateTime, Utc};
-use crate::{
-    api::ApiClient,
-    device_auth::{
-        DeviceAuthorization, DevicePollStatus, build_auth_http_client, poll_device_authorization,
-        session_from_device_token, start_device_authorization,
-    },
-    build,
-    skill_store::{self as skills, SkillOperationOptions, SkillProvider, SkillScope},
-};
 use serde_json::{Value, json};
 use tokio::{
     net::TcpListener,
@@ -253,7 +253,6 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Val
                     store().update_state(|state| {
                         state.session = Some(session);
                         state.settings.user_profile = profile.as_ref().map(|me| crate::state::UserProfile { email: me.email.clone(), name: me.name.clone(), profile_url: me.profile_url.clone() });
-                        state.settings.notification_emails = profile.map(|me| vec![me.email]).unwrap_or_default();
                     })?;
                     *guard = None;
                     auth_status()
@@ -277,12 +276,6 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Val
             Ok(json!({"email":profile.email,"name":profile.name,"profile_url":profile.profile_url}))
         }
         "get_org" => Ok(json!({"name":api()?.get_org().await?.name})),
-        "get_notification_emails" => Ok(json!(store().load_state()?.settings.notification_emails)),
-        "set_notification_emails" => {
-            let emails: Vec<String> = serde_json::from_value(args["emails"].clone())?;
-            store().update_state(|state| state.settings.notification_emails = emails)?;
-            Ok(Value::Null)
-        }
         "get_skills_status" => tokio::task::spawn_blocking(|| -> Result<Value> {
             let home = dirs::home_dir().context("resolve home directory")?;
             let bundled = skills::bundled_skills()?;
@@ -314,33 +307,6 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Val
             if !status.is_success() { bail!("collector query failed ({status}): {body}"); }
             Ok(json!(super::client::parse_ndjson(&body)?.values))
         }
-        "get_runs_list" | "get_runs_histogram" | "get_run_filter_options" => {
-            let mut query = Vec::<(&str, String)>::new();
-            for key in ["from","to","limit","offset","runId","includeTotalCount","histogramBuckets"] {
-                if let Some(value) = args.get(key).filter(|v| !v.is_null()) { query.push((key,value.as_str().map(str::to_owned).unwrap_or_else(|| value.to_string()))); }
-            }
-            for key in ["repos","branches","conclusions","workflowNames"] {
-                if let Some(values) = args[key].as_array() { for value in values { query.push((key,value.as_str().context("invalid run filter")?.to_owned())); } }
-            }
-            if args["onlyMine"].as_bool() == Some(true) {
-                let emails = store().load_state()?.settings.notification_emails;
-                if emails.is_empty() { query.push(("authorEmails","__everr_no_matching_author__".into())); }
-                for email in emails { query.push(("authorEmails",email)); }
-            }
-            let client = api()?;
-            match command { "get_runs_list" => client.get_runs_list(&query).await, "get_runs_histogram" => client.get_runs_histogram(&query).await, _ => client.get_run_filter_options(&query).await }
-        }
-        "open_run_in_browser" => {
-            let trace = args["traceId"].as_str().context("missing trace ID")?;
-            if trace.is_empty() || !trace.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') { bail!("invalid trace ID"); }
-            webbrowser::open(&format!("{}/runs/{trace}", crate::auth::resolve_auth_config()?.api_base_url.trim_end_matches('/')))?;
-            Ok(Value::Null)
-        }
-        "get_run_auto_fix_prompt" => {
-            let trace = args["traceId"].as_str().context("missing trace ID")?;
-            let failure = api()?.get_notification_for_trace(trace).await?.context("run not found")?;
-            Ok(json!(super::auto_fix_prompt::build_notification_auto_fix_prompt(&failure)))
-        }
         "get_telemetry_context" => Ok(json!({"serviceVersion":env!("EVERR_VERSION")})),
         _ => bail!("unknown local command: {command}"),
     }
@@ -349,8 +315,7 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Val
 async fn collector_status() -> Result<Value> {
     let running = build::healthcheck_origin();
     let healthy =
-        crate::collector::wait_healthcheck(&format!("{running}/"), Duration::from_secs(1))
-            .await;
+        crate::collector::wait_healthcheck(&format!("{running}/"), Duration::from_secs(1)).await;
     Ok(
         json!({"status":if healthy {"running"} else {"stopped"},"otlpEndpoint":build::otlp_http_origin(),"sqlEndpoint":build::sql_http_origin(),"healthEndpoint":running,"telemetryDir":build::telemetry_dir()?.display().to_string()}),
     )

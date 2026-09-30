@@ -1,7 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { RotateCw } from "lucide-react";
 import { AuthSettingsSection } from "../auth/auth";
-import { AuthorEmailsSection } from "../ci/author-emails-section";
 import {
   useCollectorStatusQuery,
   useRestartCollectorMutation,
@@ -79,7 +78,6 @@ export function SettingsPage() {
   return (
     <SectionsPage title="Settings">
       <AuthSettingsSection />
-      <AuthorEmailsSection />
       <SkillsSection />
       <LocalTelemetrySection />
     </SectionsPage>
