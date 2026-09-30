@@ -126,10 +126,7 @@ async fn stop_collector(child: &mut Option<Child>) {
 }
 
 fn run_start_health_endpoint() -> String {
-    format!(
-        "{}/",
-        crate::build::healthcheck_origin().trim_end_matches('/')
-    )
+    crate::build::healthcheck_endpoint()
 }
 
 async fn wait_for_shutdown_signal() -> Result<()> {
@@ -177,14 +174,11 @@ async fn spawn_collector(assets: &ExtractedAssets, telemetry_dir: &Path) -> Resu
     fs::create_dir_all(&chdb_path)
         .with_context(|| format!("create chdb dir {}", chdb_path.display()))?;
     let otlp_endpoint = crate::build::otlp_http_origin();
-    let health_endpoint = crate::build::healthcheck_origin();
     let sql_endpoint = crate::build::sql_http_origin();
 
     let mut child = Command::new(&assets.collector)
         .arg("--otlp-http-endpoint")
         .arg(&otlp_endpoint)
-        .arg("--health-http-endpoint")
-        .arg(&health_endpoint)
         .arg("--sql-http-endpoint")
         .arg(&sql_endpoint)
         .arg("--chdb-path")
@@ -491,8 +485,11 @@ mod tests {
     }
 
     #[test]
-    fn run_start_health_endpoint_honors_debug_healthcheck_override() {
-        const KEY: &str = "EVERR_HEALTHCHECK_ORIGIN";
+    fn run_start_health_endpoint_uses_sql_origin() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        const KEY: &str = "EVERR_SQL_HTTP_ORIGIN";
         let previous = std::env::var_os(KEY);
 
         unsafe {
@@ -510,7 +507,7 @@ mod tests {
             },
         }
 
-        assert_eq!(endpoint, "http://127.0.0.1:65531/");
+        assert_eq!(endpoint, "http://127.0.0.1:65531/health");
     }
 
     fn extract_test_assets_to_cache(

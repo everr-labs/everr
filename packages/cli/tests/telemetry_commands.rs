@@ -30,7 +30,7 @@ fn status_reports_running_when_collector_healthcheck_is_up() {
     let health_origin = spawn_health_server(200);
 
     env.command()
-        .env("EVERR_HEALTHCHECK_ORIGIN", health_origin)
+        .env("EVERR_SQL_HTTP_ORIGIN", health_origin)
         .args(["local", "status"])
         .assert()
         .success()
@@ -44,7 +44,7 @@ fn status_exits_two_when_collector_healthcheck_is_down() {
     let env = CliTestEnv::new();
 
     env.command()
-        .env("EVERR_HEALTHCHECK_ORIGIN", "http://127.0.0.1:9")
+        .env("EVERR_SQL_HTTP_ORIGIN", "http://127.0.0.1:9")
         .args(["local", "status"])
         .assert()
         .code(2)
@@ -99,7 +99,11 @@ fn spawn_health_server(status: u16) -> String {
     let addr = listener.local_addr().expect("read health addr");
     std::thread::spawn(move || {
         let (mut stream, _) = listener.accept().expect("accept health request");
-        read_request(&mut stream);
+        let request = read_request(&mut stream);
+        assert!(
+            request.starts_with("GET /health HTTP/1.1"),
+            "unexpected health request: {request}"
+        );
         let body = if status == 200 { "ok\n" } else { "down\n" };
         let head = format!(
             "HTTP/1.1 {status} OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -111,15 +115,17 @@ fn spawn_health_server(status: u16) -> String {
     format!("http://{addr}")
 }
 
-fn read_request(stream: &mut TcpStream) {
+fn read_request(stream: &mut TcpStream) -> String {
     stream
         .set_read_timeout(Some(Duration::from_secs(1)))
         .expect("set read timeout");
     let mut buf = [0_u8; 1024];
+    let mut request = Vec::new();
     loop {
         let read = stream.read(&mut buf).expect("read request");
-        if read == 0 || buf[..read].windows(4).any(|w| w == b"\r\n\r\n") {
-            return;
+        request.extend_from_slice(&buf[..read]);
+        if read == 0 || request.windows(4).any(|w| w == b"\r\n\r\n") {
+            return String::from_utf8_lossy(&request).into_owned();
         }
     }
 }

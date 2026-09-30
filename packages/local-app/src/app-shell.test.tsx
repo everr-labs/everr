@@ -28,7 +28,7 @@ function renderMainApp(
     status: "running",
     otlpEndpoint: "http://127.0.0.1:54318",
     sqlEndpoint: "http://127.0.0.1:54320",
-    healthEndpoint: "http://127.0.0.1:54319",
+    healthEndpoint: "http://127.0.0.1:54320/health",
     telemetryDir: "/tmp/everr/telemetry-dev",
   } satisfies CollectorStatus;
   let collectorStatus = options.collectorStatus ?? runningCollectorStatus;
@@ -143,7 +143,7 @@ describe("local telemetry collector", () => {
         reason: "collector exited",
         otlpEndpoint: "http://127.0.0.1:54318",
         sqlEndpoint: "http://127.0.0.1:54320",
-        healthEndpoint: "http://127.0.0.1:54319",
+        healthEndpoint: "http://127.0.0.1:54320/health",
         telemetryDir: "/tmp/everr/telemetry-dev",
       },
     });
@@ -170,7 +170,7 @@ describe("local telemetry collector", () => {
         status: "running",
         otlpEndpoint: "http://127.0.0.1:54318",
         sqlEndpoint: "http://127.0.0.1:54320",
-        healthEndpoint: "http://127.0.0.1:54319",
+        healthEndpoint: "http://127.0.0.1:54320/health",
         telemetryDir: "/tmp/everr/telemetry-dev",
       },
     });
@@ -191,7 +191,7 @@ describe("local telemetry collector", () => {
         status: "starting",
         otlpEndpoint: "http://127.0.0.1:54318",
         sqlEndpoint: "http://127.0.0.1:54320",
-        healthEndpoint: "http://127.0.0.1:54319",
+        healthEndpoint: "http://127.0.0.1:54320/health",
         telemetryDir: "/tmp/everr/telemetry-dev",
       },
     });
@@ -215,7 +215,7 @@ describe("local telemetry collector", () => {
         reason: "collector exited",
         otlpEndpoint: "http://127.0.0.1:54318",
         sqlEndpoint: "http://127.0.0.1:54320",
-        healthEndpoint: "http://127.0.0.1:54319",
+        healthEndpoint: "http://127.0.0.1:54320/health",
         telemetryDir: "/tmp/everr/telemetry-dev",
       },
     });

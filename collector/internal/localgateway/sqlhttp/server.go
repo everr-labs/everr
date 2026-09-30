@@ -2,10 +2,12 @@ package sqlhttp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
@@ -20,6 +22,7 @@ type Server struct {
 	server       *http.Server
 	listener     net.Listener
 	shutdownOnce sync.Once
+	ready        atomic.Bool
 }
 
 func NewServer(cfg Config, handle *chdb.Handle, logger *zap.Logger) *Server {
@@ -41,6 +44,7 @@ func (s *Server) Start() error {
 
 	mux := http.NewServeMux()
 	mux.Handle("/sql", handler)
+	mux.HandleFunc("GET /health", s.handleHealth)
 
 	ln, err := net.Listen("tcp", s.cfg.Endpoint)
 	if err != nil {
@@ -69,4 +73,19 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		}
 	})
 	return err
+}
+
+func (s *Server) SetReady(ready bool) {
+	s.ready.Store(ready)
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if !s.ready.Load() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "starting"})
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

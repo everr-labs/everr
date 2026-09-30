@@ -23,15 +23,12 @@ fn telemetry_query_happy_path() {
     let cli_home = TempDir::new().expect("create cli tempdir");
     let otlp_port = pick_free_port();
     let sql_port = pick_free_port();
-    let health_port = pick_free_port();
 
     let chdb_path = collector_home.path().join("chdb");
     let mut collector_command = Command::new(&collector_binary);
     collector_command
         .arg("--otlp-http-endpoint")
         .arg(format!("http://127.0.0.1:{otlp_port}"))
-        .arg("--health-http-endpoint")
-        .arg(format!("http://127.0.0.1:{health_port}"))
         .arg("--sql-http-endpoint")
         .arg(format!("http://127.0.0.1:{sql_port}"))
         .arg("--chdb-path")
@@ -46,7 +43,7 @@ fn telemetry_query_happy_path() {
     let mut collector_stderr = collector_process.stderr.take().expect("collector stderr");
     let mut collector = CollectorGuard::spawn(collector_process);
 
-    if !wait_for_health(&mut collector.child, &mut collector_stderr, health_port) {
+    if !wait_for_health(&mut collector.child, &mut collector_stderr, sql_port) {
         return;
     }
     push_log(otlp_port);
@@ -121,10 +118,7 @@ fn wait_for_health(
 ) -> bool {
     let client = reqwest::blocking::Client::new();
     let deadline = Instant::now() + Duration::from_secs(10);
-    let urls = [
-        format!("http://127.0.0.1:{port}/"),
-        format!("http://127.0.0.1:{port}/health"),
-    ];
+    let url = format!("http://127.0.0.1:{port}/health");
 
     while Instant::now() < deadline {
         if let Some(status) = collector.try_wait().expect("poll collector") {
@@ -144,15 +138,13 @@ fn wait_for_health(
             panic!("collector exited before health check succeeded: {status}\nstderr={stderr}");
         }
 
-        for url in &urls {
-            if client
-                .get(url)
-                .send()
-                .map(|resp| resp.status().is_success())
-                .unwrap_or(false)
-            {
-                return true;
-            }
+        if client
+            .get(&url)
+            .send()
+            .map(|resp| resp.status().is_success())
+            .unwrap_or(false)
+        {
+            return true;
         }
         std::thread::sleep(Duration::from_millis(100));
     }
