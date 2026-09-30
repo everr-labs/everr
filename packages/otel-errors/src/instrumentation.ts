@@ -1,3 +1,4 @@
+import { isMainThread } from "node:worker_threads";
 import {
   diag,
   type MeterProvider,
@@ -167,6 +168,14 @@ export class ErrorsInstrumentation
     // registerInstrumentations function can enable an instrumentation that the
     // constructor enabled before.
     if (this.teardownFns.length > 0) {
+      return;
+    }
+
+    // A crash in a worker thread ends only that thread, and the parent gets
+    // it as an "error" event on the Worker. A process.exit in the worker ends
+    // the thread without that event. Thus the code installs no crash handlers
+    // in a worker. The captureError function continues to operate there.
+    if (!isMainThread) {
       return;
     }
 

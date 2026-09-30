@@ -101,6 +101,11 @@ describe("node fatal exit semantics (fixtures)", () => {
     expect(stderr).toContain("next-log");
   });
 
+  it("installs no crash handlers in a worker thread, so the parent still gets the error event", () => {
+    const { status } = runFixture("worker-crash.mjs");
+    expect(status).toBe(0);
+  });
+
   it("exitEvenIfOtherHandlersAreRegistered stops the process anyway", () => {
     const { status, logs } = runFixture("other-handler-force-exit.mjs");
     // A status of 7 is the fallback in the fixture. It shows that the

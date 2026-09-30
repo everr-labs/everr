@@ -75,6 +75,8 @@ The exit is deliberate, for the same reason: a listener stops the crash Node wou
 - Register your own listener for the same event. The instrumentation then leaves the decision to you.
 - `exitEvenIfOtherHandlersAreRegistered: true` overrides the previous one and exits regardless.
 
+In a worker thread the instrumentation installs no crash handlers. A crash there ends only the thread, and the parent gets it as the Worker's `error` event; a `process.exit` inside the worker would end the thread without that event. `captureError` still works in a worker.
+
 ## Config
 
 The process has one error client. `configure` sets it up, merging over whatever is already there: an absent key keeps its current value, and a present one replaces that field.
