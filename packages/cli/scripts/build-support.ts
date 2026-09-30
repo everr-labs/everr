@@ -21,7 +21,7 @@ import { type BuildPhases, noopBuildPhases } from "./build-telemetry.ts";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 const packageDir = path.resolve(scriptDir, "..");
-export const repoDir = path.resolve(packageDir, "..", "..");
+const repoDir = path.resolve(packageDir, "..", "..");
 const cliDir = packageDir;
 const docsPublicDir = path.join(repoDir, "packages", "docs", "public");
 const envFile = path.join(packageDir, ".env");
@@ -71,7 +71,7 @@ const CHDB_LIB_FILE_NAME = "libchdb.so";
 
 let didLoadEnvFile = false;
 
-export function loadBuildEnvFile() {
+function loadBuildEnvFile() {
   if (!didLoadEnvFile) {
     didLoadEnvFile = true;
 
@@ -272,7 +272,7 @@ export function resolveCliBuild(mode: string) {
   }
 }
 
-export async function signBinaryIfNeeded(binaryPath: string) {
+async function signBinaryIfNeeded(binaryPath: string) {
   if (process.platform !== "darwin") {
     return;
   }
