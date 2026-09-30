@@ -71,24 +71,7 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     let telemetry_dir = crate::build::telemetry_dir()?;
     let assets = extract_embedded_assets().context("extract embedded collector assets")?;
 
-    let mut child = spawn_collector(&assets, &telemetry_dir, &instance_id).await?;
-    let health_endpoint = run_start_health_endpoint();
-    if !crate::collector::wait_for_collector(
-        &health_endpoint,
-        &instance_id,
-        Duration::from_secs(10),
-    )
-    .await
-    {
-        if let Some(status) = child.try_wait().context("poll collector process")? {
-            bail!("collector exited before it became ready: {status}");
-        }
-        terminate_child(&mut child).await;
-        bail!(
-            "collector healthcheck did not become ready; collector URL: {}",
-            crate::build::otlp_http_origin()
-        );
-    }
+    let child = start_collector(&assets, &telemetry_dir, &instance_id).await?;
 
     if !args.quiet {
         println!("collector: running");
@@ -111,12 +94,14 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
             }
             Some(reply) = restart_rx.recv() => {
                 stop_collector(&mut child).await;
-                match spawn_collector(&assets, &telemetry_dir, &instance_id).await {
-                    Ok(restarted) => child = Some(restarted),
-                    Err(error) => { let _ = reply.send(Err(format!("{error:#}"))); continue; }
-                }
-                let ready = crate::collector::wait_for_collector(&health_endpoint, &instance_id, Duration::from_secs(10)).await;
-                let _ = reply.send(if ready { Ok(()) } else { Err("collector did not become ready".into()) });
+                let result = start_collector(&assets, &telemetry_dir, &instance_id).await;
+                let _ = reply.send(match result {
+                    Ok(restarted) => {
+                        child = Some(restarted);
+                        Ok(())
+                    }
+                    Err(error) => Err(format!("{error:#}")),
+                });
             }
             signal = &mut shutdown => {
                 signal?;
@@ -188,7 +173,7 @@ fn ensure_supported_platform() -> Result<()> {
     );
 }
 
-async fn spawn_collector(
+async fn start_collector(
     assets: &ExtractedAssets,
     telemetry_dir: &Path,
     instance_id: &str,
@@ -229,6 +214,23 @@ async fn spawn_collector(
             stderr,
             "[collector stderr]",
         ));
+    }
+
+    if !crate::collector::wait_for_collector(
+        &run_start_health_endpoint(),
+        instance_id,
+        Duration::from_secs(10),
+    )
+    .await
+    {
+        if let Some(status) = child.try_wait().context("poll collector process")? {
+            bail!("collector exited before it became ready: {status}");
+        }
+        terminate_child(&mut child).await;
+        bail!(
+            "collector healthcheck did not become ready; collector URL: {}",
+            crate::build::otlp_http_origin()
+        );
     }
 
     Ok(child)
@@ -410,6 +412,57 @@ mod tests {
     use flate2::write::GzEncoder;
 
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn unready_collector_is_terminated_before_start_returns() {
+        let runtime = tokio::runtime::Runtime::new().expect("runtime");
+        let mut server = mockito::Server::new();
+        server.mock("GET", "/health").with_status(503).create();
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let previous = std::env::var_os("EVERR_SQL_HTTP_ORIGIN");
+        unsafe {
+            std::env::set_var("EVERR_SQL_HTTP_ORIGIN", server.url());
+        }
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let collector = dir.path().join("collector");
+        fs::write(
+            &collector,
+            "#!/bin/sh\necho $$ > \"$6/../collector.pid\"\nexec sleep 60\n",
+        )
+        .expect("write unready collector");
+        set_permissions(&collector, 0o755).expect("make collector executable");
+        let assets = ExtractedAssets {
+            collector,
+            chdb_lib: dir.path().join("libchdb.so"),
+        };
+
+        let result = runtime.block_on(start_collector(&assets, dir.path(), "unready-test"));
+        match previous {
+            Some(value) => unsafe {
+                std::env::set_var("EVERR_SQL_HTTP_ORIGIN", value);
+            },
+            None => unsafe {
+                std::env::remove_var("EVERR_SQL_HTTP_ORIGIN");
+            },
+        }
+
+        assert!(
+            result
+                .expect_err("collector must fail readiness")
+                .to_string()
+                .contains("collector healthcheck did not become ready")
+        );
+        let pid = fs::read_to_string(dir.path().join("collector.pid"))
+            .expect("collector was spawned")
+            .trim()
+            .parse::<i32>()
+            .expect("collector PID");
+        assert_eq!(kill(Pid::from_raw(pid), None), Err(Errno::ESRCH));
+    }
 
     #[test]
     fn extraction_requires_embedded_assets() {
