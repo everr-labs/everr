@@ -33,6 +33,11 @@ pub(super) struct StopLocalArgs {
     pub instance_id: String,
 }
 
+#[derive(Deserialize, Serialize)]
+pub(super) struct StopLocalResponse {
+    pub lock_path: std::path::PathBuf,
+}
+
 #[derive(Clone)]
 struct ServerState {
     origin: String,
@@ -283,6 +288,8 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Res
             if args.instance_id != state.identity.instance_id {
                 bail!("local instance changed; check status and retry");
             }
+            let lock_path = std::fs::canonicalize(build::telemetry_dir()?.join("local.lock"))
+                .context("resolve local supervisor lock")?;
             let (tx, rx) = oneshot::channel();
             state
                 .supervisor
@@ -292,7 +299,7 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Res
             rx.await
                 .context("local shutdown interrupted")?
                 .map_err(|error| anyhow!(error))?;
-            json_response(())
+            json_response(StopLocalResponse { lock_path })
         }
         "telemetry_sql_query" => {
             let SqlQuery { sql, params } =

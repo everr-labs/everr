@@ -26,6 +26,7 @@ use tracing::Instrument;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let mut supervisor = telemetry::SupervisorLifetime::default();
     let log_capture = telemetry::LocalLogCapture::start()?;
     let argv: Vec<std::ffi::OsString> = std::env::args_os().collect();
     let cli = Cli::parse_from(argv.clone());
@@ -36,10 +37,11 @@ async fn main() -> Result<()> {
     // is a child of it and the injected trace context stitches the trace across
     // the CLI → server → ClickHouse boundary.
     let span = command_telemetry::command_span(command, subcommand);
+    let lifetime = &mut supervisor;
     let result = async move {
         command_telemetry::record_invocation(&cli, argv);
         update_notice::maybe_print(&cli).await;
-        let result = run_command(cli.command).await;
+        let result = run_command(cli.command, lifetime).await;
         command_telemetry::record_result(command, subcommand, &result);
         result
     }
@@ -54,11 +56,15 @@ async fn main() -> Result<()> {
         }
     }
     drop(log_capture);
+    drop(supervisor);
 
     result
 }
 
-async fn run_command(command: Commands) -> Result<()> {
+async fn run_command(
+    command: Commands,
+    lifetime: &mut telemetry::SupervisorLifetime,
+) -> Result<()> {
     match command {
         Commands::Uninstall => uninstall::run_uninstall()?,
         Commands::Upgrade => upgrade::run().await?,
@@ -74,7 +80,7 @@ async fn run_command(command: Commands) -> Result<()> {
             CiSubcommand::Show(args) => core::runs_show(args).await?,
             CiSubcommand::Logs(args) => core::runs_logs(args).await?,
         },
-        Commands::Local(args) => telemetry::commands::run(args).await?,
+        Commands::Local(args) => telemetry::commands::run(args, lifetime).await?,
         Commands::Wrap(args) => wrap::run(args).await?,
         Commands::Setup => onboarding::run().await?,
         Commands::Init => init::run().await?,

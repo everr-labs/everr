@@ -44,7 +44,10 @@ pub struct ExtractedAssets {
     pub chdb_lib: PathBuf,
 }
 
-pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
+pub async fn run_start(
+    args: TelemetryStartArgs,
+    lifetime: &mut local_lifecycle::SupervisorLifetime,
+) -> Result<()> {
     ensure_supported_platform()?;
 
     let status = super::local_instance::LocalStatus::inspect().await;
@@ -66,7 +69,7 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
         return Ok(());
     }
     let telemetry_dir = crate::build::telemetry_dir()?;
-    let _lock = local_lifecycle::lock(&telemetry_dir)?;
+    lifetime.acquire(&telemetry_dir)?;
     super::local_instance::require_free_port(&crate::build::sql_http_origin()).await?;
     super::local_instance::require_free_port(&crate::build::otlp_http_origin()).await?;
     let instance_id = std::env::var(local_lifecycle::BACKGROUND_INSTANCE_ID)

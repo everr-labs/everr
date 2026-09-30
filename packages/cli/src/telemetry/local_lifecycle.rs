@@ -14,11 +14,24 @@ use super::{
     collector::terminate_child,
     local_instance::{LocalStatus, ServiceState},
     local_log,
-    local_server::StopLocalArgs,
+    local_server::{StopLocalArgs, StopLocalResponse},
 };
 use crate::build;
 
 pub(super) const BACKGROUND_INSTANCE_ID: &str = "EVERR_LOCAL_BACKGROUND_INSTANCE_ID";
+
+/// Keeps data ownership until command telemetry and detached log cleanup finish.
+#[derive(Default)]
+pub struct SupervisorLifetime {
+    lock: Option<File>,
+}
+
+impl SupervisorLifetime {
+    pub(super) fn acquire(&mut self, telemetry_dir: &Path) -> Result<()> {
+        self.lock = Some(lock(telemetry_dir)?);
+        Ok(())
+    }
+}
 
 pub(super) fn new_instance_id() -> Result<String> {
     Ok(format!(
@@ -98,6 +111,7 @@ pub(super) async fn start_detached() -> Result<()> {
 pub(super) async fn stop() -> Result<()> {
     let status = LocalStatus::inspect().await;
     if status.stopped() {
+        wait_for_shutdown(&build::telemetry_dir()?.join("local.lock")).await?;
         println!("Everr is already stopped");
         return Ok(());
     }
@@ -127,16 +141,38 @@ pub(super) async fn stop() -> Result<()> {
     if !code.is_success() {
         bail!("local shutdown failed ({code}): {}", response.text().await?);
     }
+    let shutdown: StopLocalResponse = response
+        .json()
+        .await
+        .context("read local shutdown response")?;
+    wait_for_shutdown(&shutdown.lock_path).await?;
+    println!("Everr stopped");
+    Ok(())
+}
+
+async fn wait_for_shutdown(lock_path: &Path) -> Result<()> {
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
-        if LocalStatus::inspect().await.stopped() {
-            println!("Everr stopped");
+        if LocalStatus::inspect().await.stopped() && lock_released(lock_path)? {
             return Ok(());
         }
         if Instant::now() >= deadline {
             bail!("local shutdown did not complete; check `everr local status`");
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+fn lock_released(path: &Path) -> Result<bool> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(true),
+        Err(error) => return Err(error).context("open local supervisor lock"),
+    };
+    match file.try_lock_exclusive() {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => Ok(false),
+        Err(error) => Err(error).context("check local supervisor shutdown"),
     }
 }
 

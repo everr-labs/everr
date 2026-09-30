@@ -12,9 +12,9 @@ const COLLECTOR_UNAVAILABLE_MESSAGE: &str =
     "telemetry collector isn't running — run `everr local start`";
 const LOCALHOST_NETWORK_BLOCKED_MESSAGE: &str = "can't reach the telemetry collector because local network access is blocked for this process — allow access to 127.0.0.1 or run the query outside the sandbox";
 
-pub async fn run(args: LocalArgs) -> Result<()> {
+pub async fn run(args: LocalArgs, lifetime: &mut super::SupervisorLifetime) -> Result<()> {
     match args.command {
-        LocalSubcommand::Start(start) => collector::run_start(start).await,
+        LocalSubcommand::Start(start) => collector::run_start(start, lifetime).await,
         LocalSubcommand::Stop => super::local_lifecycle::stop().await,
         LocalSubcommand::Query(q) => tokio::task::spawn_blocking(move || run_query(q))
             .await
