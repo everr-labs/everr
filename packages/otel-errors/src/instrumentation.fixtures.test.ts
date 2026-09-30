@@ -81,6 +81,13 @@ describe("node fatal exit semantics (fixtures)", () => {
     expect(stderr).toContain("fixture-other-handler");
   });
 
+  it("sees the listener of the app behind the unhandledRejection filter of Next.js", () => {
+    const { status, logs, stderr } = runFixture("next-filter-no-exit.mjs");
+    expect(status).toBe(0);
+    expect(logs.at(-1)).toMatchObject({ mechanism: "unhandledrejection" });
+    expect(stderr).toContain("next-log");
+  });
+
   it("exitEvenIfOtherHandlersAreRegistered stops the process anyway", () => {
     const { status, logs } = runFixture("other-handler-force-exit.mjs");
     // A status of 7 is the fallback in the fixture. It shows that the

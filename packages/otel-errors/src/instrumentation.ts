@@ -181,11 +181,15 @@ export class ErrorsInstrumentation
           severity: "fatal",
         });
 
-        // Read the count now and not after the flush. The list can change
+        // Read the list now and not after the flush. The list can change
         // while the flush operates, and the decision belongs to the condition
-        // at the time of the crash. This handler is in the list at this time.
-        // Thus a count of more than one shows a listener of the app.
-        const otherHandlers = process.listenerCount(eventName) > 1;
+        // at the time of the crash. Use process.listeners and not
+        // process.listenerCount: Next.js keeps the "unhandledRejection"
+        // listeners in a private queue behind one filter listener, and it
+        // patches only process.listeners to show that queue.
+        const otherHandlers = process
+          .listeners(eventName)
+          .some((listener) => listener !== handler);
 
         void this.flush().finally(() => {
           if (this._config.onFatal === "continue") {
