@@ -7,5 +7,6 @@ pub mod collector;
 pub mod commands;
 
 mod local_auth;
+mod local_lifecycle;
 pub mod local_server;
 pub mod local_instance;

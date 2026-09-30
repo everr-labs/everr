@@ -12,6 +12,7 @@ use nix::unistd::Pid;
 use tokio::process::{Child, Command};
 use tokio::time::timeout;
 
+use super::{local_lifecycle, local_server::SupervisorRequest};
 use crate::cli::TelemetryStartArgs;
 
 const COLLECTOR_BIN_NAME: &str = "everr-local-collector";
@@ -56,19 +57,27 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
         return Ok(());
     }
     status.require_stopped()?;
+    if args.detach {
+        let status = local_lifecycle::start_detached().await?;
+        if !args.quiet {
+            status.print();
+            println!(
+                "log: {}",
+                crate::build::telemetry_dir()?.join("local.log").display()
+            );
+        }
+        open_ui(&args);
+        return Ok(());
+    }
+    let telemetry_dir = crate::build::telemetry_dir()?;
+    let _lock = local_lifecycle::lock(&telemetry_dir)?;
     super::local_instance::require_free_port(&crate::build::sql_http_origin()).await?;
     super::local_instance::require_free_port(&crate::build::otlp_http_origin()).await?;
-    let instance_id = format!(
-        "{:x}-{:x}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_nanos()
-    );
+    let instance_id = std::env::var(local_lifecycle::BACKGROUND_INSTANCE_ID)
+        .unwrap_or(local_lifecycle::new_instance_id()?);
 
-    let (restart_tx, mut restart_rx) = tokio::sync::mpsc::channel(1);
-    let ui = super::local_server::LocalServer::bind(restart_tx, instance_id.clone()).await?;
-    let telemetry_dir = crate::build::telemetry_dir()?;
+    let (supervisor_tx, mut supervisor_rx) = tokio::sync::mpsc::channel(1);
+    let ui = super::local_server::LocalServer::bind(supervisor_tx, instance_id.clone()).await?;
     let assets = extract_embedded_assets().context("extract embedded collector assets")?;
 
     let child = start_collector(&assets, &telemetry_dir, &instance_id).await?;
@@ -81,18 +90,28 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     }
 
     let mut child = Some(child);
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
     let mut server = tokio::task::JoinSet::new();
-    server.spawn(ui.serve());
+    server.spawn(ui.serve(shutdown_rx));
     let shutdown = wait_for_shutdown_signal();
     tokio::pin!(shutdown);
     open_ui(&args);
-    loop {
+    let mut stop_reply = None;
+    let result = loop {
         tokio::select! {
             result = server.join_next() => {
-                stop_collector(&mut child).await;
-                return result.context("local UI task stopped")?.context("local UI task failed")?;
+                break result.context("local UI task stopped")
+                    .and_then(|joined| joined.context("local UI task failed"))
+                    .and_then(|served| served);
             }
-            Some(reply) = restart_rx.recv() => {
+            Some(request) = supervisor_rx.recv() => {
+                let reply = match request {
+                    SupervisorRequest::Stop(reply) => {
+                        stop_reply = Some(reply);
+                        break Ok(());
+                    }
+                    SupervisorRequest::Restart(reply) => reply,
+                };
                 stop_collector(&mut child).await;
                 let result = start_collector(&assets, &telemetry_dir, &instance_id).await;
                 let _ = reply.send(match result {
@@ -104,16 +123,27 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
                 });
             }
             signal = &mut shutdown => {
-                signal?;
-                stop_collector(&mut child).await;
-                return Ok(());
+                break signal;
             }
             status = wait_collector(&mut child) => {
                 child = None;
                 eprintln!("Collector stopped: {status:?}. Restart it from the local UI.");
             }
         }
+    };
+    stop_collector(&mut child).await;
+    if let Some(reply) = stop_reply {
+        let _ = reply.send(Ok(()));
     }
+    let _ = shutdown_tx.send(());
+    if !server.is_empty() {
+        if let Ok(Some(joined)) = timeout(Duration::from_secs(5), server.join_next()).await {
+            joined.context("local UI task failed")??;
+        } else {
+            server.shutdown().await;
+        }
+    }
+    result
 }
 
 async fn wait_collector(child: &mut Option<Child>) -> io::Result<std::process::ExitStatus> {
@@ -232,7 +262,7 @@ async fn start_collector(
     Ok(child)
 }
 
-async fn terminate_child(child: &mut Child) {
+pub(super) async fn terminate_child(child: &mut Child) {
     let Some(pid) = child.id() else {
         let _ = child.kill().await;
         return;

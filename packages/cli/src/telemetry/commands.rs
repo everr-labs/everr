@@ -15,6 +15,7 @@ const LOCALHOST_NETWORK_BLOCKED_MESSAGE: &str = "can't reach the telemetry colle
 pub async fn run(args: LocalArgs) -> Result<()> {
     match args.command {
         LocalSubcommand::Start(start) => collector::run_start(start).await,
+        LocalSubcommand::Stop => super::local_lifecycle::stop().await,
         LocalSubcommand::Query(q) => tokio::task::spawn_blocking(move || run_query(q))
             .await
             .context("telemetry query task failed")?,

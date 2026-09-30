@@ -292,6 +292,7 @@ impl CommandTelemetry {
                 "local",
                 Some(match &args.command {
                     LocalSubcommand::Start(_) => "start",
+                    LocalSubcommand::Stop => "stop",
                     LocalSubcommand::Query(_) => "query",
                     LocalSubcommand::Status => "status",
                 }),

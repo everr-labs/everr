@@ -140,8 +140,10 @@ pub struct LocalArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum LocalSubcommand {
-    /// Start the local collector and browser UI in the foreground
+    /// Start the local collector and browser UI
     Start(TelemetryStartArgs),
+    /// Stop the local collector and browser UI
+    Stop,
     /// Run read-only SQL against local telemetry
     Query(TelemetryQueryArgs),
     /// Show the local Collector status and endpoints
@@ -151,7 +153,7 @@ pub enum LocalSubcommand {
 impl LocalSubcommand {
     fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
         match self {
-            LocalSubcommand::Start(_) | LocalSubcommand::Status => true,
+            LocalSubcommand::Start(_) | LocalSubcommand::Stop | LocalSubcommand::Status => true,
             LocalSubcommand::Query(args) => {
                 telemetry_query_prints_human_stdout(args, stdout_is_terminal)
             }
@@ -277,6 +279,9 @@ pub struct ApplyArgs {
 
 #[derive(Args, Debug, Default)]
 pub struct TelemetryStartArgs {
+    /// Run in the background and return once ready
+    #[arg(short = 'd', long)]
+    pub detach: bool,
     /// Suppress startup output and browser launch
     #[arg(long)]
     pub quiet: bool,
