@@ -42,7 +42,6 @@ bytes = "1"
 axum = "0.8"
 include_dir = "0.7"
 mime_guess = "2"
-notify = "8"
 pathdiff = "0.2"
 
 [dependencies.nix]

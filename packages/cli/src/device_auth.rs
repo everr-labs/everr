@@ -70,8 +70,7 @@ where
     )
     .await;
 
-    let poll_url = format!("{}/api/auth/device/token", config.api_base_url);
-    let token = complete_device_authorization_with_url(&client, &poll_url, authorization).await?;
+    let token = complete_device_authorization(&client, config, authorization).await?;
 
     let session = session_from_device_token(config, token)?;
     store.save_session(&session)?;
@@ -148,23 +147,6 @@ pub async fn poll_device_authorization(
     }
 }
 
-pub async fn login_with_device_authorization(
-    config: &AuthConfig,
-    store: &AppStateStore,
-    authorization: DeviceAuthorization,
-) -> Result<Session> {
-    let client = build_http_client()?;
-    let token = complete_device_authorization_with_url(
-        &client,
-        &format!("{}/api/auth/device/token", config.api_base_url),
-        authorization,
-    )
-    .await?;
-    let session = session_from_device_token(config, token)?;
-    store.save_session(&session)?;
-    Ok(session)
-}
-
 pub fn session_from_device_token(
     config: &AuthConfig,
     token: DeviceTokenResponse,
@@ -213,63 +195,116 @@ fn map_device_authorization(
     }
 }
 
-async fn complete_device_authorization_with_url(
+async fn complete_device_authorization(
     client: &reqwest::Client,
-    poll_url: &str,
-    authorization: DeviceAuthorization,
+    config: &AuthConfig,
+    mut authorization: DeviceAuthorization,
 ) -> Result<DeviceTokenResponse> {
     let deadline = Instant::now() + Duration::from_secs(authorization.expires_in);
-    let mut poll_interval = authorization.interval;
 
     loop {
         if Instant::now() >= deadline {
             bail!("device authentication expired before completion");
         }
 
-        sleep(Duration::from_secs(poll_interval)).await;
-
-        let token_response = client
-            .post(poll_url)
-            .header(CONTENT_TYPE, "application/json")
-            .body(format!(
-                "{{\"grant_type\":\"urn:ietf:params:oauth:grant-type:device_code\",\"device_code\":\"{}\",\"client_id\":\"everr-desktop\"}}",
-                authorization.device_code
-            ))
-            .send()
-            .await
-            .context("failed while polling for CLI access token")?;
-
-        if token_response.status().is_success() {
-            let token_body = token_response
-                .json::<DeviceTokenResponse>()
-                .await
-                .context("failed to parse authentication response")?;
-            return Ok(token_body);
-        }
-
-        let error_body = token_response
-            .json::<DeviceErrorResponse>()
-            .await
-            .unwrap_or(DeviceErrorResponse {
-                error: "unknown_error".to_string(),
-            });
-
-        match error_body.error.as_str() {
-            "authorization_pending" => continue,
-            "slow_down" => {
-                poll_interval += 5;
-                continue;
-            }
-            "access_denied" => bail!("device authentication was denied"),
-            "expired_token" => bail!("device authentication token expired"),
-            _ => bail!("device authentication failed: {}", error_body.error),
+        sleep(Duration::from_secs(authorization.interval)).await;
+        match poll_device_authorization(client, config, &authorization).await? {
+            DevicePollStatus::Authorized(token) => return Ok(token),
+            DevicePollStatus::Pending => {}
+            DevicePollStatus::SlowDown => authorization.interval += 5,
+            DevicePollStatus::Denied => bail!("device authentication was denied"),
+            DevicePollStatus::Expired => bail!("device authentication token expired"),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{AuthConfig, DeviceTokenResponse, session_from_device_token};
+    use super::{AuthConfig, DeviceTokenResponse, login_with_prompt, session_from_device_token};
+    use crate::state::AppStateStore;
+
+    #[tokio::test]
+    async fn terminal_login_preserves_device_token_outcomes() {
+        for (response, error) in [
+            (r#"{"access_token":"test-token"}"#, None),
+            (
+                r#"{"error":"access_denied"}"#,
+                Some("device authentication was denied"),
+            ),
+            (
+                r#"{"error":"expired_token"}"#,
+                Some("device authentication token expired"),
+            ),
+            (
+                r#"{"error":"invalid_grant"}"#,
+                Some("device authentication failed: invalid_grant"),
+            ),
+        ] {
+            let mut server = mockito::Server::new_async().await;
+            server.mock("POST", "/api/auth/device/code")
+                .with_header("content-type", "application/json")
+                .with_body(r#"{"device_code":"device-code","user_code":"USER-CODE","verification_uri":"http://example.test/verify","expires_in":60,"interval":0}"#)
+                .create_async().await;
+            let mut intermediate_requests = Vec::new();
+            if error.is_none() {
+                for status in ["authorization_pending", "slow_down"] {
+                    intermediate_requests.push(
+                        server
+                            .mock("POST", "/api/auth/device/token")
+                            .with_status(400)
+                            .with_header("content-type", "application/json")
+                            .with_body(serde_json::json!({"error": status}).to_string())
+                            .expect(1)
+                            .create_async()
+                            .await,
+                    );
+                }
+            }
+            let token_request = server
+                .mock("POST", "/api/auth/device/token")
+                .match_body(mockito::Matcher::Json(serde_json::json!({
+                    "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                    "device_code": "device-code",
+                    "client_id": "everr-desktop",
+                })))
+                .with_status(if error.is_some() { 400 } else { 200 })
+                .with_header("content-type", "application/json")
+                .with_body(response)
+                .expect(1)
+                .create_async()
+                .await;
+            let dir = tempfile::tempdir().expect("tempdir");
+            let store = AppStateStore::for_namespace(dir.path().to_string_lossy());
+            let config = AuthConfig {
+                api_base_url: server.url(),
+            };
+            let result = login_with_prompt(&config, &store, |url, code| async move {
+                assert_eq!(url, "http://example.test/verify");
+                assert_eq!(code, "USER-CODE");
+            })
+            .await;
+            token_request.assert_async().await;
+            for request in intermediate_requests {
+                request.assert_async().await;
+            }
+            match error {
+                Some(message) => {
+                    assert_eq!(result.expect_err("login must fail").to_string(), message);
+                    assert!(!store.session_file_path().expect("session path").exists());
+                }
+                None => {
+                    let session = result.expect("login must succeed");
+                    assert_eq!(session.token, "test-token");
+                    assert_eq!(
+                        store
+                            .load_session_for_api_base_url(&config.api_base_url)
+                            .expect("saved session"),
+                        session
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn session_from_device_token_rejects_blank_tokens() {

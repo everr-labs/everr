@@ -124,6 +124,30 @@ function clearAccountCache(queryClient: QueryClient) {
   queryClient.removeQueries({ queryKey: orgQueryKey });
 }
 
+function handleSignInResponse(queryClient: QueryClient, data: SignInResponse) {
+  if (isPendingSignIn(data)) {
+    queryClient.setQueryData(pendingSignInQueryKey, data);
+    return;
+  }
+
+  if (data.status === "signed_in") {
+    clearAccountCache(queryClient);
+    queryClient.setQueryData(authStatusQueryKey, data);
+    queryClient.setQueryData(pendingSignInQueryKey, null);
+    toast.success("Signed in.");
+    return;
+  }
+
+  if (data.status === "denied") {
+    queryClient.setQueryData(pendingSignInQueryKey, null);
+  }
+  toast.error(
+    data.status === "expired"
+      ? "The sign-in code expired. Refresh it to try again."
+      : "The sign-in request was denied.",
+  );
+}
+
 export function useAuthStatusQuery() {
   return useQuery({
     queryKey: authStatusQueryKey,
@@ -161,25 +185,10 @@ export function useSignInMutation() {
   return useMutation({
     mutationFn: startSignIn,
     onSuccess(data) {
-      if (isPendingSignIn(data)) {
-        queryClient.setQueryData(pendingSignInQueryKey, data);
-        return;
-      }
-
-      if (data.status === "signed_in") {
-        clearAccountCache(queryClient);
-        queryClient.setQueryData(authStatusQueryKey, data);
+      if (data.status === "expired") {
         queryClient.setQueryData(pendingSignInQueryKey, null);
-        toast.success("Signed in.");
-        return;
       }
-
-      queryClient.setQueryData(pendingSignInQueryKey, null);
-      toast.error(
-        data.status === "expired"
-          ? "The sign-in code expired. Refresh it to try again."
-          : "The sign-in request was denied.",
-      );
+      handleSignInResponse(queryClient, data);
     },
     onError(error) {
       toast.error(toErrorMessageText(error));
@@ -249,30 +258,9 @@ function AuthContent() {
   });
 
   useEffect(() => {
-    if (!pollQuery.data) {
-      return;
+    if (pollQuery.data) {
+      handleSignInResponse(queryClient, pollQuery.data);
     }
-
-    if (isPendingSignIn(pollQuery.data)) {
-      queryClient.setQueryData(pendingSignInQueryKey, pollQuery.data);
-      return;
-    }
-
-    if (pollQuery.data.status === "signed_in") {
-      clearAccountCache(queryClient);
-      queryClient.setQueryData(authStatusQueryKey, pollQuery.data);
-      queryClient.setQueryData(pendingSignInQueryKey, null);
-      toast.success("Signed in.");
-      return;
-    }
-
-    if (pollQuery.data.status === "denied") {
-      queryClient.setQueryData(pendingSignInQueryKey, null);
-      toast.error("The sign-in request was denied.");
-      return;
-    }
-
-    toast.error("The sign-in code expired. Refresh it to try again.");
   }, [pollQuery.data, queryClient]);
 
   const pendingError = pendingQuery.error ?? pollQuery.error;

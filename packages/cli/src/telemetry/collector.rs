@@ -129,10 +129,6 @@ async fn stop_collector(child: &mut Option<Child>) {
     }
 }
 
-fn run_start_health_endpoint() -> String {
-    crate::build::healthcheck_endpoint()
-}
-
 async fn wait_for_shutdown_signal() -> Result<()> {
     #[cfg(unix)]
     {
@@ -217,7 +213,7 @@ async fn start_collector(
     }
 
     if !crate::collector::wait_for_collector(
-        &run_start_health_endpoint(),
+        &crate::build::healthcheck_endpoint(),
         instance_id,
         Duration::from_secs(10),
     )
@@ -553,32 +549,6 @@ mod tests {
                 & 0o777,
             0o644
         );
-    }
-
-    #[test]
-    fn run_start_health_endpoint_uses_sql_origin() {
-        let _guard = crate::test_support::ENV_LOCK
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        const KEY: &str = "EVERR_SQL_HTTP_ORIGIN";
-        let previous = std::env::var_os(KEY);
-
-        unsafe {
-            std::env::set_var(KEY, "http://127.0.0.1:65531");
-        }
-
-        let endpoint = run_start_health_endpoint();
-
-        match previous {
-            Some(value) => unsafe {
-                std::env::set_var(KEY, value);
-            },
-            None => unsafe {
-                std::env::remove_var(KEY);
-            },
-        }
-
-        assert_eq!(endpoint, "http://127.0.0.1:65531/health");
     }
 
     fn extract_test_assets_to_cache(
