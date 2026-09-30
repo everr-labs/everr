@@ -1,5 +1,16 @@
 # @everr/otel-errors
 
+## 0.2.0
+
+### Minor Changes
+
+- 99c4eb4: Unhandled rejections no longer stop the process by default. The new `onUnhandledRejection` option defaults to `"warn"`: the rejection is written to stderr, captured with `ERROR` severity, and the process keeps running, as with Sentry. Pass `onUnhandledRejection: "strict"` to keep the previous behavior (captured as `FATAL`, flushed, then the process exits).
+
+### Patch Changes
+
+- 5da5dff: Detect the app's own `unhandledRejection` listener under Next.js. Next.js keeps these listeners in a private queue behind one filter listener and shows them only through `process.listeners`, so the check with `process.listenerCount` saw no other listener and exited the process.
+- 726e757: Install no crash handlers in a worker thread. The handler's `process.exit(1)` ended the worker without the parent's `error` event, so a pool that restarts or retries on that event did not see the crash.
+
 ## 0.1.0
 
 ### Minor Changes

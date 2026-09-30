@@ -1,5 +1,12 @@
 # @everr/desktop-app
 
+## 0.8.3
+
+### Patch Changes
+
+- dc5acfa: The `everr-setup-telemetry` Next.js rule now turns off incoming request tracing in the HTTP instrumentation and uses the server span that Next.js makes for each request. Next.js creates its HTTP server before `register()` runs, so the HTTP instrumentation missed requests. The rule also sets `NEXT_OTEL_FETCH_DISABLED=1`, so each `fetch` is traced once and not twice.
+  - @everr/otel-web@0.3.3
+
 ## 0.8.2
 
 ### Patch Changes
