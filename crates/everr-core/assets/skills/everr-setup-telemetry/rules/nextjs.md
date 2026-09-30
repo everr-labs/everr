@@ -222,7 +222,7 @@ if (!globalThis.__otelSdk) {
         '@opentelemetry/instrumentation-fs': { enabled: false },
         '@opentelemetry/instrumentation-dns': { enabled: false },
         // Next.js makes the server span of each request itself. See
-        // "HTTP Server Spans" below.
+        // "Setup Notes" below.
         '@opentelemetry/instrumentation-http': {
           disableIncomingRequestInstrumentation: true,
         },
@@ -285,30 +285,13 @@ export const onRequestError: Instrumentation.onRequestError = async (
   idempotent guard like `globalThis.__otelSdk`.
 - Disable noisy auto-instrumentations only after confirming they create
   high-volume, low-value data in this project.
-
-## HTTP Server Spans
-
-Keep `disableIncomingRequestInstrumentation: true`. Do not turn the incoming
-HTTP instrumentation back on.
-
-Next.js loads `http` and creates its server before it calls `register()`. The
-HTTP instrumentation patches the server only when a module requires `http`
-again after the SDK starts. Thus the server spans appear only after some route
-happens to load `http`, and they are missing before that.
-
-Next.js makes its own server span for each request (`BaseServer.handleRequest`,
-kind `SERVER`), and that span continues the incoming `traceparent`. Use it as
-the request span. Its name is `METHOD /route` and it carries `http.route`, but
-it uses the older attribute names: `http.method`, `http.target`, and
-`http.status_code`. Query those names for Next.js request spans.
-
-The cost: there is no `http.server.request.duration` metric, because only the
-incoming HTTP instrumentation records it. Get request latency from the span
-durations.
-
-Outgoing `fetch` is traced reliably, because the undici instrumentation uses
-`diagnostics_channel` and not a require hook. Outgoing `http.request` calls
-are traced only from code that loads `http` after the SDK starts.
+- Keep `disableIncomingRequestInstrumentation: true`. Next.js creates its HTTP
+  server before `register()` runs, so the incoming HTTP instrumentation misses
+  requests. Next's own `SERVER` span (`METHOD /route`) continues the incoming
+  `traceparent` and is the request span. It uses the older `http.method`,
+  `http.target`, and `http.status_code` attribute names.
+- There is no `http.server.request.duration` metric. Use span durations for
+  request latency.
 
 ## Route Handler Enrichment
 
