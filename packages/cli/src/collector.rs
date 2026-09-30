@@ -148,8 +148,8 @@ mod tests {
     #[test]
     fn lsof_query_is_scoped_to_listening_processes() {
         assert_eq!(
-            super::lsof_listening_pid_args(54419),
-            vec!["-nP", "-a", "-tiTCP:54419", "-sTCP:LISTEN"]
+            super::lsof_listening_pid_args(54420),
+            vec!["-nP", "-a", "-tiTCP:54420", "-sTCP:LISTEN"]
         );
     }
 
