@@ -47,7 +47,7 @@ One log record per error, with `eventName: "exception"`:
 | `everr.error.mechanism` | `uncaughtException`, `unhandledrejection`, or `manual` |
 | `log.record.uid` | A generated id |
 
-The record body is `"{type}: {message}"`. Severity is `FATAL` for the two fatal handlers and `ERROR` for `captureError`. When a span is active, the record joins its trace and the span gets `recordException` plus `setStatus(ERROR)`.
+The record body is `"{type}: {message}"`. Severity is `FATAL` for an uncaught exception (and for an unhandled rejection in `strict` mode), and `ERROR` for an unhandled rejection in the default `warn` mode and for `captureError`. When a span is active, the record joins its trace and the span gets `recordException` plus `setStatus(ERROR)`.
 
 One capture is one record. The package applies no throttle and no deduplication, so a hot loop that reports the same error 10,000 times emits 10,000 records. Cap volume where it can be seen across processes: `beforeSend`, the collector, or the ingest.
 
@@ -57,9 +57,15 @@ This package removes nothing. The message, the stack, and the attributes you pas
 
 It does not reach the active span. When a span is active it gets `recordException` and `setStatus` built from the error itself, not from what your hook returned, so a hook that scrubs the message leaves a dirty span in the same trace. Returning `null` skips both. For the span, use a span processor on your own `NodeSDK`, or redact at the collector, which covers every signal at once.
 
+## On an unhandled rejection
+
+By default (`onUnhandledRejection: "warn"`) the instrumentation writes the reason to stderr, captures it with `ERROR` severity, and lets the process keep running. It does not flush and does not exit. This matches Sentry's default. Note that installing the listener turns off Node's own crash on an unhandled rejection.
+
+With `onUnhandledRejection: "strict"` a rejection is a fatal error, handled exactly like an uncaught exception below.
+
 ## On a fatal error
 
-The instrumentation writes the error to stderr, captures it, flushes the logger, tracer, and meter providers (`shutdownTimeout`, 2 seconds by default, for all three), then calls `process.exit(1)`.
+An uncaught exception, or an unhandled rejection in `strict` mode. The instrumentation writes the error to stderr, captures it, flushes the logger, tracer, and meter providers (`shutdownTimeout`, 2 seconds by default, for all three), then calls `process.exit(1)`.
 
 The stderr line comes first and is unconditional. Installing an `uncaughtException` listener stops the report Node writes, so without it a crashing container logs nothing locally and the error survives only if the flush reached the collector. It is `console.error(reason)`, so you get the same stack Node would have printed. Expect one duplicate line if your own handler also logs.
 
@@ -68,6 +74,8 @@ The exit is deliberate, for the same reason: a listener stops the crash Node wou
 - `onFatal: "continue"` keeps the process alive.
 - Register your own listener for the same event. The instrumentation then leaves the decision to you.
 - `exitEvenIfOtherHandlersAreRegistered: true` overrides the previous one and exits regardless.
+
+In a worker thread the instrumentation installs no crash handlers. A crash there ends only the thread, and the parent gets it as the Worker's `error` event; a `process.exit` inside the worker would end the thread without that event. `captureError` still works in a worker.
 
 ## Config
 
@@ -93,6 +101,7 @@ The instrumentation itself takes only what belongs to crash handling:
 | --- | --- | --- |
 | `enabled` | `true` | `false` defers installation until the SDK registers the instrumentation |
 | `onFatal` | `"exit"` | `"continue"` keeps the process alive after a fatal error |
+| `onUnhandledRejection` | `"warn"` | `"strict"` treats an unhandled rejection as a fatal error |
 | `shutdownTimeout` | `2000` | Milliseconds the three flushes share before the process stops |
 | `exitEvenIfOtherHandlersAreRegistered` | `false` | `true` exits even when your own listener is attached |
 

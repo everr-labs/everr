@@ -183,6 +183,18 @@ describe("ErrorsInstrumentation capture", () => {
     expect(record.attributes["exception.type"]).toBe("NonError");
   });
 
+  it("captures unhandledRejection as error by default, and as fatal in strict mode", () => {
+    enable();
+    process.emit("unhandledRejection", new Error("warn"), Promise.resolve());
+    expect(otel.records()[0].severityText).toBe("ERROR");
+    instrumentation.setConfig({
+      onFatal: "continue",
+      onUnhandledRejection: "strict",
+    });
+    process.emit("unhandledRejection", new Error("strict"), Promise.resolve());
+    expect(otel.records()[1].severityText).toBe("FATAL");
+  });
+
   it("backs captureError with no mechanism attribute", () => {
     enable();
     captureError(new Error("manual boom"), { feature: "billing" });

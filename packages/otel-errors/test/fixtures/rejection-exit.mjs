@@ -1,5 +1,5 @@
 import { startSdk } from "./fixture-sdk.mjs";
 
-startSdk();
+startSdk({ onUnhandledRejection: "strict" });
 
 Promise.reject(new Error("fixture-rejection"));
