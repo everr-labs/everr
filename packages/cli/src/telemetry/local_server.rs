@@ -34,6 +34,7 @@ type RestartRequest = oneshot::Sender<std::result::Result<(), String>>;
 #[derive(Clone)]
 struct ServerState {
     origin: String,
+    identity: super::local_instance::Identity,
     pending_auth: Arc<Mutex<Option<PendingAuth>>>,
     restart: mpsc::Sender<RestartRequest>,
     http: reqwest::Client,
@@ -51,22 +52,22 @@ pub struct LocalServer {
 }
 
 impl LocalServer {
-    pub async fn bind(_restart: mpsc::Sender<RestartRequest>) -> Result<Self> {
+    pub async fn bind(_restart: mpsc::Sender<RestartRequest>, _instance_id: String) -> Result<Self> {
         #[cfg(not(everr_embedded_local_ui))]
         bail!(
             "local UI assets are missing; build the CLI with `pnpm --filter @everr/cli build:debug`"
         );
         #[cfg(everr_embedded_local_ui)]
         {
-            let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, build::LOCAL_UI_PORT))
+            let address = super::local_instance::listen_address(&build::local_ui_origin())?;
+            let listener = TcpListener::bind(address)
                 .await
-                .context(
-                    "bind local UI server (another `everr local start` may already be running)",
-                )?;
+                .with_context(|| format!("cannot start Everr: local UI address {address} is unavailable; another instance may be starting"))?;
             Ok(Self {
                 listener,
                 state: ServerState {
                     origin: build::local_ui_origin(),
+                    identity: super::local_instance::Identity::ui(_instance_id),
                     pending_auth: Arc::new(Mutex::new(None)),
                     restart: _restart,
                     http: reqwest::Client::builder()
@@ -86,6 +87,10 @@ impl LocalServer {
 
 fn router(state: ServerState) -> Router {
     Router::new()
+        .route(
+            "/health",
+            get(|State(state): State<ServerState>| async move { Json(state.identity) }),
+        )
         .route("/api/commands/{command}", post(command))
         .route("/api/telemetry/{signal}", post(export_telemetry))
         .route("/api/{*path}", get(|| async { StatusCode::NOT_FOUND }))
@@ -275,12 +280,12 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Val
             Ok(json!({"email":profile.email,"name":profile.name,"profile_url":profile.profile_url}))
         }
         "get_org" => Ok(json!({"name":api()?.get_org().await?.name})),
-        "get_collector_status" => collector_status().await,
+        "get_collector_status" => collector_status(state).await,
         "restart_collector" => {
             let (tx, rx) = oneshot::channel();
             state.restart.send(tx).await.context("collector supervisor stopped")?;
             rx.await.context("collector restart interrupted")?.map_err(|error| anyhow!(error))?;
-            collector_status().await
+            collector_status(state).await
         }
         "telemetry_sql_query" => {
             let sql = args["sql"].as_str().context("missing SQL")?;
@@ -296,10 +301,14 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Val
     }
 }
 
-async fn collector_status() -> Result<Value> {
+async fn collector_status(state: &ServerState) -> Result<Value> {
     let running = build::healthcheck_endpoint();
-    let healthy =
-        crate::collector::wait_healthcheck(&running, Duration::from_secs(1)).await;
+    let healthy = crate::collector::wait_for_collector(
+        &running,
+        &state.identity.instance_id,
+        Duration::from_secs(1),
+    )
+    .await;
     Ok(
         json!({"status":if healthy {"running"} else {"stopped"},"otlpEndpoint":build::otlp_http_origin(),"sqlEndpoint":build::sql_http_origin(),"healthEndpoint":running,"telemetryDir":build::telemetry_dir()?.display().to_string()}),
     )
@@ -315,6 +324,7 @@ mod tests {
         let (restart, _) = mpsc::channel(1);
         let state = ServerState {
             origin: origin.clone(),
+            identity: crate::telemetry::local_instance::Identity::ui("test-instance".into()),
             pending_auth: Arc::new(Mutex::new(None)),
             restart,
             http: reqwest::Client::new(),
@@ -323,6 +333,31 @@ mod tests {
             axum::serve(listener, router(state)).await.unwrap();
         });
         (origin, task)
+    }
+
+    #[tokio::test]
+    async fn health_identifies_ui_without_requiring_browser_headers() {
+        let (origin, task) = test_server().await;
+        let response = reqwest::get(format!("{origin}/health")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        let body = response
+            .json::<crate::telemetry::local_instance::Identity>()
+            .await
+            .unwrap();
+        assert_eq!(body.service, "everr-local-ui");
+        assert_eq!(body.version, env!("EVERR_VERSION"));
+        assert_eq!(body.instance_id, "test-instance");
+        assert_eq!(body.status, "ok");
+        assert_eq!(body.protocol_version, 1);
+        assert!(matches!(
+            crate::telemetry::local_instance::probe(
+                &format!("{origin}/health"),
+                "everr-local-ui"
+            ).await,
+            crate::telemetry::local_instance::ServiceState::Running(_)
+        ));
+        task.abort();
     }
 
     #[tokio::test]
