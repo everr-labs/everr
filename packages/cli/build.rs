@@ -41,8 +41,8 @@ fn main() {
     println!("cargo:rustc-check-cfg=cfg(everr_embedded_local_ui)");
     let ui_dir = std::env::var("EVERR_LOCAL_UI_DIR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("../local-app/dist/client"));
-    if ui_dir.join("_shell.html").is_file() {
+        .unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("../local-app/dist"));
+    if ui_dir.join("index.html").is_file() {
         let ui_dir = ui_dir.canonicalize().expect("resolve local UI directory");
         println!("cargo:rerun-if-changed={}", ui_dir.display());
         println!("cargo:rustc-cfg=everr_embedded_local_ui");

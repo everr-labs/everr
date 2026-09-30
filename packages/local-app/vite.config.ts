@@ -1,14 +1,15 @@
 import tailwindcss from "@tailwindcss/vite";
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [
     tailwindcss(),
-    tanstackStart({
-      spa: { enabled: true },
-      router: { routeFileIgnorePattern: "\\.test\\." },
+    tanstackRouter({
+      target: "react",
+      autoCodeSplitting: true,
+      routeFileIgnorePattern: "\\.test\\.",
     }),
     react(),
   ],

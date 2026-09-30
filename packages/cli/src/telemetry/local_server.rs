@@ -155,7 +155,7 @@ async fn asset(_request: Request) -> Response {
         }
         let file = UI.get_file(path).or_else(|| {
             if path.is_empty() || !path.rsplit('/').next().unwrap_or_default().contains('.') {
-                UI.get_file("_shell.html")
+                UI.get_file("index.html")
             } else {
                 None
             }
