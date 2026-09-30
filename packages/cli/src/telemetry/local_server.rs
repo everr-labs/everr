@@ -23,14 +23,22 @@ use tokio::{
 #[cfg(everr_embedded_local_ui)]
 static UI: include_dir::Dir<'_> = include_dir::include_dir!("$EVERR_LOCAL_UI_DIR");
 
-type RestartRequest = oneshot::Sender<std::result::Result<(), String>>;
+pub(super) enum SupervisorRequest {
+    Restart(oneshot::Sender<std::result::Result<(), String>>),
+    Stop(oneshot::Sender<std::result::Result<(), String>>),
+}
+
+#[derive(Deserialize, Serialize)]
+pub(super) struct StopLocalArgs {
+    pub instance_id: String,
+}
 
 #[derive(Clone)]
 struct ServerState {
     origin: String,
     identity: super::local_instance::Identity,
     auth: Arc<LocalAuth>,
-    restart: mpsc::Sender<RestartRequest>,
+    supervisor: mpsc::Sender<SupervisorRequest>,
     http: reqwest::Client,
 }
 
@@ -75,8 +83,8 @@ pub struct LocalServer {
 }
 
 impl LocalServer {
-    pub async fn bind(
-        _restart: mpsc::Sender<RestartRequest>,
+    pub(super) async fn bind(
+        _supervisor: mpsc::Sender<SupervisorRequest>,
         _instance_id: String,
     ) -> Result<Self> {
         #[cfg(not(everr_embedded_local_ui))]
@@ -99,7 +107,7 @@ impl LocalServer {
                         crate::auth::resolve_auth_config()?,
                         build_auth_http_client()?,
                     )),
-                    restart: _restart,
+                    supervisor: _supervisor,
                     http: reqwest::Client::builder()
                         .timeout(Duration::from_secs(15))
                         .build()?,
@@ -108,8 +116,11 @@ impl LocalServer {
         }
     }
 
-    pub async fn serve(self) -> Result<()> {
+    pub async fn serve(self, shutdown: oneshot::Receiver<()>) -> Result<()> {
         axum::serve(self.listener, router(self.state))
+            .with_graceful_shutdown(async {
+                let _ = shutdown.await;
+            })
             .await
             .context("serve local UI")
     }
@@ -258,14 +269,30 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Res
         "restart_collector" => {
             let (tx, rx) = oneshot::channel();
             state
-                .restart
-                .send(tx)
+                .supervisor
+                .send(SupervisorRequest::Restart(tx))
                 .await
                 .context("collector supervisor stopped")?;
             rx.await
                 .context("collector restart interrupted")?
                 .map_err(|error| anyhow!(error))?;
             json_response(collector_status(state).await?)
+        }
+        "stop_local" => {
+            let args: StopLocalArgs = serde_json::from_value(args)?;
+            if args.instance_id != state.identity.instance_id {
+                bail!("local instance changed; check status and retry");
+            }
+            let (tx, rx) = oneshot::channel();
+            state
+                .supervisor
+                .send(SupervisorRequest::Stop(tx))
+                .await
+                .context("local supervisor stopped")?;
+            rx.await
+                .context("local shutdown interrupted")?
+                .map_err(|error| anyhow!(error))?;
+            json_response(())
         }
         "telemetry_sql_query" => {
             let SqlQuery { sql, params } =
@@ -322,10 +349,36 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    #[tokio::test]
+    async fn stop_rejects_a_stale_instance_id() {
+        let (origin, task) = test_server().await;
+        let response = reqwest::Client::new()
+            .post(format!("{origin}/api/commands/stop_local"))
+            .header("origin", &origin)
+            .header("x-everr-local", "1")
+            .json(&json!({"instance_id":"old-instance"}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            response.json::<Value>().await.unwrap()["error"],
+            "local instance changed; check status and retry"
+        );
+        assert!(
+            reqwest::get(format!("{origin}/health"))
+                .await
+                .unwrap()
+                .status()
+                .is_success()
+        );
+        task.abort();
+    }
+
     async fn test_server() -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let origin = format!("http://{}", listener.local_addr().unwrap());
-        let (restart, _) = mpsc::channel(1);
+        let (supervisor, _) = mpsc::channel(1);
         let auth_dir = tempfile::tempdir().unwrap();
         let state = ServerState {
             origin: origin.clone(),
@@ -337,7 +390,7 @@ mod tests {
                 },
                 reqwest::Client::new(),
             )),
-            restart,
+            supervisor,
             http: reqwest::Client::new(),
         };
         let task = tokio::spawn(async move {

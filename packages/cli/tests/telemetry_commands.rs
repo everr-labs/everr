@@ -24,6 +24,52 @@ fn endpoint_is_not_a_local_subcommand() {
         .stderr(contains("endpoint"));
 }
 
+#[test]
+fn stop_is_idempotent_when_both_listeners_are_absent() {
+    CliTestEnv::new()
+        .command()
+        .env("EVERR_SQL_HTTP_ORIGIN", stopped_origin())
+        .env("EVERR_LOCAL_UI_ORIGIN", stopped_origin())
+        .args(["local", "stop"])
+        .assert()
+        .success()
+        .stdout(contains("already stopped"));
+}
+
+#[test]
+fn stop_refuses_unrecognized_or_mismatched_instances() {
+    for recognized in [false, true] {
+        let env = CliTestEnv::new();
+        let collector = health_server("everr-local-collector", "one", false);
+        let mut ui = mockito::Server::new();
+        ui.mock("GET", "/health")
+            .with_body(if recognized {
+                identity("everr-local-ui", "two", "ok")
+            } else {
+                "other app".into()
+            })
+            .create();
+        let stop = ui
+            .mock("POST", "/api/commands/stop_local")
+            .expect(0)
+            .create();
+        env.command()
+            .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
+            .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+            .args(["local", "stop"])
+            .assert()
+            .failure()
+            .stderr(contains("cannot stop Everr"));
+        stop.assert();
+        assert!(
+            reqwest::blocking::get(format!("{}/health", ui.url()))
+                .unwrap()
+                .status()
+                .is_success()
+        );
+    }
+}
+
 fn identity(service: &str, instance: &str, status: &str) -> String {
     serde_json::json!({
         "service": service, "version": "0.8.2", "instance_id": instance,
