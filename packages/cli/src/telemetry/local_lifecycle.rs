@@ -41,7 +41,7 @@ pub(super) fn lock(telemetry_dir: &Path) -> Result<File> {
     Ok(file)
 }
 
-pub(super) async fn start_detached() -> Result<LocalStatus> {
+pub(super) async fn start_detached() -> Result<()> {
     let log_path = local_log::path()?;
     let instance_id = new_instance_id()?;
     let mut command = Command::new(std::env::current_exe()?);
@@ -68,12 +68,12 @@ pub(super) async fn start_detached() -> Result<LocalStatus> {
             .running_instance()
             .is_some_and(|identity| identity.instance_id == instance_id)
         {
-            return Ok(status);
+            return Ok(());
         }
         if let Some(exit) = child.try_wait()? {
             // A concurrent start may have found an already-ready instance.
             if exit.success() && status.running_instance().is_some() {
-                return Ok(status);
+                return Ok(());
             }
             break format!("background process exited: {exit}");
         }

@@ -2,7 +2,7 @@
 
 `pnpm --filter @everr/cli build:debug` builds the local UI, prepares the collector and chDB library, and embeds them in the CLI. `build:release` produces the release binary and checksum. The CLI version comes from this package's `package.json`.
 
-`everr local start` serves the bundled UI and starts the collector until interrupted. `--no-open` suppresses browser launch; `--quiet` suppresses startup output and browser launch. If the collector and UI are already ready and share an instance ID, another `local start` prints the endpoints and exits successfully. Partial instances or occupied ports cause an error; startup never stops existing listeners.
+`everr local start` serves the bundled UI and starts the collector until interrupted. Successful startup prints only the OTLP, SQL, and UI addresses; detached startup also prints the log path. `--no-open` suppresses browser launch; `--quiet` suppresses startup output and browser launch. If the collector and UI are already ready and share an instance ID, another `local start` prints the endpoints and exits successfully. Partial instances or occupied ports cause an error; startup never stops existing listeners.
 
 `everr local start -d` (or `--detach`) runs the same supervisor in the background and returns once the collector and UI are ready. It survives closing the terminal. A lock prevents two instances from opening the same telemetry data directory.
 

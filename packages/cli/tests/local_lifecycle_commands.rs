@@ -116,12 +116,18 @@ fn detached_and_foreground_instances_share_the_full_lifecycle() {
     let seed = vec![b'x'; 5 * 1024 * 1024 - 64];
     std::fs::write(log_dir.join("local.log"), &seed).unwrap();
     let output = instance.run(&["local", "start", "-d", "--no-open"]);
-    assert!(output.contains("collector: running") && output.contains("log:"));
+    let endpoints = format!(
+        "otlp: {}\nsql: {}\nui: {}\n",
+        instance.origins[1], instance.origins[0], instance.origins[2]
+    );
+    assert_eq!(
+        output,
+        format!("{endpoints}log: {}\n", log_dir.join("local.log").display())
+    );
     let identity = instance.identity();
-    assert!(
-        instance
-            .run(&["local", "start", "--detach", "--no-open"])
-            .contains("already running")
+    assert_eq!(
+        instance.run(&["local", "start", "--detach", "--no-open"]),
+        endpoints
     );
     assert_eq!(instance.identity(), identity);
 
@@ -167,10 +173,7 @@ fn detached_and_foreground_instances_share_the_full_lifecycle() {
         String::from_utf8_lossy(&archived[seed.len()..]),
         log
     );
-    assert!(
-        output.contains("collector: running"),
-        "captured output: {output}"
-    );
+    assert!(output.contains(&endpoints), "captured output: {output}");
     assert!(!instance.data.path().join("local.log").exists());
     assert!(instance.run(&["local", "stop"]).contains("already stopped"));
 
