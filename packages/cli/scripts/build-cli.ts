@@ -28,7 +28,7 @@ if (flag === "--install") {
 await withBuildTelemetry("cli build", async (telemetry) => {
   telemetry.setRootAttribute("everr.build.mode", mode);
 
-  await telemetry.phase("build local UI", () => $`pnpm --dir ${new URL("../../local-app", import.meta.url).pathname} build`);
+  await telemetry.phase("build local UI", () => $`pnpm --filter @everr/local-app build`);
   const { buildArgs, builtBin } = resolveCliBuild(mode);
   const assets = await prepareCliEmbeddedAssets(mode, telemetry);
 
