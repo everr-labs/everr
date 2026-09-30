@@ -1,7 +1,6 @@
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
-use reqwest::header::CONTENT_TYPE;
 use serde::Deserialize;
 use tokio::time::sleep;
 
@@ -83,8 +82,7 @@ pub async fn start_device_authorization(
 ) -> Result<DeviceAuthorization> {
     let authorization_response = client
         .post(format!("{}/api/auth/device/code", config.api_base_url))
-        .header(CONTENT_TYPE, "application/json")
-        .body("{\"client_id\":\"everr-desktop\",\"scope\":\"openid\"}")
+        .json(&serde_json::json!({ "client_id": "everr-desktop", "scope": "openid" }))
         .send()
         .await
         .context("failed to start CLI device authorization")?;
@@ -114,11 +112,11 @@ pub async fn poll_device_authorization(
     let poll_url = format!("{}/api/auth/device/token", config.api_base_url);
     let token_response = client
         .post(&poll_url)
-        .header(CONTENT_TYPE, "application/json")
-        .body(format!(
-            "{{\"grant_type\":\"urn:ietf:params:oauth:grant-type:device_code\",\"device_code\":\"{}\",\"client_id\":\"everr-desktop\"}}",
-            authorization.device_code
-        ))
+        .json(&serde_json::json!({
+            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            "device_code": authorization.device_code,
+            "client_id": "everr-desktop",
+        }))
         .send()
         .await
         .context("failed while polling for CLI access token")?;
@@ -241,9 +239,10 @@ mod tests {
             ),
         ] {
             let mut server = mockito::Server::new_async().await;
+            let device_code = "device-\"code\\with\nescapes";
             server.mock("POST", "/api/auth/device/code")
                 .with_header("content-type", "application/json")
-                .with_body(r#"{"device_code":"device-code","user_code":"USER-CODE","verification_uri":"http://example.test/verify","expires_in":60,"interval":0}"#)
+                .with_body(serde_json::json!({"device_code":device_code,"user_code":"USER-CODE","verification_uri":"http://example.test/verify","expires_in":60,"interval":0}).to_string())
                 .create_async().await;
             let mut intermediate_requests = Vec::new();
             if error.is_none() {
@@ -264,7 +263,7 @@ mod tests {
                 .mock("POST", "/api/auth/device/token")
                 .match_body(mockito::Matcher::Json(serde_json::json!({
                     "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                    "device_code": "device-code",
+                    "device_code": device_code,
                     "client_id": "everr-desktop",
                 })))
                 .with_status(if error.is_some() { 400 } else { 200 })

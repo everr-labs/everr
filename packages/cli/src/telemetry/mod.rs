@@ -6,5 +6,6 @@ pub mod client;
 pub mod collector;
 pub mod commands;
 
+mod local_auth;
 pub mod local_server;
 pub mod local_instance;
