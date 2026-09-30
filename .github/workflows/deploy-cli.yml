@@ -41,6 +41,15 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - name: Verify CLI release tag
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const { version } = JSON.parse(readFileSync('packages/cli/package.json', 'utf8'));
+          if (process.env.GITHUB_REF_NAME !== `@everr/cli@${version}`) {
+            throw new Error('Release tag does not match the CLI package version');
+          }
+          JS
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -153,11 +162,9 @@ jobs:
       - uses: actions/attest@v4
         with:
           subject-checksums: target/cli-release/SHA256SUMS
-      # Keep the deployment repository's existing artifact envelope. Its payload
-      # now contains only CLI binaries with the embedded local browser UI.
       - uses: actions/upload-artifact@v4
         with:
-          name: everr-desktop-release-${{ steps.version.outputs.version }}
+          name: everr-cli-release-${{ steps.version.outputs.version }}
           path: target/cli-release
           if-no-files-found: error
           retention-days: 14
@@ -173,6 +180,6 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           repository: everr-labs/everr-deploy
-          event-type: desktop-app-release
+          event-type: cli-release
           client-payload: |
-            {"source_repo":"${{ github.repository }}","run_id":"${{ github.run_id }}","sha":"${{ github.sha }}","version":"${{ steps.version.outputs.version }}","artifact_name":"everr-desktop-release-${{ steps.version.outputs.version }}"}
+            {"source_repo":"${{ github.repository }}","run_id":"${{ github.run_id }}","sha":"${{ github.sha }}","version":"${{ steps.version.outputs.version }}","artifact_name":"everr-cli-release-${{ steps.version.outputs.version }}"}
