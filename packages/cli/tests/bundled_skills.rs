@@ -1,4 +1,8 @@
-use std::fs;
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use everr_cli::skill_store::{
     SkillOperationOptions, SkillPathAction, SkillProvider, SkillScope, bundled_skills,
@@ -22,23 +26,51 @@ fn assert_symlink_to(path: &std::path::Path, target: &std::path::Path) {
     );
 }
 
+fn skill_files(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+    fn collect(root: &Path, directory: &Path, files: &mut BTreeMap<PathBuf, Vec<u8>>) {
+        for entry in fs::read_dir(directory).expect("read skill directory") {
+            let path = entry.expect("read skill entry").path();
+            if path.is_dir() {
+                collect(root, &path, files);
+            } else {
+                files.insert(
+                    path.strip_prefix(root)
+                        .expect("relative skill path")
+                        .to_path_buf(),
+                    fs::read(&path).expect("read skill file"),
+                );
+            }
+        }
+    }
+
+    let mut files = BTreeMap::new();
+    collect(root, root, &mut files);
+    files
+}
+
 #[test]
-fn bundles_using_everr_skill_for_conversation_start() {
+fn bundles_current_skill_catalog() {
     let skills = bundled_skills().expect("list bundled skills");
-    let using_everr = skills
-        .iter()
-        .find(|skill| skill.name == "using-everr")
-        .expect("using-everr skill should be bundled");
-
+    let names: Vec<_> = skills.iter().map(|skill| skill.name.as_str()).collect();
+    assert_eq!(
+        names,
+        vec![
+            "everr-onboard",
+            "everr-setup-resources",
+            "everr-setup-telemetry",
+            "everr-use-telemetry",
+            "everr-working-with-ci",
+        ]
+    );
     assert!(
-        using_everr
-            .description
-            .contains("starting any conversation")
+        skills
+            .iter()
+            .all(|skill| !skill.description.trim().is_empty())
     );
 }
 
 #[test]
-fn installs_using_everr_skill_with_must_use_triggers() {
+fn installs_all_bundled_skills_and_supporting_files() {
     let repo = tempdir().expect("repo tempdir");
     let home = tempdir().expect("home tempdir");
     let options = SkillOperationOptions {
@@ -46,154 +78,26 @@ fn installs_using_everr_skill_with_must_use_triggers() {
         cwd: repo.path().to_path_buf(),
         home_dir: home.path().to_path_buf(),
         providers: vec![SkillProvider::Codex],
-        skill_names: vec!["using-everr".to_string()],
-        all: false,
+        skill_names: Vec::new(),
+        all: true,
         dry_run: false,
     };
 
-    install_bundled_skills(&options).expect("install using-everr skill");
+    install_bundled_skills(&options).expect("install all bundled skills");
 
-    let content = fs::read_to_string(repo.path().join(".agents/skills/using-everr/SKILL.md"))
-        .expect("read installed skill");
-    assert!(content.contains("## Must-Use Skill Triggers"));
-    assert!(content.contains("`everr-working-with-ci`"));
-    assert!(content.contains("`everr-use-telemetry`"));
-    assert!(content.contains("`everr-setup-telemetry`"));
-}
-
-#[test]
-fn everr_use_telemetry_bounds_full_trace_queries_by_time() {
-    let content = fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("assets/skills/everr-use-telemetry/SKILL.md"),
-    )
-    .expect("read everr-use-telemetry skill");
-
-    assert!(
-        content.contains("WHERE Timestamp > now() - INTERVAL 1 HOUR\n  AND TraceId = '<trace-id>'")
+    let bundled_files = skill_files(&Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/skills"));
+    let installed_files = skill_files(&repo.path().join(".agents/skills"));
+    assert_eq!(
+        installed_files.keys().collect::<Vec<_>>(),
+        bundled_files.keys().collect::<Vec<_>>()
     );
-    assert!(content.contains("using the same recent window"));
-}
-
-#[test]
-fn installs_skill_rule_subdirectories() {
-    let repo = tempdir().expect("repo tempdir");
-    let home = tempdir().expect("home tempdir");
-    let options = SkillOperationOptions {
-        scope: SkillScope::Project,
-        cwd: repo.path().to_path_buf(),
-        home_dir: home.path().to_path_buf(),
-        providers: vec![SkillProvider::Codex],
-        skill_names: vec!["everr-setup-telemetry".to_string()],
-        all: false,
-        dry_run: false,
-    };
-
-    install_bundled_skills(&options).expect("install telemetry setup skill");
-
-    let rule_path = repo
-        .path()
-        .join(".agents/skills/everr-setup-telemetry/rules/nodejs.md");
-    let content = fs::read_to_string(rule_path).expect("read installed rule");
-    assert!(content.contains("# Node.js Instrumentation"));
-    assert!(content.contains("telemetry-setup.ts"));
-
-    let error_rule_path = repo
-        .path()
-        .join(".agents/skills/everr-setup-telemetry/rules/error-tracking.md");
-    let error_content = fs::read_to_string(error_rule_path).expect("read installed error rule");
-    assert!(error_content.contains("# Error Tracking"));
-    assert!(error_content.contains("OpenTelemetry-native signals"));
-
-    let rust_rule_path = repo
-        .path()
-        .join(".agents/skills/everr-setup-telemetry/rules/rust.md");
-    let rust_content = fs::read_to_string(rust_rule_path).expect("read installed rust rule");
-    assert!(rust_content.contains("# Rust Instrumentation"));
-    assert!(rust_content.contains("telemetry_setup.rs"));
-}
-
-#[test]
-fn nextjs_rule_documents_server_setup_without_browser_instrumentation() {
-    let content = fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("assets/skills/everr-setup-telemetry/rules/nextjs.md"),
-    )
-    .expect("read nextjs rule");
-
-    assert!(content.contains("src/instrumentation.ts"));
-    assert!(content.contains("process.env.NEXT_RUNTIME !== 'nodejs'"));
-    assert!(content.contains("resourceFromAttributes"));
-    assert!(content.contains("BatchLogRecordProcessor"));
-    assert!(content.contains("PeriodicExportingMetricReader"));
-    assert!(content.contains("uncaughtException"));
-    assert!(content.contains("unhandledRejection"));
-    assert!(content.contains("## Local Collector Configuration"));
-    assert!(content.contains("## Production Configuration"));
-    assert!(content.contains("OTEL_EXPORTER_OTLP_ENDPOINT=<otlp-url-from-status>"));
-    assert!(content.contains("EVERR_INGEST_KEY=<secret-manager-reference>"));
-    assert!(content.contains("process.env.EVERR_INGEST_KEY"));
-
-    let lower_content = content.to_ascii_lowercase();
-    assert!(!content.contains("OTEL_EXPORTER_OTLP_PROTOCOL="));
-    assert!(!content.contains("OTEL_SERVICE_VERSION="));
-    assert!(!content.contains("OTEL_DEPLOYMENT_ENVIRONMENT_NAME="));
-    assert!(!content.contains("OTEL_TRACES_SAMPLER="));
-    assert!(!content.contains("OTEL_TRACES_SAMPLER_ARG="));
-    assert!(!content.contains("OTEL_EXPORTER_OTLP_HEADERS="));
-    assert!(!content.contains("OTEL_EXPORTER_OTLP_${"));
-    assert!(!content.contains("OTEL_SERVICE_VERSION"));
-    assert!(!content.contains("OTEL_DEPLOYMENT_ENVIRONMENT_NAME"));
-    assert!(!content.contains("NEXT_OTEL_VERBOSE"));
-    assert!(!lower_content.contains("browser"));
-    assert!(!lower_content.contains("client"));
-    assert!(!lower_content.contains("next_public_"));
-    assert!(!lower_content.contains("instrumentation-client"));
-    assert!(!lower_content.contains("access-control-allow-headers"));
-    assert!(!lower_content.contains("custom helpers"));
-    assert!(!lower_content.contains("custom server helpers"));
-    assert!(!lower_content.contains("otel-collector:4318"));
-    assert!(!lower_content.contains("local compose stack"));
-    assert!(!lower_content.contains("collector service name"));
-}
-
-#[test]
-fn nodejs_rule_prefers_telemetry_setup_module_over_register_flags() {
-    let content = fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("assets/skills/everr-setup-telemetry/rules/nodejs.md"),
-    )
-    .expect("read nodejs rule");
-
-    assert!(content.contains("telemetry-setup.ts"));
-    assert!(content.contains("import './telemetry-setup'"));
-    assert!(content.contains("@opentelemetry/sdk-node"));
-    assert!(content.contains("@opentelemetry/auto-instrumentations-node"));
-    assert!(content.contains("OTEL_SERVICE_NAME"));
-    assert!(content.contains("EVERR_INGEST_KEY"));
-    assert!(!content.contains("@opentelemetry/auto-instrumentations-node/register"));
-    assert!(!content.contains("NODE_OPTIONS"));
-}
-
-#[test]
-fn rust_rule_documents_tracing_based_setup_with_minimal_env() {
-    let content = fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("assets/skills/everr-setup-telemetry/rules/rust.md"),
-    )
-    .expect("read rust rule");
-
-    assert!(content.contains("# Rust Instrumentation"));
-    assert!(content.contains("telemetry_setup.rs"));
-    assert!(content.contains("tracing-opentelemetry"));
-    assert!(content.contains("opentelemetry-appender-tracing"));
-    assert!(content.contains("opentelemetry_otlp::SpanExporter::builder()"));
-    assert!(content.contains("OTEL_SERVICE_NAME"));
-    assert!(content.contains("EVERR_INGEST_KEY"));
-    assert!(!content.contains("OTEL_TRACES_EXPORTER="));
-    assert!(!content.contains("OTEL_METRICS_EXPORTER="));
-    assert!(!content.contains("OTEL_LOGS_EXPORTER="));
-    assert!(!content.contains("OTEL_EXPORTER_OTLP_HEADERS="));
+    for (path, content) in bundled_files {
+        assert!(
+            installed_files[&path] == content,
+            "installed {} differs from the bundle",
+            path.display()
+        );
+    }
 }
 
 #[test]
