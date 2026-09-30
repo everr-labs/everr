@@ -48,19 +48,18 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     ensure_supported_platform()?;
 
     let status = super::local_instance::LocalStatus::inspect().await;
-    if let Some(identity) = status.running_instance() {
+    if status.running_instance().is_some() {
         if !args.quiet {
-            println!("Everr is already running (version {})", identity.version);
-            status.print();
+            print_endpoints();
         }
         open_ui(&args);
         return Ok(());
     }
     status.require_stopped()?;
     if args.detach {
-        let status = local_lifecycle::start_detached().await?;
+        local_lifecycle::start_detached().await?;
         if !args.quiet {
-            status.print();
+            print_endpoints();
             println!("log: {}", super::local_log::path()?.display());
         }
         open_ui(&args);
@@ -80,10 +79,7 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     let child = start_collector(&assets, &telemetry_dir, &instance_id).await?;
 
     if !args.quiet {
-        println!("collector: running");
-        println!("otlp: {}", crate::build::otlp_http_origin());
-        println!("sql: {}", crate::build::sql_http_origin());
-        println!("ui: {}", crate::build::local_ui_origin());
+        print_endpoints();
     }
 
     let mut child = Some(child);
@@ -283,6 +279,12 @@ pub(super) async fn terminate_child(child: &mut Child) {
             let _ = child.kill().await;
         }
     }
+}
+
+fn print_endpoints() {
+    println!("otlp: {}", crate::build::otlp_http_origin());
+    println!("sql: {}", crate::build::sql_http_origin());
+    println!("ui: {}", crate::build::local_ui_origin());
 }
 
 fn open_ui(args: &TelemetryStartArgs) {

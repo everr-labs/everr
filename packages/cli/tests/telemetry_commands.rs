@@ -178,11 +178,13 @@ fn start_reuses_ready_instance_without_starting_a_new_process() {
     let env = CliTestEnv::new();
     let collector = health_server("everr-local-collector", "one", false);
     let ui = health_server("everr-local-ui", "one", false);
+    let otlp = stopped_origin();
     for quiet in [false, true] {
         let mut command = env.command();
         command
             .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
             .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+            .env("EVERR_OTLP_HTTP_ORIGIN", &otlp)
             .args(["local", "start", "--no-open"]);
         if quiet {
             command.arg("--quiet");
@@ -191,9 +193,11 @@ fn start_reuses_ready_instance_without_starting_a_new_process() {
         if quiet {
             result.stdout(diff(""));
         } else {
-            result
-                .stdout(contains("Everr is already running"))
-                .stdout(contains(ui.url()));
+            result.stdout(diff(format!(
+                "otlp: {otlp}\nsql: {}\nui: {}\n",
+                collector.url(),
+                ui.url()
+            )));
         }
     }
 }
