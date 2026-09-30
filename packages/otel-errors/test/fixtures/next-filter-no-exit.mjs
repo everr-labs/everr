@@ -39,7 +39,7 @@ process.on("unhandledRejection", (reason) => {
   console.error("next-log", reason);
 });
 
-startSdk();
+startSdk({ onUnhandledRejection: "strict" });
 
 Promise.reject(new Error("fixture-next-rejection"));
 

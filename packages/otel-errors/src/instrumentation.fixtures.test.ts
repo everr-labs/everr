@@ -51,10 +51,23 @@ describe("node fatal exit semantics (fixtures)", () => {
     expect(metrics.map((m) => m.name)).toContain("pre_crash_total");
   });
 
-  it("unhandledRejection: flushes the record then exits 1", () => {
+  it("unhandledRejection: captures as error and keeps the process alive by default", () => {
+    const { status, logs, stderr } = runFixture("rejection-warn.mjs");
+    expect(status).toBe(0);
+    expect(logs.at(-1)).toMatchObject({
+      mechanism: "unhandledrejection",
+      severityNumber: 17,
+    });
+    expect(stderr).toContain("fixture-rejection");
+  });
+
+  it("unhandledRejection strict: flushes the record then exits 1", () => {
     const { status, logs } = runFixture("rejection-exit.mjs");
     expect(status).toBe(1);
-    expect(logs.at(-1)).toMatchObject({ mechanism: "unhandledrejection" });
+    expect(logs.at(-1)).toMatchObject({
+      mechanism: "unhandledrejection",
+      severityNumber: 21,
+    });
   });
 
   it("onFatal continue: captures but does not exit", () => {
@@ -81,7 +94,7 @@ describe("node fatal exit semantics (fixtures)", () => {
     expect(stderr).toContain("fixture-other-handler");
   });
 
-  it("sees the listener of the app behind the unhandledRejection filter of Next.js", () => {
+  it("strict: sees the listener of the app behind the unhandledRejection filter of Next.js", () => {
     const { status, logs, stderr } = runFixture("next-filter-no-exit.mjs");
     expect(status).toBe(0);
     expect(logs.at(-1)).toMatchObject({ mechanism: "unhandledrejection" });

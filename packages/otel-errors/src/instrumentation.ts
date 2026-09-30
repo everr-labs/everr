@@ -30,6 +30,20 @@ export interface ErrorsInstrumentationConfig extends InstrumentationConfig {
    */
   onFatal?: "exit" | "continue";
   /**
+   * The treatment of an unhandled rejection. The default value is "warn".
+   *
+   * - `"warn"`: the instrumentation captures the rejection with the severity
+   *   ERROR, writes it to stderr, and the process continues to operate. The
+   *   code does no flush and no exit. This is the same behavior that Sentry
+   *   has. Note: with this listener installed, Node does not do its default
+   *   crash on an unhandled rejection.
+   * - `"strict"`: the instrumentation treats the rejection as a fatal error,
+   *   as an uncaught exception. It captures it with the severity FATAL,
+   *   flushes, and stops the process. `onFatal` and
+   *   `exitEvenIfOtherHandlersAreRegistered` apply.
+   */
+  onUnhandledRejection?: "warn" | "strict";
+  /**
    * The time limit in milliseconds for the flush of the providers before the
    * process stops. The default value is 2000. The three signals share this one
    * budget. Thus an exporter that stops cannot keep the process open after the
@@ -175,11 +189,22 @@ export class ErrorsInstrumentation
         // on the capture, on the flush, or on the exit decision below.
         console.error(reason);
 
+        const fatal =
+          eventName === "uncaughtException" ||
+          this._config.onUnhandledRejection === "strict";
+
         capture({
           error: reason,
           mechanism,
-          severity: "fatal",
+          severity: fatal ? "fatal" : "error",
         });
+
+        // The process continues after a rejection in "warn" mode. Thus the
+        // batch processors send the record at their usual time, and the code
+        // does not flush.
+        if (!fatal) {
+          return;
+        }
 
         // Read the list now and not after the flush. The list can change
         // while the flush operates, and the decision belongs to the condition

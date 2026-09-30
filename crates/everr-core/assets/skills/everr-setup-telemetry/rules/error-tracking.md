@@ -47,7 +47,7 @@ Keep stack traces as one structured field. Do not emit multiline stack traces as
 
 ## Handled vs Unhandled
 
-Do not add a handled flag. How the error reached you is already on the record: `@everr/otel-errors` and `@everr/otel-web` stamp `everr.error.mechanism` (`uncaughtException`, `unhandledrejection`, `onerror`, `react`, `manual`), and a crash carries `FATAL` severity where a caught failure carries `ERROR`. A boolean beside those is a second, weaker spelling of the same fact.
+Do not add a handled flag. How the error reached you is already on the record: `@everr/otel-errors` and `@everr/otel-web` stamp `everr.error.mechanism` (`uncaughtException`, `unhandledrejection`, `onerror`, `react`, `manual`), and a crash carries `FATAL` severity where a caught failure, or an unhandled rejection the process survives, carries `ERROR`. A boolean beside those is a second, weaker spelling of the same fact.
 
 If the codebase already has a project-specific error namespace, follow it. Otherwise keep custom error attributes sparse and documented.
 
