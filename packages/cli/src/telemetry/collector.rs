@@ -56,6 +56,8 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
         return Ok(());
     }
     status.require_stopped()?;
+    super::local_instance::require_free_port(&crate::build::sql_http_origin()).await?;
+    super::local_instance::require_free_port(&crate::build::otlp_http_origin()).await?;
     let instance_id = format!(
         "{:x}-{:x}",
         std::process::id(),
@@ -66,8 +68,6 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
 
     let (restart_tx, mut restart_rx) = tokio::sync::mpsc::channel(1);
     let ui = super::local_server::LocalServer::bind(restart_tx, instance_id.clone()).await?;
-    super::local_instance::require_free_port(&crate::build::sql_http_origin()).await?;
-    super::local_instance::require_free_port(&crate::build::otlp_http_origin()).await?;
     let telemetry_dir = crate::build::telemetry_dir()?;
     let assets = extract_embedded_assets().context("extract embedded collector assets")?;
 
