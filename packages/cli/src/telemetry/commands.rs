@@ -23,10 +23,7 @@ pub async fn run(args: LocalArgs) -> Result<()> {
 }
 
 async fn run_status() -> Result<()> {
-    let health_endpoint = format!(
-        "{}/",
-        crate::build::healthcheck_origin().trim_end_matches('/')
-    );
+    let health_endpoint = crate::build::healthcheck_endpoint();
     let status = crate::collector::wait_healthcheck_result(
         &health_endpoint,
         std::time::Duration::from_secs(1),

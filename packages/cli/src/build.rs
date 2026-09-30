@@ -75,6 +75,7 @@ pub const OTLP_HTTP_PORT: u16 = 54318;
 #[cfg(not(debug_assertions))]
 pub const OTLP_HTTP_PORT: u16 = 54418;
 
+// Legacy health port retained for the existing orphan-cleanup logic.
 #[cfg(debug_assertions)]
 pub const HEALTHCHECK_PORT: u16 = 54319;
 
@@ -106,13 +107,9 @@ pub fn otlp_http_origin() -> String {
     format!("http://127.0.0.1:{OTLP_HTTP_PORT}")
 }
 
-/// Origin for the local collector healthcheck endpoint.
-pub fn healthcheck_origin() -> String {
-    #[cfg(debug_assertions)]
-    if let Ok(origin) = std::env::var("EVERR_HEALTHCHECK_ORIGIN") {
-        return origin;
-    }
-    format!("http://127.0.0.1:{HEALTHCHECK_PORT}")
+/// Readiness endpoint served by the local collector's SQL HTTP listener.
+pub fn healthcheck_endpoint() -> String {
+    format!("{}/health", sql_http_origin().trim_end_matches('/'))
 }
 
 /// Origin for the local telemetry SQL HTTP endpoint served by the collector
@@ -205,18 +202,18 @@ mod tests {
     }
 
     #[test]
-    fn healthcheck_origin_honors_debug_override() {
+    fn healthcheck_endpoint_uses_sql_origin() {
         let _guard = crate::test_support::ENV_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        const KEY: &str = "EVERR_HEALTHCHECK_ORIGIN";
+        const KEY: &str = "EVERR_SQL_HTTP_ORIGIN";
         let previous = std::env::var_os(KEY);
 
         unsafe {
             std::env::set_var(KEY, "http://127.0.0.1:65531");
         }
 
-        let origin = super::healthcheck_origin();
+        let origin = super::healthcheck_endpoint();
 
         match previous {
             Some(value) => unsafe {
@@ -227,7 +224,7 @@ mod tests {
             },
         }
 
-        assert_eq!(origin, "http://127.0.0.1:65531");
+        assert_eq!(origin, "http://127.0.0.1:65531/health");
     }
 
     #[test]

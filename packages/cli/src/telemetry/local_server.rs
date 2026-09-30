@@ -297,9 +297,9 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Val
 }
 
 async fn collector_status() -> Result<Value> {
-    let running = build::healthcheck_origin();
+    let running = build::healthcheck_endpoint();
     let healthy =
-        crate::collector::wait_healthcheck(&format!("{running}/"), Duration::from_secs(1)).await;
+        crate::collector::wait_healthcheck(&running, Duration::from_secs(1)).await;
     Ok(
         json!({"status":if healthy {"running"} else {"stopped"},"otlpEndpoint":build::otlp_http_origin(),"sqlEndpoint":build::sql_http_origin(),"healthEndpoint":running,"telemetryDir":build::telemetry_dir()?.display().to_string()}),
     )
