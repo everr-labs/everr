@@ -79,10 +79,7 @@ function renderMainApp(
       case "get_collector_status":
         return collectorStatus;
       case "telemetry_sql_query":
-      case "get_skills_status":
         return [];
-      case "install_skills":
-        return null;
       case "restart_collector":
         return restartCollectorSpy();
       default:

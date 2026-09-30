@@ -8,4 +8,4 @@ Use `pnpm dev:local --no-open` to suppress browser launch. Vite proxies `/api` t
 
 To check the embedded UI, run `pnpm dev:cli`, then `./target/debug/everr-dev local start`. The embedded UI on port `54321` updates when rebuilt. Collector Go changes require regenerating the embedded assets with `pnpm dev:cli` before restarting local development.
 
-The local UI explores logs, traces, and errors stored by the local collector. Settings manage agent skills, collector status, local endpoints, and collector restarts. No Cloud account is required to explore local telemetry. Optional sign-in connects the CLI to Everr Cloud using the same saved session.
+The local UI explores logs, traces, and errors stored by the local collector. Settings show collector status and local endpoints and allow collector restarts. No Cloud account is required to explore local telemetry. Optional sign-in connects the CLI to Everr Cloud using the same saved session. Install agent skills through the CLI.

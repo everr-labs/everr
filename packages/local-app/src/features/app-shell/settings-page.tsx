@@ -5,7 +5,6 @@ import {
   useCollectorStatusQuery,
   useRestartCollectorMutation,
 } from "../local-telemetry/collector-status";
-import { SkillsSection } from "../skills/skills-section";
 import { SectionsPage } from "./title-bar";
 import { SettingsSection } from "./ui";
 
@@ -78,7 +77,6 @@ export function SettingsPage() {
   return (
     <SectionsPage title="Settings">
       <AuthSettingsSection />
-      <SkillsSection />
       <LocalTelemetrySection />
     </SectionsPage>
   );

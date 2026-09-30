@@ -7,7 +7,6 @@ use crate::{
         DeviceAuthorization, DevicePollStatus, build_auth_http_client, poll_device_authorization,
         session_from_device_token, start_device_authorization,
     },
-    skill_store::{self as skills, SkillOperationOptions, SkillProvider, SkillScope},
 };
 use anyhow::{Context, Result, anyhow, bail};
 #[cfg(everr_embedded_local_ui)]
@@ -276,21 +275,6 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Val
             Ok(json!({"email":profile.email,"name":profile.name,"profile_url":profile.profile_url}))
         }
         "get_org" => Ok(json!({"name":api()?.get_org().await?.name})),
-        "get_skills_status" => tokio::task::spawn_blocking(|| -> Result<Value> {
-            let home = dirs::home_dir().context("resolve home directory")?;
-            let bundled = skills::bundled_skills()?;
-            Ok(json!(skills::provider_statuses(&home).into_iter().map(|p| json!({"provider":p.provider.as_str(),"display_name":p.provider.display_name(),"detected":p.detected,"installed":bundled.iter().all(|s| std::path::Path::new(&p.path).join(&s.name).join("SKILL.md").is_file())})).collect::<Vec<_>>()))
-        }).await?,
-        "install_skills" => {
-            tokio::task::spawn_blocking(move || -> Result<()> {
-                let names: Vec<String> = serde_json::from_value(args["providers"].clone())?;
-                let providers = names.iter().map(|name| SkillProvider::ALL.into_iter().find(|p| p.as_str() == name).with_context(|| format!("unknown skill provider: {name}"))).collect::<Result<Vec<_>>>()?;
-                if providers.is_empty() { bail!("select at least one skill provider"); }
-                skills::install_bundled_skills(&SkillOperationOptions { scope:SkillScope::Global,cwd:std::env::current_dir()?,home_dir:dirs::home_dir().context("resolve home directory")?,providers,skill_names:Vec::new(),all:true,dry_run:false })?;
-                Ok(())
-            }).await??;
-            Ok(Value::Null)
-        }
         "get_collector_status" => collector_status().await,
         "restart_collector" => {
             let (tx, rx) = oneshot::channel();
