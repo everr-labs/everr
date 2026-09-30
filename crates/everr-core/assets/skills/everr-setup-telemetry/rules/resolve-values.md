@@ -62,7 +62,7 @@ Generate automatically; do not ask the user.
 
 ## OTLP Endpoint
 
-For local development, run `everr local status` and use the returned `otlp:` URL. Do not guess a localhost port.
+For local development and `everr-onboard`, run `everr local status` and use the returned `otlp:` URL. Do not guess a localhost port.
 
 For production, use Everr hosted ingest base endpoint: `https://ingest.everr.dev/`
 
@@ -72,7 +72,7 @@ For local collector endpoints, no application auth header is normally needed.
 
 For production Everr ingest:
 
-- Store the ingest key in the deployment secret manager.
+- Store production ingest keys in the deployment secret manager.
 - Use `EVERR_INGEST_KEY` by convention.
 - Set `Authorization: Bearer <ingest-key>` server-side only.
 - Never commit keys, print keys, invent keys, or expose `EVERR_INGEST_KEY` in browser bundles.

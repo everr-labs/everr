@@ -1,0 +1,173 @@
+use std::io::{self, IsTerminal};
+
+use anyhow::{Context, Result};
+use serde_json::Value;
+
+use crate::cli::{LocalArgs, LocalSubcommand, TelemetryFormat, TelemetryQueryArgs};
+use crate::command_telemetry;
+use crate::telemetry::client::{QueryClient, Rows};
+use crate::telemetry::collector;
+
+const COLLECTOR_UNAVAILABLE_MESSAGE: &str =
+    "telemetry collector isn't running — run `everr local start`";
+const LOCALHOST_NETWORK_BLOCKED_MESSAGE: &str = "can't reach the telemetry collector because local network access is blocked for this process — allow access to 127.0.0.1 or run the query outside the sandbox";
+
+pub async fn run(args: LocalArgs) -> Result<()> {
+    match args.command {
+        LocalSubcommand::Start(start) => collector::run_start(start).await,
+        LocalSubcommand::Query(q) => tokio::task::spawn_blocking(move || run_query(q))
+            .await
+            .context("telemetry query task failed")?,
+        LocalSubcommand::Status => run_status().await,
+    }
+}
+
+async fn run_status() -> Result<()> {
+    let health_endpoint = format!(
+        "{}/",
+        everr_core::build::healthcheck_origin().trim_end_matches('/')
+    );
+    let status = everr_core::collector::wait_healthcheck_result(
+        &health_endpoint,
+        std::time::Duration::from_secs(1),
+    )
+    .await;
+
+    match status {
+        everr_core::collector::HealthcheckResult::Running => {
+            println!("collector: running");
+            println!("otlp: {}", everr_core::build::otlp_http_origin());
+            println!("sql: {}", everr_core::build::sql_http_origin());
+            let ui = everr_core::build::local_ui_origin();
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(1))
+                .build()?;
+            if client
+                .get(&ui)
+                .send()
+                .await
+                .is_ok_and(|r| r.status().is_success())
+            {
+                println!("ui: {ui}");
+            }
+            Ok(())
+        }
+        everr_core::collector::HealthcheckResult::NetworkBlocked => {
+            println!("collector: unreachable");
+            eprintln!("{LOCALHOST_NETWORK_BLOCKED_MESSAGE}");
+            command_telemetry::exit(2);
+        }
+        everr_core::collector::HealthcheckResult::Unavailable => {
+            println!("collector: stopped");
+            eprintln!("telemetry collector isn't running - run `everr local start`");
+            command_telemetry::exit(2);
+        }
+    }
+}
+
+fn run_query(args: TelemetryQueryArgs) -> Result<()> {
+    let client = QueryClient::new(everr_core::build::sql_http_origin());
+    let rows = match client.query(&args.sql) {
+        Ok(rows) => rows,
+        Err(err) => {
+            if is_connect_error(&err) {
+                eprintln!("{}", connection_failure_message(&err));
+                command_telemetry::exit(2);
+            }
+            return Err(err).context("query failed");
+        }
+    };
+
+    let format = args.format.unwrap_or_else(|| {
+        if io::stdout().is_terminal() {
+            TelemetryFormat::Table
+        } else {
+            TelemetryFormat::Ndjson
+        }
+    });
+    render(&rows, format);
+    Ok(())
+}
+
+fn is_connect_error(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        cause
+            .downcast_ref::<reqwest::Error>()
+            .map(|source| source.is_connect())
+            .unwrap_or(false)
+    })
+}
+
+fn connection_failure_message(err: &anyhow::Error) -> &'static str {
+    if is_permission_denied(err) {
+        return LOCALHOST_NETWORK_BLOCKED_MESSAGE;
+    }
+
+    COLLECTOR_UNAVAILABLE_MESSAGE
+}
+
+fn is_permission_denied(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .map(|source| source.kind() == std::io::ErrorKind::PermissionDenied)
+            .unwrap_or(false)
+    })
+}
+
+pub(crate) fn render(rows: &Rows, format: TelemetryFormat) {
+    match format {
+        TelemetryFormat::Ndjson => {
+            for row in &rows.values {
+                println!("{}", serde_json::to_string(row).unwrap());
+            }
+        }
+        TelemetryFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&rows.values).unwrap());
+        }
+        TelemetryFormat::Table => render_table(rows),
+    }
+}
+
+fn render_table(rows: &Rows) {
+    let Some(first) = rows.values.first() else {
+        println!("(no rows)");
+        return;
+    };
+    let Some(object) = first.as_object() else {
+        println!("(rows are not objects)");
+        return;
+    };
+
+    let cols: Vec<&str> = object.keys().map(String::as_str).collect();
+    println!("{}", cols.join(" | "));
+    for row in &rows.values {
+        let cells: Vec<String> = cols
+            .iter()
+            .map(|key| row.get(*key).map(value_to_cell).unwrap_or_default())
+            .collect();
+        println!("{}", cells.join(" | "));
+    }
+}
+
+fn value_to_cell(value: &Value) -> String {
+    match value {
+        Value::Null => String::new(),
+        Value::String(s) => s.clone(),
+        _ => value.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::anyhow;
+
+    use super::connection_failure_message;
+
+    #[test]
+    fn permission_denied_connection_mentions_sandbox_network_access() {
+        let err = anyhow!(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+
+        assert!(connection_failure_message(&err).contains("network access is blocked"));
+    }
+}

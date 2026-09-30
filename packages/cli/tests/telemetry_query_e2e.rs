@@ -1,0 +1,201 @@
+mod support;
+
+use std::fs;
+use std::io::Read;
+use std::path::PathBuf;
+use std::process::Command;
+use std::process::Stdio;
+use std::time::{Duration, Instant};
+
+use tempfile::TempDir;
+
+#[test]
+fn telemetry_query_happy_path() {
+    let Some(collector_binary) = resolve_collector_binary() else {
+        eprintln!(
+            "skipping: collector binary not found under collector/build-local/. \
+             Run `pnpm --filter @everr/cli build:debug` to build it."
+        );
+        return;
+    };
+
+    let collector_home = TempDir::new().expect("create collector tempdir");
+    let cli_home = TempDir::new().expect("create cli tempdir");
+    let otlp_port = pick_free_port();
+    let sql_port = pick_free_port();
+    let health_port = pick_free_port();
+
+    let chdb_path = collector_home.path().join("chdb");
+    let mut collector_command = Command::new(&collector_binary);
+    collector_command
+        .arg("--otlp-http-endpoint")
+        .arg(format!("http://127.0.0.1:{otlp_port}"))
+        .arg("--health-http-endpoint")
+        .arg(format!("http://127.0.0.1:{health_port}"))
+        .arg("--sql-http-endpoint")
+        .arg(format!("http://127.0.0.1:{sql_port}"))
+        .arg("--chdb-path")
+        .arg(&chdb_path)
+        .arg("--ttl")
+        .arg("7d")
+        .stderr(Stdio::piped());
+    if let Some(chdb_lib) = resolve_chdb_lib() {
+        collector_command.env("CHDB_LIB_PATH", chdb_lib);
+    }
+    let mut collector_process = collector_command.spawn().expect("spawn collector");
+    let mut collector_stderr = collector_process.stderr.take().expect("collector stderr");
+    let mut collector = CollectorGuard::spawn(collector_process);
+
+    if !wait_for_health(&mut collector.child, &mut collector_stderr, health_port) {
+        return;
+    }
+    push_log(otlp_port);
+    std::thread::sleep(Duration::from_secs(2));
+
+    let cli_binary = copy_everr_dev_binary();
+    let output = Command::new(&cli_binary.path)
+        .env("HOME", cli_home.path())
+        .env("XDG_CONFIG_HOME", cli_home.path().join("config"))
+        .env("XDG_DATA_HOME", cli_home.path().join("data"))
+        .env(
+            "EVERR_SQL_HTTP_ORIGIN",
+            format!("http://127.0.0.1:{sql_port}"),
+        )
+        .args([
+            "local",
+            "query",
+            "SELECT count() AS c FROM logs",
+            "--format",
+            "ndjson",
+        ])
+        .output()
+        .expect("run telemetry query");
+
+    assert!(
+        output.status.success(),
+        "cli failed: status={:?}\nstderr={}\nstdout={}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(r#""c":1"#), "unexpected stdout: {stdout}");
+}
+
+fn resolve_collector_binary() -> Option<PathBuf> {
+    let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../collector/build-local/everr-local-collector");
+    candidate.exists().then_some(candidate)
+}
+
+fn resolve_chdb_lib() -> Option<PathBuf> {
+    let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/chdb/v26.5.0-extract/libchdb.so");
+    candidate.exists().then_some(candidate)
+}
+
+fn copy_everr_dev_binary() -> DevBinary {
+    let source = assert_cmd::cargo::cargo_bin!("everr");
+    let dir = TempDir::new().expect("create cli binary tempdir");
+    let target = dir.path().join("everr-dev");
+    fs::copy(&source, &target).expect("copy everr binary");
+    DevBinary {
+        _dir: dir,
+        path: target,
+    }
+}
+
+fn pick_free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("bind ephemeral port")
+        .local_addr()
+        .expect("read local addr")
+        .port()
+}
+
+fn wait_for_health(
+    collector: &mut std::process::Child,
+    collector_stderr: &mut std::process::ChildStderr,
+    port: u16,
+) -> bool {
+    let client = reqwest::blocking::Client::new();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let urls = [
+        format!("http://127.0.0.1:{port}/"),
+        format!("http://127.0.0.1:{port}/health"),
+    ];
+
+    while Instant::now() < deadline {
+        if let Some(status) = collector.try_wait().expect("poll collector") {
+            let mut stderr = String::new();
+            let _ = collector_stderr.read_to_string(&mut stderr);
+            if stderr.contains("unknown type: \"chdb\"")
+                || stderr.contains("unknown type: \"sqlhttp\"")
+                || stderr.contains("unknown flag")
+                || stderr.contains("flag provided but not defined")
+            {
+                eprintln!(
+                    "skipping: built collector binary does not include the gateway yet (exit: {status}). \
+                     Rebuild collector/build-local/everr-local-collector from the current source tree."
+                );
+                return false;
+            }
+            panic!("collector exited before health check succeeded: {status}\nstderr={stderr}");
+        }
+
+        for url in &urls {
+            if client
+                .get(url)
+                .send()
+                .map(|resp| resp.status().is_success())
+                .unwrap_or(false)
+            {
+                return true;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
+    panic!("timed out waiting for collector health endpoint on port {port}");
+}
+
+fn push_log(otlp_port: u16) {
+    let body = format!(
+        r#"{{"resourceLogs":[{{"resource":{{"attributes":[{{"key":"service.name","value":{{"stringValue":"svc"}}}}]}},"scopeLogs":[{{"logRecords":[{{"timeUnixNano":"{}","severityText":"INFO","body":{{"stringValue":"hello"}}}}]}}]}}]}}"#,
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos()
+    );
+    reqwest::blocking::Client::new()
+        .post(format!("http://127.0.0.1:{otlp_port}/v1/logs"))
+        .header("content-type", "application/json")
+        .body(body)
+        .send()
+        .expect("send otlp log")
+        .error_for_status()
+        .expect("otlp response");
+}
+
+struct CollectorGuard {
+    child: std::process::Child,
+}
+
+impl CollectorGuard {
+    fn spawn(child: std::process::Child) -> Self {
+        Self { child }
+    }
+}
+
+impl Drop for CollectorGuard {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+struct DevBinary {
+    _dir: TempDir,
+    path: PathBuf,
+}

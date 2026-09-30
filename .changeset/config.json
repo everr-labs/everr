@@ -12,7 +12,8 @@
     "@everr/datemath",
     "@everr/docs",
     "@everr/telemetry-explorer",
-    "@everr/ui"
+    "@everr/ui",
+    "@everr/local-app"
   ],
   "privatePackages": {
     "version": true,

@@ -1,0 +1,23 @@
+{
+  "name": "@everr/cli",
+  "private": true,
+  "version": "0.8.2",
+  "type": "module",
+  "scripts": {
+    "build": "node ./scripts/build-cli.ts release",
+    "build:debug": "node ./scripts/build-cli.ts debug",
+    "build:release": "node ./scripts/build-cli.ts release",
+    "test": "vitest run",
+    "install:debug": "node ./scripts/build-cli.ts debug --install"
+  },
+  "dependencies": {
+    "@everr/local-app": "workspace:*",
+    "semver": "^7.8.0",
+    "zx": "^8.8.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.2",
+    "@types/semver": "^7.7.1",
+    "typescript": "catalog:"
+  }
+}

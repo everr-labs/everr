@@ -4,21 +4,21 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:web": "pnpm --filter @everr/app dev",
-    "dev:desktop": "pnpm --filter @everr/desktop-app dev",
-    "dev:cli": "pnpm --filter @everr/desktop-app build:cli:debug",
+    "dev:cli": "pnpm --filter @everr/cli build:debug",
     "dev:docs": "pnpm --filter @everr/docs dev",
     "dev:storybook": "pnpm --filter @everr/storybook storybook",
-    "build:desktop": "pnpm --filter @everr/desktop-app build:desktop",
-    "build:desktop:ci": "pnpm --filter @everr/desktop-app build:desktop:ci",
     "check": "biome check",
     "check:fix": "biome check --fix",
     "changeset": "changeset",
-    "changeset:version": "changeset version && node scripts/sync-desktop-app-version.mjs",
+    "changeset:version": "changeset version",
     "changeset:publish": "node scripts/publish-packages.mjs",
     "changeset:tag": "changeset tag",
     "postinstall": "lefthook install",
     "test": "vitest",
-    "test:watch": "vitest --watch --ui"
+    "test:watch": "vitest --watch --ui",
+    "dev:local": "pnpm --filter @everr/local-app dev",
+    "dev:local:ui": "pnpm --filter @everr/local-app dev:ui",
+    "build:cli": "pnpm --filter @everr/cli build:release"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",

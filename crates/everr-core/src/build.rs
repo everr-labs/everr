@@ -87,6 +87,15 @@ pub const SQL_HTTP_PORT: u16 = 54320;
 #[cfg(not(debug_assertions))]
 pub const SQL_HTTP_PORT: u16 = 54420;
 
+#[cfg(debug_assertions)]
+pub const LOCAL_UI_PORT: u16 = 54321;
+#[cfg(not(debug_assertions))]
+pub const LOCAL_UI_PORT: u16 = 54421;
+
+pub fn local_ui_origin() -> String {
+    format!("http://127.0.0.1:{LOCAL_UI_PORT}")
+}
+
 /// Origin (scheme + host + port) for the local OTLP HTTP collector.
 /// Instrumented code points its OTLP HTTP exporter at this.
 pub fn otlp_http_origin() -> String {
@@ -119,12 +128,10 @@ pub fn sql_http_origin() -> String {
 /// Resolve the local-only diagnostic telemetry directory for this build.
 ///
 /// On macOS this is `~/Library/Application Support/everr/telemetry[-dev]/`.
-/// Debug builds (including `everr-dev` and `cargo tauri dev`) resolve to
+/// Debug builds resolve to
 /// `telemetry-dev/`; release builds resolve to `telemetry/`.
 ///
-/// Both the Desktop app sidecar supervisor (writer) and the CLI read path
-/// (reader) MUST call this function so the two sides cannot drift. See the
-/// spec's On-disk contract section for the rationale.
+/// The local collector and CLI queries share this data directory.
 pub fn telemetry_dir() -> anyhow::Result<PathBuf> {
     if let Ok(path) = std::env::var(TELEMETRY_DIR_OVERRIDE_ENV) {
         if !path.trim().is_empty() {
