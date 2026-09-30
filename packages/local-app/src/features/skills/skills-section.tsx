@@ -33,7 +33,7 @@ function installSkills(providers: SkillProvider[]) {
 }
 
 const SECTION_DESCRIPTION =
-  "Skills teach your coding agents to work with CI and use your telemetry.";
+  "Skills teach your coding agents to instrument apps and explore local telemetry.";
 
 export function SkillsSection() {
   const queryClient = useQueryClient();

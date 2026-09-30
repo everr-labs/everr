@@ -131,7 +131,7 @@ make run
 pnpm dev
 ```
 
-Use `pnpm dev:web` or `pnpm dev:docs` to start a web surface. Run `pnpm dev:local` to start the local UI with hot reload and its Rust CLI backend and collector. The command opens `http://127.0.0.1:1420`, watches Rust changes for rebuilds and restarts, and stops all its processes on Ctrl+C. Use `--no-open` to suppress browser launch. Cloud features use the hosted app development server started by `pnpm dev:web`.
+Use `pnpm dev:web` or `pnpm dev:docs` to start a web surface. Run `pnpm dev:local` to start the local UI with hot reload and its Rust CLI backend and collector. The command opens `http://127.0.0.1:1420`, watches Rust changes for rebuilds and restarts, and stops all its processes on Ctrl+C. Use `--no-open` to suppress browser launch. Use `pnpm dev:web` for the hosted app and development Cloud sign-in.
 
 Use `pnpm dev:local:ui` to run only Vite against an already running development CLI. Run `pnpm dev:cli` to rebuild the CLI's embedded UI and collector assets, then `./target/debug/everr-dev local start` to check the packaged experience.
 

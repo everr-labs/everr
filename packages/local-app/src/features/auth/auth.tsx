@@ -15,12 +15,9 @@ import {
   FeatureLoadingText,
   SettingsSection,
 } from "../app-shell/ui";
-import {
-  notificationEmailsQueryKey,
-  orgQueryKey,
-  runsListQueryKey,
-  userProfileQueryKey,
-} from "../ci/query-keys";
+
+const userProfileQueryKey = ["local-app", "user-profile"] as const;
+const orgQueryKey = ["local-app", "org"] as const;
 
 type AuthStatus = {
   status: "signed_in" | "signed_out";
@@ -122,11 +119,9 @@ function useNow(tickMs = 1_000) {
   return now;
 }
 
-function clearNotificationSettingsCache(queryClient: QueryClient) {
-  queryClient.removeQueries({ queryKey: notificationEmailsQueryKey });
+function clearAccountCache(queryClient: QueryClient) {
   queryClient.removeQueries({ queryKey: userProfileQueryKey });
   queryClient.removeQueries({ queryKey: orgQueryKey });
-  queryClient.removeQueries({ queryKey: runsListQueryKey });
 }
 
 export function useAuthStatusQuery() {
@@ -172,7 +167,7 @@ export function useSignInMutation() {
       }
 
       if (data.status === "signed_in") {
-        clearNotificationSettingsCache(queryClient);
+        clearAccountCache(queryClient);
         queryClient.setQueryData(authStatusQueryKey, data);
         queryClient.setQueryData(pendingSignInQueryKey, null);
         toast.success("Signed in.");
@@ -208,7 +203,7 @@ export function useSignOutMutation() {
   return useMutation({
     mutationFn: signOut,
     onSuccess(data) {
-      clearNotificationSettingsCache(queryClient);
+      clearAccountCache(queryClient);
       queryClient.setQueryData(authStatusQueryKey, data);
       queryClient.setQueryData(pendingSignInQueryKey, null);
       toast.success("Logged out.");
@@ -220,15 +215,10 @@ export function useSignOutMutation() {
   });
 }
 
-function AuthContent({
-  layout,
-  title = "Authenticate your Everr account",
-  description = "Connect the CLI to Everr Cloud or complete a pending sign-in.",
-}: {
-  layout: "settings" | "standalone";
-  title?: string;
-  description?: string;
-}) {
+function AuthContent() {
+  const title = "Authenticate your Everr account";
+  const description =
+    "Connect the CLI to Everr Cloud or complete a pending sign-in.";
   const queryClient = useQueryClient();
   const authStatusQuery = useAuthStatusQuery();
   const signInMutation = useSignInMutation();
@@ -269,7 +259,7 @@ function AuthContent({
     }
 
     if (pollQuery.data.status === "signed_in") {
-      clearNotificationSettingsCache(queryClient);
+      clearAccountCache(queryClient);
       queryClient.setQueryData(authStatusQueryKey, pollQuery.data);
       queryClient.setQueryData(pendingSignInQueryKey, null);
       toast.success("Signed in.");
@@ -325,7 +315,7 @@ function AuthContent({
     />
   ) : signedIn ? (
     <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
-      The CLI is connected to Everr Cloud. You can explore your CI runs here.
+      The CLI is connected to Everr Cloud.
     </p>
   ) : pendingError ? (
     <FeatureErrorText
@@ -388,37 +378,10 @@ function AuthContent({
     </p>
   );
 
-  if (layout === "standalone") {
-    return (
-      <div className="grid gap-5">
-        <div className="grid gap-1.5 text-center">
-          <h2 className="m-0 text-lg font-medium tracking-tight">{title}</h2>
-          <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
-            {description}
-          </p>
-        </div>
-        {content}
-        {action ? <div className="flex justify-center">{action}</div> : null}
-      </div>
-    );
-  }
-
   return (
     <SettingsSection title={title} description={description} action={action}>
       {content}
     </SettingsSection>
-  );
-}
-
-export function AuthStandalone({
-  title,
-  description,
-}: {
-  title?: string;
-  description?: string;
-} = {}) {
-  return (
-    <AuthContent layout="standalone" title={title} description={description} />
   );
 }
 
@@ -433,5 +396,5 @@ export function AuthSettingsSection() {
     return null;
   }
 
-  return <AuthContent layout="settings" />;
+  return <AuthContent />;
 }

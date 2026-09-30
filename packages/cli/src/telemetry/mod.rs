@@ -6,5 +6,4 @@ pub mod client;
 pub mod collector;
 pub mod commands;
 
-mod auto_fix_prompt;
 pub mod local_server;
