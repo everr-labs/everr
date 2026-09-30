@@ -26,6 +26,7 @@ use tracing::Instrument;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let log_capture = telemetry::LocalLogCapture::start()?;
     let argv: Vec<std::ffi::OsString> = std::env::args_os().collect();
     let cli = Cli::parse_from(argv.clone());
     let telemetry = command_telemetry::init();
@@ -46,6 +47,13 @@ async fn main() -> Result<()> {
     .await;
 
     telemetry.shutdown();
+
+    if log_capture.is_some() {
+        if let Err(error) = &result {
+            eprintln!("Error: {error:#}");
+        }
+    }
+    drop(log_capture);
 
     result
 }

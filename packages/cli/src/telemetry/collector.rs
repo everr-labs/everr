@@ -61,10 +61,7 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
         let status = local_lifecycle::start_detached().await?;
         if !args.quiet {
             status.print();
-            println!(
-                "log: {}",
-                crate::build::telemetry_dir()?.join("local.log").display()
-            );
+            println!("log: {}", super::local_log::path()?.display());
         }
         open_ui(&args);
         return Ok(());
