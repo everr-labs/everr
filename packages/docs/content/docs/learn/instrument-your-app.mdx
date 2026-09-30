@@ -7,13 +7,13 @@ This is step 2 of getting started with Everr: set up OpenTelemetry in your app, 
 
 ## Set up OpenTelemetry
 
-**With your Agent**: the fastest path is to let it run the `everr-onboard` skill.
+**With your Agent**: the fastest path is to let it run the `everr-setup-telemetry` skill.
 
 ```text
-/everr-onboard
+/everr-setup-telemetry Instrument this app and send telemetry to my local Everr Collector
 ```
 
-The skill inspects your app, adds the instrumentation needed for one real path, points its exporter at the local Collector (starting the Collector if needed), and verifies fresh telemetry. Local onboarding works without Cloud sign-in or an ingest key.
+The skill adds the OpenTelemetry SDK to your app, points its exporter at the local Collector (starting the Collector if needed), and confirms the wiring works.
 
 **By hand**: install the OpenTelemetry SDK for your language and point its exporter at the local Collector's endpoint. If your app already emits OpenTelemetry, that's the only change. Keep this to development and test environments.
 

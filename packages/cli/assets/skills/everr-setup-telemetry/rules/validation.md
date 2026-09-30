@@ -9,7 +9,6 @@ Before querying the backend, verify:
 - Local collector is running when exporting locally.
 
 For local Everr runs, use `everr local status` and the returned `otlp:` URL.
-For `everr-onboard`, verify the locally running app's telemetry with `everr local query`.
 
 ## Error Path Gate
 

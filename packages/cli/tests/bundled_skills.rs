@@ -55,7 +55,6 @@ fn bundles_current_skill_catalog() {
     assert_eq!(
         names,
         vec![
-            "everr-onboard",
             "everr-setup-resources",
             "everr-setup-telemetry",
             "everr-use-telemetry",
