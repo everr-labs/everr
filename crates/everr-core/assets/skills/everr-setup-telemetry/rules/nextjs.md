@@ -177,6 +177,10 @@ async function shutdown(exitCode?: number) {
 }
 
 if (!globalThis.__otelSdk) {
+  // The undici instrumentation already traces fetch. Without this, Next.js
+  // adds its own span for each fetch and every call is traced twice.
+  process.env.NEXT_OTEL_FETCH_DISABLED = '1';
+
   const resource = serviceResource();
   const headers = otlpHeaders();
 
@@ -217,6 +221,11 @@ if (!globalThis.__otelSdk) {
       getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-fs': { enabled: false },
         '@opentelemetry/instrumentation-dns': { enabled: false },
+        // Next.js makes the server span of each request itself. See
+        // "Setup Notes" below.
+        '@opentelemetry/instrumentation-http': {
+          disableIncomingRequestInstrumentation: true,
+        },
       }),
     ],
   });
@@ -276,6 +285,13 @@ export const onRequestError: Instrumentation.onRequestError = async (
   idempotent guard like `globalThis.__otelSdk`.
 - Disable noisy auto-instrumentations only after confirming they create
   high-volume, low-value data in this project.
+- Keep `disableIncomingRequestInstrumentation: true`. Next.js creates its HTTP
+  server before `register()` runs, so the incoming HTTP instrumentation misses
+  requests. Next's own `SERVER` span (`METHOD /route`) continues the incoming
+  `traceparent` and is the request span. It uses the older `http.method`,
+  `http.target`, and `http.status_code` attribute names.
+- There is no `http.server.request.duration` metric. Use span durations for
+  request latency.
 
 ## Route Handler Enrichment
 
