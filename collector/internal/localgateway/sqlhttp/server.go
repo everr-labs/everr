@@ -14,10 +14,16 @@ import (
 	"go.uber.org/zap"
 )
 
+type Identity struct {
+	Version    string
+	InstanceID string
+}
+
 type Server struct {
-	cfg    Config
-	handle *chdb.Handle
-	logger *zap.Logger
+	identity Identity
+	cfg      Config
+	handle   *chdb.Handle
+	logger   *zap.Logger
 
 	server       *http.Server
 	listener     net.Listener
@@ -25,11 +31,12 @@ type Server struct {
 	ready        atomic.Bool
 }
 
-func NewServer(cfg Config, handle *chdb.Handle, logger *zap.Logger) *Server {
+func NewServer(cfg Config, handle *chdb.Handle, logger *zap.Logger, identity Identity) *Server {
 	return &Server{
-		cfg:    cfg.Applied(),
-		handle: handle,
-		logger: logger,
+		identity: identity,
+		cfg:      cfg.Applied(),
+		handle:   handle,
+		logger:   logger,
 	}
 }
 
@@ -81,11 +88,16 @@ func (s *Server) SetReady(ready bool) {
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	status, code := "ok", http.StatusOK
 	if !s.ready.Load() {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "starting"})
-		return
+		status, code = "starting", http.StatusServiceUnavailable
 	}
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"service":          "everr-local-collector",
+		"version":          s.identity.Version,
+		"instance_id":      s.identity.InstanceID,
+		"protocol_version": 1,
+		"status":           status,
+	})
 }

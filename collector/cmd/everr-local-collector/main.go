@@ -134,7 +134,7 @@ func run(ctx context.Context, args []string) error {
 	}
 	defer func() { _ = handle.Close() }()
 
-	sqlServer := sqlhttp.NewServer(sqlhttp.Config{Endpoint: opts.SQL.ListenAddress}, handle, logger)
+	sqlServer := sqlhttp.NewServer(sqlhttp.Config{Endpoint: opts.SQL.ListenAddress}, handle, logger, sqlhttp.Identity{Version: os.Getenv("EVERR_LOCAL_VERSION"), InstanceID: os.Getenv("EVERR_LOCAL_INSTANCE_ID")})
 	if err := sqlServer.Start(); err != nil {
 		return fmt.Errorf("start sql http server: %w", err)
 	}

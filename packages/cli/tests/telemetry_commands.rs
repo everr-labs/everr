@@ -24,32 +24,222 @@ fn endpoint_is_not_a_local_subcommand() {
         .stderr(contains("endpoint"));
 }
 
-#[test]
-fn status_reports_running_when_collector_healthcheck_is_up() {
-    let env = CliTestEnv::new();
-    let health_origin = spawn_health_server(200);
+fn identity(service: &str, instance: &str, status: &str) -> String {
+    serde_json::json!({
+        "service": service, "version": "0.8.2", "instance_id": instance,
+        "protocol_version": 1, "status": status,
+    })
+    .to_string()
+}
 
+fn health_server(service: &str, instance: &str, starting: bool) -> mockito::ServerGuard {
+    let mut server = mockito::Server::new();
+    server
+        .mock("GET", "/health")
+        .with_status(if starting { 503 } else { 200 })
+        .with_body(identity(
+            service,
+            instance,
+            if starting { "starting" } else { "ok" },
+        ))
+        .create();
+    server
+}
+
+fn stopped_origin() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    format!("http://{}", listener.local_addr().unwrap())
+}
+
+#[test]
+fn status_reports_running_when_collector_and_ui_belong_together() {
+    let env = CliTestEnv::new();
+    let collector = health_server("everr-local-collector", "one", false);
+    let ui = health_server("everr-local-ui", "one", false);
     env.command()
-        .env("EVERR_SQL_HTTP_ORIGIN", health_origin)
+        .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
+        .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
         .args(["local", "status"])
         .assert()
         .success()
         .stdout(contains("collector: running"))
+        .stdout(contains("local UI: running"))
         .stdout(contains(everr_cli::build::otlp_http_origin()))
+        .stdout(contains(ui.url()))
         .stderr(diff(""));
 }
 
 #[test]
-fn status_exits_two_when_collector_healthcheck_is_down() {
+fn status_reports_stopped_when_both_listeners_are_absent() {
     let env = CliTestEnv::new();
-
     env.command()
-        .env("EVERR_SQL_HTTP_ORIGIN", "http://127.0.0.1:9")
+        .env("EVERR_SQL_HTTP_ORIGIN", stopped_origin())
+        .env("EVERR_LOCAL_UI_ORIGIN", stopped_origin())
         .args(["local", "status"])
         .assert()
         .code(2)
         .stdout(contains("collector: stopped"))
+        .stdout(contains("local UI: stopped"))
         .stderr(contains("everr local start"));
+}
+
+#[test]
+fn unrelated_http_success_is_not_everr_for_either_listener() {
+    for (sql_body, ui_body) in [
+        ("ok".into(), identity("everr-local-ui", "one", "ok")),
+        (
+            identity("everr-local-collector", "one", "ok"),
+            "<html>Other app</html>".into(),
+        ),
+    ] {
+        let env = CliTestEnv::new();
+        let mut sql = mockito::Server::new();
+        let mut ui = mockito::Server::new();
+        sql.mock("GET", "/health")
+            .with_status(200)
+            .with_body(sql_body)
+            .create();
+        ui.mock("GET", "/health")
+            .with_status(200)
+            .with_body(ui_body)
+            .create();
+        env.command()
+            .env("EVERR_SQL_HTTP_ORIGIN", sql.url())
+            .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+            .args(["local", "status"])
+            .assert()
+            .code(2)
+            .stdout(contains("port occupied by an unrecognized service"));
+    }
+}
+
+#[test]
+fn status_recognizes_starting_collector() {
+    let env = CliTestEnv::new();
+    let collector = health_server("everr-local-collector", "one", true);
+    let ui = health_server("everr-local-ui", "one", false);
+    env.command()
+        .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
+        .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+        .args(["local", "status"])
+        .assert()
+        .code(2)
+        .stdout(contains("collector: starting"));
+}
+
+#[test]
+fn start_reuses_ready_instance_without_starting_a_new_process() {
+    let env = CliTestEnv::new();
+    let collector = health_server("everr-local-collector", "one", false);
+    let ui = health_server("everr-local-ui", "one", false);
+    for quiet in [false, true] {
+        let mut command = env.command();
+        command
+            .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
+            .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+            .args(["local", "start", "--no-open"]);
+        if quiet {
+            command.arg("--quiet");
+        }
+        let result = command.assert().success().stderr(diff(""));
+        if quiet {
+            result.stdout(diff(""));
+        } else {
+            result
+                .stdout(contains("Everr is already running"))
+                .stdout(contains(ui.url()));
+        }
+    }
+}
+
+#[test]
+fn partial_instance_is_reported_and_start_refuses_to_replace_it() {
+    let env = CliTestEnv::new();
+    let collector = health_server("everr-local-collector", "one", false);
+    let ui_origin = stopped_origin();
+    env.command()
+        .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
+        .env("EVERR_LOCAL_UI_ORIGIN", &ui_origin)
+        .args(["local", "status"])
+        .assert()
+        .code(2)
+        .stdout(contains("collector: running"))
+        .stdout(contains("local UI: stopped"));
+    env.command()
+        .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
+        .env("EVERR_LOCAL_UI_ORIGIN", &ui_origin)
+        .args(["local", "start", "--no-open"])
+        .assert()
+        .failure()
+        .stderr(contains("cannot start Everr"))
+        .stderr(contains("is running"));
+    reqwest::blocking::get(format!("{}/health", collector.url()))
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+}
+
+#[test]
+fn mismatched_instances_are_not_reported_as_a_complete_running_instance() {
+    let env = CliTestEnv::new();
+    let collector = health_server("everr-local-collector", "one", false);
+    let ui = health_server("everr-local-ui", "two", false);
+    env.command()
+        .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
+        .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+        .args(["local", "status"])
+        .assert()
+        .code(2)
+        .stdout(contains("do not belong to the same Everr instance"));
+    env.command()
+        .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
+        .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+        .args(["local", "start", "--no-open"])
+        .assert()
+        .failure()
+        .stderr(contains("cannot start Everr"));
+}
+
+#[test]
+fn start_leaves_unrelated_sql_and_ui_listeners_running() {
+    for sql_conflict in [true, false] {
+        let env = CliTestEnv::new();
+        let server = spawn_health_server(200);
+        let free = stopped_origin();
+        env.command()
+            .env(
+                "EVERR_SQL_HTTP_ORIGIN",
+                if sql_conflict { &server } else { &free },
+            )
+            .env(
+                "EVERR_LOCAL_UI_ORIGIN",
+                if sql_conflict { &free } else { &server },
+            )
+            .args(["local", "start", "--no-open"])
+            .assert()
+            .failure()
+            .stderr(contains("port occupied by an unrecognized service"));
+        // The listener remains bound after the CLI exits.
+        let addr = server.trim_start_matches("http://");
+        assert!(TcpListener::bind(addr).is_err());
+    }
+}
+
+#[test]
+fn start_leaves_unrelated_otlp_listener_running() {
+    let env = CliTestEnv::new();
+    let otlp = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = otlp.local_addr().unwrap();
+    env.command()
+        .env("EVERR_SQL_HTTP_ORIGIN", stopped_origin())
+        .env("EVERR_LOCAL_UI_ORIGIN", stopped_origin())
+        .env("EVERR_OTLP_HTTP_ORIGIN", format!("http://{address}"))
+        .args(["local", "start", "--no-open"])
+        .assert()
+        .failure()
+        .stderr(contains(address.to_string()))
+        .stderr(contains("is unavailable"));
+    assert!(TcpListener::bind(address).is_err());
 }
 
 #[test]
@@ -98,19 +288,21 @@ fn spawn_health_server(status: u16) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind health server");
     let addr = listener.local_addr().expect("read health addr");
     std::thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("accept health request");
-        let request = read_request(&mut stream);
-        assert!(
-            request.starts_with("GET /health HTTP/1.1"),
-            "unexpected health request: {request}"
-        );
-        let body = if status == 200 { "ok\n" } else { "down\n" };
-        let head = format!(
-            "HTTP/1.1 {status} OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            body.len()
-        );
-        stream.write_all(head.as_bytes()).expect("write head");
-        stream.write_all(body.as_bytes()).expect("write body");
+        loop {
+            let (mut stream, _) = listener.accept().expect("accept health request");
+            let request = read_request(&mut stream);
+            assert!(
+                request.starts_with("GET /health HTTP/1.1"),
+                "unexpected health request: {request}"
+            );
+            let body = if status == 200 { "ok\n" } else { "down\n" };
+            let head = format!(
+                "HTTP/1.1 {status} OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(head.as_bytes()).expect("write head");
+            stream.write_all(body.as_bytes()).expect("write body");
+        }
     });
     format!("http://{addr}")
 }

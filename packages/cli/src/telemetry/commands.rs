@@ -23,42 +23,15 @@ pub async fn run(args: LocalArgs) -> Result<()> {
 }
 
 async fn run_status() -> Result<()> {
-    let health_endpoint = crate::build::healthcheck_endpoint();
-    let status = crate::collector::wait_healthcheck_result(
-        &health_endpoint,
-        std::time::Duration::from_secs(1),
-    )
-    .await;
-
-    match status {
-        crate::collector::HealthcheckResult::Running => {
-            println!("collector: running");
-            println!("otlp: {}", crate::build::otlp_http_origin());
-            println!("sql: {}", crate::build::sql_http_origin());
-            let ui = crate::build::local_ui_origin();
-            let client = reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(1))
-                .build()?;
-            if client
-                .get(&ui)
-                .send()
-                .await
-                .is_ok_and(|r| r.status().is_success())
-            {
-                println!("ui: {ui}");
-            }
-            Ok(())
+    let status = super::local_instance::LocalStatus::inspect().await;
+    status.print();
+    if status.running_instance().is_some() {
+        Ok(())
+    } else {
+        if status.stopped() {
+            eprintln!("Everr isn't running - run `everr local start`");
         }
-        crate::collector::HealthcheckResult::NetworkBlocked => {
-            println!("collector: unreachable");
-            eprintln!("{LOCALHOST_NETWORK_BLOCKED_MESSAGE}");
-            command_telemetry::exit(2);
-        }
-        crate::collector::HealthcheckResult::Unavailable => {
-            println!("collector: stopped");
-            eprintln!("telemetry collector isn't running - run `everr local start`");
-            command_telemetry::exit(2);
-        }
+        command_telemetry::exit(2);
     }
 }
 

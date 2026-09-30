@@ -16,7 +16,6 @@ use crate::cli::TelemetryStartArgs;
 
 const COLLECTOR_BIN_NAME: &str = "everr-local-collector";
 const CHDB_LIB_NAME: &str = "libchdb.so";
-const SKIP_ORPHANED_COLLECTOR_KILL_ENV: &str = "EVERR_SKIP_ORPHANED_COLLECTOR_KILL";
 
 #[cfg(everr_embedded_collector_assets)]
 const COLLECTOR_GZ: &[u8] = include_bytes!(env!("EVERR_EMBEDDED_COLLECTOR_GZ"));
@@ -47,16 +46,40 @@ pub struct ExtractedAssets {
 pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     ensure_supported_platform()?;
 
+    let status = super::local_instance::LocalStatus::inspect().await;
+    if let Some(identity) = status.running_instance() {
+        if !args.quiet {
+            println!("Everr is already running (version {})", identity.version);
+            status.print();
+        }
+        open_ui(&args);
+        return Ok(());
+    }
+    status.require_stopped()?;
+    let instance_id = format!(
+        "{:x}-{:x}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    );
+
     let (restart_tx, mut restart_rx) = tokio::sync::mpsc::channel(1);
-    let ui = super::local_server::LocalServer::bind(restart_tx).await?;
+    let ui = super::local_server::LocalServer::bind(restart_tx, instance_id.clone()).await?;
+    super::local_instance::require_free_port(&crate::build::sql_http_origin()).await?;
+    super::local_instance::require_free_port(&crate::build::otlp_http_origin()).await?;
     let telemetry_dir = crate::build::telemetry_dir()?;
     let assets = extract_embedded_assets().context("extract embedded collector assets")?;
 
-    kill_orphaned_collector();
-
-    let mut child = spawn_collector(&assets, &telemetry_dir).await?;
+    let mut child = spawn_collector(&assets, &telemetry_dir, &instance_id).await?;
     let health_endpoint = run_start_health_endpoint();
-    if !crate::collector::wait_healthcheck(&health_endpoint, Duration::from_secs(10)).await {
+    if !crate::collector::wait_for_collector(
+        &health_endpoint,
+        &instance_id,
+        Duration::from_secs(10),
+    )
+    .await
+    {
         if let Some(status) = child.try_wait().context("poll collector process")? {
             bail!("collector exited before it became ready: {status}");
         }
@@ -79,11 +102,7 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     server.spawn(ui.serve());
     let shutdown = wait_for_shutdown_signal();
     tokio::pin!(shutdown);
-    if !args.no_open && !args.quiet {
-        if let Err(error) = webbrowser::open(&crate::build::local_ui_origin()) {
-            eprintln!("Could not open the local UI: {error}");
-        }
-    }
+    open_ui(&args);
     loop {
         tokio::select! {
             result = server.join_next() => {
@@ -92,11 +111,11 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
             }
             Some(reply) = restart_rx.recv() => {
                 stop_collector(&mut child).await;
-                match spawn_collector(&assets, &telemetry_dir).await {
+                match spawn_collector(&assets, &telemetry_dir, &instance_id).await {
                     Ok(restarted) => child = Some(restarted),
                     Err(error) => { let _ = reply.send(Err(format!("{error:#}"))); continue; }
                 }
-                let ready = crate::collector::wait_healthcheck(&health_endpoint, Duration::from_secs(10)).await;
+                let ready = crate::collector::wait_for_collector(&health_endpoint, &instance_id, Duration::from_secs(10)).await;
                 let _ = reply.send(if ready { Ok(()) } else { Err("collector did not become ready".into()) });
             }
             signal = &mut shutdown => {
@@ -169,7 +188,11 @@ fn ensure_supported_platform() -> Result<()> {
     );
 }
 
-async fn spawn_collector(assets: &ExtractedAssets, telemetry_dir: &Path) -> Result<Child> {
+async fn spawn_collector(
+    assets: &ExtractedAssets,
+    telemetry_dir: &Path,
+    instance_id: &str,
+) -> Result<Child> {
     let chdb_path = telemetry_dir.join("chdb");
     fs::create_dir_all(&chdb_path)
         .with_context(|| format!("create chdb dir {}", chdb_path.display()))?;
@@ -185,6 +208,8 @@ async fn spawn_collector(assets: &ExtractedAssets, telemetry_dir: &Path) -> Resu
         .arg(&chdb_path)
         .arg("--ttl")
         .arg("7d")
+        .env("EVERR_LOCAL_INSTANCE_ID", instance_id)
+        .env("EVERR_LOCAL_VERSION", env!("EVERR_VERSION"))
         .env("CHDB_LIB_PATH", &assets.chdb_lib)
         .env("TZ", "UTC")
         .stdout(Stdio::piped())
@@ -235,19 +260,12 @@ async fn terminate_child(child: &mut Child) {
     }
 }
 
-fn kill_orphaned_collector() {
-    if std::env::var(SKIP_ORPHANED_COLLECTOR_KILL_ENV)
-        .ok()
-        .as_deref()
-        == Some("1")
-    {
-        return;
+fn open_ui(args: &TelemetryStartArgs) {
+    if !args.no_open && !args.quiet {
+        if let Err(error) = webbrowser::open(&crate::build::local_ui_origin()) {
+            eprintln!("Could not open the local UI: {error}");
+        }
     }
-
-    crate::collector::kill_processes_on_port(
-        crate::build::SQL_HTTP_PORT,
-        "orphaned collector process",
-    );
 }
 
 fn extract_embedded_assets() -> Result<ExtractedAssets> {

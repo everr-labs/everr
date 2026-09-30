@@ -87,6 +87,10 @@ pub const LOCAL_UI_PORT: u16 = 54321;
 pub const LOCAL_UI_PORT: u16 = 54421;
 
 pub fn local_ui_origin() -> String {
+    #[cfg(debug_assertions)]
+    if let Ok(origin) = std::env::var("EVERR_LOCAL_UI_ORIGIN") {
+        return origin;
+    }
     format!("http://127.0.0.1:{LOCAL_UI_PORT}")
 }
 
