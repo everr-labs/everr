@@ -1,13 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use crate::{
-    api::ApiClient,
-    build,
-    device_auth::{
-        DeviceAuthorization, DevicePollStatus, build_auth_http_client, poll_device_authorization,
-        session_from_device_token, start_device_authorization,
-    },
-};
+use super::local_auth::LocalAuth;
+use crate::{build, device_auth::build_auth_http_client};
 use anyhow::{Context, Result, anyhow, bail};
 #[cfg(everr_embedded_local_ui)]
 use axum::body::Body;
@@ -19,11 +13,11 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use chrono::{DateTime, Utc};
-use serde_json::{Value, json};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio::{
     net::TcpListener,
-    sync::{Mutex, mpsc, oneshot},
+    sync::{mpsc, oneshot},
 };
 
 #[cfg(everr_embedded_local_ui)]
@@ -35,15 +29,44 @@ type RestartRequest = oneshot::Sender<std::result::Result<(), String>>;
 struct ServerState {
     origin: String,
     identity: super::local_instance::Identity,
-    pending_auth: Arc<Mutex<Option<PendingAuth>>>,
+    auth: Arc<LocalAuth>,
     restart: mpsc::Sender<RestartRequest>,
     http: reqwest::Client,
 }
 
-struct PendingAuth {
-    authorization: DeviceAuthorization,
-    expires_at: DateTime<Utc>,
-    next_poll_at: std::time::Instant,
+#[derive(Deserialize)]
+struct SqlQuery {
+    sql: String,
+    #[serde(default)]
+    params: HashMap<String, Value>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum CollectorState {
+    Running,
+    Stopped,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CollectorStatus {
+    status: CollectorState,
+    otlp_endpoint: String,
+    sql_endpoint: String,
+    health_endpoint: String,
+    telemetry_dir: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TelemetryContext {
+    service_version: &'static str,
+}
+
+#[derive(Serialize)]
+struct CommandError {
+    error: String,
 }
 
 pub struct LocalServer {
@@ -52,7 +75,10 @@ pub struct LocalServer {
 }
 
 impl LocalServer {
-    pub async fn bind(_restart: mpsc::Sender<RestartRequest>, _instance_id: String) -> Result<Self> {
+    pub async fn bind(
+        _restart: mpsc::Sender<RestartRequest>,
+        _instance_id: String,
+    ) -> Result<Self> {
         #[cfg(not(everr_embedded_local_ui))]
         bail!(
             "local UI assets are missing; build the CLI with `pnpm --filter @everr/cli build:debug`"
@@ -68,7 +94,11 @@ impl LocalServer {
                 state: ServerState {
                     origin: build::local_ui_origin(),
                     identity: super::local_instance::Identity::ui(_instance_id),
-                    pending_auth: Arc::new(Mutex::new(None)),
+                    auth: Arc::new(LocalAuth::new(
+                        crate::auth::state_store(),
+                        crate::auth::resolve_auth_config()?,
+                        build_auth_http_client()?,
+                    )),
                     restart: _restart,
                     http: reqwest::Client::builder()
                         .timeout(Duration::from_secs(15))
@@ -178,10 +208,12 @@ async fn command(
     Json(args): Json<Value>,
 ) -> Response {
     match dispatch(&state, &command, args).await {
-        Ok(value) => Json(value).into_response(),
+        Ok(response) => response,
         Err(error) => (
             StatusCode::BAD_REQUEST,
-            Json(json!({"error": format!("{error:#}")})),
+            Json(CommandError {
+                error: format!("{error:#}"),
+            }),
         )
             .into_response(),
     }
@@ -208,100 +240,63 @@ async fn export_telemetry(
     }
 }
 
-fn store() -> crate::state::AppStateStore {
-    crate::auth::state_store()
-}
-fn api() -> Result<ApiClient> {
-    let config = crate::auth::resolve_auth_config()?;
-    ApiClient::from_session(&store().load_session_for_api_base_url(&config.api_base_url)?)
-}
-fn auth_status() -> Result<Value> {
-    let config = crate::auth::resolve_auth_config()?;
-    Ok(
-        json!({"status": if store().has_active_session_for_api_base_url(&config.api_base_url)? {"signed_in"} else {"signed_out"}, "session_path": store().session_file_path()?.display().to_string()}),
-    )
-}
-fn pending_value(pending: &PendingAuth) -> Value {
-    json!({"status":"pending", "user_code":pending.authorization.user_code, "verification_url":pending.authorization.verification_url, "expires_at":pending.expires_at.to_rfc3339(), "poll_interval_seconds":pending.authorization.interval})
+fn json_response(value: impl Serialize) -> Response {
+    Json(value).into_response()
 }
 
-async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Value> {
-    match command {
-        "get_auth_status" => auth_status(),
-        "get_pending_sign_in" => {
-            let mut pending = state.pending_auth.lock().await;
-            if pending.as_ref().is_some_and(|p| p.expires_at <= Utc::now()) { *pending = None; }
-            Ok(pending.as_ref().map(pending_value).unwrap_or(Value::Null))
-        }
-        "start_sign_in" => {
-            if auth_status()?["status"] == "signed_in" { return auth_status(); }
-            let config = crate::auth::resolve_auth_config()?;
-            let authorization = start_device_authorization(&build_auth_http_client()?, &config).await?;
-            let pending = PendingAuth { expires_at: Utc::now() + chrono::Duration::seconds(authorization.expires_in as i64), next_poll_at: std::time::Instant::now() + Duration::from_secs(authorization.interval), authorization };
-            let value = pending_value(&pending);
-            *state.pending_auth.lock().await = Some(pending);
-            Ok(value)
-        }
-        "poll_sign_in" => {
-            let mut guard = state.pending_auth.lock().await;
-            let Some(pending) = guard.as_mut() else { return Ok(json!({"status":"expired"})); };
-            if pending.expires_at <= Utc::now() { *guard = None; return Ok(json!({"status":"expired"})); }
-            if std::time::Instant::now() < pending.next_poll_at { return Ok(pending_value(pending)); }
-            let config = crate::auth::resolve_auth_config()?;
-            let status = poll_device_authorization(&build_auth_http_client()?, &config, &pending.authorization).await?;
-            pending.next_poll_at = std::time::Instant::now() + Duration::from_secs(pending.authorization.interval);
-            match status {
-                DevicePollStatus::Authorized(token) => {
-                    let session = session_from_device_token(&config, token)?;
-                    let profile = ApiClient::from_session(&session)?.get_me().await.ok();
-                    store().update_state(|state| {
-                        state.session = Some(session);
-                        state.settings.user_profile = profile.as_ref().map(|me| crate::state::UserProfile { email: me.email.clone(), name: me.name.clone(), profile_url: me.profile_url.clone() });
-                    })?;
-                    *guard = None;
-                    auth_status()
-                }
-                DevicePollStatus::Pending => Ok(pending_value(pending)),
-                DevicePollStatus::SlowDown => { pending.authorization.interval += 5; pending.next_poll_at += Duration::from_secs(5); Ok(pending_value(pending)) }
-                DevicePollStatus::Denied => { *guard = None; Ok(json!({"status":"denied"})) }
-                DevicePollStatus::Expired => { *guard = None; Ok(json!({"status":"expired"})) }
-            }
-        }
-        "open_sign_in_browser" => {
-            let pending = state.pending_auth.lock().await;
-            let pending = pending.as_ref().filter(|p| p.expires_at > Utc::now()).context("sign-in expired")?;
-            webbrowser::open(&pending.authorization.verification_url)?;
-            Ok(Value::Null)
-        }
-        "sign_out" => { store().clear_session()?; *state.pending_auth.lock().await = None; auth_status() }
-        "get_user_profile" => {
-            if auth_status()?["status"] != "signed_in" { return Ok(Value::Null); }
-            let profile = api()?.get_me().await?;
-            Ok(json!({"email":profile.email,"name":profile.name,"profile_url":profile.profile_url}))
-        }
-        "get_org" => Ok(json!({"name":api()?.get_org().await?.name})),
-        "get_collector_status" => collector_status(state).await,
+async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Response> {
+    Ok(match command {
+        "get_auth_status" => json_response(state.auth.status()?),
+        "get_pending_sign_in" => json_response(state.auth.pending_sign_in().await),
+        "start_sign_in" => json_response(state.auth.start_sign_in().await?),
+        "poll_sign_in" => json_response(state.auth.poll_sign_in().await?),
+        "open_sign_in_browser" => json_response(state.auth.open_sign_in_browser().await?),
+        "sign_out" => json_response(state.auth.sign_out().await?),
+        "get_user_profile" => json_response(state.auth.user_profile().await?),
+        "get_org" => json_response(state.auth.org().await?),
+        "get_collector_status" => json_response(collector_status(state).await?),
         "restart_collector" => {
             let (tx, rx) = oneshot::channel();
-            state.restart.send(tx).await.context("collector supervisor stopped")?;
-            rx.await.context("collector restart interrupted")?.map_err(|error| anyhow!(error))?;
-            collector_status(state).await
+            state
+                .restart
+                .send(tx)
+                .await
+                .context("collector supervisor stopped")?;
+            rx.await
+                .context("collector restart interrupted")?
+                .map_err(|error| anyhow!(error))?;
+            json_response(collector_status(state).await?)
         }
         "telemetry_sql_query" => {
-            let sql = args["sql"].as_str().context("missing SQL")?;
-            let params: HashMap<String, Value> = serde_json::from_value(args.get("params").cloned().unwrap_or(json!({})))?;
-            let query: Vec<_> = params.into_iter().map(|(name,value)| (format!("param_{name}"),value.to_string())).collect();
-            let response = state.http.post(format!("{}/sql", build::sql_http_origin())).header("content-type","text/plain").query(&query).body(sql.to_owned()).send().await?;
-            let status = response.status(); let body = response.text().await?;
-            if !status.is_success() { bail!("collector query failed ({status}): {body}"); }
-            Ok(json!(super::client::parse_ndjson(&body)?.values))
+            let SqlQuery { sql, params } =
+                serde_json::from_value(args).context("invalid SQL arguments")?;
+            let query: Vec<_> = params
+                .into_iter()
+                .map(|(name, value)| (format!("param_{name}"), value.to_string()))
+                .collect();
+            let response = state
+                .http
+                .post(format!("{}/sql", build::sql_http_origin()))
+                .header("content-type", "text/plain")
+                .query(&query)
+                .body(sql)
+                .send()
+                .await?;
+            let status = response.status();
+            let body = response.text().await?;
+            if !status.is_success() {
+                bail!("collector query failed ({status}): {body}");
+            }
+            json_response(super::client::parse_ndjson(&body)?.values)
         }
-        "get_telemetry_context" => Ok(json!({"serviceVersion":env!("EVERR_VERSION")})),
+        "get_telemetry_context" => json_response(TelemetryContext {
+            service_version: env!("EVERR_VERSION"),
+        }),
         _ => bail!("unknown local command: {command}"),
-    }
+    })
 }
 
-async fn collector_status(state: &ServerState) -> Result<Value> {
+async fn collector_status(state: &ServerState) -> Result<CollectorStatus> {
     let running = build::healthcheck_endpoint();
     let healthy = crate::collector::wait_for_collector(
         &running,
@@ -309,30 +304,120 @@ async fn collector_status(state: &ServerState) -> Result<Value> {
         Duration::from_secs(1),
     )
     .await;
-    Ok(
-        json!({"status":if healthy {"running"} else {"stopped"},"otlpEndpoint":build::otlp_http_origin(),"sqlEndpoint":build::sql_http_origin(),"healthEndpoint":running,"telemetryDir":build::telemetry_dir()?.display().to_string()}),
-    )
+    Ok(CollectorStatus {
+        status: if healthy {
+            CollectorState::Running
+        } else {
+            CollectorState::Stopped
+        },
+        otlp_endpoint: build::otlp_http_origin(),
+        sql_endpoint: build::sql_http_origin(),
+        health_endpoint: running,
+        telemetry_dir: build::telemetry_dir()?.display().to_string(),
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     async fn test_server() -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let origin = format!("http://{}", listener.local_addr().unwrap());
         let (restart, _) = mpsc::channel(1);
+        let auth_dir = tempfile::tempdir().unwrap();
         let state = ServerState {
             origin: origin.clone(),
             identity: crate::telemetry::local_instance::Identity::ui("test-instance".into()),
-            pending_auth: Arc::new(Mutex::new(None)),
+            auth: Arc::new(LocalAuth::new(
+                crate::state::AppStateStore::for_namespace(auth_dir.path().to_string_lossy()),
+                crate::device_auth::AuthConfig {
+                    api_base_url: "http://example.test".into(),
+                },
+                reqwest::Client::new(),
+            )),
             restart,
             http: reqwest::Client::new(),
         };
         let task = tokio::spawn(async move {
+            let _auth_dir = auth_dir;
             axum::serve(listener, router(state)).await.unwrap();
         });
         (origin, task)
+    }
+
+    #[tokio::test]
+    async fn signed_out_commands_preserve_json_responses() {
+        let (origin, task) = test_server().await;
+        let client = reqwest::Client::new();
+        for (command, expected) in [
+            ("get_pending_sign_in", Value::Null),
+            ("poll_sign_in", json!({"status":"expired"})),
+            ("get_user_profile", Value::Null),
+        ] {
+            let response = client
+                .post(format!("{origin}/api/commands/{command}"))
+                .header("origin", &origin)
+                .header("x-everr-local", "1")
+                .json(&json!({}))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.json::<Value>().await.unwrap(), expected);
+        }
+        let response = client
+            .post(format!("{origin}/api/commands/get_auth_status"))
+            .header("origin", &origin)
+            .header("x-everr-local", "1")
+            .json(&json!({}))
+            .send()
+            .await
+            .unwrap()
+            .json::<Value>()
+            .await
+            .unwrap();
+        assert_eq!(response["status"], "signed_out");
+        assert!(
+            response["session_path"]
+                .as_str()
+                .unwrap()
+                .ends_with("session-dev.json")
+        );
+        assert_eq!(response.as_object().unwrap().len(), 2);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn sql_commands_reject_invalid_arguments_with_json_errors() {
+        let (origin, task) = test_server().await;
+        let client = reqwest::Client::new();
+        for args in [
+            json!({}),
+            json!({"sql":42}),
+            json!({"sql":"SELECT 1", "params":null}),
+            json!({"sql":"SELECT 1", "params":[]}),
+        ] {
+            let response = client
+                .post(format!("{origin}/api/commands/telemetry_sql_query"))
+                .header("origin", &origin)
+                .header("x-everr-local", "1")
+                .json(&args)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+            let error = response.json::<Value>().await.unwrap();
+            assert!(
+                error["error"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with("invalid SQL arguments:")
+            );
+            assert_eq!(error.as_object().unwrap().len(), 1);
+        }
+        task.abort();
     }
 
     #[tokio::test]
@@ -351,10 +436,8 @@ mod tests {
         assert_eq!(body.status, "ok");
         assert_eq!(body.protocol_version, 1);
         assert!(matches!(
-            crate::telemetry::local_instance::probe(
-                &format!("{origin}/health"),
-                "everr-local-ui"
-            ).await,
+            crate::telemetry::local_instance::probe(&format!("{origin}/health"), "everr-local-ui")
+                .await,
             crate::telemetry::local_instance::ServiceState::Running(_)
         ));
         task.abort();
