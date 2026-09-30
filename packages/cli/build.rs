@@ -12,6 +12,7 @@ fn main() {
         == Some("1");
 
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=assets/skills");
     println!("cargo:rerun-if-changed={}", package_json.display());
     println!("cargo:rerun-if-env-changed=EVERR_EMBEDDED_COLLECTOR_GZ");
     println!("cargo:rerun-if-env-changed=EVERR_EMBEDDED_CHDB_GZ");

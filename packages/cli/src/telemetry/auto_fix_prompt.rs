@@ -1,4 +1,4 @@
-use everr_core::api::FailureNotification;
+use crate::api::FailureNotification;
 
 const TEMPLATE: &str = include_str!("auto_fix_prompt.md");
 

@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/everr-core", "packages/cli"]
+members = ["packages/cli"]
 resolver = "2"

@@ -12,14 +12,14 @@ use axum::{
     routing::{get, post},
 };
 use chrono::{DateTime, Utc};
-use everr_core::{
+use crate::{
     api::ApiClient,
-    auth::{
+    device_auth::{
         DeviceAuthorization, DevicePollStatus, build_auth_http_client, poll_device_authorization,
         session_from_device_token, start_device_authorization,
     },
     build,
-    skills::{self, SkillOperationOptions, SkillProvider, SkillScope},
+    skill_store::{self as skills, SkillOperationOptions, SkillProvider, SkillScope},
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -204,7 +204,7 @@ async fn export_telemetry(
     }
 }
 
-fn store() -> everr_core::state::AppStateStore {
+fn store() -> crate::state::AppStateStore {
     crate::auth::state_store()
 }
 fn api() -> Result<ApiClient> {
@@ -252,7 +252,7 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Val
                     let profile = ApiClient::from_session(&session)?.get_me().await.ok();
                     store().update_state(|state| {
                         state.session = Some(session);
-                        state.settings.user_profile = profile.as_ref().map(|me| everr_core::state::UserProfile { email: me.email.clone(), name: me.name.clone(), profile_url: me.profile_url.clone() });
+                        state.settings.user_profile = profile.as_ref().map(|me| crate::state::UserProfile { email: me.email.clone(), name: me.name.clone(), profile_url: me.profile_url.clone() });
                         state.settings.notification_emails = profile.map(|me| vec![me.email]).unwrap_or_default();
                     })?;
                     *guard = None;
@@ -349,7 +349,7 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Val
 async fn collector_status() -> Result<Value> {
     let running = build::healthcheck_origin();
     let healthy =
-        everr_core::collector::wait_healthcheck(&format!("{running}/"), Duration::from_secs(1))
+        crate::collector::wait_healthcheck(&format!("{running}/"), Duration::from_secs(1))
             .await;
     Ok(
         json!({"status":if healthy {"running"} else {"stopped"},"otlpEndpoint":build::otlp_http_origin(),"sqlEndpoint":build::sql_http_origin(),"healthEndpoint":running,"telemetryDir":build::telemetry_dir()?.display().to_string()}),

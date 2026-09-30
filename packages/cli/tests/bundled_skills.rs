@@ -1,6 +1,6 @@
 use std::fs;
 
-use everr_core::skills::{
+use everr_cli::skill_store::{
     SkillOperationOptions, SkillPathAction, SkillProvider, SkillScope, bundled_skills,
     install_bundled_skills, uninstall_bundled_skills, update_bundled_skills,
 };

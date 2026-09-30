@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
-use everr_core::skills::{
+use crate::skill_store::{
     self as core_skills, SkillOperationOptions, SkillOperationSummary, SkillPathAction,
     SkillProvider, SkillScope, bundled_skills, install_bundled_skills, uninstall_bundled_skills,
     update_bundled_skills,
@@ -345,7 +345,7 @@ fn prompt_providers(home_dir: &PathBuf) -> Result<Vec<SkillProvider>> {
     Ok(providers)
 }
 
-fn print_summary(done: &str, dry_run: &str, summary: &everr_core::skills::SkillOperationSummary) {
+fn print_summary(done: &str, dry_run: &str, summary: &crate::skill_store::SkillOperationSummary) {
     let verb = if summary.dry_run { dry_run } else { done };
     let suffix = if summary.skills.len() == 1 { "" } else { "s" };
     println!(

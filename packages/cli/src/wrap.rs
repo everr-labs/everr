@@ -265,7 +265,7 @@ impl OtlpLogExporter {
                 .timeout(EXPORT_TIMEOUT)
                 .build()
                 .expect("reqwest client"),
-            endpoint: format!("{}/v1/logs", everr_core::build::otlp_http_origin()),
+            endpoint: format!("{}/v1/logs", crate::build::otlp_http_origin()),
             command,
         }
     }

@@ -19,7 +19,6 @@ on:
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
-      - crates/everr-core/**
       - packages/local-app/**
       - packages/cli/**
       - packages/otel-web/**
@@ -36,7 +35,6 @@ on:
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
-      - crates/everr-core/**
       - packages/local-app/**
       - packages/cli/**
       - packages/otel-web/**

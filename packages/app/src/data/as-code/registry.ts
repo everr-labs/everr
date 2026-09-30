@@ -73,7 +73,7 @@ export type Reconciler = (opts: {
  * desired state for the repo — an absent kind prunes within the repoid.
  *
  * Keep the kinds in sync with classify_documents in
- * crates/everr-core/src/apply.rs, which routes documents by kind CLI-side.
+ * packages/cli/src/apply.rs, which routes documents by kind CLI-side.
  */
 const REGISTRY: {
   key: keyof ApplyInput["state"];

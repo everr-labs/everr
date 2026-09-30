@@ -35,7 +35,7 @@ fn status_reports_running_when_collector_healthcheck_is_up() {
         .assert()
         .success()
         .stdout(contains("collector: running"))
-        .stdout(contains(everr_core::build::otlp_http_origin()))
+        .stdout(contains(everr_cli::build::otlp_http_origin()))
         .stderr(diff(""));
 }
 

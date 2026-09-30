@@ -1,6 +1,17 @@
+pub mod api;
+pub mod apply;
 pub mod auth;
+pub mod build;
 pub mod cli;
+pub mod collector;
 pub mod command_telemetry;
+pub mod datemath;
+pub mod device_auth;
+pub mod git;
+pub mod notifier;
+pub mod skill_store;
+pub mod state;
+pub mod state_watcher;
 pub mod telemetry;
 pub mod update_notice;
 pub mod upgrade;

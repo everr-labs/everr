@@ -1,7 +1,7 @@
 use std::io::{self, IsTerminal, Write};
 
 use anyhow::{Context, Result, bail};
-use everr_core::git::{resolve_git_context, run_git};
+use crate::git::{resolve_git_context, run_git};
 use serde::Serialize;
 use tokio::pin;
 
@@ -627,7 +627,7 @@ impl cliclack::Theme for WarnTheme {
 /// Build an API client using the same credential precedence as apply: an
 /// `EVERR_API_KEY` (or deprecated `EVERR_API_TOKEN`) in the environment wins
 /// (CI); otherwise fall back to the logged-in session (`cloud login`).
-async fn build_api_client() -> anyhow::Result<everr_core::api::ApiClient> {
+async fn build_api_client() -> anyhow::Result<crate::api::ApiClient> {
     let token_env = std::env::var("EVERR_API_KEY")
         .ok()
         .filter(|t| !t.is_empty())
@@ -647,11 +647,11 @@ async fn build_api_client() -> anyhow::Result<everr_core::api::ApiClient> {
                 .ok_or_else(|| {
                     anyhow::anyhow!("{var_name} is set but no base URL; set EVERR_API_URL")
                 })?;
-            everr_core::api::ApiClient::from_token(&base_url, &token)
+            crate::api::ApiClient::from_token(&base_url, &token)
         }
         None => {
             let session = crate::auth::require_session_with_refresh().await?;
-            everr_core::api::ApiClient::from_session(&session)
+            crate::api::ApiClient::from_session(&session)
         }
     }
 }
@@ -663,7 +663,7 @@ pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Resu
     // EVERR_API_KEY (those routes have no API-key path), so authenticate with the
     // session directly rather than via apply's token-first `build_api_client`.
     let session = crate::auth::require_session_with_refresh().await?;
-    let client = everr_core::api::ApiClient::from_session(&session)?;
+    let client = crate::api::ApiClient::from_session(&session)?;
     match cmd {
         R::List(args) => resources_list(&client, args).await,
         R::Show(args) => resources_show(&client, args).await,
@@ -675,12 +675,12 @@ pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Resu
 /// Resolve this repository's repoid from `dir` (manifest, else inferred origin
 /// remote), the same precedence as `apply` (both funnel into `resolve_repoid`).
 fn resolve_repoid_for_dir(dir: &std::path::Path) -> anyhow::Result<String> {
-    let remote = everr_core::apply::origin_remote(dir);
-    everr_core::apply::resolve_repoid(dir, remote.as_deref())
+    let remote = crate::apply::origin_remote(dir);
+    crate::apply::resolve_repoid(dir, remote.as_deref())
 }
 
 async fn resources_list(
-    client: &everr_core::api::ApiClient,
+    client: &crate::api::ApiClient,
     args: crate::cli::ResourcesListArgs,
 ) -> anyhow::Result<()> {
     let kind = args.kind.map(|k| k.as_str());
@@ -723,7 +723,7 @@ async fn resources_list(
 }
 
 async fn resources_show(
-    client: &everr_core::api::ApiClient,
+    client: &crate::api::ApiClient,
     args: crate::cli::ResourcesShowArgs,
 ) -> anyhow::Result<()> {
     let document = client
@@ -738,7 +738,7 @@ async fn resources_show(
 }
 
 async fn resources_delete(
-    client: &everr_core::api::ApiClient,
+    client: &crate::api::ApiClient,
     args: crate::cli::ResourcesDeleteArgs,
 ) -> anyhow::Result<()> {
     let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
@@ -753,7 +753,7 @@ async fn resources_delete(
 }
 
 async fn resources_adopt(
-    client: &everr_core::api::ApiClient,
+    client: &crate::api::ApiClient,
     args: crate::cli::ResourcesTargetArgs,
 ) -> anyhow::Result<()> {
     let repoid = resolve_repoid_for_dir(std::path::Path::new("."))?;
@@ -813,7 +813,7 @@ fn confirm_action(
 }
 
 pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
-    use everr_core::apply::{
+    use crate::apply::{
         ApplyRequest, classify_documents, detect_git_source, load_apply_manifest,
         load_resource_documents, resolve_preview_name, resolve_repoid,
     };
@@ -949,7 +949,7 @@ fn percent_encode(s: &str) -> String {
         .collect()
 }
 
-fn print_apply_summary(summary: &everr_core::apply::ApplySummary, plan: bool) {
+fn print_apply_summary(summary: &crate::apply::ApplySummary, plan: bool) {
     let label = if plan { "(plan) " } else { "" };
     println!("{label}Destination org: «{}»", summary.organization.name);
     for r in &summary.results {
@@ -995,7 +995,7 @@ fn persisted_api_base_url() -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use everr_core::git::parse_repo_from_remote_url;
+    use crate::git::parse_repo_from_remote_url;
 
     use crate::api::StepLogEntry;
 

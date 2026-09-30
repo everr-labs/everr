@@ -146,7 +146,7 @@ fn release_metadata_url() -> String {
 
     format!(
         "{}{}",
-        everr_core::build::default_docs_base_url(),
+        crate::build::default_docs_base_url(),
         RELEASE_METADATA_PATH
     )
 }
@@ -166,7 +166,7 @@ pub(crate) fn test_override(name: &str) -> Option<String> {
 fn cache_path() -> Result<PathBuf> {
     let base = dirs::data_local_dir().context("failed to resolve user local data dir")?;
     Ok(base
-        .join(everr_core::build::session_namespace())
+        .join(crate::build::session_namespace())
         .join(CACHE_FILE_NAME))
 }
 
