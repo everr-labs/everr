@@ -245,7 +245,7 @@ fn kill_orphaned_collector() {
     }
 
     crate::collector::kill_processes_on_port(
-        crate::build::HEALTHCHECK_PORT,
+        crate::build::SQL_HTTP_PORT,
         "orphaned collector process",
     );
 }
