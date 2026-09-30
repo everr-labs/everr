@@ -1,6 +1,6 @@
 ---
 name: everr-setup-telemetry
-description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, or instrumentation verification.
+description: Use for adding or fixing OpenTelemetry instrumentation, local collector setup, debug telemetry, or missing runtime signals. For first-time local telemetry onboarding, use everr-onboard.
 ---
 
 ## Startup Access
@@ -16,6 +16,8 @@ If the current tool cannot ask for a blanket permission grant, request scoped co
 # Setup Telemetry With Everr
 
 Use this skill when an app, service, test, script, or command needs to emit telemetry into Everr. For alerting rules on that telemetry (and dashboards or runbooks), use the `everr-setup-resources` skill.
+
+For first-time onboarding that verifies an app's own telemetry in the local collector, use `everr-onboard`.
 
 Local telemetry lets development match production behavior closely, and debug telemetry lets the agent collect extra evidence locally without guessing from the code.
 
@@ -48,9 +50,9 @@ For most runtime work, read `resolve-values`, `resources`, `sensitive-data`, `va
 
 ### Telemetry Setup
 
-1. Run `everr local status`.
-2. If the collector is stopped, run `everr local start` or ask the user to open Everr Desktop.
-3. Use the `otlp:` URL from `everr local status` in local exporters. Do not guess or mention a default localhost port unless status returned it.
+1. Run `everr local status`. If the collector is running, use its `otlp:` URL.
+2. If the collector is stopped, run `everr local start --no-open` in a separate terminal or persistent command session. It stays in the foreground and prints the collector state plus `otlp:`, `sql:`, and `ui:` URLs once ready; keep that session alive while you work. Use the `ui:` URL to inspect telemetry in a browser.
+3. Use the OTLP URL from `everr local status` or `everr local start` in local exporters. Do not guess or mention a default localhost port before one of those commands returns the endpoint.
 4. Inspect the app before adding packages: framework, runtime, existing OTel setup, startup path, logger, test runner, deployment manifests, and existing environment variables.
 5. Resolve `service.name`, `service.version`, `deployment.environment.name`, OTLP endpoint, and auth configuration using `rules/resolve-values.md`.
 6. Add the smallest standard OTel setup for the stack: stable service identity, useful resource attributes, traces, logs, metrics when supported, automatic error capture, safe redaction, and an OTLP/HTTP exporter.
@@ -65,8 +67,8 @@ For most runtime work, read `resolve-values`, `resources`, `sensitive-data`, `va
 | Need | Command |
 | --- | --- |
 | Check collector state | `everr local status` |
-| Start the CLI collector | `everr local start` |
-| Get the OTLP/HTTP endpoint | `everr local status` |
+| Start the collector and local UI in a separate session | `everr local start --no-open` |
+| Get the OTLP/HTTP endpoint | Output of `everr local status` or `everr local start` |
 | Verify telemetry arrived | `everr local query "<SQL>"` |
 | Capture build/lint output | `everr wrap -- <command>` |
 

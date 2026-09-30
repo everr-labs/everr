@@ -7,42 +7,7 @@
 You need the standard toolchains on every platform: Rust (stable), Node + pnpm,
 Go (for the collector), and Docker with the Compose plugin.
 
-On **macOS** no extra system packages are required beyond the Xcode command line
-tools. On **Linux**, the Tauri desktop app needs the GTK/WebKit development
-libraries to build, plus `libayatana-appindicator3` at runtime for the system
-tray (without it the app panics on launch).
-
-**Fedora** (verified on Fedora 44):
-
-```bash
-# Desktop app build dependencies
-sudo dnf install -y \
-  webkit2gtk4.1-devel gtk3-devel libsoup3-devel glib2-devel \
-  cairo-devel pango-devel gdk-pixbuf2-devel atk-devel \
-  openssl-devel librsvg2-devel
-
-# System tray runtime dependency
-sudo dnf install -y libayatana-appindicator-gtk3
-```
-
-To **build** the Linux desktop bundles (`deb`/`rpm`/`appimage`) you also need the
-appindicator development package — the Tauri bundler probes for the unversioned
-`.so` and panics with "Can't detect any appindicator library" without it:
-
-```bash
-sudo dnf install -y libayatana-appindicator-gtk3-devel   # Fedora
-# Debian/Ubuntu: the libayatana-appindicator3-dev package below already covers this
-```
-
-**Debian/Ubuntu**:
-
-```bash
-sudo apt update
-sudo apt install -y \
-  libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
-  libssl-dev librsvg2-dev libayatana-appindicator3-dev \
-  build-essential curl wget file
-```
+On macOS, install the Xcode command line tools. On Linux, install a C/C++ build toolchain and the libraries required by chDB. The local UI runs in your browser.
 
 ### Set up GitHub webhook forwarding
 
@@ -166,44 +131,8 @@ make run
 pnpm dev
 ```
 
-Use `pnpm dev:web` or `pnpm dev:docs` to start one web surface, or run native commands from `packages/desktop-app/`.
+Use `pnpm dev:web` or `pnpm dev:docs` to start a web surface. Run `pnpm dev:local` to start the local UI with hot reload and its Rust CLI backend and collector. The command opens `http://127.0.0.1:1420`, watches Rust changes for rebuilds and restarts, and stops all its processes on Ctrl+C. Use `--no-open` to suppress browser launch. Cloud features use the hosted app development server started by `pnpm dev:web`.
 
-### Build a signed Everr release
+Use `pnpm dev:local:ui` to run only Vite against an already running development CLI. Run `pnpm dev:cli` to rebuild the CLI's embedded UI and collector assets, then `./target/debug/everr-dev local start` to check the packaged experience.
 
-For macOS distribution, use:
-
-```bash
-pnpm --dir packages/desktop-app build:desktop
-```
-
-CI derives the release identity from the commit SHA, but the desktop app,
-macOS updater, CLI, and production telemetry version come from
-`packages/desktop-app/src-tauri/tauri.conf.json`. Bump the desktop package
-version before shipping a production desktop release.
-
-If you also want that release flow to install the signed CLI into `~/.local/bin`, opt in explicitly:
-
-```bash
-pnpm --dir packages/desktop-app build:desktop -- --install
-```
-
-The Apple signing and notarization inputs are documented in `packages/desktop-app/README.md`.
-CI secret setup is documented in `docs/desktop-release-secrets.md`.
-`packages/desktop-app/.env` is sourced automatically by the package-native build scripts.
-That release flow stages the DMG, updater artifacts, checksums, release metadata, and signed CLI files into `target/desktop-release/`.
-
-For **Linux**, build installable bundles directly with the Tauri CLI (requires
-the build dependencies from [System prerequisites](#system-prerequisites),
-including the appindicator `-devel`/`-dev` package):
-
-```bash
-pnpm --dir packages/desktop-app tauri build \
-  --bundles deb,rpm,appimage \
-  --config '{"bundle":{"createUpdaterArtifacts":false}}'
-```
-
-Bundles land in `target/release/bundle/{deb,rpm,appimage}/`. The packages declare
-their runtime dependencies (WebKitGTK, GTK, and `libayatana-appindicator3`), so a
-package-manager install pulls in the system tray library automatically. The
-`build-linux-desktop` CI job produces the same bundles as downloadable artifacts;
-publishing them to everr.dev is a separate follow-up.
+For a release build, run `pnpm build:cli`. The CLI version comes from `packages/cli/package.json`. Build signing inputs can be provided in `packages/cli/.env`.

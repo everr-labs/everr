@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { resolveDesktopReleaseRedirectUrl } from "@/lib/desktop-release-redirect";
+import { resolveCliReleaseRedirectUrl } from "@/lib/cli-release-redirect";
 
 export const Route = createFileRoute("/everr-app/$")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const redirectUrl = resolveDesktopReleaseRedirectUrl({
+        const redirectUrl = resolveCliReleaseRedirectUrl({
           pathname: new URL(request.url).pathname,
         });
 

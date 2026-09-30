@@ -11,8 +11,10 @@ on:
   pull_request:
     paths:
       - .github/workflows/build-everr-cli.yml
-      - packages/desktop-app/src-cli/**
-      - packages/desktop-app/scripts/build-cli.sh
+      - packages/cli/**
+      - packages/local-app/**
+      - Cargo.toml
+      - Cargo.lock
       - crates/everr-core/**
       - Makefile
       - packages/docs/Dockerfile
@@ -22,8 +24,10 @@ on:
     branches: [main]
     paths:
       - .github/workflows/build-everr-cli.yml
-      - packages/desktop-app/src-cli/**
-      - packages/desktop-app/scripts/build-cli.sh
+      - packages/cli/**
+      - packages/local-app/**
+      - Cargo.toml
+      - Cargo.lock
       - crates/everr-core/**
       - Makefile
       - packages/docs/Dockerfile
@@ -52,10 +56,10 @@ jobs:
           workspaces: . -> target
 
       - name: Test
-        run: cargo +nightly test --manifest-path packages/desktop-app/src-cli/Cargo.toml -- --report-time -Z unstable-options
+        run: cargo test --manifest-path packages/cli/Cargo.toml
 
       - name: Build release binary
-        run: cargo build --release --manifest-path packages/desktop-app/src-cli/Cargo.toml
+        run: cargo build --release --manifest-path packages/cli/Cargo.toml
 
       - name: Smoke test
         run: ./target/release/everr --help

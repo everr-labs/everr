@@ -194,7 +194,7 @@ LIMIT 50
 
 | Error | Action |
 | --- | --- |
-| `telemetry collector isn't running` | Run `everr local start` or open Everr Desktop |
+| `telemetry collector isn't running` | Run `everr local start`  |
 | `can't reach the telemetry collector because local network access is blocked` | Allow local network access for the tool or run the command outside the sandbox |
 | `telemetry collector is busy` | Wait a moment and retry |
 | `no active session` | Run `everr cloud login` |
