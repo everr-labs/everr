@@ -25,20 +25,20 @@ pub async fn run(args: LocalArgs) -> Result<()> {
 async fn run_status() -> Result<()> {
     let health_endpoint = format!(
         "{}/",
-        everr_core::build::healthcheck_origin().trim_end_matches('/')
+        crate::build::healthcheck_origin().trim_end_matches('/')
     );
-    let status = everr_core::collector::wait_healthcheck_result(
+    let status = crate::collector::wait_healthcheck_result(
         &health_endpoint,
         std::time::Duration::from_secs(1),
     )
     .await;
 
     match status {
-        everr_core::collector::HealthcheckResult::Running => {
+        crate::collector::HealthcheckResult::Running => {
             println!("collector: running");
-            println!("otlp: {}", everr_core::build::otlp_http_origin());
-            println!("sql: {}", everr_core::build::sql_http_origin());
-            let ui = everr_core::build::local_ui_origin();
+            println!("otlp: {}", crate::build::otlp_http_origin());
+            println!("sql: {}", crate::build::sql_http_origin());
+            let ui = crate::build::local_ui_origin();
             let client = reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(1))
                 .build()?;
@@ -52,12 +52,12 @@ async fn run_status() -> Result<()> {
             }
             Ok(())
         }
-        everr_core::collector::HealthcheckResult::NetworkBlocked => {
+        crate::collector::HealthcheckResult::NetworkBlocked => {
             println!("collector: unreachable");
             eprintln!("{LOCALHOST_NETWORK_BLOCKED_MESSAGE}");
             command_telemetry::exit(2);
         }
-        everr_core::collector::HealthcheckResult::Unavailable => {
+        crate::collector::HealthcheckResult::Unavailable => {
             println!("collector: stopped");
             eprintln!("telemetry collector isn't running - run `everr local start`");
             command_telemetry::exit(2);
@@ -66,7 +66,7 @@ async fn run_status() -> Result<()> {
 }
 
 fn run_query(args: TelemetryQueryArgs) -> Result<()> {
-    let client = QueryClient::new(everr_core::build::sql_http_origin());
+    let client = QueryClient::new(crate::build::sql_http_origin());
     let rows = match client.query(&args.sql) {
         Ok(rows) => rows,
         Err(err) => {

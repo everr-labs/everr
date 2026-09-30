@@ -254,15 +254,13 @@ fn session_matches_api_base_url(actual: &str, expected: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use serde_json::json;
     use tempfile::tempdir;
 
     use super::{AppSettings, AppState, AppStateStore, Session, UserProfile, WizardState};
     use crate::build;
 
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    use crate::test_support::ENV_LOCK;
 
     #[test]
     fn default_state_store_matches_current_build_defaults() {

@@ -15,7 +15,6 @@ on:
       - packages/local-app/**
       - Cargo.toml
       - Cargo.lock
-      - crates/everr-core/**
       - Makefile
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
@@ -28,7 +27,6 @@ on:
       - packages/local-app/**
       - Cargo.toml
       - Cargo.lock
-      - crates/everr-core/**
       - Makefile
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh

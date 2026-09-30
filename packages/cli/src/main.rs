@@ -1,4 +1,3 @@
-mod api;
 mod auth;
 mod banner;
 mod cli;
@@ -18,6 +17,8 @@ mod test_support {
     pub static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 }
 
+use everr_cli::{api, apply, build, collector, device_auth, git, skill_store, state};
+
 use anyhow::Result;
 use clap::Parser;
 use cli::{CiSubcommand, Cli, CloudSubcommand, Commands};
@@ -30,7 +31,7 @@ async fn main() -> Result<()> {
     let telemetry = command_telemetry::init();
     let (command, subcommand) = command_telemetry::command_names(&cli);
 
-    // Run the whole command inside the root span so every everr-core HTTP call
+    // Run the whole command inside the root span so every API client HTTP call
     // is a child of it and the injected trace context stitches the trace across
     // the CLI → server → ClickHouse boundary.
     let span = command_telemetry::command_span(command, subcommand);

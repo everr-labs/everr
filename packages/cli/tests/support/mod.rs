@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
 use assert_cmd::Command;
-use everr_core::build;
+use everr_cli::build;
 use mockito::{Server, ServerGuard};
 use serde_json::Value;
 use tempfile::TempDir;

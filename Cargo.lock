@@ -618,18 +618,22 @@ dependencies = [
  "console 0.16.3",
  "dialoguer",
  "dirs",
- "everr-core",
+ "eventsource-stream",
  "flate2",
+ "fs2",
  "futures-util",
+ "ignore",
  "include_dir",
  "libc",
  "mime_guess",
  "mockito",
  "nix",
+ "notify",
  "opentelemetry",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "pathdiff",
  "predicates",
  "regex",
  "reqwest 0.12.28",
@@ -645,32 +649,6 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "webbrowser",
-]
-
-[[package]]
-name = "everr-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "dirs",
- "eventsource-stream",
- "fs2",
- "futures-util",
- "ignore",
- "include_dir",
- "mockito",
- "nix",
- "notify",
- "opentelemetry",
- "pathdiff",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-opentelemetry",
 ]
 
 [[package]]

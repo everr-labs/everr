@@ -49,29 +49,29 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
 
     let (restart_tx, mut restart_rx) = tokio::sync::mpsc::channel(1);
     let ui = super::local_server::LocalServer::bind(restart_tx).await?;
-    let telemetry_dir = everr_core::build::telemetry_dir()?;
+    let telemetry_dir = crate::build::telemetry_dir()?;
     let assets = extract_embedded_assets().context("extract embedded collector assets")?;
 
     kill_orphaned_collector();
 
     let mut child = spawn_collector(&assets, &telemetry_dir).await?;
     let health_endpoint = run_start_health_endpoint();
-    if !everr_core::collector::wait_healthcheck(&health_endpoint, Duration::from_secs(10)).await {
+    if !crate::collector::wait_healthcheck(&health_endpoint, Duration::from_secs(10)).await {
         if let Some(status) = child.try_wait().context("poll collector process")? {
             bail!("collector exited before it became ready: {status}");
         }
         terminate_child(&mut child).await;
         bail!(
             "collector healthcheck did not become ready; collector URL: {}",
-            everr_core::build::otlp_http_origin()
+            crate::build::otlp_http_origin()
         );
     }
 
     if !args.quiet {
         println!("collector: running");
-        println!("otlp: {}", everr_core::build::otlp_http_origin());
-        println!("sql: {}", everr_core::build::sql_http_origin());
-        println!("ui: {}", everr_core::build::local_ui_origin());
+        println!("otlp: {}", crate::build::otlp_http_origin());
+        println!("sql: {}", crate::build::sql_http_origin());
+        println!("ui: {}", crate::build::local_ui_origin());
     }
 
     let mut child = Some(child);
@@ -80,7 +80,7 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     let shutdown = wait_for_shutdown_signal();
     tokio::pin!(shutdown);
     if !args.no_open && !args.quiet {
-        if let Err(error) = webbrowser::open(&everr_core::build::local_ui_origin()) {
+        if let Err(error) = webbrowser::open(&crate::build::local_ui_origin()) {
             eprintln!("Could not open the local UI: {error}");
         }
     }
@@ -96,7 +96,7 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
                     Ok(restarted) => child = Some(restarted),
                     Err(error) => { let _ = reply.send(Err(format!("{error:#}"))); continue; }
                 }
-                let ready = everr_core::collector::wait_healthcheck(&health_endpoint, Duration::from_secs(10)).await;
+                let ready = crate::collector::wait_healthcheck(&health_endpoint, Duration::from_secs(10)).await;
                 let _ = reply.send(if ready { Ok(()) } else { Err("collector did not become ready".into()) });
             }
             signal = &mut shutdown => {
@@ -128,7 +128,7 @@ async fn stop_collector(child: &mut Option<Child>) {
 fn run_start_health_endpoint() -> String {
     format!(
         "{}/",
-        everr_core::build::healthcheck_origin().trim_end_matches('/')
+        crate::build::healthcheck_origin().trim_end_matches('/')
     )
 }
 
@@ -176,9 +176,9 @@ async fn spawn_collector(assets: &ExtractedAssets, telemetry_dir: &Path) -> Resu
     let chdb_path = telemetry_dir.join("chdb");
     fs::create_dir_all(&chdb_path)
         .with_context(|| format!("create chdb dir {}", chdb_path.display()))?;
-    let otlp_endpoint = everr_core::build::otlp_http_origin();
-    let health_endpoint = everr_core::build::healthcheck_origin();
-    let sql_endpoint = everr_core::build::sql_http_origin();
+    let otlp_endpoint = crate::build::otlp_http_origin();
+    let health_endpoint = crate::build::healthcheck_origin();
+    let sql_endpoint = crate::build::sql_http_origin();
 
     let mut child = Command::new(&assets.collector)
         .arg("--otlp-http-endpoint")
@@ -200,13 +200,13 @@ async fn spawn_collector(assets: &ExtractedAssets, telemetry_dir: &Path) -> Resu
         .with_context(|| format!("spawn {}", assets.collector.display()))?;
 
     if let Some(stdout) = child.stdout.take() {
-        tokio::spawn(everr_core::collector::forward_output(
+        tokio::spawn(crate::collector::forward_output(
             stdout,
             "[collector stdout]",
         ));
     }
     if let Some(stderr) = child.stderr.take() {
-        tokio::spawn(everr_core::collector::forward_output(
+        tokio::spawn(crate::collector::forward_output(
             stderr,
             "[collector stderr]",
         ));
@@ -250,8 +250,8 @@ fn kill_orphaned_collector() {
         return;
     }
 
-    everr_core::collector::kill_processes_on_port(
-        everr_core::build::HEALTHCHECK_PORT,
+    crate::collector::kill_processes_on_port(
+        crate::build::HEALTHCHECK_PORT,
         "orphaned collector process",
     );
 }
@@ -259,7 +259,7 @@ fn kill_orphaned_collector() {
 fn extract_embedded_assets() -> Result<ExtractedAssets> {
     let cache_root = dirs::cache_dir()
         .context("failed to resolve user cache directory")?
-        .join(everr_core::build::session_namespace())
+        .join(crate::build::session_namespace())
         .join("collector-assets");
     extract_assets_to_cache(
         &cache_root,

@@ -24,8 +24,8 @@ const SERVICE_NAME: &str = "everr-cli";
 const EVENT_NAME: &str = "everr.cli.command";
 const RESULT_EVENT_NAME: &str = "everr.cli.command.result";
 const EVENT_TARGET: &str = "everr_cli_command";
-// Tracing target of the spans everr-core emits around its HTTP calls. Must match
-// the literal used in `everr_core::api` so this filter captures them.
+// Tracing target of the spans the CLI API client emits around its HTTP calls. Must match
+// the literal used in `crate::api` so this filter captures them.
 const API_TARGET: &str = "everr_api";
 const EXPORT_TIMEOUT: Duration = Duration::from_millis(750);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(750);
@@ -127,7 +127,7 @@ pub fn record_result(
 }
 
 /// The root span for one CLI invocation. All work runs inside it (main
-/// instruments `run_command` with it), so once everr-core injects the trace
+/// instruments `run_command` with it), so once the API client injects the trace
 /// context into its HTTP calls the trace stitches CLI → server → ClickHouse.
 /// Reuses the command/subcommand identity that the log events already carry.
 pub fn command_span(command: &'static str, subcommand: Option<&'static str>) -> tracing::Span {
@@ -186,7 +186,7 @@ fn init_inner() -> Result<TelemetryGuard, Box<dyn std::error::Error + Send + Syn
         .with_batch_exporter(span_exporter)
         .build();
     global::set_tracer_provider(tracer_provider.clone());
-    // W3C traceparent so everr-core's HTTP calls carry the context to the server.
+    // W3C traceparent so the API client's HTTP calls carry the context to the server.
     global::set_text_map_propagator(TraceContextPropagator::new());
     let trace_layer =
         tracing_opentelemetry::layer().with_tracer(tracer_provider.tracer(SERVICE_NAME));
@@ -376,7 +376,7 @@ impl TelemetryConfig {
             if ingest_key.is_some() {
                 "https://ingest.everr.dev".into()
             } else {
-                everr_core::build::otlp_http_origin()
+                crate::build::otlp_http_origin()
             }
         });
         let headers = ingest_key

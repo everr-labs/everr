@@ -2,8 +2,8 @@ use std::io::IsTerminal;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use everr_core::build;
-use everr_core::skills::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
+use crate::build;
+use crate::skill_store::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
 
 use crate::auth;
 use crate::skills as cli_skills;
@@ -154,7 +154,7 @@ fn has_global_bundled_skills_installed(home_dir: &Path) -> Result<bool> {
 mod tests {
     #[test]
     fn claude_target_maps_to_claude_code() {
-        use everr_core::skills::SkillProvider;
+        use crate::skill_store::SkillProvider;
         assert_eq!(
             super::skill_target_providers(&[super::SkillTarget::Claude]),
             vec![SkillProvider::ClaudeCode]
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn agents_target_maps_to_codex_and_cursor() {
-        use everr_core::skills::SkillProvider;
+        use crate::skill_store::SkillProvider;
         assert_eq!(
             super::skill_target_providers(&[super::SkillTarget::Agents]),
             vec![SkillProvider::Codex, SkillProvider::Cursor]
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn both_targets_map_to_all_providers() {
-        use everr_core::skills::SkillProvider;
+        use crate::skill_store::SkillProvider;
         assert_eq!(
             super::skill_target_providers(&[
                 super::SkillTarget::Claude,
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn default_targets_selects_only_detected_groups() {
-        use everr_core::skills::{SkillProvider, SkillProviderStatus};
+        use crate::skill_store::{SkillProvider, SkillProviderStatus};
         let statuses = vec![
             SkillProviderStatus {
                 provider: SkillProvider::ClaudeCode,
@@ -258,8 +258,8 @@ mod tests {
 
     #[test]
     fn setup_marks_wizard_complete() {
-        use everr_core::build;
-        use everr_core::state::AppStateStore;
+        use crate::build;
+        use crate::state::AppStateStore;
 
         let _guard = crate::test_support::ENV_LOCK
             .lock()

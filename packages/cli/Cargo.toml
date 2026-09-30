@@ -15,7 +15,9 @@ cliclack = "0.5.2"
 console = "0.16"
 dialoguer = "0.11.0"
 dirs = "6.0.0"
-everr-core = { path = "../../crates/everr-core" }
+eventsource-stream = "0.2"
+fs2 = "0.4"
+ignore = "0.4"
 flate2 = "1.1"
 futures-util = "0.3"
 opentelemetry = { version = "0.32", features = ["logs", "trace"] }
@@ -23,7 +25,7 @@ opentelemetry-appender-tracing = "0.32"
 opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "logs", "trace", "reqwest-blocking-client", "reqwest-rustls"] }
 opentelemetry_sdk = { version = "0.32", features = ["logs", "trace", "rt-tokio"] }
 tracing-opentelemetry = "0.33"
-reqwest = { version = "0.12.15", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+reqwest = { version = "0.12.15", default-features = false, features = ["blocking", "json", "rustls-tls", "stream"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serde_yaml = "0.9"
@@ -40,6 +42,8 @@ bytes = "1"
 axum = "0.8"
 include_dir = "0.7"
 mime_guess = "2"
+notify = "8"
+pathdiff = "0.2"
 
 [dependencies.nix]
 version = "0.29"

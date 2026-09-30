@@ -1,8 +1,8 @@
 use std::process::Command as ProcessCommand;
 
 use anyhow::{Context, Result, bail};
-use everr_core::api::{ApiClient, OrgResponse};
-use everr_core::build;
+use crate::api::{ApiClient, OrgResponse};
+use crate::build;
 
 use crate::auth;
 
@@ -120,7 +120,7 @@ async fn has_existing_runs(client: &ApiClient, repo_full_name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::parse_repo_from_remote;
-    use everr_core::api::OrgResponse;
+    use crate::api::OrgResponse;
 
     #[test]
     fn parses_https_remote() {

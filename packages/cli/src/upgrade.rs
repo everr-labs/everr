@@ -71,7 +71,7 @@ fn download_base_url() -> Result<String> {
 
     Ok(format!(
         "{}{}",
-        everr_core::build::default_docs_base_url(),
+        crate::build::default_docs_base_url(),
         DOWNLOAD_PATH_PREFIX
     ))
 }

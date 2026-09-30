@@ -171,13 +171,12 @@ async function main() {
   await vite.listen();
   vite.printUrls();
 
-  for (const directory of ["packages/cli/src", "crates/everr-core/src", "crates/everr-core/assets"]) {
+  for (const directory of ["packages/cli/src", "packages/cli/assets"]) {
     watchers.push(watch(path.join(repoDir, directory), { recursive: true }, scheduleRebuild));
   }
   for (const [directory, files] of [
     [repoDir, ["Cargo.toml", "Cargo.lock"]],
     [cliDir, ["Cargo.toml", "build.rs", "package.json"]],
-    [path.join(repoDir, "crates/everr-core"), ["Cargo.toml"]],
   ] as const) {
     watchers.push(watch(directory, (_event, file) => {
       if (file && files.some((name) => name === file)) scheduleRebuild();

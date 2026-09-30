@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow};
-use everr_core::api::ApiClient;
-use everr_core::auth::{AuthConfig, login_with_prompt};
-use everr_core::build;
-use everr_core::state::{AppStateStore, Session};
+use crate::api::ApiClient;
+use crate::device_auth::{AuthConfig, login_with_prompt};
+use crate::build;
+use crate::state::{AppStateStore, Session};
 
 use crate::cli::LoginArgs;
 
@@ -140,7 +140,7 @@ fn current_api_base_url() -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use everr_core::build;
+    use crate::build;
 
     use super::state_store;
 

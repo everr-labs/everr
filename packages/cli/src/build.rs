@@ -152,6 +152,9 @@ mod tests {
 
     #[test]
     fn debug_builds_use_local_defaults() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         assert_eq!(build_type_label(), "debug");
         assert_eq!(default_api_base_url(), "http://localhost:5173");
         assert_eq!(default_session_file_name(), "session-dev.json");
@@ -160,6 +163,9 @@ mod tests {
 
     #[test]
     fn telemetry_dir_uses_everr_namespace_and_debug_subdir() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let dir = telemetry_dir().expect("resolve telemetry dir");
         let components: Vec<String> = dir
             .components()
@@ -174,6 +180,9 @@ mod tests {
 
     #[test]
     fn otlp_http_origin_honors_debug_override() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         const KEY: &str = "EVERR_OTLP_HTTP_ORIGIN";
         let previous = std::env::var_os(KEY);
 
@@ -197,6 +206,9 @@ mod tests {
 
     #[test]
     fn healthcheck_origin_honors_debug_override() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         const KEY: &str = "EVERR_HEALTHCHECK_ORIGIN";
         let previous = std::env::var_os(KEY);
 
@@ -220,6 +232,9 @@ mod tests {
 
     #[test]
     fn sql_http_origin_honors_debug_override() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         const KEY: &str = "EVERR_SQL_HTTP_ORIGIN";
         let previous = std::env::var_os(KEY);
 
