@@ -8,7 +8,7 @@ If production browser telemetry is needed and no public key exists, tell the use
 
 ## Endpoint And Gating
 
-- Local development and `everr-onboard`: export to the local collector URL from `everr local status`. It accepts browser OTLP with no key and no origin setup.
+- Local development: export to the local collector URL from `everr local status`. It accepts browser OTLP with no key and no origin setup.
 - Production: export to `https://ingest.everr.dev/` with `Authorization: Bearer <public-key>`.
 - Inject the public key through a client build-time variable, for example `VITE_EVERR_PUBLIC_INGEST_KEY` in Vite.
 - No SSR guard is needed: `@everr/otel-web`'s WebSDK resolves a server entry under the `node` export condition and is inert there.
@@ -64,5 +64,5 @@ If the page already has a `LoggerProvider` for other reasons, keep it and let `@
 
 ## Validation
 
-- Trigger the instrumented path in a real browser, then verify with `everr local query` for local collection and `everr-onboard`, or `everr cloud query` for production, filtered by the browser `ServiceName` and a fresh time window.
+- Trigger the instrumented path in a real browser, then verify with `everr local query` filtered by the browser `ServiceName` and a fresh time window.
 - A request from an origin missing from the key's allowlist returns 401 and the SDK drops the batch silently. When production rows are missing, check the page's origin against the key's allowlist before touching the code.

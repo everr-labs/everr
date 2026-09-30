@@ -6,4 +6,4 @@
 
 `everr local status` checks both `/health` responses for the expected service, protocol, version, readiness, and instance ID. It distinguishes running, starting, stopped, unrecognized listeners, and connection failures, and exits with code 2 unless the collector and UI are a matching ready instance.
 
-`everr setup` installs agent skills and shows how to start local telemetry. Use `/everr-onboard` in your coding agent to instrument a local app and verify its first real signal. Cloud sign-in and ingest keys are separate follow-up steps when you want hosted telemetry or CI.
+`everr setup` installs agent skills and shows how to start local telemetry. Cloud sign-in and ingest keys are separate follow-up steps when you want hosted telemetry or CI.

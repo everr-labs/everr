@@ -1,45 +1,19 @@
 use std::io::IsTerminal;
 use std::path::Path;
 
-use anyhow::{Context, Result};
 use crate::build;
 use crate::skill_store::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
+use anyhow::{Context, Result};
 
 use crate::auth;
 use crate::skills as cli_skills;
 
-#[derive(Default)]
-struct SetupOutcome {
-    skills_installed: bool,
-}
-
-struct NextStep {
-    label: &'static str,
-    command: String,
-}
-
-fn next_steps(cmd: &str, outcome: &SetupOutcome) -> Vec<NextStep> {
-    let mut steps = vec![NextStep {
-        label: "Start local telemetry (keep this terminal running)",
-        command: format!("{cmd} local start"),
-    }];
-    if outcome.skills_installed {
-        steps.push(NextStep {
-            label: "Instrument your repo (ask your agent)",
-            command: "/everr-onboard".to_string(),
-        });
-    }
-    steps
-}
-
-fn print_summary(outcome: &SetupOutcome) -> Result<()> {
-    let steps = next_steps(build::command_name(), outcome);
-    let body = steps
-        .iter()
-        .map(|step| format!("{}\n{}", step.label, step.command))
-        .collect::<Vec<_>>()
-        .join("\n\n");
-    cliclack::note("You're all set", body)?;
+fn print_summary() -> Result<()> {
+    let cmd = build::command_name();
+    cliclack::note(
+        "You're all set",
+        format!("Start local telemetry (keep this terminal running)\n{cmd} local start"),
+    )?;
     Ok(())
 }
 
@@ -48,9 +22,7 @@ pub async fn run() -> Result<()> {
 
     cliclack::intro("Setup")?;
 
-    let outcome = SetupOutcome {
-        skills_installed: step_install_skills()?,
-    };
+    step_install_skills()?;
 
     auth::state_store().update_state(|state| {
         state
@@ -58,7 +30,7 @@ pub async fn run() -> Result<()> {
             .mark_setup_complete(build::default_api_base_url());
     })?;
 
-    print_summary(&outcome)?;
+    print_summary()?;
     cliclack::outro("Observability, simplified.")?;
     Ok(())
 }
@@ -96,7 +68,7 @@ fn default_targets(statuses: &[core_skills::SkillProviderStatus]) -> Vec<SkillTa
     targets
 }
 
-fn step_install_skills() -> Result<bool> {
+fn step_install_skills() -> Result<()> {
     let interactive = std::io::stdin().is_terminal();
     let home_dir = dirs::home_dir().context("failed to resolve home directory")?;
     let provider_statuses = core_skills::provider_statuses(&home_dir);
@@ -104,7 +76,7 @@ fn step_install_skills() -> Result<bool> {
     if has_global_bundled_skills_installed(&home_dir)? {
         let summary = cli_skills::install_all_for_setup(SkillScope::Global, Vec::new())?;
         cliclack::note("Everr skills installed", summary.skills.join("\n"))?;
-        return Ok(true);
+        return Ok(());
     }
 
     if interactive {
@@ -129,12 +101,12 @@ fn step_install_skills() -> Result<bool> {
 
     if providers.is_empty() {
         cliclack::log::remark("Skipping Everr skills.")?;
-        return Ok(false);
+        return Ok(());
     }
 
     let summary = cli_skills::install_all_for_setup(SkillScope::Global, providers)?;
     cliclack::note("Everr skills installed", summary.skills.join("\n"))?;
-    Ok(true)
+    Ok(())
 }
 
 fn has_global_bundled_skills_installed(home_dir: &Path) -> Result<bool> {
@@ -214,45 +186,6 @@ mod tests {
         assert_eq!(
             super::default_targets(&statuses),
             vec![super::SkillTarget::Claude]
-        );
-    }
-
-    #[test]
-    fn next_steps_always_includes_local_collector() {
-        let steps = super::next_steps("everr", &super::SetupOutcome::default());
-        assert_eq!(steps.len(), 1);
-        assert_eq!(steps[0].command, "everr local start");
-    }
-
-    #[test]
-    fn next_steps_includes_telemetry_skill_only_when_skills_installed() {
-        let with_skills = super::SetupOutcome {
-            skills_installed: true,
-        };
-        assert!(
-            super::next_steps("everr", &with_skills)
-                .iter()
-                .any(|step| step.command.contains("/everr-onboard"))
-        );
-
-        let without = super::SetupOutcome::default();
-        assert!(
-            !super::next_steps("everr", &without)
-                .iter()
-                .any(|step| step.command.contains("/everr-onboard"))
-        );
-    }
-
-    #[test]
-    fn next_steps_prefixes_cli_commands_with_command_name() {
-        let outcome = super::SetupOutcome {
-            skills_installed: true,
-        };
-        let steps = super::next_steps("everr-dev", &outcome);
-        assert!(
-            steps
-                .iter()
-                .all(|step| step.command.starts_with("everr-dev") || step.command.starts_with('/'))
         );
     }
 

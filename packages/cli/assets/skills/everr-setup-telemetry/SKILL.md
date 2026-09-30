@@ -1,6 +1,6 @@
 ---
 name: everr-setup-telemetry
-description: Use for adding or fixing OpenTelemetry instrumentation, local collector setup, debug telemetry, or missing runtime signals. For first-time local telemetry onboarding, use everr-onboard.
+description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, or instrumentation verification.
 ---
 
 ## Startup Access
@@ -16,8 +16,6 @@ If the current tool cannot ask for a blanket permission grant, request scoped co
 # Setup Telemetry With Everr
 
 Use this skill when an app, service, test, script, or command needs to emit telemetry into Everr. For alerting rules on that telemetry (and dashboards or runbooks), use the `everr-setup-resources` skill.
-
-For first-time onboarding that verifies an app's own telemetry in the local collector, use `everr-onboard`.
 
 Local telemetry lets development match production behavior closely, and debug telemetry lets the agent collect extra evidence locally without guessing from the code.
 
