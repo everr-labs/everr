@@ -102,16 +102,19 @@ fn status_reports_running_when_collector_and_ui_belong_together() {
     let env = CliTestEnv::new();
     let collector = health_server("everr-local-collector", "one", false);
     let ui = health_server("everr-local-ui", "one", false);
+    let otlp = stopped_origin();
     env.command()
         .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
         .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+        .env("EVERR_OTLP_HTTP_ORIGIN", &otlp)
         .args(["local", "status"])
         .assert()
         .success()
-        .stdout(contains("collector: running"))
-        .stdout(contains("local UI: running"))
-        .stdout(contains(everr_cli::build::otlp_http_origin()))
-        .stdout(contains(ui.url()))
+        .stdout(diff(format!(
+            "otlp: {otlp}\nsql: {}\nui: {}\n",
+            collector.url(),
+            ui.url()
+        )))
         .stderr(diff(""));
 }
 
@@ -124,8 +127,7 @@ fn status_reports_stopped_when_both_listeners_are_absent() {
         .args(["local", "status"])
         .assert()
         .code(2)
-        .stdout(contains("collector: stopped"))
-        .stdout(contains("local UI: stopped"))
+        .stdout(diff("otlp: stopped\nsql: stopped\nui: stopped\n"))
         .stderr(contains("everr local start"));
 }
 
@@ -170,7 +172,10 @@ fn status_recognizes_starting_collector() {
         .args(["local", "status"])
         .assert()
         .code(2)
-        .stdout(contains("collector: starting"));
+        .stdout(diff(format!(
+            "otlp: starting\nsql: starting\nui: {}\n",
+            ui.url()
+        )));
 }
 
 #[test]
@@ -207,14 +212,18 @@ fn partial_instance_is_reported_and_start_refuses_to_replace_it() {
     let env = CliTestEnv::new();
     let collector = health_server("everr-local-collector", "one", false);
     let ui_origin = stopped_origin();
+    let otlp = stopped_origin();
     env.command()
         .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
         .env("EVERR_LOCAL_UI_ORIGIN", &ui_origin)
+        .env("EVERR_OTLP_HTTP_ORIGIN", &otlp)
         .args(["local", "status"])
         .assert()
         .code(2)
-        .stdout(contains("collector: running"))
-        .stdout(contains("local UI: stopped"));
+        .stdout(diff(format!(
+            "otlp: {otlp}\nsql: {}\nui: stopped\n",
+            collector.url()
+        )));
     env.command()
         .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
         .env("EVERR_LOCAL_UI_ORIGIN", &ui_origin)

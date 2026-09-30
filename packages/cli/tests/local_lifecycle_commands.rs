@@ -227,6 +227,64 @@ fn unavailable_log_directory_does_not_start_a_supervisor() {
 }
 
 #[test]
+fn stop_waits_for_slow_supervisor_telemetry_before_immediate_restart() {
+    let instance = Instance::new();
+    let mut exporter = mockito::Server::new();
+    let _slow_exports = exporter
+        .mock("POST", mockito::Matcher::Any)
+        .with_chunked_body(|_| {
+            std::thread::sleep(Duration::from_secs(2));
+            Ok(())
+        })
+        .create();
+    let mut start = assert_cmd::Command::from_std(instance.command());
+    start
+        .env("OTEL_EXPORTER_OTLP_ENDPOINT", exporter.url())
+        .args(["local", "start", "-d", "--no-open"])
+        .timeout(Duration::from_secs(30))
+        .assert()
+        .success();
+    // A controlling terminal need not share the supervisor's directory overrides.
+    let control = tempfile::tempdir().unwrap();
+    let mut stop = assert_cmd::Command::from_std(instance.command());
+    stop.env("EVERR_TELEMETRY_DIR", control.path().join("data"))
+        .env("EVERR_LOCAL_LOG_DIR", control.path().join("logs"))
+        .args(["local", "stop"])
+        .timeout(Duration::from_secs(30))
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Everr stopped"));
+    let log_lock = std::fs::File::open(instance.data.path().join("logs/local.log.lock")).unwrap();
+    assert!(
+        fs2::FileExt::try_lock_exclusive(&log_lock).is_ok(),
+        "stop returned before releasing the supervisor's log lock"
+    );
+    drop(log_lock);
+    instance.run(&["local", "start", "-d", "--no-open"]);
+    instance.run(&["local", "stop"]);
+}
+
+#[test]
+fn stop_waits_for_cleanup_even_when_the_listeners_are_already_closed() {
+    let instance = Instance::new();
+    let lock = std::fs::File::create(instance.data.path().join("local.lock")).unwrap();
+    fs2::FileExt::try_lock_exclusive(&lock).unwrap();
+    let released = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag = released.clone();
+    let cleanup = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(600));
+        flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        drop(lock);
+    });
+    instance.run(&["local", "stop"]);
+    assert!(
+        released.load(std::sync::atomic::Ordering::SeqCst),
+        "stop returned before supervisor cleanup"
+    );
+    cleanup.join().unwrap();
+}
+
+#[test]
 fn failed_detached_start_cleans_up_and_reports_its_log() {
     let instance = Instance::new();
     let blocker = TcpListener::bind(instance.origins[1].trim_start_matches("http://")).unwrap();
