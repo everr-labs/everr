@@ -1,5 +1,14 @@
 # @everr/otel-web
 
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [5da5dff]
+- Updated dependencies [99c4eb4]
+- Updated dependencies [726e757]
+  - @everr/otel-errors@0.2.0
+
 ## 0.3.2
 
 ### Patch Changes

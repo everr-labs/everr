@@ -1,5 +1,14 @@
 # @everr/tanstack-start-otel
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [5da5dff]
+- Updated dependencies [99c4eb4]
+- Updated dependencies [726e757]
+  - @everr/otel-errors@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
