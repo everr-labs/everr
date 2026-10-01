@@ -82,14 +82,17 @@ impl LocalStatus {
     }
 
     pub fn print(&self) {
-        println!("collector: {}", self.collector.description());
-        if matches!(self.collector, ServiceState::Running(_)) {
-            println!("otlp: {}", crate::build::otlp_http_origin());
-            println!("sql: {}", crate::build::sql_http_origin());
-        }
-        println!("local UI: {}", self.ui.description());
-        if matches!(self.ui, ServiceState::Running(_)) {
-            println!("ui: {}", crate::build::local_ui_origin());
+        for (label, origin, state) in [
+            ("otlp", crate::build::otlp_http_origin(), &self.collector),
+            ("sql", crate::build::sql_http_origin(), &self.collector),
+            ("ui", crate::build::local_ui_origin(), &self.ui),
+        ] {
+            let value = if matches!(state, ServiceState::Running(_)) {
+                origin
+            } else {
+                state.description().to_owned()
+            };
+            println!("{label}: {value}");
         }
         if matches!(
             (&self.collector, &self.ui),

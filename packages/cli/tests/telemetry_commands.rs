@@ -24,6 +24,52 @@ fn endpoint_is_not_a_local_subcommand() {
         .stderr(contains("endpoint"));
 }
 
+#[test]
+fn stop_is_idempotent_when_both_listeners_are_absent() {
+    CliTestEnv::new()
+        .command()
+        .env("EVERR_SQL_HTTP_ORIGIN", stopped_origin())
+        .env("EVERR_LOCAL_UI_ORIGIN", stopped_origin())
+        .args(["local", "stop"])
+        .assert()
+        .success()
+        .stdout(contains("already stopped"));
+}
+
+#[test]
+fn stop_refuses_unrecognized_or_mismatched_instances() {
+    for recognized in [false, true] {
+        let env = CliTestEnv::new();
+        let collector = health_server("everr-local-collector", "one", false);
+        let mut ui = mockito::Server::new();
+        ui.mock("GET", "/health")
+            .with_body(if recognized {
+                identity("everr-local-ui", "two", "ok")
+            } else {
+                "other app".into()
+            })
+            .create();
+        let stop = ui
+            .mock("POST", "/api/commands/stop_local")
+            .expect(0)
+            .create();
+        env.command()
+            .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
+            .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+            .args(["local", "stop"])
+            .assert()
+            .failure()
+            .stderr(contains("cannot stop Everr"));
+        stop.assert();
+        assert!(
+            reqwest::blocking::get(format!("{}/health", ui.url()))
+                .unwrap()
+                .status()
+                .is_success()
+        );
+    }
+}
+
 fn identity(service: &str, instance: &str, status: &str) -> String {
     serde_json::json!({
         "service": service, "version": "0.8.2", "instance_id": instance,
@@ -56,16 +102,19 @@ fn status_reports_running_when_collector_and_ui_belong_together() {
     let env = CliTestEnv::new();
     let collector = health_server("everr-local-collector", "one", false);
     let ui = health_server("everr-local-ui", "one", false);
+    let otlp = stopped_origin();
     env.command()
         .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
         .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+        .env("EVERR_OTLP_HTTP_ORIGIN", &otlp)
         .args(["local", "status"])
         .assert()
         .success()
-        .stdout(contains("collector: running"))
-        .stdout(contains("local UI: running"))
-        .stdout(contains(everr_cli::build::otlp_http_origin()))
-        .stdout(contains(ui.url()))
+        .stdout(diff(format!(
+            "otlp: {otlp}\nsql: {}\nui: {}\n",
+            collector.url(),
+            ui.url()
+        )))
         .stderr(diff(""));
 }
 
@@ -78,8 +127,7 @@ fn status_reports_stopped_when_both_listeners_are_absent() {
         .args(["local", "status"])
         .assert()
         .code(2)
-        .stdout(contains("collector: stopped"))
-        .stdout(contains("local UI: stopped"))
+        .stdout(diff("otlp: stopped\nsql: stopped\nui: stopped\n"))
         .stderr(contains("everr local start"));
 }
 
@@ -124,7 +172,10 @@ fn status_recognizes_starting_collector() {
         .args(["local", "status"])
         .assert()
         .code(2)
-        .stdout(contains("collector: starting"));
+        .stdout(diff(format!(
+            "otlp: starting\nsql: starting\nui: {}\n",
+            ui.url()
+        )));
 }
 
 #[test]
@@ -132,11 +183,13 @@ fn start_reuses_ready_instance_without_starting_a_new_process() {
     let env = CliTestEnv::new();
     let collector = health_server("everr-local-collector", "one", false);
     let ui = health_server("everr-local-ui", "one", false);
+    let otlp = stopped_origin();
     for quiet in [false, true] {
         let mut command = env.command();
         command
             .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
             .env("EVERR_LOCAL_UI_ORIGIN", ui.url())
+            .env("EVERR_OTLP_HTTP_ORIGIN", &otlp)
             .args(["local", "start", "--no-open"]);
         if quiet {
             command.arg("--quiet");
@@ -145,9 +198,11 @@ fn start_reuses_ready_instance_without_starting_a_new_process() {
         if quiet {
             result.stdout(diff(""));
         } else {
-            result
-                .stdout(contains("Everr is already running"))
-                .stdout(contains(ui.url()));
+            result.stdout(diff(format!(
+                "otlp: {otlp}\nsql: {}\nui: {}\n",
+                collector.url(),
+                ui.url()
+            )));
         }
     }
 }
@@ -157,14 +212,18 @@ fn partial_instance_is_reported_and_start_refuses_to_replace_it() {
     let env = CliTestEnv::new();
     let collector = health_server("everr-local-collector", "one", false);
     let ui_origin = stopped_origin();
+    let otlp = stopped_origin();
     env.command()
         .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
         .env("EVERR_LOCAL_UI_ORIGIN", &ui_origin)
+        .env("EVERR_OTLP_HTTP_ORIGIN", &otlp)
         .args(["local", "status"])
         .assert()
         .code(2)
-        .stdout(contains("collector: running"))
-        .stdout(contains("local UI: stopped"));
+        .stdout(diff(format!(
+            "otlp: {otlp}\nsql: {}\nui: stopped\n",
+            collector.url()
+        )));
     env.command()
         .env("EVERR_SQL_HTTP_ORIGIN", collector.url())
         .env("EVERR_LOCAL_UI_ORIGIN", &ui_origin)

@@ -7,5 +7,9 @@ pub mod collector;
 pub mod commands;
 
 mod local_auth;
-pub mod local_server;
+mod local_lifecycle;
+pub use local_lifecycle::SupervisorLifetime;
+mod local_log;
+pub use local_log::Capture as LocalLogCapture;
 pub mod local_instance;
+pub mod local_server;
