@@ -66,7 +66,7 @@ pub async fn run_start(args: TelemetryStartArgs) -> Result<()> {
     }
 
     if !args.quiet {
-        println!("{}", everr_core::build::otlp_http_origin());
+        println!("otlp: {}", everr_core::build::otlp_http_origin());
     }
 
     tokio::select! {
