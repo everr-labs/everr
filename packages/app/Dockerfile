@@ -1,4 +1,4 @@
-FROM node:24.4-alpine3.22 AS base
+FROM node:24.21.0-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS base
 RUN corepack enable
 WORKDIR /app
 
@@ -38,19 +38,16 @@ RUN SKIP_ENV_VALIDATION=true \
     test -s packages/app/.output/public/_shell.html
 
 # Stage 3: production
-FROM node:24.4-alpine3.22 AS runner
+# Node 24.21.0, keep in sync with the builder and .nvmrc.
+FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:bb6b03d81066993293a10feda7250e8e1cc034035fe9b61cfceededa7c8bf04d AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nodejs
+# Nitro includes the runtime dependencies in its standalone output.
 COPY --from=build /app/packages/app/.output ./.output
-COPY --from=build /app/node_modules/.pnpm ./node_modules/.pnpm
-COPY --from=build /app/packages/app/node_modules ./packages/app/node_modules
-COPY --from=build /app/packages/app/package.json ./packages/app/package.json
 
-# Copy migration files
-COPY packages/app/drizzle ./drizzle
+# Drizzle needs the SQL files and journal, but not development snapshots.
+COPY packages/app/drizzle/*.sql ./drizzle/
+COPY packages/app/drizzle/meta/_journal.json ./drizzle/meta/_journal.json
 
 EXPOSE 3000
-USER nodejs
-CMD ["node", ".output/server/index.mjs"]
+CMD [".output/server/index.mjs"]
