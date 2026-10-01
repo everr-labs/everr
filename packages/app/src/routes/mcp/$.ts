@@ -22,7 +22,6 @@ function contextOf(extra: { authInfo?: { extra?: Record<string, unknown> } }) {
   return ctx?.orgId && ctx?.userId ? ctx : undefined;
 }
 
-// Creating the MCP handler starts a cleanup timer, so wait for a request.
 function createTransport() {
   const mcpTransport = createMcpHandler(
     (server) => {
@@ -132,7 +131,10 @@ async function verifyToken(_req: Request, bearerToken?: string) {
   };
 }
 
-let authedTransport: ReturnType<typeof createTransport> | undefined;
+// The MCP cleanup timer would keep the prerender process alive after rendering.
+// Initialize at module load during normal runtime.
+const authedTransport =
+  process.env.TSS_PRERENDERING === "true" ? undefined : createTransport();
 
 // Browser-based MCP clients (e.g. the MCP Inspector) hit /mcp cross-origin, so
 // every response — including withMcpAuth's 401 challenge — needs CORS, and the
@@ -144,7 +146,9 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 async function handler(request: Request): Promise<Response> {
-  authedTransport ??= createTransport();
+  if (!authedTransport) {
+    throw new Error("MCP requests are unavailable during prerendering");
+  }
   const res = await authedTransport(request);
   const out = new Response(res.body, res);
   for (const [k, v] of Object.entries(CORS_HEADERS)) {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createMcpHandler: vi.fn(),
@@ -19,6 +19,7 @@ vi.mock("@/db/client", () => ({ db: {} }));
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  vi.stubEnv("TSS_PRERENDERING", undefined);
   mocks.createMcpHandler.mockReturnValue(mocks.transport);
   mocks.withMcpAuth.mockReturnValue(mocks.transport);
   mocks.transport.mockImplementation(
@@ -30,8 +31,13 @@ beforeEach(() => {
   );
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("MCP transport lifecycle", () => {
-  it("does not initialize the transport when the route loads or handles preflight", async () => {
+  it("does not initialize the transport during prerendering", async () => {
+    vi.stubEnv("TSS_PRERENDERING", "true");
     const { Route } = await import("./$");
     expect(mocks.createMcpHandler).not.toHaveBeenCalled();
 
@@ -42,10 +48,23 @@ describe("MCP transport lifecycle", () => {
     if (!(response instanceof Response)) throw new Error("Expected a response");
     expect(response.status).toBe(204);
     expect(mocks.createMcpHandler).not.toHaveBeenCalled();
+
+    await expect(
+      handlers.GET?.({
+        request: new Request("http://localhost:3000/mcp"),
+      } as never),
+    ).rejects.toThrow("MCP requests are unavailable during prerendering");
+    expect(mocks.createMcpHandler).not.toHaveBeenCalled();
   });
 
-  it("initializes once for requests and preserves the auth challenge and CORS", async () => {
+  it.each([
+    undefined,
+    "false",
+  ])("initializes at module load with TSS_PRERENDERING=%s and reuses the transport", async (prerendering) => {
+    vi.stubEnv("TSS_PRERENDERING", prerendering);
     const { Route } = await import("./$");
+    expect(mocks.createMcpHandler).toHaveBeenCalledTimes(1);
+    expect(mocks.withMcpAuth).toHaveBeenCalledTimes(1);
     const handlers = Route.options.server?.handlers;
     if (!handlers || typeof handlers === "function")
       throw new Error("Missing handlers");
@@ -67,5 +86,14 @@ describe("MCP transport lifecycle", () => {
       expect.objectContaining({ required: true }),
     );
     expect(mocks.transport).toHaveBeenCalledTimes(2);
+  });
+
+  it("surfaces runtime initialization failures when the module loads", async () => {
+    mocks.createMcpHandler.mockImplementationOnce(() => {
+      throw new Error("Transport initialization failed");
+    });
+    await expect(import("./$")).rejects.toThrow(
+      "Transport initialization failed",
+    );
   });
 });
