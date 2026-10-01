@@ -16,7 +16,7 @@ In the Everr dashboard, open the user menu (top-left) and click **API keys**, th
 
 - Leave the **Send telemetry** capability enabled: it's what lets the key authenticate OTLP requests.
 - Keys are organization-scoped: any data sent with the key is attributed to the organization it belongs to.
-- The full key is shown only once, at creation time. Copy it into your secret manager; you can't retrieve it later.
+- Secret keys start with `sk_` and are stored as hashes. The full key is shown only once, at creation time. Copy it into your secret manager; you can't retrieve it later.
 - Admins can revoke a key at any time. Revocation is effective within about 30 seconds (the collector's positive cache TTL).
 
 ## Endpoints

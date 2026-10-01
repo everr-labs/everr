@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   /**
-   * Public (origin-bound, ingest-only) `ek_` key used to send browser error
+   * Public (origin-bound, ingest-only) `pk_` key used to send browser error
    * telemetry to Everr. Safe to ship in the client bundle. When unset in a
    * production build, browser error tracking stays off.
    */

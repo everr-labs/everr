@@ -25,10 +25,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
-import { Globe, KeyRound, type LucideIcon } from "lucide-react";
+import { Copy, Globe, KeyRound, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
 import { formatDate } from "@/components/users-management/format-date";
+import type { ApiKeyKind } from "@/lib/api-key-config";
 import {
   API_KEY_SCOPES,
   type ApiKeyPermissions,
@@ -38,7 +39,11 @@ import { publicKeyMetadataOf } from "@/lib/public-ingest-keys";
 import { type ApiKey, useRevokeApiKey } from "./queries";
 import { SCOPE_ICONS } from "./scope-meta";
 
-type RevokeFn = (id: string, name: string | null | undefined) => void;
+type RevokeFn = (
+  id: string,
+  name: string | null | undefined,
+  kind: ApiKeyKind,
+) => void;
 
 const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
@@ -76,10 +81,22 @@ function permissionsOf(row: ApiKey): ApiKeyPermissions {
 
 // ---- Shared cells --------------------------------------------------------
 
-// The key's name plus its masked prefix. Public (browser) keys also carry a
+// The key's name and value (masked for secret keys). Browser keys carry a
 // globe marker so a row reads as a browser key on its own, not only via the
 // section it sits in.
 function KeyIdentity({ row, browser }: { row: ApiKey; browser?: boolean }) {
+  const publicKey = browser ? row.publicKey : null;
+
+  const copyKey = async () => {
+    if (!publicKey) return;
+    try {
+      await navigator.clipboard.writeText(publicKey);
+      toast.success("Public key copied");
+    } catch {
+      toast.error("Could not copy to clipboard");
+    }
+  };
+
   return (
     <div className="flex items-center gap-2.5">
       {browser && (
@@ -91,9 +108,22 @@ function KeyIdentity({ row, browser }: { row: ApiKey; browser?: boolean }) {
         <span className="truncate font-medium">
           {row.name ?? <span className="text-muted-foreground">Unnamed</span>}
         </span>
-        <code className="text-muted-foreground text-[0.7rem]">
-          {row.start ?? row.prefix ?? "ek_"}…
-        </code>
+        <div className="flex items-center gap-1">
+          <code className="text-muted-foreground break-all text-[0.7rem] select-all">
+            {publicKey ??
+              `${row.start ?? row.prefix ?? (browser ? "pk_" : "sk_")}…`}
+          </code>
+          {publicKey && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Copy public key"
+              onClick={copyKey}
+            >
+              <Copy className="size-3.5" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -251,7 +281,7 @@ function RevokeAction({
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            onClick={() => onRevoke(row.id, row.name)}
+            onClick={() => onRevoke(row.id, row.name, kind)}
             className="bg-destructive hover:bg-destructive/90 text-white"
           >
             Revoke key
@@ -336,16 +366,19 @@ interface ApiKeysSectionsProps {
 export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
   const revoke = useRevokeApiKey();
 
-  const handleRevoke: RevokeFn = (id, name) => {
-    revoke.mutate(id, {
-      onSuccess: () =>
-        toast.success(`API key ${name ?? id} revoked. Effective within 30s.`),
-      onError: (err) => toast.error(err.message),
-    });
+  const handleRevoke: RevokeFn = (id, name, kind) => {
+    revoke.mutate(
+      { keyId: id, configId: kind },
+      {
+        onSuccess: () =>
+          toast.success(`API key ${name ?? id} revoked. Effective within 30s.`),
+        onError: (err) => toast.error(err.message),
+      },
+    );
   };
 
-  const publicKeys = keys.filter((k) => publicKeyMetadataOf(k.metadata));
-  const secretKeys = keys.filter((k) => !publicKeyMetadataOf(k.metadata));
+  const publicKeys = keys.filter((k) => k.configId === "public");
+  const secretKeys = keys.filter((k) => k.configId === "secret");
 
   return (
     <div className="space-y-10">

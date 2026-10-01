@@ -192,11 +192,12 @@ export function CreateApiKeyDialog({
                 <span className="bg-primary/10 text-primary flex size-7 items-center justify-center rounded-md">
                   <KeyRound className="size-4" />
                 </span>
-                Copy your key now
+                {isPublic ? "Your public key is ready" : "Copy your key now"}
               </DialogTitle>
               <DialogDescription>
-                This is the only time the full key is shown. Store it in your
-                secret manager. You won't be able to retrieve it later.
+                {isPublic
+                  ? "Use this key in your frontend telemetry setup. You can view and copy it from the public keys list anytime."
+                  : "This is the only time the full key is shown. Store it in your secret manager. You won't be able to retrieve it later."}
               </DialogDescription>
             </DialogHeader>
             <div className="bg-muted/40 rounded-md border p-3 font-mono text-xs break-all">
@@ -242,7 +243,7 @@ export function CreateApiKeyDialog({
                 ) : (
                   <>
                     Organization-scoped{" "}
-                    <code className="font-mono text-[0.7rem]">ek_</code> key for
+                    <code className="font-mono text-[0.7rem]">sk_</code> key for
                     servers, CLIs, and collectors. Pick what it can do.
                   </>
                 )}

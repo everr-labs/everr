@@ -6,9 +6,7 @@ import {
   permissionsForScopes,
 } from "./api-keys";
 
-vi.mock("@tanstack/react-start/server", () => ({
-  getRequestHeaders: () => ({}),
-}));
+vi.mock("@/db/client", () => ({ db: {} }));
 
 const createApiKeyMock = auth.api.createApiKey as unknown as Mock;
 
@@ -110,16 +108,40 @@ describe("ApiKeyCreateInputSchema", () => {
       ApiKeyCreateInputSchema.parse({
         name: "prod",
         scopes: ["ingest"],
-        configId: "ingest",
+        configId: "secret",
       }),
     ).toThrow();
   });
 });
 
 describe("createApiKey (server fn)", () => {
+  it("creates a public key in its native configuration with only origin metadata", async () => {
+    createApiKeyMock.mockResolvedValueOnce({ key: "pk_browser", id: "ak_1" });
+
+    await createApiKey({
+      data: {
+        name: "browser",
+        scopes: ["ingest"],
+        public: true,
+        allowedOrigins: ["https://App.Example.com:443/"],
+      },
+    });
+
+    expect(createApiKeyMock).toHaveBeenCalledWith({
+      body: {
+        configId: "public",
+        name: "browser",
+        organizationId: "test_org",
+        userId: "test_user",
+        permissions: { ingest: ["write"] },
+        metadata: { allowedOrigins: ["https://app.example.com"] },
+      },
+    });
+  });
+
   it("calls auth.api.createApiKey with the mapped permissions and active org", async () => {
     createApiKeyMock.mockResolvedValueOnce({
-      key: "ek_test_value",
+      key: "sk_test_value",
       id: "ak_1",
       permissions: { ingest: ["write"] },
     });
@@ -133,7 +155,7 @@ describe("createApiKey (server fn)", () => {
       body: Record<string, unknown>;
     };
     expect(call.body).toMatchObject({
-      configId: "ingest",
+      configId: "secret",
       name: "prod",
       organizationId: "test_org",
       userId: "test_user",
@@ -144,8 +166,9 @@ describe("createApiKey (server fn)", () => {
     expect("headers" in call).toBe(false);
     // No expiresIn key when not provided.
     expect("expiresIn" in call.body).toBe(false);
+    expect(call.body).not.toHaveProperty("metadata");
     expect(result).toEqual({
-      key: "ek_test_value",
+      key: "sk_test_value",
       id: "ak_1",
       permissions: { ingest: ["write"] },
     });
@@ -153,7 +176,7 @@ describe("createApiKey (server fn)", () => {
 
   it("forwards expiresInDays as seconds when provided", async () => {
     createApiKeyMock.mockResolvedValueOnce({
-      key: "ek_test_value",
+      key: "sk_test_value",
       id: "ak_1",
       permissions: { ingest: ["write"], apply: ["read", "write", "delete"] },
     });
@@ -177,7 +200,7 @@ describe("createApiKey (server fn)", () => {
 
   it("returns the server-reported permissions when present, else the mapped set", async () => {
     createApiKeyMock.mockResolvedValueOnce({
-      key: "ek_1",
+      key: "sk_1",
       id: "ak_1",
       // server returns a normalized permissions map
       permissions: { apply: ["read", "write", "delete"] },
@@ -188,7 +211,7 @@ describe("createApiKey (server fn)", () => {
     expect(a.permissions).toEqual({ apply: ["read", "write", "delete"] });
 
     createApiKeyMock.mockResolvedValueOnce({
-      key: "ek_2",
+      key: "sk_2",
       id: "ak_2",
       // server omits permissions in the response
     });

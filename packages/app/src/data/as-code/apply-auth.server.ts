@@ -66,20 +66,23 @@ async function organizationName(organizationId: string): Promise<string> {
 
 /**
  * Resolve apply auth from request headers. Accepts two credentials:
- *  - an organization-scoped API key (prefix `ek_`): org from the key.
+ *  - an organization-scoped API key (prefix `sk_`): org from the key.
  *  - a logged-in session bearer token: org from the session's active org.
- * The `ek_` prefix decides the path so a session token never hits verifyApiKey.
+ * The `sk_` prefix decides the path so a session token never hits verifyApiKey.
  * API keys are additionally required to carry the `apply` scope — a key minted
  * for telemetry ingest only must not be able to mutate dashboards, runbooks,
- * or alerts even though both use the same `ek_` configId.
+ * or alerts when the same secret key also carries ingest permissions.
  */
 export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
   const credential = extractBearerKey(headers);
   if (!credential) throw new Error("Missing credential");
 
-  if (credential.startsWith("ek_")) {
+  if (credential.startsWith("pk_")) {
+    throw new Error("API key is not authorized to apply resources");
+  }
+  if (credential.startsWith("sk_")) {
     const result = await auth.api.verifyApiKey({
-      body: { key: credential, configId: "ingest" },
+      body: { key: credential, configId: "secret" },
     });
     if (!result.valid || !result.key?.referenceId) {
       throw new Error("Invalid API key");

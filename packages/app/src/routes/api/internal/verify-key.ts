@@ -8,8 +8,6 @@ import type { TenantRetention } from "@/lib/retention";
 import { retentionForOrg } from "@/lib/retention.server";
 import { mergeTelemetryIdentity } from "@/telemetry/identity";
 
-const INGEST_CONFIG_ID = "ingest";
-
 // The retention days come straight from TenantRetention. The collector stamps
 // them on every resource it ingests with this key and the views write them
 // into app.*, so this is the only place retention enters the pipeline.
@@ -57,8 +55,9 @@ export const Route = createFileRoute("/api/internal/verify-key")({
         const origin =
           body && typeof body.origin === "string" ? body.origin : null;
 
+        const configId = origin === null ? "secret" : "public";
         const result = await auth.api.verifyApiKey({
-          body: { key, configId: INGEST_CONFIG_ID },
+          body: { key, configId },
         });
         if (!result.valid || !result.key?.referenceId) {
           return new Response(null, { status: 401 });
@@ -73,7 +72,9 @@ export const Route = createFileRoute("/api/internal/verify-key")({
 
         // Browser policy: public keys only work from an allowed Origin;
         // secret keys never work from a browser (Origin-bearing request).
-        if (!originPolicyAllows(result.key.metadata, origin)) {
+        if (
+          !originPolicyAllows(result.key.configId, result.key.metadata, origin)
+        ) {
           return new Response(null, { status: 403 });
         }
 
