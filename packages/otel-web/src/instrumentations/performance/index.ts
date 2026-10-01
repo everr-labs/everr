@@ -36,7 +36,9 @@ export function performance(options?: PerformanceOptions): Instrumentation {
     // Timing observer off.
     const stopVitals = startWebVitals(ctx.emit, classic);
     const stopInp =
-      inp || slow ? startInp(ctx.emit, ctx.tracer, inp, slow) : undefined;
+      inp || slow
+        ? startInp(ctx.emit, ctx.tracer, ctx.page, inp, slow)
+        : undefined;
     return () => {
       stopVitals();
       stopInp?.();

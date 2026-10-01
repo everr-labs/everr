@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Emit } from "../../pipeline/emitter.js";
+import { WebSDK } from "../../client.js";
+import type { Emit, SendEvent } from "../../pipeline/emitter.js";
+import { pageAttrs } from "../../pipeline/envelope.js";
 import { createTracer } from "../../pipeline/tracer.js";
+import { setRouteResolver } from "../../state/route.js";
+import { createSessionContext } from "../../state/session.js";
+import { performance as performanceInstrumentation } from "./index.js";
 import { startInp } from "./inp.js";
 
 // The jsdom environment has no Event Timing and no PerformanceObserver
@@ -26,6 +31,7 @@ let stop: () => void;
 const emit: Emit = (name, attrs, timestamp) => {
   emitted.push({ name, attrs, timestamp });
 };
+const [, current] = createSessionContext(location.href, undefined);
 
 // The true tracer that sends its spans to a test function. A slow interaction
 // is a span. Its duration is the latency, and the latency is not an attribute.
@@ -147,7 +153,7 @@ beforeEach(() => {
     configurable: true,
   });
   stubTiming();
-  stop = startInp(emit, tracer, true, true);
+  stop = startInp(emit, tracer, current, true, true);
 });
 
 afterEach(() => {
@@ -314,6 +320,66 @@ describe("slow interactions", () => {
 });
 
 describe("INP vital", () => {
+  it.each([
+    "after settle",
+    "before settle",
+    "before idle",
+  ])("keeps the interaction page after SPA navigation %s", async (navigationTiming) => {
+    stop();
+    history.replaceState(null, "", "/instructions");
+    setRouteResolver({ page: (url) => new URL(url).pathname });
+    const records: SendEvent[] = [];
+    let originalPage: ReturnType<typeof pageAttrs> | undefined;
+    const sdk = new WebSDK({
+      serviceName: "inp-route-test",
+      persistence: "memory",
+      send: () => {},
+      beforeSend: (record) => {
+        records.push(record);
+        return record;
+      },
+      instrumentations: [
+        (ctx) => {
+          originalPage = pageAttrs(ctx.page());
+        },
+        performanceInstrumentation({ webVitals: ["inp"] }),
+      ],
+    });
+    try {
+      fire("event", [entry({ name: "pointerdown", duration: 300 })]);
+      if (navigationTiming !== "before idle") vi.advanceTimersByTime(0);
+      if (navigationTiming === "after settle") settle();
+      history.pushState(null, "", "/interview");
+      vi.advanceTimersByTime(0);
+      // A later entry for the same interaction must retain its first page.
+      feed([{ name: "click", duration: 400 }]);
+      settle();
+      history.pushState(null, "", "/completed");
+      hide();
+
+      const vital = records.find(
+        (r) => r.kind === "log" && r.eventName === "browser.web_vital",
+      );
+      const span = records.find(
+        (r) => r.kind === "span" && r.name === "slow_interaction",
+      );
+      expect(originalPage).toBeDefined();
+      expect(vital?.attributes).toMatchObject({
+        ...originalPage,
+        "browser.web_vital.value": 400,
+        "everr.browser.interaction.id": 7,
+      });
+      expect(span?.attributes).toMatchObject({
+        ...originalPage,
+        "everr.browser.interaction.id": 7,
+      });
+    } finally {
+      await sdk.shutdown();
+      setRouteResolver(null);
+      history.replaceState(null, "", "/");
+    }
+  });
+
   it("reports the worst interaction on hidden with the shared attribution vocabulary", () => {
     document.body.innerHTML = '<button id="b">Go</button>';
     feed([
@@ -445,7 +511,7 @@ describe("output gating", () => {
   it("suppresses slow records when slow is off, still reports the vital", () => {
     stop();
     emitted = [];
-    stop = startInp(emit, tracer, true, false);
+    stop = startInp(emit, tracer, current, true, false);
     feed([{ duration: 300 }]);
     settle();
     expect(slow()).toHaveLength(0);
@@ -456,7 +522,7 @@ describe("output gating", () => {
   it("suppresses the vital when vital is off, still emits slow records", () => {
     stop();
     emitted = [];
-    stop = startInp(emit, tracer, false, true);
+    stop = startInp(emit, tracer, current, false, true);
     feed([{ duration: 300 }]);
     settle();
     expect(slow()).toHaveLength(1);
@@ -469,7 +535,7 @@ describe("lifecycle", () => {
   it("is a no-op without Event Timing support", () => {
     stop();
     vi.unstubAllGlobals();
-    const noop = startInp(emit, tracer, true, true);
+    const noop = startInp(emit, tracer, current, true, true);
     noop();
     expect(emitted).toHaveLength(0);
     expect(spans).toHaveLength(0);
@@ -648,7 +714,7 @@ describe("candidate list and epochs", () => {
       }
     }
     vi.stubGlobal("PerformanceObserver", ThrowingPO);
-    const stopInert = startInp(emit, tracer, true, true);
+    const stopInert = startInp(emit, tracer, current, true, true);
     expect(() => stopInert()).not.toThrow();
     expect(emitted).toHaveLength(0);
   });
