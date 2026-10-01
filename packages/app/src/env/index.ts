@@ -8,6 +8,7 @@ import { githubEventsEnv } from "./github-events";
 import { ingestEnv } from "./ingest";
 
 export const env = createEnv({
+  skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
   extends: [
     dbEnv,
     clickhouseEnv,
@@ -57,6 +58,13 @@ export const env = createEnv({
    * `process.env` or `import.meta.env`.
    */
   runtimeEnv: {
+    // skipValidation returns runtimeEnv directly without merging extends.
+    ...dbEnv,
+    ...clickhouseEnv,
+    ...githubEnv,
+    ...authEnv,
+    ...githubEventsEnv,
+    ...ingestEnv,
     NODE_ENV: process.env.NODE_ENV,
     EMAIL_DSN: process.env.EMAIL_DSN,
     EMAIL_FROM: process.env.EMAIL_FROM,
