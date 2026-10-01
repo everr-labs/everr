@@ -278,6 +278,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
         interpolated,
         context.session.session.activeOrganizationId,
         dashboardQueryParams({ from, to }),
+        { abortSignal: context.requestSignal },
       );
       return { rows };
     },
@@ -321,6 +322,7 @@ export const runVariableOptionsQuery = createAuthenticatedServerFn({
       withRowLimit(query, VARIABLE_OPTIONS_LIMIT),
       context.session.session.activeOrganizationId,
       dashboardQueryParams({ from, to }),
+      { abortSignal: context.requestSignal },
     );
 
     // A full result set means ClickHouse cut rows off at the limit, so there may

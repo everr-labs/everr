@@ -102,30 +102,34 @@ vi.mock("@/lib/serverFn", async () => {
 
   // requireOrgMiddleware: active org guaranteed + ClickHouse bound to it.
   const makeAuthChain = () =>
-    makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
-      return fn({
-        data: opts?.data,
-        context: {
-          session: {
+    makeServerFnChain(
+      (fn) => async (opts?: { data?: unknown; signal?: AbortSignal }) => {
+        const requestSignal = opts?.signal ?? new AbortController().signal;
+        return fn({
+          data: opts?.data,
+          context: {
+            requestSignal,
             session: {
-              userId: "test_user",
-              activeOrganizationId: "test_org",
-              id: "test_session",
+              session: {
+                userId: "test_user",
+                activeOrganizationId: "test_org",
+                id: "test_session",
+              },
+              user: {
+                id: "test_user",
+                email: "test@example.com",
+                name: "Test User",
+                image: null,
+              },
             },
-            user: {
-              id: "test_user",
-              email: "test@example.com",
-              name: "Test User",
-              image: null,
+            clickhouse: {
+              query: <T>(sql: string, params?: Record<string, unknown>) =>
+                query<T>(sql, "42", params),
             },
           },
-          clickhouse: {
-            query: <T>(sql: string, params?: Record<string, unknown>) =>
-              query<T>(sql, "42", params),
-          },
-        },
-      });
-    });
+        });
+      },
+    );
 
   // authMiddleware only: pass through whatever auth.api.getSession() returned
   // (the same source the real middleware reads), apply the same unauthenticated
