@@ -16,6 +16,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { ChannelNotification } from "@/data/alerting/delivery/providers/message";
 import type { AlertingMatcher, AlertingRuleSpec } from "@/data/alerting/types";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import {
@@ -559,9 +560,7 @@ export const alertDeliveries = pgTable(
     // null organization_id along with it, and that column is NOT NULL.
     channelId: uuid("channel_id"),
     channelName: text("channel_name").notNull(),
-    notification: jsonb("notification")
-      .notNull()
-      .$type<{ title: string; body: string; url?: string }>(),
+    notification: jsonb("notification").notNull().$type<ChannelNotification>(),
     status: alertDeliveryStateEnum("status").notNull().default("pending"),
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
