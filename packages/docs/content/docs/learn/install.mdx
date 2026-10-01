@@ -33,6 +33,10 @@ When you want Cloud telemetry or CI visibility later, run `everr cloud login`.
 
 Run `everr local start` to start the local collector and open its browser UI. Keep that terminal session running while you work locally. For an agent or a terminal without a browser, use `everr local start --no-open`.
 
+If Everr is already running, the command prints its endpoints and exits successfully. Keep the original terminal session running. Use the `ui:` URL printed by `everr local start` or `everr local status` to reopen the UI.
+
+The browser UI is bundled with the CLI. Run `everr upgrade` to update both.
+
 ## Install skills for your Agent
 
 Skills teach your Agent when and how to use Everr. Install them globally so every project picks them up:

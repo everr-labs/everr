@@ -1,4 +1,4 @@
-# @everr/desktop-app
+# @everr/cli
 
 ## 0.9.0
 

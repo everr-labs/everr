@@ -364,7 +364,7 @@ Running a command through `everr wrap` so its stdout, stderr, and exit code are 
 ### Authentication
 
 **Device authorization**:
-How a client without a browser — the CLI or the desktop app — signs in: Everr shows a short Device code, the User approves it in the browser, and the client becomes authenticated for an Organization.
+How the CLI and local browser UI sign in to Everr Cloud: Everr shows a short Device code, the User approves it in the browser, and the client becomes authenticated for an Organization.
 _Avoid_: device flow, device sign-in, login
 
 **Device code**:
