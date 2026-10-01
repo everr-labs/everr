@@ -49,4 +49,4 @@ Logs and metrics work the same way with the matching exporters (`/v1/logs`, `/v1
 
 ## Local development
 
-The local Everr collector (started by `everr local start`) accepts browser OTLP on `http://127.0.0.1:54318` with no key and no origin setup. Public keys only matter for sending browser telemetry to Everr Cloud.
+The local Everr collector (started by `everr local start`) accepts browser OTLP at the `otlp:` URL printed by `everr local start` or `everr local status`, with no key and no origin setup. Public keys only matter for sending browser telemetry to Everr Cloud.

@@ -65,11 +65,14 @@ The `--agent` option can be repeated. With no Agent filter, a command targets al
 ## Local telemetry
 
 - `everr local start`: start the local collector and browser UI in the foreground
+  - `-d`, `--detach`: run in the background and return once ready. The instance survives closing the terminal; stop it with `everr local stop`. Detached mode does not start at boot or automatically restart a crashed supervisor.
   - `--no-open`: start without opening a browser
   - `--quiet`: suppress startup output and browser launch
-  - Prints the collector state and `otlp:`, `sql:`, and `ui:` URLs once ready. Ctrl+C stops the collector and UI started by this invocation.
-  - If a matching collector and UI are already ready, prints their endpoints and exits successfully. Keep the original terminal session running.
+  - Prints `otlp:`, `sql:`, and `ui:` URLs once ready. Detached startup also prints a `log:` path. Ctrl+C stops a foreground instance started by this invocation.
+  - If a matching collector and UI are already ready, prints their endpoints and exits successfully. An existing foreground instance still needs its original terminal session.
   - Occupied ports and partial or mismatched instances produce an error. Existing processes remain running.
+- `everr local stop`: gracefully stop the recognized foreground or detached instance and wait for telemetry to flush and cleanup to finish
+  - Keeps collected telemetry data and succeeds when already stopped.
 - `everr local status`: check the identity and readiness of the local collector and browser UI, and print their endpoints when running
   - Distinguishes running, starting, stopped, unrecognized listeners, connection failures, and mismatched instances.
   - Exits with code 0 when both belong to the same ready instance, or code 2 otherwise.
@@ -78,6 +81,8 @@ The `--agent` option can be repeated. With no Agent filter, a command targets al
 - `everr wrap -- <command>`: run a command and capture its stdout, stderr, and exit status as local logs
   - The command only starts when the local Collector is available.
   - The CLI preserves the command's exit code.
+
+Detached diagnostic logs are stored in `~/Library/Logs/everr/local.log` on macOS or `$XDG_STATE_HOME/everr/local.log` on Linux (default `~/.local/state/everr/local.log`). Set `EVERR_LOCAL_LOG_DIR` to override the directory. Logs rotate at 5 MiB, keeping three backups. These diagnostic logs are separate from collected application telemetry.
 
 ## Resources as code
 
