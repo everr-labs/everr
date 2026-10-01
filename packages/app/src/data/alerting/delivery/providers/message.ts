@@ -4,6 +4,8 @@ export interface ChannelNotification {
   title: string;
   body: string;
   url?: string;
+  /** Absent on the channel test and on rows written before it existed. */
+  status?: "firing" | "resolved";
 }
 
 /**

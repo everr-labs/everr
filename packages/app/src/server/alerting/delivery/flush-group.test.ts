@@ -202,7 +202,14 @@ describe("formatNotification", () => {
     expect(formatNotification(events)).toEqual({
       title: "Everr alert: 1 firing, 1 resolved",
       body: "Firing: default/high-5xx (host=web-1)\nResolved: default/latency (host=web-1)",
+      status: "firing",
     });
+  });
+
+  it("reads resolved only when nothing in the group still fires", () => {
+    expect(
+      formatNotification([event({ eventType: "instance_resolved" })]).status,
+    ).toBe("resolved");
   });
 
   it("cuts a large group to a bounded body and says how many were cut", () => {

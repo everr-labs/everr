@@ -55,6 +55,26 @@ it("fits slack's section limit the same way", async () => {
   expect(text.endsWith(`\n\n${oversized.url}`)).toBe(true);
 });
 
+type SlackMessage = { attachments: { color: string }[] };
+
+function sentSlackMessage(): SlackMessage {
+  const body = fetchMock.mock.calls[0]?.[1]?.body;
+  return JSON.parse(String(body)) as SlackMessage;
+}
+
+it.each([
+  ["firing", "#dc2626"],
+  ["resolved", "#16a34a"],
+  [undefined, "#64748b"],
+] as const)("colors a %s slack message %s", async (status, color) => {
+  await sendChannelNotification(
+    { type: "slack", url: HOOK_URL },
+    { title: "t", body: "b", status },
+  );
+
+  expect(sentSlackMessage().attachments[0].color).toBe(color);
+});
+
 it("leaves an in-limit message untouched", async () => {
   const small = { title: "Everr alert: 1 firing", body: "one line" };
   await sendChannelNotification({ type: "discord", url: HOOK_URL }, small);

@@ -771,6 +771,30 @@ describe("the alerting pipeline's delivery", () => {
     expect(text).not.toContain("<https://evil.example|");
   });
 
+  it("colors a slack message red while it fires and green once it resolves", async () => {
+    await insertDirectRule(harness().db, {
+      forSecs: 0,
+      resolveAfter: 1,
+      intervalSecs: FAST_TICK_SECS,
+      channelType: "slack",
+    });
+    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    await harness().fireAndFlush();
+
+    harness().clickhouse.setSignal([]);
+    harness().advance(FAST_TICK_SECS * 1000);
+    await harness().runDueJobs();
+    harness().advance(ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1000);
+    await harness().runDueJobs();
+
+    type SlackBody = { attachments: [{ color: string }] };
+    const [fired, resolved] = harness()
+      .fetchCalls()
+      .map((call) => (call.body as SlackBody).attachments[0]);
+    expect(fired.color).toBe("#dc2626");
+    expect(resolved.color).toBe("#16a34a");
+  });
+
   it("keeps webhook URLs and bot tokens out of the delivery's error trail", async () => {
     const leakedUrl =
       "https://203.0.113.10/webhook/T000/B000/SUPER-SECRET-PATH";

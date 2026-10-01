@@ -29,6 +29,17 @@ function escapeSlackMarkup(text: string): string {
 }
 
 /**
+ * The attachment's side stripe: red while anything in the group fires, green
+ * once all of it resolved, and neutral for a message that is neither, such as
+ * the channel test.
+ */
+const STATUS_COLOR = {
+  firing: "#dc2626",
+  resolved: "#16a34a",
+  none: "#64748b",
+} as const;
+
+/**
  * Posts a Block Kit attachment to a Slack Incoming Webhook.
  *
  * Slack does not accept the plain JSON body `postJson` sends, so this builds
@@ -47,7 +58,7 @@ export async function sendSlackNotification(
     body: JSON.stringify({
       attachments: [
         {
-          color: "#dc2626",
+          color: STATUS_COLOR[notification.status ?? "none"],
           blocks: [
             {
               type: "section",

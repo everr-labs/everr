@@ -1,6 +1,7 @@
 import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
 import { CHANNEL_TEXT_MIN } from "@/data/alerting/delivery/channel-text-limits";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
+import type { ChannelNotification } from "@/data/alerting/delivery/providers/message";
 import {
   ALERT_SEND_DELIVERY_TASK,
   AlertGroupTaskPayloadSchema,
@@ -66,7 +67,9 @@ export type NotificationEvent = Pick<
   | "notificationDescription"
 >;
 
-export function formatNotification(events: NotificationEvent[]) {
+export function formatNotification(
+  events: NotificationEvent[],
+): ChannelNotification {
   const firing = events.filter(
     (event) => event.eventType !== "instance_resolved",
   ).length;
@@ -100,7 +103,11 @@ export function formatNotification(events: NotificationEvent[]) {
   if (omitted > 0) {
     lines.push(`…and ${omitted} more events in this group`);
   }
-  return { title: `Everr alert: ${title}`, body: lines.join("\n") };
+  return {
+    title: `Everr alert: ${title}`,
+    body: lines.join("\n"),
+    status: firing > 0 ? "firing" : "resolved",
+  };
 }
 
 async function directRuleChannels(
