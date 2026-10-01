@@ -1,6 +1,10 @@
 node_modules
 **/node_modules
 **/.output
+**/.env
+**/.env.*
+**/.auth
+**/.auth.*
 .git
 docker-compose*.yml
 Dockerfile
