@@ -67,8 +67,12 @@ The `--agent` option can be repeated. With no Agent filter, a command targets al
 - `everr local start`: start the local collector and browser UI in the foreground
   - `--no-open`: start without opening a browser
   - `--quiet`: suppress startup output and browser launch
-  - Prints the collector state and `otlp:`, `sql:`, and `ui:` URLs once ready. Ctrl+C stops the collector and UI.
-- `everr local status`: show the local collector status, OTLP and SQL endpoints, and UI URL when running
+  - Prints the collector state and `otlp:`, `sql:`, and `ui:` URLs once ready. Ctrl+C stops the collector and UI started by this invocation.
+  - If a matching collector and UI are already ready, prints their endpoints and exits successfully. Keep the original terminal session running.
+  - Occupied ports and partial or mismatched instances produce an error. Existing processes remain running.
+- `everr local status`: check the identity and readiness of the local collector and browser UI, and print their endpoints when running
+  - Distinguishes running, starting, stopped, unrecognized listeners, connection failures, and mismatched instances.
+  - Exits with code 0 when both belong to the same ready instance, or code 2 otherwise.
 - `everr local query "<SQL>"`: run read-only SQL against local telemetry
   - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
 - `everr wrap -- <command>`: run a command and capture its stdout, stderr, and exit status as local logs
