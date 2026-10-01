@@ -22,65 +22,73 @@ function contextOf(extra: { authInfo?: { extra?: Record<string, unknown> } }) {
   return ctx?.orgId && ctx?.userId ? ctx : undefined;
 }
 
-// Built ONCE at module load. Named `mcpTransport` to avoid clashing with the
-// oauth-provider `mcpHandler` export.
-const mcpTransport = createMcpHandler(
-  (server) => {
-    server.registerTool(
-      "query",
-      {
-        description:
-          `Run a read-only ClickHouse SQL query against your organization's ` +
-          `telemetry. Readable tables: ${READABLE_TABLES}. OpenTelemetry. Results are capped.`,
-        inputSchema: { sql: z.string() },
-      },
-      async ({ sql }, extra) => {
-        const ctx = contextOf(extra);
-        if (!ctx) {
+function createTransport() {
+  const mcpTransport = createMcpHandler(
+    (server) => {
+      server.registerTool(
+        "query",
+        {
+          description:
+            `Run a read-only ClickHouse SQL query against your organization's ` +
+            `telemetry. Readable tables: ${READABLE_TABLES}. OpenTelemetry. Results are capped.`,
+          inputSchema: { sql: z.string() },
+        },
+        async ({ sql }, extra) => {
+          const ctx = contextOf(extra);
+          if (!ctx) {
+            return {
+              isError: true,
+              content: [{ type: "text", text: "No org context." }],
+            };
+          }
+          const result = await runSqlForConnection({ orgId: ctx.orgId, sql });
           return {
-            isError: true,
-            content: [{ type: "text", text: "No org context." }],
+            isError: result.isError,
+            content: [{ type: "text", text: result.text }],
           };
-        }
-        const result = await runSqlForConnection({ orgId: ctx.orgId, sql });
-        return {
-          isError: result.isError,
-          content: [{ type: "text", text: result.text }],
-        };
-      },
-    );
+        },
+      );
 
-    server.registerTool(
-      "whoami",
-      {
-        description:
-          "Return the Everr user name and the organization connected to this authenticated session",
-        inputSchema: {},
-      },
-      async (_args, extra) => {
-        const ctx = contextOf(extra);
-        if (!ctx) {
+      server.registerTool(
+        "whoami",
+        {
+          description:
+            "Return the Everr user name and the organization connected to this authenticated session",
+          inputSchema: {},
+        },
+        async (_args, extra) => {
+          const ctx = contextOf(extra);
+          if (!ctx) {
+            return {
+              isError: true,
+              content: [{ type: "text", text: "No identity context." }],
+            };
+          }
+          const identity = await getMcpIdentity(ctx.userId, ctx.orgId);
+          if (!identity) {
+            return {
+              isError: true,
+              content: [{ type: "text", text: "Identity not found." }],
+            };
+          }
           return {
-            isError: true,
-            content: [{ type: "text", text: "No identity context." }],
+            content: [
+              { type: "text", text: JSON.stringify(identity, null, 2) },
+            ],
           };
-        }
-        const identity = await getMcpIdentity(ctx.userId, ctx.orgId);
-        if (!identity) {
-          return {
-            isError: true,
-            content: [{ type: "text", text: "Identity not found." }],
-          };
-        }
-        return {
-          content: [{ type: "text", text: JSON.stringify(identity, null, 2) }],
-        };
-      },
-    );
-  },
-  {},
-  { basePath: "", maxDuration: 60 },
-);
+        },
+      );
+    },
+    {},
+    { basePath: "", maxDuration: 60 },
+  );
+
+  return withMcpAuth(mcpTransport, verifyToken, {
+    required: true,
+    requiredScopes: ["observability:read"],
+    resourceMetadataPath: "/.well-known/oauth-protected-resource",
+  });
+}
 
 // Verify the bearer token and surface the org/user to tools via AuthInfo.extra.
 // Returning undefined (or throwing) makes withMcpAuth answer 401 with the
@@ -123,11 +131,10 @@ async function verifyToken(_req: Request, bearerToken?: string) {
   };
 }
 
-const authedTransport = withMcpAuth(mcpTransport, verifyToken, {
-  required: true,
-  requiredScopes: ["observability:read"],
-  resourceMetadataPath: "/.well-known/oauth-protected-resource",
-});
+// The MCP cleanup timer would keep the prerender process alive after rendering.
+// Initialize at module load during normal runtime.
+const authedTransport =
+  process.env.TSS_PRERENDERING === "true" ? undefined : createTransport();
 
 // Browser-based MCP clients (e.g. the MCP Inspector) hit /mcp cross-origin, so
 // every response — including withMcpAuth's 401 challenge — needs CORS, and the
@@ -139,6 +146,9 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 async function handler(request: Request): Promise<Response> {
+  if (!authedTransport) {
+    throw new Error("MCP requests are unavailable during prerendering");
+  }
   const res = await authedTransport(request);
   const out = new Response(res.body, res);
   for (const [k, v] of Object.entries(CORS_HEADERS)) {

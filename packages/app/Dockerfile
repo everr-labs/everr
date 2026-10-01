@@ -28,7 +28,14 @@ COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui
 COPY packages/telemetry-explorer ./packages/telemetry-explorer
 COPY packages/app ./packages/app
-RUN pnpm --filter @everr/app build
+# SPA prerender initializes auth and mailer configuration without using them.
+# These values exist only during this command; runtime configuration is required.
+RUN SKIP_ENV_VALIDATION=true \
+    BETTER_AUTH_URL=http://localhost:3000 \
+    BETTER_AUTH_SECRET=prerender-only-not-a-runtime-secret \
+    EMAIL_DSN=smtp://localhost:1025 \
+    pnpm --filter @everr/app build && \
+    test -s packages/app/.output/public/_shell.html
 
 # Stage 3: production
 FROM node:24.4-alpine3.22 AS runner

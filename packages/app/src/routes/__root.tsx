@@ -13,9 +13,10 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  useRouter,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { createServerFn } from "@tanstack/react-start";
+import { createIsomorphicFn, createServerFn } from "@tanstack/react-start";
 import { getCookie, getRequestHeaders } from "@tanstack/react-start/server";
 import { auth } from "@/lib/auth.server";
 import appCss from "@/styles/app.css?url";
@@ -23,9 +24,7 @@ import { CONSENT_COOKIE, isConsentDecision } from "@/telemetry/consent";
 import { ConsentGate } from "@/telemetry/consent-gate";
 import type { RouterContext } from "../router";
 
-// The consent cookie comes from the server in the same request as the session.
-// Thus the markup from the server already has the correct state of the banner,
-// and the banner does not change after the hydration.
+// The browser loads consent and session together before mounting ConsentGate.
 const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
   const session = await auth.api.getSession({
     headers: getRequestHeaders(),
@@ -42,11 +41,9 @@ const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
 });
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-  beforeLoad: async () => {
-    const { session, consent } = await getRootContext();
-
-    return { session, consent };
-  },
+  beforeLoad: createIsomorphicFn()
+    .server(() => ({ session: null, consent: undefined }))
+    .client(() => getRootContext()),
   head: () => ({
     meta: [
       {
@@ -90,6 +87,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function Component() {
   const { queryClient, consent } = Route.useRouteContext();
+  const router = useRouter();
+
+  // Mount consent state only after the browser has loaded the real context.
+  if (router.isShell()) return <Outlet />;
+
   return (
     <TooltipProvider delay={200}>
       <QueryClientProvider client={queryClient}>
