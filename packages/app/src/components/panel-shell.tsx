@@ -12,8 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
-import { cn } from "@everr/ui/lib/utils";
-import { AlertCircle, CircleHelp } from "lucide-react";
+import { AlertCircle, CircleHelp, Info } from "lucide-react";
 import type { ReactNode } from "react";
 import type { PanelChromeProps } from "./panel-types";
 
@@ -21,6 +20,38 @@ export interface PanelShellProps extends PanelChromeProps {
   status: "pending" | "error" | "success";
   errorMessage?: string;
   children?: ReactNode;
+}
+
+function PanelTitle({
+  title,
+  description,
+}: {
+  title?: string;
+  description?: string;
+}) {
+  return (
+    <CardTitle className="flex items-center gap-1.5">
+      {title && <span>{title}</span>}
+      {description && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+                aria-label={title ? `About ${title}` : "Panel description"}
+              />
+            }
+          >
+            <Info className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-80 whitespace-pre-wrap">
+            {description}
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </CardTitle>
+  );
 }
 
 function StatTitle({
@@ -67,50 +98,42 @@ export function PanelShell({
   className,
   children,
 }: PanelShellProps) {
-  if (status === "pending") {
-    if (variant === "stat") {
-      return (
-        <Card inset={inset} className={className}>
-          <CardHeader className="pb-1">
-            {title && <StatTitle title={title} titleHint={titleHint} />}
-            <Skeleton className="h-9 w-24" />
-          </CardHeader>
-        </Card>
-      );
-    }
+  if (variant === "stat") {
     return (
       <Card inset={inset} className={className}>
-        {title !== undefined && (
-          <CardHeader>
-            <Skeleton className="h-5 w-32" />
-            <Skeleton className="h-4 w-48" />
-          </CardHeader>
-        )}
-        <CardContent className={cn(title === undefined && "min-h-0 flex-1")}>
-          {skeleton ?? <Skeleton className="h-[300px] w-full" />}
-        </CardContent>
+        <CardHeader className="relative pb-2">
+          <div className="flex items-center justify-between">
+            {title && <StatTitle title={title} titleHint={titleHint} />}
+            {Icon && <Icon className="text-muted-foreground size-4" />}
+          </div>
+          {status === "pending" ? (
+            <Skeleton className="h-9 w-24" />
+          ) : (
+            <CardTitle className="text-3xl tabular-nums">
+              {status === "error" ? "--" : children}
+            </CardTitle>
+          )}
+        </CardHeader>
       </Card>
     );
   }
 
-  if (status === "error") {
-    if (variant === "stat") {
-      return (
-        <Card inset={inset} className={className}>
-          <CardHeader className="pb-1">
-            {title && <StatTitle title={title} titleHint={titleHint} />}
-            <CardTitle className="text-3xl tabular-nums">--</CardTitle>
-          </CardHeader>
-        </Card>
-      );
-    }
-    return (
-      <Card inset={inset} className={className}>
-        <CardHeader>
-          {title && <CardTitle>{title}</CardTitle>}
-          {description && <CardDescription>{description}</CardDescription>}
+  const hasHeader = title || description || action;
+
+  return (
+    <Card inset={inset} className={className}>
+      {hasHeader && (
+        <CardHeader className={headerClassName}>
+          {(title || description) && (
+            <PanelTitle title={title} description={description} />
+          )}
+          {action && <CardAction>{action}</CardAction>}
         </CardHeader>
-        <CardContent>
+      )}
+      <CardContent className="min-h-0 flex-1">
+        {status === "pending" ? (
+          (skeleton ?? <Skeleton className="h-[300px] w-full" />)
+        ) : status === "error" ? (
           <div className="flex h-[300px] flex-col items-center justify-center gap-2 text-muted-foreground">
             <AlertCircle className="size-8" />
             <p className="text-sm">Failed to load data</p>
@@ -123,37 +146,10 @@ export function PanelShell({
               </p>
             )}
           </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (variant === "stat") {
-    return (
-      <Card inset={inset} className={cn(className)}>
-        <CardHeader className="relative pb-2">
-          <div className="flex items-center justify-between">
-            {title && <StatTitle title={title} titleHint={titleHint} />}
-            {Icon && <Icon className="text-muted-foreground size-4" />}
-          </div>
-          <CardTitle className="text-3xl tabular-nums">{children}</CardTitle>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  const hasHeader = title || description || action;
-
-  return (
-    <Card inset={inset} className={cn(className)}>
-      {hasHeader && (
-        <CardHeader className={headerClassName}>
-          {title && <CardTitle>{title}</CardTitle>}
-          {description && <CardDescription>{description}</CardDescription>}
-          {action && <CardAction>{action}</CardAction>}
-        </CardHeader>
-      )}
-      <CardContent className="min-h-0 flex-1">{children}</CardContent>
+        ) : (
+          children
+        )}
+      </CardContent>
     </Card>
   );
 }

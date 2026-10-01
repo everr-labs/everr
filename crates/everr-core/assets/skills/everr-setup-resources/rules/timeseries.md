@@ -1,6 +1,6 @@
 # TimeSeriesChart
 
-A line chart over time (or a stacked area chart with `stacked: true`). It infers its structure from the columns you `SELECT` — there is no axis, color, or per-series configuration.
+A line chart over time (or a stacked area chart with `stacked: true`). It infers its structure from the columns you `SELECT`. Set optional Y-axis bounds in `yAxis`; series colors are automatic.
 
 ## Options (`plugin.spec`)
 
@@ -12,14 +12,18 @@ A line chart over time (or a stacked area chart with `stacked: true`). It infers
 | `curveType` | string | `monotone` | `monotone`, `linear`, `natural`, `stepBefore`, `stepAfter` | Line interpolation. An unknown value falls back to the renderer default. |
 | `connectNulls` | boolean | `false` | `true` | Bridge gaps instead of breaking the line at them. |
 | `stacked` | boolean | `false` | `true` | Render the series as stacked filled areas instead of overlaid lines. A series with no sample at a timestamp contributes 0 there; `connectNulls` has no effect. |
+| `yAxis.min` | number or `auto` | `auto` | Any finite number, `auto` | Exact lower bound. Values below it are clipped. Omitted or `auto` fits the data. |
+| `yAxis.max` | number or `auto` | `auto` | Any finite number, `auto` | Exact upper bound. Values above it are clipped. Omitted or `auto` fits the data. |
 
 ```yaml
 plugin:
   kind: TimeSeriesChart
-  spec: { valueFormat: { unit: ms, scale: duration }, showLegend: true, lineWidth: 1.5, curveType: monotone, connectNulls: false, stacked: false }
+  spec: { valueFormat: { unit: ms, scale: duration }, showLegend: true, lineWidth: 1.5, curveType: monotone, connectNulls: false, stacked: false, yAxis: { min: 0, max: auto } }
 ```
 
-The table lists the supported top-level options. There is **no** `yAxis` / `min` / `max`, `legend` object, separate area / fill option, `thresholds`, top-level `decimals`, `pointRadius`, or per-series color. Set precision with `valueFormat.decimals`. Series colors come from a fixed 6-color palette assigned by order (wrapping after 6) and are not configurable.
+Omitting `yAxis` or either bound is equivalent to `auto`. With both bounds automatic, the axis fits the data with padding and readable ticks instead of forcing zero. Set only `min: 0` for a zero baseline on positive data. Both numeric bounds require `min < max`. Stacked charts include zero in their automatic range.
+
+The table lists the supported options. There is **no** `legend` object, separate area / fill option, `thresholds`, top-level `decimals`, `pointRadius`, or per-series color. Set precision with `valueFormat.decimals`. Series colors come from a fixed 10-color palette assigned by order (wrapping after 10) and are not configurable.
 
 ## Data shape
 

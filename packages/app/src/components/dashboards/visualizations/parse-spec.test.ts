@@ -14,6 +14,34 @@ describe("parseSpecLenient", () => {
     expect(spec.valueFormat).toEqual({ unit: "s", scale: "duration" });
     expect(spec.lineWidth).toBe(2);
     expect(spec.curveType).toBe("monotone");
+    expect(spec.yAxis).toBeUndefined();
+  });
+
+  it("accepts fixed and explicitly automatic time series bounds", () => {
+    const { spec, warnings } = parseSpecLenient(timeSeriesChartSpec, {
+      yAxis: { min: 0, max: "auto" },
+    });
+    expect(warnings).toEqual([]);
+    expect(spec.yAxis).toEqual({ min: 0, max: "auto" });
+    expect(
+      timeSeriesChartSpec.parse({ yAxis: { min: "auto", max: 100 } }).yAxis,
+    ).toEqual({
+      min: "auto",
+      max: 100,
+    });
+  });
+
+  it("rejects inverted fixed time series bounds", () => {
+    expect(
+      timeSeriesChartSpec.safeParse({ yAxis: { min: 100, max: 0 } }).success,
+    ).toBe(false);
+    const { spec, warnings } = parseSpecLenient(timeSeriesChartSpec, {
+      yAxis: { min: 100, max: 0 },
+      showLegend: true,
+    });
+    expect(spec.yAxis).toBeUndefined();
+    expect(spec.showLegend).toBe(true);
+    expect(warnings[0]).toMatch(/^yAxis\.max: /);
   });
 
   it("drops an invalid option to its default and warns with the path", () => {
