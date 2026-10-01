@@ -1,6 +1,8 @@
 /// <reference path="../../dom.d.ts" />
 import type { Tracer } from "@opentelemetry/api";
 import type { AttrValue, Emit } from "../../pipeline/emitter.js";
+import { pageAttrs } from "../../pipeline/envelope.js";
+import type { CurrentPage } from "../../state/session.js";
 import { epoch } from "../../time.js";
 import { elementAttrs, guardOf } from "../element.js";
 import { emitVital, scriptAttrs, whenIdleOrHidden } from "./shared.js";
@@ -77,6 +79,7 @@ type Interaction = {
   latency: number;
   entry: PerformanceEventTiming;
   frame: Frame;
+  page: ReturnType<typeof pageAttrs>;
   // The element data. The code captures it immediately from the first entry
   // that has a target. Frequently only the pointerdown entry has one. The
   // `entry.target` value is null after the browser removes the node from the
@@ -97,6 +100,7 @@ type Interaction = {
 export function startInp(
   emit: Emit,
   tracer: Tracer,
+  current: CurrentPage,
   vital: boolean,
   slow: boolean,
 ): () => void {
@@ -215,7 +219,10 @@ export function startInp(
     );
   };
 
-  const processEntry = (entry: PerformanceEventTiming) => {
+  const processEntry = (
+    entry: PerformanceEventTiming,
+    page: ReturnType<typeof pageAttrs>,
+  ) => {
     if (entry.interactionId) {
       minKnownId = Math.min(minKnownId, entry.interactionId);
       maxKnownId = Math.max(maxKnownId, entry.interactionId);
@@ -232,7 +239,7 @@ export function startInp(
         interaction.frame = frame;
       }
     } else {
-      interaction = { id, latency: entry.duration, entry, frame };
+      interaction = { id, latency: entry.duration, entry, frame, page };
     }
     if (!interaction.elementSeen && entry.target instanceof Element) {
       interaction.elementSeen = true;
@@ -279,11 +286,14 @@ export function startInp(
   };
 
   const handleEntries = (entries: PerformanceEventTiming[]) => {
+    // Keep the page from observation time, before idle processing or a later
+    // SPA navigation. Both outputs retain the first page of an interaction.
+    const page = pageAttrs(current());
     // The code waits for the next idle period. Thus the browser probably gave
     // each entry between the interaction and its next paint.
     whenIdleOrHidden(() => {
       if (stopped) return;
-      for (const entry of entries) processEntry(entry);
+      for (const entry of entries) processEntry(entry, page);
       cleanup();
     });
   };
@@ -295,7 +305,7 @@ export function startInp(
     clearTimeout(pending.timer);
     pendingSlow.delete(id);
     sentSlow.add(id);
-    const { entry, frame, latency, attrs } = pending.interaction;
+    const { entry, frame, latency, attrs, page } = pending.interaction;
     // The span goes from the input to the next paint. The startTime value gives
     // its position on the trace timeline, and the latency is its duration. Thus
     // the span needs no attribute for the duration.
@@ -304,6 +314,7 @@ export function startInp(
       .startSpan("slow_interaction", {
         startTime: start,
         attributes: {
+          ...page,
           ...attrs,
           "everr.browser.interaction.id": id,
           "everr.browser.interaction.name": entry.name,
@@ -324,7 +335,7 @@ export function startInp(
       ];
     if (!inp) return;
     vitalReported = true;
-    const { entry, frame, latency, id, attrs } = inp;
+    const { entry, frame, latency, id, attrs, page } = inp;
     // The attribution uses the same names as the slow_interaction record,
     // including the element data. It does not use the key names from
     // web-vitals. Thus the vital and the slow record that it connects to give
@@ -335,6 +346,7 @@ export function startInp(
       latency,
       restored,
       {
+        ...page,
         "everr.browser.interaction.id": id,
         "everr.browser.interaction.name": entry.name,
         ...attrs,
