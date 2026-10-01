@@ -7,16 +7,18 @@ import { githubEnv } from "./github";
 import { githubEventsEnv } from "./github-events";
 import { ingestEnv } from "./ingest";
 
+const presets = [
+  dbEnv,
+  clickhouseEnv,
+  githubEnv,
+  authEnv,
+  githubEventsEnv,
+  ingestEnv,
+] as const;
+
 export const env = createEnv({
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
-  extends: [
-    dbEnv,
-    clickhouseEnv,
-    githubEnv,
-    authEnv,
-    githubEventsEnv,
-    ingestEnv,
-  ],
+  extends: [...presets],
   server: {
     NODE_ENV: z.enum(["development", "production", "test"]),
     EMAIL_DSN: z
@@ -59,12 +61,7 @@ export const env = createEnv({
    */
   runtimeEnv: {
     // skipValidation returns runtimeEnv directly without merging extends.
-    ...dbEnv,
-    ...clickhouseEnv,
-    ...githubEnv,
-    ...authEnv,
-    ...githubEventsEnv,
-    ...ingestEnv,
+    ...Object.assign({}, ...presets),
     NODE_ENV: process.env.NODE_ENV,
     EMAIL_DSN: process.env.EMAIL_DSN,
     EMAIL_FROM: process.env.EMAIL_FROM,
