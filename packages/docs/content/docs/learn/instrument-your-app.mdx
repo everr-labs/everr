@@ -41,8 +41,8 @@ Look in my local Everr Collector for logs from this app and show me the most rec
 everr local query "SELECT Timestamp, ServiceName, SeverityText, Body FROM logs ORDER BY Timestamp DESC LIMIT 20"
 ```
 
-You should see your log line with its `ServiceName`. That's your first signal in Everr. You can also open Everr Desktop to browse logs, traces, and metrics visually.
+You should see your log line with its `ServiceName`. That's your first signal in Everr. Open the `ui:` URL printed by `everr local start` to browse local logs, traces, and errors.
 
-If no rows appear, make sure Everr Desktop is running and your app restarted after setup, then trigger the path again.
+If no rows appear, make sure `everr local start` is running and your app restarted after setup, then trigger the path again.
 
 **Next:** [Send production telemetry](/docs/learn/production-telemetry).

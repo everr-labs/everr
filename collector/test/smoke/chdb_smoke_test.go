@@ -27,14 +27,13 @@ func TestChdbSmoke(t *testing.T) {
 	}
 
 	otlpPort := freeTCPPort(t)
-	healthPort := freeTCPPort(t)
 	sqlPort := freeTCPPort(t)
 	chdbDir := filepath.Join(t.TempDir(), "chdb")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, binary, gatewayArgs(chdbDir, otlpPort, healthPort, sqlPort)...)
+	cmd := exec.CommandContext(ctx, binary, gatewayArgs(chdbDir, otlpPort, sqlPort)...)
 	withChDBLibEnv(t, cmd)
 	var output bytes.Buffer
 	cmd.Stdout = &output
@@ -49,7 +48,7 @@ func TestChdbSmoke(t *testing.T) {
 		_ = cmd.Wait()
 	})
 
-	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/", healthPort), 10*time.Second)
+	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/health", sqlPort), 10*time.Second)
 	waitForCollectorLogs(t, otlpPort, cmd, &output)
 
 	waitForPopulatedDir(t, chdbDir, 10*time.Second)
@@ -62,14 +61,13 @@ func TestSQLHTTPRoundTrip(t *testing.T) {
 	}
 
 	otlpPort := freeTCPPort(t)
-	healthPort := freeTCPPort(t)
 	sqlPort := freeTCPPort(t)
 	chdbDir := filepath.Join(t.TempDir(), "chdb")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, binary, gatewayArgs(chdbDir, otlpPort, healthPort, sqlPort)...)
+	cmd := exec.CommandContext(ctx, binary, gatewayArgs(chdbDir, otlpPort, sqlPort)...)
 	withChDBLibEnv(t, cmd)
 	var output bytes.Buffer
 	cmd.Stdout = &output
@@ -84,7 +82,7 @@ func TestSQLHTTPRoundTrip(t *testing.T) {
 		_ = cmd.Wait()
 	})
 
-	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/", healthPort), 10*time.Second)
+	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/health", sqlPort), 10*time.Second)
 	waitForCollectorLogs(t, otlpPort, cmd, &output)
 
 	waitForSQLResponse(
@@ -117,14 +115,13 @@ func TestSQLHTTPParameterizedRoundTrip(t *testing.T) {
 	}
 
 	otlpPort := freeTCPPort(t)
-	healthPort := freeTCPPort(t)
 	sqlPort := freeTCPPort(t)
 	chdbDir := filepath.Join(t.TempDir(), "chdb")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, binary, gatewayArgs(chdbDir, otlpPort, healthPort, sqlPort)...)
+	cmd := exec.CommandContext(ctx, binary, gatewayArgs(chdbDir, otlpPort, sqlPort)...)
 	withChDBLibEnv(t, cmd)
 	var output bytes.Buffer
 	cmd.Stdout = &output
@@ -139,7 +136,7 @@ func TestSQLHTTPParameterizedRoundTrip(t *testing.T) {
 		_ = cmd.Wait()
 	})
 
-	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/", healthPort), 10*time.Second)
+	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/health", sqlPort), 10*time.Second)
 	waitForCollectorLogs(t, otlpPort, cmd, &output)
 
 	// Wait for the row to land before issuing the parameterized query.
@@ -206,10 +203,9 @@ func resolveCollectorBinary(t *testing.T) string {
 	return filepath.Join(filepath.Dir(thisFile), "..", "..", "build-local", collectorBinaryName)
 }
 
-func gatewayArgs(chdbDir string, otlpPort, healthPort, sqlPort int) []string {
+func gatewayArgs(chdbDir string, otlpPort, sqlPort int) []string {
 	return []string{
 		"--otlp-http-endpoint", fmt.Sprintf("http://127.0.0.1:%d", otlpPort),
-		"--health-http-endpoint", fmt.Sprintf("http://127.0.0.1:%d", healthPort),
 		"--sql-http-endpoint", fmt.Sprintf("http://127.0.0.1:%d", sqlPort),
 		"--chdb-path", chdbDir,
 		"--ttl", "7d",

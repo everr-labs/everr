@@ -1,0 +1,93 @@
+mod auth;
+mod banner;
+mod cli;
+mod command_telemetry;
+mod core;
+mod init;
+mod onboarding;
+mod skills;
+mod telemetry;
+mod uninstall;
+mod update_notice;
+mod upgrade;
+mod wrap;
+
+#[cfg(test)]
+mod test_support {
+    pub static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+}
+
+use everr_cli::{api, apply, build, collector, device_auth, git, skill_store, state};
+
+use anyhow::Result;
+use clap::Parser;
+use cli::{CiSubcommand, Cli, CloudSubcommand, Commands};
+use tracing::Instrument;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let mut supervisor = telemetry::SupervisorLifetime::default();
+    let log_capture = telemetry::LocalLogCapture::start()?;
+    let argv: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    let cli = Cli::parse_from(argv.clone());
+    let telemetry = command_telemetry::init();
+    let (command, subcommand) = command_telemetry::command_names(&cli);
+
+    // Run the whole command inside the root span so every API client HTTP call
+    // is a child of it and the injected trace context stitches the trace across
+    // the CLI → server → ClickHouse boundary.
+    let span = command_telemetry::command_span(command, subcommand);
+    let lifetime = &mut supervisor;
+    let result = async move {
+        command_telemetry::record_invocation(&cli, argv);
+        update_notice::maybe_print(&cli).await;
+        let result = run_command(cli.command, lifetime).await;
+        command_telemetry::record_result(command, subcommand, &result);
+        result
+    }
+    .instrument(span)
+    .await;
+
+    telemetry.shutdown();
+
+    if log_capture.is_some() {
+        if let Err(error) = &result {
+            eprintln!("Error: {error:#}");
+        }
+    }
+    drop(log_capture);
+    drop(supervisor);
+
+    result
+}
+
+async fn run_command(
+    command: Commands,
+    lifetime: &mut telemetry::SupervisorLifetime,
+) -> Result<()> {
+    match command {
+        Commands::Uninstall => uninstall::run_uninstall()?,
+        Commands::Upgrade => upgrade::run().await?,
+        Commands::Cloud(args) => match args.command {
+            CloudSubcommand::Login(login) => auth::login(login).await?,
+            CloudSubcommand::Logout => auth::logout()?,
+            CloudSubcommand::Query(args) => core::cloud_query(args).await?,
+        },
+        Commands::Ci(args) => match args.command {
+            CiSubcommand::Status(args) => core::status(args).await?,
+            CiSubcommand::Watch(args) => core::watch(args).await?,
+            CiSubcommand::Runs(args) => core::runs_list(args).await?,
+            CiSubcommand::Show(args) => core::runs_show(args).await?,
+            CiSubcommand::Logs(args) => core::runs_logs(args).await?,
+        },
+        Commands::Local(args) => telemetry::commands::run(args, lifetime).await?,
+        Commands::Wrap(args) => wrap::run(args).await?,
+        Commands::Setup => onboarding::run().await?,
+        Commands::Init => init::run().await?,
+        Commands::Skills(args) => skills::run(args)?,
+        Commands::Apply(args) => core::run_apply(args).await?,
+        Commands::Resources(args) => core::run_resources(args.command).await?,
+    }
+
+    Ok(())
+}
