@@ -6,6 +6,9 @@ dist:
   version: 0.1.0
   otelcol_version: 0.160.0
 
+telemetry:
+  gomod: github.com/everr-labs/everr/collector/telemetry/everrtelemetry v0.160.0
+
 exporters:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter v0.160.0
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.160.0
@@ -48,3 +51,4 @@ replaces:
   - github.com/everr-labs/everr/collector/internal/sharedcomponent => ../internal/sharedcomponent
   - github.com/everr-labs/everr/collector/semconv => ../semconv
   - github.com/everr-labs/everr/collector/extension/everrapikeyauth => ../extension/everrapikeyauth
+  - github.com/everr-labs/everr/collector/telemetry/everrtelemetry => ../telemetry/everrtelemetry
