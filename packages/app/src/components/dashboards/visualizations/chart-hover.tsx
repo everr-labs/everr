@@ -1,18 +1,4 @@
-// Shared hover behaviour for the line charts: the per-series markers drawn at
-// the hovered instant, and the rule for which of them the pointer is actually
-// pointing at.
-//
-// Both charts draw one dot
-// per series at the hovered x, ringed in the card colour so it separates from
-// its line. Once several series can share a value, such as two dashboard series
-// both at zero, an undifferentiated dot per series
-// stops answering "which one is this", which is what `nearestSeriesKeys` and
-// the emphasis below are for.
-import type { ReactElement } from "react";
-import { ReferenceDot } from "recharts";
-
-/** Radius of a marker the pointer is not singling out. */
-const PLAIN_R = 4;
+// Shared hover calculations for the line charts.
 /** Radius of a called-out marker. Also the tie distance, see below. */
 const ACTIVE_R = 6;
 
@@ -78,51 +64,4 @@ export function valueAtCursorY(
   if (typeof cursorY !== "number" || plot.height <= 0) return null;
   const [min, max] = domain;
   return max - ((cursorY - plot.top) / plot.height) * (max - min);
-}
-
-/**
- * One marker per series at the hovered x, with the ones the pointer is nearest
- * enlarged. Returned as an array of elements rather than as a component: a
- * recharts chart only recognises reference shapes it can see among its own
- * children, so a wrapper component would be dropped silently.
- *
- * Called-out markers are emitted last so they paint over the plain ones:
- * without that, a highlighted point sharing a position with another would be
- * buried under it, which is the exact case the highlight exists for.
- */
-export function hoverMarkers({
-  x,
-  points,
-  activeKeys = NONE,
-}: {
-  /** The hovered x, in whatever the chart's x axis takes (instant or category). */
-  x: number | string;
-  points: readonly { key: string; value: number | null; color?: string }[];
-  activeKeys?: ReadonlySet<string>;
-}): ReactElement[] {
-  return [...points]
-    .sort(
-      (a, b) => Number(activeKeys.has(a.key)) - Number(activeKeys.has(b.key)),
-    )
-    .flatMap((p) =>
-      p.value === null
-        ? []
-        : [
-            <ReferenceDot
-              key={`hover-${p.key}`}
-              x={x}
-              y={p.value}
-              r={activeKeys.has(p.key) ? ACTIVE_R : PLAIN_R}
-              fill={p.color}
-              // The card colour, not recharts' hardcoded white, which would
-              // vanish against a light theme.
-              stroke="var(--card)"
-              strokeWidth={2}
-              // Above the series AND any reference rules drawn over them.
-              isFront
-              // Never swallow a pointer heading for something underneath.
-              style={{ pointerEvents: "none" }}
-            />,
-          ],
-    );
 }

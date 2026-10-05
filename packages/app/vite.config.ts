@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
@@ -9,6 +10,7 @@ import { smeeWebhookPlugin } from "./vite.smee";
 
 const config = defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
+  const require = createRequire(import.meta.url);
 
   return {
     server: {
@@ -26,7 +28,7 @@ const config = defineConfig(({ mode }) => {
         // CJS interop path entirely.
         {
           find: /^tslib$/,
-          replacement: "tslib/tslib.es6.mjs",
+          replacement: require.resolve("tslib/tslib.es6.mjs"),
         },
         // use-sync-external-store is a CJS shim that does require("react") which
         // Rollup can't inline for SSR, causing "Cannot find module 'react'" in

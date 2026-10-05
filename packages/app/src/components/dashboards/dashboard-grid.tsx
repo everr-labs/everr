@@ -7,6 +7,7 @@ import { GRID_COLS } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
 import { useDashboard } from "./use-dashboard";
 import { useHasVisibleVariables, VariableBar } from "./variable-bar";
+import { SharedTimeCursorProvider } from "./visualizations/time-series-chart/shared-time-cursor";
 
 const ROW_HEIGHT = 30;
 
@@ -56,32 +57,36 @@ export function DashboardGrid({
       </div>
       {notice && <div className="mb-3">{notice}</div>}
       <div ref={containerRef}>
-        <GridLayout
-          width={width}
-          className="layout"
-          layout={layout}
-          gridConfig={{
-            cols: GRID_COLS,
-            rowHeight: ROW_HEIGHT,
-            containerPadding: [0, 0],
-          }}
-          dragConfig={{ enabled: false }}
-          resizeConfig={{ enabled: false }}
-          // No compaction: render panels at their authored x/y so intentional
-          // empty rows and spacing are preserved (this grid is read-only).
-          compactor={noCompactor}
-          autoSize
+        <SharedTimeCursorProvider
+          key={`${dashboard.metadata.project}/${dashboard.metadata.name}`}
         >
-          {layout.map((item: LayoutItem) => {
-            const panel = dashboard.spec.panels[item.i];
-            if (!panel) return null;
-            return (
-              <div key={item.i}>
-                <DashboardPanel panel={panel} panelKey={item.i} />
-              </div>
-            );
-          })}
-        </GridLayout>
+          <GridLayout
+            width={width}
+            className="layout"
+            layout={layout}
+            gridConfig={{
+              cols: GRID_COLS,
+              rowHeight: ROW_HEIGHT,
+              containerPadding: [0, 0],
+            }}
+            dragConfig={{ enabled: false }}
+            resizeConfig={{ enabled: false }}
+            // No compaction: render panels at their authored x/y so intentional
+            // empty rows and spacing are preserved (this grid is read-only).
+            compactor={noCompactor}
+            autoSize
+          >
+            {layout.map((item: LayoutItem) => {
+              const panel = dashboard.spec.panels[item.i];
+              if (!panel) return null;
+              return (
+                <div key={item.i}>
+                  <DashboardPanel panel={panel} panelKey={item.i} />
+                </div>
+              );
+            })}
+          </GridLayout>
+        </SharedTimeCursorProvider>
       </div>
     </div>
   );
