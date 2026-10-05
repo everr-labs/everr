@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="packages/app/public/everr.svg" height="60" alt="Everr" />
+  <img src="packages/app/public/logo.svg" height="60" alt="Everr" />
 </p>
 
 <h3 align="center">Software delivery intelligence for developers and AI agents, local, CI, and production.</h3>

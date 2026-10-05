@@ -14,3 +14,7 @@ export const Default: Story = {};
 export const Large: Story = {
   args: { size: "lg" },
 };
+
+export const Monochrome: Story = {
+  args: { size: "lg", variant: "monochrome" },
+};

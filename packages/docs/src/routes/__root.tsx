@@ -1,3 +1,4 @@
+import favicon from "@everr/ui/assets/favicon.svg?url";
 import { PostHogProvider } from "@posthog/react";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import {
@@ -31,6 +32,7 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "icon", href: "/favicon.ico" },
+      { rel: "icon", type: "image/svg+xml", href: favicon },
       { rel: "stylesheet", href: docsCss },
     ],
   }),

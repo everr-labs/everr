@@ -2,6 +2,7 @@
 // when the client build loads. It does nothing during the SSR and when the app
 // has no configuration. Refer to telemetry/client.
 import "@/telemetry/client";
+import favicon from "@everr/ui/assets/favicon.svg?url";
 import { Toaster } from "@everr/ui/components/sonner";
 import { TooltipProvider } from "@everr/ui/components/tooltip";
 import { TanStackDevtools } from "@tanstack/react-devtools";
@@ -68,8 +69,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       },
       {
         rel: "icon",
-        type: "image/png",
-        href: "/logo192.png",
+        type: "image/svg+xml",
+        href: favicon,
       },
       {
         rel: "apple-touch-icon",
