@@ -78,14 +78,16 @@ export function TraceDetailRouteError({
   error,
   search,
 }: {
-  error: Error;
+  error: unknown;
   search: TraceDetailParams;
 }) {
   return (
     <Empty>
       <EmptyHeader>
         <EmptyTitle>Failed to load trace</EmptyTitle>
-        <EmptyDescription>{error.message}</EmptyDescription>
+        <EmptyDescription>
+          {error instanceof Error ? error.message : String(error)}
+        </EmptyDescription>
       </EmptyHeader>
       <Button
         variant="outline"

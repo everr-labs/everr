@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   ErrorComponent,
+  type ErrorComponentProps,
   Link,
   redirect,
   useRouter,
@@ -100,11 +101,12 @@ export const Route = createFileRoute("/_authenticated")({
   errorComponent: AuthenticatedError,
 });
 
-function AuthenticatedError({ error }: { error: Error }) {
+function AuthenticatedError({ error }: ErrorComponentProps) {
+  const message = error instanceof Error ? error.message : "";
   const isOrgError =
-    error.message.includes("not a member") ||
-    error.message.includes("No active organization") ||
-    error.message.includes("organization");
+    message.includes("not a member") ||
+    message.includes("No active organization") ||
+    message.includes("organization");
 
   if (!isOrgError) {
     return <ErrorComponent error={error} />;

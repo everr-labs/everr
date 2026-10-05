@@ -2,7 +2,10 @@ import {
   TraceDetailParamsSchema,
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
-import { createFileRoute } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  type ErrorComponentProps,
+} from "@tanstack/react-router";
 import {
   ensureTraceDetailData,
   getTraceDetailLoaderDeps,
@@ -55,6 +58,6 @@ function TraceDetailRoute() {
   );
 }
 
-function TraceDetailError({ error }: { error: Error }) {
+function TraceDetailError({ error }: ErrorComponentProps) {
   return <TraceDetailRouteError error={error} search={Route.useSearch()} />;
 }
