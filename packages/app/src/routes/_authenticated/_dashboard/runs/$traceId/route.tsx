@@ -18,6 +18,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
+  type ErrorComponentProps,
   Link,
   Outlet,
   useMatch,
@@ -226,7 +227,7 @@ function RunDetailSkeleton() {
   );
 }
 
-function RunDetailError({ error }: { error: Error }) {
+function RunDetailError({ error }: ErrorComponentProps) {
   return (
     <PageContainer>
       <div className="space-y-3">
@@ -246,7 +247,7 @@ function RunDetailError({ error }: { error: Error }) {
                 Failed to load run details
               </p>
               <p className="text-muted-foreground mt-1 text-sm">
-                {error.message}
+                {error instanceof Error ? error.message : String(error)}
               </p>
             </div>
           </CardContent>
