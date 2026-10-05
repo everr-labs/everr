@@ -15,7 +15,7 @@ const docsTopNavHeight = "3.5rem";
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: <EverrLogo />,
+      title: <EverrLogo size="lg" />,
       url: "/",
     },
     themeSwitch: {
