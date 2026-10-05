@@ -1,6 +1,6 @@
 import { EverrLogo } from "@everr/ui/components/everr-logo";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { AsciiCitrus } from "./_auth/-components/ascii-citrus";
+import { AsciiLogo } from "./_auth/-components/ascii-logo";
 
 export const Route = createFileRoute("/_auth")({
   component: RouteComponent,
@@ -10,7 +10,7 @@ function RouteComponent() {
   return (
     <div className="relative min-h-screen bg-background text-foreground lg:grid lg:grid-cols-[1.15fr_1fr] xl:grid-cols-[1.15fr_1fr]">
       <aside className="relative hidden overflow-hidden border-r border-white/5 bg-black lg:block">
-        <AsciiCitrus />
+        <AsciiLogo />
 
         <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-10">
           <a
