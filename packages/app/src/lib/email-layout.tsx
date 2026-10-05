@@ -79,7 +79,7 @@ export function EmailLayout({
                 </Column>
                 <Column>
                   <Text className="m-0 text-[24px] font-bold tracking-tight text-white">
-                    Everr
+                    everr
                   </Text>
                 </Column>
               </Row>
