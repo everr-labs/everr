@@ -29,12 +29,8 @@ export const Route = createFileRoute(
   head: () => ({ meta: [{ title: "Everr - Traces" }] }),
   validateSearch: RouteSearchSchema,
   search: { middlewares: [stripSearchParams(defaultSearch)] },
-  component: TracesRoute,
+  component: TracesSearchPage,
 });
-
-function TracesRoute() {
-  return <TracesSearchPage />;
-}
 
 function TracesSearchPage() {
   const search = Route.useSearch();

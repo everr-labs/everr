@@ -3,9 +3,8 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { TracesRepositoryLike } from "../../data/repository";
 import type { Span } from "../../data/types";
-import type { TraceDetailProps } from "../trace-detail-page";
 import type { TraceNode } from "./trace-model";
-import { TraceExplorer } from "./trace-viewer";
+import { TraceExplorer, type TraceExplorerProps } from "./trace-viewer";
 
 vi.mock("./waterfall", () => ({
   TraceWaterfall: ({
@@ -52,7 +51,7 @@ function span(id: string, parentSpanId = ""): Span {
   };
 }
 
-function renderExplorer(search: TraceDetailProps["search"] = {}) {
+function renderExplorer(search: TraceExplorerProps["search"] = {}) {
   const repo: TracesRepositoryLike = {
     getTrace: vi.fn(async () => [span("root"), span("child", "root")]),
     search: vi.fn(async () => []),
@@ -63,7 +62,7 @@ function renderExplorer(search: TraceDetailProps["search"] = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  const props: TraceDetailProps = {
+  const props: TraceExplorerProps = {
     repo,
     traceId: "trace-1",
     search: {
@@ -72,6 +71,7 @@ function renderExplorer(search: TraceDetailProps["search"] = {}) {
       ...search,
     },
     onSpanChange: vi.fn(),
+    onBack: vi.fn(),
   };
   const ui = (spanId?: string) => (
     <QueryClientProvider client={client}>
@@ -87,6 +87,13 @@ function renderExplorer(search: TraceDetailProps["search"] = {}) {
 }
 
 describe("shared trace explorer", () => {
+  it("returns to the trace list through the host's back callback", async () => {
+    const { props } = renderExplorer();
+    await screen.findByRole("heading", { name: "root" });
+    fireEvent.click(screen.getByRole("button", { name: "Back to traces" }));
+    expect(props.onBack).toHaveBeenCalledTimes(1);
+  });
+
   it("loads from the supplied repository and preserves the bounded detail window", async () => {
     const { repo } = renderExplorer();
     expect(

@@ -31,13 +31,13 @@ it("keeps event markers at their actual time when a span is clipped by zoom", ()
     event: [
       {
         name: "visible",
-        timeUnixNano: 300_000,
+        offsetNs: 300_000,
         attributeMap: {},
         isError: false,
       },
       {
         name: "outside",
-        timeUnixNano: 100_000,
+        offsetNs: 100_000,
         attributeMap: {},
         isError: false,
       },

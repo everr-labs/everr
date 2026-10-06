@@ -31,10 +31,10 @@ import {
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import { getTraceOptions } from "../../data/options";
+import type { TracesRepositoryLike } from "../../data/repository";
 import type { Span } from "../../data/types";
 import { computeDetailWindow } from "../../data/window";
 import { serviceColor } from "../shared/service-color";
-import type { TraceDetailProps } from "../trace-detail-page";
 import {
   type FlamegraphHandle,
   TraceFlamegraph,
@@ -54,9 +54,24 @@ import {
 } from "./trace-model";
 import { TraceWaterfall } from "./waterfall";
 
-type Props = Omit<TraceDetailProps, "repo">;
+export type TraceExplorerProps = {
+  repo: TracesRepositoryLike;
+  traceId: string;
+  search: {
+    span?: string;
+    start?: string;
+    end?: string;
+    from?: string;
+    to?: string;
+    refresh?: string;
+  };
+  onBack: () => void;
+  onSpanChange: (spanId: string | undefined) => void;
+};
 
-export function TraceExplorer(props: TraceDetailProps) {
+type Props = Omit<TraceExplorerProps, "repo">;
+
+export function TraceExplorer(props: TraceExplorerProps) {
   const window = computeDetailWindow({
     start: props.search.start,
     end: props.search.end,
@@ -92,7 +107,7 @@ export function TraceExplorer(props: TraceDetailProps) {
         <p className="text-muted-foreground text-sm">
           No spans matched this trace in the selected time window.
         </p>
-        <Button variant="outline" onClick={props.onBack ?? props.onClose}>
+        <Button variant="outline" onClick={props.onBack}>
           Back to traces
         </Button>
       </div>
@@ -106,7 +121,6 @@ function TraceViewer({
   search,
   onSpanChange,
   onBack,
-  onClose,
 }: Props & { spans: Span[] }) {
   const model = useMemo(() => buildTraceModel(spans), [spans]);
   const [query, setQuery] = useState("");
@@ -117,7 +131,7 @@ function TraceViewer({
   const [openNodes, setOpenNodes] = useState(
     () =>
       new Set(
-        model.waterfall.filter((s) => s.has_children).map((s) => s.spanId),
+        model.waterfall.filter((s) => s.hasChildren).map((s) => s.spanId),
       ),
   );
   const [flamegraphOpen, setFlamegraphOpen] = useState(false);
@@ -221,7 +235,7 @@ function TraceViewer({
           variant="ghost"
           size="icon-sm"
           aria-label="Back to traces"
-          onClick={onBack ?? onClose}
+          onClick={onBack}
         >
           <ArrowLeft />
         </Button>
@@ -367,7 +381,7 @@ function TraceViewer({
               setOpenNodes(
                 new Set(
                   model.waterfall
-                    .filter((s) => s.has_children)
+                    .filter((s) => s.hasChildren)
                     .map((s) => s.spanId),
                 ),
               )
@@ -502,9 +516,7 @@ function TraceViewer({
                 durationMs={model.durationMs}
                 start={search.start ?? root?.source.timestamp ?? ""}
                 end={search.end ?? ""}
-                onClose={() => {
-                  onSpanChange(undefined);
-                }}
+                onClose={() => onSpanChange(undefined)}
                 onFocus={() => {
                   const padding = Math.max(
                     (selected.durationNano / 1e6) * 0.1,

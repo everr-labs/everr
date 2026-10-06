@@ -120,7 +120,7 @@ export function TraceWaterfall({
                 className="flex min-w-0 items-center gap-1 overflow-hidden pr-2"
                 style={{ paddingLeft: Math.min(node.level * 12, 120) + 4 }}
               >
-                {node.has_children ? (
+                {node.hasChildren ? (
                   <Button
                     variant="ghost"
                     size="icon-xs"
@@ -205,11 +205,10 @@ export function TraceWaterfall({
                 )}
                 {node.event.map((event, i) => {
                   const position =
-                    ((event.timeUnixNano / 1e6 - range.start) / fullWidth) *
-                    100;
+                    ((event.offsetNs / 1e6 - range.start) / fullWidth) * 100;
                   return position >= 0 && position <= 100 ? (
                     <span
-                      key={`${event.timeUnixNano}-${i}`}
+                      key={`${event.offsetNs}-${i}`}
                       title={event.name}
                       className="absolute top-3.5 size-1.5 rotate-45 border border-background"
                       style={{

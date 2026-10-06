@@ -43,9 +43,7 @@ export function buildTraceModel(spans: Span[]) {
     if (timestampNs + durationNs > endNs) endNs = timestampNs + durationNs;
     byId.set(source.spanId, {
       spanId: source.spanId,
-      span_id: source.spanId,
       parentSpanId: source.parentSpanId,
-      parent_span_id: source.parentSpanId,
       name: source.spanName,
       timestamp: Number(timestampNs - startNs) / 1e6,
       durationNano: Number(durationNs),
@@ -62,7 +60,7 @@ export function buildTraceModel(spans: Span[]) {
           : [
               {
                 name: event.name,
-                timeUnixNano: Number(time - startNs),
+                offsetNs: Number(time - startNs),
                 attributeMap: event.attributes,
                 isError:
                   event.name === "exception" ||
@@ -71,7 +69,7 @@ export function buildTraceModel(spans: Span[]) {
             ];
       }),
       level: 0,
-      has_children: false,
+      hasChildren: false,
       source,
     });
   }
@@ -88,7 +86,6 @@ export function buildTraceModel(spans: Span[]) {
       if (current.parentSpanId && (!parent || path.has(parent.spanId))) {
         if (!parent) missingParents++;
         current.parentSpanId = "";
-        current.parent_span_id = "";
         break;
       }
       current = parent;
@@ -110,7 +107,7 @@ export function buildTraceModel(spans: Span[]) {
     if (!entry) break;
     const descendants = children.get(entry.node.spanId) ?? [];
     entry.node.level = entry.level;
-    entry.node.has_children = descendants.length > 0;
+    entry.node.hasChildren = descendants.length > 0;
     waterfall.push(entry.node);
     for (let i = descendants.length - 1; i >= 0; i--) {
       stack.push({ node: descendants[i], level: entry.level + 1 });

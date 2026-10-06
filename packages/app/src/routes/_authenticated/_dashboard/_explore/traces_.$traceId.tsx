@@ -1,12 +1,13 @@
 import {
   TraceDetailParamsSchema,
+  TraceExplorer,
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
 import { createFileRoute } from "@tanstack/react-router";
+import { remoteTracesRepo } from "@/data/traces/remote-repo";
 import {
   ensureTraceDetailData,
   getTraceDetailLoaderDeps,
-  TraceDetailRouteContent,
   TraceDetailRouteError,
 } from "./-trace-detail";
 
@@ -38,7 +39,8 @@ function TraceDetailRoute() {
   const navigate = Route.useNavigate();
 
   return (
-    <TraceDetailRouteContent
+    <TraceExplorer
+      repo={remoteTracesRepo}
       traceId={traceId}
       search={search}
       onBack={() =>

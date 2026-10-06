@@ -1,5 +1,5 @@
 import type {
-  TraceDetailProps,
+  TraceExplorerProps,
   TracesSearchProps,
 } from "@everr/telemetry-explorer/traces";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -54,7 +54,7 @@ vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
         })}
       </div>
     ),
-    TraceExplorer: (props: TraceDetailProps) => (
+    TraceExplorer: (props: TraceExplorerProps) => (
       <div>
         Trace detail page
         <span>Selected {props.search.span ?? "none"}</span>

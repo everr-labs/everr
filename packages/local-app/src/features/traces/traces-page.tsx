@@ -32,10 +32,6 @@ export const TraceDetailSearchSchema =
 const localTracesRepo = new TracesRepository(localSqlClient);
 
 export function TracesPage() {
-  return <TracesListView />;
-}
-
-function TracesListView() {
   const search = useSearch({ strict: false }) as TraceSearchParams & {
     service?: string[];
     environment?: string[];

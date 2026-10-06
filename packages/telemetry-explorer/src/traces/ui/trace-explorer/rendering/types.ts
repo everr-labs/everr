@@ -1,7 +1,7 @@
 export type FlamegraphEvent = {
   name: string;
   /** Nanoseconds relative to the trace start, rather than a Unix timestamp. */
-  timeUnixNano: number;
+  offsetNs: number;
   attributeMap: Record<string, string>;
   isError: boolean;
 };
@@ -20,10 +20,10 @@ export type FlamegraphSpan = {
 };
 
 export type WaterfallSpan = {
-  span_id: string;
-  parent_span_id: string;
+  spanId: string;
+  parentSpanId: string;
   level: number;
-  has_children: boolean;
+  hasChildren: boolean;
 };
 
 export type ColorByField = { name: string };

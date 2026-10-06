@@ -241,7 +241,7 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
       return;
     }
 
-    const eventTimeMs = event.timeUnixNano / 1e6;
+    const eventTimeMs = event.offsetNs / 1e6;
     if (eventTimeMs < viewStartTs || eventTimeMs > viewStartTs + timeSpan)
       return;
     const eventX = ((eventTimeMs - viewStartTs) / timeSpan) * cssWidth;
@@ -255,7 +255,7 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
       event.isError ?? false,
       isDarkMode,
     );
-    const eventKey = `${span.spanId}-${event.name}-${event.timeUnixNano}`;
+    const eventKey = `${span.spanId}-${event.name}-${event.offsetNs}`;
     const isEventHovered = hoveredEventKey === eventKey;
     const dotSize = isEventHovered
       ? Math.round(metrics.EVENT_DOT_SIZE * 1.5)

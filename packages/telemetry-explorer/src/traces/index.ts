@@ -10,12 +10,10 @@ export * from "./data/types";
 export * from "./data/window";
 export { TimeRangeSearchSchema } from "./time-range";
 export { serviceColor } from "./ui/shared/service-color";
-export type {
-  TraceDetailProps,
-  TraceDetailSearch,
-} from "./ui/trace-detail-page";
-export { TraceDetail } from "./ui/trace-detail-page";
-export { TraceExplorer } from "./ui/trace-explorer/trace-viewer";
+export {
+  TraceExplorer,
+  type TraceExplorerProps,
+} from "./ui/trace-explorer/trace-viewer";
 export type {
   TraceLinkRenderProps,
   TraceSearchValue,

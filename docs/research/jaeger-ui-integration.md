@@ -26,7 +26,7 @@ Per `schema-pk-filter-on-orderby` and `query-index-skipping-indices`, any redesi
 
 Desktop is the main uncertainty. It obtains local data through a Tauri command, not normal HTTP, so an unmodified iframe cannot directly use its repository. The spike must prove either a controlled iframe transport bridge or a local compatibility endpoint and packaged asset delivery. A cloud-only implementation does not solve local trace viewing. [Local SQL client](../../packages/desktop-app/src/features/logs/local-sql-client.ts)
 
-Replacing shared `TraceDetail` covers the explorer hosts; the CI run waterfall is separate and needs explicit follow-up if included. No collector, ingestion, or database migration is inherent in this approach. [Shared detail](../../packages/telemetry-explorer/src/traces/ui/trace-detail-page.tsx), [Run waterfall](../../packages/app/src/components/run-detail/trace-waterfall.tsx)
+Replacing shared `TraceExplorer` covers the explorer hosts; the CI run waterfall is separate and needs explicit follow-up if included. No collector, ingestion, or database migration is inherent in this approach. [Shared detail](../../packages/telemetry-explorer/src/traces/ui/trace-explorer/trace-viewer.tsx), [Run waterfall](../../packages/app/src/components/run-detail/trace-waterfall.tsx)
 
 ## Estimates and proof points
 

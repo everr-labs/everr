@@ -98,7 +98,7 @@ describe("Trace model", () => {
       },
     ];
     const event = buildTraceModel([root]).byId.get("root")?.event[0];
-    expect(event?.timeUnixNano).toBe(1);
+    expect(event?.offsetNs).toBe(1);
     expect(event?.isError).toBe(true);
   });
 

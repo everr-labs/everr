@@ -7,7 +7,7 @@ import type { WaterfallSpan } from "./types";
 /**
  * Computes the visible spans from a complete span list based on collapse state.
  *
- * Relies on spans being in DFS pre-order (as returned by the backend).
+ * Relies on spans being in DFS pre-order (produced by buildTraceModel).
  * When a collapsed span is encountered, all its descendants (level > collapsed span's level)
  * are skipped until we reach a sibling or ancestor (level <= collapsed span's level).
  *
@@ -29,7 +29,7 @@ export function getVisibleSpans<T extends WaterfallSpan>(
     skipBelowLevel = Infinity;
     visible.push(span);
 
-    if (span.has_children && !uncollapsedNodes.has(span.span_id)) {
+    if (span.hasChildren && !uncollapsedNodes.has(span.spanId)) {
       skipBelowLevel = span.level;
     }
   }
@@ -39,7 +39,7 @@ export function getVisibleSpans<T extends WaterfallSpan>(
 
 /**
  * Returns the set of ancestor span IDs for a given span.
- * Walks up the tree via parent_span_id until reaching the root.
+ * Walks up the tree via parentSpanId until reaching the root.
  */
 export function getAncestorSpanIds(
   allSpans: WaterfallSpan[],
@@ -47,19 +47,19 @@ export function getAncestorSpanIds(
 ): Set<string> {
   const spanMap = new Map<string, WaterfallSpan>();
   for (const span of allSpans) {
-    spanMap.set(span.span_id, span);
+    spanMap.set(span.spanId, span);
   }
 
   const ancestors = new Set<string>();
   let current = spanMap.get(targetSpanId);
 
-  while (current?.parent_span_id) {
-    const parent = spanMap.get(current.parent_span_id);
+  while (current?.parentSpanId) {
+    const parent = spanMap.get(current.parentSpanId);
     if (!parent) {
       break;
     }
-    if (ancestors.has(parent.span_id)) break;
-    ancestors.add(parent.span_id);
+    if (ancestors.has(parent.spanId)) break;
+    ancestors.add(parent.spanId);
     current = parent;
   }
 
