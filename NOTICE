@@ -14,6 +14,14 @@ at http://www.apache.org/licenses/LICENSE-2.0.
 
 Third-party components:
 
+- packages/app/src/components/trace-explorer/rendering/
+  and packages/app/src/components/trace-explorer/waterfall.tsx
+  Adapted trace visualization layout and rendering.
+  Copyright (c) 2020-present SigNoz Inc.
+  Licensed under the MIT Expat license. See
+  packages/app/src/components/trace-explorer/rendering/LICENSE.
+  Source: https://github.com/SigNoz/signoz/tree/32350e61e565b7f267d7f92354f782b439b8b138/frontend/src/pages/TraceDetailsV3
+
 - collector/internal/sharedcomponent/
   Copied unmodified from the OpenTelemetry Collector
   (https://github.com/open-telemetry/opentelemetry-collector).

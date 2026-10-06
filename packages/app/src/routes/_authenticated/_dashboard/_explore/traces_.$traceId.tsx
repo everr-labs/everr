@@ -13,7 +13,11 @@ import {
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_explore/traces_/$traceId",
 )({
-  staticData: { breadcrumb: "Trace", hideExploreBar: true },
+  staticData: {
+    breadcrumb: "Trace",
+    hideExploreBar: true,
+    hideTimeRangePicker: true,
+  },
   head: () => ({ meta: [{ title: "Everr - Trace" }] }),
   validateSearch: TraceDetailParamsSchema,
   loaderDeps: ({ search }) => getTraceDetailLoaderDeps(search),

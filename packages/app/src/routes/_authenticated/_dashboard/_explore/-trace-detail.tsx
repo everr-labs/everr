@@ -1,7 +1,6 @@
 import {
   computeDetailWindow,
   getTraceOptions,
-  TraceDetail,
   type TraceDetailParams,
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
@@ -14,6 +13,7 @@ import {
 } from "@everr/ui/components/empty";
 import type { QueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { WebTraceDetail } from "@/components/trace-explorer/trace-viewer";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
 
 export function getTraceDetailLoaderDeps(search: TraceDetailParams) {
@@ -63,8 +63,7 @@ export function TraceDetailRouteContent({
   onSpanChange: (spanId: string | undefined) => void;
 }) {
   return (
-    <TraceDetail
-      repo={remoteTracesRepo}
+    <WebTraceDetail
       traceId={traceId}
       search={search}
       onBack={onBack}

@@ -14,14 +14,6 @@ export interface RouterContext {
 const routeMasks = [
   createRouteMask({
     routeTree,
-    from: "/traces/$traceId/modal",
-    to: "/traces/$traceId",
-    params: true,
-    search: true,
-    unmaskOnReload: true,
-  }),
-  createRouteMask({
-    routeTree,
     from: "/errors/$fingerprint/modal",
     to: "/errors/$fingerprint",
     params: true,
