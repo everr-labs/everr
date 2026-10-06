@@ -10,8 +10,7 @@ export interface ConnectorLine {
   parentRow: number;
   childRow: number;
   timestampMs: number;
-  // Snapshot of the child span's resource so draw-time can resolve the
-  // `colorByField` group value without crossing the worker boundary.
+  // Child resource attributes used to color parent-child guides.
   resource?: Record<string, string>;
 }
 

@@ -7,7 +7,6 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -48,7 +47,6 @@ export function TimeRuler({
 export function TraceFlamegraph({
   model,
   selectedSpanId,
-  connectionSpanId,
   matchingIds,
   filterActive,
   colorBy,
@@ -59,8 +57,7 @@ export function TraceFlamegraph({
 }: {
   model: TraceModel;
   selectedSpanId?: string;
-  connectionSpanId?: string;
-  matchingIds: string[];
+  matchingIds: ReadonlySet<string>;
   filterActive: boolean;
   colorBy: string;
   range: ViewRange;
@@ -84,9 +81,7 @@ export function TraceFlamegraph({
     x: number;
     y: number;
   }>();
-  const colorByField = useMemo(() => ({ name: colorBy }), [colorBy]);
-  const { drawFlamegraph } = useFlamegraphDraw({
-    connectionSpanId,
+  const drawFlamegraph = useFlamegraphDraw({
     canvasRef,
     containerRef,
     spans: model.layout.visualRows,
@@ -97,12 +92,10 @@ export function TraceFlamegraph({
     rowHeight: 24,
     selectedSpanId,
     hoveredSpanId: hover?.span.span.spanId ?? "",
-    isDarkMode: true,
     spanRectsRef,
     eventRectsRef,
-    filteredSpanIds: matchingIds,
-    isFilterActive: filterActive,
-    colorByField,
+    matchingSpanIds: filterActive ? matchingIds : null,
+    colorBy,
   });
 
   // URL selection controls the external scroll surface, not local selection state.

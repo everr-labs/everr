@@ -55,8 +55,6 @@ it("keeps event markers at their actual time when a span is clipped by zoom", ()
     spanRectsArray: spans,
     eventRectsArray: events,
     color: "#23E0E8",
-    colorDark: "#23E0E8",
-    isDarkMode: true,
     metrics: getFlamegraphRowMetrics(24),
     viewStartTs: 0.2,
     timeSpan: 0.2,

@@ -40,6 +40,7 @@ import {
   TraceFlamegraph,
   type ViewRange,
 } from "./flamegraph";
+import { spanColorGroup } from "./rendering/types";
 import {
   getAncestorSpanIds,
   getVisibleSpans,
@@ -50,7 +51,6 @@ import {
   matchesSpan,
   SPAN_CATEGORIES,
   type SpanCategory,
-  spanColorGroup,
 } from "./trace-model";
 import { TraceWaterfall } from "./waterfall";
 
@@ -151,8 +151,10 @@ function TraceViewer({
       ),
     [model, query, category, errorsOnly],
   );
-  const matchingIds = useMemo(() => matches.map((s) => s.spanId), [matches]);
-  const matchingSet = useMemo(() => new Set(matchingIds), [matchingIds]);
+  const matchingSet = useMemo(
+    () => new Set(matches.map((span) => span.spanId)),
+    [matches],
+  );
   const visibleRows = useMemo(
     () => getVisibleSpans(model.waterfall, openNodes),
     [model, openNodes],
@@ -448,8 +450,7 @@ function TraceViewer({
                       ref={flamegraphRef}
                       model={model}
                       selectedSpanId={selectedId}
-                      connectionSpanId={search.span}
-                      matchingIds={matchingIds}
+                      matchingIds={matchingSet}
                       filterActive={filterActive}
                       colorBy={colorBy ?? "service.name"}
                       range={range}

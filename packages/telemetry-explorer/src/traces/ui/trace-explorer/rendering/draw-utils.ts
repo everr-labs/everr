@@ -3,11 +3,7 @@
 // Adapted for Everr. See README.md for upstream provenance and changes.
 
 import { formatDuration as formatEverrDuration } from "@everr/ui/lib/formatting";
-import {
-  type ColorPair,
-  canvasColorPair,
-  resolveThemeColor,
-} from "../theme-colors";
+import { resolveThemeColor } from "../theme-colors";
 import {
   DASHED_BORDER_LINE_DASH,
   EVENT_DOT_SIZE_RATIO,
@@ -21,8 +17,7 @@ import {
   MIN_WIDTH_FOR_NAME_AND_DURATION,
   SPAN_BAR_HEIGHT_RATIO,
 } from "./constants";
-import type { ColorByField, FlamegraphSpan } from "./types";
-import { type EventRect, getSpanAttribute, type SpanRect } from "./types";
+import type { EventRect, FlamegraphSpan, SpanRect } from "./types";
 
 export function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -58,39 +53,13 @@ export function getFlamegraphRowMetrics(
   };
 }
 
-/**
- * Resolve the value used to bucket a flamegraph span by colour for the given
- * field. Prefers `resource[field.name]` (contract from `selectFields`), falling
- * back to `'unknown'`.
- */
-export function getFlamegraphSpanGroupValue(
-  span: Partial<Pick<FlamegraphSpan, "resource" | "attributes">>,
-  field: ColorByField,
-): string {
-  return getSpanAttribute(span, field.name) || "unknown";
-}
-
-interface GetSpanColorArgs {
-  span: FlamegraphSpan;
-  isDarkMode: boolean;
-  groupValue: string;
-}
-
-export function getSpanColor(args: GetSpanColorArgs): ColorPair {
-  return canvasColorPair(args.groupValue);
-}
-
 interface EventDotColor {
   fill: string;
   stroke: string;
 }
 
-/** Derive event dot colors from parent span color. Error events always use red. */
-function getEventDotColor(
-  _spanColor: string,
-  isError: boolean,
-  _isDarkMode: boolean,
-): EventDotColor {
+/** Event markers use theme tokens, with destructive coloring for errors. */
+function getEventDotColor(isError: boolean): EventDotColor {
   return {
     fill: resolveThemeColor(
       isError ? "var(--destructive)" : "var(--foreground)",
@@ -134,17 +103,12 @@ interface DrawSpanBarArgs {
   spanRectsArray: SpanRect[];
   eventRectsArray: EventRect[];
   color: string;
-  // Darkened variant used as foreground (stroke + label) on light mode
-  // hover/selected, where the base color sits against a near-white panel.
-  colorDark: string;
-  isDarkMode: boolean;
   metrics: FlamegraphRowMetrics;
   viewStartTs: number;
   timeSpan: number;
   cssWidth: number;
   selectedSpanId?: string | null;
   hoveredSpanId?: string | null;
-  hoveredEventKey?: string | null;
   isDimmedByFilter?: boolean;
 }
 
@@ -159,15 +123,12 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
     spanRectsArray,
     eventRectsArray,
     color,
-    colorDark,
-    isDarkMode,
     metrics,
     viewStartTs,
     timeSpan,
     cssWidth,
     selectedSpanId,
     hoveredSpanId,
-    hoveredEventKey,
     isDimmedByFilter,
   } = args;
 
@@ -194,16 +155,14 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
     if (isSelected) {
       ctx.setLineDash(DASHED_BORDER_LINE_DASH);
     }
-    ctx.strokeStyle = isDarkMode ? color : colorDark;
+    ctx.strokeStyle = color;
     ctx.lineWidth = isSelected ? 2 : 1;
     ctx.stroke();
     if (isSelected) {
       ctx.setLineDash([]);
     }
   } else {
-    // Light mode uses the darkened variant as fill so bars contrast against
-    // the white panel background; dark mode keeps the bright base.
-    ctx.fillStyle = isDarkMode ? color : colorDark;
+    ctx.fillStyle = color;
     ctx.fill();
     // Subtle outline to match spec: 1px semi-transparent black border at rest
     ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
@@ -230,9 +189,7 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
     width,
     height: metrics.SPAN_BAR_HEIGHT,
     level: levelIndex,
-    // Resting group color (selected/hovered bars override the fill, but this
-    // still reflects the colour-by grouping — used by the e2e colour-by hook).
-    color: isDarkMode ? color : colorDark,
+    color,
   });
 
   span.event?.forEach((event) => {
@@ -247,26 +204,13 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
     const eventX = ((eventTimeMs - viewStartTs) / timeSpan) * cssWidth;
     const eventY = spanY + metrics.SPAN_BAR_HEIGHT / 2;
 
-    // Event dots derive from the effective bar color so they track the
-    // light/dark variant the bar is rendered with.
-    const parentBarColor = isDarkMode ? color : colorDark;
-    const dotColor = getEventDotColor(
-      parentBarColor,
-      event.isError ?? false,
-      isDarkMode,
-    );
-    const eventKey = `${span.spanId}-${event.name}-${event.offsetNs}`;
-    const isEventHovered = hoveredEventKey === eventKey;
-    const dotSize = isEventHovered
-      ? Math.round(metrics.EVENT_DOT_SIZE * 1.5)
-      : metrics.EVENT_DOT_SIZE;
-
+    const dotColor = getEventDotColor(event.isError);
     drawEventDot({
       ctx,
       x: eventX,
       y: eventY,
       color: dotColor,
-      eventDotSize: dotSize,
+      eventDotSize: metrics.EVENT_DOT_SIZE,
     });
 
     eventRectsArray.push({
@@ -290,9 +234,7 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
     y: spanY,
     width,
     color,
-    colorDark,
     isSelectedOrHovered,
-    isDarkMode,
     spanBarHeight: metrics.SPAN_BAR_HEIGHT,
   });
 }
@@ -309,25 +251,13 @@ interface DrawSpanLabelArgs {
   y: number;
   width: number;
   color: string;
-  colorDark: string;
   isSelectedOrHovered: boolean;
-  isDarkMode: boolean;
   spanBarHeight: number;
 }
 
 function drawSpanLabel(args: DrawSpanLabelArgs): void {
-  const {
-    ctx,
-    span,
-    x,
-    y,
-    width,
-    color,
-    colorDark,
-    isSelectedOrHovered,
-    isDarkMode,
-    spanBarHeight,
-  } = args;
+  const { ctx, span, x, y, width, color, isSelectedOrHovered, spanBarHeight } =
+    args;
 
   if (width < MIN_WIDTH_FOR_NAME) {
     return;
@@ -343,12 +273,7 @@ function drawSpanLabel(args: DrawSpanLabelArgs): void {
   ctx.clip();
 
   ctx.font = LABEL_FONT;
-  const hoverLabelColor = isDarkMode ? color : colorDark;
-  ctx.fillStyle = isSelectedOrHovered
-    ? hoverLabelColor
-    : isDarkMode
-      ? "rgba(0, 0, 0, 0.7)"
-      : "rgba(255, 255, 255, 0.95)";
+  ctx.fillStyle = isSelectedOrHovered ? color : "rgba(0, 0, 0, 0.7)";
   ctx.textBaseline = "middle";
 
   const textY = y + spanBarHeight / 2;

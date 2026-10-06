@@ -172,7 +172,3 @@ export function matchesSpan(
     .filter(Boolean)
     .every((token) => haystack.includes(token));
 }
-
-export function spanColorGroup(node: FlamegraphSpan, field: string): string {
-  return node.attributes[field] ?? node.resource[field] ?? "unknown";
-}

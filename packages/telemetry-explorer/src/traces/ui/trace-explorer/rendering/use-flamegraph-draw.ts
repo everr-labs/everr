@@ -2,28 +2,24 @@
 // SPDX-License-Identifier: MIT
 // Adapted for Everr. See README.md for upstream provenance and changes.
 
-import type React from "react";
-import { type RefObject, useCallback, useMemo, useRef } from "react";
-import { canvasColorPair } from "../theme-colors";
+import { type RefObject, useCallback } from "react";
+import { canvasServiceColor } from "../theme-colors";
 import type { ConnectorLine } from "./compute-visual-layout";
 import {
   clamp,
   drawSpanBar,
   type FlamegraphRowMetrics,
   getFlamegraphRowMetrics,
-  getFlamegraphSpanGroupValue,
-  getSpanColor,
 } from "./draw-utils";
-import type {
-  ColorByField,
-  EventRect,
-  FlamegraphSpan,
-  SpanRect,
+import {
+  type EventRect,
+  type FlamegraphSpan,
+  type SpanRect,
+  spanColorGroup,
 } from "./types";
 
 interface UseFlamegraphDrawArgs {
-  connectionSpanId?: string;
-  colorByField: ColorByField;
+  colorBy: string;
   canvasRef: RefObject<HTMLCanvasElement | null>;
   containerRef: RefObject<HTMLDivElement | null>;
   spans: FlamegraphSpan[][];
@@ -34,18 +30,9 @@ interface UseFlamegraphDrawArgs {
   rowHeight: number;
   selectedSpanId: string | undefined;
   hoveredSpanId: string;
-  isDarkMode: boolean;
-  spanRectsRef?: React.MutableRefObject<SpanRect[]>;
-  eventRectsRef?: React.MutableRefObject<EventRect[]>;
-  hoveredEventKey?: string | null;
-  filteredSpanIds?: string[];
-  isFilterActive?: boolean;
-}
-
-interface UseFlamegraphDrawResult {
-  drawFlamegraph: () => void;
   spanRectsRef: RefObject<SpanRect[]>;
   eventRectsRef: RefObject<EventRect[]>;
+  matchingSpanIds: ReadonlySet<string> | null;
 }
 
 const OVERSCAN_ROWS = 4;
@@ -60,14 +47,11 @@ interface DrawLevelArgs {
   cssWidth: number;
   selectedSpanId: string | undefined;
   hoveredSpanId: string;
-  isDarkMode: boolean;
-  colorByField: ColorByField;
+  colorBy: string;
   spanRectsArray: SpanRect[];
   eventRectsArray: EventRect[];
   metrics: FlamegraphRowMetrics;
-  hoveredEventKey?: string | null;
-  filteredSpanIdsSet?: Set<string> | null;
-  isFilterActive?: boolean;
+  matchingSpanIds: ReadonlySet<string> | null;
 }
 
 function drawLevel(args: DrawLevelArgs): void {
@@ -81,14 +65,11 @@ function drawLevel(args: DrawLevelArgs): void {
     cssWidth,
     selectedSpanId,
     hoveredSpanId,
-    isDarkMode,
-    colorByField,
+    colorBy,
     spanRectsArray,
     eventRectsArray,
     metrics,
-    hoveredEventKey,
-    filteredSpanIdsSet,
-    isFilterActive: isFilterActiveInLevel,
+    matchingSpanIds,
   } = args;
 
   const viewEndTs = viewStartTs + timeSpan;
@@ -124,17 +105,9 @@ function drawLevel(args: DrawLevelArgs): void {
     // Minimum 1px width so tiny spans remain visible
     width = clamp(width, 1, Infinity);
 
-    const groupValue = getFlamegraphSpanGroupValue(span, colorByField);
-    const { color, colorDark } = getSpanColor({
-      span,
-      isDarkMode,
-      groupValue,
-    });
-
+    const color = canvasServiceColor(spanColorGroup(span, colorBy));
     const isDimmedByFilter =
-      !!isFilterActiveInLevel &&
-      !!filteredSpanIdsSet &&
-      !filteredSpanIdsSet.has(span.spanId);
+      matchingSpanIds !== null && !matchingSpanIds.has(span.spanId);
 
     drawSpanBar({
       ctx,
@@ -146,15 +119,12 @@ function drawLevel(args: DrawLevelArgs): void {
       spanRectsArray,
       eventRectsArray,
       color,
-      colorDark,
-      isDarkMode,
       metrics,
       viewStartTs,
       timeSpan,
       cssWidth,
       selectedSpanId,
       hoveredSpanId,
-      hoveredEventKey,
       isDimmedByFilter,
     });
   }
@@ -170,8 +140,7 @@ interface DrawConnectorLinesArgs {
   cssWidth: number;
   viewportHeight: number;
   metrics: FlamegraphRowMetrics;
-  colorByField: ColorByField;
-  isDarkMode: boolean;
+  colorBy: string;
 }
 
 export function drawConnectorLines(args: DrawConnectorLinesArgs): void {
@@ -184,8 +153,7 @@ export function drawConnectorLines(args: DrawConnectorLinesArgs): void {
     cssWidth,
     viewportHeight,
     metrics,
-    colorByField,
-    isDarkMode,
+    colorBy,
     focusedSpanIds,
   } = args;
 
@@ -221,12 +189,9 @@ export function drawConnectorLines(args: DrawConnectorLinesArgs): void {
       continue;
     }
 
-    const groupValue = getFlamegraphSpanGroupValue(
-      { resource: conn.resource },
-      colorByField,
+    ctx.strokeStyle = canvasServiceColor(
+      spanColorGroup({ resource: conn.resource }, colorBy),
     );
-    const pair = canvasColorPair(groupValue);
-    ctx.strokeStyle = isDarkMode ? pair.color : pair.colorDark;
 
     const x = clamp(xFrac * cssWidth, 0, cssWidth);
     ctx.beginPath();
@@ -238,14 +203,11 @@ export function drawConnectorLines(args: DrawConnectorLinesArgs): void {
   ctx.restore();
 }
 
-export function useFlamegraphDraw(
-  args: UseFlamegraphDrawArgs,
-): UseFlamegraphDrawResult {
+export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
   const {
-    connectionSpanId,
     canvasRef,
     containerRef,
-    colorByField,
+    colorBy,
     spans,
     connectors,
     viewStartTs,
@@ -254,23 +216,10 @@ export function useFlamegraphDraw(
     rowHeight,
     selectedSpanId,
     hoveredSpanId,
-    isDarkMode,
-    spanRectsRef: spanRectsRefProp,
-    eventRectsRef: eventRectsRefProp,
-    hoveredEventKey,
-    filteredSpanIds,
-    isFilterActive,
+    spanRectsRef,
+    eventRectsRef,
+    matchingSpanIds,
   } = args;
-
-  const spanRectsRefInternal = useRef<SpanRect[]>([]);
-  const spanRectsRef = spanRectsRefProp ?? spanRectsRefInternal;
-  const eventRectsRefInternal = useRef<EventRect[]>([]);
-  const eventRectsRef = eventRectsRefProp ?? eventRectsRefInternal;
-
-  const filteredSpanIdsSet = useMemo(
-    () => (isFilterActive && filteredSpanIds ? new Set(filteredSpanIds) : null),
-    [filteredSpanIds, isFilterActive],
-  );
 
   const drawFlamegraph = useCallback(() => {
     const canvas = canvasRef.current;
@@ -317,7 +266,7 @@ export function useFlamegraphDraw(
     // ---- Draw connector lines (behind span bars) ----
     drawConnectorLines({
       focusedSpanIds: new Set(
-        [connectionSpanId, hoveredSpanId].filter((id): id is string => !!id),
+        [selectedSpanId, hoveredSpanId].filter((id): id is string => !!id),
       ),
       ctx,
       connectors,
@@ -327,13 +276,11 @@ export function useFlamegraphDraw(
       cssWidth,
       viewportHeight,
       metrics,
-      colorByField,
-      isDarkMode,
+      colorBy,
     });
 
     const spanRectsArray: SpanRect[] = [];
     const eventRectsArray: EventRect[] = [];
-    const currentHoveredEventKey = hoveredEventKey ?? null;
 
     // ---- Draw only visible levels ----
     for (let levelIndex = firstLevel; levelIndex <= lastLevel; levelIndex++) {
@@ -352,21 +299,17 @@ export function useFlamegraphDraw(
         cssWidth,
         selectedSpanId,
         hoveredSpanId,
-        isDarkMode,
-        colorByField,
+        colorBy,
         spanRectsArray,
         eventRectsArray,
         metrics,
-        hoveredEventKey: currentHoveredEventKey,
-        filteredSpanIdsSet,
-        isFilterActive,
+        matchingSpanIds,
       });
     }
 
     spanRectsRef.current = spanRectsArray;
     eventRectsRef.current = eventRectsArray;
   }, [
-    connectionSpanId,
     canvasRef,
     containerRef,
     spanRectsRef,
@@ -379,12 +322,9 @@ export function useFlamegraphDraw(
     rowHeight,
     selectedSpanId,
     hoveredSpanId,
-    hoveredEventKey,
-    isDarkMode,
-    colorByField,
-    filteredSpanIdsSet,
-    isFilterActive,
+    colorBy,
+    matchingSpanIds,
   ]);
 
-  return { drawFlamegraph, spanRectsRef, eventRectsRef };
+  return drawFlamegraph;
 }

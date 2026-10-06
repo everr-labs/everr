@@ -17,7 +17,8 @@ import { type CSSProperties, type Ref, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { serviceColor } from "../shared/service-color";
 import { TimeRuler, type ViewRange } from "./flamegraph";
-import { spanColorGroup, type TraceNode } from "./trace-model";
+import { spanColorGroup } from "./rendering/types";
+import type { TraceNode } from "./trace-model";
 
 export function TraceWaterfall({
   rows,
@@ -35,7 +36,7 @@ export function TraceWaterfall({
   rows: TraceNode[];
   selectedSpanId?: string;
   openNodes: Set<string>;
-  matchingIds: Set<string>;
+  matchingIds: ReadonlySet<string>;
   filterActive: boolean;
   colorBy: string;
   previewField: string;

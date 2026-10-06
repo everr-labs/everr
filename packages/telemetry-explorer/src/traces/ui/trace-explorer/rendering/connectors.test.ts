@@ -35,8 +35,7 @@ it.each([
     cssWidth: 100,
     viewportHeight: 100,
     metrics: getFlamegraphRowMetrics(24),
-    colorByField: { name: "service.name" },
-    isDarkMode: true,
+    colorBy: "service.name",
     focusedSpanIds: new Set([focusedId]),
   });
   expect(ctx.moveTo).toHaveBeenCalledWith(50, 23);
@@ -62,8 +61,7 @@ it("does not pin an off-screen parent connection to the left edge when zoomed", 
     cssWidth: 100,
     viewportHeight: 100,
     metrics: getFlamegraphRowMetrics(24),
-    colorByField: { name: "service.name" },
-    isDarkMode: true,
+    colorBy: "service.name",
   });
   expect(ctx.stroke).not.toHaveBeenCalled();
 });
@@ -87,8 +85,7 @@ it("keeps parent connection guides hidden unless an endpoint is focused", () => 
     cssWidth: 100,
     viewportHeight: 100,
     metrics: getFlamegraphRowMetrics(24),
-    colorByField: { name: "service.name" },
-    isDarkMode: true,
+    colorBy: "service.name",
     focusedSpanIds: new Set(["unrelated"]),
   });
   expect(ctx.stroke).not.toHaveBeenCalled();

@@ -26,8 +26,6 @@ export type WaterfallSpan = {
   hasChildren: boolean;
 };
 
-export type ColorByField = { name: string };
-
 export type SpanRect = {
   span: FlamegraphSpan;
   x: number;
@@ -46,9 +44,9 @@ export type EventRect = {
   halfSize: number;
 };
 
-export function getSpanAttribute(
+export function spanColorGroup(
   span: Partial<Pick<FlamegraphSpan, "resource" | "attributes">>,
   key: string,
-): string | undefined {
-  return span.attributes?.[key] ?? span.resource?.[key];
+): string {
+  return span.attributes?.[key] ?? span.resource?.[key] ?? "unknown";
 }
