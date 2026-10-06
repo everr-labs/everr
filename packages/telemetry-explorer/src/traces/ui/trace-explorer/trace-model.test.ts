@@ -1,5 +1,5 @@
-import type { Span } from "@everr/telemetry-explorer/traces";
 import { describe, expect, it } from "vitest";
+import type { Span } from "../../data/types";
 import {
   getAncestorSpanIds,
   getVisibleSpans,

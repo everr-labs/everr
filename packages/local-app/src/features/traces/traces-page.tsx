@@ -1,7 +1,7 @@
 import {
-  TraceDetail,
   type TraceDetailParams,
   TraceDetailParamsSchema,
+  TraceExplorer,
   type TraceSearchParams,
   TraceSearchParamsSchema,
   TracesRepository,
@@ -11,16 +11,11 @@ import {
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
   Link,
-  Outlet,
-  useMatch,
   useNavigate,
   useParams,
   useSearch,
 } from "@tanstack/react-router";
-import {
-  DetailRouteDialog,
-  useDetailRouteDialogClose,
-} from "@/components/detail-route-dialog";
+import { PageTitleBar } from "../app-shell/title-bar";
 import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
@@ -37,31 +32,7 @@ export const TraceDetailSearchSchema =
 const localTracesRepo = new TracesRepository(localSqlClient);
 
 export function TracesPage() {
-  const traceDetailMatch = useMatch({
-    from: "/_shell/traces/$traceId",
-    shouldThrow: false,
-  });
-  const search = useSearch({ strict: false }) as TraceDetailParams;
-  const navigate = useNavigate();
-
-  // Always keep the list mounted in the same position so opening/closing the
-  // modal never remounts it (a remount resets the virtualized list and re-runs
-  // queries, which shows up as a flash on close).
-  return (
-    <>
-      <TracesListView />
-      {traceDetailMatch && (
-        <DetailRouteDialog
-          title="Trace detail"
-          onClose={() =>
-            navigate({ to: "/traces", search: toTraceListSearch(search) })
-          }
-        >
-          <Outlet />
-        </DetailRouteDialog>
-      )}
-    </>
-  );
+  return <TracesListView />;
 }
 
 function TracesListView() {
@@ -145,31 +116,27 @@ export function TraceDetailPage() {
   const { traceId } = useParams({ strict: false }) as { traceId: string };
   const search = useSearch({ strict: false }) as TraceDetailParams;
   const navigate = useNavigate();
-  // Inside the modal, ask the dialog to close through the route owner so the
-  // dialog stays open until navigation removes it.
-  const closeDialog = useDetailRouteDialogClose();
   return (
-    <LocalTelemetryGate>
-      <TraceDetail
-        repo={localTracesRepo}
-        traceId={traceId}
-        search={search}
-        onClose={() => {
-          if (closeDialog) {
-            closeDialog();
-            return;
+    <>
+      <PageTitleBar title="Trace" />
+      <LocalTelemetryGate>
+        <TraceExplorer
+          repo={localTracesRepo}
+          traceId={traceId}
+          search={search}
+          onBack={() =>
+            navigate({ to: "/traces", search: toTraceListSearch(search) })
           }
-          navigate({ to: "/traces", search: toTraceListSearch(search) });
-        }}
-        onSpanChange={(spanId) =>
-          navigate({
-            to: "/traces/$traceId",
-            params: { traceId },
-            search: (prev) => ({ ...prev, span: spanId }),
-            replace: true,
-          })
-        }
-      />
-    </LocalTelemetryGate>
+          onSpanChange={(spanId) =>
+            navigate({
+              to: "/traces/$traceId",
+              params: { traceId },
+              search: (prev) => ({ ...prev, span: spanId }),
+              replace: true,
+            })
+          }
+        />
+      </LocalTelemetryGate>
+    </>
   );
 }

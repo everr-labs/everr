@@ -1,5 +1,5 @@
-import type { Span } from "@everr/telemetry-explorer/traces";
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import type { Span } from "../../data/types";
 import { computeVisualLayout } from "./rendering/compute-visual-layout";
 import type { FlamegraphSpan, WaterfallSpan } from "./rendering/types";
 

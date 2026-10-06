@@ -3,7 +3,6 @@
 // Adapted from TraceDetailsV3/TraceWaterfall/TraceWaterfallStates/Success.
 // Uses Everr controls and React Virtuoso with one row driving tree and timeline.
 
-import { serviceColor } from "@everr/telemetry-explorer/traces";
 import { Button } from "@everr/ui/components/button";
 import {
   ResizableHandle,
@@ -16,6 +15,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { type CSSProperties, type Ref, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { serviceColor } from "../shared/service-color";
 import { TimeRuler, type ViewRange } from "./flamegraph";
 import { spanColorGroup, type TraceNode } from "./trace-model";
 

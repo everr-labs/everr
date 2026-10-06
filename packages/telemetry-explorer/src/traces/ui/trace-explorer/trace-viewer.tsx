@@ -1,10 +1,3 @@
-import {
-  computeDetailWindow,
-  getTraceOptions,
-  type Span,
-  serviceColor,
-  type TraceDetailProps,
-} from "@everr/telemetry-explorer/traces";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import {
@@ -37,7 +30,11 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
-import { remoteTracesRepo } from "@/data/traces/remote-repo";
+import { getTraceOptions } from "../../data/options";
+import type { Span } from "../../data/types";
+import { computeDetailWindow } from "../../data/window";
+import { serviceColor } from "../shared/service-color";
+import type { TraceDetailProps } from "../trace-detail-page";
 import {
   type FlamegraphHandle,
   TraceFlamegraph,
@@ -59,7 +56,7 @@ import { TraceWaterfall } from "./waterfall";
 
 type Props = Omit<TraceDetailProps, "repo">;
 
-export function WebTraceDetail(props: Props) {
+export function TraceExplorer(props: TraceDetailProps) {
   const window = computeDetailWindow({
     start: props.search.start,
     end: props.search.end,
@@ -67,7 +64,7 @@ export function WebTraceDetail(props: Props) {
   });
   const { data, isPending, error, refetch } = useQuery(
     getTraceOptions({
-      repo: remoteTracesRepo,
+      repo: props.repo,
       traceId: props.traceId,
       window,
       refresh: props.search.refresh ?? "off",

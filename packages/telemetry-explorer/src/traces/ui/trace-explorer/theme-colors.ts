@@ -1,4 +1,4 @@
-import { serviceColor } from "@everr/telemetry-explorer/traces";
+import { serviceColor } from "../shared/service-color";
 
 export type ColorPair = { color: string; colorDark: string };
 
