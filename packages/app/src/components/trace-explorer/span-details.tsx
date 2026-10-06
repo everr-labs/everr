@@ -36,10 +36,7 @@ export function SpanDetails({
   const [tab, setTab] = useState<string | null>("overview");
   const span = node.source;
   return (
-    <aside
-      className="flex h-full min-h-0 flex-col border-l"
-      aria-label="Span details"
-    >
+    <aside className="flex h-full min-h-0 flex-col" aria-label="Span details">
       <div className="flex shrink-0 items-start gap-2 border-b p-3">
         <div className="min-w-0 flex-1">
           <div className="text-muted-foreground truncate text-xs">
