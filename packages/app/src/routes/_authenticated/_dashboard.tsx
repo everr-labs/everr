@@ -143,7 +143,10 @@ function RouteComponent() {
             </div>
           </div>
         </header>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div
+          data-slot="dashboard-canvas"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
           {search.github_install === "linked" && (
             <div className="mx-3 mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               GitHub installation linked successfully.
