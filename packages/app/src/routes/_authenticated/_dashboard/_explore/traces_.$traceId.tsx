@@ -1,22 +1,27 @@
 import {
   TraceDetailParamsSchema,
+  TraceExplorer,
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
 import {
   createFileRoute,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
+import { remoteTracesRepo } from "@/data/traces/remote-repo";
 import {
   ensureTraceDetailData,
   getTraceDetailLoaderDeps,
-  TraceDetailRouteContent,
   TraceDetailRouteError,
 } from "./-trace-detail";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_explore/traces_/$traceId",
 )({
-  staticData: { breadcrumb: "Trace", hideExploreBar: true },
+  staticData: {
+    breadcrumb: "Trace",
+    hideExploreBar: true,
+    hideTimeRangePicker: true,
+  },
   head: () => ({ meta: [{ title: "Everr - Trace" }] }),
   validateSearch: TraceDetailParamsSchema,
   loaderDeps: ({ search }) => getTraceDetailLoaderDeps(search),
@@ -37,7 +42,8 @@ function TraceDetailRoute() {
   const navigate = Route.useNavigate();
 
   return (
-    <TraceDetailRouteContent
+    <TraceExplorer
+      repo={remoteTracesRepo}
       traceId={traceId}
       search={search}
       onBack={() =>

@@ -83,7 +83,6 @@ import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './ro
 import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
 import { Route as AuthenticatedDashboardExploreErrorsFingerprintModalRouteImport } from './routes/_authenticated/_dashboard/_explore/errors/$fingerprint/modal'
-import { Route as AuthenticatedDashboardExploreTracesTraceIdModalRouteImport } from './routes/_authenticated/_dashboard/_explore/traces/$traceId/modal'
 import { Route as AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport } from './routes/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
 import { Route as AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/$project.$slug'
 import { Route as AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/built-in.$slug'
@@ -498,12 +497,6 @@ const AuthenticatedDashboardExploreErrorsFingerprintModalRoute =
     path: '/$fingerprint/modal',
     getParentRoute: () => AuthenticatedDashboardExploreErrorsRoute,
   } as any)
-const AuthenticatedDashboardExploreTracesTraceIdModalRoute =
-  AuthenticatedDashboardExploreTracesTraceIdModalRouteImport.update({
-    id: '/$traceId/modal',
-    path: '/$traceId/modal',
-    getParentRoute: () => AuthenticatedDashboardExploreTracesRoute,
-  } as any)
 const AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute =
   AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport.update({
     id: '/workflows/$repo/$workflowName',
@@ -595,7 +588,7 @@ export interface FileRoutesByFullPath {
   '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/errors': typeof AuthenticatedDashboardExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedDashboardExploreLogsRoute
-  '/traces': typeof AuthenticatedDashboardExploreTracesRouteWithChildren
+  '/traces': typeof AuthenticatedDashboardExploreTracesRoute
   '/account': typeof AuthenticatedDashboardPaddedAccountRoute
   '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
@@ -626,7 +619,6 @@ export interface FileRoutesByFullPath {
   '/runbooks/': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
   '/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
-  '/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
   '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
   '/dashboards/$project/$slug': typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
   '/dashboards/built-in/$slug': typeof AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute
@@ -669,7 +661,7 @@ export interface FileRoutesByTo {
   '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/errors': typeof AuthenticatedDashboardExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedDashboardExploreLogsRoute
-  '/traces': typeof AuthenticatedDashboardExploreTracesRouteWithChildren
+  '/traces': typeof AuthenticatedDashboardExploreTracesRoute
   '/account': typeof AuthenticatedDashboardPaddedAccountRoute
   '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
@@ -699,7 +691,6 @@ export interface FileRoutesByTo {
   '/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
-  '/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
   '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
   '/dashboards/$project/$slug': typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
   '/dashboards/built-in/$slug': typeof AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute
@@ -753,7 +744,7 @@ export interface FileRoutesById {
   '/_auth/_guest/auth/sign-up': typeof AuthGuestAuthSignUpRoute
   '/_authenticated/_dashboard/_explore/errors': typeof AuthenticatedDashboardExploreErrorsRouteWithChildren
   '/_authenticated/_dashboard/_explore/logs': typeof AuthenticatedDashboardExploreLogsRoute
-  '/_authenticated/_dashboard/_explore/traces': typeof AuthenticatedDashboardExploreTracesRouteWithChildren
+  '/_authenticated/_dashboard/_explore/traces': typeof AuthenticatedDashboardExploreTracesRoute
   '/_authenticated/_dashboard/_padded/_organization': typeof AuthenticatedDashboardPaddedOrganizationRouteWithChildren
   '/_authenticated/_dashboard/_padded/account': typeof AuthenticatedDashboardPaddedAccountRoute
   '/_authenticated/_dashboard/_padded/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
@@ -786,7 +777,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_previewable/runbooks/': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
   '/_authenticated/_dashboard/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
   '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
-  '/_authenticated/_dashboard/_explore/traces/$traceId/modal': typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
   '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName': typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
   '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug': typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
   '/_authenticated/_dashboard/_previewable/dashboards/built-in/$slug': typeof AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute
@@ -866,7 +856,6 @@ export interface FileRouteTypes {
     | '/runbooks/'
     | '/runs/$traceId/'
     | '/errors/$fingerprint/modal'
-    | '/traces/$traceId/modal'
     | '/workflows/$repo/$workflowName'
     | '/dashboards/$project/$slug'
     | '/dashboards/built-in/$slug'
@@ -939,7 +928,6 @@ export interface FileRouteTypes {
     | '/runbooks'
     | '/runs/$traceId'
     | '/errors/$fingerprint/modal'
-    | '/traces/$traceId/modal'
     | '/workflows/$repo/$workflowName'
     | '/dashboards/$project/$slug'
     | '/dashboards/built-in/$slug'
@@ -1025,7 +1013,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_previewable/runbooks/'
     | '/_authenticated/_dashboard/runs/$traceId/'
     | '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal'
-    | '/_authenticated/_dashboard/_explore/traces/$traceId/modal'
     | '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
     | '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug'
     | '/_authenticated/_dashboard/_previewable/dashboards/built-in/$slug'
@@ -1576,13 +1563,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardExploreErrorsFingerprintModalRouteImport
       parentRoute: typeof AuthenticatedDashboardExploreErrorsRoute
     }
-    '/_authenticated/_dashboard/_explore/traces/$traceId/modal': {
-      id: '/_authenticated/_dashboard/_explore/traces/$traceId/modal'
-      path: '/$traceId/modal'
-      fullPath: '/traces/$traceId/modal'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreTracesTraceIdModalRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreTracesRoute
-    }
     '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName': {
       id: '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
       path: '/workflows/$repo/$workflowName'
@@ -1696,25 +1676,10 @@ const AuthenticatedDashboardExploreErrorsRouteWithChildren =
     AuthenticatedDashboardExploreErrorsRouteChildren,
   )
 
-interface AuthenticatedDashboardExploreTracesRouteChildren {
-  AuthenticatedDashboardExploreTracesTraceIdModalRoute: typeof AuthenticatedDashboardExploreTracesTraceIdModalRoute
-}
-
-const AuthenticatedDashboardExploreTracesRouteChildren: AuthenticatedDashboardExploreTracesRouteChildren =
-  {
-    AuthenticatedDashboardExploreTracesTraceIdModalRoute:
-      AuthenticatedDashboardExploreTracesTraceIdModalRoute,
-  }
-
-const AuthenticatedDashboardExploreTracesRouteWithChildren =
-  AuthenticatedDashboardExploreTracesRoute._addFileChildren(
-    AuthenticatedDashboardExploreTracesRouteChildren,
-  )
-
 interface AuthenticatedDashboardExploreRouteChildren {
   AuthenticatedDashboardExploreErrorsRoute: typeof AuthenticatedDashboardExploreErrorsRouteWithChildren
   AuthenticatedDashboardExploreLogsRoute: typeof AuthenticatedDashboardExploreLogsRoute
-  AuthenticatedDashboardExploreTracesRoute: typeof AuthenticatedDashboardExploreTracesRouteWithChildren
+  AuthenticatedDashboardExploreTracesRoute: typeof AuthenticatedDashboardExploreTracesRoute
   AuthenticatedDashboardExploreErrorsFingerprintRoute: typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   AuthenticatedDashboardExploreTracesTraceIdRoute: typeof AuthenticatedDashboardExploreTracesTraceIdRoute
 }
@@ -1726,7 +1691,7 @@ const AuthenticatedDashboardExploreRouteChildren: AuthenticatedDashboardExploreR
     AuthenticatedDashboardExploreLogsRoute:
       AuthenticatedDashboardExploreLogsRoute,
     AuthenticatedDashboardExploreTracesRoute:
-      AuthenticatedDashboardExploreTracesRouteWithChildren,
+      AuthenticatedDashboardExploreTracesRoute,
     AuthenticatedDashboardExploreErrorsFingerprintRoute:
       AuthenticatedDashboardExploreErrorsFingerprintRoute,
     AuthenticatedDashboardExploreTracesTraceIdRoute:

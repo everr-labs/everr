@@ -3,7 +3,6 @@ import {
   createMemoryHistory,
   createRootRoute,
   createRoute,
-  createRouteMask,
   createRouter,
   Outlet,
   RouterProvider,
@@ -96,18 +95,10 @@ describe("/traces route", () => {
       path: "traces/$traceId",
       component: () => <div>Trace full page route</div>,
     });
-    const traceModalRoute = createRoute({
-      getParentRoute: () => tracesRoute,
-      path: "$traceId/modal",
-      component: () => <div>Trace modal child route</div>,
-    });
     const routeTree = rootRoute.addChildren([
       authenticatedRoute.addChildren([
         dashboardRoute.addChildren([
-          exploreRoute.addChildren([
-            traceFullPageRoute,
-            tracesRoute.addChildren([traceModalRoute]),
-          ]),
+          exploreRoute.addChildren([traceFullPageRoute, tracesRoute]),
         ]),
       ]),
     ]);
@@ -116,16 +107,6 @@ describe("/traces route", () => {
 
     const router = createRouter({
       routeTree,
-      routeMasks: [
-        createRouteMask({
-          routeTree,
-          from: "/traces/$traceId/modal",
-          to: "/traces/$traceId",
-          params: (params) => ({ traceId: params.traceId as string }),
-          search: true,
-          unmaskOnReload: true,
-        }),
-      ],
       history,
     });
 
@@ -151,24 +132,25 @@ describe("/traces route", () => {
     expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
   });
 
-  it("renders the detail child route in a modal when opened from the list", async () => {
+  it("opens a full-page trace from the list and preserves the time window", async () => {
     const user = userEvent.setup();
     const router = renderTracesRoute(["/traces"]);
-
     await user.click(
       await screen.findByRole("link", { name: "Open trace trace-1" }),
     );
-
-    expect(screen.getByText("Trace list page")).toBeInTheDocument();
-    expect(screen.getByText("Trace modal child route")).toBeInTheDocument();
-    expect(router.state.location.href).toContain("/modal");
-    expect(router.state.location.maskedLocation?.href).not.toContain("/modal");
-    expect(router.state.location.maskedLocation?.href).toContain(
-      "/traces/trace-1",
-    );
+    expect(
+      await screen.findByText("Trace full page route"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/traces/trace-1");
+    expect(router.state.location.search).toMatchObject({
+      start: "2026-05-20 12:00:00.000",
+      end: "2026-05-20 12:00:01.000",
+    });
+    expect(router.state.location.maskedLocation).toBeUndefined();
   });
 
-  it("renders the detail child route as a page when the masked URL is reloaded", async () => {
+  it("renders the detail child route as a page when the URL is reloaded", async () => {
     renderTracesRoute(["/traces/trace-1"]);
 
     expect(

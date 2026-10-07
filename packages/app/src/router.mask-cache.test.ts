@@ -18,7 +18,6 @@ vi.mock("./routeTree.gen", () => {
       [
         "/traces",
         "/traces/$traceId",
-        "/traces/$traceId/modal",
         "/errors/$fingerprint",
         "/errors/$fingerprint/modal",
       ].map((path) => createRoute({ getParentRoute: () => rootRoute, path })),

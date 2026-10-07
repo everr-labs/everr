@@ -94,8 +94,8 @@ const tracesRoute = createRoute({
 });
 
 const traceDetailRoute = createRoute({
-  getParentRoute: () => tracesRoute,
-  path: "$traceId",
+  getParentRoute: () => shellRoute,
+  path: "/traces/$traceId",
   validateSearch: TraceDetailSearchSchema,
   component: TraceDetailPage,
 });
@@ -121,7 +121,8 @@ const routeTree = rootRoute.addChildren([
     settingsRoute,
     developerRoute,
     logsRoute,
-    tracesRoute.addChildren([traceDetailRoute]),
+    tracesRoute,
+    traceDetailRoute,
     errorsRoute.addChildren([errorDetailRoute]),
   ]),
 ]);

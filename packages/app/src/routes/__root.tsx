@@ -25,7 +25,7 @@ import { CONSENT_COOKIE, isConsentDecision } from "@/telemetry/consent";
 import { ConsentGate } from "@/telemetry/consent-gate";
 import type { RouterContext } from "../router";
 
-// The browser loads consent and session together before mounting ConsentGate.
+// Load session and consent together so auth guards see the same session.
 const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
   const session = await auth.api.getSession({
     headers: getRequestHeaders(),
@@ -43,7 +43,11 @@ const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: createIsomorphicFn()
-    .server(() => ({ session: null, consent: undefined }))
+    .server(() =>
+      process.env.TSS_PRERENDERING === "true"
+        ? { session: null, consent: undefined }
+        : getRootContext(),
+    )
     .client(() => getRootContext()),
   head: () => ({
     meta: [
