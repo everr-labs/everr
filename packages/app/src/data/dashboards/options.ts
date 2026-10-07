@@ -74,6 +74,7 @@ export const panelQueryOptions = (
       return panelLimiter(signal, () =>
         runPanelQuery({
           data: { source, from, to, variables, variableMeta },
+          signal,
         }),
       );
     },
@@ -86,6 +87,7 @@ export const panelQueryOptions = (
     // explicit refresh (invalidateQueries, which overrides staleTime) or a key
     // change (range/variables) triggers a new fetch.
     staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
   });
 
 export const variableOptionsQueryOptions = (
@@ -95,6 +97,8 @@ export const variableOptionsQueryOptions = (
 ) =>
   queryOptions({
     queryKey: ["variable-options", query, from, to],
-    queryFn: () => runVariableOptionsQuery({ data: { query, from, to } }),
+    queryFn: ({ signal }) =>
+      runVariableOptionsQuery({ data: { query, from, to }, signal }),
     enabled: query.trim().length > 0,
+    retry: false,
   });
