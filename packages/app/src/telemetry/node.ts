@@ -10,6 +10,7 @@ import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import { registerShutdownHook } from "@/server/shutdown";
 import { resolveTelemetryConfig, signalUrl } from "./config";
 import { identityLogProcessor, identitySpanProcessor } from "./identity";
 
@@ -109,18 +110,11 @@ function startTelemetry(): TelemetryState {
   sdk.start();
 
   const state = { sdk, shuttingDown: false };
-  installShutdownHandlers(state);
+  registerShutdownHook("telemetry", "telemetry", () =>
+    shutdownTelemetry(state),
+  );
 
   return state;
-}
-
-function installShutdownHandlers(state: TelemetryState) {
-  const shutdownAndExit = (exitCode: number) => {
-    void shutdownTelemetry(state).finally(() => process.exit(exitCode));
-  };
-
-  process.once("SIGTERM", () => shutdownAndExit(0));
-  process.once("SIGINT", () => shutdownAndExit(0));
 }
 
 async function shutdownTelemetry(state: TelemetryState) {

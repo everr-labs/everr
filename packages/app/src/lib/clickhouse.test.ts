@@ -8,6 +8,7 @@ const {
   mockJson,
   mockInstrumentClickhouseOperation,
   MASTER_KEY,
+  assertClickhouseReady,
 } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockInsert: vi.fn(),
@@ -17,6 +18,7 @@ const {
     async (_attributes: unknown, run: () => Promise<unknown>) => run(),
   ),
   MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
+  assertClickhouseReady: vi.fn(),
 }));
 
 vi.mock("@clickhouse/client", () => ({
@@ -43,6 +45,8 @@ vi.mock("@/telemetry/clickhouse", () => ({
   instrumentClickhouseOperation: mockInstrumentClickhouseOperation,
 }));
 
+vi.mock("@/lib/clickhouse-readiness.server", () => ({ assertClickhouseReady }));
+
 vi.unmock("@/lib/clickhouse");
 
 import {
@@ -68,6 +72,7 @@ beforeEach(() => {
   mockJson.mockReturnValue([]);
   mockQuery.mockResolvedValue({ json: mockJson });
   mockCommand.mockResolvedValue(undefined);
+  assertClickhouseReady.mockResolvedValue(undefined);
 });
 
 describe("query", () => {
@@ -246,6 +251,32 @@ describe("provisionSqlApiOrgUser", () => {
     expect(grantCall.clickhouse_settings.session_id).toBe(
       setRoleCall.clickhouse_settings.session_id,
     );
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "SELECT 1 FROM app.traces LIMIT 0",
+        auth: { username: ORG_USER, password: ORG_PASSWORD },
+      }),
+    );
+    expect(assertClickhouseReady).not.toHaveBeenCalled();
+  });
+
+  it("does not succeed if the provisioned credentials still cannot authenticate", async () => {
+    mockQuery.mockRejectedValueOnce(new Error("Authentication failed"));
+    await expect(provisionSqlApiOrgUser(ORG)).rejects.toThrow(
+      "Authentication failed",
+    );
+  });
+});
+
+describe("pending organization data access", () => {
+  it.each([
+    query,
+    querySqlApi,
+    querySqlApiWithMeta,
+  ])("blocks reads before contacting ClickHouse", async (read) => {
+    assertClickhouseReady.mockRejectedValueOnce(new Error("Setup pending"));
+    await expect(read("SELECT 1", ORG)).rejects.toThrow("Setup pending");
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 });
 
@@ -267,4 +298,16 @@ describe("deprovisionSqlApiOrgUser", () => {
       `DROP USER IF EXISTS \`${ORG_USER}\``,
     ]);
   });
+});
+
+it("forwards shutdown cancellation to all provisioning DDL and the authentication probe", async () => {
+  const signal = new AbortController().signal;
+  await provisionSqlApiOrgUser(ORG, signal);
+  for (const [args] of mockCommand.mock.calls)
+    expect(args.abort_signal).toBe(signal);
+  expect(mockQuery.mock.calls[0][0].abort_signal).toBe(signal);
+  mockCommand.mockClear();
+  await deprovisionSqlApiOrgUser(ORG, signal);
+  for (const [args] of mockCommand.mock.calls)
+    expect(args.abort_signal).toBe(signal);
 });

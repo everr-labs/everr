@@ -19,6 +19,73 @@ layout live in `src/lib/email-layout.tsx`. Dedicated copies of the logo and
 social icons live in `public/email` and are available to the preview through
 `src/emails/static`.
 
+# Organization data access setup
+
+The organization adapter atomically records provisioning intent alongside creation.
+Deletion atomically records cleanup intent alongside the organization and
+Postgres-resource deletion. A failed enqueue rolls the transaction back.
+Organization creation enqueues `clickhouse/provision-organization` in Graphile
+Worker. New organizations start with the server-owned `clickhouseReady` field
+set to false. The worker creates the SQL API user, grants its role, creates all
+row policies, and authenticates a query before setting readiness to true.
+Provisioning and deletion share a named queue per organization. Their dedicated
+runner reserves two execution slots and its own Postgres pool, so alerting,
+GitHub, and maintenance jobs cannot delay setup. Both retry up to 10,000 times,
+with short initial delays and a 30-second cap. Jitter spreads retries out.
+The worker reschedules failed lifecycle jobs through Graphile's public API
+after their failure is persisted. Startup and the periodic scan bring forward
+retries left with longer delays by an older deployment or an interrupted
+reschedule.
+Each runner has an independent supervisor that restarts startup and runtime
+failures every five seconds. A retry-recovery failure is logged and does not
+stop either runner. Organization handlers and the scanner use their reserved
+Postgres pool too.
+SIGTERM and SIGINT drain both runners before flushing telemetry. ClickHouse
+requests receive Graphile's shutdown abort signal after five seconds, allowing
+normal shutdown to release job and queue locks. Hard kills need the known-dead
+worker recovery procedure in `everr/operations/organization-provisioning.runbook.md`;
+never unlock a live worker.
+A scan every minute recovers organizations whose initial enqueue was
+missed, without resetting pending jobs' attempt counts or retry schedules.
+
+Pending organizations see `/organization-setup`, which polls every three
+seconds and returns to their requested page when ready. Account settings,
+billing, and CLI login remain available. Data reads fail before contacting
+ClickHouse with a friendly setup message; CLI SQL returns HTTP 503 and
+`Retry-After: 5`.
+
+Apply the schema change before deploying the app. No Drizzle migration has
+been generated while this schema is being iterated on. The database column
+defaults to true to preserve existing organizations, while Better Auth
+explicitly inserts false for new organizations:
+
+```sql
+ALTER TABLE organization
+  ADD COLUMN clickhouse_ready boolean NOT NULL DEFAULT true;
+```
+
+To repair an existing organization known to have incomplete SQL API
+provisioning, set its `clickhouse_ready` to false. The next scan enqueues it.
+If a job exhausts its 10,000 attempts, repair the underlying issue and use
+Graphile's `reschedule_jobs` to reset its attempts and schedule a new run.
+Scans deliberately leave exhausted jobs in place for investigation. Inspect
+`graphile_worker.jobs` for retry state and `clickhouse.organization.provision`
+spans for the organization ID and failure details.
+
+Every failed organization job attempt emits an ERROR log with organization,
+trace, job ID, attempt, maximum attempts, exception details, and exhaustion state.
+The scanner emits a health snapshot every minute and ERROR logs for organizations
+pending longer than two minutes. Worker startup, runtime, retry recovery, and
+reschedule failures also emit ERROR logs. Pending UI/CLI responses remain expected
+control flow, so user polling does not flood exception telemetry.
+
+The alert and linked runbook in `everr/operations/` detect stalled setup and a
+missing production worker heartbeat. Deploy them through the normal full-tree
+resource apply workflow after the new health telemetry is deployed. Preview alerts
+do not notify; live alerts use the organization's configured default channels.
+Their evaluation and delivery still depend on the telemetry backend, so an
+independent external availability monitor remains necessary for a complete outage.
+
 # Building For Production
 
 To build this application for production:

@@ -32,7 +32,7 @@ const client = new PGlite();
 const database = drizzle(client, { schema });
 await client.exec(`
 CREATE TABLE "user" (id text PRIMARY KEY, name text NOT NULL, email text NOT NULL UNIQUE, updated_at timestamp NOT NULL DEFAULT now());
-CREATE TABLE organization (id text PRIMARY KEY, name text NOT NULL, slug text NOT NULL UNIQUE, logo text, metadata text, created_at timestamp NOT NULL DEFAULT now());
+CREATE TABLE organization (id text PRIMARY KEY, name text NOT NULL, slug text NOT NULL UNIQUE, logo text, metadata text, created_at timestamp NOT NULL DEFAULT now(), clickhouse_ready boolean NOT NULL DEFAULT true);
 CREATE TABLE member (id text PRIMARY KEY, organization_id text NOT NULL REFERENCES organization(id), user_id text NOT NULL REFERENCES "user"(id), role text NOT NULL, created_at timestamp NOT NULL DEFAULT now());
 CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(id), polar_subscription_id text NOT NULL, polar_product_id text NOT NULL, status text NOT NULL, current_period_end timestamp, cancel_at_period_end boolean NOT NULL DEFAULT false, polar_modified_at timestamp NOT NULL, updated_at timestamp NOT NULL DEFAULT now());
 `);

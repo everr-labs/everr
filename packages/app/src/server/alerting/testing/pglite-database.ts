@@ -116,6 +116,11 @@ async function applyAppSchema(client: PGlite): Promise<void> {
       await client.exec(statement);
     }
   }
+  // Match the current schema while this column is being iterated on without
+  // generating a migration. The default preserves pre-existing organizations.
+  await client.exec(
+    `ALTER TABLE organization ADD COLUMN clickhouse_ready boolean NOT NULL DEFAULT true`,
+  );
 }
 
 /**

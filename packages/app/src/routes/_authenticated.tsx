@@ -38,18 +38,21 @@ const verifyActiveOrg = createPartiallyAuthenticatedServerFn({
   }
 
   // This throws if the user is no longer a member
-  await auth.api.getFullOrganization({
+  const organization = await auth.api.getFullOrganization({
     headers: getRequestHeaders(),
     query: { organizationId: activeOrgId },
   });
 
-  return { activeOrganizationId: activeOrgId };
+  return {
+    activeOrganizationId: activeOrgId,
+    clickhouseReady: organization?.clickhouseReady === true,
+  };
 });
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async ({
     context: { session },
-    location: { pathname, hash },
+    location: { pathname, hash, href },
     search,
   }) => {
     if (!session?.user) {
@@ -66,6 +69,7 @@ export const Route = createFileRoute("/_authenticated")({
 
     if (pathname === "/account") {
       return {
+        clickhouseReady: true,
         session: {
           ...session,
           session: {
@@ -78,7 +82,7 @@ export const Route = createFileRoute("/_authenticated")({
       };
     }
 
-    const { activeOrganizationId } = await verifyActiveOrg();
+    const { activeOrganizationId, clickhouseReady } = await verifyActiveOrg();
     const entitlement = await getActiveOrgAppAccess();
     if (
       entitlement.appState === "suspended" &&
@@ -88,7 +92,24 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/billing/suspended" });
     }
 
+    // The parent guard runs before descendant loaders, so none of the app's
+    // data pages can issue queries or render misleading empty states yet.
+    if (
+      !clickhouseReady &&
+      pathname !== "/device" &&
+      pathname !== "/billing" &&
+      pathname !== "/billing/suspended" &&
+      pathname !== "/organization-setup"
+    ) {
+      throw redirect({
+        to: "/organization-setup",
+        search: { returnTo: href },
+        replace: true,
+      });
+    }
+
     return {
+      clickhouseReady,
       session: {
         ...session,
         session: {

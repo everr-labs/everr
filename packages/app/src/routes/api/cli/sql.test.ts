@@ -5,6 +5,10 @@ vi.mock("@/lib/clickhouse", () => ({
   querySqlApi: vi.fn(),
 }));
 
+import {
+  CLICKHOUSE_SETUP_MESSAGE,
+  ClickhouseProvisioningPendingError,
+} from "@/common/clickhouse-provisioning";
 import { querySqlApi } from "@/lib/clickhouse";
 import { SCHEMA_PROBE_MESSAGE } from "@/lib/sql-api-error";
 import { Route } from "./sql";
@@ -32,6 +36,21 @@ beforeEach(() => {
 });
 
 describe("/api/cli/sql", () => {
+  it("returns a friendly retryable response while organization setup is pending", async () => {
+    mockedQuerySqlApi.mockRejectedValueOnce(
+      new ClickhouseProvisioningPendingError(),
+    );
+    const response = await getHandler()({
+      request: new Request("http://localhost/api/cli/sql", {
+        method: "POST",
+        body: "SELECT 1",
+      }),
+      context,
+    });
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("5");
+    expect(await response.json()).toEqual({ error: CLICKHOUSE_SETUP_MESSAGE });
+  });
   it("returns NDJSON rows for valid SQL", async () => {
     mockedQuerySqlApi.mockResolvedValue([{ ok: 1 }]);
 

@@ -1,0 +1,30 @@
+kind: AlertRule
+metadata:
+  name: organization-provisioning
+  project: operations
+spec:
+  severity: critical
+  runbook: organization-provisioning
+  display:
+    name: Organization data access setup is unhealthy
+    description: New organizations cannot finish setup, or the provisioning worker stopped reporting health.
+  evaluationInterval: 1m
+  for: 0s
+  notificationMessage:
+    title: "Organization data access setup is unhealthy"
+    description: "${stalled_organizations} organizations have waited over two minutes. Worker health was last reported at ${last_health_utc}."
+  condition:
+    operator: gte
+    threshold: 1
+  instanceLabels: []
+  query: |
+    SELECT
+      argMax(toUInt64OrZero(toString(LogAttributes.`everr.provisioning.stalled_count`)), Timestamp) AS stalled_organizations,
+      if(count() = 0, NULL, dateDiff('second', max(Timestamp), now())) AS heartbeat_age_seconds,
+      if(count() = 0, 'never', toString(max(Timestamp))) AS last_health_utc,
+      if(count() = 0 OR heartbeat_age_seconds > 120, 1, stalled_organizations) AS value
+    FROM logs
+    WHERE Timestamp >= now() - INTERVAL 10 MINUTE
+      AND ServiceName = 'everr-dev-app'
+      AND toString(ResourceAttributes.`deployment.environment.name`) = 'production'
+      AND Body = 'clickhouse.organization.provision.health'

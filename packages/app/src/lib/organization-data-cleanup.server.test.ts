@@ -15,6 +15,10 @@ const { mockAnd, mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(
 );
 
 vi.mock("@/db/client", () => ({
+  runInTransaction: (
+    executor: { transaction: typeof mockTransaction },
+    run: unknown,
+  ) => executor.transaction(run),
   db: {
     transaction: mockTransaction,
   },

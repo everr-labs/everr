@@ -47,7 +47,8 @@ type ClickhouseTelemetryAttributes = {
 export function isExpectedServerFunctionError(error: unknown): boolean {
   return (
     error instanceof Error &&
-    EXPECTED_SERVER_FUNCTION_MESSAGES.has(error.message)
+    (error instanceof ClickhouseProvisioningPendingError ||
+      EXPECTED_SERVER_FUNCTION_MESSAGES.has(error.message))
   );
 }
 
@@ -75,3 +76,5 @@ function readErrorField(error: unknown, field: "code" | "type") {
     ? String(value)
     : "";
 }
+
+import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";

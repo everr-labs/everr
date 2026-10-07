@@ -16,6 +16,7 @@ import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
 import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
+import { Route as AuthenticatedOrganizationSetupRouteImport } from './routes/_authenticated/organization-setup'
 import { Route as ApiApplyRouteImport } from './routes/api/apply'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -126,6 +127,12 @@ const AuthenticatedDeviceRoute = AuthenticatedDeviceRouteImport.update({
   path: '/device',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedOrganizationSetupRoute =
+  AuthenticatedOrganizationSetupRouteImport.update({
+    id: '/organization-setup',
+    path: '/organization-setup',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiApplyRoute = ApiApplyRouteImport.update({
   id: '/api/apply',
   path: '/api/apply',
@@ -557,6 +564,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
+  '/organization-setup': typeof AuthenticatedOrganizationSetupRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
@@ -634,6 +642,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
+  '/organization-setup': typeof AuthenticatedOrganizationSetupRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
@@ -710,6 +719,7 @@ export interface FileRoutesById {
   '/_auth/_guest': typeof AuthGuestRouteWithChildren
   '/_authenticated/_dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/_authenticated/device': typeof AuthenticatedDeviceRoute
+  '/_authenticated/organization-setup': typeof AuthenticatedOrganizationSetupRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
@@ -794,6 +804,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/device'
+    | '/organization-setup'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
@@ -871,6 +882,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/device'
+    | '/organization-setup'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
@@ -946,6 +958,7 @@ export interface FileRouteTypes {
     | '/_auth/_guest'
     | '/_authenticated/_dashboard'
     | '/_authenticated/device'
+    | '/_authenticated/organization-setup'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
@@ -1092,6 +1105,13 @@ declare module '@tanstack/react-router' {
       path: '/device'
       fullPath: '/device'
       preLoaderRoute: typeof AuthenticatedDeviceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/organization-setup': {
+      id: '/_authenticated/organization-setup'
+      path: '/organization-setup'
+      fullPath: '/organization-setup'
+      preLoaderRoute: typeof AuthenticatedOrganizationSetupRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/apply': {
@@ -1921,11 +1941,13 @@ const AuthenticatedDashboardRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRouteWithChildren
   AuthenticatedDeviceRoute: typeof AuthenticatedDeviceRoute
+  AuthenticatedOrganizationSetupRoute: typeof AuthenticatedOrganizationSetupRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRouteWithChildren,
   AuthenticatedDeviceRoute: AuthenticatedDeviceRoute,
+  AuthenticatedOrganizationSetupRoute: AuthenticatedOrganizationSetupRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

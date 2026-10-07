@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
+import { assertClickhouseReady } from "@/lib/clickhouse-readiness.server";
 import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
 import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
 
@@ -37,6 +38,8 @@ export async function query<T>(
   if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
   }
+
+  await assertClickhouseReady(organizationId);
 
   const result = await instrumentClickhouseOperation(
     { client: "app", operation: "QUERY" },
@@ -90,6 +93,7 @@ function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
   organizationId: string,
   query_params: Record<string, unknown> | undefined,
   format: Format,
+  abort_signal?: AbortSignal,
 ) {
   if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
@@ -105,6 +109,7 @@ function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
         query,
         query_params,
         format,
+        ...(abort_signal ? { abort_signal } : {}),
         auth: { username, password },
         // Per-tenant quota bucket. sql_api_quota is KEYED BY client_key, so each
         // org gets its own counters. The header value is server-derived from
@@ -119,6 +124,8 @@ export async function querySqlApi<T>(
   organizationId: string,
   query_params?: Record<string, unknown>,
 ): Promise<T[]> {
+  if (!organizationId) throw new Error("Missing ClickHouse tenant context");
+  await assertClickhouseReady(organizationId);
   const result = await runSqlApiQuery(
     query,
     organizationId,
@@ -140,6 +147,8 @@ export async function querySqlApiWithMeta<T>(
   organizationId: string,
   query_params?: Record<string, unknown>,
 ): Promise<SqlApiResult<T>> {
+  if (!organizationId) throw new Error("Missing ClickHouse tenant context");
+  await assertClickhouseReady(organizationId);
   // JSON (not JSONEachRow) so column metadata is present even for empty results.
   const result = await runSqlApiQuery(
     query,
@@ -211,41 +220,59 @@ export async function insertAdminRows(
 // in as a constant.
 export async function provisionSqlApiOrgUser(
   organizationId: string,
+  abortSignal?: AbortSignal,
 ): Promise<void> {
   assertSqlApiOrgId(organizationId);
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);
   const tenantLiteral = `'${organizationId}'`;
+  const command = (sql: string, options: AdminCommandOptions = {}) =>
+    adminCommand(sql, {
+      ...options,
+      ...(abortSignal ? { abort_signal: abortSignal } : {}),
+    });
 
-  await adminCommand(
+  await command(
     `CREATE USER IF NOT EXISTS \`${username}\` IDENTIFIED WITH sha256_password BY '${password}' SETTINGS PROFILE 'sql_api_profile'`,
   );
   // CH 26 requires sql_api_role to be active for WITH ADMIN OPTION to work,
   // but DEFAULT ROLE NONE keeps it off to avoid the readonly profile. Activate
   // it in an ephemeral session scoped to just these two statements.
   const sessionId = randomUUID();
-  await adminCommand("SET ROLE sql_api_role", {
+  await command("SET ROLE sql_api_role", {
     clickhouse_settings: { session_id: sessionId },
   });
-  await adminCommand(`GRANT sql_api_role TO \`${username}\``, {
+  await command(`GRANT sql_api_role TO \`${username}\``, {
     clickhouse_settings: { session_id: sessionId },
   });
   // DEFAULT ROLE has to come after the GRANT — CH validates the role is
   // already granted to the user before it can be the default.
-  await adminCommand(`ALTER USER \`${username}\` DEFAULT ROLE sql_api_role`);
+  await command(`ALTER USER \`${username}\` DEFAULT ROLE sql_api_role`);
 
   for (const table of SQL_API_TENANT_TABLES) {
     const policy = sqlApiOrgPolicyName(organizationId, table);
-    await adminCommand(
+    await command(
       `CREATE ROW POLICY IF NOT EXISTS \`${policy}\` ON app.\`${table}\` FOR SELECT USING tenant_id = ${tenantLiteral} TO \`${username}\``,
     );
   }
+
+  // Authenticate through the same client as user queries before publishing
+  // readiness. This bypasses the readiness guard only inside provisioning.
+  const result = await runSqlApiQuery(
+    "SELECT 1 FROM app.traces LIMIT 0",
+    organizationId,
+    undefined,
+    "JSONEachRow",
+    abortSignal,
+  );
+  await result.json();
 }
 
 // Reverse of provisionSqlApiOrgUser. Order is important: drop the policies
 // before the user so DROP USER doesn't fail with "user is referenced".
 export async function deprovisionSqlApiOrgUser(
   organizationId: string,
+  abortSignal?: AbortSignal,
 ): Promise<void> {
   assertSqlApiOrgId(organizationId);
   const username = sqlApiOrgUserName(organizationId);
@@ -254,10 +281,14 @@ export async function deprovisionSqlApiOrgUser(
     const policy = sqlApiOrgPolicyName(organizationId, table);
     await adminCommand(
       `DROP ROW POLICY IF EXISTS \`${policy}\` ON app.\`${table}\``,
+      abortSignal ? { abort_signal: abortSignal } : {},
     );
   }
 
-  await adminCommand(`DROP USER IF EXISTS \`${username}\``);
+  await adminCommand(
+    `DROP USER IF EXISTS \`${username}\``,
+    abortSignal ? { abort_signal: abortSignal } : {},
+  );
 }
 
 function adminCommand(query: string, options: AdminCommandOptions = {}) {

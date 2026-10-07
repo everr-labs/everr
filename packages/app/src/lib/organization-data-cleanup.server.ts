@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
+import { type DbExecutor, db, runInTransaction } from "@/db/client";
 import {
   alertChannels,
   alertDefaultChannels,
@@ -20,12 +20,13 @@ import {
 
 export async function deletePostgresOrganizationData(
   organizationId: string,
+  executor: DbExecutor = db,
 ): Promise<void> {
   if (!organizationId) {
     throw new Error("Missing organization id");
   }
 
-  await db.transaction(async (tx) => {
+  await runInTransaction(executor, async (tx) => {
     await tx
       .delete(alertDeliveries)
       .where(eq(alertDeliveries.organizationId, organizationId));

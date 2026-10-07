@@ -7,11 +7,19 @@ import {
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { organizationBillingFields } from "@/common/organization-billing-fields";
+import { organizationProvisioningFields } from "@/common/organization-provisioning-fields";
 
 export const authClient = createAuthClient({
   plugins: [
     organizationClient({
-      schema: { organization: { additionalFields: organizationBillingFields } },
+      schema: {
+        organization: {
+          additionalFields: {
+            ...organizationBillingFields,
+            ...organizationProvisioningFields,
+          },
+        },
+      },
     }),
     apiKeyClient(),
     deviceAuthorizationClient(),
