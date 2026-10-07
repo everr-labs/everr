@@ -39,9 +39,7 @@ By the time a regression shows up in a production graph, it's already too late. 
 - **Production observability**, send the same OpenTelemetry data to any standard OTLP collector so it's available in your existing dashboards, or to local agents alongside everything else they already see.
 - **Bundled agent skills**, `everr skills install` drops skills for working with CI, setting up telemetry, and using telemetry into Claude Code, Codex, or Cursor, globally or per project, kept in sync via `everr skills update`.
 
-## Get early access
-
-Everr is currently in closed beta. [Join the waitlist](https://everr.dev/waitlist) to get access.
+## Getting started
 
 - **For CI**: install the GitHub App on your repositories, no YAML changes, no config files, no modifications to your workflows.
 - **For local**: install the CLI and run `everr local start` to bring up the collector alongside your dev server, tests, or agent terminal.
