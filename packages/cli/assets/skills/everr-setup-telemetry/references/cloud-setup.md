@@ -1,6 +1,6 @@
 # Cloud Setup
 
-Read this when the selected destination is Everr Cloud, whether the app runs in development, test, or production. Configure only the requested environments; a cloud destination does not imply a production rollout.
+Read this when configuring Everr Cloud or documenting production activation, including after a local-only setup. Cloud can receive development, test, or production telemetry. Configure only the requested environments; a cloud destination does not imply a production rollout. When only documenting future activation, describe the credential and query steps below without requiring cloud login, keys, or a deployment during the local setup.
 
 ## Credentials and query access
 
@@ -16,9 +16,9 @@ Use these hosted ingest settings:
 - Server-side secret environment variable: `EVERR_INGEST_KEY`
 - Service identity: a stable `service.name` hardcoded in the setup module for each service
 
-For server-side export, load the key from the secret manager or the local environment when testing cloud export. If no key exists, guide the user to the Everr dashboard's user menu, **API keys**, and have them store it in the appropriate secret store. Do not invent, print, hardcode, or commit keys.
+For server-side export, load the key from the secret manager or the local environment when testing cloud export. If no key exists, guide the user to the Everr dashboard's user menu, **API keys**, then **New key**, with the **Send telemetry** capability, and have them store it in the appropriate secret store. Do not invent, print, hardcode, or commit keys.
 
-Browser export uses a public origin-bound ingest key instead of a server-side secret. Follow [Browser instrumentation](../rules/browser.md#key-model), including the development origin when testing cloud export locally.
+Browser export uses a public origin-bound ingest key created with **New public key** in the **Public keys** section. Follow [Browser instrumentation](../rules/browser.md#key-model), including the development origin when testing cloud export locally.
 
 ## Configure the selected environment
 
@@ -29,9 +29,9 @@ Browser export uses a public origin-bound ingest key instead of a server-side se
 - Keep `EVERR_INGEST_KEY` out of browser bundles.
 - Preserve normal crash and shutdown behavior while flushing telemetry.
 
-## Production, only when requested
+## Production activation
 
-Store server-side keys in the deployment secret manager and inject public browser keys through the client build configuration. Populate release and environment metadata from the deployment. Keep production telemetry lower-noise than local debug telemetry. Production credentials or deployment changes are not prerequisites for a local-only task.
+Always explain these steps in the README and final response using [Telemetry documentation](telemetry-documentation.md); perform them only when production configuration is requested. Store server-side keys in the deployment secret manager and inject public browser keys through the client build configuration. Populate release and environment metadata from the deployment. Keep production telemetry lower-noise than local debug telemetry. Production credentials or deployment changes are not prerequisites for a local-only task.
 
 ## Validate and report
 

@@ -8,7 +8,7 @@ description: Set up, extend, or repair OpenTelemetry instrumentation and export 
 ## Core methodology
 
 Guide the user to choose what they want to observe or delegate a basic setup to you. Translate those goals into services, code paths, and telemetry signals using your observability expertise.
-Use the Everr CLI to validate and debug instrumentation against the selected destination: the local collector or Everr Cloud. Configure only the environments requested by the user. Cloud is a telemetry destination, not an environment: development telemetry sent to cloud still has a development environment.
+Use the Everr CLI to validate and debug instrumentation against the selected destination: the local collector or Everr Cloud. Configure only the environments requested by the user, but always document both local and Cloud configuration and explain production activation in the final response. Documentation covers how to use telemetry beyond the environment validated during this run; it does not imply that production has been configured or deployed. Cloud is a telemetry destination, not an environment: development telemetry sent to cloud still has a development environment.
 If the user wants to setup alerting rules on that telemetry (and dashboards or runbooks), use the `everr-setup-resources` skill.
 
 ## Default Workflow
@@ -54,6 +54,7 @@ Preserve working signals and existing destinations outside the task. Add another
 4. Exercise the instrumented path and complete [Validation](rules/validation.md) against the selected destination. Use `everr local query` for local export and `everr cloud query` for cloud export.
 5. Run the project's production build (or its typecheck when no build exists). Dev servers skip strict type checking, so telemetry that flows in dev can still break the build. Running this check does not require configuring or deploying production telemetry.
 6. Claim success only for environments where fresh query results prove ingestion from the exercised path and the build check passes. If deployment or credentials are unavailable, report the configuration as prepared and identify the remaining validation.
+7. Update the project's README under **Telemetry**, following [Telemetry documentation](references/telemetry-documentation.md). Include configuration for the local collector and Everr Cloud, even when only one destination was exercised. Check the documented variables and activation steps against the implementation before handing off.
 
 #### Select guidance
 
@@ -78,7 +79,7 @@ Read the rules matching the change. Use the contents links in long references to
 | Instrumenting Tauri v2 with Rust and a frontend using IPC | [Tauri](rules/tauri.md), plus Rust for backend instrumentation |
 | Instrumenting Electron main and renderer processes using IPC | [Electron](rules/electron.md), plus Node.js for main-process instrumentation |
 | Instrumenting a Rust service or backend | [Rust](rules/rust.md) |
-| Exporting to Everr Cloud in any requested environment | [Cloud setup](references/cloud-setup.md) |
+| Exporting to Everr Cloud or documenting how to activate it in production | [Cloud setup](references/cloud-setup.md) |
 | Verifying any instrumentation change | [Validation](rules/validation.md) |
 
 #### Instrumentation rules
@@ -97,18 +98,23 @@ For a new setup, or the missing pieces of an extension:
 
 ### Step 3 - Summarize the setup and guide the next use
 
-Write the final response in the user's language. Lead with the outcome: what they can now observe in Everr, or what is prepared but still awaits validation. Keep the handoff concise, with three parts:
+Write the final response in the user's language. Lead with the outcome: what they can now observe in Everr, or what is prepared but still awaits validation. Keep the handoff concise, with four parts:
 
 #### What changed
 
 - Name the services, signals, and code paths added or repaired, and explain what they help the user understand, such as request latency, failed jobs, or frontend errors.
 - State the destination and environment for each setup. Link the main configuration or instrumentation files and explain how export is enabled, including any required environment variable names, without exposing credentials.
+- Link the README's **Telemetry** section containing both local and Cloud configuration.
 - For repairs, identify the cause and correction. For temporary debug instrumentation, state its activation and removal conditions.
 
 #### What was verified
 
 - Summarize fresh query evidence from the exercised path: service, environment, time window, correlation marker when used, and a representative result such as a span, log, metric, or trace ID. Include the build or typecheck command and result. Use compact evidence rather than a transcript of every query.
 - Label each requested environment as verified or still awaiting validation. Explain any missing prerequisite and avoid implying that a successful local run proves cloud or production ingestion.
+
+#### Production with Everr Cloud
+
+Always include this part, including after a local-only setup. Give a short, actionable production checklist for each distinct runtime configuration using [Telemetry documentation](references/telemetry-documentation.md#production-checklist): exact endpoint and variable names, the appropriate API key and where to configure it, required build or restart steps, and how to verify cloud ingestion. State any code changes still needed before these settings can work. Include the key steps in the response itself as well as linking the README. Distinguish documented instructions, configuration ready to activate, and verified production ingestion; when production is already verified, summarize the settings in use and how to verify future deployments.
 
 #### What's next
 
