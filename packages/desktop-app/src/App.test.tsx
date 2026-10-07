@@ -371,8 +371,8 @@ async function flushNotificationRender() {
   });
 }
 
-afterEach(async () => {
-  await router.navigate({ to: "/" });
+afterEach(() => {
+  router.history.replace("/");
 });
 
 describe("desktop window", () => {

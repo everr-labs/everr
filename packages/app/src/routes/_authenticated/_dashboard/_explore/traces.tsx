@@ -6,7 +6,6 @@ import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
   createFileRoute,
   Link,
-  Outlet,
   stripSearchParams,
   useSearch,
 } from "@tanstack/react-router";
@@ -30,20 +29,8 @@ export const Route = createFileRoute(
   head: () => ({ meta: [{ title: "Everr - Traces" }] }),
   validateSearch: RouteSearchSchema,
   search: { middlewares: [stripSearchParams(defaultSearch)] },
-  component: TracesRoute,
+  component: TracesSearchPage,
 });
-
-function TracesRoute() {
-  // Always keep the list mounted in the same position so opening/closing the
-  // modal never remounts it (a remount resets the virtualized list and re-runs
-  // queries, which shows up as a flash on close).
-  return (
-    <>
-      <TracesSearchPage />
-      <Outlet />
-    </>
-  );
-}
 
 function TracesSearchPage() {
   const search = Route.useSearch();
@@ -78,7 +65,7 @@ function TracesSearchPage() {
       }
       renderTraceLink={({ traceId, start, end, className, children }) => (
         <Link
-          to="/traces/$traceId/modal"
+          to="/traces/$traceId"
           params={{ traceId }}
           search={(prev) => ({ ...prev, start, end })}
           className={className}

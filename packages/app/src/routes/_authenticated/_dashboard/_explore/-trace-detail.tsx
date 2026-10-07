@@ -1,7 +1,6 @@
 import {
   computeDetailWindow,
   getTraceOptions,
-  TraceDetail,
   type TraceDetailParams,
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
@@ -46,31 +45,6 @@ export async function ensureTraceDetailData({
       }),
       refresh: deps.refresh ?? "off",
     }),
-  );
-}
-
-export function TraceDetailRouteContent({
-  traceId,
-  search,
-  onBack,
-  onClose,
-  onSpanChange,
-}: {
-  traceId: string;
-  search: TraceDetailParams;
-  onBack?: () => void;
-  onClose?: () => void;
-  onSpanChange: (spanId: string | undefined) => void;
-}) {
-  return (
-    <TraceDetail
-      repo={remoteTracesRepo}
-      traceId={traceId}
-      search={search}
-      onBack={onBack}
-      onClose={onClose}
-      onSpanChange={onSpanChange}
-    />
   );
 }
 
