@@ -7,7 +7,7 @@ import { persesToRGL } from "@/data/dashboards/convert";
 import { GRID_COLS } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
 import { OpenPanelButton, PanelFocus } from "./panel-focus";
-import { readPanelKey } from "./panel-search";
+import { panelForKey, readPanelKey } from "./panel-search";
 import { useDashboard } from "./use-dashboard";
 import { useHasVisibleVariables, VariableBar } from "./variable-bar";
 
@@ -27,7 +27,10 @@ export function DashboardGrid({
   const panelKey = readPanelKey(useSearch({ strict: false }));
   if (panelKey) {
     return (
-      <PanelFocus panelKey={panelKey} panel={dashboard.spec.panels[panelKey]} />
+      <PanelFocus
+        panelKey={panelKey}
+        panel={panelForKey(dashboard.spec.panels, panelKey)}
+      />
     );
   }
 

@@ -28,3 +28,14 @@ export function readPanelKey(search: unknown): string | undefined {
   const panel = search.panel;
   return typeof panel === "string" && panel.length > 0 ? panel : undefined;
 }
+
+/**
+ * Own keys only. The key comes from the URL, and a plain lookup of
+ * `constructor` or `toString` would read `Object.prototype` instead of a panel.
+ */
+export function panelForKey<T>(
+  panels: Record<string, T>,
+  key: string,
+): T | undefined {
+  return Object.hasOwn(panels, key) ? panels[key] : undefined;
+}

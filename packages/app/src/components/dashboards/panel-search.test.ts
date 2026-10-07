@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dashboardFrameSearchSchema,
+  panelForKey,
   panelSearchSchema,
   readPanelKey,
 } from "./panel-search";
@@ -20,6 +21,14 @@ describe("panel search", () => {
       dashboardFrameSearchSchema.parse({ panel: ["cpu"] }).panel,
     ).toBeUndefined();
     expect(panelSearchSchema.parse({}).panel).toBeUndefined();
+  });
+
+  it("returns only a panel the dashboard defines", () => {
+    const panels = { cpu: { name: "CPU" }, constructor: { name: "Built" } };
+    expect(panelForKey(panels, "cpu")).toEqual({ name: "CPU" });
+    expect(panelForKey(panels, "constructor")).toEqual({ name: "Built" });
+    expect(panelForKey(panels, "toString")).toBeUndefined();
+    expect(panelForKey(panels, "missing")).toBeUndefined();
   });
 
   it("reads only a non-empty string", () => {
