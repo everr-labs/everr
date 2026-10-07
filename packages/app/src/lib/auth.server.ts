@@ -37,10 +37,7 @@ import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
 } from "@/lib/cli-device-organization";
-import {
-  deprovisionSqlApiOrgUser,
-  provisionSqlApiOrgUser,
-} from "@/lib/clickhouse";
+import { deprovisionSqlApiOrgUser } from "@/lib/clickhouse";
 import {
   sendInvitationEmail,
   sendPasswordResetEmail,
@@ -48,6 +45,8 @@ import {
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
+import { provisionSqlApiOrgUserOrEnqueue } from "@/server/sql-api-provision/provision-or-enqueue";
+import { cancelSqlApiOrgUserProvision } from "@/server/sql-api-provision/status";
 import {
   createIdentityAuthHooks,
   type ResolvedSession,
@@ -383,14 +382,9 @@ export const auth = betterAuth({
           // the /api/cli/sql endpoint's tenant isolation. Each /sql query
           // authenticates as exactly this org's user; without provisioning,
           // the org's users couldn't authenticate at all. Idempotent.
-          try {
-            await provisionSqlApiOrgUser(organization.id);
-          } catch (error) {
-            serverLogger.error("sql_api.org_user.provision.failed", {
-              ...exceptionAttributes(error),
-              "everr.organization.id": organization.id,
-            });
-          }
+          // A failed attempt does not fail signup. It queues a retry, and the
+          // app holds the dashboard until the user exists.
+          await provisionSqlApiOrgUserOrEnqueue(organization.id);
         },
         beforeDeleteOrganization: async ({ organization }) => {
           await billing.assertDeletable(organization.id);
@@ -404,6 +398,15 @@ export const auth = betterAuth({
               "everr.organization.id": organization.id,
             });
             throw error;
+          }
+
+          try {
+            await cancelSqlApiOrgUserProvision(organization.id);
+          } catch (error) {
+            serverLogger.error("sql_api.org_user.provision.cancel_failed", {
+              ...exceptionAttributes(error),
+              "everr.organization.id": organization.id,
+            });
           }
 
           try {

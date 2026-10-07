@@ -64,6 +64,10 @@ vi.mock("@/components/preview-indicator", () => ({
   PreviewIndicator: () => <div>Preview indicator</div>,
 }));
 
+vi.mock("@/data/sql-api-provision", () => ({
+  getSqlApiOrgUserSetup: vi.fn(),
+}));
+
 import { Route } from "./_dashboard";
 
 beforeEach(() => {

@@ -2,6 +2,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
 import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
+import { assertSqlApiOrgUserReady } from "@/server/sql-api-provision/status";
 import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
 
 // The client default of 2500ms forces a fresh TLS handshake on most queries
@@ -85,7 +86,7 @@ function sqlApiOrgPolicyName(organizationId: string, table: string): string {
 // to that user, so user SQL cannot override the tenant filter via SETTINGS or
 // any other channel. The query authenticates with HMAC-derived credentials per
 // query and reuses the shared `clickhouse` HTTP client.
-function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
+async function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
   query: string,
   organizationId: string,
   query_params: Record<string, unknown> | undefined,
@@ -94,6 +95,11 @@ function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
   if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
   }
+
+  // Skip ClickHouse while the per-org user is still being provisioned. A stall
+  // would otherwise hang the request, and a missing user comes back as a
+  // password error.
+  await assertSqlApiOrgUserReady(organizationId);
 
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);
@@ -206,38 +212,54 @@ export async function insertAdminRows(
   );
 }
 
+export type ProvisionSqlApiOrgUserOptions = {
+  // Per statement, not the shared admin client. Signup uses a short budget so
+  // a stalled ClickHouse does not hold the auth callback for the client default.
+  requestTimeoutMs?: number;
+};
+
 // Create the per-org ClickHouse user, set its profile + default role, grant
 // sql_api_role, and create the per-table row policies that pin the tenant id
 // in as a constant.
 export async function provisionSqlApiOrgUser(
   organizationId: string,
+  options: ProvisionSqlApiOrgUserOptions = {},
 ): Promise<void> {
   assertSqlApiOrgId(organizationId);
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);
   const tenantLiteral = `'${organizationId}'`;
+  const timeout = (extra: AdminCommandOptions = {}) =>
+    withRequestTimeout(extra, options.requestTimeoutMs);
 
   await adminCommand(
     `CREATE USER IF NOT EXISTS \`${username}\` IDENTIFIED WITH sha256_password BY '${password}' SETTINGS PROFILE 'sql_api_profile'`,
+    timeout(),
   );
   // CH 26 requires sql_api_role to be active for WITH ADMIN OPTION to work,
   // but DEFAULT ROLE NONE keeps it off to avoid the readonly profile. Activate
   // it in an ephemeral session scoped to just these two statements.
   const sessionId = randomUUID();
-  await adminCommand("SET ROLE sql_api_role", {
-    clickhouse_settings: { session_id: sessionId },
-  });
-  await adminCommand(`GRANT sql_api_role TO \`${username}\``, {
-    clickhouse_settings: { session_id: sessionId },
-  });
+  await adminCommand(
+    "SET ROLE sql_api_role",
+    timeout({ clickhouse_settings: { session_id: sessionId } }),
+  );
+  await adminCommand(
+    `GRANT sql_api_role TO \`${username}\``,
+    timeout({ clickhouse_settings: { session_id: sessionId } }),
+  );
   // DEFAULT ROLE has to come after the GRANT — CH validates the role is
   // already granted to the user before it can be the default.
-  await adminCommand(`ALTER USER \`${username}\` DEFAULT ROLE sql_api_role`);
+  await adminCommand(
+    `ALTER USER \`${username}\` DEFAULT ROLE sql_api_role`,
+    timeout(),
+  );
 
   for (const table of SQL_API_TENANT_TABLES) {
     const policy = sqlApiOrgPolicyName(organizationId, table);
     await adminCommand(
       `CREATE ROW POLICY IF NOT EXISTS \`${policy}\` ON app.\`${table}\` FOR SELECT USING tenant_id = ${tenantLiteral} TO \`${username}\``,
+      timeout(),
     );
   }
 }
@@ -258,6 +280,17 @@ export async function deprovisionSqlApiOrgUser(
   }
 
   await adminCommand(`DROP USER IF EXISTS \`${username}\``);
+}
+
+function withRequestTimeout(
+  options: AdminCommandOptions,
+  requestTimeoutMs: number | undefined,
+): AdminCommandOptions {
+  if (requestTimeoutMs === undefined) return options;
+  return {
+    ...options,
+    abort_signal: AbortSignal.timeout(requestTimeoutMs),
+  };
 }
 
 function adminCommand(query: string, options: AdminCommandOptions = {}) {

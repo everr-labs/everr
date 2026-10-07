@@ -20,6 +20,7 @@ const runtimeMocks = vi.hoisted(() => {
     pool: { query: vi.fn() },
     previewsCronItems: [{ task: "previews/retention" }],
     previewsTaskList: { "previews/retention": vi.fn() },
+    sqlApiProvisionTaskList: { "sql-api/provision-org-user": vi.fn() },
     run: vi.fn(async (options: MockRunOptions) => {
       runOptions.push(options);
       return {
@@ -46,6 +47,10 @@ vi.mock("@/server/github-events/tasks", () => ({
 vi.mock("@/server/previews/00-runtime", () => ({
   previewsCronItems: runtimeMocks.previewsCronItems,
   previewsTaskList: runtimeMocks.previewsTaskList,
+}));
+
+vi.mock("@/server/sql-api-provision/task", () => ({
+  sqlApiProvisionTaskList: runtimeMocks.sqlApiProvisionTaskList,
 }));
 
 vi.mock("@/db/client", () => ({
@@ -116,6 +121,7 @@ describe("worker runtime", () => {
       "github-events/collector",
       "github-events/status",
       "previews/retention",
+      "sql-api/provision-org-user",
     ]);
   });
 
