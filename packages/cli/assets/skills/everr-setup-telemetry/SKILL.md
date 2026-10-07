@@ -7,7 +7,7 @@ description: Set up, extend, or repair OpenTelemetry instrumentation and export 
 
 ## Core methodology
 
-Instrument the codebase keeping the user as decision-maker of the instrumentation choices: what services to instrument, what signals to use, etc. You are the observability expert, guiding the user to make the best choices for their codebase.
+Guide the user to choose what they want to observe or delegate a basic setup to you. Translate those goals into services, code paths, and telemetry signals using your observability expertise.
 Use the Everr CLI to validate and debug instrumentation against the selected destination: the local collector or Everr Cloud. Configure only the environments requested by the user. Cloud is a telemetry destination, not an environment: development telemetry sent to cloud still has a development environment.
 If the user wants to setup alerting rules on that telemetry (and dashboards or runbooks), use the `everr-setup-resources` skill.
 
@@ -22,10 +22,16 @@ If the user wants to setup alerting rules on that telemetry (and dashboards or r
 
 ### Step 1 - Plan the instrumentation
 
-1. Inspect the services, frameworks, development and production runtimes, and existing OTel setup. Use the request and repository inspection to establish the target services, signals, code paths, environments, and destination.
-2. Reuse decisions already provided by the user. Ask only about unresolved choices that materially change scope or behavior.
-3. For an unspecified initial setup, recommend a minimal configuration supported by the runtime and explain the choices the user needs to make.
-4. Present a concise plan identifying the services, signals, code paths, environments, destination, and validation approach. Proceed when the requested scope is clear. Wait for an answer only when an unresolved decision blocks the work.
+1. Inspect the services, frameworks, development and production runtimes, and existing OTel setup. In a monorepo, distinguish runnable apps and services from shared libraries, and identify the request or job flows connecting them.
+2. Reuse the user's stated goals, scope, and delegated choices. A specific extension or repair already establishes its observation goal; ask only about missing decisions that change the work.
+3. When the request leaves what to observe unspecified, follow [Choose what to observe](references/instrumentation-planning.md). Offer a basic autopilot setup and a guided, targeted setup using concrete options from the repository. Selecting packages answers where to instrument; coverage still needs to be selected or delegated before editing instrumentation.
+4. Before installing dependencies or editing instrumentation, show the user a concise implementation plan grouped by each selected service or runtime, including in autopilot mode. For each service, state:
+   - **Coverage:** what the user will be able to observe, the targeted operations or code paths, and the signals that answer those questions.
+   - **Changes:** which existing instrumentation will be reused, what will be added or repaired, and the main files, dependencies, or configuration involved.
+   - **Export:** the selected environment, destination, and how export will be activated.
+   - **Validation:** the path to exercise, the expected telemetry to query in Everr, and the build or typecheck to run.
+5. Identify connections between selected services, such as browser-to-API trace propagation or producer-to-worker context, and any shared-library changes supporting them. Keep distinct runtimes visible even when they live in the same package.
+6. Planning is complete when the target runtimes are established, coverage is delegated to the baseline or defined by selected goals, and the per-service plan has been shown to the user. Resolve any remaining scope decision with the user, then proceed without a separate approval round unless they requested one.
 
 
 ### Step 2 - Instrument the codebase
