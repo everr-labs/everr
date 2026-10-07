@@ -62,19 +62,21 @@ Generate automatically; do not ask the user.
 
 ## OTLP Endpoint
 
-For local development, run `everr local status` and use the returned `otlp:` URL. Do not guess a localhost port.
+For the local collector destination, run `everr local status` and use the returned `otlp:` URL. Do not guess a localhost port.
 
-For production, use Everr hosted ingest base endpoint: `https://ingest.everr.dev/`
+For the cloud destination, use `https://ingest.everr.dev/` in the environments selected for cloud export. The destination does not determine `deployment.environment.name`. Preserve configuration for environments outside the task.
 
 ## Authentication
 
 For local collector endpoints, no application auth header is normally needed.
 
-For production Everr ingest:
+For cloud ingest from a server or backend:
 
-- Store the ingest key in the deployment secret manager.
+- Load the ingest key from the secret manager, or the local environment for development/test cloud export.
 - Use `EVERR_INGEST_KEY` by convention.
 - Set `Authorization: Bearer <ingest-key>` server-side only.
 - Never commit keys, print keys, invent keys, or expose `EVERR_INGEST_KEY` in browser bundles.
 
-Browser production telemetry authenticates with a **public** ingest key instead: origin-bound, ingest-only, safe in page source, injected through a client build variable such as `VITE_EVERR_PUBLIC_INGEST_KEY`. Never ship a secret key to the browser. See `rules/browser.md`.
+Browser cloud telemetry authenticates with a **public** ingest key instead: origin-bound, ingest-only, safe in page source, injected through a client build variable such as `VITE_EVERR_PUBLIC_INGEST_KEY`. Never ship a secret key to the browser. See [Browser](browser.md#key-model).
+
+For cloud credentials and CLI query access, follow [Cloud setup](../references/cloud-setup.md). Local-only setup requires neither cloud login nor an ingest key.

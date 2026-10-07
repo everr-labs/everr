@@ -48,7 +48,7 @@ The browser posts OTLP to the collector from the page's origin. The local CLI co
 Validate the seam, not just each half:
 
 1. Load the app in a real browser and trigger a page that fetches from the server.
-2. `everr local query` for fresh rows under the browser `ServiceName` and separately under the server `ServiceName`.
+2. Follow [Validation](validation.md) using `everr local query` or `everr cloud query` for the selected destination. Find fresh rows under the browser `ServiceName` and separately under the server `ServiceName`, with the expected environment and marker when available.
 3. Prove the join: at least one `TraceId` with spans from both service names.
 
 ```sql

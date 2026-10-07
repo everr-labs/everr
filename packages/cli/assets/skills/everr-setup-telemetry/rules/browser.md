@@ -4,13 +4,14 @@ Use this rule for web apps that send OpenTelemetry directly from the browser: SP
 
 ## Key Model
 
-If production browser telemetry is needed and no public key exists, tell the user to mint one in the Everr dashboard: user menu, **API keys**, **New key**, turn on **Public browser key**, and add every origin the app is served from (`scheme://host` with an optional port, no paths). Origins cannot be edited later; changing them means minting a new key and rotating the value in the frontend config. Do not invent, print, or commit key values.
+If cloud browser telemetry is selected and no public key exists, tell the user to mint one in the Everr dashboard: user menu, **API keys**, **New key**, turn on **Public browser key**, and add every origin the app is served from (`scheme://host` with an optional port, no paths). Include the development origin when testing cloud export locally. Origins cannot be edited later; changing them means minting a new key and rotating the value in the frontend config. Do not invent, print, or commit key values.
 
 ## Endpoint And Gating
 
-- Local development: export to the local collector URL from `everr local status`. It accepts browser OTLP with no key and no origin setup.
-- Production: export to `https://ingest.everr.dev/` with `Authorization: Bearer <public-key>`.
+- Local destination: export to the local collector URL from `everr local status`. It accepts browser OTLP with no key and no origin setup.
+- Cloud destination: export to `https://ingest.everr.dev/` with `Authorization: Bearer <public-key>`, including development runs when cloud is selected. Keep the app's actual environment metadata.
 - Inject the public key through a client build-time variable, for example `VITE_EVERR_PUBLIC_INGEST_KEY` in Vite.
+- Configure only the requested environments. Local-only setup needs no public key and preserves existing production export configuration. Gate the local endpoint to development builds.
 - No SSR guard is needed: `@everr/otel-web`'s WebSDK resolves a server entry under the `node` export condition and is inert there.
 
 ## Setup
@@ -64,5 +65,5 @@ If the page already has a `LoggerProvider` for other reasons, keep it and let `@
 
 ## Validation
 
-- Trigger the instrumented path in a real browser, then verify with `everr local query` filtered by the browser `ServiceName` and a fresh time window.
-- A request from an origin missing from the key's allowlist returns 401 and the SDK drops the batch silently. When production rows are missing, check the page's origin against the key's allowlist before touching the code.
+- Trigger the instrumented path in a real browser, then follow [Validation](validation.md) using the query command for the selected destination, filtered by the browser `ServiceName`, environment, fresh time window, and marker when available.
+- A request from an origin missing from the key's allowlist returns 401 and the SDK drops the batch silently. When cloud rows are missing, check the page's origin against the key's allowlist before touching the code.
