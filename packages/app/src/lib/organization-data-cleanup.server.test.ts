@@ -1,18 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockAnd, mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(
-  () => ({
-    mockAnd: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
-    mockDelete: vi.fn(),
-    mockEq: vi.fn((column: unknown, value: unknown) => ({
-      type: "eq",
-      column,
-      value,
-    })),
-    mockTransaction: vi.fn(),
-    whereCalls: [] as Array<{ table: unknown; condition: unknown }>,
-  }),
-);
+const {
+  mockAnd,
+  mockDelete,
+  mockInArray,
+  mockEq,
+  mockTransaction,
+  whereCalls,
+} = vi.hoisted(() => ({
+  mockAnd: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
+  mockDelete: vi.fn(),
+  mockInArray: vi.fn((column: unknown, value: unknown) => ({
+    type: "inArray",
+    column,
+    value,
+  })),
+  mockEq: vi.fn((column: unknown, value: unknown) => ({
+    type: "eq",
+    column,
+    value,
+  })),
+  mockTransaction: vi.fn(),
+  whereCalls: [] as Array<{ table: unknown; condition: unknown }>,
+}));
 
 vi.mock("@/db/client", () => ({
   db: {
@@ -26,6 +36,7 @@ vi.mock("drizzle-orm", async (importOriginal) => {
     ...actual,
     and: mockAnd,
     eq: mockEq,
+    inArray: mockInArray,
   };
 });
 
@@ -105,10 +116,18 @@ describe("deletePostgresOrganizationData", () => {
       githubInstallationOrganizations.organizationId,
       ORG,
     );
-    expect(mockEq).toHaveBeenCalledWith(apikey.configId, "ingest");
+    expect(mockInArray).toHaveBeenCalledWith(apikey.configId, [
+      "public",
+      "secret",
+      "ingest",
+    ]);
     expect(mockEq).toHaveBeenCalledWith(apikey.referenceId, ORG);
     expect(mockAnd).toHaveBeenCalledWith(
-      { type: "eq", column: apikey.configId, value: "ingest" },
+      {
+        type: "inArray",
+        column: apikey.configId,
+        value: ["public", "secret", "ingest"],
+      },
       { type: "eq", column: apikey.referenceId, value: ORG },
     );
   });

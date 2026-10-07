@@ -1,17 +1,6 @@
 /**
- * Per-key capability scopes for the single `ek_` API key type.
- *
- * Keys carry a `permissions` map (better-auth `Statements` shape:
- * `Record<scope, action[]>`). The values are checked by the endpoints that
- * authenticate with a key, so a key can be minted with only one capability
- * (e.g. a CI deploy token with just `apply`) even though it shares the
- * `ek_` configId with telemetry keys.
- *
- * A key with no capabilities (a `null`/`undefined`/empty `permissions` map)
- * is rejected: it grants nothing. Keys minted before scopes existed are
- * backfilled with the full capability set by a one-time migration
- * (`drizzle/0006_backfill_api_key_capabilities.sql`), so they keep working
- * without relying on an implicit "null means everything" fallback.
+ * Capabilities granted by a key's permissions map. Secret keys select scopes
+ * at creation; public keys only ingest. An empty map grants nothing.
  */
 export const API_KEY_SCOPES = {
   ingest: {

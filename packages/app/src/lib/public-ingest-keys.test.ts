@@ -60,21 +60,20 @@ describe("publicKeyMetadataOf", () => {
   it("parses a public key metadata object", () => {
     expect(
       publicKeyMetadataOf({
-        public: true,
         allowedOrigins: ["https://a.example"],
       }),
-    ).toEqual({ public: true, allowedOrigins: ["https://a.example"] });
+    ).toEqual({ allowedOrigins: ["https://a.example"] });
   });
 
   it("parses metadata handed back as a JSON string", () => {
     expect(
       publicKeyMetadataOf(
-        JSON.stringify({ public: true, allowedOrigins: ["https://a.example"] }),
+        JSON.stringify({ allowedOrigins: ["https://a.example"] }),
       ),
-    ).toEqual({ public: true, allowedOrigins: ["https://a.example"] });
+    ).toEqual({ allowedOrigins: ["https://a.example"] });
   });
 
-  it("returns null for secret keys (no metadata or public !== true)", () => {
+  it("returns null for missing or malformed origin metadata", () => {
     expect(publicKeyMetadataOf(null)).toBeNull();
     expect(publicKeyMetadataOf(undefined)).toBeNull();
     expect(publicKeyMetadataOf({})).toBeNull();
@@ -87,49 +86,68 @@ describe("publicKeyMetadataOf", () => {
   it("drops non-string entries from allowedOrigins", () => {
     expect(
       publicKeyMetadataOf({
-        public: true,
         allowedOrigins: ["https://a.example", 42, null],
       }),
-    ).toEqual({ public: true, allowedOrigins: ["https://a.example"] });
+    ).toEqual({ allowedOrigins: ["https://a.example"] });
   });
 });
 
 describe("originPolicyAllows (the policy matrix)", () => {
+  it("fails closed for unknown configurations and missing public metadata", () => {
+    expect(originPolicyAllows("ingest", null, null)).toBe(false);
+    expect(originPolicyAllows("public", null, "https://app.example.com")).toBe(
+      false,
+    );
+    expect(originPolicyAllows("public", null, null)).toBe(false);
+  });
+
+  it("metadata cannot turn a secret key into a public key", () => {
+    expect(
+      originPolicyAllows(
+        "secret",
+        { public: true, allowedOrigins: ["https://app.example.com"] },
+        "https://app.example.com",
+      ),
+    ).toBe(false);
+  });
   const publicMeta = {
-    public: true,
     allowedOrigins: ["https://app.example.com", "http://127.0.0.1:8000"],
   };
 
   it("secret key without origin: allowed (server-to-server)", () => {
-    expect(originPolicyAllows(null, null)).toBe(true);
+    expect(originPolicyAllows("secret", null, null)).toBe(true);
   });
 
   it("public key without origin: rejected (browser-only)", () => {
-    expect(originPolicyAllows(publicMeta, null)).toBe(false);
+    expect(originPolicyAllows("public", publicMeta, null)).toBe(false);
   });
 
   it("secret key with origin: rejected (never from browsers)", () => {
-    expect(originPolicyAllows(null, "https://app.example.com")).toBe(false);
+    expect(originPolicyAllows("secret", null, "https://app.example.com")).toBe(
+      false,
+    );
   });
 
   it("public key with matching origin: allowed", () => {
-    expect(originPolicyAllows(publicMeta, "https://app.example.com")).toBe(
-      true,
-    );
+    expect(
+      originPolicyAllows("public", publicMeta, "https://app.example.com"),
+    ).toBe(true);
   });
 
   it("public key with mismatched origin: rejected", () => {
-    expect(originPolicyAllows(publicMeta, "https://evil.example")).toBe(false);
+    expect(
+      originPolicyAllows("public", publicMeta, "https://evil.example"),
+    ).toBe(false);
   });
 
   it("normalizes the incoming origin before matching", () => {
-    expect(originPolicyAllows(publicMeta, "HTTPS://APP.EXAMPLE.COM:443")).toBe(
-      true,
-    );
+    expect(
+      originPolicyAllows("public", publicMeta, "HTTPS://APP.EXAMPLE.COM:443"),
+    ).toBe(true);
   });
 
   it('the literal "null" origin never matches', () => {
-    expect(originPolicyAllows(publicMeta, "null")).toBe(false);
+    expect(originPolicyAllows("public", publicMeta, "null")).toBe(false);
   });
 });
 
