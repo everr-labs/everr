@@ -7,6 +7,7 @@ const {
   mockCommand,
   mockJson,
   mockInstrumentClickhouseOperation,
+  mockAssertSqlApiOrgUserReady,
   MASTER_KEY,
 } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
@@ -16,6 +17,7 @@ const {
   mockInstrumentClickhouseOperation: vi.fn(
     async (_attributes: unknown, run: () => Promise<unknown>) => run(),
   ),
+  mockAssertSqlApiOrgUserReady: vi.fn(),
   MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
 }));
 
@@ -41,6 +43,10 @@ vi.mock("@/env", () => ({
 
 vi.mock("@/telemetry/clickhouse", () => ({
   instrumentClickhouseOperation: mockInstrumentClickhouseOperation,
+}));
+
+vi.mock("@/server/sql-api-provision/status", () => ({
+  assertSqlApiOrgUserReady: mockAssertSqlApiOrgUserReady,
 }));
 
 vi.unmock("@/lib/clickhouse");
@@ -148,6 +154,16 @@ describe("querySqlApi", () => {
       /tenant context/i,
     );
     expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockAssertSqlApiOrgUserReady).not.toHaveBeenCalled();
+  });
+
+  it("does not call ClickHouse while the org user is still being provisioned", async () => {
+    mockAssertSqlApiOrgUserReady.mockRejectedValueOnce(
+      new Error("We're still finishing setting up your account."),
+    );
+
+    await expect(querySqlApi("SELECT 1", ORG)).rejects.toThrow(/finishing/i);
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 });
 
@@ -246,6 +262,19 @@ describe("provisionSqlApiOrgUser", () => {
     expect(grantCall.clickhouse_settings.session_id).toBe(
       setRoleCall.clickhouse_settings.session_id,
     );
+    expect(mockCommand.mock.calls[0][0].abort_signal).toBeUndefined();
+  });
+
+  it("gives each statement its own abort budget when a timeout is set", async () => {
+    await provisionSqlApiOrgUser(ORG, { requestTimeoutMs: 5_000 });
+
+    expect(mockCommand.mock.calls.length).toBeGreaterThan(1);
+    for (const [args] of mockCommand.mock.calls) {
+      expect(args.abort_signal).toBeInstanceOf(AbortSignal);
+      expect(args.abort_signal.aborted).toBe(false);
+    }
+    const signals = mockCommand.mock.calls.map(([args]) => args.abort_signal);
+    expect(new Set(signals).size).toBe(signals.length);
   });
 });
 

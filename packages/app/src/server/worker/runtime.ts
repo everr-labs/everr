@@ -9,6 +9,7 @@ import {
   previewsCronItems,
   previewsTaskList,
 } from "@/server/previews/00-runtime";
+import { sqlApiProvisionTaskList } from "@/server/sql-api-provision/task";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import { hotSingleton } from "./hot-singleton";
 
@@ -110,6 +111,7 @@ async function startRunner(): Promise<Runner> {
       ...alertTaskList,
       ...githubEventsTaskList,
       ...previewsTaskList,
+      ...sqlApiProvisionTaskList,
     },
   });
 }

@@ -2,7 +2,8 @@ import { ClickHouseError } from "@clickhouse/client";
 
 // How a cloud-query request ended, from the alerting point of view:
 //   - user_error   the caller's SQL is at fault (typo, blocked function, probing
-//                  a table they can't read). Expected; never pages.
+//                  a table they can't read), or the org's SQL API user is still
+//                  being provisioned. Expected; never pages.
 //   - system_error our infrastructure is at fault (ClickHouse timed out, ran out
 //                  of memory/quota, was unreachable, or an unexpected exception).
 //                  Marks the span as an error and drives the pager.
@@ -10,6 +11,7 @@ export type CloudQueryOutcome = "ok" | "user_error" | "system_error";
 
 export type CloudQueryErrorKind =
   | "empty"
+  | "account_setup"
   | "guard_blocked"
   | "schema_probe"
   | "sql_invalid"
@@ -65,6 +67,10 @@ export function classifyCloudQueryError(
   // absent, no such error is thrown and this branch simply never fires.
   if (error instanceof Error && error.name === "SqlApiGuardError") {
     return { outcome: "user_error", kind: "guard_blocked" };
+  }
+
+  if (error instanceof Error && error.name === "SqlApiOrgSetupPendingError") {
+    return { outcome: "user_error", kind: "account_setup" };
   }
 
   if (error instanceof ClickHouseError) {

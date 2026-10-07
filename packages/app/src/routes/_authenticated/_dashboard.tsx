@@ -21,12 +21,18 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
 import { PreviewIndicator } from "@/components/preview-indicator";
+import { getSqlApiOrgUserSetup } from "@/data/sql-api-provision";
 import { ExploreSearchRetainShape } from "@/lib/explore-search";
 import { SIDEBAR_TRACKED_LEFT } from "@/lib/sidebar-tracked-left";
 import {
   ResolvedTimeRangeSearchSchema,
   TimeRangeSearchSchema,
 } from "@/lib/time-range";
+import { sqlApiSetupPathIsHeld } from "@/server/sql-api-provision/gate";
+
+// Once an organization is ready it stays ready. Remember that here so later
+// dashboard navigations do not each wait on a setup lookup.
+const readySqlApiOrgIds = new Set<string>();
 
 const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   // Explore section filters live at this level (not deeper on `_explore`) so the
@@ -81,7 +87,21 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
       ]),
     ],
   },
-  beforeLoad({ search }) {
+  beforeLoad: async ({ context, location, search }) => {
+    const orgId = context.session?.session.activeOrganizationId;
+    if (
+      orgId &&
+      sqlApiSetupPathIsHeld(location.pathname) &&
+      !readySqlApiOrgIds.has(orgId)
+    ) {
+      const setup = await getSqlApiOrgUserSetup();
+      if (setup.status === "ready") {
+        readySqlApiOrgIds.add(orgId);
+      } else {
+        throw redirect({ to: "/setting-up" });
+      }
+    }
+
     const { from, to } = ResolvedTimeRangeSearchSchema.parse(search);
     const fromDate = resolve(from, { roundUp: false });
     const toDate = resolve(to, { roundUp: true });

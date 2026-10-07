@@ -52,6 +52,29 @@ describe("/api/cli/sql", () => {
     expect(await response.text()).toBe('{"ok":1}\n');
   });
 
+  it("returns 503 while the org user is still being provisioned", async () => {
+    const error = new Error(
+      "We're still finishing setting up your account. Try again in a minute.",
+    );
+    error.name = "SqlApiOrgSetupPendingError";
+    mockedQuerySqlApi.mockRejectedValue(error);
+
+    const response = await getHandler()({
+      request: new Request("http://localhost/api/cli/sql", {
+        method: "POST",
+        body: "SELECT 1",
+        headers: { "content-type": "text/plain" },
+      }),
+      context,
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error:
+        "We're still finishing setting up your account. Try again in a minute.",
+    });
+  });
+
   it("returns 400 when SQL is empty", async () => {
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/sql", {

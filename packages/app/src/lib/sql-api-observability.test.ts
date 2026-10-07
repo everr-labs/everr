@@ -74,6 +74,18 @@ describe("classifyCloudQueryError", () => {
     });
   });
 
+  it("treats an unfinished SQL API user as a user error so it does not page", () => {
+    const error = new Error(
+      "We're still finishing setting up your account. Try again in a minute.",
+    );
+    error.name = "SqlApiOrgSetupPendingError";
+
+    expect(classifyCloudQueryError(error)).toEqual({
+      outcome: "user_error",
+      kind: "account_setup",
+    });
+  });
+
   it("treats a non-ClickHouse, non-guard throw as an internal system error", () => {
     expect(classifyCloudQueryError(new Error("boom"))).toEqual({
       outcome: "system_error",

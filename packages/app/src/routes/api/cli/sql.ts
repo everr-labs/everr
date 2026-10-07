@@ -58,7 +58,8 @@ export const Route = createFileRoute("/api/cli/sql")({
           }
           return Response.json(
             { error: sanitizeSqlApiError(error) },
-            { status: 400 },
+            // 503, not 400: the SQL was fine, the org user is not ready yet.
+            { status: kind === "account_setup" ? 503 : 400 },
           );
         }
       },
