@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
+import { panelSearchSchema } from "@/components/dashboards/panel-search";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { InstallEverrCard } from "@/components/home/setup-cards";
 import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
@@ -22,6 +23,9 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_padded/")({
       { rel: "stylesheet", href: gridLayoutOverridesCSS },
     ],
   }),
+  // Same `panel` param as the dashboards rail. Not retained: these keys are
+  // this dashboard's, and the time range still comes from `_dashboard`.
+  validateSearch: panelSearchSchema,
   loader: () => ({ timeDefaults: dashboardTimeDefaults(usageDocument.spec) }),
   component: HomePage,
 });

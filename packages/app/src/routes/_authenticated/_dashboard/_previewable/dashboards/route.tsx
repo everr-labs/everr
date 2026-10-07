@@ -5,12 +5,16 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { DashboardsList } from "@/components/dashboards/dashboards-list";
+import { dashboardFrameSearchSchema } from "@/components/dashboards/panel-search";
 import { RailFrame, railFrameRouteOptions } from "@/components/rail/rail-frame";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/dashboards",
 )({
   ...railFrameRouteOptions,
+  // `panel` is this surface only. A panel key belongs to one dashboard, so it
+  // is not retained the way `full` (the rail flag) is.
+  validateSearch: dashboardFrameSearchSchema,
   search: { middlewares: [retainSearchParams(["full"])] },
   component: DashboardsLayout,
 });

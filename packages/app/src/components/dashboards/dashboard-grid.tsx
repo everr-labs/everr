@@ -1,3 +1,4 @@
+import { useSearch } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 import type { LayoutItem } from "react-grid-layout";
 import { GridLayout, noCompactor, useContainerWidth } from "react-grid-layout";
@@ -5,6 +6,8 @@ import { FrameToggle } from "@/components/rail/frame-toggle";
 import { persesToRGL } from "@/data/dashboards/convert";
 import { GRID_COLS } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
+import { OpenPanelButton, PanelFocus } from "./panel-focus";
+import { panelForKey, readPanelKey } from "./panel-search";
 import { useDashboard } from "./use-dashboard";
 import { useHasVisibleVariables, VariableBar } from "./variable-bar";
 
@@ -18,6 +21,35 @@ export function DashboardGrid({
   actions?: ReactNode;
   notice?: ReactNode;
   /** Off where the grid is not seated next to a rail (the home page). */
+  frameToggle?: boolean;
+}) {
+  const dashboard = useDashboard();
+  const panelKey = readPanelKey(useSearch({ strict: false }));
+  if (panelKey) {
+    return (
+      <PanelFocus
+        panelKey={panelKey}
+        panel={panelForKey(dashboard.spec.panels, panelKey)}
+      />
+    );
+  }
+
+  return (
+    <DashboardGridLayout
+      actions={actions}
+      notice={notice}
+      frameToggle={frameToggle}
+    />
+  );
+}
+
+function DashboardGridLayout({
+  actions,
+  notice,
+  frameToggle = true,
+}: {
+  actions?: ReactNode;
+  notice?: ReactNode;
   frameToggle?: boolean;
 }) {
   const dashboard = useDashboard();
@@ -77,7 +109,16 @@ export function DashboardGrid({
             if (!panel) return null;
             return (
               <div key={item.i}>
-                <DashboardPanel panel={panel} panelKey={item.i} />
+                <DashboardPanel
+                  panel={panel}
+                  panelKey={item.i}
+                  action={
+                    <OpenPanelButton
+                      panelKey={item.i}
+                      title={panel.spec.display?.name ?? item.i}
+                    />
+                  }
+                />
               </div>
             );
           })}

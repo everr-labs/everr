@@ -84,6 +84,7 @@ export function PanelShell({
           <CardHeader>
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-4 w-48" />
+            {action && <CardAction>{action}</CardAction>}
           </CardHeader>
         )}
         <CardContent className={cn(title === undefined && "min-h-0 flex-1")}>
@@ -109,6 +110,7 @@ export function PanelShell({
         <CardHeader>
           {title && <CardTitle>{title}</CardTitle>}
           {description && <CardDescription>{description}</CardDescription>}
+          {action && <CardAction>{action}</CardAction>}
         </CardHeader>
         <CardContent>
           <div className="flex h-[300px] flex-col items-center justify-center gap-2 text-muted-foreground">
