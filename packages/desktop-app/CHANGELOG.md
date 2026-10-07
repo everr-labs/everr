@@ -1,5 +1,11 @@
 # @everr/desktop-app
 
+## 0.9.0
+
+### Minor Changes
+
+- e4a1649: Replace the desktop trace detail modal with a full-page trace explorer. Add synchronized waterfall and collapsible flamegraph views, span search and category/error highlighting, attribute previews, zoom and pan, resizable span details, and a flamegraph time guide. Move trace model preparation and flamegraph layout into workers.
+
 ## 0.8.3
 
 ### Patch Changes
