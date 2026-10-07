@@ -4,7 +4,7 @@ Use this rule for web apps that send OpenTelemetry directly from the browser: SP
 
 ## Key Model
 
-If cloud browser telemetry is selected and no public key exists, tell the user to mint one in the Everr dashboard: user menu, **API keys**, **New key**, turn on **Public browser key**, and add every origin the app is served from (`scheme://host` with an optional port, no paths). Include the development origin when testing cloud export locally. Origins cannot be edited later; changing them means minting a new key and rotating the value in the frontend config. Do not invent, print, or commit key values.
+If cloud browser telemetry is selected and no public key exists, tell the user to mint one in the Everr dashboard: go to https://app.everr.dev/api-keys and generate a new Public Key, adding every origin the app is served from (`scheme://host` with an optional port, no paths). Include the development origin when testing cloud export locally. Origins cannot be edited later; changing them means minting a new key and rotating the value in the frontend config. Do not invent, print, or commit key values.
 
 ## Endpoint And Gating
 
