@@ -15,7 +15,7 @@ import {
   useParams,
   useSearch,
 } from "@tanstack/react-router";
-import { PageTitleBar } from "../desktop-shell/title-bar";
+import { PageTitleBar } from "../app-shell/title-bar";
 import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";

@@ -1,7 +1,7 @@
 {
   "name": "@everr/local-app",
   "private": true,
-  "version": "0.8.2",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "node ./scripts/dev.ts",
@@ -16,7 +16,7 @@
     "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
-    "@tanstack/react-router": "1.170.23",
+    "@tanstack/react-router": "1.170.41",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

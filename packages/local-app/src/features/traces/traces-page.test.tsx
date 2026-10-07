@@ -2,24 +2,12 @@ import type {
   TraceExplorerProps,
   TracesSearchProps,
 } from "@everr/telemetry-explorer/traces";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  Outlet,
-  RouterProvider,
-} from "@tanstack/react-router";
+import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import {
-  TraceDetailPage,
-  TraceDetailSearchSchema,
-  TracesListSearchSchema,
-  TracesPage,
-} from "./traces-page";
+import { getRouter } from "../../router";
+import { mockCommands } from "../../test-commands";
 
 const local = vi.hoisted(() => ({
   client: {},
@@ -71,39 +59,19 @@ vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
 
 describe("local traces routes", () => {
   function renderTracesRoute(initialEntries: string[]) {
-    const rootRoute = createRootRoute({ component: Outlet });
-    const shellRoute = createRoute({
-      getParentRoute: () => rootRoute,
-      id: "_shell",
-      component: Outlet,
+    mockCommands((command) => {
+      if (command === "get_auth_status") {
+        return {
+          status: "signed_out",
+          session_path: "/tmp/everr/session.json",
+        };
+      }
+      if (command === "get_pending_sign_in") return null;
+      throw new Error(`Unexpected local command: ${command}`);
     });
-    const tracesRoute = createRoute({
-      getParentRoute: () => shellRoute,
-      path: "/traces",
-      validateSearch: TracesListSearchSchema,
-      component: TracesPage,
-    });
-    const traceDetailRoute = createRoute({
-      getParentRoute: () => shellRoute,
-      path: "/traces/$traceId",
-      validateSearch: TraceDetailSearchSchema,
-      component: TraceDetailPage,
-    });
-    const routeTree = rootRoute.addChildren([
-      shellRoute.addChildren([tracesRoute, traceDetailRoute]),
-    ]);
-    const router = createRouter({
-      routeTree,
-      history: createMemoryHistory({ initialEntries }),
-    });
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>,
-    );
+    const router = getRouter();
+    router.update({ history: createMemoryHistory({ initialEntries }) });
+    render(<RouterProvider router={router} />);
     return router;
   }
 
