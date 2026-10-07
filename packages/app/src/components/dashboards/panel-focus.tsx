@@ -138,7 +138,7 @@ export function PanelFocus({
   return createPortal(
     <section
       aria-label={panel ? title : "Panel not on this dashboard"}
-      className="panel-focus absolute inset-x-0 top-12 bottom-0 z-40 flex flex-col overflow-hidden overscroll-contain bg-background p-3"
+      className="absolute inset-x-0 top-12 bottom-0 z-40 flex flex-col overflow-hidden overscroll-contain bg-background p-3"
     >
       <PanelFocusToolbar backRef={backRef} onClose={close} />
       <div className="min-h-0 flex-1">

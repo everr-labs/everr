@@ -4,24 +4,3 @@
 .react-grid-item.cssTransforms {
   transition: none;
 }
-
-/* The full-page panel fades in. It is already in place; the fade only marks
-   the change of view. */
-.panel-focus {
-  animation: panel-focus-in 180ms cubic-bezier(0.19, 1, 0.22, 1);
-}
-
-@keyframes panel-focus-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .panel-focus {
-    animation: none;
-  }
-}
