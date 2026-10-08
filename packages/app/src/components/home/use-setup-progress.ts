@@ -1,12 +1,7 @@
 import { useState } from "react";
 import { z } from "zod";
 
-export const ONBOARDING_STEPS = [
-  "install",
-  "agent",
-  "local",
-  "production",
-] as const;
+const ONBOARDING_STEPS = ["install", "agent", "local", "production"] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 const ONBOARDING_MODES = ["agent", "manual"] as const;
 type OnboardingMode = (typeof ONBOARDING_MODES)[number];
