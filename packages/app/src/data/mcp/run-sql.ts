@@ -1,3 +1,4 @@
+import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
 import { querySqlApi } from "@/lib/clickhouse";
 import { sanitizeSqlApiError } from "@/lib/sql-api-error";
 
@@ -14,6 +15,7 @@ export interface RunSqlResult {
  */
 export async function runSqlForConnection(args: {
   orgId: string;
+  metadata: unknown;
   sql: string;
 }): Promise<RunSqlResult> {
   const sql = args.sql.trim();
@@ -22,6 +24,7 @@ export async function runSqlForConnection(args: {
   }
 
   try {
+    assertOrganizationProvisioned(args.metadata);
     const rows = await querySqlApi<Record<string, unknown>>(sql, args.orgId);
     const text =
       rows.length === 0

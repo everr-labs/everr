@@ -275,3 +275,26 @@ it("retries exhausted provisioning without creating another organization", async
     replace: true,
   });
 });
+
+it.each([
+  "missing",
+  "revoked",
+  "switched",
+])("returns to organization selection when the organization is %s during setup", async (state) => {
+  if (state === "revoked")
+    mocks.read.mockRejectedValue(new Error("Not a member"));
+  else
+    mocks.read.mockResolvedValue(
+      state === "missing" ? null : { id: "other", status: "ready" },
+    );
+  show();
+  await confirmName();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10);
+  });
+  expect(mocks.router.navigate).toHaveBeenCalledWith({
+    to: "/choose-organization",
+    search: { returnTo: "/logs" },
+    replace: true,
+  });
+});

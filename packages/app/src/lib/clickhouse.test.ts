@@ -8,7 +8,6 @@ const {
   mockJson,
   mockInstrumentClickhouseOperation,
   MASTER_KEY,
-  assertClickhouseReady,
 } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockInsert: vi.fn(),
@@ -18,7 +17,6 @@ const {
     async (_attributes: unknown, run: () => Promise<unknown>) => run(),
   ),
   MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
-  assertClickhouseReady: vi.fn(),
 }));
 
 vi.mock("@clickhouse/client", () => ({
@@ -45,8 +43,6 @@ vi.mock("@/telemetry/clickhouse", () => ({
   instrumentClickhouseOperation: mockInstrumentClickhouseOperation,
 }));
 
-vi.mock("@/lib/clickhouse-readiness.server", () => ({ assertClickhouseReady }));
-
 vi.unmock("@/lib/clickhouse");
 
 import {
@@ -72,7 +68,6 @@ beforeEach(() => {
   mockJson.mockReturnValue([]);
   mockQuery.mockResolvedValue({ json: mockJson });
   mockCommand.mockResolvedValue(undefined);
-  assertClickhouseReady.mockResolvedValue(undefined);
 });
 
 describe("query", () => {
@@ -257,7 +252,6 @@ describe("provisionSqlApiOrgUser", () => {
         auth: { username: ORG_USER, password: ORG_PASSWORD },
       }),
     );
-    expect(assertClickhouseReady).not.toHaveBeenCalled();
   });
 
   it("does not succeed if the provisioned credentials still cannot authenticate", async () => {
@@ -265,18 +259,6 @@ describe("provisionSqlApiOrgUser", () => {
     await expect(provisionSqlApiOrgUser(ORG)).rejects.toThrow(
       "Authentication failed",
     );
-  });
-});
-
-describe("pending organization data access", () => {
-  it.each([
-    query,
-    querySqlApi,
-    querySqlApiWithMeta,
-  ])("blocks reads before contacting ClickHouse", async (read) => {
-    assertClickhouseReady.mockRejectedValueOnce(new Error("Setup pending"));
-    await expect(read("SELECT 1", ORG)).rejects.toThrow("Setup pending");
-    expect(mockQuery).not.toHaveBeenCalled();
   });
 });
 

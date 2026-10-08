@@ -5,7 +5,7 @@ import {
   SpanStatusCode,
   trace,
 } from "@opentelemetry/api";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { parseCronItems, type Task, type TaskList } from "graphile-worker";
 import { z } from "zod";
 import { isOrganizationProvisioned } from "@/common/organization-provisioning";
@@ -157,31 +157,41 @@ export function createOrganizationTaskList(
           );
         }
         const pending = await database
-          .select({ id: organization.id, createdAt: organization.createdAt })
+          .select({
+            id: organization.id,
+            createdAt: organization.createdAt,
+            missingJob: sql<boolean>`NOT EXISTS (
+              SELECT 1 FROM graphile_worker.jobs j
+              WHERE j.task_identifier = ${PROVISION_ORGANIZATION_TASK}
+                AND j.key = 'clickhouse-organization:' || ${sql.identifier("organization")}.${sql.identifier("id")} || ':provision'
+            )`,
+          })
           .from(organization)
           .where(organizationProvisioningPending);
-        const ages = pending.map((org) =>
-          Math.max(0, (Date.now() - org.createdAt.getTime()) / 1000),
+        const now = Date.now();
+        const stalled = pending.filter(
+          (org) =>
+            now - org.createdAt.getTime() >=
+            PROVISIONING_STALLED_SECONDS * 1000,
         );
-        const stalled = ages.filter(
-          (age) => age >= PROVISIONING_STALLED_SECONDS,
-        ).length;
-        serverLogger.info("clickhouse.organization.provision.health", {
+        const health = {
           "everr.provisioning.pending_count": pending.length,
-          "everr.provisioning.stalled_count": stalled,
-          "everr.provisioning.oldest_pending_seconds": ages.reduce(
-            (oldest, age) => Math.max(oldest, age),
+          "everr.provisioning.stalled_count": stalled.length,
+          "everr.provisioning.oldest_pending_seconds": pending.reduce(
+            (oldest, org) =>
+              Math.max(oldest, (now - org.createdAt.getTime()) / 1000),
             0,
           ),
-        });
-        for (const [index, org] of pending.entries()) {
-          if (ages[index] >= PROVISIONING_STALLED_SECONDS) {
-            serverLogger.error("clickhouse.organization.provision.stalled", {
-              "everr.organization.id": org.id,
-              "everr.provisioning.pending_seconds": ages[index],
-            });
-          }
-          await enqueueOrganizationProvisioning(org.id, database);
+        };
+        serverLogger.info("clickhouse.organization.provision.health", health);
+        if (stalled.length)
+          serverLogger.error(
+            "clickhouse.organization.provision.stalled",
+            health,
+          );
+        for (const org of pending) {
+          if (org.missingJob)
+            await enqueueOrganizationProvisioning(org.id, database);
         }
       },
     ),

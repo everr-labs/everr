@@ -43,13 +43,20 @@ it("does not retry when organization membership has been revoked", async () => {
   ).rejects.toThrow("Not a member");
   expect(mocks.retry).not.toHaveBeenCalled();
 });
-it.each([
-  "ready",
-  "pending",
-])("does not reset an organization that is already %s", async (status) => {
-  mocks.read.mockResolvedValue(status);
+it("does not restart an already-ready organization", async () => {
+  vi.mocked(auth.api.getFullOrganization).mockResolvedValue({
+    id: "requested-org",
+    metadata: { clickhouseReady: true },
+  } as never);
   await retryOrganizationProvisioning({
     data: { organizationId: "requested-org" },
   });
   expect(mocks.retry).not.toHaveBeenCalled();
+});
+it("delegates retry eligibility to the atomic restart without another status read", async () => {
+  await retryOrganizationProvisioning({
+    data: { organizationId: "requested-org" },
+  });
+  expect(mocks.read).not.toHaveBeenCalled();
+  expect(mocks.retry).toHaveBeenCalledWith("requested-org");
 });

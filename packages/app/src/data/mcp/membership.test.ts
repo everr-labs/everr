@@ -9,20 +9,35 @@ import { assertCurrentMember, McpMembershipError } from "./membership";
 
 function returning(rows: unknown[]) {
   return {
-    from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }),
+    from: () => ({
+      innerJoin: () => ({
+        where: () => ({ limit: () => Promise.resolve(rows) }),
+      }),
+    }),
   };
 }
 beforeEach(() => selectMock.mockReset());
 
 describe("assertCurrentMember", () => {
   it("resolves when a membership row exists", async () => {
-    selectMock.mockReturnValueOnce(returning([{ id: "m-1" }]));
-    await expect(assertCurrentMember("u", "org-1")).resolves.toBeUndefined();
+    selectMock.mockReturnValueOnce(returning([{ metadata: null }]));
+    await expect(assertCurrentMember("u", "org-1")).resolves.toEqual({
+      metadata: null,
+    });
   });
   it("throws when no membership", async () => {
     selectMock.mockReturnValueOnce(returning([]));
     await expect(assertCurrentMember("u", "org-1")).rejects.toBeInstanceOf(
       McpMembershipError,
     );
+  });
+});
+
+it("returns pending readiness with verified membership", async () => {
+  selectMock.mockReturnValueOnce(
+    returning([{ metadata: '{"clickhouseReady":false}' }]),
+  );
+  expect(await assertCurrentMember("u", "org-1")).toEqual({
+    metadata: '{"clickhouseReady":false}',
   });
 });

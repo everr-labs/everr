@@ -1,7 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
-import { assertClickhouseReady } from "@/lib/clickhouse-readiness.server";
 import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
 import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
 
@@ -38,8 +37,6 @@ export async function query<T>(
   if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
   }
-
-  await assertClickhouseReady(organizationId);
 
   const result = await instrumentClickhouseOperation(
     { client: "app", operation: "QUERY" },
@@ -125,7 +122,6 @@ export async function querySqlApi<T>(
   query_params?: Record<string, unknown>,
 ): Promise<T[]> {
   if (!organizationId) throw new Error("Missing ClickHouse tenant context");
-  await assertClickhouseReady(organizationId);
   const result = await runSqlApiQuery(
     query,
     organizationId,
@@ -148,7 +144,6 @@ export async function querySqlApiWithMeta<T>(
   query_params?: Record<string, unknown>,
 ): Promise<SqlApiResult<T>> {
   if (!organizationId) throw new Error("Missing ClickHouse tenant context");
-  await assertClickhouseReady(organizationId);
   // JSON (not JSONEachRow) so column metadata is present even for empty results.
   const result = await runSqlApiQuery(
     query,
@@ -257,7 +252,7 @@ export async function provisionSqlApiOrgUser(
   }
 
   // Authenticate through the same client as user queries before publishing
-  // readiness. This bypasses the readiness guard only inside provisioning.
+  // readiness. Request boundaries enforce readiness for user queries.
   const result = await runSqlApiQuery(
     "SELECT 1 FROM app.traces LIMIT 0",
     organizationId,

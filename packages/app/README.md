@@ -74,8 +74,9 @@ reload is needed for Hobby organizations. Pro continues to hosted checkout.
 
 Pending organizations see `/organization-setup`, which polls every three
 seconds and returns to their requested page when ready. Account settings,
-billing, and CLI login remain available. Data reads fail before contacting
-ClickHouse with a friendly setup message; CLI SQL returns HTTP 503 and
+billing, and CLI login remain available. Organization authorization loads readiness
+once per request; data handlers reject pending setup before contacting
+ClickHouse. The query helpers do not read Postgres. CLI SQL returns HTTP 503 and
 `Retry-After: 5`.
 
 Provisioning state uses the existing metadata column, so no schema change or
@@ -104,17 +105,12 @@ spans for the organization ID and failure details.
 
 Every failed organization job attempt emits an ERROR log with organization,
 trace, job ID, attempt, maximum attempts, exception details, and exhaustion state.
-The scanner emits a health snapshot every minute and ERROR logs for organizations
-pending longer than two minutes. Worker startup, runtime, retry recovery, and
+The scanner emits a health snapshot every minute and one aggregate ERROR log
+when organizations have been pending longer than two minutes. Worker startup, runtime, retry recovery, and
 reschedule failures also emit ERROR logs. Pending UI/CLI responses remain expected
 control flow, so user polling does not flood exception telemetry.
 
-The alert and linked runbook in `everr/operations/` detect stalled setup and a
-missing production worker heartbeat. Deploy them through the normal full-tree
-resource apply workflow after the new health telemetry is deployed. Preview alerts
-do not notify; live alerts use the organization's configured default channels.
-Their evaluation and delivery still depend on the telemetry backend, so an
-independent external availability monitor remains necessary for a complete outage.
+Deployment alerts and runbooks are maintained in the `everr-deploy` repository.
 
 # Building For Production
 

@@ -15,7 +15,7 @@ const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
 // Per-request identity, carried on the verified token's AuthInfo.extra. The MCP
 // SDK threads AuthInfo into every tool call's `extra`, so there's no need to
 // thread it through the handler or stash it in AsyncLocalStorage ourselves.
-type McpContext = { orgId: string; userId: string };
+type McpContext = { orgId: string; userId: string; metadata: string | null };
 
 function contextOf(extra: { authInfo?: { extra?: Record<string, unknown> } }) {
   const ctx = extra.authInfo?.extra as McpContext | undefined;
@@ -41,7 +41,11 @@ function createTransport() {
               content: [{ type: "text", text: "No org context." }],
             };
           }
-          const result = await runSqlForConnection({ orgId: ctx.orgId, sql });
+          const result = await runSqlForConnection({
+            orgId: ctx.orgId,
+            metadata: ctx.metadata,
+            sql,
+          });
           return {
             isError: result.isError,
             content: [{ type: "text", text: result.text }],
@@ -116,7 +120,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
 
   // Re-check membership at request time (revocation / removal after consent).
   // A non-member throws McpMembershipError -> withMcpAuth answers 401.
-  await assertCurrentMember(userId, orgId);
+  const { metadata } = await assertCurrentMember(userId, orgId);
   mergeTelemetryIdentity({ organizationId: orgId, userId });
 
   return {
@@ -127,7 +131,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
         ? payload.scope.split(" ")
         : ["observability:read"],
     expiresAt: typeof payload.exp === "number" ? payload.exp : undefined,
-    extra: { orgId, userId } satisfies McpContext,
+    extra: { orgId, userId, metadata } satisfies McpContext,
   };
 }
 

@@ -1,4 +1,8 @@
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
+import { and, eq } from "drizzle-orm";
+import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
+import { db } from "@/db/client";
+import { member, organization as organizationTable } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { createClickhouseQuery } from "./clickhouse";
@@ -27,8 +31,26 @@ export const requireOrgMiddleware = createMiddleware()
       throw new Error("No active organization");
     }
 
+    const [organization] = await db
+      .select({
+        id: organizationTable.id,
+        metadata: organizationTable.metadata,
+      })
+      .from(organizationTable)
+      .innerJoin(member, eq(member.organizationId, organizationTable.id))
+      .where(
+        and(
+          eq(organizationTable.id, activeOrgId),
+          eq(member.userId, session.user.id),
+        ),
+      )
+      .limit(1);
+    if (!organization)
+      throw new Error("Not a member of the active organization");
+
     return next({
       context: {
+        organization,
         session: {
           session: {
             ...session.session,
@@ -43,8 +65,15 @@ export const requireOrgMiddleware = createMiddleware()
     });
   });
 
+const requireProvisionedOrgMiddleware = createMiddleware()
+  .middleware([requireOrgMiddleware])
+  .server(({ next, context: { organization } }) => {
+    assertOrganizationProvisioned(organization.metadata);
+    return next();
+  });
+
 export const createAuthenticatedServerFn = createServerFn().middleware([
-  requireOrgMiddleware,
+  requireProvisionedOrgMiddleware,
 ]);
 
 export class NotOrganizationAdminError extends Error {

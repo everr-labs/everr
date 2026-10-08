@@ -1,19 +1,14 @@
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import { useQuery } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import { Check, Sparkles, UserRound } from "lucide-react";
 import { type SubmitEvent, useEffect, useRef, useState } from "react";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
+import { OrganizationProvisioning } from "@/components/organization-provisioning";
 import { OrganizationProvisioningContent } from "@/components/organization-provisioning-content";
-import { OrganizationProvisioningRetry } from "@/components/organization-provisioning-retry";
 import { useOrganizationActivation } from "@/components/use-organization-activation";
-import {
-  ORGANIZATION_SETUP_MINIMUM_MS,
-  useOrganizationSetupCompletion,
-} from "@/components/use-organization-setup-completion";
-import { getOrganizationProvisioningStatus } from "@/data/organization-provisioning";
+import { ORGANIZATION_SETUP_MINIMUM_MS } from "@/components/use-organization-setup-completion";
 import { createOrganization } from "@/data/organizations";
 
 export function OrganizationCreation({
@@ -47,24 +42,6 @@ export function OrganizationCreation({
   >(null);
   const [activated, setActivated] = useState(false);
   const isCreating = startedAt !== null;
-  const readiness = useQuery({
-    queryKey: ["organization-provisioning", createdOrganizationId],
-    queryFn: () => getOrganizationProvisioningStatus(),
-    enabled: activated && createdOrganizationId !== null,
-    refetchInterval: (query) =>
-      query.state.data?.status === "failed" ? false : 1000,
-    staleTime: 0,
-  });
-  useOrganizationSetupCompletion(
-    !error &&
-      readiness.isSuccess &&
-      !readiness.isFetching &&
-      activated &&
-      readiness.data?.id === createdOrganizationId &&
-      readiness.data?.status === "ready",
-    startedAt ?? 0,
-    returnTo,
-  );
 
   async function activateOrganization(organizationId: string) {
     try {
@@ -125,11 +102,16 @@ export function OrganizationCreation({
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-10 lg:min-h-screen lg:py-16">
       <div className="w-full max-w-sm space-y-8">
-        {isCreating ? (
+        {activated && createdOrganizationId && startedAt !== null ? (
+          <OrganizationProvisioning
+            organizationId={createdOrganizationId}
+            startedAt={startedAt}
+            returnTo={returnTo}
+          />
+        ) : isCreating ? (
           <OrganizationProvisioningContent
             checkout={plan === "pro"}
             pending={!error}
-            failed={!error && readiness.data?.status === "failed"}
           >
             {error ? (
               <div className="space-y-3">
@@ -161,11 +143,6 @@ export function OrganizationCreation({
                   Choose an existing organization
                 </Link>
               </div>
-            ) : readiness.data?.status === "failed" ? (
-              <OrganizationProvisioningRetry
-                key={readiness.data.id}
-                organizationId={readiness.data.id}
-              />
             ) : null}
           </OrganizationProvisioningContent>
         ) : (

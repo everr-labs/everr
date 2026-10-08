@@ -45,7 +45,6 @@ vi.mock("@/lib/clickhouse", () => ({
 
 import type { TaskList } from "graphile-worker";
 import type { Database } from "@/db/client";
-import { assertClickhouseReady } from "@/lib/clickhouse-readiness.server";
 import {
   DEPROVISION_ORGANIZATION_TASK,
   enqueueOrganizationDeprovisioning,
@@ -104,12 +103,8 @@ describe("organization provisioning", () => {
     mocks.provision.mockRejectedValueOnce(new Error("Timeout error"));
     await expect(provision()).rejects.toThrow("Timeout error");
     expect(await ready()).toBe(false);
-    await expect(assertClickhouseReady(orgId)).rejects.toMatchObject({
-      name: "ClickhouseProvisioningPendingError",
-    });
     await provision();
     expect(await ready()).toBe(true);
-    await expect(assertClickhouseReady(orgId)).resolves.toBeUndefined();
     await provision();
     expect(mocks.provision).toHaveBeenCalledTimes(2);
   });
@@ -198,7 +193,6 @@ describe("organization provisioning", () => {
       slug: "existing",
       createdAt: new Date(),
     });
-    await expect(assertClickhouseReady("existing")).resolves.toBeUndefined();
     await scan();
     const jobs = await fixture.db.execute<{ payload: unknown }>(
       sql`SELECT payload FROM graphile_worker._private_jobs`,
@@ -244,7 +238,7 @@ it("reports stalled setup and still scans when retry recovery fails", async () =
   );
   expect(mocks.error).toHaveBeenCalledWith(
     "clickhouse.organization.provision.stalled",
-    expect.objectContaining({ "everr.organization.id": orgId }),
+    expect.objectContaining({ "everr.provisioning.stalled_count": 1 }),
   );
   expect(mocks.info).toHaveBeenCalledWith(
     "clickhouse.organization.provision.health",
@@ -256,4 +250,28 @@ it("reports stalled setup and still scans when retry recovery fails", async () =
   expect(
     (await fixture.db.execute(sql`SELECT * FROM graphile_worker.jobs`)).rows,
   ).toHaveLength(1);
+});
+
+it.each([
+  "retrying",
+  "running",
+  "exhausted",
+])("scanner leaves an existing %s job untouched", async (state) => {
+  await enqueueOrganizationProvisioning(orgId);
+  if (state === "running")
+    await fixture.db.execute(
+      sql`UPDATE graphile_worker._private_jobs SET locked_at = now(), locked_by = 'worker'`,
+    );
+  if (state === "exhausted")
+    await fixture.db.execute(
+      sql`UPDATE graphile_worker._private_jobs SET attempts = max_attempts`,
+    );
+  const before = await fixture.db.execute(
+    sql`SELECT * FROM graphile_worker._private_jobs`,
+  );
+  await scan();
+  expect(
+    (await fixture.db.execute(sql`SELECT * FROM graphile_worker._private_jobs`))
+      .rows,
+  ).toEqual(before.rows);
 });

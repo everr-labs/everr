@@ -6,10 +6,7 @@ vi.mock("@/lib/clickhouse", () => ({
   querySqlApi: vi.fn(),
 }));
 
-import {
-  CLICKHOUSE_SETUP_MESSAGE,
-  ClickhouseProvisioningPendingError,
-} from "@/common/clickhouse-provisioning";
+import { CLICKHOUSE_SETUP_MESSAGE } from "@/common/clickhouse-provisioning";
 import { querySqlApi } from "@/lib/clickhouse";
 import { SCHEMA_PROBE_MESSAGE } from "@/lib/sql-api-error";
 import { Route } from "./sql";
@@ -18,7 +15,10 @@ const mockedQuerySqlApi = vi.mocked(querySqlApi);
 
 type PostHandler = (args: {
   request: Request;
-  context: { session: { session: { activeOrganizationId: string } } };
+  context: {
+    organization: { metadata: unknown };
+    session: { session: { activeOrganizationId: string } };
+  };
 }) => Promise<Response>;
 
 function getHandler(): PostHandler {
@@ -30,7 +30,10 @@ function getHandler(): PostHandler {
   return handler;
 }
 
-const context = { session: { session: { activeOrganizationId: "org-42" } } };
+const context = {
+  organization: { metadata: null },
+  session: { session: { activeOrganizationId: "org-42" } },
+};
 const span = { setAttribute: vi.fn(), setStatus: vi.fn() };
 
 beforeEach(() => {
@@ -40,16 +43,17 @@ beforeEach(() => {
 
 describe("/api/cli/sql", () => {
   it("returns a friendly retryable response while organization setup is pending", async () => {
-    mockedQuerySqlApi.mockRejectedValueOnce(
-      new ClickhouseProvisioningPendingError(),
-    );
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/sql", {
         method: "POST",
         body: "SELECT 1",
       }),
-      context,
+      context: {
+        ...context,
+        organization: { metadata: { clickhouseReady: false } },
+      },
     });
+    expect(mockedQuerySqlApi).not.toHaveBeenCalled();
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBe("5");
     expect(await response.json()).toEqual({ error: CLICKHOUSE_SETUP_MESSAGE });

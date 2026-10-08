@@ -1,5 +1,6 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { isOrganizationProvisioned } from "@/common/organization-provisioning";
 import { auth } from "@/lib/auth.server";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
 import { restartOrganizationProvisioningJob } from "@/server/organization-provisioning/jobs";
@@ -27,6 +28,6 @@ export const retryOrganizationProvisioning =
         query: { organizationId },
       });
       if (!organization) throw new Error("Organization not found");
-      if ((await readOrganizationProvisioningStatus(organization)) === "failed")
+      if (!isOrganizationProvisioned(organization.metadata))
         await restartOrganizationProvisioningJob(organization.id);
     });

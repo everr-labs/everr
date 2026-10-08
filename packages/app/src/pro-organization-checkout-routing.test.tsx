@@ -7,13 +7,18 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ complete: vi.fn() }));
 vi.mock("@/data/organizations", () => ({
   completeProOrganizationCheckout: mocks.complete,
 }));
-vi.mock("@/lib/auth-client", () => ({ authClient: {} }));
+vi.mock("@/lib/auth-client", () => ({
+  authClient: {
+    organization: { setActive: vi.fn().mockResolvedValue({ error: null }) },
+  },
+}));
 
 let authenticated = false;
 for (const path of Object.keys(import.meta.glob("./routes/**/*.{ts,tsx}"))) {
@@ -73,5 +78,17 @@ it("retains the checkout ID through sign-in and resumes organization completion"
   expect(
     screen.getByRole("button", { name: "Open organization" }),
   ).toBeEnabled();
+  // Reopening a completed checkout must discard the previous org's fresh data.
+  const queryKey = ["panel-query", "usage"];
+  queryClient.setQueryData(queryKey, [{ organization: "previous" }]);
+  await userEvent.click(
+    screen.getByRole("button", { name: "Open organization" }),
+  );
+  const queryFn = vi.fn().mockResolvedValue([{ organization: "org" }]);
+  expect(
+    await queryClient.fetchQuery({ queryKey, queryFn, staleTime: Infinity }),
+  ).toEqual([{ organization: "org" }]);
+  expect(queryFn).toHaveBeenCalledOnce();
+  expect(router.state.location.pathname).toBe("/organization-setup");
   queryClient.clear();
 });

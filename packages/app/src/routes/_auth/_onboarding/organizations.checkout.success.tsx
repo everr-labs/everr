@@ -7,12 +7,12 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import * as z from "zod";
+import { useOrganizationActivation } from "@/components/use-organization-activation";
 import { completeProOrganizationCheckout } from "@/data/organizations";
-import { authClient } from "@/lib/auth-client";
 
 const SearchSchema = z.object({ checkout_id: z.string().optional() });
 
@@ -25,7 +25,7 @@ export const Route = createFileRoute(
 });
 
 function ProOrganizationCheckoutSuccess() {
-  const router = useRouter();
+  const selectOrganization = useOrganizationActivation();
   const { checkout_id: checkoutId } = Route.useSearch();
   const [activating, setActivating] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
@@ -45,21 +45,20 @@ function ProOrganizationCheckoutSuccess() {
     if (!organization) return;
     setActivating(true);
     setActivationError(null);
-    const activation = await authClient.organization.setActive({
-      organizationId: organization.id,
-    });
-    if (activation.error) {
-      setActivationError(
-        "The organization is ready but could not be selected. Choose it from the organization menu.",
+    try {
+      await selectOrganization(
+        organization.id,
+        "/organization-setup?returnTo=%2F",
       );
+    } catch (error) {
+      setActivationError(
+        error instanceof Error
+          ? error.message
+          : "The organization could not be selected. Please try again.",
+      );
+    } finally {
       setActivating(false);
-      return;
     }
-    await router.navigate({
-      to: "/organization-setup",
-      search: { returnTo: "/" },
-      replace: true,
-    });
   }
 
   const organization =

@@ -1,5 +1,6 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { createFileRoute } from "@tanstack/react-router";
+import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
 import { querySqlApi } from "@/lib/clickhouse";
 import { sanitizeSqlApiError } from "@/lib/sql-api-error";
 import { classifyCloudQueryError } from "@/lib/sql-api-observability";
@@ -35,6 +36,7 @@ export const Route = createFileRoute("/api/cli/sql")({
         }
 
         try {
+          assertOrganizationProvisioned(context.organization.metadata);
           const rows = await querySqlApi<Record<string, unknown>>(sql, orgId);
 
           span?.setAttribute("everr.cloud_query.outcome", "ok");
