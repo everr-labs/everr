@@ -35,7 +35,7 @@ Requests without a valid key return **401 Unauthorized**.
 
 ## Forwarding from your own collector
 
-If you already run an OpenTelemetry Collector, point its OTLP exporter at Everr:
+If your production infrastructure already runs an OpenTelemetry Collector, point its OTLP exporter at Everr. Everr's local collector remains local and never forwards to Cloud. Keep the local application's exporter configuration working separately from production.
 
 ```yaml
 exporters:

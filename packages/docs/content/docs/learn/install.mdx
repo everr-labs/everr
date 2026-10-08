@@ -3,7 +3,7 @@ title: Install Everr
 description: Step 1, install the CLI and run first-time setup.
 ---
 
-This is step 1 of getting started with Everr: install the CLI and finish first-time setup. By the end you'll have `everr` on your PATH, agent skills installed, and be ready for step 2: instrumenting your app locally.
+Start with Everr on your machine: install the CLI, connect your project to your coding agent, and verify local telemetry before preparing production. If you prefer manual instrumentation, install the CLI and continue to the [instrumentation guide](/docs/learn/instrument-your-app).
 
 ## Install the CLI
 
@@ -25,7 +25,7 @@ If setup didn't run automatically, or was interrupted, run it yourself:
 everr setup
 ```
 
-Setup installs Everr's skills for your coding agent and shows how to start the local collector. Local onboarding works without signing in or creating an ingest key.
+Setup can install Everr's skills globally for your coding agent and shows how to start the local collector. Local onboarding works without signing in or creating an ingest key. Global skills may already be installed by the installer; connect the project explicitly in the next step.
 
 When you want Cloud telemetry or CI visibility later, run `everr cloud login`.
 
@@ -39,10 +39,16 @@ The browser UI is bundled with the CLI. Run `everr upgrade` to update both.
 
 ## Install skills for your Agent
 
-Skills teach your Agent when and how to use Everr. Install them globally so every project picks them up:
+Skills teach your agent when and how to use Everr. From your project directory, install the bundled skills for that project:
 
 ```sh
-everr skills install --all --global
+everr skills install --all --project
 ```
+
+This works even if the installer already installed skills globally. To make the skills available across projects instead, use `everr skills install --all --global`.
+
+The Cloud Home guides you through one step at a time, from installation through production. Confirm that the CLI and project skills are installed, then confirm that you can see local telemetry. Manual setup skips the project skills and opens the instrumentation guide. Previous steps remain available to review. Copying a command does not run it. You can finish onboarding before deploying, and use **Resume production setup** to return later.
+
+The onboarding stays in your organization's Home until you select **Finish onboarding**, even if the organization already has telemetry or CI data. Completion is shared by all members of the organization. Your current step and AI or manual choice are saved in this browser, separately for each user and organization.
 
 **Next:** [Instrument your app](/docs/learn/instrument-your-app).
