@@ -108,15 +108,13 @@ pub async fn run_start(
                     }
                     SupervisorRequest::Restart(reply) => reply,
                 };
-                stop_collector(&mut child).await;
-                let result = start_collector(&assets, &telemetry_dir, &instance_id).await;
-                let _ = reply.send(match result {
-                    Ok(restarted) => {
-                        child = Some(restarted);
-                        Ok(())
-                    }
-                    Err(error) => Err(format!("{error:#}")),
-                });
+                let result = restart_collector(
+                    &mut child,
+                    extract_embedded_assets(),
+                    &telemetry_dir,
+                    &instance_id,
+                ).await;
+                let _ = reply.send(result.map_err(|error| format!("{error:#}")));
             }
             signal = &mut shutdown => {
                 break signal;
@@ -153,6 +151,20 @@ async fn stop_collector(child: &mut Option<Child>) {
     if let Some(mut child) = child.take() {
         terminate_child(&mut child).await;
     }
+}
+
+async fn restart_collector(
+    child: &mut Option<Child>,
+    assets: Result<ExtractedAssets>,
+    telemetry_dir: &Path,
+    instance_id: &str,
+) -> Result<()> {
+    // Another CLI build may have pruned this build's cached assets.
+    // Restore them before stopping the collector so extraction failure leaves it running.
+    let assets = assets.context("extract embedded collector assets for restart")?;
+    stop_collector(child).await;
+    *child = Some(start_collector(&assets, telemetry_dir, instance_id).await?);
+    Ok(())
 }
 
 async fn wait_for_shutdown_signal() -> Result<()> {
@@ -440,6 +452,112 @@ mod tests {
     use flate2::write::GzEncoder;
 
     use super::*;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn failed_restart_extraction_keeps_collector_running() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut child = Some(
+            Command::new("sleep")
+                .arg("60")
+                .kill_on_drop(true)
+                .spawn()
+                .expect("spawn collector"),
+        );
+        let original_pid = child.as_ref().unwrap().id().expect("collector PID");
+        let assets = extract_assets_to_cache(dir.path(), &[], &[], "", "");
+        let result = restart_collector(&mut child, assets, dir.path(), "restart-test").await;
+        let retained_pid = child.as_ref().and_then(Child::id);
+        let still_running = child
+            .as_mut()
+            .is_some_and(|child| child.try_wait().expect("poll collector").is_none());
+        stop_collector(&mut child).await;
+
+        assert!(
+            result
+                .expect_err("extraction must fail")
+                .to_string()
+                .contains("extract embedded collector assets for restart")
+        );
+        assert_eq!(retained_pid, Some(original_pid));
+        assert!(still_running);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn restart_restores_assets_pruned_by_another_build() {
+        let runtime = tokio::runtime::Runtime::new().expect("runtime");
+        let mut server = mockito::Server::new();
+        server
+            .mock("GET", "/health")
+            .with_status(200)
+            .with_body(
+                serde_json::json!({
+                    "service": "everr-local-collector",
+                    "version": env!("EVERR_VERSION"),
+                    "instance_id": "restart-test",
+                    "protocol_version": 1,
+                    "status": "ok",
+                })
+                .to_string(),
+            )
+            .create();
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let previous = std::env::var_os("EVERR_SQL_HTTP_ORIGIN");
+        unsafe {
+            std::env::set_var("EVERR_SQL_HTTP_ORIGIN", server.url());
+        }
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cache = dir.path().join("cache");
+        let collector = gzip(b"#!/bin/sh\nexec sleep 60\n");
+        let chdb = gzip(b"chdb bytes");
+        let first = extract_test_assets_to_cache(&cache, &collector, &chdb).expect("first extract");
+        let result = runtime.block_on(async {
+            let mut child = Some(
+                start_collector(&first, dir.path(), "restart-test")
+                    .await
+                    .expect("start collector"),
+            );
+            let original_pid = child.as_ref().unwrap().id().expect("collector PID");
+            extract_test_assets_to_cache(&cache, &gzip(b"another build"), &chdb)
+                .expect("extract another build");
+            assert!(!first.collector.exists());
+            assert!(!first.chdb_lib.exists());
+
+            let assets = extract_test_assets_to_cache(&cache, &collector, &chdb);
+            let result = restart_collector(&mut child, assets, dir.path(), "restart-test").await;
+            let restarted_pid = child.as_ref().and_then(Child::id);
+            stop_collector(&mut child).await;
+            result.map(|()| (original_pid, restarted_pid))
+        });
+        match previous {
+            Some(value) => unsafe {
+                std::env::set_var("EVERR_SQL_HTTP_ORIGIN", value);
+            },
+            None => unsafe {
+                std::env::remove_var("EVERR_SQL_HTTP_ORIGIN");
+            },
+        }
+
+        let (original_pid, restarted_pid) = result.expect("restart from restored assets");
+        assert!(restarted_pid.is_some());
+        assert_ne!(restarted_pid, Some(original_pid));
+        assert_eq!(
+            kill(Pid::from_raw(original_pid as i32), None),
+            Err(Errno::ESRCH)
+        );
+        assert_eq!(
+            fs::read(first.collector).expect("restored collector"),
+            b"#!/bin/sh\nexec sleep 60\n"
+        );
+        assert_eq!(
+            fs::read(first.chdb_lib).expect("restored chdb"),
+            b"chdb bytes"
+        );
+    }
 
     #[cfg(unix)]
     #[test]
