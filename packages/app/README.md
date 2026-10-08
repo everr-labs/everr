@@ -42,9 +42,10 @@ stop either runner. Organization handlers and the scanner use their reserved
 Postgres pool too.
 SIGTERM and SIGINT drain both runners before flushing telemetry. ClickHouse
 requests receive Graphile's shutdown abort signal after five seconds, allowing
-normal shutdown to release job and queue locks. Hard kills need the known-dead
-worker recovery procedure in `everr/operations/organization-provisioning.runbook.md`;
-never unlock a live worker.
+normal shutdown to release job and queue locks. Hard kills can leave locks
+behind. Inspect `graphile_worker.jobs`, confirm the owning workers are dead,
+and use Graphile's `force_unlock_workers` only for those worker IDs. Never
+unlock a live worker.
 A scan every minute recovers organizations whose initial enqueue was
 missed, without resetting pending jobs' attempt counts or retry schedules.
 
