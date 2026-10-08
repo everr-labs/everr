@@ -1,6 +1,6 @@
 # Node.js Instrumentation
 
-Use this rule for Node.js services, CLIs, workers, background jobs, and test runners.
+Use this rule for Node.js services, CLIs, workers, background jobs, and test runners. Node.js on AWS Lambda uses `aws-lambda.md` instead: the setup below does not survive the freeze between invocations.
 
 ## Default Pattern
 
@@ -19,7 +19,7 @@ Do not treat the generic Node.js setup as a substitute for framework-specific
 OpenTelemetry best practices. Before editing instrumentation:
 
 1. Identify the framework and runtime path: Express, Fastify, Koa, Hapi, Hono,
-   NestJS, Next.js, Tanstack Start, Remix, GraphQL/Apollo, NuxtJS, Solid Start, SvelteKit, serverless functions, job workers, or
+   NestJS, Next.js, Tanstack Start, Remix, GraphQL/Apollo, NuxtJS, Solid Start, SvelteKit, AWS Lambda (`aws-lambda.md`), job workers, or
    test runners.
 2. Check current OpenTelemetry contrib docs or the framework's own docs for:
    supported versions, required preload or registration order, native OTel

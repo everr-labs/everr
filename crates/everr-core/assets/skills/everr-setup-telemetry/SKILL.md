@@ -1,6 +1,6 @@
 ---
 name: everr-setup-telemetry
-description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, or instrumentation verification.
+description: Use when a task mentions adding or fixing telemetry, OpenTelemetry, local collector setup, debug telemetry, missing or stale spans/logs/metrics, instrumentation verification, or instrumenting an AWS Lambda function.
 ---
 
 ## Startup Access
@@ -34,6 +34,7 @@ Always read the relevant rule files before editing instrumentation. Use the tabl
 | `sensitive-data` | PII prevention, sanitization, hashing, redaction |
 | `validation` | Telemetry validation locally and after deployment |
 | `nodejs` | Node.js instrumentation setup and runtime pitfalls |
+| `aws-lambda` | Node.js on AWS Lambda: collector extension, preload, invocation span, flush before the freeze |
 | `nextjs` | Next.js App Router, server/client split, trace propagation |
 | `browser` | Web frontends exporting OTLP directly from the browser with a public origin-bound key |
 | `vite-ssr` | Full-stack Vite apps with Node SSR: wiring both halves and joining browser and server traces |
@@ -140,6 +141,7 @@ Implementation expectations:
 - Keep production telemetry lower-noise than local debug telemetry.
 - Keep secrets, tokens, emails, request bodies, and raw customer payloads out of attributes and log bodies.
 - Do not expose `EVERR_INGEST_KEY` in browser bundles. Browser production telemetry authenticates with a public origin-bound ingest key instead; see `rules/browser.md`.
+- On AWS Lambda the collector extension holds the ingest key, not the function. See `rules/aws-lambda.md`.
 - Preserve normal crash and shutdown behavior while flushing telemetry.
 
 ## Validation
