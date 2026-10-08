@@ -5,7 +5,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Check, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { type ReactNode, useRef } from "react";
 import { INSTALL_COMMAND } from "@/common/install-command";
@@ -415,8 +415,8 @@ function HomeContent({
         ) : (
           <p className="text-sm text-muted-foreground">
             An organization admin or owner needs to create the ingestion keys.
-            You can still finish onboarding and return to production setup
-            later.
+            You can still finish onboarding and ask an admin for keys when
+            you're ready to deploy.
           </p>
         )}
         <p className="text-xs text-muted-foreground">
@@ -463,27 +463,7 @@ function HomeContent({
         </div>
       </section>
 
-      {view === "dashboard" && (
-        <>
-          <div className="flex justify-end">
-            <Button
-              nativeButton={false}
-              role="link"
-              variant="ghost"
-              render={
-                <Link
-                  to="/"
-                  search={(previous) => ({ ...previous, setup: 1 })}
-                />
-              }
-            >
-              Resume production setup
-              <ArrowRight data-icon="inline-end" />
-            </Button>
-          </div>
-          {children}
-        </>
-      )}
+      {view === "dashboard" && children}
     </div>
   );
 }

@@ -5,7 +5,6 @@ import {
 } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { HomeStatus } from "@/common/onboarding";
 import { createApiKey } from "@/data/api-keys";
@@ -15,26 +14,10 @@ import { HomeExperience } from "./home-experience";
 import { onboardingProgressKey } from "./use-setup-progress";
 
 const navigation = vi.hoisted(() => vi.fn());
-vi.mock("@tanstack/react-router", async () => {
-  const { forwardRef } = await import("react");
-  return {
-    useNavigate: () => navigation,
-    Link: forwardRef<
-      HTMLAnchorElement,
-      {
-        to: string;
-        search?: (previous: object) => object;
-        children?: ReactNode;
-      }
-    >(({ to, search, ...props }, ref) => (
-      <a
-        ref={ref}
-        href={`${to}${search ? `?${new URLSearchParams(search({}) as Record<string, string>)}` : ""}`}
-        {...props}
-      />
-    )),
-  };
-});
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => navigation,
+}));
+
 vi.mock("@/data/onboarding/server", () => ({
   getHomeStatus: vi.fn(),
   completeOnboarding: vi.fn(),
@@ -75,11 +58,11 @@ afterEach(() => {
 });
 
 function mount({
-  setupRequested = false,
   preload = true,
+  setupRequested = false,
 }: {
-  setupRequested?: boolean;
   preload?: boolean;
+  setupRequested?: boolean;
 } = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -90,12 +73,16 @@ function mount({
       homeStatusQueryOptions("alice", "one").queryKey,
       structuredClone(persisted),
     );
-  const home = (organizationId = "one", userId = "alice") => (
+  const home = (
+    organizationId = "one",
+    userId = "alice",
+    setup = setupRequested,
+  ) => (
     <QueryClientProvider client={client}>
       <HomeExperience
         userId={userId}
         organizationId={organizationId}
-        setupRequested={setupRequested}
+        setupRequested={setup}
       >
         <div>Telemetry Usage dashboard</div>
       </HomeExperience>
@@ -155,7 +142,7 @@ it("shows only the current step and requires confirmations before unlocking late
 });
 
 it("walks the agent path and finishes with an endpoint and production handoff but no second prompt", async () => {
-  const { user } = mount({ setupRequested: true });
+  const { user } = mount();
   await user.click(screen.getByRole("button", { name: "CLI installed" }));
   expect(
     screen.getByText("everr skills install --all --project"),
@@ -194,12 +181,7 @@ it("walks the agent path and finishes with an endpoint and production handoff bu
   expect(completeOnboarding).not.toHaveBeenCalled();
   expect(savedProgress()).toEqual({ step: "production", mode: "agent" });
   await user.click(screen.getByRole("button", { name: "Finish onboarding" }));
-  await waitFor(() => expect(navigation).toHaveBeenCalled());
-  const args = navigation.mock.calls[0][0];
-  expect(args.search({ setup: "1", from: "now-1h" })).toEqual({
-    setup: undefined,
-    from: "now-1h",
-  });
+  expect(await screen.findByText("Telemetry Usage dashboard")).toBeVisible();
   expect(persisted.onboardingCompleted).toBe(true);
   expect(createApiKey).not.toHaveBeenCalled();
 });
@@ -235,9 +217,7 @@ it("skips project skills for manual setup and lets members finish without keys",
   ).toBeNull();
   await user.click(screen.getByRole("button", { name: "Finish onboarding" }));
   expect(await screen.findByText("Telemetry Usage dashboard")).toBeVisible();
-  expect(
-    screen.getByRole("link", { name: "Resume production setup" }),
-  ).toHaveAttribute("href", "/?setup=1");
+  expect(screen.queryByRole("link")).toBeNull();
 });
 
 it("can still advance and choose a method when browser storage is unavailable", async () => {
@@ -264,16 +244,16 @@ it("keeps production open if completion fails and allows retry", async () => {
   vi.mocked(completeOnboarding).mockRejectedValueOnce(
     new Error("Completion unavailable"),
   );
-  const { user } = mount({ setupRequested: true });
+  const { user } = mount();
   await user.click(screen.getByRole("button", { name: "Finish onboarding" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Completion unavailable",
   );
   expect(screen.getByRole("heading", { name: "To production" })).toBeVisible();
-  expect(navigation).not.toHaveBeenCalled();
+  expect(screen.queryByText("Telemetry Usage dashboard")).toBeNull();
   expect(persisted.onboardingCompleted).toBe(false);
   await user.click(screen.getByRole("button", { name: "Finish onboarding" }));
-  await waitFor(() => expect(navigation).toHaveBeenCalled());
+  expect(await screen.findByText("Telemetry Usage dashboard")).toBeVisible();
 });
 
 it("polls visible Home until another member completes the organization onboarding", async () => {
@@ -349,11 +329,48 @@ it("keeps the method saved by the single-page flow", async () => {
   ).toBeVisible();
 });
 
-it("reopens completed onboarding at production with setup=1", () => {
+it("keeps completed organizations on ordinary Home after refresh, regardless of saved progress", async () => {
   persisted.onboardingCompleted = true;
+  seedProgress("production", "manual");
+  const first = mount();
+  expect(screen.getByText("Telemetry Usage dashboard")).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "To production" })).toBeNull();
+  expect(screen.queryByRole("link")).toBeNull();
+  first.unmount();
+  mount({ preload: false });
+  expect(await screen.findByText("Telemetry Usage dashboard")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Finish onboarding" }),
+  ).toBeNull();
+});
+
+it("reopens completed onboarding at production with setup=1 and removes the parameter on finish", async () => {
+  persisted.onboardingCompleted = true;
+  const { user, rerender, home } = mount({ setupRequested: true });
+  expect(screen.getByRole("heading", { name: "To production" })).toBeVisible();
+  expect(screen.queryByText("Telemetry Usage dashboard")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Finish onboarding" }));
+  await waitFor(() => expect(navigation).toHaveBeenCalled());
+  const args = navigation.mock.calls[0][0];
+  expect(args.search({ setup: 1, from: "now-1h" })).toEqual({
+    setup: undefined,
+    from: "now-1h",
+  });
+  expect(args.replace).toBe(true);
+  rerender(home("one", "alice", false));
+  expect(screen.getByText("Telemetry Usage dashboard")).toBeVisible();
+  expect(screen.queryByRole("link")).toBeNull();
+});
+
+it("uses the saved step when completed onboarding is explicitly reopened", () => {
+  persisted.onboardingCompleted = true;
+  seedProgress("local", "manual");
   mount({ setupRequested: true });
   expect(
-    screen.getByRole("button", { name: "Finish onboarding" }),
+    screen.getByRole("heading", { name: "Setup telemetry" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("link", { name: "Open the instrumentation guide" }),
   ).toBeVisible();
   expect(screen.queryByText("Telemetry Usage dashboard")).toBeNull();
 });

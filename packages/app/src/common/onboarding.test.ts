@@ -5,7 +5,7 @@ import {
 import { expect, it } from "vitest";
 import { HomeSearchSchema } from "./onboarding";
 
-it("reopens onboarding from the actual URL parser and emits setup=1 in links", () => {
+it("accepts setup=1 from the actual URL parser and normalizes the query", () => {
   const parsed = HomeSearchSchema.parse(defaultParseSearch("?setup=1"));
   expect(parsed.setup).toBe(1);
   expect(defaultStringifySearch(parsed)).toBe("?setup=1");
