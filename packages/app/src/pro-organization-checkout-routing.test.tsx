@@ -10,17 +10,19 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ complete: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  complete: vi.fn(),
+  select: vi.fn().mockResolvedValue({ error: null }),
+}));
 vi.mock("@/data/organizations", () => ({
   completeProOrganizationCheckout: mocks.complete,
 }));
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
-    organization: { setActive: vi.fn().mockResolvedValue({ error: null }) },
+    organization: { setActive: mocks.select },
   },
 }));
 
@@ -71,28 +73,57 @@ it("retains the checkout ID through sign-in and resumes organization completion"
     status: "completed",
     organization: { id: "org", name: "Acme" },
   });
+  const queryKey = ["panel-query", "usage"];
+  queryClient.setQueryData(queryKey, [{ organization: "previous" }]);
   await router.navigate({ to: search.get("redirect") ?? "/" });
   render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
-  expect(await screen.findByText("Pro organization ready")).toBeVisible();
-  expect(mocks.complete).toHaveBeenCalledWith({ data: { checkoutId } });
-  expect(
-    screen.getByRole("button", { name: "Open organization" }),
-  ).toBeEnabled();
-  // Reopening a completed checkout must discard the previous org's fresh data.
-  const queryKey = ["panel-query", "usage"];
-  queryClient.setQueryData(queryKey, [{ organization: "previous" }]);
-  await userEvent.click(
-    screen.getByRole("button", { name: "Open organization" }),
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe("/organization-setup"),
   );
+  expect(mocks.complete).toHaveBeenCalledWith({ data: { checkoutId } });
+  expect(mocks.select).toHaveBeenCalledWith({ organizationId: "org" });
+  expect(
+    screen.queryByRole("button", { name: "Open organization" }),
+  ).toBeNull();
   const queryFn = vi.fn().mockResolvedValue([{ organization: "org" }]);
   expect(
     await queryClient.fetchQuery({ queryKey, queryFn, staleTime: Infinity }),
   ).toEqual([{ organization: "org" }]);
   expect(queryFn).toHaveBeenCalledOnce();
   expect(router.state.location.pathname).toBe("/organization-setup");
+  queryClient.clear();
+});
+
+it("shows the shared setup view while payment confirmation is pending", async () => {
+  authenticated = true;
+  mocks.complete.mockResolvedValue({ status: "pending" });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const router = createRouter({
+    routeTree,
+    context: { queryClient },
+    history: createMemoryHistory({
+      initialEntries: ["/organizations/checkout/success?checkout_id=pending"],
+    }),
+  });
+  await router.load();
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Getting your space ready" }),
+  ).toBeVisible();
+  expect(screen.queryByText("Finalizing organization")).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Open organization" }),
+  ).toBeNull();
+  expect(mocks.select).not.toHaveBeenCalled();
   queryClient.clear();
 });
