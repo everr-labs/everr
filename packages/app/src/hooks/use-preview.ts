@@ -6,7 +6,9 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 // rule and the exit navigation stay single-sourced.
 export function usePreview(): { name: string; exit: () => void } {
   const navigate = useNavigate();
-  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
+  const { preview } = useSearch({
+    from: "/_authenticated/_organization/_dashboard",
+  });
   const name = (preview ?? "").trim();
   const exit = () =>
     navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });

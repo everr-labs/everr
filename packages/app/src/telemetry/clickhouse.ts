@@ -1,4 +1,5 @@
-import type { Attributes } from "@opentelemetry/api";
+import { type Attributes, SpanStatusCode } from "@opentelemetry/api";
+import { hasBoundaryErrorCapture } from "./error-boundary";
 import { isExpectedSqlApiQueryError } from "./expected-errors";
 import { createTelemetryLogger, exceptionAttributes } from "./logger";
 import { captureError, getTelemetryTracer, SpanKind } from "./node";
@@ -29,7 +30,14 @@ export async function instrumentClickhouseOperation<T>(
       try {
         return await run();
       } catch (error) {
-        if (isExpectedSqlApiQueryError(attributes, error)) {
+        if (hasBoundaryErrorCapture()) {
+          // Background jobs capture one exception at their traced boundary,
+          // including failures outside ClickHouse. Do not duplicate it here.
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        } else if (isExpectedSqlApiQueryError(attributes, error)) {
           // Expected SQL API errors (bad user SQL, quota, etc.) are not bugs, so
           // they don't get captured as errors — but still emit them at info so
           // they remain visible in telemetry instead of vanishing.

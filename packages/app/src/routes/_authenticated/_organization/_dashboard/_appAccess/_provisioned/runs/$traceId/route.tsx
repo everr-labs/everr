@@ -1,0 +1,258 @@
+import { buttonVariants } from "@everr/ui/components/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@everr/ui/components/card";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
+import { Skeleton } from "@everr/ui/components/skeleton";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@everr/ui/components/tabs";
+import { cn } from "@everr/ui/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import {
+  createFileRoute,
+  type ErrorComponentProps,
+  Link,
+  Outlet,
+  useMatch,
+  useParams,
+} from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
+import { PageContainer } from "@/components/page-container";
+import { JobTreeNav } from "@/components/run-detail/job-tree-nav";
+import { RunHeader } from "@/components/run-detail/run-header";
+import {
+  allJobsStepsOptions,
+  runDetailsOptions,
+  runJobsOptions,
+} from "@/data/runs/options";
+import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+
+export const Route = createFileRoute(
+  "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId",
+)({
+  staticData: {
+    breadcrumb: (match: { loaderData?: { workflowName?: string } }) =>
+      match.loaderData?.workflowName ?? "Run Details",
+    hideTimeRangePicker: true,
+  },
+  head: () => ({
+    meta: [{ title: "Everr - Run Details" }],
+  }),
+  loader: async ({ context: { queryClient }, params }) => {
+    const [runDetails, jobs] = await Promise.all([
+      queryClient.ensureQueryData(runDetailsOptions(params.traceId)),
+      queryClient.ensureQueryData(runJobsOptions(params.traceId)),
+    ]);
+
+    await queryClient.prefetchQuery(
+      allJobsStepsOptions({
+        traceId: params.traceId,
+        jobIds: jobs.map((j) => j.jobId),
+      }),
+    );
+
+    return { traceId: params.traceId, workflowName: runDetails?.workflowName };
+  },
+  component: RunDetailLayout,
+  pendingComponent: RunDetailSkeleton,
+  errorComponent: RunDetailError,
+});
+
+function RunDetailLayout() {
+  const { traceId } = Route.useParams();
+  useRealtimeSubscription({ scope: "trace", traceId });
+  const { data: runDetails } = useQuery(runDetailsOptions(traceId));
+  const { data: jobs } = useQuery(runJobsOptions(traceId));
+  const { data: stepsByJobId } = useQuery(
+    allJobsStepsOptions({
+      traceId,
+      jobIds: (jobs ?? []).map((j) => j.jobId),
+    }),
+  );
+  // useParams with strict: false returns ALL matched params including child route params
+  const params = useParams({ strict: false });
+  const jobDetailMatch = useMatch({
+    from: "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/",
+    shouldThrow: false,
+  });
+  const stepDetailMatch = useMatch({
+    from: "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber",
+    shouldThrow: false,
+  });
+  const traceMatch = useMatch({
+    from: "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/trace",
+    shouldThrow: false,
+  });
+
+  if (!runDetails) {
+    return (
+      <PageContainer>
+        <div className="space-y-3">
+          <Card size="sm">
+            <CardContent className="pt-4">
+              <p className="text-muted-foreground text-center">Run not found</p>
+            </CardContent>
+          </Card>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  return (
+    <PageContainer>
+      <RunHeader
+        runId={runDetails.runId}
+        runAttempt={runDetails.runAttempt}
+        workflowName={runDetails.workflowName}
+        conclusion={runDetails.conclusion}
+        repo={runDetails.repo}
+        branch={runDetails.branch}
+        timestamp={runDetails.timestamp}
+        htmlUrl={runDetails.htmlUrl}
+        pullRequestUrls={runDetails.pullRequestUrls}
+      />
+
+      <Tabs
+        value={traceMatch ? "Trace" : "Jobs"}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <TabsList className="shrink-0">
+          <TabsTrigger value="Jobs">
+            {stepDetailMatch ? (
+              <Link
+                to="/runs/$traceId/jobs/$jobId/steps/$stepNumber"
+                params={{
+                  traceId,
+                  jobId: stepDetailMatch.params.jobId,
+                  stepNumber: stepDetailMatch.params.stepNumber,
+                }}
+              >
+                Jobs
+              </Link>
+            ) : jobDetailMatch ? (
+              <Link
+                to="/runs/$traceId/jobs/$jobId"
+                params={{ traceId, jobId: jobDetailMatch.params.jobId }}
+              >
+                Jobs
+              </Link>
+            ) : (
+              <Link to="/runs/$traceId" params={{ traceId }}>
+                Jobs
+              </Link>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="Trace">
+            <Link to="/runs/$traceId/trace" params={{ traceId }}>
+              Trace
+            </Link>
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="Jobs" className="min-h-0 flex-1">
+          <div className="grid h-full gap-3 lg:grid-cols-[280px_1fr]">
+            {/* Jobs Tree Panel */}
+            <Card size="sm" className="flex flex-col overflow-hidden">
+              <CardHeader className="shrink-0">
+                <CardTitle>Jobs</CardTitle>
+                <CardDescription>
+                  {(jobs ?? []).length} jobs in this run
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1">
+                <ScrollArea orientation="both" className="size-full">
+                  <JobTreeNav
+                    jobs={jobs ?? []}
+                    stepsByJobId={stepsByJobId ?? {}}
+                    traceId={traceId}
+                    selectedJobId={(params as { jobId?: string }).jobId}
+                  />
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            {/* Right pane content from child routes */}
+            <Outlet />
+          </div>
+        </TabsContent>
+        <TabsContent value="Trace" className="min-h-0 flex-1">
+          <Outlet />
+        </TabsContent>
+      </Tabs>
+    </PageContainer>
+  );
+}
+
+function RunDetailSkeleton() {
+  return (
+    <PageContainer>
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-7 w-7" />
+        <Skeleton className="size-5" />
+        <Skeleton className="h-6 w-48" />
+      </div>
+      <Skeleton className="ml-14 h-3 w-40" />
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[280px_1fr]">
+        <Card size="sm" className="flex flex-col overflow-hidden">
+          <CardHeader className="shrink-0">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-3 w-32" />
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1">
+            <ScrollArea
+              orientation="both"
+              className="size-full"
+              viewportClassName="space-y-2"
+            >
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+        <Card size="sm" className="h-full">
+          <CardContent className="flex h-full items-center justify-center">
+            <Skeleton className="h-4 w-48" />
+          </CardContent>
+        </Card>
+      </div>
+    </PageContainer>
+  );
+}
+
+function RunDetailError({ error }: ErrorComponentProps) {
+  return (
+    <PageContainer>
+      <div className="space-y-3">
+        <Link
+          to="/runs"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "h-7 px-2",
+          )}
+        >
+          <ArrowLeft className="size-4" />
+        </Link>
+        <Card size="sm">
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <p className="text-destructive font-medium">
+                Failed to load run details
+              </p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {error instanceof Error ? error.message : String(error)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </PageContainer>
+  );
+}

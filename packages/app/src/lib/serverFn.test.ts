@@ -19,6 +19,7 @@ const mocked = vi.hoisted(() => ({
   getRequest: vi.fn(),
   getActiveMemberRole: vi.fn(),
   getSession: vi.fn(),
+  getOrganization: vi.fn(),
 }));
 
 function getHandler(): FunctionMiddlewareHandler {
@@ -48,6 +49,9 @@ beforeEach(() => {
   mocked.getActiveMemberRole.mockReset();
   mocked.getActiveMemberRole.mockResolvedValue({ role: "owner" });
   mocked.getSession.mockReset();
+  mocked.getOrganization
+    .mockReset()
+    .mockResolvedValue([{ id: "org_123", metadata: null }]);
 });
 
 async function loadModule() {
@@ -97,6 +101,17 @@ async function loadModule() {
     },
   }));
 
+  vi.doMock("@/db/client", () => ({
+    db: {
+      select: () => ({
+        from: () => ({
+          innerJoin: () => ({
+            where: () => ({ limit: mocked.getOrganization }),
+          }),
+        }),
+      }),
+    },
+  }));
   return vi.importActual<typeof import("./serverFn")>("./serverFn");
 }
 
@@ -104,8 +119,8 @@ describe("createAuthenticatedServerFn", () => {
   it("wires the auth middleware into createServerFn", async () => {
     const { createAuthenticatedServerFn } = await loadModule();
 
-    // allDefinitions order: [authMiddleware, requireOrgMiddleware]
-    const [, requireOrgDef] = mocked.allDefinitions;
+    // Data functions require both membership and completed provisioning.
+    const [, , requireOrgDef] = mocked.allDefinitions;
     expect(createAuthenticatedServerFn).toBe(mocked.createServerFnResult);
     expect(mocked.createServerFnMiddleware).toHaveBeenCalledWith([
       requireOrgDef,
@@ -117,7 +132,7 @@ describe("createOrganizationAdminServerFn", () => {
   it("wires the organization admin middleware into createServerFn", async () => {
     const { createOrganizationAdminServerFn } = await loadModule();
 
-    const [, , requireOrganizationAdminDef] = mocked.allDefinitions;
+    const [, , , requireOrganizationAdminDef] = mocked.allDefinitions;
     expect(createOrganizationAdminServerFn).toBe(mocked.createServerFnResult);
     expect(mocked.createServerFnMiddleware).toHaveBeenLastCalledWith([
       expect.objectContaining({
@@ -180,6 +195,7 @@ describe("authMiddleware", () => {
     expect(response).toBe(nextResult);
     expect(next).toHaveBeenCalledWith({
       context: {
+        organization: { id: "org_123", metadata: null },
         session: {
           user: { id: "user_123" },
           session: {
@@ -223,5 +239,66 @@ describe("authMiddleware", () => {
     );
 
     expect(next).not.toHaveBeenCalled();
+  });
+});
+
+describe("organization readiness boundary", () => {
+  it.each([
+    null,
+    { clickhouseReady: true },
+  ])("allows ready/legacy data access and resolves the organization once", async (metadata) => {
+    await loadModule();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org" },
+    });
+    mocked.getOrganization.mockResolvedValue([{ id: "org", metadata }]);
+    const next = vi.fn().mockResolvedValue("ok");
+    await mocked.allDefinitions[2]?.__handler({
+      request: new Request("http://localhost/_server"),
+      next,
+    });
+    expect(next).toHaveBeenCalledOnce();
+    expect(mocked.getOrganization).toHaveBeenCalledOnce();
+  });
+  it("blocks pending data functions while allowing organization and billing access", async () => {
+    await loadModule();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org" },
+    });
+    mocked.getOrganization.mockResolvedValue([
+      {
+        id: "org",
+        metadata: { clickhouseReady: false },
+      },
+    ]);
+    const args = {
+      request: new Request("http://localhost/_server"),
+      next: vi.fn(),
+    };
+    await expect(
+      mocked.allDefinitions[2]?.__handler(args),
+    ).rejects.toMatchObject({ name: "ClickhouseProvisioningPendingError" });
+    expect(args.next).not.toHaveBeenCalled();
+    await getRequireOrgHandler()(args);
+    expect(args.next).toHaveBeenCalledOnce();
+    args.next.mockClear();
+    await getHandler()(args);
+    expect(args.next).toHaveBeenCalledOnce();
+  });
+  it("does not run the handler after membership rejection", async () => {
+    await loadModule();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org" },
+    });
+    mocked.getOrganization.mockRejectedValue(new Error("Not a member"));
+    const args = {
+      request: new Request("http://localhost/_server"),
+      next: vi.fn(),
+    };
+    await expect(getRequireOrgHandler()(args)).rejects.toThrow("Not a member");
+    expect(args.next).not.toHaveBeenCalled();
   });
 });

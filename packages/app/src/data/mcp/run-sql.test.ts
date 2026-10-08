@@ -13,7 +13,9 @@ beforeEach(() => querySqlApi.mockReset());
 
 describe("runSqlForConnection", () => {
   it("rejects empty SQL", async () => {
-    expect(await runSqlForConnection({ orgId: "o", sql: " " })).toEqual({
+    expect(
+      await runSqlForConnection({ orgId: "o", metadata: null, sql: " " }),
+    ).toEqual({
       isError: true,
       text: "SQL query is required.",
     });
@@ -23,6 +25,7 @@ describe("runSqlForConnection", () => {
     querySqlApi.mockResolvedValueOnce([{ a: 1 }]);
     const r = await runSqlForConnection({
       orgId: "org-1",
+      metadata: null,
       sql: "SELECT a FROM traces",
     });
     expect(r).toEqual({ isError: false, text: '{"a":1}' });
@@ -32,7 +35,21 @@ describe("runSqlForConnection", () => {
   it("sanitizes a query error", async () => {
     querySqlApi.mockRejectedValueOnce(new Error("Syntax error near FROM"));
     expect(
-      await runSqlForConnection({ orgId: "org-1", sql: "SELEC 1" }),
+      await runSqlForConnection({
+        orgId: "org-1",
+        metadata: null,
+        sql: "SELEC 1",
+      }),
     ).toEqual({ isError: true, text: "Syntax error near FROM" });
   });
+});
+
+it("rejects pending setup before issuing SQL", async () => {
+  const result = await runSqlForConnection({
+    orgId: "org-1",
+    metadata: { clickhouseReady: false },
+    sql: "SELECT 1",
+  });
+  expect(result.isError).toBe(true);
+  expect(querySqlApi).not.toHaveBeenCalled();
 });

@@ -32,7 +32,9 @@ export function RunbookViewer({
   /** "" = index page; "a/b" = nested page path from the splat. */
   pagePath: string;
 }) {
-  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
+  const { preview } = useSearch({
+    from: "/_authenticated/_organization/_dashboard",
+  });
   // The runbook is immutable (gitops, read-only), so the query cache is the
   // single source of truth; the route loader has already ensured the data.
   const {
@@ -129,7 +131,9 @@ function RecordLastViewed({
   slug: string;
   pagePath: string;
 }) {
-  const { session } = useRouteContext({ from: "/_authenticated" });
+  const { session } = useRouteContext({
+    from: "/_authenticated/_organization",
+  });
   const org = session.session.activeOrganizationId;
   const hash = useRouterState({ select: (s) => s.location.hash });
   useEffect(() => {

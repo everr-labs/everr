@@ -40,7 +40,11 @@ it("resolves the session and consent for live requests before auth guards run", 
   mocks.getSession.mockResolvedValue(session);
   mocks.getCookie.mockReturnValue("granted");
 
-  expect(await loadContext()).toEqual({ session, consent: "granted" });
+  expect(await loadContext()).toEqual({
+    session,
+    consent: "granted",
+    createdOrganizationId: null,
+  });
   expect(mocks.getSession).toHaveBeenCalledWith({ headers: mocks.headers });
 });
 
@@ -49,6 +53,7 @@ it("keeps signed-out live requests signed out", async () => {
   mocks.getCookie.mockReturnValue(undefined);
 
   expect(await loadContext()).toEqual({
+    createdOrganizationId: null,
     session: null,
     consent: undefined,
   });
@@ -58,7 +63,11 @@ it("keeps signed-out live requests signed out", async () => {
 it("generates the prerendered shell without looking up runtime session data", async () => {
   vi.stubEnv("TSS_PRERENDERING", "true");
 
-  expect(await loadContext()).toEqual({ session: null, consent: undefined });
+  expect(await loadContext()).toEqual({
+    session: null,
+    consent: undefined,
+    createdOrganizationId: null,
+  });
   expect(mocks.getSession).not.toHaveBeenCalled();
   expect(mocks.getCookie).not.toHaveBeenCalled();
 });

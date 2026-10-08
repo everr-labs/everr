@@ -35,10 +35,7 @@ vi.mock("@/lib/auth-client", () => ({
 // billing route. Other pages are irrelevant here and would pull in unrelated
 // server dependencies.
 for (const path of Object.keys(import.meta.glob("./routes/**/*.{ts,tsx}"))) {
-  if (
-    path.endsWith("/_organization.tsx") ||
-    /\/billing_\.suspended\.tsx$/.test(path)
-  )
+  if (path.endsWith("/_admin.tsx") || /\/billing_\.suspended\.tsx$/.test(path))
     continue;
   vi.doMock(path, () => ({
     Route:

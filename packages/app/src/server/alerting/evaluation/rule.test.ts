@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   definition: null as unknown,
+  metadata: null as unknown,
   // The row a failure transaction's FOR UPDATE re-read sees. Defaults to
   // mirror `definition`; tests that need to simulate a concurrent pause or
   // delete between the outer read and the failure transaction override it.
@@ -29,6 +30,16 @@ vi.mock("@/db/client", () => ({
   db: {
     select: () => ({
       from: () => ({
+        innerJoin: () => ({
+          where: () => ({
+            limit: () =>
+              Promise.resolve(
+                mocks.definition
+                  ? [{ definition: mocks.definition, metadata: mocks.metadata }]
+                  : [],
+              ),
+          }),
+        }),
         // The two reads differ in shape: the definition lookup ends in
         // .limit(1), the instance lookup awaits .where() directly.
         where: () =>
@@ -134,6 +145,7 @@ const payload = {
 describe("evaluateAlert scheduling state", () => {
   beforeEach(() => {
     mocks.definition = definition;
+    mocks.metadata = null;
     mocks.freshDefinition = undefined;
     mocks.instanceRows = [];
     mocks.definitionUpdates = [];
@@ -142,6 +154,16 @@ describe("evaluateAlert scheduling state", () => {
     mocks.transaction.mockReset();
     mocks.history.mockReset().mockResolvedValue(undefined);
     mocks.previewAlerts = "on";
+  });
+
+  it("defers evaluation for pending organizations without issuing SQL", async () => {
+    mocks.metadata = { clickhouseReady: false };
+    mocks.transaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()),
+    );
+    await evaluateAlert(payload);
+    expect(mocks.query).not.toHaveBeenCalled();
+    expect(mocks.scheduledJobs).toHaveLength(1);
   });
 
   // The switch must end running chains, not only gate the scanner: the

@@ -246,6 +246,19 @@ describe("provisionSqlApiOrgUser", () => {
     expect(grantCall.clickhouse_settings.session_id).toBe(
       setRoleCall.clickhouse_settings.session_id,
     );
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "SELECT 1 FROM app.traces LIMIT 0",
+        auth: { username: ORG_USER, password: ORG_PASSWORD },
+      }),
+    );
+  });
+
+  it("does not succeed if the provisioned credentials still cannot authenticate", async () => {
+    mockQuery.mockRejectedValueOnce(new Error("Authentication failed"));
+    await expect(provisionSqlApiOrgUser(ORG)).rejects.toThrow(
+      "Authentication failed",
+    );
   });
 });
 
@@ -267,4 +280,16 @@ describe("deprovisionSqlApiOrgUser", () => {
       `DROP USER IF EXISTS \`${ORG_USER}\``,
     ]);
   });
+});
+
+it("forwards shutdown cancellation to all provisioning DDL and the authentication probe", async () => {
+  const signal = new AbortController().signal;
+  await provisionSqlApiOrgUser(ORG, signal);
+  for (const [args] of mockCommand.mock.calls)
+    expect(args.abort_signal).toBe(signal);
+  expect(mockQuery.mock.calls[0][0].abort_signal).toBe(signal);
+  mockCommand.mockClear();
+  await deprovisionSqlApiOrgUser(ORG, signal);
+  for (const [args] of mockCommand.mock.calls)
+    expect(args.abort_signal).toBe(signal);
 });

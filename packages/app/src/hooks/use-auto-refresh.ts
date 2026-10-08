@@ -10,7 +10,9 @@ import {
 import { useRouteTimeDefaults } from "./use-time-range";
 
 export function useAutoRefresh() {
-  const search = useSearch({ from: "/_authenticated/_dashboard" });
+  const search = useSearch({
+    from: "/_authenticated/_organization/_dashboard",
+  });
   const defaults = useRouteTimeDefaults();
   const { refresh } = ResolvedTimeRangeSearchSchema.parse(
     applyRouteTimeDefaults(search, defaults),

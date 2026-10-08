@@ -1,7 +1,6 @@
 import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import {
   bearer,
@@ -19,11 +18,12 @@ import {
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { organizationBillingFields } from "@/common/organization-billing-fields";
+import { parseOrganizationMetadata } from "@/common/organization-provisioning";
 import { db } from "@/db/client";
 import { member, session as sessionTable } from "@/db/schema";
 import { env } from "@/env";
 import { selectSoleOrganization } from "@/lib/auto-org";
-import { ensureAutomaticOrganization } from "@/lib/auto-org.server";
+import { createAutomaticOrganizationSessionHook } from "@/lib/auto-org.server";
 import { billingIdentityAdapter } from "@/lib/billing/auth-adapter.server";
 import { billingAuthPlugin } from "@/lib/billing/auth-plugin.server";
 import {
@@ -38,16 +38,14 @@ import {
   getCapturedDeviceOrganizationId,
 } from "@/lib/cli-device-organization";
 import {
-  deprovisionSqlApiOrgUser,
-  provisionSqlApiOrgUser,
-} from "@/lib/clickhouse";
-import {
   sendInvitationEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
-import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
+import { markOrganizationCreated } from "@/lib/organization-creation-continuation.server";
+import { organizationLifecycleAdapter } from "@/lib/organization-lifecycle-adapter.server";
+import { waitForOrganizationProvisioning } from "@/server/organization-provisioning/fast-path";
 import {
   createIdentityAuthHooks,
   type ResolvedSession,
@@ -171,11 +169,7 @@ export const auth = betterAuth({
       env.BETTER_AUTH_URL.replace("127.0.0.1", "localhost"),
     ]),
   ),
-  database: billingIdentityAdapter(
-    drizzleAdapter(db, {
-      provider: "pg",
-    }),
-  ),
+  database: billingIdentityAdapter(organizationLifecycleAdapter()),
   ...(googleSocialProviders ? { socialProviders: googleSocialProviders } : {}),
   user: {
     deleteUser: {
@@ -229,7 +223,6 @@ export const auth = betterAuth({
           // A single membership is unambiguous. If there are several and no
           // previous selection, leave the session without an active org so the
           // user can choose rather than depending on database row order.
-          let membershipCount = 0;
           if (!activeOrganizationId) {
             const existingMemberships = await db
               .select({
@@ -239,26 +232,11 @@ export const auth = betterAuth({
               .where(eq(member.userId, session.userId))
               .limit(2);
 
-            membershipCount = existingMemberships.length;
             activeOrganizationId = selectSoleOrganization(
               existingMemberships.map(
                 (membership) => membership.organizationId,
               ),
             );
-          }
-
-          if (!activeOrganizationId && membershipCount === 0) {
-            try {
-              activeOrganizationId = await ensureAutomaticOrganization(
-                session.userId,
-                (body) => auth.api.createOrganization({ body }),
-              );
-            } catch (error) {
-              serverLogger.error("auto_org.create_personal_org.failed", {
-                ...exceptionAttributes(error),
-                "user.id": session.userId,
-              });
-            }
           }
 
           return {
@@ -268,6 +246,12 @@ export const auth = betterAuth({
             },
           };
         },
+        after: createAutomaticOrganizationSessionHook(
+          async (body): Promise<{ id: string } | null> =>
+            auth.api.createOrganization({ body }),
+          db,
+          markOrganizationCreated,
+        ),
       },
     },
   },
@@ -320,6 +304,17 @@ export const auth = betterAuth({
       organizationHooks: {
         beforeCreateOrganization: beforeCreateCheckoutOrganization,
         ...billingOrganizationHooks(),
+        afterCreateOrganization: async ({ organization }) => {
+          if (await waitForOrganizationProvisioning(organization.id)) {
+            // Better Auth returns this object after running its after-hook.
+            Object.assign(organization, {
+              metadata: {
+                ...parseOrganizationMetadata(organization.metadata),
+                clickhouseReady: true,
+              },
+            });
+          }
+        },
         beforeUpdateOrganization: async ({ organization }) => {
           if ("plan" in organization) {
             throw new APIError("FORBIDDEN", {
@@ -378,42 +373,8 @@ export const auth = betterAuth({
             acceptedInvitation.role,
           );
         },
-        afterCreateOrganization: async ({ organization }) => {
-          // Provision the per-org ClickHouse user + row policies that back
-          // the /api/cli/sql endpoint's tenant isolation. Each /sql query
-          // authenticates as exactly this org's user; without provisioning,
-          // the org's users couldn't authenticate at all. Idempotent.
-          try {
-            await provisionSqlApiOrgUser(organization.id);
-          } catch (error) {
-            serverLogger.error("sql_api.org_user.provision.failed", {
-              ...exceptionAttributes(error),
-              "everr.organization.id": organization.id,
-            });
-          }
-        },
         beforeDeleteOrganization: async ({ organization }) => {
           await billing.assertDeletable(organization.id);
-        },
-        afterDeleteOrganization: async ({ organization }) => {
-          try {
-            await deletePostgresOrganizationData(organization.id);
-          } catch (error) {
-            serverLogger.error("organization.postgres_data_cleanup.failed", {
-              ...exceptionAttributes(error),
-              "everr.organization.id": organization.id,
-            });
-            throw error;
-          }
-
-          try {
-            await deprovisionSqlApiOrgUser(organization.id);
-          } catch (error) {
-            serverLogger.error("sql_api.org_user.deprovision.failed", {
-              ...exceptionAttributes(error),
-              "everr.organization.id": organization.id,
-            });
-          }
         },
       },
     }),

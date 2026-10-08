@@ -9,25 +9,28 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as WelcomeRouteImport } from './routes/_welcome'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
-import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
-import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
+import { Route as AuthenticatedOrganizationRouteImport } from './routes/_authenticated/_organization'
+import { Route as WelcomeGuestRouteImport } from './routes/_welcome/_guest'
+import { Route as WelcomeSignedInRouteImport } from './routes/_welcome/_signedIn'
 import { Route as ApiApplyRouteImport } from './routes/api/apply'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as McpSplatRouteImport } from './routes/mcp/$'
 import { Route as McpConsentRouteImport } from './routes/mcp/consent'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
-import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
-import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
-import { Route as AuthenticatedDashboardExploreRouteImport } from './routes/_authenticated/_dashboard/_explore'
 import { Route as AuthenticatedDashboardPaddedRouteImport } from './routes/_authenticated/_dashboard/_padded'
-import { Route as AuthenticatedDashboardPreviewableRouteImport } from './routes/_authenticated/_dashboard/_previewable'
-import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
+import { Route as AuthenticatedOrganizationDashboardRouteImport } from './routes/_authenticated/_organization/_dashboard'
+import { Route as AuthenticatedOrganizationDeviceRouteImport } from './routes/_authenticated/_organization/device'
+import { Route as WelcomeSignedInOrganizationRouteImport } from './routes/_welcome/_signedIn/_organization'
+import { Route as WelcomeSignedInChooseOrganizationRouteImport } from './routes/_welcome/_signedIn/choose-organization'
+import { Route as WelcomeSignedInCreateOrganizationRouteImport } from './routes/_welcome/_signedIn/create-organization'
+import { Route as WelcomeAuthErrorRouteImport } from './routes/_welcome/auth/error'
+import { Route as WelcomeInviteInvitationIdRouteImport } from './routes/_welcome/invite.$invitationId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
 import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
@@ -39,66 +42,76 @@ import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
 import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/verify-key'
-import { Route as OrganizationsCheckoutSuccessRouteImport } from './routes/organizations.checkout.success'
 import { Route as DotwellKnownOauthAuthorizationServerApiAuthRouteImport } from './routes/[.]well-known/oauth-authorization-server/api/auth'
-import { Route as AuthGuestAuthForgotPasswordRouteImport } from './routes/_auth/_guest/auth/forgot-password'
-import { Route as AuthGuestAuthResetPasswordRouteImport } from './routes/_auth/_guest/auth/reset-password'
-import { Route as AuthGuestAuthSignInRouteImport } from './routes/_auth/_guest/auth/sign-in'
-import { Route as AuthGuestAuthSignUpRouteImport } from './routes/_auth/_guest/auth/sign-up'
-import { Route as AuthenticatedDashboardExploreErrorsRouteImport } from './routes/_authenticated/_dashboard/_explore/errors'
-import { Route as AuthenticatedDashboardExploreLogsRouteImport } from './routes/_authenticated/_dashboard/_explore/logs'
-import { Route as AuthenticatedDashboardExploreTracesRouteImport } from './routes/_authenticated/_dashboard/_explore/traces'
-import { Route as AuthenticatedDashboardPaddedIndexRouteImport } from './routes/_authenticated/_dashboard/_padded/index'
-import { Route as AuthenticatedDashboardPaddedOrganizationRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization'
 import { Route as AuthenticatedDashboardPaddedAccountRouteImport } from './routes/_authenticated/_dashboard/_padded/account'
-import { Route as AuthenticatedDashboardPaddedCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/_padded/cost-analysis'
-import { Route as AuthenticatedDashboardPaddedReposRouteImport } from './routes/_authenticated/_dashboard/_padded/repos'
-import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
-import { Route as AuthenticatedDashboardPreviewableDashboardsRouteRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/route'
-import { Route as AuthenticatedDashboardPreviewableRunbooksRouteRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/route'
-import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
-import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
+import { Route as AuthenticatedOrganizationDashboardAppAccessRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess'
+import { Route as AuthenticatedOrganizationDashboardPaddedRouteImport } from './routes/_authenticated/_organization/_dashboard/_padded'
+import { Route as WelcomeGuestAuthForgotPasswordRouteImport } from './routes/_welcome/_guest/auth/forgot-password'
+import { Route as WelcomeGuestAuthResetPasswordRouteImport } from './routes/_welcome/_guest/auth/reset-password'
+import { Route as WelcomeGuestAuthSignInRouteImport } from './routes/_welcome/_guest/auth/sign-in'
+import { Route as WelcomeGuestAuthSignUpRouteImport } from './routes/_welcome/_guest/auth/sign-up'
+import { Route as WelcomeSignedInOrganizationOrganizationPendingRouteImport } from './routes/_welcome/_signedIn/_organization/organization-pending'
+import { Route as WelcomeSignedInOrganizationOrganizationSetupRouteImport } from './routes/_welcome/_signedIn/_organization/organization-setup'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
 import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/histogram'
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
-import { Route as AuthenticatedDashboardExploreErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/_explore/errors_.$fingerprint'
-import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
-import { Route as AuthenticatedDashboardPaddedOrganizationApiKeysRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization/api-keys'
-import { Route as AuthenticatedDashboardPaddedOrganizationBillingRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization/billing'
-import { Route as AuthenticatedDashboardPaddedOrganizationGithubRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization/github'
-import { Route as AuthenticatedDashboardPaddedOrganizationUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization/users-management'
-import { Route as AuthenticatedDashboardPaddedBillingSuspendedRouteImport } from './routes/_authenticated/_dashboard/_padded/billing_.suspended'
-import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
-import { Route as AuthenticatedDashboardPreviewableAlertsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/index'
-import { Route as AuthenticatedDashboardPreviewableAlertsNotificationsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/notifications'
-import { Route as AuthenticatedDashboardPreviewableAlertsSilencesRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/silences'
-import { Route as AuthenticatedDashboardPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/index'
-import { Route as AuthenticatedDashboardPreviewableDashboardsGetStartedRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/get-started'
-import { Route as AuthenticatedDashboardPreviewableRunbooksIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/index'
-import { Route as AuthenticatedDashboardPreviewableRunbooksGetStartedRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/get-started'
-import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
-import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned'
+import { Route as AuthenticatedOrganizationDashboardPaddedAdminRouteImport } from './routes/_authenticated/_organization/_dashboard/_padded/_admin'
+import { Route as WelcomeSignedInOrganizationsCheckoutSuccessRouteImport } from './routes/_welcome/_signedIn/organizations.checkout.success'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
-import { Route as AuthenticatedDashboardExploreErrorsFingerprintModalRouteImport } from './routes/_authenticated/_dashboard/_explore/errors/$fingerprint/modal'
-import { Route as AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport } from './routes/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
-import { Route as AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/$project.$slug'
-import { Route as AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/built-in.$slug'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs'
+import { Route as AuthenticatedOrganizationDashboardPaddedAdminBillingRouteImport } from './routes/_authenticated/_organization/_dashboard/_padded/_admin/billing'
+import { Route as AuthenticatedOrganizationDashboardPaddedBillingSuspendedRouteImport } from './routes/_authenticated/_organization/_dashboard/_padded/billing_.suspended'
+import { Route as AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_organization/_dashboard/_padded/checkout.success'
 import { Route as ApiCliResourcesKindProjectSlugRouteImport } from './routes/api/cli/resources/$kind/$project/$slug'
-import { Route as AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/$project.$slug.index'
-import { Route as AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/$project.$slug.$'
-import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/repos'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/route'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/route'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/route'
 import { Route as ApiCliResourcesKindProjectSlugAdoptRouteImport } from './routes/api/cli/resources/$kind/$project/$slug/adopt'
-import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_.$fingerprint'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_.$traceId'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/users-management'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/notifications'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/silences'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/get-started'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/get-started'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/trace'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint/modal'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project.$slug'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in.$slug'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project.$slug.index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project.$slug.$'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
-const AuthRoute = AuthRouteImport.update({
-  id: '/_auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/_welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DotwellKnownOauthAuthorizationServerRoute =
@@ -113,18 +126,22 @@ const DotwellKnownOauthProtectedResourceRoute =
     path: '/.well-known/oauth-protected-resource',
     getParentRoute: () => rootRouteImport,
   } as any)
-const AuthGuestRoute = AuthGuestRouteImport.update({
-  id: '/_guest',
-  getParentRoute: () => AuthRoute,
-} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/_dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedDeviceRoute = AuthenticatedDeviceRouteImport.update({
-  id: '/device',
-  path: '/device',
-  getParentRoute: () => AuthenticatedRoute,
+const AuthenticatedOrganizationRoute =
+  AuthenticatedOrganizationRouteImport.update({
+    id: '/_organization',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const WelcomeGuestRoute = WelcomeGuestRouteImport.update({
+  id: '/_guest',
+  getParentRoute: () => WelcomeRoute,
+} as any)
+const WelcomeSignedInRoute = WelcomeSignedInRouteImport.update({
+  id: '/_signedIn',
+  getParentRoute: () => WelcomeRoute,
 } as any)
 const ApiApplyRoute = ApiApplyRouteImport.update({
   id: '/api/apply',
@@ -156,36 +173,49 @@ const WebhookGithubRoute = WebhookGithubRouteImport.update({
   path: '/webhook/github',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthAuthErrorRoute = AuthAuthErrorRouteImport.update({
-  id: '/auth/error',
-  path: '/auth/error',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthInviteInvitationIdRoute = AuthInviteInvitationIdRouteImport.update({
-  id: '/invite/$invitationId',
-  path: '/invite/$invitationId',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthenticatedDashboardExploreRoute =
-  AuthenticatedDashboardExploreRouteImport.update({
-    id: '/_explore',
-    getParentRoute: () => AuthenticatedDashboardRoute,
-  } as any)
 const AuthenticatedDashboardPaddedRoute =
   AuthenticatedDashboardPaddedRouteImport.update({
     id: '/_padded',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const AuthenticatedDashboardPreviewableRoute =
-  AuthenticatedDashboardPreviewableRouteImport.update({
-    id: '/_previewable',
-    getParentRoute: () => AuthenticatedDashboardRoute,
+const AuthenticatedOrganizationDashboardRoute =
+  AuthenticatedOrganizationDashboardRouteImport.update({
+    id: '/_dashboard',
+    getParentRoute: () => AuthenticatedOrganizationRoute,
   } as any)
-const AuthenticatedDashboardRunsRoute =
-  AuthenticatedDashboardRunsRouteImport.update({
-    id: '/runs',
-    path: '/runs',
-    getParentRoute: () => AuthenticatedDashboardRoute,
+const AuthenticatedOrganizationDeviceRoute =
+  AuthenticatedOrganizationDeviceRouteImport.update({
+    id: '/device',
+    path: '/device',
+    getParentRoute: () => AuthenticatedOrganizationRoute,
+  } as any)
+const WelcomeSignedInOrganizationRoute =
+  WelcomeSignedInOrganizationRouteImport.update({
+    id: '/_organization',
+    getParentRoute: () => WelcomeSignedInRoute,
+  } as any)
+const WelcomeSignedInChooseOrganizationRoute =
+  WelcomeSignedInChooseOrganizationRouteImport.update({
+    id: '/choose-organization',
+    path: '/choose-organization',
+    getParentRoute: () => WelcomeSignedInRoute,
+  } as any)
+const WelcomeSignedInCreateOrganizationRoute =
+  WelcomeSignedInCreateOrganizationRouteImport.update({
+    id: '/create-organization',
+    path: '/create-organization',
+    getParentRoute: () => WelcomeSignedInRoute,
+  } as any)
+const WelcomeAuthErrorRoute = WelcomeAuthErrorRouteImport.update({
+  id: '/auth/error',
+  path: '/auth/error',
+  getParentRoute: () => WelcomeRoute,
+} as any)
+const WelcomeInviteInvitationIdRoute =
+  WelcomeInviteInvitationIdRouteImport.update({
+    id: '/invite/$invitationId',
+    path: '/invite/$invitationId',
+    getParentRoute: () => WelcomeRoute,
   } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -242,68 +272,11 @@ const ApiInternalVerifyKeyRoute = ApiInternalVerifyKeyRouteImport.update({
   path: '/api/internal/verify-key',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OrganizationsCheckoutSuccessRoute =
-  OrganizationsCheckoutSuccessRouteImport.update({
-    id: '/organizations/checkout/success',
-    path: '/organizations/checkout/success',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const DotwellKnownOauthAuthorizationServerApiAuthRoute =
   DotwellKnownOauthAuthorizationServerApiAuthRouteImport.update({
     id: '/api/auth',
     path: '/api/auth',
     getParentRoute: () => DotwellKnownOauthAuthorizationServerRoute,
-  } as any)
-const AuthGuestAuthForgotPasswordRoute =
-  AuthGuestAuthForgotPasswordRouteImport.update({
-    id: '/auth/forgot-password',
-    path: '/auth/forgot-password',
-    getParentRoute: () => AuthGuestRoute,
-  } as any)
-const AuthGuestAuthResetPasswordRoute =
-  AuthGuestAuthResetPasswordRouteImport.update({
-    id: '/auth/reset-password',
-    path: '/auth/reset-password',
-    getParentRoute: () => AuthGuestRoute,
-  } as any)
-const AuthGuestAuthSignInRoute = AuthGuestAuthSignInRouteImport.update({
-  id: '/auth/sign-in',
-  path: '/auth/sign-in',
-  getParentRoute: () => AuthGuestRoute,
-} as any)
-const AuthGuestAuthSignUpRoute = AuthGuestAuthSignUpRouteImport.update({
-  id: '/auth/sign-up',
-  path: '/auth/sign-up',
-  getParentRoute: () => AuthGuestRoute,
-} as any)
-const AuthenticatedDashboardExploreErrorsRoute =
-  AuthenticatedDashboardExploreErrorsRouteImport.update({
-    id: '/errors',
-    path: '/errors',
-    getParentRoute: () => AuthenticatedDashboardExploreRoute,
-  } as any)
-const AuthenticatedDashboardExploreLogsRoute =
-  AuthenticatedDashboardExploreLogsRouteImport.update({
-    id: '/logs',
-    path: '/logs',
-    getParentRoute: () => AuthenticatedDashboardExploreRoute,
-  } as any)
-const AuthenticatedDashboardExploreTracesRoute =
-  AuthenticatedDashboardExploreTracesRouteImport.update({
-    id: '/traces',
-    path: '/traces',
-    getParentRoute: () => AuthenticatedDashboardExploreRoute,
-  } as any)
-const AuthenticatedDashboardPaddedIndexRoute =
-  AuthenticatedDashboardPaddedIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardPaddedOrganizationRoute =
-  AuthenticatedDashboardPaddedOrganizationRouteImport.update({
-    id: '/_organization',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
 const AuthenticatedDashboardPaddedAccountRoute =
   AuthenticatedDashboardPaddedAccountRouteImport.update({
@@ -311,47 +284,49 @@ const AuthenticatedDashboardPaddedAccountRoute =
     path: '/account',
     getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
-const AuthenticatedDashboardPaddedCostAnalysisRoute =
-  AuthenticatedDashboardPaddedCostAnalysisRouteImport.update({
-    id: '/cost-analysis',
-    path: '/cost-analysis',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+const AuthenticatedOrganizationDashboardAppAccessRoute =
+  AuthenticatedOrganizationDashboardAppAccessRouteImport.update({
+    id: '/_appAccess',
+    getParentRoute: () => AuthenticatedOrganizationDashboardRoute,
   } as any)
-const AuthenticatedDashboardPaddedReposRoute =
-  AuthenticatedDashboardPaddedReposRouteImport.update({
-    id: '/repos',
-    path: '/repos',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+const AuthenticatedOrganizationDashboardPaddedRoute =
+  AuthenticatedOrganizationDashboardPaddedRouteImport.update({
+    id: '/_padded',
+    getParentRoute: () => AuthenticatedOrganizationDashboardRoute,
   } as any)
-const AuthenticatedDashboardPreviewableAlertsRoute =
-  AuthenticatedDashboardPreviewableAlertsRouteImport.update({
-    id: '/alerts',
-    path: '/alerts',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+const WelcomeGuestAuthForgotPasswordRoute =
+  WelcomeGuestAuthForgotPasswordRouteImport.update({
+    id: '/auth/forgot-password',
+    path: '/auth/forgot-password',
+    getParentRoute: () => WelcomeGuestRoute,
   } as any)
-const AuthenticatedDashboardPreviewableDashboardsRouteRoute =
-  AuthenticatedDashboardPreviewableDashboardsRouteRouteImport.update({
-    id: '/dashboards',
-    path: '/dashboards',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+const WelcomeGuestAuthResetPasswordRoute =
+  WelcomeGuestAuthResetPasswordRouteImport.update({
+    id: '/auth/reset-password',
+    path: '/auth/reset-password',
+    getParentRoute: () => WelcomeGuestRoute,
   } as any)
-const AuthenticatedDashboardPreviewableRunbooksRouteRoute =
-  AuthenticatedDashboardPreviewableRunbooksRouteRouteImport.update({
-    id: '/runbooks',
-    path: '/runbooks',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+const WelcomeGuestAuthSignInRoute = WelcomeGuestAuthSignInRouteImport.update({
+  id: '/auth/sign-in',
+  path: '/auth/sign-in',
+  getParentRoute: () => WelcomeGuestRoute,
+} as any)
+const WelcomeGuestAuthSignUpRoute = WelcomeGuestAuthSignUpRouteImport.update({
+  id: '/auth/sign-up',
+  path: '/auth/sign-up',
+  getParentRoute: () => WelcomeGuestRoute,
+} as any)
+const WelcomeSignedInOrganizationOrganizationPendingRoute =
+  WelcomeSignedInOrganizationOrganizationPendingRouteImport.update({
+    id: '/organization-pending',
+    path: '/organization-pending',
+    getParentRoute: () => WelcomeSignedInOrganizationRoute,
   } as any)
-const AuthenticatedDashboardRunsIndexRoute =
-  AuthenticatedDashboardRunsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardRunsRoute,
-  } as any)
-const AuthenticatedDashboardRunsTraceIdRouteRoute =
-  AuthenticatedDashboardRunsTraceIdRouteRouteImport.update({
-    id: '/$traceId',
-    path: '/$traceId',
-    getParentRoute: () => AuthenticatedDashboardRunsRoute,
+const WelcomeSignedInOrganizationOrganizationSetupRoute =
+  WelcomeSignedInOrganizationOrganizationSetupRouteImport.update({
+    id: '/organization-setup',
+    path: '/organization-setup',
+    getParentRoute: () => WelcomeSignedInOrganizationRoute,
   } as any)
 const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
   id: '/$traceId',
@@ -384,136 +359,75 @@ const ApiGithubInstallStartRoute = ApiGithubInstallStartRouteImport.update({
   path: '/api/github/install/start',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedDashboardExploreErrorsFingerprintRoute =
-  AuthenticatedDashboardExploreErrorsFingerprintRouteImport.update({
-    id: '/errors_/$fingerprint',
-    path: '/errors/$fingerprint',
-    getParentRoute: () => AuthenticatedDashboardExploreRoute,
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRouteImport.update({
+    id: '/_provisioned',
+    getParentRoute: () => AuthenticatedOrganizationDashboardAppAccessRoute,
   } as any)
-const AuthenticatedDashboardExploreTracesTraceIdRoute =
-  AuthenticatedDashboardExploreTracesTraceIdRouteImport.update({
-    id: '/traces_/$traceId',
-    path: '/traces/$traceId',
-    getParentRoute: () => AuthenticatedDashboardExploreRoute,
+const AuthenticatedOrganizationDashboardPaddedAdminRoute =
+  AuthenticatedOrganizationDashboardPaddedAdminRouteImport.update({
+    id: '/_admin',
+    getParentRoute: () => AuthenticatedOrganizationDashboardPaddedRoute,
   } as any)
-const AuthenticatedDashboardPaddedOrganizationApiKeysRoute =
-  AuthenticatedDashboardPaddedOrganizationApiKeysRouteImport.update({
-    id: '/api-keys',
-    path: '/api-keys',
-    getParentRoute: () => AuthenticatedDashboardPaddedOrganizationRoute,
-  } as any)
-const AuthenticatedDashboardPaddedOrganizationBillingRoute =
-  AuthenticatedDashboardPaddedOrganizationBillingRouteImport.update({
-    id: '/billing',
-    path: '/billing',
-    getParentRoute: () => AuthenticatedDashboardPaddedOrganizationRoute,
-  } as any)
-const AuthenticatedDashboardPaddedOrganizationGithubRoute =
-  AuthenticatedDashboardPaddedOrganizationGithubRouteImport.update({
-    id: '/github',
-    path: '/github',
-    getParentRoute: () => AuthenticatedDashboardPaddedOrganizationRoute,
-  } as any)
-const AuthenticatedDashboardPaddedOrganizationUsersManagementRoute =
-  AuthenticatedDashboardPaddedOrganizationUsersManagementRouteImport.update({
-    id: '/users-management',
-    path: '/users-management',
-    getParentRoute: () => AuthenticatedDashboardPaddedOrganizationRoute,
-  } as any)
-const AuthenticatedDashboardPaddedBillingSuspendedRoute =
-  AuthenticatedDashboardPaddedBillingSuspendedRouteImport.update({
-    id: '/billing_/suspended',
-    path: '/billing/suspended',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardPaddedCheckoutSuccessRoute =
-  AuthenticatedDashboardPaddedCheckoutSuccessRouteImport.update({
-    id: '/checkout/success',
-    path: '/checkout/success',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableAlertsIndexRoute =
-  AuthenticatedDashboardPreviewableAlertsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardPreviewableAlertsRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableAlertsNotificationsRoute =
-  AuthenticatedDashboardPreviewableAlertsNotificationsRouteImport.update({
-    id: '/notifications',
-    path: '/notifications',
-    getParentRoute: () => AuthenticatedDashboardPreviewableAlertsRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableAlertsSilencesRoute =
-  AuthenticatedDashboardPreviewableAlertsSilencesRouteImport.update({
-    id: '/silences',
-    path: '/silences',
-    getParentRoute: () => AuthenticatedDashboardPreviewableAlertsRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableDashboardsIndexRoute =
-  AuthenticatedDashboardPreviewableDashboardsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardPreviewableDashboardsRouteRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableDashboardsGetStartedRoute =
-  AuthenticatedDashboardPreviewableDashboardsGetStartedRouteImport.update({
-    id: '/get-started',
-    path: '/get-started',
-    getParentRoute: () => AuthenticatedDashboardPreviewableDashboardsRouteRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableRunbooksIndexRoute =
-  AuthenticatedDashboardPreviewableRunbooksIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRunbooksRouteRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableRunbooksGetStartedRoute =
-  AuthenticatedDashboardPreviewableRunbooksGetStartedRouteImport.update({
-    id: '/get-started',
-    path: '/get-started',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRunbooksRouteRoute,
-  } as any)
-const AuthenticatedDashboardRunsTraceIdIndexRoute =
-  AuthenticatedDashboardRunsTraceIdIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
-  } as any)
-const AuthenticatedDashboardRunsTraceIdTraceRoute =
-  AuthenticatedDashboardRunsTraceIdTraceRouteImport.update({
-    id: '/trace',
-    path: '/trace',
-    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
+const WelcomeSignedInOrganizationsCheckoutSuccessRoute =
+  WelcomeSignedInOrganizationsCheckoutSuccessRouteImport.update({
+    id: '/organizations/checkout/success',
+    path: '/organizations/checkout/success',
+    getParentRoute: () => WelcomeSignedInRoute,
   } as any)
 const ApiCliRunsTraceIdLogsRoute = ApiCliRunsTraceIdLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
   getParentRoute: () => ApiCliRunsTraceIdRoute,
 } as any)
-const AuthenticatedDashboardExploreErrorsFingerprintModalRoute =
-  AuthenticatedDashboardExploreErrorsFingerprintModalRouteImport.update({
-    id: '/$fingerprint/modal',
-    path: '/$fingerprint/modal',
-    getParentRoute: () => AuthenticatedDashboardExploreErrorsRoute,
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteImport.update(
+    {
+      id: '/_explore',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteImport.update(
+    {
+      id: '/_padded',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteImport.update(
+    {
+      id: '/_previewable',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteImport.update({
+    id: '/runs',
+    path: '/runs',
+    getParentRoute: () =>
+      AuthenticatedOrganizationDashboardAppAccessProvisionedRoute,
   } as any)
-const AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute =
-  AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport.update({
-    id: '/workflows/$repo/$workflowName',
-    path: '/workflows/$repo/$workflowName',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+const AuthenticatedOrganizationDashboardPaddedAdminBillingRoute =
+  AuthenticatedOrganizationDashboardPaddedAdminBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => AuthenticatedOrganizationDashboardPaddedAdminRoute,
   } as any)
-const AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute =
-  AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport.update({
-    id: '/$project/$slug',
-    path: '/$project/$slug',
-    getParentRoute: () => AuthenticatedDashboardPreviewableDashboardsRouteRoute,
+const AuthenticatedOrganizationDashboardPaddedBillingSuspendedRoute =
+  AuthenticatedOrganizationDashboardPaddedBillingSuspendedRouteImport.update({
+    id: '/billing_/suspended',
+    path: '/billing/suspended',
+    getParentRoute: () => AuthenticatedOrganizationDashboardPaddedRoute,
   } as any)
-const AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute =
-  AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRouteImport.update({
-    id: '/built-in/$slug',
-    path: '/built-in/$slug',
-    getParentRoute: () => AuthenticatedDashboardPreviewableDashboardsRouteRoute,
+const AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRoute =
+  AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRouteImport.update({
+    id: '/checkout/success',
+    path: '/checkout/success',
+    getParentRoute: () => AuthenticatedOrganizationDashboardPaddedRoute,
   } as any)
 const ApiCliResourcesKindProjectSlugRoute =
   ApiCliResourcesKindProjectSlugRouteImport.update({
@@ -521,51 +435,333 @@ const ApiCliResourcesKindProjectSlugRoute =
     path: '/$kind/$project/$slug',
     getParentRoute: () => ApiCliResourcesRoute,
   } as any)
-const AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute =
-  AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRouteImport.update({
-    id: '/$project/$slug/',
-    path: '/$project/$slug/',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRunbooksRouteRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute =
-  AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRouteImport.update({
-    id: '/$project/$slug/$',
-    path: '/$project/$slug/$',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRunbooksRouteRoute,
-  } as any)
-const AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute =
-  AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport.update({
-    id: '/jobs/$jobId/',
-    path: '/jobs/$jobId/',
-    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
-  } as any)
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteImport.update(
+    {
+      id: '/errors',
+      path: '/errors',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport.update(
+    {
+      id: '/logs',
+      path: '/logs',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteImport.update(
+    {
+      id: '/traces',
+      path: '/traces',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteImport.update(
+    {
+      id: '/_admin',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRouteImport.update(
+    {
+      id: '/cost-analysis',
+      path: '/cost-analysis',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRouteImport.update(
+    {
+      id: '/repos',
+      path: '/repos',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteImport.update(
+    {
+      id: '/alerts',
+      path: '/alerts',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteImport.update(
+    {
+      id: '/dashboards',
+      path: '/dashboards',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteImport.update(
+    {
+      id: '/runbooks',
+      path: '/runbooks',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteImport.update(
+    {
+      id: '/$traceId',
+      path: '/$traceId',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRoute,
+    } as any,
+  )
 const ApiCliResourcesKindProjectSlugAdoptRoute =
   ApiCliResourcesKindProjectSlugAdoptRouteImport.update({
     id: '/adopt',
     path: '/adopt',
     getParentRoute: () => ApiCliResourcesKindProjectSlugRoute,
   } as any)
-const AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
-  AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport.update({
-    id: '/jobs/$jobId/steps/$stepNumber',
-    path: '/jobs/$jobId/steps/$stepNumber',
-    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
-  } as any)
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRouteImport.update(
+    {
+      id: '/errors_/$fingerprint',
+      path: '/errors/$fingerprint',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRouteImport.update(
+    {
+      id: '/traces_/$traceId',
+      path: '/traces/$traceId',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRouteImport.update(
+    {
+      id: '/api-keys',
+      path: '/api-keys',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRouteImport.update(
+    {
+      id: '/github',
+      path: '/github',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRouteImport.update(
+    {
+      id: '/users-management',
+      path: '/users-management',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRouteImport.update(
+    {
+      id: '/notifications',
+      path: '/notifications',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRouteImport.update(
+    {
+      id: '/silences',
+      path: '/silences',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRouteImport.update(
+    {
+      id: '/get-started',
+      path: '/get-started',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRouteImport.update(
+    {
+      id: '/get-started',
+      path: '/get-started',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRouteImport.update(
+    {
+      id: '/trace',
+      path: '/trace',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRouteImport.update(
+    {
+      id: '/$fingerprint/modal',
+      path: '/$fingerprint/modal',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRouteImport.update(
+    {
+      id: '/workflows/$repo/$workflowName',
+      path: '/workflows/$repo/$workflowName',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRouteImport.update(
+    {
+      id: '/$project/$slug',
+      path: '/$project/$slug',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRouteImport.update(
+    {
+      id: '/built-in/$slug',
+      path: '/built-in/$slug',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRouteImport.update(
+    {
+      id: '/$project/$slug/',
+      path: '/$project/$slug/',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRouteImport.update(
+    {
+      id: '/$project/$slug/$',
+      path: '/$project/$slug/$',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRouteImport.update(
+    {
+      id: '/jobs/$jobId/',
+      path: '/jobs/$jobId/',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRouteImport.update(
+    {
+      id: '/jobs/$jobId/steps/$stepNumber',
+      path: '/jobs/$jobId/steps/$stepNumber',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute,
+    } as any,
+  )
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthenticatedDashboardPaddedIndexRoute
+  '/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
-  '/device': typeof AuthenticatedDeviceRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
-  '/auth/error': typeof AuthAuthErrorRoute
-  '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
-  '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
+  '/device': typeof AuthenticatedOrganizationDeviceRoute
+  '/choose-organization': typeof WelcomeSignedInChooseOrganizationRoute
+  '/create-organization': typeof WelcomeSignedInCreateOrganizationRoute
+  '/auth/error': typeof WelcomeAuthErrorRoute
+  '/invite/$invitationId': typeof WelcomeInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
@@ -577,71 +773,76 @@ export interface FileRoutesByFullPath {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
-  '/organizations/checkout/success': typeof OrganizationsCheckoutSuccessRoute
-  '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
-  '/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
-  '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/.well-known/oauth-authorization-server/api/auth': typeof DotwellKnownOauthAuthorizationServerApiAuthRoute
-  '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
-  '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
-  '/auth/sign-in': typeof AuthGuestAuthSignInRoute
-  '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
-  '/errors': typeof AuthenticatedDashboardExploreErrorsRouteWithChildren
-  '/logs': typeof AuthenticatedDashboardExploreLogsRoute
-  '/traces': typeof AuthenticatedDashboardExploreTracesRoute
   '/account': typeof AuthenticatedDashboardPaddedAccountRoute
-  '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
-  '/repos': typeof AuthenticatedDashboardPaddedReposRoute
-  '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRouteWithChildren
+  '/auth/forgot-password': typeof WelcomeGuestAuthForgotPasswordRoute
+  '/auth/reset-password': typeof WelcomeGuestAuthResetPasswordRoute
+  '/auth/sign-in': typeof WelcomeGuestAuthSignInRoute
+  '/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
+  '/organization-pending': typeof WelcomeSignedInOrganizationOrganizationPendingRoute
+  '/organization-setup': typeof WelcomeSignedInOrganizationOrganizationSetupRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
   '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
-  '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
-  '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
-  '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
-  '/api-keys': typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
-  '/billing': typeof AuthenticatedDashboardPaddedOrganizationBillingRoute
-  '/github': typeof AuthenticatedDashboardPaddedOrganizationGithubRoute
-  '/users-management': typeof AuthenticatedDashboardPaddedOrganizationUsersManagementRoute
-  '/billing/suspended': typeof AuthenticatedDashboardPaddedBillingSuspendedRoute
-  '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/alerts/notifications': typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
-  '/alerts/silences': typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
-  '/dashboards/get-started': typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
-  '/runbooks/get-started': typeof AuthenticatedDashboardPreviewableRunbooksGetStartedRoute
-  '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
+  '/organizations/checkout/success': typeof WelcomeSignedInOrganizationsCheckoutSuccessRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
-  '/alerts/': typeof AuthenticatedDashboardPreviewableAlertsIndexRoute
-  '/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
-  '/runbooks/': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
-  '/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
-  '/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
-  '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
-  '/dashboards/$project/$slug': typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
-  '/dashboards/built-in/$slug': typeof AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute
+  '/runs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteWithChildren
+  '/billing': typeof AuthenticatedOrganizationDashboardPaddedAdminBillingRoute
+  '/billing/suspended': typeof AuthenticatedOrganizationDashboardPaddedBillingSuspendedRoute
+  '/checkout/success': typeof AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRoute
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
-  '/runbooks/$project/$slug/$': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute
+  '/dashboards': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren
+  '/runbooks': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren
+  '/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
+  '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
+  '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
+  '/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
+  '/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
+  '/alerts': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteWithChildren
   '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
-  '/runbooks/$project/$slug/': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute
-  '/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
-  '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
+  '/runs/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute
+  '/errors/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute
+  '/traces/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRoute
+  '/api-keys': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute
+  '/github': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute
+  '/users-management': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute
+  '/alerts/notifications': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRoute
+  '/alerts/silences': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRoute
+  '/dashboards/get-started': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRoute
+  '/runbooks/get-started': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRoute
+  '/runs/$traceId/trace': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRoute
+  '/alerts/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRoute
+  '/dashboards/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute
+  '/runbooks/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute
+  '/runs/$traceId/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute
+  '/errors/$fingerprint/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute
+  '/workflows/$repo/$workflowName': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute
+  '/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRoute
+  '/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRoute
+  '/runbooks/$project/$slug/$': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRoute
+  '/runbooks/$project/$slug/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRoute
+  '/runs/$traceId/jobs/$jobId/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute
+  '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof AuthenticatedDashboardPaddedIndexRoute
+  '/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
-  '/device': typeof AuthenticatedDeviceRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
-  '/auth/error': typeof AuthAuthErrorRoute
-  '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
+  '/device': typeof AuthenticatedOrganizationDeviceRoute
+  '/choose-organization': typeof WelcomeSignedInChooseOrganizationRoute
+  '/create-organization': typeof WelcomeSignedInCreateOrganizationRoute
+  '/auth/error': typeof WelcomeAuthErrorRoute
+  '/invite/$invitationId': typeof WelcomeInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
@@ -653,75 +854,80 @@ export interface FileRoutesByTo {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
-  '/organizations/checkout/success': typeof OrganizationsCheckoutSuccessRoute
   '/.well-known/oauth-authorization-server/api/auth': typeof DotwellKnownOauthAuthorizationServerApiAuthRoute
-  '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
-  '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
-  '/auth/sign-in': typeof AuthGuestAuthSignInRoute
-  '/auth/sign-up': typeof AuthGuestAuthSignUpRoute
-  '/errors': typeof AuthenticatedDashboardExploreErrorsRouteWithChildren
-  '/logs': typeof AuthenticatedDashboardExploreLogsRoute
-  '/traces': typeof AuthenticatedDashboardExploreTracesRoute
   '/account': typeof AuthenticatedDashboardPaddedAccountRoute
-  '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
-  '/repos': typeof AuthenticatedDashboardPaddedReposRoute
+  '/auth/forgot-password': typeof WelcomeGuestAuthForgotPasswordRoute
+  '/auth/reset-password': typeof WelcomeGuestAuthResetPasswordRoute
+  '/auth/sign-in': typeof WelcomeGuestAuthSignInRoute
+  '/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
+  '/organization-pending': typeof WelcomeSignedInOrganizationOrganizationPendingRoute
+  '/organization-setup': typeof WelcomeSignedInOrganizationOrganizationSetupRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
   '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
-  '/runs': typeof AuthenticatedDashboardRunsIndexRoute
-  '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
-  '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
-  '/api-keys': typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
-  '/billing': typeof AuthenticatedDashboardPaddedOrganizationBillingRoute
-  '/github': typeof AuthenticatedDashboardPaddedOrganizationGithubRoute
-  '/users-management': typeof AuthenticatedDashboardPaddedOrganizationUsersManagementRoute
-  '/billing/suspended': typeof AuthenticatedDashboardPaddedBillingSuspendedRoute
-  '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/alerts/notifications': typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
-  '/alerts/silences': typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
-  '/dashboards/get-started': typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
-  '/runbooks/get-started': typeof AuthenticatedDashboardPreviewableRunbooksGetStartedRoute
-  '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
+  '/organizations/checkout/success': typeof WelcomeSignedInOrganizationsCheckoutSuccessRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
-  '/alerts': typeof AuthenticatedDashboardPreviewableAlertsIndexRoute
-  '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
-  '/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
-  '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
-  '/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
-  '/workflows/$repo/$workflowName': typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
-  '/dashboards/$project/$slug': typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
-  '/dashboards/built-in/$slug': typeof AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute
+  '/billing': typeof AuthenticatedOrganizationDashboardPaddedAdminBillingRoute
+  '/billing/suspended': typeof AuthenticatedOrganizationDashboardPaddedBillingSuspendedRoute
+  '/checkout/success': typeof AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRoute
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
-  '/runbooks/$project/$slug/$': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute
+  '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
+  '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
+  '/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
+  '/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
   '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
-  '/runbooks/$project/$slug': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute
-  '/runs/$traceId/jobs/$jobId': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
-  '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
+  '/runs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute
+  '/errors/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute
+  '/traces/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRoute
+  '/api-keys': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute
+  '/github': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute
+  '/users-management': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute
+  '/alerts/notifications': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRoute
+  '/alerts/silences': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRoute
+  '/dashboards/get-started': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRoute
+  '/runbooks/get-started': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRoute
+  '/runs/$traceId/trace': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRoute
+  '/alerts': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRoute
+  '/dashboards': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute
+  '/runbooks': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute
+  '/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute
+  '/errors/$fingerprint/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute
+  '/workflows/$repo/$workflowName': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute
+  '/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRoute
+  '/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRoute
+  '/runbooks/$project/$slug/$': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRoute
+  '/runbooks/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRoute
+  '/runs/$traceId/jobs/$jobId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute
+  '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/_auth': typeof AuthRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/_welcome': typeof WelcomeRouteWithChildren
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
-  '/_auth/_guest': typeof AuthGuestRouteWithChildren
   '/_authenticated/_dashboard': typeof AuthenticatedDashboardRouteWithChildren
-  '/_authenticated/device': typeof AuthenticatedDeviceRoute
+  '/_authenticated/_organization': typeof AuthenticatedOrganizationRouteWithChildren
+  '/_welcome/_guest': typeof WelcomeGuestRouteWithChildren
+  '/_welcome/_signedIn': typeof WelcomeSignedInRouteWithChildren
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
-  '/_auth/auth/error': typeof AuthAuthErrorRoute
-  '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
-  '/_authenticated/_dashboard/_explore': typeof AuthenticatedDashboardExploreRouteWithChildren
   '/_authenticated/_dashboard/_padded': typeof AuthenticatedDashboardPaddedRouteWithChildren
-  '/_authenticated/_dashboard/_previewable': typeof AuthenticatedDashboardPreviewableRouteWithChildren
-  '/_authenticated/_dashboard/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
+  '/_authenticated/_organization/_dashboard': typeof AuthenticatedOrganizationDashboardRouteWithChildren
+  '/_authenticated/_organization/device': typeof AuthenticatedOrganizationDeviceRoute
+  '/_welcome/_signedIn/_organization': typeof WelcomeSignedInOrganizationRouteWithChildren
+  '/_welcome/_signedIn/choose-organization': typeof WelcomeSignedInChooseOrganizationRoute
+  '/_welcome/_signedIn/create-organization': typeof WelcomeSignedInCreateOrganizationRoute
+  '/_welcome/auth/error': typeof WelcomeAuthErrorRoute
+  '/_welcome/invite/$invitationId': typeof WelcomeInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
@@ -733,59 +939,69 @@ export interface FileRoutesById {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
-  '/organizations/checkout/success': typeof OrganizationsCheckoutSuccessRoute
-  '/_authenticated/_dashboard/_previewable/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
-  '/_authenticated/_dashboard/_previewable/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
-  '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/.well-known/oauth-authorization-server/api/auth': typeof DotwellKnownOauthAuthorizationServerApiAuthRoute
-  '/_auth/_guest/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
-  '/_auth/_guest/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
-  '/_auth/_guest/auth/sign-in': typeof AuthGuestAuthSignInRoute
-  '/_auth/_guest/auth/sign-up': typeof AuthGuestAuthSignUpRoute
-  '/_authenticated/_dashboard/_explore/errors': typeof AuthenticatedDashboardExploreErrorsRouteWithChildren
-  '/_authenticated/_dashboard/_explore/logs': typeof AuthenticatedDashboardExploreLogsRoute
-  '/_authenticated/_dashboard/_explore/traces': typeof AuthenticatedDashboardExploreTracesRoute
-  '/_authenticated/_dashboard/_padded/_organization': typeof AuthenticatedDashboardPaddedOrganizationRouteWithChildren
   '/_authenticated/_dashboard/_padded/account': typeof AuthenticatedDashboardPaddedAccountRoute
-  '/_authenticated/_dashboard/_padded/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
-  '/_authenticated/_dashboard/_padded/repos': typeof AuthenticatedDashboardPaddedReposRoute
-  '/_authenticated/_dashboard/_previewable/alerts': typeof AuthenticatedDashboardPreviewableAlertsRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_appAccess': typeof AuthenticatedOrganizationDashboardAppAccessRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_padded': typeof AuthenticatedOrganizationDashboardPaddedRouteWithChildren
+  '/_welcome/_guest/auth/forgot-password': typeof WelcomeGuestAuthForgotPasswordRoute
+  '/_welcome/_guest/auth/reset-password': typeof WelcomeGuestAuthResetPasswordRoute
+  '/_welcome/_guest/auth/sign-in': typeof WelcomeGuestAuthSignInRoute
+  '/_welcome/_guest/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
+  '/_welcome/_signedIn/_organization/organization-pending': typeof WelcomeSignedInOrganizationOrganizationPendingRoute
+  '/_welcome/_signedIn/_organization/organization-setup': typeof WelcomeSignedInOrganizationOrganizationSetupRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
   '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
-  '/_authenticated/_dashboard/_padded/': typeof AuthenticatedDashboardPaddedIndexRoute
-  '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
-  '/_authenticated/_dashboard/_explore/errors_/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
-  '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
-  '/_authenticated/_dashboard/_padded/_organization/api-keys': typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
-  '/_authenticated/_dashboard/_padded/_organization/billing': typeof AuthenticatedDashboardPaddedOrganizationBillingRoute
-  '/_authenticated/_dashboard/_padded/_organization/github': typeof AuthenticatedDashboardPaddedOrganizationGithubRoute
-  '/_authenticated/_dashboard/_padded/_organization/users-management': typeof AuthenticatedDashboardPaddedOrganizationUsersManagementRoute
-  '/_authenticated/_dashboard/_padded/billing_/suspended': typeof AuthenticatedDashboardPaddedBillingSuspendedRoute
-  '/_authenticated/_dashboard/_padded/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/_authenticated/_dashboard/_previewable/alerts/notifications': typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
-  '/_authenticated/_dashboard/_previewable/alerts/silences': typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
-  '/_authenticated/_dashboard/_previewable/dashboards/get-started': typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
-  '/_authenticated/_dashboard/_previewable/runbooks/get-started': typeof AuthenticatedDashboardPreviewableRunbooksGetStartedRoute
-  '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_padded/_admin': typeof AuthenticatedOrganizationDashboardPaddedAdminRouteWithChildren
+  '/_welcome/_signedIn/organizations/checkout/success': typeof WelcomeSignedInOrganizationsCheckoutSuccessRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
-  '/_authenticated/_dashboard/_previewable/alerts/': typeof AuthenticatedDashboardPreviewableAlertsIndexRoute
-  '/_authenticated/_dashboard/_previewable/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
-  '/_authenticated/_dashboard/_previewable/runbooks/': typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
-  '/_authenticated/_dashboard/runs/$traceId/': typeof AuthenticatedDashboardRunsTraceIdIndexRoute
-  '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal': typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
-  '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName': typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
-  '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug': typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
-  '/_authenticated/_dashboard/_previewable/dashboards/built-in/$slug': typeof AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_padded/_admin/billing': typeof AuthenticatedOrganizationDashboardPaddedAdminBillingRoute
+  '/_authenticated/_organization/_dashboard/_padded/billing_/suspended': typeof AuthenticatedOrganizationDashboardPaddedBillingSuspendedRoute
+  '/_authenticated/_organization/_dashboard/_padded/checkout/success': typeof AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRoute
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
-  '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteWithChildren
   '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
-  '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/': typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute
-  '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
-  '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/users-management': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/notifications': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/silences': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/get-started': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/get-started': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/trace': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/$': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -793,16 +1009,17 @@ export interface FileRouteTypes {
     | '/'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
-    | '/device'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
+    | '/device'
+    | '/choose-organization'
+    | '/create-organization'
     | '/auth/error'
     | '/invite/$invitationId'
-    | '/runs'
     | '/api/auth/$'
     | '/api/cli/import'
     | '/api/cli/me'
@@ -814,43 +1031,48 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
-    | '/organizations/checkout/success'
-    | '/dashboards'
-    | '/runbooks'
-    | '/runs/$traceId'
     | '/.well-known/oauth-authorization-server/api/auth'
+    | '/account'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
-    | '/errors'
-    | '/logs'
-    | '/traces'
-    | '/account'
-    | '/cost-analysis'
-    | '/repos'
-    | '/alerts'
+    | '/organization-pending'
+    | '/organization-setup'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
     | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
+    | '/organizations/checkout/success'
+    | '/api/cli/runs/$traceId/logs'
+    | '/runs'
+    | '/billing'
+    | '/billing/suspended'
+    | '/checkout/success'
+    | '/api/cli/resources/$kind/$project/$slug'
+    | '/dashboards'
+    | '/runbooks'
+    | '/runs/$traceId'
+    | '/errors'
+    | '/logs'
+    | '/traces'
+    | '/cost-analysis'
+    | '/repos'
+    | '/alerts'
+    | '/api/cli/resources/$kind/$project/$slug/adopt'
     | '/runs/'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/api-keys'
-    | '/billing'
     | '/github'
     | '/users-management'
-    | '/billing/suspended'
-    | '/checkout/success'
     | '/alerts/notifications'
     | '/alerts/silences'
     | '/dashboards/get-started'
     | '/runbooks/get-started'
     | '/runs/$traceId/trace'
-    | '/api/cli/runs/$traceId/logs'
     | '/alerts/'
     | '/dashboards/'
     | '/runbooks/'
@@ -859,9 +1081,7 @@ export interface FileRouteTypes {
     | '/workflows/$repo/$workflowName'
     | '/dashboards/$project/$slug'
     | '/dashboards/built-in/$slug'
-    | '/api/cli/resources/$kind/$project/$slug'
     | '/runbooks/$project/$slug/$'
-    | '/api/cli/resources/$kind/$project/$slug/adopt'
     | '/runbooks/$project/$slug/'
     | '/runs/$traceId/jobs/$jobId/'
     | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -870,13 +1090,15 @@ export interface FileRouteTypes {
     | '/'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
-    | '/device'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
+    | '/device'
+    | '/choose-organization'
+    | '/create-organization'
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
@@ -890,39 +1112,43 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
-    | '/organizations/checkout/success'
     | '/.well-known/oauth-authorization-server/api/auth'
+    | '/account'
     | '/auth/forgot-password'
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
-    | '/errors'
-    | '/logs'
-    | '/traces'
-    | '/account'
-    | '/cost-analysis'
-    | '/repos'
+    | '/organization-pending'
+    | '/organization-setup'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
     | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
+    | '/organizations/checkout/success'
+    | '/api/cli/runs/$traceId/logs'
+    | '/billing'
+    | '/billing/suspended'
+    | '/checkout/success'
+    | '/api/cli/resources/$kind/$project/$slug'
+    | '/errors'
+    | '/logs'
+    | '/traces'
+    | '/cost-analysis'
+    | '/repos'
+    | '/api/cli/resources/$kind/$project/$slug/adopt'
     | '/runs'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/api-keys'
-    | '/billing'
     | '/github'
     | '/users-management'
-    | '/billing/suspended'
-    | '/checkout/success'
     | '/alerts/notifications'
     | '/alerts/silences'
     | '/dashboards/get-started'
     | '/runbooks/get-started'
     | '/runs/$traceId/trace'
-    | '/api/cli/runs/$traceId/logs'
     | '/alerts'
     | '/dashboards'
     | '/runbooks'
@@ -931,33 +1157,34 @@ export interface FileRouteTypes {
     | '/workflows/$repo/$workflowName'
     | '/dashboards/$project/$slug'
     | '/dashboards/built-in/$slug'
-    | '/api/cli/resources/$kind/$project/$slug'
     | '/runbooks/$project/$slug/$'
-    | '/api/cli/resources/$kind/$project/$slug/adopt'
     | '/runbooks/$project/$slug'
     | '/runs/$traceId/jobs/$jobId'
     | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   id:
     | '__root__'
-    | '/_auth'
     | '/_authenticated'
+    | '/_welcome'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
-    | '/_auth/_guest'
     | '/_authenticated/_dashboard'
-    | '/_authenticated/device'
+    | '/_authenticated/_organization'
+    | '/_welcome/_guest'
+    | '/_welcome/_signedIn'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
-    | '/_auth/auth/error'
-    | '/_auth/invite/$invitationId'
-    | '/_authenticated/_dashboard/_explore'
     | '/_authenticated/_dashboard/_padded'
-    | '/_authenticated/_dashboard/_previewable'
-    | '/_authenticated/_dashboard/runs'
+    | '/_authenticated/_organization/_dashboard'
+    | '/_authenticated/_organization/device'
+    | '/_welcome/_signedIn/_organization'
+    | '/_welcome/_signedIn/choose-organization'
+    | '/_welcome/_signedIn/create-organization'
+    | '/_welcome/auth/error'
+    | '/_welcome/invite/$invitationId'
     | '/api/auth/$'
     | '/api/cli/import'
     | '/api/cli/me'
@@ -969,64 +1196,74 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
-    | '/organizations/checkout/success'
-    | '/_authenticated/_dashboard/_previewable/dashboards'
-    | '/_authenticated/_dashboard/_previewable/runbooks'
-    | '/_authenticated/_dashboard/runs/$traceId'
     | '/.well-known/oauth-authorization-server/api/auth'
-    | '/_auth/_guest/auth/forgot-password'
-    | '/_auth/_guest/auth/reset-password'
-    | '/_auth/_guest/auth/sign-in'
-    | '/_auth/_guest/auth/sign-up'
-    | '/_authenticated/_dashboard/_explore/errors'
-    | '/_authenticated/_dashboard/_explore/logs'
-    | '/_authenticated/_dashboard/_explore/traces'
-    | '/_authenticated/_dashboard/_padded/_organization'
     | '/_authenticated/_dashboard/_padded/account'
-    | '/_authenticated/_dashboard/_padded/cost-analysis'
-    | '/_authenticated/_dashboard/_padded/repos'
-    | '/_authenticated/_dashboard/_previewable/alerts'
+    | '/_authenticated/_organization/_dashboard/_appAccess'
+    | '/_authenticated/_organization/_dashboard/_padded'
+    | '/_welcome/_guest/auth/forgot-password'
+    | '/_welcome/_guest/auth/reset-password'
+    | '/_welcome/_guest/auth/sign-in'
+    | '/_welcome/_guest/auth/sign-up'
+    | '/_welcome/_signedIn/_organization/organization-pending'
+    | '/_welcome/_signedIn/_organization/organization-setup'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/filter-options'
     | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
-    | '/_authenticated/_dashboard/_padded/'
-    | '/_authenticated/_dashboard/runs/'
-    | '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
-    | '/_authenticated/_dashboard/_explore/traces_/$traceId'
-    | '/_authenticated/_dashboard/_padded/_organization/api-keys'
-    | '/_authenticated/_dashboard/_padded/_organization/billing'
-    | '/_authenticated/_dashboard/_padded/_organization/github'
-    | '/_authenticated/_dashboard/_padded/_organization/users-management'
-    | '/_authenticated/_dashboard/_padded/billing_/suspended'
-    | '/_authenticated/_dashboard/_padded/checkout/success'
-    | '/_authenticated/_dashboard/_previewable/alerts/notifications'
-    | '/_authenticated/_dashboard/_previewable/alerts/silences'
-    | '/_authenticated/_dashboard/_previewable/dashboards/get-started'
-    | '/_authenticated/_dashboard/_previewable/runbooks/get-started'
-    | '/_authenticated/_dashboard/runs/$traceId/trace'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned'
+    | '/_authenticated/_organization/_dashboard/_padded/_admin'
+    | '/_welcome/_signedIn/organizations/checkout/success'
     | '/api/cli/runs/$traceId/logs'
-    | '/_authenticated/_dashboard/_previewable/alerts/'
-    | '/_authenticated/_dashboard/_previewable/dashboards/'
-    | '/_authenticated/_dashboard/_previewable/runbooks/'
-    | '/_authenticated/_dashboard/runs/$traceId/'
-    | '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal'
-    | '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
-    | '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug'
-    | '/_authenticated/_dashboard/_previewable/dashboards/built-in/$slug'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs'
+    | '/_authenticated/_organization/_dashboard/_padded/_admin/billing'
+    | '/_authenticated/_organization/_dashboard/_padded/billing_/suspended'
+    | '/_authenticated/_organization/_dashboard/_padded/checkout/success'
     | '/api/cli/resources/$kind/$project/$slug'
-    | '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/repos'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts'
     | '/api/cli/resources/$kind/$project/$slug/adopt'
-    | '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/'
-    | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
-    | '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/users-management'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/notifications'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/silences'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/get-started'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/get-started'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/trace'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint/modal'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/$'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  AuthRoute: typeof AuthRouteWithChildren
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  WelcomeRoute: typeof WelcomeRouteWithChildren
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   ApiApplyRoute: typeof ApiApplyRoute
@@ -1038,25 +1275,24 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
   ApiInternalVerifyKeyRoute: typeof ApiInternalVerifyKeyRoute
-  OrganizationsCheckoutSuccessRoute: typeof OrganizationsCheckoutSuccessRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_auth': {
-      id: '/_auth'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_welcome': {
+      id: '/_welcome'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-authorization-server': {
@@ -1073,13 +1309,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotwellKnownOauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_auth/_guest': {
-      id: '/_auth/_guest'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthGuestRouteImport
-      parentRoute: typeof AuthRoute
-    }
     '/_authenticated/_dashboard': {
       id: '/_authenticated/_dashboard'
       path: ''
@@ -1087,12 +1316,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/device': {
-      id: '/_authenticated/device'
-      path: '/device'
-      fullPath: '/device'
-      preLoaderRoute: typeof AuthenticatedDeviceRouteImport
+    '/_authenticated/_organization': {
+      id: '/_authenticated/_organization'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedOrganizationRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_welcome/_guest': {
+      id: '/_welcome/_guest'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof WelcomeGuestRouteImport
+      parentRoute: typeof WelcomeRoute
+    }
+    '/_welcome/_signedIn': {
+      id: '/_welcome/_signedIn'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof WelcomeSignedInRouteImport
+      parentRoute: typeof WelcomeRoute
     }
     '/api/apply': {
       id: '/api/apply'
@@ -1136,27 +1379,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WebhookGithubRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_auth/auth/error': {
-      id: '/_auth/auth/error'
-      path: '/auth/error'
-      fullPath: '/auth/error'
-      preLoaderRoute: typeof AuthAuthErrorRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/invite/$invitationId': {
-      id: '/_auth/invite/$invitationId'
-      path: '/invite/$invitationId'
-      fullPath: '/invite/$invitationId'
-      preLoaderRoute: typeof AuthInviteInvitationIdRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_authenticated/_dashboard/_explore': {
-      id: '/_authenticated/_dashboard/_explore'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
-    }
     '/_authenticated/_dashboard/_padded': {
       id: '/_authenticated/_dashboard/_padded'
       path: ''
@@ -1164,19 +1386,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPaddedRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
-    '/_authenticated/_dashboard/_previewable': {
-      id: '/_authenticated/_dashboard/_previewable'
+    '/_authenticated/_organization/_dashboard': {
+      id: '/_authenticated/_organization/_dashboard'
       path: ''
       fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardRouteImport
+      parentRoute: typeof AuthenticatedOrganizationRoute
     }
-    '/_authenticated/_dashboard/runs': {
-      id: '/_authenticated/_dashboard/runs'
-      path: '/runs'
-      fullPath: '/runs'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
+    '/_authenticated/_organization/device': {
+      id: '/_authenticated/_organization/device'
+      path: '/device'
+      fullPath: '/device'
+      preLoaderRoute: typeof AuthenticatedOrganizationDeviceRouteImport
+      parentRoute: typeof AuthenticatedOrganizationRoute
+    }
+    '/_welcome/_signedIn/_organization': {
+      id: '/_welcome/_signedIn/_organization'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof WelcomeSignedInOrganizationRouteImport
+      parentRoute: typeof WelcomeSignedInRoute
+    }
+    '/_welcome/_signedIn/choose-organization': {
+      id: '/_welcome/_signedIn/choose-organization'
+      path: '/choose-organization'
+      fullPath: '/choose-organization'
+      preLoaderRoute: typeof WelcomeSignedInChooseOrganizationRouteImport
+      parentRoute: typeof WelcomeSignedInRoute
+    }
+    '/_welcome/_signedIn/create-organization': {
+      id: '/_welcome/_signedIn/create-organization'
+      path: '/create-organization'
+      fullPath: '/create-organization'
+      preLoaderRoute: typeof WelcomeSignedInCreateOrganizationRouteImport
+      parentRoute: typeof WelcomeSignedInRoute
+    }
+    '/_welcome/auth/error': {
+      id: '/_welcome/auth/error'
+      path: '/auth/error'
+      fullPath: '/auth/error'
+      preLoaderRoute: typeof WelcomeAuthErrorRouteImport
+      parentRoute: typeof WelcomeRoute
+    }
+    '/_welcome/invite/$invitationId': {
+      id: '/_welcome/invite/$invitationId'
+      path: '/invite/$invitationId'
+      fullPath: '/invite/$invitationId'
+      preLoaderRoute: typeof WelcomeInviteInvitationIdRouteImport
+      parentRoute: typeof WelcomeRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -1255,82 +1512,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalVerifyKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/organizations/checkout/success': {
-      id: '/organizations/checkout/success'
-      path: '/organizations/checkout/success'
-      fullPath: '/organizations/checkout/success'
-      preLoaderRoute: typeof OrganizationsCheckoutSuccessRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/.well-known/oauth-authorization-server/api/auth': {
       id: '/.well-known/oauth-authorization-server/api/auth'
       path: '/api/auth'
       fullPath: '/.well-known/oauth-authorization-server/api/auth'
       preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerApiAuthRouteImport
       parentRoute: typeof DotwellKnownOauthAuthorizationServerRoute
-    }
-    '/_auth/_guest/auth/forgot-password': {
-      id: '/_auth/_guest/auth/forgot-password'
-      path: '/auth/forgot-password'
-      fullPath: '/auth/forgot-password'
-      preLoaderRoute: typeof AuthGuestAuthForgotPasswordRouteImport
-      parentRoute: typeof AuthGuestRoute
-    }
-    '/_auth/_guest/auth/reset-password': {
-      id: '/_auth/_guest/auth/reset-password'
-      path: '/auth/reset-password'
-      fullPath: '/auth/reset-password'
-      preLoaderRoute: typeof AuthGuestAuthResetPasswordRouteImport
-      parentRoute: typeof AuthGuestRoute
-    }
-    '/_auth/_guest/auth/sign-in': {
-      id: '/_auth/_guest/auth/sign-in'
-      path: '/auth/sign-in'
-      fullPath: '/auth/sign-in'
-      preLoaderRoute: typeof AuthGuestAuthSignInRouteImport
-      parentRoute: typeof AuthGuestRoute
-    }
-    '/_auth/_guest/auth/sign-up': {
-      id: '/_auth/_guest/auth/sign-up'
-      path: '/auth/sign-up'
-      fullPath: '/auth/sign-up'
-      preLoaderRoute: typeof AuthGuestAuthSignUpRouteImport
-      parentRoute: typeof AuthGuestRoute
-    }
-    '/_authenticated/_dashboard/_explore/errors': {
-      id: '/_authenticated/_dashboard/_explore/errors'
-      path: '/errors'
-      fullPath: '/errors'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreErrorsRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreRoute
-    }
-    '/_authenticated/_dashboard/_explore/logs': {
-      id: '/_authenticated/_dashboard/_explore/logs'
-      path: '/logs'
-      fullPath: '/logs'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreLogsRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreRoute
-    }
-    '/_authenticated/_dashboard/_explore/traces': {
-      id: '/_authenticated/_dashboard/_explore/traces'
-      path: '/traces'
-      fullPath: '/traces'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreTracesRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreRoute
-    }
-    '/_authenticated/_dashboard/_padded/': {
-      id: '/_authenticated/_dashboard/_padded/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
-    '/_authenticated/_dashboard/_padded/_organization': {
-      id: '/_authenticated/_dashboard/_padded/_organization'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedOrganizationRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
     }
     '/_authenticated/_dashboard/_padded/account': {
       id: '/_authenticated/_dashboard/_padded/account'
@@ -1339,54 +1526,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPaddedAccountRouteImport
       parentRoute: typeof AuthenticatedDashboardPaddedRoute
     }
-    '/_authenticated/_dashboard/_padded/cost-analysis': {
-      id: '/_authenticated/_dashboard/_padded/cost-analysis'
-      path: '/cost-analysis'
-      fullPath: '/cost-analysis'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedCostAnalysisRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    '/_authenticated/_organization/_dashboard/_appAccess': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardRoute
     }
-    '/_authenticated/_dashboard/_padded/repos': {
-      id: '/_authenticated/_dashboard/_padded/repos'
-      path: '/repos'
-      fullPath: '/repos'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedReposRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    '/_authenticated/_organization/_dashboard/_padded': {
+      id: '/_authenticated/_organization/_dashboard/_padded'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardPaddedRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardRoute
     }
-    '/_authenticated/_dashboard/_previewable/alerts': {
-      id: '/_authenticated/_dashboard/_previewable/alerts'
-      path: '/alerts'
-      fullPath: '/alerts'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+    '/_welcome/_guest/auth/forgot-password': {
+      id: '/_welcome/_guest/auth/forgot-password'
+      path: '/auth/forgot-password'
+      fullPath: '/auth/forgot-password'
+      preLoaderRoute: typeof WelcomeGuestAuthForgotPasswordRouteImport
+      parentRoute: typeof WelcomeGuestRoute
     }
-    '/_authenticated/_dashboard/_previewable/dashboards': {
-      id: '/_authenticated/_dashboard/_previewable/dashboards'
-      path: '/dashboards'
-      fullPath: '/dashboards'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+    '/_welcome/_guest/auth/reset-password': {
+      id: '/_welcome/_guest/auth/reset-password'
+      path: '/auth/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof WelcomeGuestAuthResetPasswordRouteImport
+      parentRoute: typeof WelcomeGuestRoute
     }
-    '/_authenticated/_dashboard/_previewable/runbooks': {
-      id: '/_authenticated/_dashboard/_previewable/runbooks'
-      path: '/runbooks'
-      fullPath: '/runbooks'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+    '/_welcome/_guest/auth/sign-in': {
+      id: '/_welcome/_guest/auth/sign-in'
+      path: '/auth/sign-in'
+      fullPath: '/auth/sign-in'
+      preLoaderRoute: typeof WelcomeGuestAuthSignInRouteImport
+      parentRoute: typeof WelcomeGuestRoute
     }
-    '/_authenticated/_dashboard/runs/': {
-      id: '/_authenticated/_dashboard/runs/'
-      path: '/'
-      fullPath: '/runs/'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardRunsRoute
+    '/_welcome/_guest/auth/sign-up': {
+      id: '/_welcome/_guest/auth/sign-up'
+      path: '/auth/sign-up'
+      fullPath: '/auth/sign-up'
+      preLoaderRoute: typeof WelcomeGuestAuthSignUpRouteImport
+      parentRoute: typeof WelcomeGuestRoute
     }
-    '/_authenticated/_dashboard/runs/$traceId': {
-      id: '/_authenticated/_dashboard/runs/$traceId'
-      path: '/$traceId'
-      fullPath: '/runs/$traceId'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRouteImport
-      parentRoute: typeof AuthenticatedDashboardRunsRoute
+    '/_welcome/_signedIn/_organization/organization-pending': {
+      id: '/_welcome/_signedIn/_organization/organization-pending'
+      path: '/organization-pending'
+      fullPath: '/organization-pending'
+      preLoaderRoute: typeof WelcomeSignedInOrganizationOrganizationPendingRouteImport
+      parentRoute: typeof WelcomeSignedInOrganizationRoute
+    }
+    '/_welcome/_signedIn/_organization/organization-setup': {
+      id: '/_welcome/_signedIn/_organization/organization-setup'
+      path: '/organization-setup'
+      fullPath: '/organization-setup'
+      preLoaderRoute: typeof WelcomeSignedInOrganizationOrganizationSetupRouteImport
+      parentRoute: typeof WelcomeSignedInOrganizationRoute
     }
     '/api/cli/runs/$traceId': {
       id: '/api/cli/runs/$traceId'
@@ -1430,124 +1624,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGithubInstallStartRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/_dashboard/_explore/errors_/$fingerprint': {
-      id: '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
-      path: '/errors/$fingerprint'
-      fullPath: '/errors/$fingerprint'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreErrorsFingerprintRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreRoute
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessRoute
     }
-    '/_authenticated/_dashboard/_explore/traces_/$traceId': {
-      id: '/_authenticated/_dashboard/_explore/traces_/$traceId'
-      path: '/traces/$traceId'
-      fullPath: '/traces/$traceId'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreTracesTraceIdRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreRoute
+    '/_authenticated/_organization/_dashboard/_padded/_admin': {
+      id: '/_authenticated/_organization/_dashboard/_padded/_admin'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardPaddedAdminRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardPaddedRoute
     }
-    '/_authenticated/_dashboard/_padded/_organization/api-keys': {
-      id: '/_authenticated/_dashboard/_padded/_organization/api-keys'
-      path: '/api-keys'
-      fullPath: '/api-keys'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedOrganizationApiKeysRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedOrganizationRoute
-    }
-    '/_authenticated/_dashboard/_padded/_organization/billing': {
-      id: '/_authenticated/_dashboard/_padded/_organization/billing'
-      path: '/billing'
-      fullPath: '/billing'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedOrganizationBillingRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedOrganizationRoute
-    }
-    '/_authenticated/_dashboard/_padded/_organization/github': {
-      id: '/_authenticated/_dashboard/_padded/_organization/github'
-      path: '/github'
-      fullPath: '/github'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedOrganizationGithubRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedOrganizationRoute
-    }
-    '/_authenticated/_dashboard/_padded/_organization/users-management': {
-      id: '/_authenticated/_dashboard/_padded/_organization/users-management'
-      path: '/users-management'
-      fullPath: '/users-management'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedOrganizationUsersManagementRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedOrganizationRoute
-    }
-    '/_authenticated/_dashboard/_padded/billing_/suspended': {
-      id: '/_authenticated/_dashboard/_padded/billing_/suspended'
-      path: '/billing/suspended'
-      fullPath: '/billing/suspended'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedBillingSuspendedRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
-    '/_authenticated/_dashboard/_padded/checkout/success': {
-      id: '/_authenticated/_dashboard/_padded/checkout/success'
-      path: '/checkout/success'
-      fullPath: '/checkout/success'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedCheckoutSuccessRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
-    '/_authenticated/_dashboard/_previewable/alerts/': {
-      id: '/_authenticated/_dashboard/_previewable/alerts/'
-      path: '/'
-      fullPath: '/alerts/'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
-    }
-    '/_authenticated/_dashboard/_previewable/alerts/notifications': {
-      id: '/_authenticated/_dashboard/_previewable/alerts/notifications'
-      path: '/notifications'
-      fullPath: '/alerts/notifications'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsNotificationsRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
-    }
-    '/_authenticated/_dashboard/_previewable/alerts/silences': {
-      id: '/_authenticated/_dashboard/_previewable/alerts/silences'
-      path: '/silences'
-      fullPath: '/alerts/silences'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsSilencesRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
-    }
-    '/_authenticated/_dashboard/_previewable/dashboards/': {
-      id: '/_authenticated/_dashboard/_previewable/dashboards/'
-      path: '/'
-      fullPath: '/dashboards/'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRoute
-    }
-    '/_authenticated/_dashboard/_previewable/dashboards/get-started': {
-      id: '/_authenticated/_dashboard/_previewable/dashboards/get-started'
-      path: '/get-started'
-      fullPath: '/dashboards/get-started'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRoute
-    }
-    '/_authenticated/_dashboard/_previewable/runbooks/': {
-      id: '/_authenticated/_dashboard/_previewable/runbooks/'
-      path: '/'
-      fullPath: '/runbooks/'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRoute
-    }
-    '/_authenticated/_dashboard/_previewable/runbooks/get-started': {
-      id: '/_authenticated/_dashboard/_previewable/runbooks/get-started'
-      path: '/get-started'
-      fullPath: '/runbooks/get-started'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksGetStartedRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRoute
-    }
-    '/_authenticated/_dashboard/runs/$traceId/': {
-      id: '/_authenticated/_dashboard/runs/$traceId/'
-      path: '/'
-      fullPath: '/runs/$traceId/'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
-    }
-    '/_authenticated/_dashboard/runs/$traceId/trace': {
-      id: '/_authenticated/_dashboard/runs/$traceId/trace'
-      path: '/trace'
-      fullPath: '/runs/$traceId/trace'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdTraceRouteImport
-      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
+    '/_welcome/_signedIn/organizations/checkout/success': {
+      id: '/_welcome/_signedIn/organizations/checkout/success'
+      path: '/organizations/checkout/success'
+      fullPath: '/organizations/checkout/success'
+      preLoaderRoute: typeof WelcomeSignedInOrganizationsCheckoutSuccessRouteImport
+      parentRoute: typeof WelcomeSignedInRoute
     }
     '/api/cli/runs/$traceId/logs': {
       id: '/api/cli/runs/$traceId/logs'
@@ -1556,33 +1652,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliRunsTraceIdLogsRouteImport
       parentRoute: typeof ApiCliRunsTraceIdRoute
     }
-    '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal': {
-      id: '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal'
-      path: '/$fingerprint/modal'
-      fullPath: '/errors/$fingerprint/modal'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreErrorsFingerprintModalRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreErrorsRoute
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRoute
     }
-    '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName': {
-      id: '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
-      path: '/workflows/$repo/$workflowName'
-      fullPath: '/workflows/$repo/$workflowName'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRoute
     }
-    '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug': {
-      id: '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug'
-      path: '/$project/$slug'
-      fullPath: '/dashboards/$project/$slug'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRoute
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRoute
     }
-    '/_authenticated/_dashboard/_previewable/dashboards/built-in/$slug': {
-      id: '/_authenticated/_dashboard/_previewable/dashboards/built-in/$slug'
-      path: '/built-in/$slug'
-      fullPath: '/dashboards/built-in/$slug'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRoute
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs'
+      path: '/runs'
+      fullPath: '/runs'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRoute
+    }
+    '/_authenticated/_organization/_dashboard/_padded/_admin/billing': {
+      id: '/_authenticated/_organization/_dashboard/_padded/_admin/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardPaddedAdminBillingRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardPaddedAdminRoute
+    }
+    '/_authenticated/_organization/_dashboard/_padded/billing_/suspended': {
+      id: '/_authenticated/_organization/_dashboard/_padded/billing_/suspended'
+      path: '/billing/suspended'
+      fullPath: '/billing/suspended'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardPaddedBillingSuspendedRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardPaddedRoute
+    }
+    '/_authenticated/_organization/_dashboard/_padded/checkout/success': {
+      id: '/_authenticated/_organization/_dashboard/_padded/checkout/success'
+      path: '/checkout/success'
+      fullPath: '/checkout/success'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardPaddedRoute
     }
     '/api/cli/resources/$kind/$project/$slug': {
       id: '/api/cli/resources/$kind/$project/$slug'
@@ -1591,26 +1708,89 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliResourcesKindProjectSlugRouteImport
       parentRoute: typeof ApiCliResourcesRoute
     }
-    '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/': {
-      id: '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/'
-      path: '/$project/$slug'
-      fullPath: '/runbooks/$project/$slug/'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRoute
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
+      path: '/errors'
+      fullPath: '/errors'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
     }
-    '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$': {
-      id: '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$'
-      path: '/$project/$slug/$'
-      fullPath: '/runbooks/$project/$slug/$'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRoute
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
     }
-    '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': {
-      id: '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
-      path: '/jobs/$jobId'
-      fullPath: '/runs/$traceId/jobs/$jobId/'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
+      path: '/traces'
+      fullPath: '/traces'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis'
+      path: '/cost-analysis'
+      fullPath: '/cost-analysis'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/repos': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/repos'
+      path: '/repos'
+      fullPath: '/repos'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards'
+      path: '/dashboards'
+      fullPath: '/dashboards'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks'
+      path: '/runbooks'
+      fullPath: '/runbooks'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/'
+      path: '/'
+      fullPath: '/runs/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId'
+      path: '/$traceId'
+      fullPath: '/runs/$traceId'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRoute
     }
     '/api/cli/resources/$kind/$project/$slug/adopt': {
       id: '/api/cli/resources/$kind/$project/$slug/adopt'
@@ -1619,143 +1799,171 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliResourcesKindProjectSlugAdoptRouteImport
       parentRoute: typeof ApiCliResourcesKindProjectSlugRoute
     }
-    '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': {
-      id: '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint'
+      path: '/errors/$fingerprint'
+      fullPath: '/errors/$fingerprint'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId'
+      path: '/traces/$traceId'
+      fullPath: '/traces/$traceId'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys'
+      path: '/api-keys'
+      fullPath: '/api-keys'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github'
+      path: '/github'
+      fullPath: '/github'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/users-management': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/users-management'
+      path: '/users-management'
+      fullPath: '/users-management'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/'
+      path: '/'
+      fullPath: '/alerts/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/notifications': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/notifications'
+      path: '/notifications'
+      fullPath: '/alerts/notifications'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/silences': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/silences'
+      path: '/silences'
+      fullPath: '/alerts/silences'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/'
+      path: '/'
+      fullPath: '/dashboards/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/get-started': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/get-started'
+      path: '/get-started'
+      fullPath: '/dashboards/get-started'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/'
+      path: '/'
+      fullPath: '/runbooks/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/get-started': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/get-started'
+      path: '/get-started'
+      fullPath: '/runbooks/get-started'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/'
+      path: '/'
+      fullPath: '/runs/$traceId/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/trace': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/trace'
+      path: '/trace'
+      fullPath: '/runs/$traceId/trace'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint/modal': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint/modal'
+      path: '/$fingerprint/modal'
+      fullPath: '/errors/$fingerprint/modal'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName'
+      path: '/workflows/$repo/$workflowName'
+      fullPath: '/workflows/$repo/$workflowName'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug'
+      path: '/$project/$slug'
+      fullPath: '/dashboards/$project/$slug'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug'
+      path: '/built-in/$slug'
+      fullPath: '/dashboards/built-in/$slug'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/'
+      path: '/$project/$slug'
+      fullPath: '/runbooks/$project/$slug/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/$': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/$'
+      path: '/$project/$slug/$'
+      fullPath: '/runbooks/$project/$slug/$'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/'
+      path: '/jobs/$jobId'
+      fullPath: '/runs/$traceId/jobs/$jobId/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber'
       path: '/jobs/$jobId/steps/$stepNumber'
       fullPath: '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport
-      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute
     }
   }
 }
 
-interface AuthGuestRouteChildren {
-  AuthGuestAuthForgotPasswordRoute: typeof AuthGuestAuthForgotPasswordRoute
-  AuthGuestAuthResetPasswordRoute: typeof AuthGuestAuthResetPasswordRoute
-  AuthGuestAuthSignInRoute: typeof AuthGuestAuthSignInRoute
-  AuthGuestAuthSignUpRoute: typeof AuthGuestAuthSignUpRoute
-}
-
-const AuthGuestRouteChildren: AuthGuestRouteChildren = {
-  AuthGuestAuthForgotPasswordRoute: AuthGuestAuthForgotPasswordRoute,
-  AuthGuestAuthResetPasswordRoute: AuthGuestAuthResetPasswordRoute,
-  AuthGuestAuthSignInRoute: AuthGuestAuthSignInRoute,
-  AuthGuestAuthSignUpRoute: AuthGuestAuthSignUpRoute,
-}
-
-const AuthGuestRouteWithChildren = AuthGuestRoute._addFileChildren(
-  AuthGuestRouteChildren,
-)
-
-interface AuthRouteChildren {
-  AuthGuestRoute: typeof AuthGuestRouteWithChildren
-  AuthAuthErrorRoute: typeof AuthAuthErrorRoute
-  AuthInviteInvitationIdRoute: typeof AuthInviteInvitationIdRoute
-}
-
-const AuthRouteChildren: AuthRouteChildren = {
-  AuthGuestRoute: AuthGuestRouteWithChildren,
-  AuthAuthErrorRoute: AuthAuthErrorRoute,
-  AuthInviteInvitationIdRoute: AuthInviteInvitationIdRoute,
-}
-
-const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
-
-interface AuthenticatedDashboardExploreErrorsRouteChildren {
-  AuthenticatedDashboardExploreErrorsFingerprintModalRoute: typeof AuthenticatedDashboardExploreErrorsFingerprintModalRoute
-}
-
-const AuthenticatedDashboardExploreErrorsRouteChildren: AuthenticatedDashboardExploreErrorsRouteChildren =
-  {
-    AuthenticatedDashboardExploreErrorsFingerprintModalRoute:
-      AuthenticatedDashboardExploreErrorsFingerprintModalRoute,
-  }
-
-const AuthenticatedDashboardExploreErrorsRouteWithChildren =
-  AuthenticatedDashboardExploreErrorsRoute._addFileChildren(
-    AuthenticatedDashboardExploreErrorsRouteChildren,
-  )
-
-interface AuthenticatedDashboardExploreRouteChildren {
-  AuthenticatedDashboardExploreErrorsRoute: typeof AuthenticatedDashboardExploreErrorsRouteWithChildren
-  AuthenticatedDashboardExploreLogsRoute: typeof AuthenticatedDashboardExploreLogsRoute
-  AuthenticatedDashboardExploreTracesRoute: typeof AuthenticatedDashboardExploreTracesRoute
-  AuthenticatedDashboardExploreErrorsFingerprintRoute: typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
-  AuthenticatedDashboardExploreTracesTraceIdRoute: typeof AuthenticatedDashboardExploreTracesTraceIdRoute
-}
-
-const AuthenticatedDashboardExploreRouteChildren: AuthenticatedDashboardExploreRouteChildren =
-  {
-    AuthenticatedDashboardExploreErrorsRoute:
-      AuthenticatedDashboardExploreErrorsRouteWithChildren,
-    AuthenticatedDashboardExploreLogsRoute:
-      AuthenticatedDashboardExploreLogsRoute,
-    AuthenticatedDashboardExploreTracesRoute:
-      AuthenticatedDashboardExploreTracesRoute,
-    AuthenticatedDashboardExploreErrorsFingerprintRoute:
-      AuthenticatedDashboardExploreErrorsFingerprintRoute,
-    AuthenticatedDashboardExploreTracesTraceIdRoute:
-      AuthenticatedDashboardExploreTracesTraceIdRoute,
-  }
-
-const AuthenticatedDashboardExploreRouteWithChildren =
-  AuthenticatedDashboardExploreRoute._addFileChildren(
-    AuthenticatedDashboardExploreRouteChildren,
-  )
-
-interface AuthenticatedDashboardPaddedOrganizationRouteChildren {
-  AuthenticatedDashboardPaddedOrganizationApiKeysRoute: typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
-  AuthenticatedDashboardPaddedOrganizationBillingRoute: typeof AuthenticatedDashboardPaddedOrganizationBillingRoute
-  AuthenticatedDashboardPaddedOrganizationGithubRoute: typeof AuthenticatedDashboardPaddedOrganizationGithubRoute
-  AuthenticatedDashboardPaddedOrganizationUsersManagementRoute: typeof AuthenticatedDashboardPaddedOrganizationUsersManagementRoute
-}
-
-const AuthenticatedDashboardPaddedOrganizationRouteChildren: AuthenticatedDashboardPaddedOrganizationRouteChildren =
-  {
-    AuthenticatedDashboardPaddedOrganizationApiKeysRoute:
-      AuthenticatedDashboardPaddedOrganizationApiKeysRoute,
-    AuthenticatedDashboardPaddedOrganizationBillingRoute:
-      AuthenticatedDashboardPaddedOrganizationBillingRoute,
-    AuthenticatedDashboardPaddedOrganizationGithubRoute:
-      AuthenticatedDashboardPaddedOrganizationGithubRoute,
-    AuthenticatedDashboardPaddedOrganizationUsersManagementRoute:
-      AuthenticatedDashboardPaddedOrganizationUsersManagementRoute,
-  }
-
-const AuthenticatedDashboardPaddedOrganizationRouteWithChildren =
-  AuthenticatedDashboardPaddedOrganizationRoute._addFileChildren(
-    AuthenticatedDashboardPaddedOrganizationRouteChildren,
-  )
-
 interface AuthenticatedDashboardPaddedRouteChildren {
-  AuthenticatedDashboardPaddedOrganizationRoute: typeof AuthenticatedDashboardPaddedOrganizationRouteWithChildren
   AuthenticatedDashboardPaddedAccountRoute: typeof AuthenticatedDashboardPaddedAccountRoute
-  AuthenticatedDashboardPaddedCostAnalysisRoute: typeof AuthenticatedDashboardPaddedCostAnalysisRoute
-  AuthenticatedDashboardPaddedReposRoute: typeof AuthenticatedDashboardPaddedReposRoute
-  AuthenticatedDashboardPaddedIndexRoute: typeof AuthenticatedDashboardPaddedIndexRoute
-  AuthenticatedDashboardPaddedBillingSuspendedRoute: typeof AuthenticatedDashboardPaddedBillingSuspendedRoute
-  AuthenticatedDashboardPaddedCheckoutSuccessRoute: typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute: typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute
 }
 
 const AuthenticatedDashboardPaddedRouteChildren: AuthenticatedDashboardPaddedRouteChildren =
   {
-    AuthenticatedDashboardPaddedOrganizationRoute:
-      AuthenticatedDashboardPaddedOrganizationRouteWithChildren,
     AuthenticatedDashboardPaddedAccountRoute:
       AuthenticatedDashboardPaddedAccountRoute,
-    AuthenticatedDashboardPaddedCostAnalysisRoute:
-      AuthenticatedDashboardPaddedCostAnalysisRoute,
-    AuthenticatedDashboardPaddedReposRoute:
-      AuthenticatedDashboardPaddedReposRoute,
-    AuthenticatedDashboardPaddedIndexRoute:
-      AuthenticatedDashboardPaddedIndexRoute,
-    AuthenticatedDashboardPaddedBillingSuspendedRoute:
-      AuthenticatedDashboardPaddedBillingSuspendedRoute,
-    AuthenticatedDashboardPaddedCheckoutSuccessRoute:
-      AuthenticatedDashboardPaddedCheckoutSuccessRoute,
-    AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute:
-      AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute,
   }
 
 const AuthenticatedDashboardPaddedRouteWithChildren =
@@ -1763,154 +1971,14 @@ const AuthenticatedDashboardPaddedRouteWithChildren =
     AuthenticatedDashboardPaddedRouteChildren,
   )
 
-interface AuthenticatedDashboardPreviewableDashboardsRouteRouteChildren {
-  AuthenticatedDashboardPreviewableDashboardsGetStartedRoute: typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
-  AuthenticatedDashboardPreviewableDashboardsIndexRoute: typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
-  AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute: typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
-  AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute: typeof AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute
-}
-
-const AuthenticatedDashboardPreviewableDashboardsRouteRouteChildren: AuthenticatedDashboardPreviewableDashboardsRouteRouteChildren =
-  {
-    AuthenticatedDashboardPreviewableDashboardsGetStartedRoute:
-      AuthenticatedDashboardPreviewableDashboardsGetStartedRoute,
-    AuthenticatedDashboardPreviewableDashboardsIndexRoute:
-      AuthenticatedDashboardPreviewableDashboardsIndexRoute,
-    AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute:
-      AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute,
-    AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute:
-      AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute,
-  }
-
-const AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren =
-  AuthenticatedDashboardPreviewableDashboardsRouteRoute._addFileChildren(
-    AuthenticatedDashboardPreviewableDashboardsRouteRouteChildren,
-  )
-
-interface AuthenticatedDashboardPreviewableRunbooksRouteRouteChildren {
-  AuthenticatedDashboardPreviewableRunbooksGetStartedRoute: typeof AuthenticatedDashboardPreviewableRunbooksGetStartedRoute
-  AuthenticatedDashboardPreviewableRunbooksIndexRoute: typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
-  AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute
-  AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute
-}
-
-const AuthenticatedDashboardPreviewableRunbooksRouteRouteChildren: AuthenticatedDashboardPreviewableRunbooksRouteRouteChildren =
-  {
-    AuthenticatedDashboardPreviewableRunbooksGetStartedRoute:
-      AuthenticatedDashboardPreviewableRunbooksGetStartedRoute,
-    AuthenticatedDashboardPreviewableRunbooksIndexRoute:
-      AuthenticatedDashboardPreviewableRunbooksIndexRoute,
-    AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute:
-      AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute,
-    AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute:
-      AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute,
-  }
-
-const AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren =
-  AuthenticatedDashboardPreviewableRunbooksRouteRoute._addFileChildren(
-    AuthenticatedDashboardPreviewableRunbooksRouteRouteChildren,
-  )
-
-interface AuthenticatedDashboardPreviewableAlertsRouteChildren {
-  AuthenticatedDashboardPreviewableAlertsNotificationsRoute: typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
-  AuthenticatedDashboardPreviewableAlertsSilencesRoute: typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
-  AuthenticatedDashboardPreviewableAlertsIndexRoute: typeof AuthenticatedDashboardPreviewableAlertsIndexRoute
-}
-
-const AuthenticatedDashboardPreviewableAlertsRouteChildren: AuthenticatedDashboardPreviewableAlertsRouteChildren =
-  {
-    AuthenticatedDashboardPreviewableAlertsNotificationsRoute:
-      AuthenticatedDashboardPreviewableAlertsNotificationsRoute,
-    AuthenticatedDashboardPreviewableAlertsSilencesRoute:
-      AuthenticatedDashboardPreviewableAlertsSilencesRoute,
-    AuthenticatedDashboardPreviewableAlertsIndexRoute:
-      AuthenticatedDashboardPreviewableAlertsIndexRoute,
-  }
-
-const AuthenticatedDashboardPreviewableAlertsRouteWithChildren =
-  AuthenticatedDashboardPreviewableAlertsRoute._addFileChildren(
-    AuthenticatedDashboardPreviewableAlertsRouteChildren,
-  )
-
-interface AuthenticatedDashboardPreviewableRouteChildren {
-  AuthenticatedDashboardPreviewableDashboardsRouteRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
-  AuthenticatedDashboardPreviewableRunbooksRouteRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
-  AuthenticatedDashboardPreviewableAlertsRoute: typeof AuthenticatedDashboardPreviewableAlertsRouteWithChildren
-}
-
-const AuthenticatedDashboardPreviewableRouteChildren: AuthenticatedDashboardPreviewableRouteChildren =
-  {
-    AuthenticatedDashboardPreviewableDashboardsRouteRoute:
-      AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren,
-    AuthenticatedDashboardPreviewableRunbooksRouteRoute:
-      AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren,
-    AuthenticatedDashboardPreviewableAlertsRoute:
-      AuthenticatedDashboardPreviewableAlertsRouteWithChildren,
-  }
-
-const AuthenticatedDashboardPreviewableRouteWithChildren =
-  AuthenticatedDashboardPreviewableRoute._addFileChildren(
-    AuthenticatedDashboardPreviewableRouteChildren,
-  )
-
-interface AuthenticatedDashboardRunsTraceIdRouteRouteChildren {
-  AuthenticatedDashboardRunsTraceIdTraceRoute: typeof AuthenticatedDashboardRunsTraceIdTraceRoute
-  AuthenticatedDashboardRunsTraceIdIndexRoute: typeof AuthenticatedDashboardRunsTraceIdIndexRoute
-  AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute: typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute
-  AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute: typeof AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute
-}
-
-const AuthenticatedDashboardRunsTraceIdRouteRouteChildren: AuthenticatedDashboardRunsTraceIdRouteRouteChildren =
-  {
-    AuthenticatedDashboardRunsTraceIdTraceRoute:
-      AuthenticatedDashboardRunsTraceIdTraceRoute,
-    AuthenticatedDashboardRunsTraceIdIndexRoute:
-      AuthenticatedDashboardRunsTraceIdIndexRoute,
-    AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute:
-      AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute,
-    AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute:
-      AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute,
-  }
-
-const AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren =
-  AuthenticatedDashboardRunsTraceIdRouteRoute._addFileChildren(
-    AuthenticatedDashboardRunsTraceIdRouteRouteChildren,
-  )
-
-interface AuthenticatedDashboardRunsRouteChildren {
-  AuthenticatedDashboardRunsTraceIdRouteRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
-  AuthenticatedDashboardRunsIndexRoute: typeof AuthenticatedDashboardRunsIndexRoute
-}
-
-const AuthenticatedDashboardRunsRouteChildren: AuthenticatedDashboardRunsRouteChildren =
-  {
-    AuthenticatedDashboardRunsTraceIdRouteRoute:
-      AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren,
-    AuthenticatedDashboardRunsIndexRoute: AuthenticatedDashboardRunsIndexRoute,
-  }
-
-const AuthenticatedDashboardRunsRouteWithChildren =
-  AuthenticatedDashboardRunsRoute._addFileChildren(
-    AuthenticatedDashboardRunsRouteChildren,
-  )
-
 interface AuthenticatedDashboardRouteChildren {
-  AuthenticatedDashboardExploreRoute: typeof AuthenticatedDashboardExploreRouteWithChildren
   AuthenticatedDashboardPaddedRoute: typeof AuthenticatedDashboardPaddedRouteWithChildren
-  AuthenticatedDashboardPreviewableRoute: typeof AuthenticatedDashboardPreviewableRouteWithChildren
-  AuthenticatedDashboardRunsRoute: typeof AuthenticatedDashboardRunsRouteWithChildren
 }
 
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
   {
-    AuthenticatedDashboardExploreRoute:
-      AuthenticatedDashboardExploreRouteWithChildren,
     AuthenticatedDashboardPaddedRoute:
       AuthenticatedDashboardPaddedRouteWithChildren,
-    AuthenticatedDashboardPreviewableRoute:
-      AuthenticatedDashboardPreviewableRouteWithChildren,
-    AuthenticatedDashboardRunsRoute:
-      AuthenticatedDashboardRunsRouteWithChildren,
   }
 
 const AuthenticatedDashboardRouteWithChildren =
@@ -1918,19 +1986,426 @@ const AuthenticatedDashboardRouteWithChildren =
     AuthenticatedDashboardRouteChildren,
   )
 
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteWithChildren
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteWithChildren,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectSlugRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInSlugRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksGetStartedRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugSplatRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectSlugIndexRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsNotificationsRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsSilencesRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsIndexRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteWithChildren
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteWithChildren,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteWithChildren
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteWithChildren
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteWithChildren
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteWithChildren
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteWithChildren,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteWithChildren,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteWithChildren,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteWithChildren,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRouteWithChildren
+}
+
+const AuthenticatedOrganizationDashboardAppAccessRouteChildren: AuthenticatedOrganizationDashboardAppAccessRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedRouteWithChildren,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardPaddedAdminRouteChildren {
+  AuthenticatedOrganizationDashboardPaddedAdminBillingRoute: typeof AuthenticatedOrganizationDashboardPaddedAdminBillingRoute
+}
+
+const AuthenticatedOrganizationDashboardPaddedAdminRouteChildren: AuthenticatedOrganizationDashboardPaddedAdminRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardPaddedAdminBillingRoute:
+      AuthenticatedOrganizationDashboardPaddedAdminBillingRoute,
+  }
+
+const AuthenticatedOrganizationDashboardPaddedAdminRouteWithChildren =
+  AuthenticatedOrganizationDashboardPaddedAdminRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardPaddedAdminRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardPaddedRouteChildren {
+  AuthenticatedOrganizationDashboardPaddedAdminRoute: typeof AuthenticatedOrganizationDashboardPaddedAdminRouteWithChildren
+  AuthenticatedOrganizationDashboardPaddedBillingSuspendedRoute: typeof AuthenticatedOrganizationDashboardPaddedBillingSuspendedRoute
+  AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRoute: typeof AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRoute
+}
+
+const AuthenticatedOrganizationDashboardPaddedRouteChildren: AuthenticatedOrganizationDashboardPaddedRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardPaddedAdminRoute:
+      AuthenticatedOrganizationDashboardPaddedAdminRouteWithChildren,
+    AuthenticatedOrganizationDashboardPaddedBillingSuspendedRoute:
+      AuthenticatedOrganizationDashboardPaddedBillingSuspendedRoute,
+    AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRoute:
+      AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRoute,
+  }
+
+const AuthenticatedOrganizationDashboardPaddedRouteWithChildren =
+  AuthenticatedOrganizationDashboardPaddedRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardPaddedRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessRoute: typeof AuthenticatedOrganizationDashboardAppAccessRouteWithChildren
+  AuthenticatedOrganizationDashboardPaddedRoute: typeof AuthenticatedOrganizationDashboardPaddedRouteWithChildren
+}
+
+const AuthenticatedOrganizationDashboardRouteChildren: AuthenticatedOrganizationDashboardRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessRoute:
+      AuthenticatedOrganizationDashboardAppAccessRouteWithChildren,
+    AuthenticatedOrganizationDashboardPaddedRoute:
+      AuthenticatedOrganizationDashboardPaddedRouteWithChildren,
+  }
+
+const AuthenticatedOrganizationDashboardRouteWithChildren =
+  AuthenticatedOrganizationDashboardRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardRouteChildren,
+  )
+
+interface AuthenticatedOrganizationRouteChildren {
+  AuthenticatedOrganizationDashboardRoute: typeof AuthenticatedOrganizationDashboardRouteWithChildren
+  AuthenticatedOrganizationDeviceRoute: typeof AuthenticatedOrganizationDeviceRoute
+}
+
+const AuthenticatedOrganizationRouteChildren: AuthenticatedOrganizationRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardRoute:
+      AuthenticatedOrganizationDashboardRouteWithChildren,
+    AuthenticatedOrganizationDeviceRoute: AuthenticatedOrganizationDeviceRoute,
+  }
+
+const AuthenticatedOrganizationRouteWithChildren =
+  AuthenticatedOrganizationRoute._addFileChildren(
+    AuthenticatedOrganizationRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRouteWithChildren
-  AuthenticatedDeviceRoute: typeof AuthenticatedDeviceRoute
+  AuthenticatedOrganizationRoute: typeof AuthenticatedOrganizationRouteWithChildren
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRouteWithChildren,
-  AuthenticatedDeviceRoute: AuthenticatedDeviceRoute,
+  AuthenticatedOrganizationRoute: AuthenticatedOrganizationRouteWithChildren,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
+
+interface WelcomeGuestRouteChildren {
+  WelcomeGuestAuthForgotPasswordRoute: typeof WelcomeGuestAuthForgotPasswordRoute
+  WelcomeGuestAuthResetPasswordRoute: typeof WelcomeGuestAuthResetPasswordRoute
+  WelcomeGuestAuthSignInRoute: typeof WelcomeGuestAuthSignInRoute
+  WelcomeGuestAuthSignUpRoute: typeof WelcomeGuestAuthSignUpRoute
+}
+
+const WelcomeGuestRouteChildren: WelcomeGuestRouteChildren = {
+  WelcomeGuestAuthForgotPasswordRoute: WelcomeGuestAuthForgotPasswordRoute,
+  WelcomeGuestAuthResetPasswordRoute: WelcomeGuestAuthResetPasswordRoute,
+  WelcomeGuestAuthSignInRoute: WelcomeGuestAuthSignInRoute,
+  WelcomeGuestAuthSignUpRoute: WelcomeGuestAuthSignUpRoute,
+}
+
+const WelcomeGuestRouteWithChildren = WelcomeGuestRoute._addFileChildren(
+  WelcomeGuestRouteChildren,
+)
+
+interface WelcomeSignedInOrganizationRouteChildren {
+  WelcomeSignedInOrganizationOrganizationPendingRoute: typeof WelcomeSignedInOrganizationOrganizationPendingRoute
+  WelcomeSignedInOrganizationOrganizationSetupRoute: typeof WelcomeSignedInOrganizationOrganizationSetupRoute
+}
+
+const WelcomeSignedInOrganizationRouteChildren: WelcomeSignedInOrganizationRouteChildren =
+  {
+    WelcomeSignedInOrganizationOrganizationPendingRoute:
+      WelcomeSignedInOrganizationOrganizationPendingRoute,
+    WelcomeSignedInOrganizationOrganizationSetupRoute:
+      WelcomeSignedInOrganizationOrganizationSetupRoute,
+  }
+
+const WelcomeSignedInOrganizationRouteWithChildren =
+  WelcomeSignedInOrganizationRoute._addFileChildren(
+    WelcomeSignedInOrganizationRouteChildren,
+  )
+
+interface WelcomeSignedInRouteChildren {
+  WelcomeSignedInOrganizationRoute: typeof WelcomeSignedInOrganizationRouteWithChildren
+  WelcomeSignedInChooseOrganizationRoute: typeof WelcomeSignedInChooseOrganizationRoute
+  WelcomeSignedInCreateOrganizationRoute: typeof WelcomeSignedInCreateOrganizationRoute
+  WelcomeSignedInOrganizationsCheckoutSuccessRoute: typeof WelcomeSignedInOrganizationsCheckoutSuccessRoute
+}
+
+const WelcomeSignedInRouteChildren: WelcomeSignedInRouteChildren = {
+  WelcomeSignedInOrganizationRoute:
+    WelcomeSignedInOrganizationRouteWithChildren,
+  WelcomeSignedInChooseOrganizationRoute:
+    WelcomeSignedInChooseOrganizationRoute,
+  WelcomeSignedInCreateOrganizationRoute:
+    WelcomeSignedInCreateOrganizationRoute,
+  WelcomeSignedInOrganizationsCheckoutSuccessRoute:
+    WelcomeSignedInOrganizationsCheckoutSuccessRoute,
+}
+
+const WelcomeSignedInRouteWithChildren = WelcomeSignedInRoute._addFileChildren(
+  WelcomeSignedInRouteChildren,
+)
+
+interface WelcomeRouteChildren {
+  WelcomeGuestRoute: typeof WelcomeGuestRouteWithChildren
+  WelcomeSignedInRoute: typeof WelcomeSignedInRouteWithChildren
+  WelcomeAuthErrorRoute: typeof WelcomeAuthErrorRoute
+  WelcomeInviteInvitationIdRoute: typeof WelcomeInviteInvitationIdRoute
+}
+
+const WelcomeRouteChildren: WelcomeRouteChildren = {
+  WelcomeGuestRoute: WelcomeGuestRouteWithChildren,
+  WelcomeSignedInRoute: WelcomeSignedInRouteWithChildren,
+  WelcomeAuthErrorRoute: WelcomeAuthErrorRoute,
+  WelcomeInviteInvitationIdRoute: WelcomeInviteInvitationIdRoute,
+}
+
+const WelcomeRouteWithChildren =
+  WelcomeRoute._addFileChildren(WelcomeRouteChildren)
 
 interface DotwellKnownOauthAuthorizationServerRouteChildren {
   DotwellKnownOauthAuthorizationServerApiAuthRoute: typeof DotwellKnownOauthAuthorizationServerApiAuthRoute
@@ -2030,8 +2505,8 @@ const ApiCliRouteWithChildren =
   ApiCliRoute._addFileChildren(ApiCliRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  AuthRoute: AuthRouteWithChildren,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  WelcomeRoute: WelcomeRouteWithChildren,
   DotwellKnownOauthAuthorizationServerRoute:
     DotwellKnownOauthAuthorizationServerRouteWithChildren,
   DotwellKnownOauthProtectedResourceRoute:
@@ -2045,7 +2520,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,
   ApiInternalVerifyKeyRoute: ApiInternalVerifyKeyRoute,
-  OrganizationsCheckoutSuccessRoute: OrganizationsCheckoutSuccessRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
 }

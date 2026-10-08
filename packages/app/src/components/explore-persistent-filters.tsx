@@ -15,9 +15,11 @@ import { remoteTracesRepo } from "@/data/traces/remote-repo";
  */
 export function ExplorePersistentFilters() {
   const { service = [], environment = [] } = useSearch({
-    from: "/_authenticated/_dashboard/_explore",
+    from: "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore",
   });
-  const dashSearch = useSearch({ from: "/_authenticated/_dashboard" });
+  const dashSearch = useSearch({
+    from: "/_authenticated/_organization/_dashboard",
+  });
   const { timeRange } = withTimeRange(dashSearch);
 
   // useNavigate() with no route keeps the user on the current path. A navigate

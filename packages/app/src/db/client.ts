@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { PgTransaction } from "drizzle-orm/pg-core";
-import { Pool } from "pg";
+import { Pool, type PoolConfig } from "pg";
 import * as schema from "@/db/schema";
 import { dbEnv } from "@/env/db";
 
@@ -8,7 +8,7 @@ const shouldUseSsl = ["true", "1", "yes", "on"].includes(
   dbEnv.DATABASE_SSL?.toLowerCase() ?? "",
 );
 
-export const pool = new Pool({
+export const databasePoolConfig: PoolConfig = {
   host: dbEnv.DATABASE_HOST,
   database: dbEnv.DATABASE_NAME,
   port: dbEnv.DATABASE_PORT,
@@ -19,7 +19,9 @@ export const pool = new Pool({
   // hold-and-acquire bug) that turns an error spike into a permanent
   // whole-app hang; a bounded wait fails the request loudly instead.
   connectionTimeoutMillis: 10_000,
-});
+};
+
+export const pool = new Pool(databasePoolConfig);
 
 export const db = drizzle(pool, { schema });
 
