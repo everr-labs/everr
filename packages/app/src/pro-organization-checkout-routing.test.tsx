@@ -17,7 +17,11 @@ vi.mock("@/lib/auth-client", () => ({ authClient: {} }));
 
 let authenticated = false;
 for (const path of Object.keys(import.meta.glob("./routes/**/*.{ts,tsx}"))) {
-  if (path.endsWith("/organizations.checkout.success.tsx")) continue;
+  if (
+    path.endsWith("/organizations.checkout.success.tsx") ||
+    path.endsWith("/_auth/_onboarding.tsx")
+  )
+    continue;
   vi.doMock(path, () => ({
     Route:
       path === "./routes/__root.tsx"

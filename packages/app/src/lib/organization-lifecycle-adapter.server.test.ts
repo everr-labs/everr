@@ -6,7 +6,14 @@ import { PgTransaction } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { organizationProvisioningFields } from "@/common/organization-provisioning-fields";
 import type { Database, DbExecutor, Transaction } from "@/db/client";
-import { dashboards, organization } from "@/db/schema";
+import {
+  dashboards,
+  invitation,
+  member,
+  organization,
+  user,
+} from "@/db/schema";
+import { createAutomaticOrganizationSessionHook } from "@/lib/auto-org.server";
 import {
   createTestDatabase,
   type TestDatabase,
@@ -25,16 +32,40 @@ vi.mock("@/db/client", () => ({
 
 import { organizationLifecycleAdapter } from "./organization-lifecycle-adapter.server";
 
+const clickhouseMocks = vi.hoisted(() => ({
+  provision: vi.fn(),
+  deprovision: vi.fn(),
+}));
+vi.mock("@/lib/clickhouse", () => ({
+  provisionSqlApiOrgUser: clickhouseMocks.provision,
+  deprovisionSqlApiOrgUser: clickhouseMocks.deprovision,
+}));
+
+import { waitForOrganizationProvisioning } from "@/server/organization-provisioning/fast-path";
+import { PROVISION_ORGANIZATION_TASK } from "@/server/organization-provisioning/jobs";
+import { createOrganizationTaskList } from "@/server/organization-provisioning/runtime";
+
 let fixture: TestDatabase;
 let auth: ReturnType<typeof createAuth>;
-function createAuth() {
+function createAuth(
+  afterCreateOrganization?: (input: {
+    organization: { id: string };
+  }) => Promise<void>,
+  afterCreateSession?: ReturnType<
+    typeof createAutomaticOrganizationSessionHook
+  >,
+) {
   return betterAuth({
     baseURL: "http://localhost:3000",
     secret: "organization-lifecycle-test-secret-long-enough",
     emailAndPassword: { enabled: true },
     database: organizationLifecycleAdapter(fixture.db as unknown as Database),
+    databaseHooks: {
+      session: { create: { after: afterCreateSession } },
+    },
     plugins: [
       organizationPlugin({
+        organizationHooks: { afterCreateOrganization },
         schema: {
           organization: { additionalFields: organizationProvisioningFields },
         },
@@ -55,6 +86,8 @@ beforeAll(async () => {
 afterAll(async () => fixture?.close());
 beforeEach(async () => {
   await fixture.truncate();
+  auth = createAuth();
+  adapter = (await auth.$context).adapter;
 });
 
 const create = (id = "org-test") =>
@@ -155,17 +188,104 @@ it("records cleanup for every deleted organization", async () => {
   ]);
 });
 
-async function signup() {
+async function signup(email = "owner@example.com") {
   const response = await auth.api.signUpEmail({
     body: {
       name: "Owner",
-      email: "owner@example.com",
+      email,
       password: "password-12345",
     },
     asResponse: true,
   });
   return new Headers({ cookie: response.headers.get("set-cookie") ?? "" });
 }
+
+function enableAutomaticOrganizations() {
+  // PGlite has one connection, so it cannot hold the ownership transaction
+  // while Better Auth opens its separate organization transaction. The lock's
+  // concurrency behavior is covered by auto-org.server.test.ts.
+  const database = Object.assign(Object.create(fixture.db), {
+    transaction: (run: (executor: typeof fixture.db) => Promise<unknown>) =>
+      run(fixture.db),
+  }) as Database;
+  auth = createAuth(
+    undefined,
+    createAutomaticOrganizationSessionHook(
+      (body) => auth.api.createOrganization({ body }),
+      database,
+    ),
+  );
+}
+
+it("creates and selects an automatic Hobby organization after email signup commits", async () => {
+  enableAutomaticOrganizations();
+  const headers = await signup();
+  const session = await auth.api.getSession({ headers });
+  const [created] = await fixture.db.select().from(organization);
+  expect(created).toMatchObject({
+    name: "Owner's projects",
+    plan: "hobby",
+    clickhouseReady: false,
+  });
+  expect(session?.session.activeOrganizationId).toBe(created.id);
+  expect(await fixture.db.select().from(member)).toEqual([
+    expect.objectContaining({
+      organizationId: created.id,
+      userId: session?.user.id,
+      role: "owner",
+    }),
+  ]);
+  expect(await jobs()).toEqual([PROVISION_ORGANIZATION_TASK]);
+
+  const response = await auth.api.signInEmail({
+    body: { email: "owner@example.com", password: "password-12345" },
+    asResponse: true,
+  });
+  const nextSession = await auth.api.getSession({
+    headers: new Headers({ cookie: response.headers.get("set-cookie") ?? "" }),
+  });
+  expect(nextSession?.session.activeOrganizationId).toBe(created.id);
+  expect(await fixture.db.select().from(organization)).toHaveLength(1);
+  expect(await jobs()).toEqual([PROVISION_ORGANIZATION_TASK]);
+});
+
+it("keeps invited email signups without an unrelated automatic organization", async () => {
+  await signup();
+  const [inviter] = await fixture.db.select().from(user);
+  await create();
+  await fixture.db.insert(invitation).values({
+    id: "pending-invitation",
+    organizationId: "org-test",
+    email: "invited@example.com",
+    role: "member",
+    status: "pending",
+    inviterId: inviter.id,
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+  enableAutomaticOrganizations();
+  const headers = await signup("invited@example.com");
+  const session = await auth.api.getSession({ headers });
+  expect(session?.session.activeOrganizationId).toBeNull();
+  expect(await fixture.db.select().from(organization)).toHaveLength(1);
+  expect(await jobs()).toEqual([PROVISION_ORGANIZATION_TASK]);
+});
+
+it("preserves the signup session if automatic organization enqueueing fails", async () => {
+  enableAutomaticOrganizations();
+  await rejectEnqueues();
+  try {
+    const headers = await signup();
+    const session = await auth.api.getSession({ headers });
+    expect(session?.user.email).toBe("owner@example.com");
+    expect(session?.session.activeOrganizationId).toBeNull();
+    expect(await fixture.db.select().from(organization)).toEqual([]);
+    expect(await fixture.db.select().from(member)).toEqual([]);
+    expect(await jobs()).toEqual([]);
+  } finally {
+    await allowEnqueues();
+  }
+});
+
 it("runs the actual Better Auth create and delete endpoints through the lifecycle transaction", async () => {
   const headers = await signup();
   const created = await auth.api.createOrganization({
@@ -202,4 +322,29 @@ it("runs the actual Better Auth create and delete endpoints through the lifecycl
     "clickhouse/provision-organization",
     "clickhouse/deprovision-organization",
   ]);
+});
+
+it("returns a ready organization from the actual endpoint when its durable job finishes during signup", async () => {
+  clickhouseMocks.provision.mockResolvedValue(undefined);
+  const database = fixture.db as unknown as Database;
+  const tasks = createOrganizationTaskList(database, async () => {});
+  auth = createAuth(async ({ organization: created }) => {
+    expect(await jobs()).toEqual([PROVISION_ORGANIZATION_TASK]);
+    const pending = waitForOrganizationProvisioning(created.id, database);
+    await tasks[PROVISION_ORGANIZATION_TASK]?.(
+      { organizationId: created.id },
+      {} as never,
+    );
+    if (await pending) Object.assign(created, { clickhouseReady: true });
+  });
+  const headers = await signup();
+  const created = await auth.api.createOrganization({
+    headers,
+    body: { name: "Fast", slug: "fast" },
+  });
+  expect(created?.clickhouseReady).toBe(true);
+  expect(
+    (await fixture.db.select().from(organization))[0].clickhouseReady,
+  ).toBe(true);
+  expect(clickhouseMocks.provision).toHaveBeenCalledOnce();
 });

@@ -1,26 +1,18 @@
-import { Button, buttonVariants } from "@everr/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useRouteContext, useRouter } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useRouteContext, useRouter, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CLICKHOUSE_SETUP_MESSAGE } from "@/common/clickhouse-provisioning";
+import { isMissingOrganizationError } from "@/common/organization-onboarding";
+import { OrganizationProvisioningContent } from "@/components/organization-provisioning-content";
+import { useOrganizationSetupCompletion } from "@/components/use-organization-setup-completion";
 import { getActiveOrganization } from "@/data/auth";
-import { authClient } from "@/lib/auth-client";
 
 export function OrganizationSetup() {
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const { session } = useRouteContext({ from: "/_authenticated" });
-  const organizations = authClient.useListOrganizations();
-  const [switching, setSwitching] = useState(false);
-  const [switchError, setSwitchError] = useState<string | null>(null);
+  const { session } = useRouteContext({ from: "/_auth/_onboarding" });
+  const { returnTo } = useSearch({
+    from: "/_auth/_onboarding/organization-setup",
+  });
+  const [startedAt] = useState(() => Date.now());
   const status = useQuery({
     queryKey: [
       "organization-provisioning",
@@ -31,86 +23,46 @@ export function OrganizationSetup() {
     staleTime: 0,
   });
 
-  useEffect(() => {
-    if (status.isSuccess && (!status.data || status.data.clickhouseReady)) {
-      void router.invalidate();
-    }
-  }, [status.isSuccess, status.data, router]);
+  useOrganizationSetupCompletion(
+    status.isSuccess &&
+      !status.isFetching &&
+      status.data?.clickhouseReady === true,
+    startedAt,
+    returnTo,
+  );
 
-  async function switchOrganization(organizationId: string) {
-    setSwitching(true);
-    setSwitchError(null);
-    try {
-      const { error } = await authClient.organization.setActive({
-        organizationId,
+  useEffect(() => {
+    if (
+      (status.isSuccess && !status.data) ||
+      (status.isError && isMissingOrganizationError(status.error))
+    ) {
+      void router.navigate({
+        to: "/choose-organization",
+        search: { returnTo },
+        replace: true,
       });
-      if (error)
-        throw new Error(error.message ?? "Could not switch organization.");
-      await queryClient.invalidateQueries();
-      await router.invalidate();
-    } catch (error) {
-      setSwitchError(
-        error instanceof Error
-          ? error.message
-          : "Could not switch organization.",
-      );
-    } finally {
-      setSwitching(false);
     }
-  }
+  }, [
+    status.isSuccess,
+    status.isError,
+    status.error,
+    status.data,
+    router,
+    returnTo,
+  ]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <Loader2
-            className="mb-2 size-6 animate-spin text-muted-foreground"
-            aria-hidden="true"
-          />
-          <CardTitle>Getting your organization ready</CardTitle>
-          <CardDescription role="status">
-            {CLICKHOUSE_SETUP_MESSAGE}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            This page will update automatically when your data access is ready.
-          </p>
+    <main className="flex flex-1 items-center justify-center px-6 py-10 lg:min-h-screen lg:py-16">
+      <div className="w-full max-w-sm space-y-8">
+        <OrganizationProvisioningContent>
           {status.isError && (
             <p role="alert" className="text-sm text-destructive">
               We couldn't check your setup status. We'll try again
               automatically.
             </p>
           )}
-          {organizations.data
-            ?.filter((org) => org.id !== status.data?.id)
-            .map((org) => (
-              <Button
-                key={org.id}
-                variant="outline"
-                className="w-full"
-                disabled={switching}
-                onClick={() => void switchOrganization(org.id)}
-              >
-                Switch to {org.name}
-              </Button>
-            ))}
-          {switchError && (
-            <p role="alert" className="text-sm text-destructive">
-              {switchError}
-            </p>
-          )}
-          <Link
-            to="/account"
-            className={buttonVariants({
-              variant: "outline",
-              className: "w-full",
-            })}
-          >
-            Account settings
-          </Link>
-        </CardContent>
-      </Card>
+        </OrganizationProvisioningContent>
+      </div>
     </main>
   );
 }

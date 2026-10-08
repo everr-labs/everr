@@ -6,12 +6,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
+import { newAccountDestination } from "@/common/organization-onboarding";
 import { authClient } from "@/lib/auth-client";
 import {
   AuthPageHeader,
   AuthProviderSeparator,
   buildAuthErrorCallbackURL,
-  buildPostAuthenticationURL,
   GoogleAuthButton,
 } from "../-components/auth-page";
 
@@ -31,7 +31,7 @@ function SignIn() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const callbackURL = redirectTo ?? "/";
-  const newUserCallbackURL = buildPostAuthenticationURL(redirectTo);
+  const newUserCallbackURL = newAccountDestination(redirectTo);
   const errorCallbackURL = buildAuthErrorCallbackURL("/auth/sign-in", {
     redirect: redirectTo,
     email: prefillEmail,

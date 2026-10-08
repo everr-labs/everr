@@ -23,7 +23,7 @@ import { db } from "@/db/client";
 import { member, session as sessionTable } from "@/db/schema";
 import { env } from "@/env";
 import { selectSoleOrganization } from "@/lib/auto-org";
-import { ensureAutomaticOrganization } from "@/lib/auto-org.server";
+import { createAutomaticOrganizationSessionHook } from "@/lib/auto-org.server";
 import { billingIdentityAdapter } from "@/lib/billing/auth-adapter.server";
 import { billingAuthPlugin } from "@/lib/billing/auth-plugin.server";
 import {
@@ -44,6 +44,7 @@ import {
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { organizationLifecycleAdapter } from "@/lib/organization-lifecycle-adapter.server";
+import { waitForOrganizationProvisioning } from "@/server/organization-provisioning/fast-path";
 import {
   createIdentityAuthHooks,
   type ResolvedSession,
@@ -221,7 +222,6 @@ export const auth = betterAuth({
           // A single membership is unambiguous. If there are several and no
           // previous selection, leave the session without an active org so the
           // user can choose rather than depending on database row order.
-          let membershipCount = 0;
           if (!activeOrganizationId) {
             const existingMemberships = await db
               .select({
@@ -231,26 +231,11 @@ export const auth = betterAuth({
               .where(eq(member.userId, session.userId))
               .limit(2);
 
-            membershipCount = existingMemberships.length;
             activeOrganizationId = selectSoleOrganization(
               existingMemberships.map(
                 (membership) => membership.organizationId,
               ),
             );
-          }
-
-          if (!activeOrganizationId && membershipCount === 0) {
-            try {
-              activeOrganizationId = await ensureAutomaticOrganization(
-                session.userId,
-                (body) => auth.api.createOrganization({ body }),
-              );
-            } catch (error) {
-              serverLogger.error("auto_org.create_personal_org.failed", {
-                ...exceptionAttributes(error),
-                "user.id": session.userId,
-              });
-            }
           }
 
           return {
@@ -260,6 +245,10 @@ export const auth = betterAuth({
             },
           };
         },
+        after: createAutomaticOrganizationSessionHook(
+          async (body): Promise<{ id: string } | null> =>
+            auth.api.createOrganization({ body }),
+        ),
       },
     },
   },
@@ -313,6 +302,12 @@ export const auth = betterAuth({
       organizationHooks: {
         beforeCreateOrganization: beforeCreateCheckoutOrganization,
         ...billingOrganizationHooks(),
+        afterCreateOrganization: async ({ organization }) => {
+          if (await waitForOrganizationProvisioning(organization.id)) {
+            // Better Auth returns this object after running its after-hook.
+            Object.assign(organization, { clickhouseReady: true });
+          }
+        },
         beforeUpdateOrganization: async ({ organization }) => {
           if ("plan" in organization) {
             throw new APIError("FORBIDDEN", {

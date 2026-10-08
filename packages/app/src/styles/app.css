@@ -7,6 +7,24 @@
 @source "../../../telemetry-explorer/src/**/*.{ts,tsx}";
 @source not "../../.output";
 
+@keyframes setup-dot {
+  0%,
+  70%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-3px);
+    box-shadow: 0 0 12px color-mix(in oklab, var(--primary) 25%, transparent);
+  }
+}
+
+@utility animate-setup-dot {
+  animation: setup-dot 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
 @keyframes fake-progress {
   0% {
     width: 0%;

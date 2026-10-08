@@ -11,7 +11,7 @@ export const Route = createFileRoute("/_auth/_guest")({
 
 function GuestLayout() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
+    <main className="flex flex-1 items-center justify-center px-6 py-10 lg:min-h-screen lg:py-16">
       <div className="w-full max-w-sm space-y-8">
         <Outlet />
       </div>

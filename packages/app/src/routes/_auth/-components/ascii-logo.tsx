@@ -1,6 +1,6 @@
 import { EverrLogoMark } from "@everr/ui/components/everr-logo";
 import { everrLogoPaths } from "@everr/ui/components/everr-logo-paths";
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 const CHARACTERS = " .,:+=*%#@";
 const CELL_WIDTH = 7;
@@ -28,7 +28,7 @@ function eyelid(time: number, blinkAt: number, duration: number) {
 export function AsciiLogo() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext("2d");

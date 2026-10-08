@@ -6,6 +6,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
+import { newAccountDestination } from "@/common/organization-onboarding";
 import { authClient } from "@/lib/auth-client";
 import {
   AuthPageHeader,
@@ -58,7 +59,10 @@ function SignUp() {
           return;
         }
 
-        await navigate({ to: redirectTo ?? "/" });
+        await navigate({
+          href: newAccountDestination(redirectTo),
+          replace: true,
+        });
       } catch {
         setError("An unexpected error occurred. Please try again.");
       } finally {
@@ -78,7 +82,7 @@ function SignUp() {
         <GoogleAuthButton
           label="Sign up with Google"
           callbackURL={callbackURL}
-          newUserCallbackURL={callbackURL}
+          newUserCallbackURL={newAccountDestination(redirectTo)}
           errorCallbackURL={errorCallbackURL}
           disabled={isSubmitting}
           onError={setError}

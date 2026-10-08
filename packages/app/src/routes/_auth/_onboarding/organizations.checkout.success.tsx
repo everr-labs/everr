@@ -7,7 +7,7 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import * as z from "zod";
@@ -16,21 +16,16 @@ import { authClient } from "@/lib/auth-client";
 
 const SearchSchema = z.object({ checkout_id: z.string().optional() });
 
-export const Route = createFileRoute("/organizations/checkout/success")({
-  beforeLoad: ({ context: { session }, location }) => {
-    if (!session?.user) {
-      throw redirect({
-        to: "/auth/sign-in",
-        search: { redirect: location.href },
-      });
-    }
-  },
+export const Route = createFileRoute(
+  "/_auth/_onboarding/organizations/checkout/success",
+)({
   validateSearch: SearchSchema,
   head: () => ({ meta: [{ title: "Everr - Pro organization ready" }] }),
   component: ProOrganizationCheckoutSuccess,
 });
 
 function ProOrganizationCheckoutSuccess() {
+  const router = useRouter();
   const { checkout_id: checkoutId } = Route.useSearch();
   const [activating, setActivating] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
@@ -60,7 +55,11 @@ function ProOrganizationCheckoutSuccess() {
       setActivating(false);
       return;
     }
-    window.location.assign("/");
+    await router.navigate({
+      to: "/organization-setup",
+      search: { returnTo: "/" },
+      replace: true,
+    });
   }
 
   const organization =
@@ -70,7 +69,7 @@ function ProOrganizationCheckoutSuccess() {
   const completed = organization !== null;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+    <main className="flex flex-1 items-center justify-center px-6 py-10 lg:min-h-screen">
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           {completed ? (

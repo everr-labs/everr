@@ -14,15 +14,18 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
+import { Route as AuthOnboardingRouteImport } from './routes/_auth/_onboarding'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
 import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
-import { Route as AuthenticatedOrganizationSetupRouteImport } from './routes/_authenticated/organization-setup'
 import { Route as ApiApplyRouteImport } from './routes/api/apply'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as McpSplatRouteImport } from './routes/mcp/$'
 import { Route as McpConsentRouteImport } from './routes/mcp/consent'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
+import { Route as AuthOnboardingChooseOrganizationRouteImport } from './routes/_auth/_onboarding/choose-organization'
+import { Route as AuthOnboardingCreateOrganizationRouteImport } from './routes/_auth/_onboarding/create-organization'
+import { Route as AuthOnboardingOrganizationSetupRouteImport } from './routes/_auth/_onboarding/organization-setup'
 import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
 import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
 import { Route as AuthenticatedDashboardExploreRouteImport } from './routes/_authenticated/_dashboard/_explore'
@@ -40,7 +43,6 @@ import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
 import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/verify-key'
-import { Route as OrganizationsCheckoutSuccessRouteImport } from './routes/organizations.checkout.success'
 import { Route as DotwellKnownOauthAuthorizationServerApiAuthRouteImport } from './routes/[.]well-known/oauth-authorization-server/api/auth'
 import { Route as AuthGuestAuthForgotPasswordRouteImport } from './routes/_auth/_guest/auth/forgot-password'
 import { Route as AuthGuestAuthResetPasswordRouteImport } from './routes/_auth/_guest/auth/reset-password'
@@ -65,6 +67,7 @@ import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/h
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
+import { Route as AuthOnboardingOrganizationsCheckoutSuccessRouteImport } from './routes/_auth/_onboarding/organizations.checkout.success'
 import { Route as AuthenticatedDashboardExploreErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/_explore/errors_.$fingerprint'
 import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
 import { Route as AuthenticatedDashboardPaddedOrganizationApiKeysRouteImport } from './routes/_authenticated/_dashboard/_padded/_organization/api-keys'
@@ -118,6 +121,10 @@ const AuthGuestRoute = AuthGuestRouteImport.update({
   id: '/_guest',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthOnboardingRoute = AuthOnboardingRouteImport.update({
+  id: '/_onboarding',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/_dashboard',
   getParentRoute: () => AuthenticatedRoute,
@@ -127,12 +134,6 @@ const AuthenticatedDeviceRoute = AuthenticatedDeviceRouteImport.update({
   path: '/device',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedOrganizationSetupRoute =
-  AuthenticatedOrganizationSetupRouteImport.update({
-    id: '/organization-setup',
-    path: '/organization-setup',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const ApiApplyRoute = ApiApplyRouteImport.update({
   id: '/api/apply',
   path: '/api/apply',
@@ -163,6 +164,24 @@ const WebhookGithubRoute = WebhookGithubRouteImport.update({
   path: '/webhook/github',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthOnboardingChooseOrganizationRoute =
+  AuthOnboardingChooseOrganizationRouteImport.update({
+    id: '/choose-organization',
+    path: '/choose-organization',
+    getParentRoute: () => AuthOnboardingRoute,
+  } as any)
+const AuthOnboardingCreateOrganizationRoute =
+  AuthOnboardingCreateOrganizationRouteImport.update({
+    id: '/create-organization',
+    path: '/create-organization',
+    getParentRoute: () => AuthOnboardingRoute,
+  } as any)
+const AuthOnboardingOrganizationSetupRoute =
+  AuthOnboardingOrganizationSetupRouteImport.update({
+    id: '/organization-setup',
+    path: '/organization-setup',
+    getParentRoute: () => AuthOnboardingRoute,
+  } as any)
 const AuthAuthErrorRoute = AuthAuthErrorRouteImport.update({
   id: '/auth/error',
   path: '/auth/error',
@@ -249,12 +268,6 @@ const ApiInternalVerifyKeyRoute = ApiInternalVerifyKeyRouteImport.update({
   path: '/api/internal/verify-key',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OrganizationsCheckoutSuccessRoute =
-  OrganizationsCheckoutSuccessRouteImport.update({
-    id: '/organizations/checkout/success',
-    path: '/organizations/checkout/success',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const DotwellKnownOauthAuthorizationServerApiAuthRoute =
   DotwellKnownOauthAuthorizationServerApiAuthRouteImport.update({
     id: '/api/auth',
@@ -391,6 +404,12 @@ const ApiGithubInstallStartRoute = ApiGithubInstallStartRouteImport.update({
   path: '/api/github/install/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthOnboardingOrganizationsCheckoutSuccessRoute =
+  AuthOnboardingOrganizationsCheckoutSuccessRouteImport.update({
+    id: '/organizations/checkout/success',
+    path: '/organizations/checkout/success',
+    getParentRoute: () => AuthOnboardingRoute,
+  } as any)
 const AuthenticatedDashboardExploreErrorsFingerprintRoute =
   AuthenticatedDashboardExploreErrorsFingerprintRouteImport.update({
     id: '/errors_/$fingerprint',
@@ -564,13 +583,15 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
-  '/organization-setup': typeof AuthenticatedOrganizationSetupRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
+  '/choose-organization': typeof AuthOnboardingChooseOrganizationRoute
+  '/create-organization': typeof AuthOnboardingCreateOrganizationRoute
+  '/organization-setup': typeof AuthOnboardingOrganizationSetupRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/runs': typeof AuthenticatedDashboardRunsRouteWithChildren
@@ -585,7 +606,6 @@ export interface FileRoutesByFullPath {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
-  '/organizations/checkout/success': typeof OrganizationsCheckoutSuccessRoute
   '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
   '/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
@@ -608,6 +628,7 @@ export interface FileRoutesByFullPath {
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/runs/': typeof AuthenticatedDashboardRunsIndexRoute
+  '/organizations/checkout/success': typeof AuthOnboardingOrganizationsCheckoutSuccessRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/api-keys': typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
@@ -642,13 +663,15 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/device': typeof AuthenticatedDeviceRoute
-  '/organization-setup': typeof AuthenticatedOrganizationSetupRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
+  '/choose-organization': typeof AuthOnboardingChooseOrganizationRoute
+  '/create-organization': typeof AuthOnboardingCreateOrganizationRoute
+  '/organization-setup': typeof AuthOnboardingOrganizationSetupRoute
   '/auth/error': typeof AuthAuthErrorRoute
   '/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -662,7 +685,6 @@ export interface FileRoutesByTo {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
-  '/organizations/checkout/success': typeof OrganizationsCheckoutSuccessRoute
   '/.well-known/oauth-authorization-server/api/auth': typeof DotwellKnownOauthAuthorizationServerApiAuthRoute
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
@@ -681,6 +703,7 @@ export interface FileRoutesByTo {
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/runs': typeof AuthenticatedDashboardRunsIndexRoute
+  '/organizations/checkout/success': typeof AuthOnboardingOrganizationsCheckoutSuccessRoute
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/api-keys': typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
@@ -717,15 +740,18 @@ export interface FileRoutesById {
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/_auth/_guest': typeof AuthGuestRouteWithChildren
+  '/_auth/_onboarding': typeof AuthOnboardingRouteWithChildren
   '/_authenticated/_dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/_authenticated/device': typeof AuthenticatedDeviceRoute
-  '/_authenticated/organization-setup': typeof AuthenticatedOrganizationSetupRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
+  '/_auth/_onboarding/choose-organization': typeof AuthOnboardingChooseOrganizationRoute
+  '/_auth/_onboarding/create-organization': typeof AuthOnboardingCreateOrganizationRoute
+  '/_auth/_onboarding/organization-setup': typeof AuthOnboardingOrganizationSetupRoute
   '/_auth/auth/error': typeof AuthAuthErrorRoute
   '/_auth/invite/$invitationId': typeof AuthInviteInvitationIdRoute
   '/_authenticated/_dashboard/_explore': typeof AuthenticatedDashboardExploreRouteWithChildren
@@ -743,7 +769,6 @@ export interface FileRoutesById {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
-  '/organizations/checkout/success': typeof OrganizationsCheckoutSuccessRoute
   '/_authenticated/_dashboard/_previewable/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
   '/_authenticated/_dashboard/_previewable/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
@@ -768,6 +793,7 @@ export interface FileRoutesById {
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/_authenticated/_dashboard/_padded/': typeof AuthenticatedDashboardPaddedIndexRoute
   '/_authenticated/_dashboard/runs/': typeof AuthenticatedDashboardRunsIndexRoute
+  '/_auth/_onboarding/organizations/checkout/success': typeof AuthOnboardingOrganizationsCheckoutSuccessRoute
   '/_authenticated/_dashboard/_explore/errors_/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/_authenticated/_dashboard/_padded/_organization/api-keys': typeof AuthenticatedDashboardPaddedOrganizationApiKeysRoute
@@ -804,13 +830,15 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/device'
-    | '/organization-setup'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
+    | '/choose-organization'
+    | '/create-organization'
+    | '/organization-setup'
     | '/auth/error'
     | '/invite/$invitationId'
     | '/runs'
@@ -825,7 +853,6 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
-    | '/organizations/checkout/success'
     | '/dashboards'
     | '/runbooks'
     | '/runs/$traceId'
@@ -848,6 +875,7 @@ export interface FileRouteTypes {
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/runs/'
+    | '/organizations/checkout/success'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/api-keys'
@@ -882,13 +910,15 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/device'
-    | '/organization-setup'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
+    | '/choose-organization'
+    | '/create-organization'
+    | '/organization-setup'
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
@@ -902,7 +932,6 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
-    | '/organizations/checkout/success'
     | '/.well-known/oauth-authorization-server/api/auth'
     | '/auth/forgot-password'
     | '/auth/reset-password'
@@ -921,6 +950,7 @@ export interface FileRouteTypes {
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/runs'
+    | '/organizations/checkout/success'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/api-keys'
@@ -956,15 +986,18 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/_auth/_guest'
+    | '/_auth/_onboarding'
     | '/_authenticated/_dashboard'
     | '/_authenticated/device'
-    | '/_authenticated/organization-setup'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
+    | '/_auth/_onboarding/choose-organization'
+    | '/_auth/_onboarding/create-organization'
+    | '/_auth/_onboarding/organization-setup'
     | '/_auth/auth/error'
     | '/_auth/invite/$invitationId'
     | '/_authenticated/_dashboard/_explore'
@@ -982,7 +1015,6 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
-    | '/organizations/checkout/success'
     | '/_authenticated/_dashboard/_previewable/dashboards'
     | '/_authenticated/_dashboard/_previewable/runbooks'
     | '/_authenticated/_dashboard/runs/$traceId'
@@ -1007,6 +1039,7 @@ export interface FileRouteTypes {
     | '/api/github/install/start'
     | '/_authenticated/_dashboard/_padded/'
     | '/_authenticated/_dashboard/runs/'
+    | '/_auth/_onboarding/organizations/checkout/success'
     | '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
     | '/_authenticated/_dashboard/_explore/traces_/$traceId'
     | '/_authenticated/_dashboard/_padded/_organization/api-keys'
@@ -1051,7 +1084,6 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
   ApiInternalVerifyKeyRoute: typeof ApiInternalVerifyKeyRoute
-  OrganizationsCheckoutSuccessRoute: typeof OrganizationsCheckoutSuccessRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
 }
@@ -1093,6 +1125,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthGuestRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/_onboarding': {
+      id: '/_auth/_onboarding'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthOnboardingRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_authenticated/_dashboard': {
       id: '/_authenticated/_dashboard'
       path: ''
@@ -1105,13 +1144,6 @@ declare module '@tanstack/react-router' {
       path: '/device'
       fullPath: '/device'
       preLoaderRoute: typeof AuthenticatedDeviceRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/organization-setup': {
-      id: '/_authenticated/organization-setup'
-      path: '/organization-setup'
-      fullPath: '/organization-setup'
-      preLoaderRoute: typeof AuthenticatedOrganizationSetupRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/apply': {
@@ -1155,6 +1187,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/webhook/github'
       preLoaderRoute: typeof WebhookGithubRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_auth/_onboarding/choose-organization': {
+      id: '/_auth/_onboarding/choose-organization'
+      path: '/choose-organization'
+      fullPath: '/choose-organization'
+      preLoaderRoute: typeof AuthOnboardingChooseOrganizationRouteImport
+      parentRoute: typeof AuthOnboardingRoute
+    }
+    '/_auth/_onboarding/create-organization': {
+      id: '/_auth/_onboarding/create-organization'
+      path: '/create-organization'
+      fullPath: '/create-organization'
+      preLoaderRoute: typeof AuthOnboardingCreateOrganizationRouteImport
+      parentRoute: typeof AuthOnboardingRoute
+    }
+    '/_auth/_onboarding/organization-setup': {
+      id: '/_auth/_onboarding/organization-setup'
+      path: '/organization-setup'
+      fullPath: '/organization-setup'
+      preLoaderRoute: typeof AuthOnboardingOrganizationSetupRouteImport
+      parentRoute: typeof AuthOnboardingRoute
     }
     '/_auth/auth/error': {
       id: '/_auth/auth/error'
@@ -1273,13 +1326,6 @@ declare module '@tanstack/react-router' {
       path: '/api/internal/verify-key'
       fullPath: '/api/internal/verify-key'
       preLoaderRoute: typeof ApiInternalVerifyKeyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/organizations/checkout/success': {
-      id: '/organizations/checkout/success'
-      path: '/organizations/checkout/success'
-      fullPath: '/organizations/checkout/success'
-      preLoaderRoute: typeof OrganizationsCheckoutSuccessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-authorization-server/api/auth': {
@@ -1449,6 +1495,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/github/install/start'
       preLoaderRoute: typeof ApiGithubInstallStartRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_auth/_onboarding/organizations/checkout/success': {
+      id: '/_auth/_onboarding/organizations/checkout/success'
+      path: '/organizations/checkout/success'
+      fullPath: '/organizations/checkout/success'
+      preLoaderRoute: typeof AuthOnboardingOrganizationsCheckoutSuccessRouteImport
+      parentRoute: typeof AuthOnboardingRoute
     }
     '/_authenticated/_dashboard/_explore/errors_/$fingerprint': {
       id: '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
@@ -1667,14 +1720,35 @@ const AuthGuestRouteWithChildren = AuthGuestRoute._addFileChildren(
   AuthGuestRouteChildren,
 )
 
+interface AuthOnboardingRouteChildren {
+  AuthOnboardingChooseOrganizationRoute: typeof AuthOnboardingChooseOrganizationRoute
+  AuthOnboardingCreateOrganizationRoute: typeof AuthOnboardingCreateOrganizationRoute
+  AuthOnboardingOrganizationSetupRoute: typeof AuthOnboardingOrganizationSetupRoute
+  AuthOnboardingOrganizationsCheckoutSuccessRoute: typeof AuthOnboardingOrganizationsCheckoutSuccessRoute
+}
+
+const AuthOnboardingRouteChildren: AuthOnboardingRouteChildren = {
+  AuthOnboardingChooseOrganizationRoute: AuthOnboardingChooseOrganizationRoute,
+  AuthOnboardingCreateOrganizationRoute: AuthOnboardingCreateOrganizationRoute,
+  AuthOnboardingOrganizationSetupRoute: AuthOnboardingOrganizationSetupRoute,
+  AuthOnboardingOrganizationsCheckoutSuccessRoute:
+    AuthOnboardingOrganizationsCheckoutSuccessRoute,
+}
+
+const AuthOnboardingRouteWithChildren = AuthOnboardingRoute._addFileChildren(
+  AuthOnboardingRouteChildren,
+)
+
 interface AuthRouteChildren {
   AuthGuestRoute: typeof AuthGuestRouteWithChildren
+  AuthOnboardingRoute: typeof AuthOnboardingRouteWithChildren
   AuthAuthErrorRoute: typeof AuthAuthErrorRoute
   AuthInviteInvitationIdRoute: typeof AuthInviteInvitationIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthGuestRoute: AuthGuestRouteWithChildren,
+  AuthOnboardingRoute: AuthOnboardingRouteWithChildren,
   AuthAuthErrorRoute: AuthAuthErrorRoute,
   AuthInviteInvitationIdRoute: AuthInviteInvitationIdRoute,
 }
@@ -1941,13 +2015,11 @@ const AuthenticatedDashboardRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRouteWithChildren
   AuthenticatedDeviceRoute: typeof AuthenticatedDeviceRoute
-  AuthenticatedOrganizationSetupRoute: typeof AuthenticatedOrganizationSetupRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRouteWithChildren,
   AuthenticatedDeviceRoute: AuthenticatedDeviceRoute,
-  AuthenticatedOrganizationSetupRoute: AuthenticatedOrganizationSetupRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -2067,7 +2139,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,
   ApiInternalVerifyKeyRoute: ApiInternalVerifyKeyRoute,
-  OrganizationsCheckoutSuccessRoute: OrganizationsCheckoutSuccessRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
 }

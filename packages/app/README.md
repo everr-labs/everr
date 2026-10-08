@@ -48,6 +48,29 @@ never unlock a live worker.
 A scan every minute recovers organizations whose initial enqueue was
 missed, without resetting pending jobs' attempt counts or retry schedules.
 
+Email signup creates its automatic Hobby organization after the user and session
+transaction commits, then selects it for that session. Users with pending
+invitations keep their invitation flow instead of getting a personal organization.
+After organization creation commits, signup waits up to five seconds for its
+dedicated provisioning job to finish, checking readiness every 100ms. Healthy
+signups return ready. The wait does not execute
+ClickHouse statements itself, so provisioning and deletion remain serialized
+by the per-organization queue. A timeout or failed status read leaves the
+committed job running and returns the normal signup session. The deadline also
+bounds a slow Postgres lookup, and an expired wait stops polling.
+
+Signup, organization selection, creation, and provisioning are sibling routes
+under `_auth`, which owns the welcome layout for the entire flow. The
+`_onboarding` guard requires a session but not a ready organization. App guards
+redirect users into that flow before data-page loaders run. New accounts see
+the provisioning animation for at least 2.5 seconds before entering the
+requested app page.
+The minimum duration does not bypass the real readiness check. CLI device
+approval and checkout keep their own continuation routes. Creating an
+organization uses an inline name and plan step, followed immediately by the
+same animation while the server request runs. No creation modal or document
+reload is needed for Hobby organizations. Pro continues to hosted checkout.
+
 Pending organizations see `/organization-setup`, which polls every three
 seconds and returns to their requested page when ready. Account settings,
 billing, and CLI login remain available. Data reads fail before contacting
