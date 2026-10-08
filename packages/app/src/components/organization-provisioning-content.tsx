@@ -5,46 +5,79 @@ export function OrganizationProvisioningContent({
   checkout = false,
   pending = true,
   failed = false,
-  recovery = false,
 }: {
   children?: ReactNode;
   checkout?: boolean;
   pending?: boolean;
   failed?: boolean;
-  recovery?: boolean;
+}) {
+  if (failed) {
+    return (
+      <ProvisioningView
+        label={
+          checkout ? "Your Pro organization" : "Setting up your organization"
+        }
+        title="We couldn't finish setting up your organization"
+        description="Please try again."
+        pending={false}
+      >
+        {children}
+      </ProvisioningView>
+    );
+  }
+
+  if (checkout) {
+    return (
+      <ProvisioningView
+        label="Your Pro organization"
+        title="Taking you to checkout"
+        description="The checkout page will open automatically."
+        pending={pending}
+      >
+        {children}
+      </ProvisioningView>
+    );
+  }
+
+  return (
+    <ProvisioningView
+      label="Setting up your organization"
+      title="Getting your space ready"
+      description="We're setting up your organization. You'll be taken into Everr when it's ready."
+      pending={pending}
+    >
+      {children}
+    </ProvisioningView>
+  );
+}
+
+function ProvisioningView({
+  label,
+  title,
+  description,
+  pending,
+  children,
+}: {
+  label: string;
+  title: string;
+  description: string;
+  pending: boolean;
+  children?: ReactNode;
 }) {
   return (
     <>
       <div className="space-y-4">
-        <div className="text-xs font-medium text-muted-foreground">
-          {recovery
-            ? "Your organization"
-            : checkout
-              ? "Your Pro organization"
-              : "Setting up your organization"}
-        </div>
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
         <h1 className="font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
-          {failed
-            ? "We couldn't finish setting up your organization"
-            : checkout
-              ? "Taking you to checkout"
-              : recovery
-                ? "Your organization isn't ready yet"
-                : "Getting your space ready"}
+          {title}
         </h1>
         <p
           className="text-sm leading-relaxed text-muted-foreground"
           role="status"
         >
-          {failed
-            ? "Setup stopped after several attempts. Try again to restart it."
-            : checkout
-              ? "Your checkout will open automatically. You'll confirm your Pro subscription there, and your organization will be created after payment is confirmed."
-              : recovery
-                ? "Your organization's data is temporarily unavailable. You'll continue automatically when it's ready."
-                : "We're setting up your organization. You'll be taken into Everr automatically when it's ready."}
+          {description}
         </p>
-        {pending && !failed && (
+        {pending && (
           <div
             className="flex items-center justify-center gap-2 pt-2"
             aria-hidden="true"

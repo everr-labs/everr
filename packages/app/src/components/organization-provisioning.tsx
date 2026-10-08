@@ -10,12 +10,12 @@ export function OrganizationProvisioning({
   organizationId,
   startedAt,
   returnTo,
-  recovery = false,
+  minimumDurationMs,
 }: {
   organizationId: string;
   startedAt: number;
   returnTo: string;
-  recovery?: boolean;
+  minimumDurationMs?: number;
 }) {
   const router = useRouter();
   const status = useQuery({
@@ -34,7 +34,7 @@ export function OrganizationProvisioning({
     startedAt,
     returnTo,
     organizationId,
-    recovery ? 0 : undefined,
+    minimumDurationMs,
   );
 
   useEffect(() => {
@@ -51,10 +51,7 @@ export function OrganizationProvisioning({
   }, [organizationId, status.isSuccess, status.data, router, returnTo]);
 
   return (
-    <OrganizationProvisioningContent
-      recovery={recovery}
-      failed={status.data?.status === "failed"}
-    >
+    <OrganizationProvisioningContent failed={status.data?.status === "failed"}>
       {status.data?.status === "failed" && (
         <OrganizationProvisioningRetry
           key={status.data.id}

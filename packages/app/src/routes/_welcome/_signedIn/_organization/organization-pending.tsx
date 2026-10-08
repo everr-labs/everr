@@ -7,7 +7,7 @@ export const Route = createFileRoute(
   "/_welcome/_signedIn/_organization/organization-pending",
 )({
   validateSearch: z.object({ returnTo: returnToSchema.default("/") }),
-  head: () => ({ meta: [{ title: "Everr - Organization unavailable" }] }),
+  head: () => ({ meta: [{ title: "Everr - Organization setup" }] }),
   component: OrganizationPending,
 });
 
@@ -21,7 +21,7 @@ function OrganizationPending() {
           organizationId={organization.id}
           startedAt={0}
           returnTo={returnTo}
-          recovery
+          minimumDurationMs={0}
         />
       </div>
     </main>

@@ -66,7 +66,7 @@ it("keeps the setup message free of inline organization switch buttons", async (
   });
   show();
   expect(await screen.findByRole("status")).toHaveTextContent(
-    "You'll be taken into Everr automatically when it's ready.",
+    "We're setting up your organization. You'll be taken into Everr when it's ready.",
   );
   expect(screen.queryByRole("link", { name: "Account settings" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Switch to Other" })).toBeNull();
@@ -115,7 +115,7 @@ it("keeps the friendly page visible when a readiness check fails", async () => {
   );
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.getByRole("status")).toHaveTextContent(
-    "You'll be taken into Everr automatically when it's ready.",
+    "We're setting up your organization. You'll be taken into Everr when it's ready.",
   );
   expect(mocks.router.invalidate).not.toHaveBeenCalled();
 });
