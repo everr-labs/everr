@@ -30,7 +30,7 @@ flag set to false. The worker creates the SQL API user, grants its role, creates
 row policies, and authenticates a query before setting readiness to true.
 Provisioning and deletion share a named queue per organization. Their dedicated
 runner reserves two execution slots and its own Postgres pool, so alerting,
-GitHub, and maintenance jobs cannot delay setup. Both retry up to 10,000 times,
+GitHub, and maintenance jobs cannot delay setup. Both retry up to 1,000 times,
 with short initial delays and a 30-second cap. Jitter spreads retries out.
 The worker reschedules failed lifecycle jobs through Graphile's public API
 after their failure is persisted. Startup and the periodic scan bring forward
@@ -93,8 +93,11 @@ SET metadata = (coalesce(metadata::jsonb, '{}'::jsonb)
 WHERE id = 'organization-id';
 ```
 
-If a job exhausts its 10,000 attempts, repair the underlying issue and use
-Graphile's `reschedule_jobs` to reset its attempts and schedule a new run.
+After provisioning exhausts its 1,000 attempts, the setup page stops polling
+and offers Try again. This resets the existing organization's job to a fresh
+retry budget. Status-request failures remain silent. For exhausted cleanup
+jobs, repair the underlying issue and use Graphile's `reschedule_jobs` to reset
+the attempts and schedule a new run.
 Scans deliberately leave exhausted jobs in place for investigation. Inspect
 `graphile_worker.jobs` for retry state and `clickhouse.organization.provision`
 spans for the organization ID and failure details.

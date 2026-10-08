@@ -144,3 +144,8 @@ it("allows an owner to select a different billing owner", async () => {
   );
   expect(mocks.transfer).toHaveBeenCalledWith({ data: { userId: "other" } });
 });
+
+vi.mock("@/data/organization-provisioning", () => ({
+  getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
+  retryOrganizationProvisioning: vi.fn(),
+}));

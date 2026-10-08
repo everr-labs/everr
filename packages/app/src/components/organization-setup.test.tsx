@@ -1,16 +1,24 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getOrganization: vi.fn(),
+  retry: vi.fn(),
   router: {
     invalidate: vi.fn().mockResolvedValue(undefined),
     navigate: vi.fn().mockResolvedValue(undefined),
   },
 }));
-vi.mock("@/data/auth", () => ({
-  getActiveOrganization: mocks.getOrganization,
+vi.mock("@/data/organization-provisioning", () => ({
+  getOrganizationProvisioningStatus: mocks.getOrganization,
+  retryOrganizationProvisioning: mocks.retry,
 }));
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
@@ -53,7 +61,7 @@ function show() {
 it("keeps the setup message free of inline organization switch buttons", async () => {
   mocks.getOrganization.mockResolvedValue({
     id: "pending",
-    metadata: { clickhouseReady: false },
+    status: "pending",
   });
   show();
   expect(await screen.findByRole("status")).toHaveTextContent(
@@ -67,18 +75,18 @@ it("keeps the setup message free of inline organization switch buttons", async (
 it("refreshes the route when a subsequent status check becomes ready", async () => {
   mocks.getOrganization.mockResolvedValue({
     id: "pending",
-    metadata: { clickhouseReady: false },
+    status: "pending",
   });
   const client = show();
   await waitFor(() =>
     expect(
       client.getQueryData(["organization-provisioning", "pending"]),
-    ).toEqual({ id: "pending", metadata: { clickhouseReady: false } }),
+    ).toEqual({ id: "pending", status: "pending" }),
   );
   vi.useFakeTimers();
   mocks.getOrganization.mockResolvedValue({
     id: "pending",
-    metadata: { clickhouseReady: true },
+    status: "ready",
   });
   await act(async () => {
     await client.invalidateQueries({
@@ -123,4 +131,48 @@ it("returns to organization selection if membership is revoked while waiting", a
       replace: true,
     }),
   );
+});
+
+it("resumes polling after Try again even if the first status request fails", async () => {
+  vi.useFakeTimers();
+  mocks.getOrganization.mockResolvedValue({ id: "pending", status: "failed" });
+  mocks.retry.mockImplementation(async () => {
+    mocks.getOrganization.mockRejectedValueOnce(
+      new Error("Network unavailable"),
+    );
+    mocks.getOrganization.mockResolvedValue({
+      id: "pending",
+      status: "pending",
+    });
+  });
+  show();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(20);
+  });
+  expect(
+    screen.getByRole("heading", {
+      name: "We couldn't finish setting up your organization",
+    }),
+  ).toBeVisible();
+  const calls = mocks.getOrganization.mock.calls.length;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(mocks.getOrganization).toHaveBeenCalledTimes(calls);
+  expect(mocks.router.navigate).not.toHaveBeenCalled();
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.advanceTimersByTimeAsync(20);
+  });
+  expect(mocks.retry).toHaveBeenCalledWith({
+    data: { organizationId: "pending" },
+  });
+  expect(
+    screen.getByRole("heading", { name: "Getting your space ready" }),
+  ).toBeVisible();
+  const resumed = mocks.getOrganization.mock.calls.length;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3000);
+  });
+  expect(mocks.getOrganization.mock.calls.length).toBeGreaterThan(resumed);
 });

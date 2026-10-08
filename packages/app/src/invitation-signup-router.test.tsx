@@ -189,3 +189,8 @@ it.each([
   ).toBeNull();
   expect(screen.queryByLabelText("Organization name")).toBeNull();
 });
+
+vi.mock("@/data/organization-provisioning", () => ({
+  getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
+  retryOrganizationProvisioning: vi.fn(),
+}));

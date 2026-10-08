@@ -209,10 +209,10 @@ describe("organization provisioning", () => {
 
 it("records failures on every attempt with job and exhaustion identity", async () => {
   mocks.provision.mockRejectedValue(new Error("stall"));
-  for (const attempts of [1, 10_000]) {
+  for (const attempts of [1, ORGANIZATION_MAX_ATTEMPTS]) {
     await expect(
       tasks[PROVISION_ORGANIZATION_TASK]?.(payload, {
-        job: { id: "99", attempts, max_attempts: 10_000 },
+        job: { id: "99", attempts, max_attempts: ORGANIZATION_MAX_ATTEMPTS },
       } as never),
     ).rejects.toThrow("stall");
     expect(mocks.error).toHaveBeenLastCalledWith(
@@ -220,7 +220,7 @@ it("records failures on every attempt with job and exhaustion identity", async (
       expect.objectContaining({
         "everr.worker.job.id": "99",
         "everr.worker.job.attempt": attempts,
-        "everr.worker.job.exhausted": attempts === 10_000,
+        "everr.worker.job.exhausted": attempts === ORGANIZATION_MAX_ATTEMPTS,
         "exception.message": "stall",
       }),
     );

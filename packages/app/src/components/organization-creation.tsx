@@ -6,14 +6,14 @@ import { Link, useRouter } from "@tanstack/react-router";
 import { Check, Sparkles, UserRound } from "lucide-react";
 import { type SubmitEvent, useEffect, useRef, useState } from "react";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
-import { isOrganizationProvisioned } from "@/common/organization-provisioning";
 import { OrganizationProvisioningContent } from "@/components/organization-provisioning-content";
+import { OrganizationProvisioningRetry } from "@/components/organization-provisioning-retry";
 import { useOrganizationActivation } from "@/components/use-organization-activation";
 import {
   ORGANIZATION_SETUP_MINIMUM_MS,
   useOrganizationSetupCompletion,
 } from "@/components/use-organization-setup-completion";
-import { getActiveOrganization } from "@/data/auth";
+import { getOrganizationProvisioningStatus } from "@/data/organization-provisioning";
 import { createOrganization } from "@/data/organizations";
 
 export function OrganizationCreation({
@@ -49,9 +49,10 @@ export function OrganizationCreation({
   const isCreating = startedAt !== null;
   const readiness = useQuery({
     queryKey: ["organization-provisioning", createdOrganizationId],
-    queryFn: () => getActiveOrganization(),
+    queryFn: () => getOrganizationProvisioningStatus(),
     enabled: activated && createdOrganizationId !== null,
-    refetchInterval: 1000,
+    refetchInterval: (query) =>
+      query.state.data?.status === "failed" ? false : 1000,
     staleTime: 0,
   });
   useOrganizationSetupCompletion(
@@ -60,7 +61,7 @@ export function OrganizationCreation({
       !readiness.isFetching &&
       activated &&
       readiness.data?.id === createdOrganizationId &&
-      isOrganizationProvisioned(readiness.data?.metadata),
+      readiness.data?.status === "ready",
     startedAt ?? 0,
     returnTo,
   );
@@ -128,6 +129,7 @@ export function OrganizationCreation({
           <OrganizationProvisioningContent
             checkout={plan === "pro"}
             pending={!error}
+            failed={!error && readiness.data?.status === "failed"}
           >
             {error ? (
               <div className="space-y-3">
@@ -159,6 +161,11 @@ export function OrganizationCreation({
                   Choose an existing organization
                 </Link>
               </div>
+            ) : readiness.data?.status === "failed" ? (
+              <OrganizationProvisioningRetry
+                key={readiness.data.id}
+                organizationId={readiness.data.id}
+              />
             ) : null}
           </OrganizationProvisioningContent>
         ) : (

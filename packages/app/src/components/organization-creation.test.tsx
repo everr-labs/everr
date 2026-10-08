@@ -13,10 +13,14 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   select: vi.fn(),
   read: vi.fn(),
+  retry: vi.fn(),
   router: { invalidate: vi.fn(), navigate: vi.fn() },
 }));
 vi.mock("@/data/organizations", () => ({ createOrganization: mocks.create }));
-vi.mock("@/data/auth", () => ({ getActiveOrganization: mocks.read }));
+vi.mock("@/data/organization-provisioning", () => ({
+  getOrganizationProvisioningStatus: mocks.read,
+  retryOrganizationProvisioning: mocks.retry,
+}));
 vi.mock("@/lib/auth-client", () => ({
   authClient: { organization: { setActive: mocks.select } },
 }));
@@ -40,7 +44,7 @@ beforeEach(() => {
   mocks.select.mockResolvedValue({ error: null });
   mocks.read.mockResolvedValue({
     id: "new",
-    metadata: { clickhouseReady: true },
+    status: "ready",
   });
 });
 afterEach(() => vi.useRealTimers());
@@ -132,7 +136,7 @@ it("fetches the new organization's dashboard data instead of reusing the previou
 it("keeps the same screen until real provisioning completes after the minimum duration", async () => {
   mocks.read.mockResolvedValue({
     id: "new",
-    metadata: { clickhouseReady: false },
+    status: "pending",
   });
   const client = show();
   await confirmName();
@@ -145,7 +149,7 @@ it("keeps the same screen until real provisioning completes after the minimum du
   ).toBeVisible();
   mocks.read.mockResolvedValue({
     id: "new",
-    metadata: { clickhouseReady: true },
+    status: "ready",
   });
   await act(async () => {
     await client.invalidateQueries({
@@ -241,4 +245,33 @@ it("cancels the checkout handoff when leaving during the minimum duration", asyn
     await vi.advanceTimersByTimeAsync(2500);
   });
   expect(mocks.router.navigate).not.toHaveBeenCalled();
+});
+
+it("retries exhausted provisioning without creating another organization", async () => {
+  mocks.read.mockResolvedValue({ id: "new", status: "failed" });
+  mocks.retry.mockImplementation(async () => {
+    mocks.read.mockResolvedValue({ id: "new", status: "ready" });
+  });
+  show();
+  await confirmName();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3000);
+  });
+  expect(
+    screen.getByRole("heading", {
+      name: "We couldn't finish setting up your organization",
+    }),
+  ).toBeVisible();
+  expect(mocks.router.navigate).not.toHaveBeenCalled();
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.advanceTimersByTimeAsync(20);
+  });
+  expect(mocks.retry).toHaveBeenCalledWith({ data: { organizationId: "new" } });
+  expect(mocks.create).toHaveBeenCalledOnce();
+  expect(mocks.select).toHaveBeenCalledOnce();
+  expect(mocks.router.navigate).toHaveBeenCalledWith({
+    href: "/logs",
+    replace: true,
+  });
 });

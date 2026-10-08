@@ -167,3 +167,8 @@ it("keeps the setup step mounted when the new membership becomes visible", async
     screen.queryByRole("heading", { name: "Choose your organization" }),
   ).toBeNull();
 });
+
+vi.mock("@/data/organization-provisioning", () => ({
+  getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
+  retryOrganizationProvisioning: vi.fn(),
+}));

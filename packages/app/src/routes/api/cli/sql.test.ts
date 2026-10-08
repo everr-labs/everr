@@ -1,4 +1,5 @@
 import { ClickHouseError } from "@clickhouse/client";
+import { trace } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/clickhouse", () => ({
@@ -30,9 +31,11 @@ function getHandler(): PostHandler {
 }
 
 const context = { session: { session: { activeOrganizationId: "org-42" } } };
+const span = { setAttribute: vi.fn(), setStatus: vi.fn() };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.spyOn(trace, "getActiveSpan").mockReturnValue(span as never);
 });
 
 describe("/api/cli/sql", () => {
@@ -50,6 +53,15 @@ describe("/api/cli/sql", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBe("5");
     expect(await response.json()).toEqual({ error: CLICKHOUSE_SETUP_MESSAGE });
+    expect(span.setAttribute).toHaveBeenCalledWith(
+      "everr.cloud_query.outcome",
+      "user_error",
+    );
+    expect(span.setAttribute).toHaveBeenCalledWith(
+      "everr.cloud_query.kind",
+      "account_setup",
+    );
+    expect(span.setStatus).not.toHaveBeenCalled();
   });
   it("returns NDJSON rows for valid SQL", async () => {
     mockedQuerySqlApi.mockResolvedValue([{ ok: 1 }]);

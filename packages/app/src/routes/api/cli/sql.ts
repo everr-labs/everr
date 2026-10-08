@@ -1,6 +1,5 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { createFileRoute } from "@tanstack/react-router";
-import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
 import { querySqlApi } from "@/lib/clickhouse";
 import { sanitizeSqlApiError } from "@/lib/sql-api-error";
 import { classifyCloudQueryError } from "@/lib/sql-api-observability";
@@ -47,12 +46,6 @@ export const Route = createFileRoute("/api/cli/sql")({
             },
           });
         } catch (error) {
-          if (error instanceof ClickhouseProvisioningPendingError) {
-            return Response.json(
-              { error: error.message },
-              { status: 503, headers: { "Retry-After": "5" } },
-            );
-          }
           const { outcome, kind } = classifyCloudQueryError(error);
           if (span) {
             span.setAttribute("everr.cloud_query.outcome", outcome);
@@ -65,7 +58,9 @@ export const Route = createFileRoute("/api/cli/sql")({
           }
           return Response.json(
             { error: sanitizeSqlApiError(error) },
-            { status: 400 },
+            kind === "account_setup"
+              ? { status: 503, headers: { "Retry-After": "5" } }
+              : { status: 400 },
           );
         }
       },

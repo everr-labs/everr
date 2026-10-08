@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouteContext, useRouter, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { isMissingOrganizationError } from "@/common/organization-onboarding";
-import { isOrganizationProvisioned } from "@/common/organization-provisioning";
 import { OrganizationProvisioningContent } from "@/components/organization-provisioning-content";
+import { OrganizationProvisioningRetry } from "@/components/organization-provisioning-retry";
 import { useOrganizationSetupCompletion } from "@/components/use-organization-setup-completion";
-import { getActiveOrganization } from "@/data/auth";
+import { getOrganizationProvisioningStatus } from "@/data/organization-provisioning";
 
 export function OrganizationSetup() {
   const router = useRouter();
@@ -19,16 +19,14 @@ export function OrganizationSetup() {
       "organization-provisioning",
       session.session.activeOrganizationId,
     ],
-    queryFn: () => getActiveOrganization(),
-    refetchInterval: 3000,
+    queryFn: () => getOrganizationProvisioningStatus(),
+    refetchInterval: (query) =>
+      query.state.data?.status === "failed" ? false : 3000,
     staleTime: 0,
   });
 
   useOrganizationSetupCompletion(
-    status.isSuccess &&
-      !status.isFetching &&
-      !!status.data &&
-      isOrganizationProvisioned(status.data.metadata),
+    status.isSuccess && !status.isFetching && status.data?.status === "ready",
     startedAt,
     returnTo,
   );
@@ -56,7 +54,16 @@ export function OrganizationSetup() {
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-10 lg:min-h-screen lg:py-16">
       <div className="w-full max-w-sm space-y-8">
-        <OrganizationProvisioningContent />
+        <OrganizationProvisioningContent
+          failed={status.data?.status === "failed"}
+        >
+          {status.data?.status === "failed" && (
+            <OrganizationProvisioningRetry
+              key={status.data.id}
+              organizationId={status.data.id}
+            />
+          )}
+        </OrganizationProvisioningContent>
       </div>
     </main>
   );
