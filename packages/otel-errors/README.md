@@ -12,6 +12,8 @@ It emits through the SDK you already registered. No exporter, no endpoint, no in
 pnpm add @everr/otel-errors @opentelemetry/api @opentelemetry/api-logs @opentelemetry/instrumentation
 ```
 
+`@opentelemetry/api-logs` and `@opentelemetry/instrumentation` are accepted from 0.218 up to, but not including, 0.224. A caret on `0.218.0` stops before 0.219, which kept this package off the 0.223 line that `@opentelemetry/instrumentation-aws-sdk` 0.78 needs in order to patch `@smithy/core`.
+
 ## Use
 
 ```ts
