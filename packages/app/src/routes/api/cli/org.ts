@@ -26,14 +26,15 @@ export const Route = createFileRoute("/api/cli/org")({
           name: org.name,
           isOnlyMember,
           // Compatibility for installed CLI versions that still gate their
-          // cloud setup on the retired organization onboarding state.
+          // cloud setup on organization onboarding. Keep this compatibility flag
+          // independent of the web Home onboarding.
           onboardingCompleted: true,
           role: currentMember?.role ?? null,
         });
       },
       PATCH: async () => {
         // Compatibility no-op for old CLI versions. Organization onboarding
-        // is no longer persisted or used by current clients.
+        // changes are owned by the authenticated web onboarding function.
         return Response.json({ ok: true });
       },
     },
