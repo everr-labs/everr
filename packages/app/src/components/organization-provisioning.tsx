@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { ORGANIZATION_SETUP_DELAY_NOTICE_MS } from "@/common/organization-provisioning";
 import { OrganizationProvisioningContent } from "@/components/organization-provisioning-content";
 import { OrganizationProvisioningRetry } from "@/components/organization-provisioning-retry";
 import { useOrganizationSetupCompletion } from "@/components/use-organization-setup-completion";
@@ -18,6 +19,14 @@ export function OrganizationProvisioning({
   minimumDurationMs?: number;
 }) {
   const router = useRouter();
+  const [takingLonger, setTakingLonger] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setTakingLonger(true),
+      ORGANIZATION_SETUP_DELAY_NOTICE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, []);
   const status = useQuery({
     queryKey: ["organization-provisioning", organizationId],
     queryFn: () => getOrganizationProvisioningStatus(),
@@ -51,7 +60,10 @@ export function OrganizationProvisioning({
   }, [organizationId, status.isSuccess, status.data, router, returnTo]);
 
   return (
-    <OrganizationProvisioningContent failed={status.data?.status === "failed"}>
+    <OrganizationProvisioningContent
+      failed={status.data?.status === "failed"}
+      takingLonger={takingLonger && status.data?.status !== "ready"}
+    >
       {status.data?.status === "failed" && (
         <OrganizationProvisioningRetry
           key={status.data.id}

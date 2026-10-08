@@ -166,6 +166,49 @@ it("keeps the same screen until real provisioning completes after the minimum du
     replace: true,
   });
 });
+it("reassures the user after 30 seconds while polling and still opens the organization when ready", async () => {
+  mocks.read.mockResolvedValue({ id: "new", status: "pending" });
+  show();
+  await confirmName();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(29_999);
+  });
+  expect(screen.queryByText(/Setup is taking a little longer/)).toBeNull();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  const notice = screen.getByText(/Setup is taking a little longer/);
+  expect(notice).toHaveTextContent("longer than expected");
+  expect(notice).toHaveTextContent(
+    "We'll email you as soon as your organization is ready",
+  );
+  expect(
+    screen.getByRole("link", { name: "explore the documentation" }),
+  ).toHaveAttribute("href", "https://everr.dev/docs");
+  expect(screen.getByRole("link", { name: "contact us" })).toHaveAttribute(
+    "href",
+    "mailto:hello@everr.dev",
+  );
+  expect(mocks.router.navigate).not.toHaveBeenCalled();
+  const calls = mocks.read.mock.calls.length;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3_000);
+  });
+  expect(mocks.read.mock.calls.length).toBeGreaterThan(calls);
+  mocks.read.mockResolvedValue({ id: "new", status: "ready" });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3_001);
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  expect(mocks.router.navigate).toHaveBeenCalledWith({
+    href: "/logs",
+    replace: true,
+  });
+  expect(screen.queryByText(/Setup is taking a little longer/)).toBeNull();
+});
+
 it("retries selection of an already-created organization without creating a duplicate", async () => {
   mocks.select.mockResolvedValueOnce({ error: { message: "unavailable" } });
   show();

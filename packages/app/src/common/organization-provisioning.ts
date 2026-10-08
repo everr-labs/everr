@@ -1,5 +1,7 @@
 import { ClickhouseProvisioningPendingError } from "./clickhouse-provisioning";
 
+export const ORGANIZATION_SETUP_DELAY_NOTICE_MS = 30_000;
+
 export function parseOrganizationMetadata(
   value: unknown,
 ): Record<string, unknown> {
