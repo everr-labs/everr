@@ -91,9 +91,6 @@ export const organization = pgTable(
     logo: text("logo"),
     createdAt: timestamp("created_at").notNull(),
     metadata: text("metadata"),
-    // Existing organizations stay ready when the column is added. Better Auth
-    // explicitly starts new organizations at false via its server-owned field.
-    clickhouseReady: boolean("clickhouse_ready").default(true).notNull(),
     polarCustomerId: text("polar_customer_id").unique(),
     plan: text("plan", { enum: ["hobby", "pro"] })
       .default("hobby")

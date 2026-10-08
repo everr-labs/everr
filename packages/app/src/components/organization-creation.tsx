@@ -6,14 +6,15 @@ import { Link, useRouter } from "@tanstack/react-router";
 import { Check, Sparkles, UserRound } from "lucide-react";
 import { type SubmitEvent, useEffect, useRef, useState } from "react";
 import { CreateOrganizationInputSchema } from "@/common/organization-name";
+import { isOrganizationProvisioned } from "@/common/organization-provisioning";
 import { OrganizationProvisioningContent } from "@/components/organization-provisioning-content";
+import { useOrganizationActivation } from "@/components/use-organization-activation";
 import {
   ORGANIZATION_SETUP_MINIMUM_MS,
   useOrganizationSetupCompletion,
 } from "@/components/use-organization-setup-completion";
 import { getActiveOrganization } from "@/data/auth";
 import { createOrganization } from "@/data/organizations";
-import { authClient } from "@/lib/auth-client";
 
 export function OrganizationCreation({
   canCreateHobby,
@@ -27,6 +28,7 @@ export function OrganizationCreation({
   onStart?: () => void;
 }) {
   const router = useRouter();
+  const selectOrganization = useOrganizationActivation();
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -58,17 +60,20 @@ export function OrganizationCreation({
       !readiness.isFetching &&
       activated &&
       readiness.data?.id === createdOrganizationId &&
-      readiness.data?.clickhouseReady === true,
+      isOrganizationProvisioned(readiness.data?.metadata),
     startedAt ?? 0,
     returnTo,
   );
 
   async function activateOrganization(organizationId: string) {
-    const result = await authClient.organization.setActive({ organizationId });
-    if (result.error)
+    try {
+      await selectOrganization(organizationId);
+    } catch (cause) {
       throw new Error(
         "Your organization was created, but we couldn't select it. Try again or choose it from your organizations.",
+        { cause },
       );
+    }
     if (mounted.current) setActivated(true);
   }
 
@@ -154,14 +159,6 @@ export function OrganizationCreation({
                   Choose an existing organization
                 </Link>
               </div>
-            ) : readiness.isError ? (
-              <p
-                className="text-sm leading-relaxed text-destructive"
-                role="alert"
-              >
-                We couldn't check your setup status. We'll try again
-                automatically.
-              </p>
             ) : null}
           </OrganizationProvisioningContent>
         ) : (

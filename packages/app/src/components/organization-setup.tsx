@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouteContext, useRouter, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { isMissingOrganizationError } from "@/common/organization-onboarding";
+import { isOrganizationProvisioned } from "@/common/organization-provisioning";
 import { OrganizationProvisioningContent } from "@/components/organization-provisioning-content";
 import { useOrganizationSetupCompletion } from "@/components/use-organization-setup-completion";
 import { getActiveOrganization } from "@/data/auth";
@@ -26,7 +27,8 @@ export function OrganizationSetup() {
   useOrganizationSetupCompletion(
     status.isSuccess &&
       !status.isFetching &&
-      status.data?.clickhouseReady === true,
+      !!status.data &&
+      isOrganizationProvisioned(status.data.metadata),
     startedAt,
     returnTo,
   );
@@ -54,14 +56,7 @@ export function OrganizationSetup() {
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-10 lg:min-h-screen lg:py-16">
       <div className="w-full max-w-sm space-y-8">
-        <OrganizationProvisioningContent>
-          {status.isError && (
-            <p role="alert" className="text-sm text-destructive">
-              We couldn't check your setup status. We'll try again
-              automatically.
-            </p>
-          )}
-        </OrganizationProvisioningContent>
+        <OrganizationProvisioningContent />
       </div>
     </main>
   );

@@ -47,7 +47,7 @@ it("redirects missing selection to the chooser while staying inside the auth lay
 it("verifies membership without bypassing the provisioning view for an already-ready organization", async () => {
   vi.mocked(getActiveOrganization).mockResolvedValue({
     id: "new",
-    clickhouseReady: true,
+    metadata: { clickhouseReady: true },
   } as never);
   await expect(openSetup("new")).resolves.toBeUndefined();
 });

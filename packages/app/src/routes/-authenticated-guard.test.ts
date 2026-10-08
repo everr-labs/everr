@@ -32,7 +32,7 @@ function openApp(activeOrganizationId: string | null, pathname = "/logs") {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(auth.api.getFullOrganization).mockResolvedValue({
-    clickhouseReady: true,
+    metadata: { clickhouseReady: true },
   } as never);
 });
 
@@ -66,7 +66,7 @@ it("redirects revoked membership to organization selection", async () => {
 
 it("redirects pending organizations before their data pages load", async () => {
   vi.mocked(auth.api.getFullOrganization).mockResolvedValue({
-    clickhouseReady: false,
+    metadata: { clickhouseReady: false },
   } as never);
   await expect(openApp("test_org")).rejects.toMatchObject({
     options: {

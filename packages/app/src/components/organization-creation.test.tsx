@@ -38,7 +38,10 @@ beforeEach(() => {
     organization: { id: "new", name: "Acme" },
   });
   mocks.select.mockResolvedValue({ error: null });
-  mocks.read.mockResolvedValue({ id: "new", clickhouseReady: true });
+  mocks.read.mockResolvedValue({
+    id: "new",
+    metadata: { clickhouseReady: true },
+  });
 });
 afterEach(() => vi.useRealTimers());
 function show(canCreateHobby = true) {
@@ -94,8 +97,43 @@ it("holds a healthy creation for 2.5 seconds, then enters the requested page wit
     replace: true,
   });
 });
+it("fetches the new organization's dashboard data instead of reusing the previous organization's fresh cache", async () => {
+  const client = show();
+  const queryKey = ["panel-query", "usage"];
+  const queryFn = vi.fn().mockResolvedValue([{ organization: "new" }]);
+  client.setQueryData(queryKey, [{ organization: "previous" }]);
+  let finishPreviousRequest!: (rows: { organization: string }[]) => void;
+  const previousRequest = client
+    .fetchQuery({
+      queryKey,
+      staleTime: 0,
+      queryFn: () =>
+        new Promise<{ organization: string }[]>((resolve) => {
+          finishPreviousRequest = resolve;
+        }),
+    })
+    .catch(() => undefined);
+  mocks.router.navigate.mockImplementation(async () => {
+    await client.fetchQuery({ queryKey, queryFn, staleTime: Infinity });
+  });
+  await confirmName();
+  await act(async () => {
+    finishPreviousRequest([{ organization: "previous" }]);
+    await previousRequest;
+    await vi.advanceTimersByTimeAsync(2500);
+  });
+  expect(mocks.router.navigate).toHaveBeenCalledWith({
+    href: "/logs",
+    replace: true,
+  });
+  expect(client.getQueryData(queryKey)).toEqual([{ organization: "new" }]);
+  expect(queryFn).toHaveBeenCalledOnce();
+});
 it("keeps the same screen until real provisioning completes after the minimum duration", async () => {
-  mocks.read.mockResolvedValue({ id: "new", clickhouseReady: false });
+  mocks.read.mockResolvedValue({
+    id: "new",
+    metadata: { clickhouseReady: false },
+  });
   const client = show();
   await confirmName();
   await act(async () => {
@@ -105,7 +143,10 @@ it("keeps the same screen until real provisioning completes after the minimum du
   expect(
     screen.getByRole("heading", { name: "Getting your space ready" }),
   ).toBeVisible();
-  mocks.read.mockResolvedValue({ id: "new", clickhouseReady: true });
+  mocks.read.mockResolvedValue({
+    id: "new",
+    metadata: { clickhouseReady: true },
+  });
   await act(async () => {
     await client.invalidateQueries({
       queryKey: ["organization-provisioning", "new"],

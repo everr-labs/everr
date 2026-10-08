@@ -74,7 +74,6 @@ export type BillingDependencies = {
   db: Database;
   polar: PolarGateway;
   lock: <T>(key: string, run: () => Promise<T>) => Promise<T>;
-  provisionOrganization: (id: string) => Promise<unknown>;
   appUrl: string;
 };
 export type BillingErrorCode =

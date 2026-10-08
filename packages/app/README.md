@@ -25,8 +25,8 @@ The organization adapter atomically records provisioning intent alongside creati
 Deletion atomically records cleanup intent alongside the organization and
 Postgres-resource deletion. A failed enqueue rolls the transaction back.
 Organization creation enqueues `clickhouse/provision-organization` in Graphile
-Worker. New organizations start with the server-owned `clickhouseReady` field
-set to false. The worker creates the SQL API user, grants its role, creates all
+Worker. New organizations start with the server-owned `metadata.clickhouseReady`
+flag set to false. The worker creates the SQL API user, grants its role, creates all
 row policies, and authenticates a query before setting readiness to true.
 Provisioning and deletion share a named queue per organization. Their dedicated
 runner reserves two execution slots and its own Postgres pool, so alerting,
@@ -77,18 +77,21 @@ billing, and CLI login remain available. Data reads fail before contacting
 ClickHouse with a friendly setup message; CLI SQL returns HTTP 503 and
 `Retry-After: 5`.
 
-Apply the schema change before deploying the app. No Drizzle migration has
-been generated while this schema is being iterated on. The database column
-defaults to true to preserve existing organizations, while Better Auth
-explicitly inserts false for new organizations:
-
-```sql
-ALTER TABLE organization
-  ADD COLUMN clickhouse_ready boolean NOT NULL DEFAULT true;
-```
+Provisioning state uses the existing metadata column, so no schema change or
+migration is needed. Organizations without the flag remain ready. Metadata
+updates preserve the server-owned flag atomically, and provisioning changes
+only that flag while retaining other metadata.
 
 To repair an existing organization known to have incomplete SQL API
-provisioning, set its `clickhouse_ready` to false. The next scan enqueues it.
+provisioning, mark its metadata pending. The next scan enqueues it:
+
+```sql
+UPDATE organization
+SET metadata = (coalesce(metadata::jsonb, '{}'::jsonb)
+  || '{"clickhouseReady":false}'::jsonb)::text
+WHERE id = 'organization-id';
+```
+
 If a job exhausts its 10,000 attempts, repair the underlying issue and use
 Graphile's `reschedule_jobs` to reset its attempts and schedule a new run.
 Scans deliberately leave exhausted jobs in place for investigation. Inspect

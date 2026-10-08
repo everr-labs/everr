@@ -8,6 +8,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { parseCronItems, type Task, type TaskList } from "graphile-worker";
 import { z } from "zod";
+import { isOrganizationProvisioned } from "@/common/organization-provisioning";
 import type { Database } from "@/db/client";
 import { organization } from "@/db/schema";
 import {
@@ -15,6 +16,10 @@ import {
   provisionSqlApiOrgUser,
 } from "@/lib/clickhouse";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
+import {
+  organizationProvisioningPending,
+  provisionedOrganizationMetadata,
+} from "@/lib/organization-provisioning-metadata.server";
 import { withBoundaryErrorCapture } from "@/telemetry/error-boundary";
 import {
   mergeTelemetryIdentity,
@@ -101,22 +106,22 @@ export function createOrganizationTaskList(
       "clickhouse.organization.provision",
       async (organizationId, helpers) => {
         const [org] = await database
-          .select({ ready: organization.clickhouseReady })
+          .select({ metadata: organization.metadata })
           .from(organization)
           .where(eq(organization.id, organizationId));
         if (!org) {
           await cleanup(organizationId, helpers.abortSignal);
           return;
         }
-        if (org.ready) return;
+        if (isOrganizationProvisioned(org.metadata)) return;
         await provisionSqlApiOrgUser(organizationId, helpers.abortSignal);
         const updated = await database
           .update(organization)
-          .set({ clickhouseReady: true })
+          .set({ metadata: provisionedOrganizationMetadata })
           .where(
             and(
               eq(organization.id, organizationId),
-              eq(organization.clickhouseReady, false),
+              organizationProvisioningPending,
             ),
           )
           .returning({ id: organization.id });
@@ -154,7 +159,7 @@ export function createOrganizationTaskList(
         const pending = await database
           .select({ id: organization.id, createdAt: organization.createdAt })
           .from(organization)
-          .where(eq(organization.clickhouseReady, false));
+          .where(organizationProvisioningPending);
         const ages = pending.map((org) =>
           Math.max(0, (Date.now() - org.createdAt.getTime()) / 1000),
         );

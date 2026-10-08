@@ -53,7 +53,7 @@ function show() {
 it("keeps the setup message free of inline organization switch buttons", async () => {
   mocks.getOrganization.mockResolvedValue({
     id: "pending",
-    clickhouseReady: false,
+    metadata: { clickhouseReady: false },
   });
   show();
   expect(await screen.findByRole("status")).toHaveTextContent(
@@ -67,18 +67,18 @@ it("keeps the setup message free of inline organization switch buttons", async (
 it("refreshes the route when a subsequent status check becomes ready", async () => {
   mocks.getOrganization.mockResolvedValue({
     id: "pending",
-    clickhouseReady: false,
+    metadata: { clickhouseReady: false },
   });
   const client = show();
   await waitFor(() =>
     expect(
       client.getQueryData(["organization-provisioning", "pending"]),
-    ).toEqual({ id: "pending", clickhouseReady: false }),
+    ).toEqual({ id: "pending", metadata: { clickhouseReady: false } }),
   );
   vi.useFakeTimers();
   mocks.getOrganization.mockResolvedValue({
     id: "pending",
-    clickhouseReady: true,
+    metadata: { clickhouseReady: true },
   });
   await act(async () => {
     await client.invalidateQueries({
@@ -98,10 +98,13 @@ it("refreshes the route when a subsequent status check becomes ready", async () 
 
 it("keeps the friendly page visible when a readiness check fails", async () => {
   mocks.getOrganization.mockRejectedValue(new Error("Network unavailable"));
-  show();
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "We couldn't check your setup status.",
+  const client = show();
+  await waitFor(() =>
+    expect(
+      client.getQueryState(["organization-provisioning", "pending"])?.status,
+    ).toBe("error"),
   );
+  expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.getByRole("status")).toHaveTextContent(
     "You'll be taken into Everr automatically when it's ready.",
   );

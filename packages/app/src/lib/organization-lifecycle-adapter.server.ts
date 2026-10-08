@@ -1,5 +1,6 @@
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { z } from "zod";
+import { parseOrganizationMetadata } from "@/common/organization-provisioning";
 import {
   type Database,
   type DbExecutor,
@@ -7,6 +8,7 @@ import {
   runInTransaction,
 } from "@/db/client";
 import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
+import { preserveOrganizationProvisioningStatus } from "@/lib/organization-provisioning-metadata.server";
 import {
   enqueueOrganizationDeprovisioning,
   enqueueOrganizationProvisioning,
@@ -31,12 +33,37 @@ export function organizationLifecycleAdapter(database: Database = db) {
       }): Promise<R> => {
         if (input.model !== "organization") return adapter.create<T, R>(input);
         return runInTransaction(executor, async (tx) => {
-          const created = await factory(tx).create<T, R>(input);
+          const created = await factory(tx).create<T, R>({
+            ...input,
+            data: {
+              ...input.data,
+              metadata: JSON.stringify({
+                ...parseOrganizationMetadata(input.data.metadata),
+                clickhouseReady: false,
+              }),
+            },
+          });
           const { id } = z.object({ id: z.string() }).parse(created);
           await enqueueOrganizationProvisioning(id, tx);
           return created;
         });
       };
+      const update: typeof adapter.update = (input) =>
+        adapter.update({
+          ...input,
+          update:
+            input.model === "organization"
+              ? preserveOrganizationProvisioningStatus(input.update)
+              : input.update,
+        });
+      const updateMany: typeof adapter.updateMany = (input) =>
+        adapter.updateMany({
+          ...input,
+          update:
+            input.model === "organization"
+              ? preserveOrganizationProvisioningStatus(input.update)
+              : input.update,
+        });
       const remove: typeof adapter.delete = async (input) => {
         if (input.model !== "organization") return adapter.delete(input);
         await runInTransaction(executor, async (tx) => {
@@ -74,7 +101,15 @@ export function organizationLifecycleAdapter(database: Database = db) {
       // lifecycle wrapper inside transactions, rather than returning raw Drizzle.
       const transaction: typeof adapter.transaction = (run) =>
         runInTransaction(executor, (tx) => run(wrap(tx)));
-      return { ...adapter, create, delete: remove, deleteMany, transaction };
+      return {
+        ...adapter,
+        create,
+        update,
+        updateMany,
+        delete: remove,
+        deleteMany,
+        transaction,
+      };
     };
     return wrap(database);
   };

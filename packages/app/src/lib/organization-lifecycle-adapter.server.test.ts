@@ -1,10 +1,13 @@
 // @vitest-environment node
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { organization as organizationPlugin } from "better-auth/plugins";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { PgTransaction } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { organizationProvisioningFields } from "@/common/organization-provisioning-fields";
+import {
+  isOrganizationProvisioned,
+  parseOrganizationMetadata,
+} from "@/common/organization-provisioning";
 import type { Database, DbExecutor, Transaction } from "@/db/client";
 import {
   dashboards,
@@ -49,7 +52,7 @@ let fixture: TestDatabase;
 let auth: ReturnType<typeof createAuth>;
 function createAuth(
   afterCreateOrganization?: (input: {
-    organization: { id: string };
+    organization: { id: string; metadata?: unknown };
   }) => Promise<void>,
   afterCreateSession?: ReturnType<
     typeof createAutomaticOrganizationSessionHook
@@ -66,9 +69,6 @@ function createAuth(
     plugins: [
       organizationPlugin({
         organizationHooks: { afterCreateOrganization },
-        schema: {
-          organization: { additionalFields: organizationProvisioningFields },
-        },
       }),
     ],
   } satisfies BetterAuthOptions);
@@ -76,7 +76,7 @@ function createAuth(
 
 let adapter: Pick<
   ReturnType<ReturnType<typeof organizationLifecycleAdapter>>,
-  "create" | "delete" | "deleteMany"
+  "create" | "delete" | "deleteMany" | "updateMany"
 >;
 beforeAll(async () => {
   fixture = await createTestDatabase();
@@ -85,6 +85,8 @@ beforeAll(async () => {
 });
 afterAll(async () => fixture?.close());
 beforeEach(async () => {
+  clickhouseMocks.provision.mockReset();
+  clickhouseMocks.deprovision.mockReset();
   await fixture.truncate();
   auth = createAuth();
   adapter = (await auth.$context).adapter;
@@ -99,7 +101,6 @@ const create = (id = "org-test") =>
       name: id,
       slug: id,
       createdAt: new Date(),
-      clickhouseReady: false,
     },
   });
 const where = [{ field: "id", value: "org-test" }];
@@ -126,7 +127,9 @@ it("commits organization creation and provisioning intent together", async () =>
   await create();
   expect(await jobs()).toEqual(["clickhouse/provision-organization"]);
   expect(
-    (await fixture.db.select().from(organization))[0].clickhouseReady,
+    isOrganizationProvisioned(
+      (await fixture.db.select().from(organization))[0].metadata,
+    ),
   ).toBe(false);
 });
 it("rolls back creation if the queue cannot record provisioning intent", async () => {
@@ -174,12 +177,7 @@ it("records cleanup for every deleted organization", async () => {
     model: "organization",
     where: [{ field: "id", operator: "in", value: ["org-test", "org-second"] }],
   });
-  expect(
-    await fixture.db
-      .select()
-      .from(organization)
-      .where(eq(organization.clickhouseReady, false)),
-  ).toEqual([]);
+  expect(await fixture.db.select().from(organization)).toEqual([]);
   expect(await jobs()).toEqual([
     "clickhouse/provision-organization",
     "clickhouse/provision-organization",
@@ -199,6 +197,86 @@ async function signup(email = "owner@example.com") {
   });
   return new Headers({ cookie: response.headers.get("set-cookie") ?? "" });
 }
+
+it("protects provisioning metadata through actual create and update endpoints while preserving other metadata", async () => {
+  const headers = await signup();
+  const created = await auth.api.createOrganization({
+    headers,
+    body: {
+      name: "Metadata",
+      slug: "metadata",
+      metadata: { clickhouseReady: true, label: "initial" },
+    },
+  });
+  expect(created?.metadata).toEqual({
+    clickhouseReady: false,
+    label: "initial",
+  });
+  await auth.api.updateOrganization({
+    headers,
+    body: { data: { metadata: { clickhouseReady: true, label: "updated" } } },
+  });
+  let [stored] = await fixture.db.select().from(organization);
+  expect(parseOrganizationMetadata(stored.metadata)).toEqual({
+    clickhouseReady: false,
+    label: "updated",
+  });
+
+  clickhouseMocks.provision.mockResolvedValue(undefined);
+  const tasks = createOrganizationTaskList(
+    fixture.db as unknown as Database,
+    async () => {},
+  );
+  if (!created) throw new Error("Organization was not created");
+  await tasks[PROVISION_ORGANIZATION_TASK]?.(
+    { organizationId: created.id },
+    {} as never,
+  );
+  [stored] = await fixture.db.select().from(organization);
+  expect(parseOrganizationMetadata(stored.metadata)).toEqual({
+    clickhouseReady: true,
+    label: "updated",
+  });
+  await auth.api.updateOrganization({
+    headers,
+    body: { data: { metadata: { clickhouseReady: false, label: "ready" } } },
+  });
+  await auth.api.updateOrganization({
+    headers,
+    body: { data: { metadata: {} } },
+  });
+  [stored] = await fixture.db.select().from(organization);
+  expect(parseOrganizationMetadata(stored.metadata)).toEqual({
+    clickhouseReady: true,
+  });
+});
+
+it("preserves readiness separately for every organization in a bulk metadata update", async () => {
+  await create();
+  await create("org-second");
+  await fixture.client.exec(
+    `UPDATE organization SET metadata = '{"clickhouseReady":true}' WHERE id = 'org-second'`,
+  );
+  await adapter.updateMany({
+    model: "organization",
+    where: [{ field: "id", operator: "in", value: ["org-test", "org-second"] }],
+    update: {
+      metadata: JSON.stringify({ clickhouseReady: true, label: "bulk" }),
+    },
+  });
+  const rows = await fixture.db.select().from(organization);
+  expect(
+    rows.map((row) => ({
+      id: row.id,
+      metadata: parseOrganizationMetadata(row.metadata),
+    })),
+  ).toEqual(
+    expect.arrayContaining([
+      { id: "org-test", metadata: { clickhouseReady: false, label: "bulk" } },
+      { id: "org-second", metadata: { clickhouseReady: true, label: "bulk" } },
+    ]),
+  );
+});
 
 function enableAutomaticOrganizations() {
   // PGlite has one connection, so it cannot hold the ownership transaction
@@ -225,7 +303,7 @@ it("creates and selects an automatic Hobby organization after email signup commi
   expect(created).toMatchObject({
     name: "Owner's projects",
     plan: "hobby",
-    clickhouseReady: false,
+    metadata: JSON.stringify({ clickhouseReady: false }),
   });
   expect(session?.session.activeOrganizationId).toBe(created.id);
   expect(await fixture.db.select().from(member)).toEqual([
@@ -335,16 +413,24 @@ it("returns a ready organization from the actual endpoint when its durable job f
       { organizationId: created.id },
       {} as never,
     );
-    if (await pending) Object.assign(created, { clickhouseReady: true });
+    if (await pending)
+      Object.assign(created, {
+        metadata: {
+          ...parseOrganizationMetadata(created.metadata),
+          clickhouseReady: true,
+        },
+      });
   });
   const headers = await signup();
   const created = await auth.api.createOrganization({
     headers,
     body: { name: "Fast", slug: "fast" },
   });
-  expect(created?.clickhouseReady).toBe(true);
+  expect(isOrganizationProvisioned(created?.metadata)).toBe(true);
   expect(
-    (await fixture.db.select().from(organization))[0].clickhouseReady,
+    isOrganizationProvisioned(
+      (await fixture.db.select().from(organization))[0].metadata,
+    ),
   ).toBe(true);
   expect(clickhouseMocks.provision).toHaveBeenCalledOnce();
 });

@@ -1,5 +1,6 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { eq } from "drizzle-orm";
+import { isOrganizationProvisioned } from "@/common/organization-provisioning";
 import { type Database, db } from "@/db/client";
 import { organization } from "@/db/schema";
 import {
@@ -29,11 +30,11 @@ export function waitForOrganizationProvisioning(
         const ready = async () => {
           while (!stopped) {
             const [org] = await database
-              .select({ ready: organization.clickhouseReady })
+              .select({ metadata: organization.metadata })
               .from(organization)
               .where(eq(organization.id, organizationId));
             if (stopped || !org) return false;
-            if (org.ready) return true;
+            if (isOrganizationProvisioned(org.metadata)) return true;
             await new Promise<void>((resolve) =>
               setTimeout(resolve, POLL_INTERVAL_MS),
             );

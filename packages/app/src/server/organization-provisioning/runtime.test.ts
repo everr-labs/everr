@@ -9,6 +9,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { isOrganizationProvisioned } from "@/common/organization-provisioning";
 import { organization } from "@/db/schema";
 import {
   createTestDatabase,
@@ -84,17 +85,18 @@ beforeEach(async () => {
     name: "Signup",
     slug: orgId,
     createdAt: new Date(),
-    clickhouseReady: false,
+    metadata: JSON.stringify({ clickhouseReady: false, label: "preserved" }),
   });
 });
 
 async function ready() {
-  return (
+  const row = (
     await fixture.db
       .select()
       .from(organization)
       .where(eq(organization.id, orgId))
-  )[0]?.clickhouseReady;
+  )[0];
+  return row && isOrganizationProvisioned(row.metadata);
 }
 
 describe("organization provisioning", () => {
@@ -189,7 +191,7 @@ describe("organization provisioning", () => {
     expect(mocks.deprovision).toHaveBeenCalledWith(orgId, undefined);
   });
 
-  it("leaves pre-existing organizations ready when the column is added", async () => {
+  it("leaves pre-existing organizations without a provisioning flag ready", async () => {
     await fixture.db.insert(organization).values({
       id: "existing",
       name: "Existing",

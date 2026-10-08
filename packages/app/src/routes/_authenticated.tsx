@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { isMissingOrganizationError } from "@/common/organization-onboarding";
+import { isOrganizationProvisioned } from "@/common/organization-provisioning";
 import { getActiveOrgAppAccess } from "@/data/billing";
 import { auth } from "@/lib/auth.server";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
@@ -25,7 +26,8 @@ const verifyActiveOrg = createPartiallyAuthenticatedServerFn({
 
   return {
     activeOrganizationId: activeOrgId,
-    clickhouseReady: organization?.clickhouseReady === true,
+    clickhouseReady:
+      !!organization && isOrganizationProvisioned(organization.metadata),
   };
 });
 

@@ -7,7 +7,6 @@ import {
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { organizationBillingFields } from "@/common/organization-billing-fields";
-import { organizationProvisioningFields } from "@/common/organization-provisioning-fields";
 
 export const authClient = createAuthClient({
   plugins: [
@@ -16,7 +15,6 @@ export const authClient = createAuthClient({
         organization: {
           additionalFields: {
             ...organizationBillingFields,
-            ...organizationProvisioningFields,
           },
         },
       },

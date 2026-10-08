@@ -18,7 +18,7 @@ import {
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { organizationBillingFields } from "@/common/organization-billing-fields";
-import { organizationProvisioningFields } from "@/common/organization-provisioning-fields";
+import { parseOrganizationMetadata } from "@/common/organization-provisioning";
 import { db } from "@/db/client";
 import { member, session as sessionTable } from "@/db/schema";
 import { env } from "@/env";
@@ -275,7 +275,6 @@ export const auth = betterAuth({
         organization: {
           additionalFields: {
             ...organizationBillingFields,
-            ...organizationProvisioningFields,
             plan: {
               type: ["hobby", "pro"],
               required: true,
@@ -305,7 +304,12 @@ export const auth = betterAuth({
         afterCreateOrganization: async ({ organization }) => {
           if (await waitForOrganizationProvisioning(organization.id)) {
             // Better Auth returns this object after running its after-hook.
-            Object.assign(organization, { clickhouseReady: true });
+            Object.assign(organization, {
+              metadata: {
+                ...parseOrganizationMetadata(organization.metadata),
+                clickhouseReady: true,
+              },
+            });
           }
         },
         beforeUpdateOrganization: async ({ organization }) => {

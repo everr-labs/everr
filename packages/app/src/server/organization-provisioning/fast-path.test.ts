@@ -21,21 +21,29 @@ import { waitForOrganizationProvisioning } from "./fast-path";
 beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
-  mocks.read.mockResolvedValue([{ ready: false }]);
+  mocks.read.mockResolvedValue([
+    { metadata: JSON.stringify({ clickhouseReady: false }) },
+  ]);
 });
 afterEach(() => {
   vi.useRealTimers();
 });
 it("returns immediately when the committed job has already finished", async () => {
-  mocks.read.mockResolvedValue([{ ready: true }]);
+  mocks.read.mockResolvedValue([
+    { metadata: JSON.stringify({ clickhouseReady: true }) },
+  ]);
   await expect(waitForOrganizationProvisioning("org")).resolves.toBe(true);
   expect(mocks.read).toHaveBeenCalledOnce();
   expect(vi.getTimerCount()).toBe(0);
 });
 it("returns ready when provisioning finishes during the signup wait", async () => {
   mocks.read
-    .mockResolvedValueOnce([{ ready: false }])
-    .mockResolvedValueOnce([{ ready: true }]);
+    .mockResolvedValueOnce([
+      { metadata: JSON.stringify({ clickhouseReady: false }) },
+    ])
+    .mockResolvedValueOnce([
+      { metadata: JSON.stringify({ clickhouseReady: true }) },
+    ]);
   const result = waitForOrganizationProvisioning("org");
   await vi.advanceTimersByTimeAsync(100);
   await expect(result).resolves.toBe(true);
@@ -55,7 +63,7 @@ it("returns pending within five seconds and stops polling during a prolonged sta
   expect(vi.getTimerCount()).toBe(0);
 });
 it("also bounds a hanging Postgres lookup and ignores its late completion", async () => {
-  let finish!: (value: { ready: boolean }[]) => void;
+  let finish!: (value: { metadata: string }[]) => void;
   mocks.read.mockReturnValue(
     new Promise((resolve) => {
       finish = resolve;
@@ -64,7 +72,7 @@ it("also bounds a hanging Postgres lookup and ignores its late completion", asyn
   const result = waitForOrganizationProvisioning("org");
   await vi.advanceTimersByTimeAsync(5000);
   await expect(result).resolves.toBe(false);
-  finish([{ ready: false }]);
+  finish([{ metadata: JSON.stringify({ clickhouseReady: false }) }]);
   await vi.advanceTimersByTimeAsync(1000);
   expect(mocks.read).toHaveBeenCalledOnce();
   expect(vi.getTimerCount()).toBe(0);

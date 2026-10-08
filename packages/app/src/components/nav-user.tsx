@@ -13,8 +13,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@everr/ui/components/sidebar";
-import { useQueryClient } from "@tanstack/react-query";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   Check,
   ChevronsUpDown,
@@ -28,14 +27,15 @@ import {
   Settings,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useOrganizationActivation } from "@/components/use-organization-activation";
 import { PLATFORMS } from "@/lib/app-download";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { useOpenConsentSettings } from "@/telemetry/consent-gate";
 
 export function NavUser() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
+  const activateOrganization = useOrganizationActivation();
   const openConsentSettings = useOpenConsentSettings();
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
@@ -48,15 +48,15 @@ export function NavUser() {
   const { isMobile } = useSidebar();
 
   async function handleSwitchOrg(orgId: string) {
-    const { error } = await authClient.organization.setActive({
-      organizationId: orgId,
-    });
-    if (error) return;
-    // Mark cached data stale without refetching the current dashboard. The
-    // organization guard must redirect pending organizations before data reads.
-    await queryClient.invalidateQueries({ refetchType: "none" });
-    await router.invalidate();
-    await queryClient.refetchQueries({ type: "active" });
+    try {
+      await activateOrganization(orgId);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not switch organization.",
+      );
+    }
   }
 
   if (!session?.user) {

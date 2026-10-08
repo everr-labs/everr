@@ -5,10 +5,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
 import { Check, ChevronDown } from "lucide-react";
 import { useState } from "react";
+import { useOrganizationActivation } from "@/components/use-organization-activation";
 import { authClient } from "@/lib/auth-client";
 
 export function OrganizationSwitcher({
@@ -16,8 +15,7 @@ export function OrganizationSwitcher({
 }: {
   activeOrganizationId?: string | null;
 }) {
-  const router = useRouter();
-  const queryClient = useQueryClient();
+  const activateOrganization = useOrganizationActivation();
   const { data: organizations } = authClient.useListOrganizations();
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,16 +24,7 @@ export function OrganizationSwitcher({
     setSwitching(true);
     setError(null);
     try {
-      const result = await authClient.organization.setActive({
-        organizationId,
-      });
-      if (result.error)
-        throw new Error(
-          result.error.message ?? "Could not switch organization.",
-        );
-      await queryClient.invalidateQueries({ refetchType: "none" });
-      await router.invalidate();
-      await queryClient.refetchQueries({ type: "active" });
+      await activateOrganization(organizationId);
     } catch (cause) {
       setError(
         cause instanceof Error

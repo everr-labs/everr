@@ -1,15 +1,15 @@
 import { Button, buttonVariants } from "@everr/ui/components/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useRouter, useSearch } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useSearch } from "@tanstack/react-router";
 import { ArrowRight, Loader2, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { OrganizationCreation } from "@/components/organization-creation";
+import { useOrganizationActivation } from "@/components/use-organization-activation";
 import { getOrganizationCreationOptions } from "@/data/organizations";
 import { authClient } from "@/lib/auth-client";
 
 export function OrganizationSelection() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
+  const activateOrganization = useOrganizationActivation();
   const { returnTo } = useSearch({
     from: "/_auth/_onboarding/choose-organization",
   });
@@ -45,13 +45,7 @@ export function OrganizationSelection() {
     setSwitching(orgId);
     setSwitchError(null);
     try {
-      const { error } = await authClient.organization.setActive({
-        organizationId: orgId,
-      });
-      if (error)
-        throw new Error(error.message ?? "Could not select this organization.");
-      await queryClient.invalidateQueries();
-      await router.navigate({ href: returnTo, replace: true });
+      await activateOrganization(orgId, returnTo);
     } catch (error) {
       setSwitchError(
         error instanceof Error
