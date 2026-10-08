@@ -11,7 +11,7 @@ import { authClient } from "@/lib/auth-client";
 export function OrganizationSelection() {
   const activateOrganization = useOrganizationActivation();
   const { returnTo } = useSearch({
-    from: "/_auth/_onboarding/choose-organization",
+    from: "/_welcome/_signedIn/choose-organization",
   });
 
   const organizations = authClient.useListOrganizations();

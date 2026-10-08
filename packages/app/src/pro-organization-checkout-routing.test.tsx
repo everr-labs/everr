@@ -1,3 +1,7 @@
+vi.mock("@/data/organization-access", () => ({
+  getActiveOrganizationAccess: vi.fn(),
+}));
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -24,7 +28,7 @@ let authenticated = false;
 for (const path of Object.keys(import.meta.glob("./routes/**/*.{ts,tsx}"))) {
   if (
     path.endsWith("/organizations.checkout.success.tsx") ||
-    path.endsWith("/_auth/_onboarding.tsx")
+    path.endsWith("/_welcome/_signedIn.tsx")
   )
     continue;
   vi.doMock(path, () => ({

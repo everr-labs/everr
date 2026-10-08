@@ -3,9 +3,11 @@ import { useState } from "react";
 import { OrganizationProvisioning } from "@/components/organization-provisioning";
 
 export function OrganizationSetup() {
-  const { session } = useRouteContext({ from: "/_auth/_onboarding" });
+  const { session } = useRouteContext({
+    from: "/_welcome/_signedIn/_organization",
+  });
   const { returnTo } = useSearch({
-    from: "/_auth/_onboarding/organization-setup",
+    from: "/_welcome/_signedIn/_organization/organization-setup",
   });
   const [startedAt] = useState(() => Date.now());
   const organizationId = session.session.activeOrganizationId;

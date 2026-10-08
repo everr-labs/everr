@@ -1,5 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
+vi.mock("@/data/organization-access", () => ({
+  getActiveOrganizationAccess: vi.fn(),
+}));
+
 const mocks = vi.hoisted(() => ({ read: vi.fn(), retry: vi.fn() }));
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeaders: () => new Headers(),

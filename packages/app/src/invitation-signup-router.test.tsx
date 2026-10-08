@@ -1,3 +1,7 @@
+vi.mock("@/data/organization-access", () => ({
+  getActiveOrganizationAccess: vi.fn(),
+}));
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -20,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   social: vi.fn(),
   refetch: () => Promise.resolve(),
 }));
-vi.mock("@/routes/_auth/-components/ascii-logo", () => ({
+vi.mock("@/routes/_welcome/-components/ascii-logo", () => ({
   AsciiLogo: () => null,
 }));
 vi.mock("@/lib/auth-client", () => ({
@@ -56,13 +60,13 @@ vi.mock("@/data/invite", async () => {
   };
 });
 
-import { Route as authRoute } from "@/routes/_auth";
-import { Route as guestRoute } from "@/routes/_auth/_guest";
-import { Route as signupRoute } from "@/routes/_auth/_guest/auth/sign-up";
-import { Route as onboardingRoute } from "@/routes/_auth/_onboarding";
-import { Route as chooseRoute } from "@/routes/_auth/_onboarding/choose-organization";
-import { Route as setupRoute } from "@/routes/_auth/_onboarding/organization-setup";
-import { Route as invitationRoute } from "@/routes/_auth/invite.$invitationId";
+import { Route as authRoute } from "@/routes/_welcome";
+import { Route as guestRoute } from "@/routes/_welcome/_guest";
+import { Route as signupRoute } from "@/routes/_welcome/_guest/auth/sign-up";
+import { Route as onboardingRoute } from "@/routes/_welcome/_signedIn";
+import { Route as setupRoute } from "@/routes/_welcome/_signedIn/_organization/organization-setup";
+import { Route as chooseRoute } from "@/routes/_welcome/_signedIn/choose-organization";
+import { Route as invitationRoute } from "@/routes/_welcome/invite.$invitationId";
 
 function signUpInvitedUser() {
   mocks.session = {
@@ -95,7 +99,7 @@ function invitationSignupRouter() {
   });
   const authentication = createRoute({
     getParentRoute: () => root,
-    id: "_auth",
+    id: "_welcome",
     component: authRoute.options.component,
   });
   const guest = createRoute({
@@ -112,7 +116,7 @@ function invitationSignupRouter() {
   });
   const onboarding = createRoute({
     getParentRoute: () => authentication,
-    id: "_onboarding",
+    id: "_signedIn",
     beforeLoad: (options) =>
       onboardingRoute.options.beforeLoad?.(options as never),
   });
@@ -120,7 +124,6 @@ function invitationSignupRouter() {
     getParentRoute: () => onboarding,
     path: "/organization-setup",
     validateSearch: setupRoute.options.validateSearch,
-    beforeLoad: (options) => setupRoute.options.beforeLoad?.(options as never),
     component: setupRoute.options.component,
   });
   const choose = createRoute({
@@ -162,7 +165,7 @@ it.each([
   const router = invitationSignupRouter();
   mocks.social.mockImplementation(async (options) => {
     signUpInvitedUser();
-    await router.navigate({ href: options.newUserCallbackURL });
+    await router.navigate({ href: options.callbackURL });
     return { error: null };
   });
   render(<RouterProvider router={router} />);
@@ -191,6 +194,7 @@ it.each([
 });
 
 vi.mock("@/data/organization-provisioning", () => ({
+  completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
   getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
   retryOrganizationProvisioning: vi.fn(),
 }));

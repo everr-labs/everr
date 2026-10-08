@@ -60,24 +60,29 @@ by the per-organization queue. A timeout or failed status read leaves the
 committed job running and returns the normal signup session. The deadline also
 bounds a slow Postgres lookup, and an expired wait stops polling.
 
-Signup, organization selection, creation, and provisioning are sibling routes
-under `_auth`, which owns the welcome layout for the entire flow. The
-`_onboarding` guard requires a session but not a ready organization. App guards
-redirect users into that flow before data-page loaders run. New accounts see
-the provisioning animation for at least 2.5 seconds before entering the
-requested app page.
-The minimum duration does not bypass the real readiness check. CLI device
-approval and checkout keep their own continuation routes. Creating an
-organization uses an inline name and plan step, followed immediately by the
-same animation while the server request runs. No creation modal or document
-reload is needed for Hobby organizations. Pro continues to hosted checkout.
+Authentication, invitations, and organization creation share the `_welcome`
+layout. Its `_signedIn` guard requires a session, and its `_organization`
+guard verifies membership for setup and recovery. The app's `_authenticated`
+guard requires only a session, so account settings remain accessible without
+an organization. Membership, subscription access, and provisioning have
+separate pathless guards. Billing, checkout confirmation, and device approval
+remain outside the data-page readiness guard.
 
-Pending organizations see `/organization-setup`, which polls every three
-seconds and returns to their requested page when ready. Account settings,
-billing, and CLI login remain available. Organization authorization loads readiness
-once per request; data handlers reject pending setup before contacting
-ClickHouse. The query helpers do not read Postgres. CLI SQL returns HTTP 503 and
-`Retry-After: 5`.
+Authentication resumes the validated original destination. Automatic Hobby
+creation records a short-lived encrypted continuation cookie bound to the
+session and organization. The organization guard sends that creation through
+setup even if provisioning is already complete, then setup clears the cookie.
+Invited users return to their invitation and join the existing organization.
+Explicit creation uses the inline name and plan step, followed by provisioning;
+Pro creation continues through hosted checkout and setup.
+
+Only organization creation has the minimum 2.5-second animation. Existing
+pending organizations see `/organization-pending`, which polls every three
+seconds and resumes their destination immediately when ready. The minimum
+creation duration never bypasses the real readiness check. Organization
+authorization loads readiness once per request; data handlers reject pending
+setup before contacting ClickHouse. The query helpers do not read Postgres.
+CLI SQL returns HTTP 503 and `Retry-After: 5`.
 
 Provisioning state uses the existing metadata column, so no schema change or
 migration is needed. Organizations without the flag remain ready. Metadata

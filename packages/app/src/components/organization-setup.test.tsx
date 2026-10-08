@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 vi.mock("@/data/organization-provisioning", () => ({
+  completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
   getOrganizationProvisioningStatus: mocks.getOrganization,
   retryOrganizationProvisioning: mocks.retry,
 }));
@@ -120,9 +121,7 @@ it("keeps the friendly page visible when a readiness check fails", async () => {
 });
 
 it("returns to organization selection if membership is revoked while waiting", async () => {
-  mocks.getOrganization.mockRejectedValue(
-    new Error("User is not a member of the organization"),
-  );
+  mocks.getOrganization.mockResolvedValue(null);
   show();
   await waitFor(() =>
     expect(mocks.router.navigate).toHaveBeenCalledWith({

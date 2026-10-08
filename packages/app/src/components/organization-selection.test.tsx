@@ -169,6 +169,7 @@ it("keeps the setup step mounted when the new membership becomes visible", async
 });
 
 vi.mock("@/data/organization-provisioning", () => ({
+  completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
   getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
   retryOrganizationProvisioning: vi.fn(),
 }));

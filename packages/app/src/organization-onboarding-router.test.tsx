@@ -1,3 +1,10 @@
+vi.mock("@/data/organization-provisioning", () => ({
+  completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@/data/organization-access", () => ({
+  getActiveOrganizationAccess: vi.fn(),
+}));
+
 import { QueryClient } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -11,7 +18,7 @@ import { type ReactNode, useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
 vi.mock("@/telemetry/client", () => ({}));
-vi.mock("@/routes/_auth/-components/ascii-logo", () => ({
+vi.mock("@/routes/_welcome/-components/ascii-logo", () => ({
   AsciiLogo: () => <div data-testid="mascot" />,
 }));
 vi.mock("@/telemetry/consent-gate", () => ({
@@ -38,8 +45,8 @@ vi.mock("@tanstack/react-start", () => ({
 import { useOrganizationSetupCompletion } from "@/components/use-organization-setup-completion";
 import { auth } from "@/lib/auth.server";
 import { Route as root } from "@/routes/__root";
-import { Route as authRoute } from "@/routes/_auth";
-import { Route as onboardingRoute } from "@/routes/_auth/_onboarding";
+import { Route as authRoute } from "@/routes/_welcome";
+import { Route as onboardingRoute } from "@/routes/_welcome/_signedIn";
 
 afterEach(() => vi.useRealTimers());
 
@@ -62,17 +69,17 @@ it("preserves the welcome mascot from signup through setup and refreshes auth on
   }
   function Setup() {
     const [startedAt] = useState(Date.now);
-    useOrganizationSetupCompletion(true, startedAt, "/");
+    useOrganizationSetupCompletion(true, startedAt, "/", "only-org");
     return <p>Provisioning</p>;
   }
   const authentication = createRoute({
     getParentRoute: () => root,
-    id: "_auth",
+    id: "_welcome",
     component: authRoute.options.component,
   });
   const onboarding = createRoute({
     getParentRoute: () => authentication,
-    id: "_onboarding",
+    id: "_signedIn",
     beforeLoad: (options) =>
       onboardingRoute.options.beforeLoad?.(options as never),
   });

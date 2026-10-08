@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/data/organizations", () => ({ createOrganization: mocks.create }));
 vi.mock("@/data/organization-provisioning", () => ({
+  completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
   getOrganizationProvisioningStatus: mocks.read,
   retryOrganizationProvisioning: mocks.retry,
 }));
@@ -281,8 +282,7 @@ it.each([
   "revoked",
   "switched",
 ])("returns to organization selection when the organization is %s during setup", async (state) => {
-  if (state === "revoked")
-    mocks.read.mockRejectedValue(new Error("Not a member"));
+  if (state === "revoked") mocks.read.mockResolvedValue(null);
   else
     mocks.read.mockResolvedValue(
       state === "missing" ? null : { id: "other", status: "ready" },

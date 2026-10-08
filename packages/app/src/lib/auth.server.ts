@@ -43,6 +43,7 @@ import {
   sendVerificationEmail,
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
+import { markOrganizationCreated } from "@/lib/organization-creation-continuation.server";
 import { organizationLifecycleAdapter } from "@/lib/organization-lifecycle-adapter.server";
 import { waitForOrganizationProvisioning } from "@/server/organization-provisioning/fast-path";
 import {
@@ -248,6 +249,8 @@ export const auth = betterAuth({
         after: createAutomaticOrganizationSessionHook(
           async (body): Promise<{ id: string } | null> =>
             auth.api.createOrganization({ body }),
+          db,
+          markOrganizationCreated,
         ),
       },
     },

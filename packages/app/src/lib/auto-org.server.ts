@@ -1,3 +1,4 @@
+import type { GenericEndpointContext } from "better-auth";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { type Database, db } from "@/db/client";
 import { invitation, member, session as sessionTable, user } from "@/db/schema";
@@ -22,17 +23,29 @@ type CreateAutomaticOrganization = (body: {
 export function createAutomaticOrganizationSessionHook(
   createOrganization: CreateAutomaticOrganization,
   database: Database = db,
+  onCreated?: (
+    session: { id: string; activeOrganizationId: string },
+    context: GenericEndpointContext | null,
+  ) => Promise<void>,
 ) {
-  return async (session: {
-    id: string;
-    userId: string;
-    activeOrganizationId?: string | null;
-  }) => {
+  return async (
+    session: {
+      id: string;
+      userId: string;
+      activeOrganizationId?: string | null;
+    },
+    context: GenericEndpointContext | null = null,
+  ) => {
     if (session.activeOrganizationId) return;
     try {
+      let createdOrganizationId: string | undefined;
       const activeOrganizationId = await ensureAutomaticOrganization(
         session.userId,
-        createOrganization,
+        async (body) => {
+          const created = await createOrganization(body);
+          createdOrganizationId = created?.id;
+          return created;
+        },
         database,
       );
       if (!activeOrganizationId) return;
@@ -41,6 +54,8 @@ export function createAutomaticOrganizationSessionHook(
         .set({ activeOrganizationId })
         .where(eq(sessionTable.id, session.id));
       session.activeOrganizationId = activeOrganizationId;
+      if (createdOrganizationId === activeOrganizationId)
+        await onCreated?.({ id: session.id, activeOrganizationId }, context);
     } catch (error) {
       serverLogger.error("auto_org.create_personal_org.failed", {
         ...exceptionAttributes(error),

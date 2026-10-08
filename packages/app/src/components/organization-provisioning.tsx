@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { isMissingOrganizationError } from "@/common/organization-onboarding";
 import { OrganizationProvisioningContent } from "@/components/organization-provisioning-content";
 import { OrganizationProvisioningRetry } from "@/components/organization-provisioning-retry";
 import { useOrganizationSetupCompletion } from "@/components/use-organization-setup-completion";
@@ -11,10 +10,12 @@ export function OrganizationProvisioning({
   organizationId,
   startedAt,
   returnTo,
+  recovery = false,
 }: {
   organizationId: string;
   startedAt: number;
   returnTo: string;
+  recovery?: boolean;
 }) {
   const router = useRouter();
   const status = useQuery({
@@ -32,13 +33,14 @@ export function OrganizationProvisioning({
       status.data?.status === "ready",
     startedAt,
     returnTo,
+    organizationId,
+    recovery ? 0 : undefined,
   );
 
   useEffect(() => {
     if (
-      (status.isSuccess &&
-        (!status.data || status.data.id !== organizationId)) ||
-      (status.isError && isMissingOrganizationError(status.error))
+      status.isSuccess &&
+      (!status.data || status.data.id !== organizationId)
     ) {
       void router.navigate({
         to: "/choose-organization",
@@ -46,18 +48,13 @@ export function OrganizationProvisioning({
         replace: true,
       });
     }
-  }, [
-    organizationId,
-    status.isSuccess,
-    status.isError,
-    status.error,
-    status.data,
-    router,
-    returnTo,
-  ]);
+  }, [organizationId, status.isSuccess, status.data, router, returnTo]);
 
   return (
-    <OrganizationProvisioningContent failed={status.data?.status === "failed"}>
+    <OrganizationProvisioningContent
+      recovery={recovery}
+      failed={status.data?.status === "failed"}
+    >
       {status.data?.status === "failed" && (
         <OrganizationProvisioningRetry
           key={status.data.id}

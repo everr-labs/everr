@@ -1,0 +1,69 @@
+import {
+  TraceDetailParamsSchema,
+  TraceExplorer,
+  toTraceListSearch,
+} from "@everr/telemetry-explorer/traces";
+import {
+  createFileRoute,
+  type ErrorComponentProps,
+} from "@tanstack/react-router";
+import { remoteTracesRepo } from "@/data/traces/remote-repo";
+import {
+  ensureTraceDetailData,
+  getTraceDetailLoaderDeps,
+  TraceDetailRouteError,
+} from "./-trace-detail";
+
+export const Route = createFileRoute(
+  "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId",
+)({
+  staticData: {
+    breadcrumb: "Trace",
+    hideExploreBar: true,
+    hideTimeRangePicker: true,
+  },
+  head: () => ({ meta: [{ title: "Everr - Trace" }] }),
+  validateSearch: TraceDetailParamsSchema,
+  loaderDeps: ({ search }) => getTraceDetailLoaderDeps(search),
+  loader: async ({ context: { queryClient }, params, deps }) => {
+    await ensureTraceDetailData({
+      queryClient,
+      traceId: params.traceId,
+      deps,
+    });
+  },
+  component: TraceDetailRoute,
+  errorComponent: TraceDetailError,
+});
+
+function TraceDetailRoute() {
+  const { traceId } = Route.useParams();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  return (
+    <TraceExplorer
+      repo={remoteTracesRepo}
+      traceId={traceId}
+      search={search}
+      onBack={() =>
+        navigate({
+          to: "/traces",
+          search: toTraceListSearch(search),
+        })
+      }
+      onSpanChange={(spanId) =>
+        navigate({
+          to: "/traces/$traceId",
+          params: { traceId },
+          search: (prev) => ({ ...prev, span: spanId }),
+          replace: true,
+        })
+      }
+    />
+  );
+}
+
+function TraceDetailError({ error }: ErrorComponentProps) {
+  return <TraceDetailRouteError error={error} search={Route.useSearch()} />;
+}

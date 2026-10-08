@@ -40,7 +40,7 @@ vi.mock("@/components/page-header", () => ({
 }));
 
 import { OrganizationCreation } from "@/components/organization-creation";
-import { Route } from "@/routes/_authenticated/_dashboard/_padded/_organization/billing";
+import { Route } from "@/routes/_authenticated/_organization/_dashboard/_padded/_admin/billing";
 
 const BillingPage = Route.options.component as ComponentType;
 function billingPage() {
@@ -146,6 +146,7 @@ it("allows an owner to select a different billing owner", async () => {
 });
 
 vi.mock("@/data/organization-provisioning", () => ({
+  completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
   getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
   retryOrganizationProvisioning: vi.fn(),
 }));

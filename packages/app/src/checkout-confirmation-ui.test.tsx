@@ -14,7 +14,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ),
 }));
 
-import { Route } from "@/routes/_authenticated/_dashboard/_padded/checkout.success";
+import { Route } from "@/routes/_authenticated/_organization/_dashboard/_padded/checkout.success";
 
 const Page = Route.options.component as ComponentType;
 afterEach(() => {
