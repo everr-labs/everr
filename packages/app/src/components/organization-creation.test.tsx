@@ -196,6 +196,9 @@ it("opens Pro checkout after the minimum duration without activating an unpaid o
   });
   show(false);
   await confirmName();
+  expect(mocks.create).toHaveBeenCalledWith({
+    data: { plan: "pro", organizationName: "Acme", returnTo: "/logs" },
+  });
   expect(
     screen.getByRole("heading", { name: "Taking you to checkout" }),
   ).toBeVisible();

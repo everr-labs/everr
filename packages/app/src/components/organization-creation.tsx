@@ -62,6 +62,7 @@ export function OrganizationCreation({
     const parsed = CreateOrganizationInputSchema.safeParse({
       plan,
       organizationName,
+      returnTo,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Enter a valid name.");

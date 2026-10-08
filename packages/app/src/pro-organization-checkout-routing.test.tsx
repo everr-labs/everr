@@ -51,9 +51,18 @@ afterEach(() => {
   authenticated = false;
 });
 
-it("retains the checkout ID through sign-in and resumes organization completion", async () => {
+it.each([
+  [
+    "/cli/authorize?user_code=ABCD-EFGH&next=%2Flogs#confirm",
+    "/cli/authorize?user_code=ABCD-EFGH&next=%2Flogs#confirm",
+  ],
+  [undefined, "/"],
+  ["https://other.example", "/"],
+  ["//other.example", "/"],
+  ["/organization-setup", "/"],
+])("retains the checkout ID and safe destination (%s) through sign-in and organization completion", async (returnTo, destination) => {
   const checkoutId = "b8d32b2c-616f-4ff4-8b36-8c88b0a10837";
-  const returnUrl = `/organizations/checkout/success?checkout_id=${checkoutId}`;
+  const returnUrl = `/organizations/checkout/success?checkout_id=${checkoutId}${returnTo === undefined ? "" : `&returnTo=${encodeURIComponent(returnTo)}`}`;
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -95,6 +104,9 @@ it("retains the checkout ID through sign-in and resumes organization completion"
   ).toEqual([{ organization: "org" }]);
   expect(queryFn).toHaveBeenCalledOnce();
   expect(router.state.location.pathname).toBe("/organization-setup");
+  expect(
+    new URLSearchParams(router.state.location.searchStr).get("returnTo"),
+  ).toBe(destination);
   queryClient.clear();
 });
 

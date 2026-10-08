@@ -67,7 +67,7 @@ beforeEach(() => {
     canChangeOwner: false,
   });
 });
-it("submits a new Pro organization with only its plan and name", async () => {
+it("submits a new Pro organization with its plan, name and default destination", async () => {
   mocks.create.mockRejectedValue(new Error("Test checkout failure"));
   render(
     <QueryClientProvider
@@ -87,7 +87,7 @@ it("submits a new Pro organization with only its plan and name", async () => {
     "Test checkout failure",
   );
   expect(mocks.create).toHaveBeenCalledWith({
-    data: { plan: "pro", organizationName: "Acme" },
+    data: { plan: "pro", organizationName: "Acme", returnTo: "/" },
   });
 });
 it("shows upgrade immediately for a Hobby organization", async () => {

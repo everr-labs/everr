@@ -76,9 +76,23 @@ it.skipIf(process.env.EVERR_POLAR_SANDBOX_TEST !== "1")(
       });
       expect(checkout.customerId).toBe(customer.id);
       expect(checkout.externalCustomerId).toBe(orgId);
+      const successUrl =
+        "http://localhost:5173/organizations/checkout/success?checkout_id={CHECKOUT_ID}&returnTo=%2Flogs";
+      const updated = await gateway.updateCheckoutSuccessUrl(
+        checkout.id,
+        successUrl,
+      );
+      const resolvedSuccessUrl = successUrl.replace(
+        "{CHECKOUT_ID}",
+        checkout.id,
+      );
+      expect(updated.successUrl).toBe(resolvedSuccessUrl);
+      expect((await gateway.checkout(checkout.id)).successUrl).toBe(
+        resolvedSuccessUrl,
+      );
       expect(
         (await gateway.checkouts(customer.id)).some(
-          (c) => c.id === checkout.id,
+          (c) => c.id === checkout.id && c.successUrl === resolvedSuccessUrl,
         ),
       ).toBe(true);
     } finally {

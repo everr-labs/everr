@@ -118,7 +118,7 @@ const gateway = {
   checkouts: vi.fn(async (id) =>
     [...checkouts.values()].filter((c) => c.customerId === id),
   ),
-  createCheckout: vi.fn(async ({ customerId, orgId, metadata }) => {
+  createCheckout: vi.fn(async ({ customerId, orgId, metadata, successUrl }) => {
     const c: Checkout = {
       id: randomUUID(),
       customerId,
@@ -126,12 +126,19 @@ const gateway = {
       status: "open",
       expiresAt: new Date(Date.now() + 60000),
       metadata,
+      successUrl: null,
       productId: "pro",
       subscriptionId: null,
       url: `https://polar.example/checkout/${randomUUID()}`,
     };
+    c.successUrl = successUrl.replace("{CHECKOUT_ID}", c.id);
     checkouts.set(c.id, c);
     return c;
+  }),
+  updateCheckoutSuccessUrl: vi.fn(async (id: string, successUrl: string) => {
+    const checkout = required(checkouts.get(id));
+    checkout.successUrl = successUrl.replace("{CHECKOUT_ID}", checkout.id);
+    return checkout;
   }),
   subscription: vi.fn(async (id) => {
     const s = subscriptions.get(id);
@@ -333,6 +340,48 @@ it("resumes new Pro checkout and does not create the org before payment", async 
   expect(gateway.createCheckout).toHaveBeenCalledTimes(1);
   expect(await database.select().from(schema.organization)).toHaveLength(1);
 });
+it("preserves the destination in Polar's success URL and refreshes it when reusing an open checkout", async () => {
+  const returnTo = "/cli/authorize?user_code=ABCD-EFGH&next=%2Flogs#confirm";
+  await billing.startNewOrganizationCheckout("owner", "New", returnTo);
+  const checkout = required([...checkouts.values()][0]);
+  const successUrl = new URL(required(checkout.successUrl));
+  expect(successUrl.pathname).toBe("/organizations/checkout/success");
+  expect(successUrl.searchParams.get("checkout_id")).toBe(checkout.id);
+  expect(successUrl.searchParams.get("returnTo")).toBe(returnTo);
+  expect(gateway.createCheckout.mock.calls[0][0].successUrl).toContain(
+    "checkout_id={CHECKOUT_ID}",
+  );
+
+  await billing.startNewOrganizationCheckout("owner", "New", returnTo);
+  expect(gateway.updateCheckoutSuccessUrl).not.toHaveBeenCalled();
+  await billing.startNewOrganizationCheckout("owner", "New", "/logs");
+  expect(
+    new URL(required(checkout.successUrl)).searchParams.get("returnTo"),
+  ).toBe("/logs");
+  expect(gateway.updateCheckoutSuccessUrl).toHaveBeenCalledOnce();
+  expect(gateway.createCheckout).toHaveBeenCalledOnce();
+});
+
+it.each([
+  "confirmed",
+  "succeeded",
+])("preserves the destination when resuming a %s checkout", async (status) => {
+  await billing.startNewOrganizationCheckout("owner", "New");
+  const checkout = required([...checkouts.values()][0]);
+  checkout.status = status;
+  const result = await billing.startNewOrganizationCheckout(
+    "owner",
+    "New",
+    "/logs?service=api",
+  );
+  const url = new URL(result.url);
+  expect(url.pathname).toBe("/organizations/checkout/success");
+  expect(url.searchParams.get("checkout_id")).toBe(checkout.id);
+  expect(url.searchParams.get("returnTo")).toBe("/logs?service=api");
+  expect(gateway.updateCheckoutSuccessUrl).not.toHaveBeenCalled();
+  expect(gateway.createCheckout).toHaveBeenCalledOnce();
+});
+
 it("recovers an uncertain checkout creation without duplicating it", async () => {
   const original = required(gateway.createCheckout.getMockImplementation());
   gateway.createCheckout.mockImplementationOnce(async (input) => {
