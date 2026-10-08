@@ -37,6 +37,7 @@ it("locks future steps, allows reviewing confirmed steps, and leaves progress co
   expect(screen.getByRole("region", { name: "Third" })).toBeVisible();
   rerender(<MultiStep {...props} currentStep="first" />);
   expect(screen.getByRole("region", { name: "First" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "First" })).toHaveFocus();
   expect(screen.queryByText("Third instructions")).toBeNull();
   rerender(<MultiStep {...props} disabled />);
   expect(

@@ -114,11 +114,9 @@ it("shows only the current step and requires confirmations before unlocking late
       .map((heading) => heading.textContent),
   ).toEqual(["Install Everr"]);
   expect(
-    screen.getByRole("button", { name: /Connect your agent/ }),
+    screen.getByRole("button", { name: /Instrument your app/ }),
   ).toBeDisabled();
-  expect(
-    screen.getByRole("button", { name: /Setup telemetry/ }),
-  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: /Verify locally/ })).toBeDisabled();
   expect(screen.getByRole("button", { name: /To production/ })).toBeDisabled();
   expect(
     screen.queryByRole("button", { name: "Finish onboarding" }),
@@ -128,11 +126,9 @@ it("shows only the current step and requires confirmations before unlocking late
   );
   expect(completeOnboarding).not.toHaveBeenCalled();
   expect(savedProgress()).toBeNull();
-  await user.click(
-    screen.getByRole("button", { name: "I already have the CLI" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(
-    screen.getByRole("heading", { name: "Connect your agent" }),
+    screen.getByRole("heading", { name: "Instrument your app" }),
   ).toBeVisible();
   expect(screen.queryByRole("heading", { name: "Install Everr" })).toBeNull();
   expect(
@@ -143,18 +139,22 @@ it("shows only the current step and requires confirmations before unlocking late
 
 it("walks the agent path and finishes with an endpoint and production handoff but no second prompt", async () => {
   const { user } = mount();
-  await user.click(screen.getByRole("button", { name: "CLI installed" }));
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(
     screen.getByText("everr skills install --all --project"),
   ).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Copy skills command" }));
-  expect(screen.queryByText("/everr-setup-telemetry")).toBeNull();
-  expect(savedProgress()).toEqual({ step: "agent", mode: "agent" });
-  await user.click(
-    screen.getByRole("button", { name: "Project skills installed" }),
-  );
   expect(screen.getByText("/everr-setup-telemetry")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Copy setup command" }));
+  expect(savedProgress()).toEqual({ step: "agent", mode: "agent" });
+  expect(screen.getByRole("button", { name: /Verify locally/ })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
+  expect(
+    screen.getByRole("button", { name: "Copy local status command" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Copy setup command" }),
+  ).toBeNull();
   expect(
     screen.queryByRole("button", { name: "Finish onboarding" }),
   ).toBeNull();
@@ -167,10 +167,11 @@ it("walks the agent path and finishes with an endpoint and production handoff bu
   );
   expect(production.getByText("https://ingest.everr.dev/")).toBeVisible();
   expect(
-    production.getByText(
-      /Follow the production instructions from the setup command in the previous step/,
-    ),
-  ).toBeVisible();
+    production.getByRole("link", { name: "Open the production guide" }),
+  ).toHaveAttribute(
+    "href",
+    "https://everr.dev/docs/guides/production-telemetry",
+  );
   expect(production.queryByText(/\/everr-setup-telemetry/)).toBeNull();
   expect(
     screen.queryByRole("button", { name: "Copy setup command" }),
@@ -189,7 +190,7 @@ it("walks the agent path and finishes with an endpoint and production handoff bu
 it("skips project skills for manual setup and lets members finish without keys", async () => {
   persisted.canCreateKeys = false;
   const { user } = mount();
-  await user.click(screen.getByRole("button", { name: "CLI installed" }));
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   await user.click(screen.getByRole("button", { name: "Set up manually" }));
   const guide = screen.getByRole("link", {
     name: "Open the instrumentation guide",
@@ -201,10 +202,15 @@ it("skips project skills for manual setup and lets members finish without keys",
   expect(
     screen.queryByRole("button", { name: "Copy setup command" }),
   ).toBeNull();
-  expect(savedProgress()).toEqual({ step: "local", mode: "manual" });
+  expect(savedProgress()).toEqual({ step: "agent", mode: "manual" });
   await user.click(guide);
-  expect(savedProgress()).toEqual({ step: "local", mode: "manual" });
+  expect(savedProgress()).toEqual({ step: "agent", mode: "manual" });
   expect(completeOnboarding).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
+  expect(savedProgress()).toEqual({ step: "local", mode: "manual" });
+  expect(
+    screen.getByRole("button", { name: "Copy local status command" }),
+  ).toBeVisible();
   await user.click(
     screen.getByRole("button", { name: "I can see my local telemetry" }),
   );
@@ -225,10 +231,11 @@ it("can still advance and choose a method when browser storage is unavailable", 
     throw new Error("Storage unavailable");
   });
   const { user } = mount();
-  await user.click(screen.getByRole("button", { name: "CLI installed" }));
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   await user.click(screen.getByRole("button", { name: "Set up manually" }));
+  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
   expect(
-    screen.getByRole("link", { name: "Open the instrumentation guide" }),
+    screen.getByRole("button", { name: "Copy local status command" }),
   ).toBeVisible();
   await user.click(
     screen.getByRole("button", { name: "I can see my local telemetry" }),
@@ -299,11 +306,9 @@ it("restores saved progress and reviews earlier steps without forgetting later c
   await user.click(screen.getByRole("button", { name: /Install Everr/ }));
   expect(screen.getByRole("heading", { name: "Install Everr" })).toBeVisible();
   expect(savedProgress()).toEqual({ step: "production", mode: "agent" });
-  await user.click(
-    screen.getByRole("button", { name: "I already have the CLI" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(
-    screen.getByRole("heading", { name: "Connect your agent" }),
+    screen.getByRole("heading", { name: "Instrument your app" }),
   ).toBeVisible();
   expect(savedProgress()).toEqual({ step: "production", mode: "agent" });
   await user.click(screen.getByRole("button", { name: /To production/ }));
@@ -319,13 +324,14 @@ it("keeps the method saved by the single-page flow", async () => {
   );
   const { user } = mount();
   expect(screen.getByRole("heading", { name: "Install Everr" })).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "CLI installed" }));
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(
     screen.getByRole("button", { name: "Set up manually" }),
   ).toHaveAttribute("aria-pressed", "true");
   await user.click(screen.getByRole("button", { name: "Set up manually" }));
+  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
   expect(
-    screen.getByRole("link", { name: "Open the instrumentation guide" }),
+    screen.getByRole("button", { name: "Copy local status command" }),
   ).toBeVisible();
 });
 
@@ -366,11 +372,9 @@ it("uses the saved step when completed onboarding is explicitly reopened", () =>
   persisted.onboardingCompleted = true;
   seedProgress("local", "manual");
   mount({ setupRequested: true });
+  expect(screen.getByRole("heading", { name: "Verify locally" })).toBeVisible();
   expect(
-    screen.getByRole("heading", { name: "Setup telemetry" }),
-  ).toBeVisible();
-  expect(
-    screen.getByRole("link", { name: "Open the instrumentation guide" }),
+    screen.getByRole("button", { name: "Copy local status command" }),
   ).toBeVisible();
   expect(screen.queryByText("Telemetry Usage dashboard")).toBeNull();
 });
@@ -493,12 +497,11 @@ it("keeps the issued key visible when another member completes onboarding", asyn
 it("isolates saved steps and methods between users and organizations", async () => {
   seedProgress("local");
   const { home, rerender, user } = mount();
-  expect(screen.getByText("/everr-setup-telemetry")).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Verify locally" })).toBeVisible();
   rerender(home("two"));
-  await user.click(
-    await screen.findByRole("button", { name: "CLI installed" }),
-  );
+  await user.click(await screen.findByRole("button", { name: "Continue" }));
   await user.click(screen.getByRole("button", { name: "Set up manually" }));
+  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
   expect(
     JSON.parse(
       localStorage.getItem(onboardingProgressKey("alice", "two")) ?? "null",
@@ -514,17 +517,18 @@ it("isolates saved steps and methods between users and organizations", async () 
 
 it("restores the current step after refresh and recovers from corrupt storage", async () => {
   const first = mount();
-  await first.user.click(screen.getByRole("button", { name: "CLI installed" }));
+  await first.user.click(screen.getByRole("button", { name: "Continue" }));
   await first.user.click(
     screen.getByRole("button", { name: "Set up manually" }),
   );
+  await first.user.click(
+    screen.getByRole("button", { name: "Check my telemetry" }),
+  );
   first.unmount();
   const second = mount();
+  expect(screen.getByRole("heading", { name: "Verify locally" })).toBeVisible();
   expect(
-    screen.getByRole("heading", { name: "Setup telemetry" }),
-  ).toBeVisible();
-  expect(
-    screen.getByRole("link", { name: "Open the instrumentation guide" }),
+    screen.getByRole("button", { name: "Copy local status command" }),
   ).toBeVisible();
   expect(
     screen.queryByRole("button", { name: "Finish onboarding" }),
@@ -562,4 +566,94 @@ it("keeps public-key origin validation and ingest-only scope", async () => {
       allowedOrigins: ["https://app.example.com"],
     },
   });
+});
+
+it("lets manual users return to step two and continue without selecting their method again", async () => {
+  seedProgress("local", "manual");
+  const { user } = mount();
+  await user.click(screen.getByRole("button", { name: /Instrument your app/ }));
+  expect(
+    screen.getByRole("button", { name: "Set up manually" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
+  expect(
+    screen.getByRole("button", { name: "Copy local status command" }),
+  ).toBeVisible();
+});
+
+it("changes setup method without navigating or unlocking the next step", async () => {
+  seedProgress("agent");
+  const { user } = mount();
+  await user.click(screen.getByRole("button", { name: "Set up manually" }));
+  expect(
+    screen.getByRole("heading", { name: "Instrument your app" }),
+  ).toBeVisible();
+  expect(screen.getByRole("button", { name: /Verify locally/ })).toBeDisabled();
+  expect(savedProgress()).toEqual({ step: "agent", mode: "manual" });
+  expect(
+    screen.queryByRole("button", { name: "Copy skills command" }),
+  ).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Use my coding agent" }));
+  expect(
+    screen.getByRole("button", { name: "Copy skills command" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Copy setup command" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
+  expect(
+    screen.getByRole("button", { name: "Copy local status command" }),
+  ).toBeVisible();
+});
+
+it("switches paths while reviewing without losing confirmed progress", async () => {
+  seedProgress("production", "manual");
+  const { user } = mount();
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(
+    screen.getByRole("button", { name: "Copy local status command" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(
+    screen.getByRole("heading", { name: "Instrument your app" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Use my coding agent" }));
+  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
+  expect(
+    screen.getByRole("button", { name: "Copy local status command" }),
+  ).toBeVisible();
+  expect(screen.getByRole("button", { name: /To production/ })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  await user.click(screen.getByRole("button", { name: "Set up manually" }));
+  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
+  expect(
+    screen.getByRole("button", { name: "Copy local status command" }),
+  ).toBeVisible();
+  expect(savedProgress()).toEqual({ step: "production", mode: "manual" });
+  await user.click(screen.getByRole("button", { name: /To production/ }));
+  expect(
+    screen.getByRole("link", { name: "Open the production guide" }),
+  ).toBeVisible();
+});
+
+it("keeps verification explicit and offers recovery without marking onboarding complete", async () => {
+  seedProgress("local", "manual");
+  const { user } = mount();
+  await user.click(
+    screen.getByRole("button", { name: "Copy local status command" }),
+  );
+  expect(savedProgress()).toEqual({ step: "local", mode: "manual" });
+  expect(completeOnboarding).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: /To production/ })).toBeDisabled();
+  await user.click(screen.getByText("No data yet?"));
+  expect(
+    screen.getByRole("link", { name: "Open the instrumentation guide" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(
+    screen.getByRole("heading", { name: "Instrument your app" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Set up manually" }),
+  ).toHaveAttribute("aria-pressed", "true");
 });

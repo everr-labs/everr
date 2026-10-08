@@ -1,4 +1,9 @@
 import { Button } from "@everr/ui/components/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@everr/ui/components/collapsible";
 import { MultiStep, type MultiStepItem } from "@everr/ui/components/multi-step";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
@@ -6,7 +11,14 @@ import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Check, Copy, ExternalLink, Loader2 } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Loader2,
+} from "lucide-react";
 import { type ReactNode, useRef } from "react";
 import { INSTALL_COMMAND } from "@/common/install-command";
 import { type HomeStatus, homeView } from "@/common/onboarding";
@@ -33,7 +45,7 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
   });
   return (
     <div className="space-y-2">
-      <div className="flex items-start gap-3 rounded-md border bg-muted/30 p-4">
+      <div className="flex items-center gap-3 rounded-md border bg-muted/20 p-4">
         <code
           ref={textRef}
           className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm leading-relaxed"
@@ -183,9 +195,15 @@ function HomeContent({
     {
       id: "install",
       title: "Install Everr",
+      footer: (
+        <Button disabled={busy} onClick={() => advance("agent")}>
+          Continue
+          <ArrowRight data-icon="inline-end" />
+        </Button>
+      ),
       content: (
         <>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm leading-relaxed text-muted-foreground">
             Run this command in your terminal. Local telemetry works without
             signing in or creating an ingestion key.
           </p>
@@ -195,107 +213,215 @@ function HomeContent({
             this project in the next step even if you already installed them
             globally.
           </p>
-          <div className="flex flex-wrap gap-3">
-            <Button disabled={busy} onClick={() => advance("agent")}>
-              CLI installed
-              <ArrowRight data-icon="inline-end" />
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={busy}
-              onClick={() => advance("agent")}
-            >
-              I already have the CLI
-            </Button>
-          </div>
         </>
       ),
     },
     {
       id: "agent",
-      title: "Connect your agent",
-      skipped: mode === "manual" ? "Manual setup" : undefined,
+      title: "Instrument your app",
+      footer: (
+        <Button disabled={busy} onClick={() => advance("local")}>
+          Check my telemetry
+          <ArrowRight data-icon="inline-end" />
+        </Button>
+      ),
       content: (
         <>
-          <p className="text-sm text-muted-foreground">
-            Your coding agent can inspect the project, instrument it, and verify
-            the telemetry. You can also configure it by hand.
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Add OpenTelemetry to your app and send data to the local collector.
+            Use your coding agent or follow the guide yourself.
           </p>
-          <fieldset className="flex flex-wrap gap-3" aria-label="Setup method">
+          <fieldset
+            className="grid gap-3 sm:grid-cols-2"
+            aria-label="Setup method"
+          >
             <Button
+              aria-label="Use my coding agent"
               aria-pressed={mode === "agent"}
-              variant={mode === "agent" ? "secondary" : "outline"}
+              variant="outline"
+              className={cn(
+                "h-auto items-start justify-start gap-3 p-4 text-left whitespace-normal",
+                mode === "agent" && "border-primary/60 bg-primary/5",
+              )}
               disabled={busy}
               onClick={() => selectMode("agent")}
             >
-              Use my coding agent
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                  mode === "agent"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/40",
+                )}
+              >
+                {mode === "agent" && <Check className="size-3" />}
+              </span>
+              <span className="space-y-1.5">
+                <span className="block text-sm font-medium">
+                  Use my coding agent
+                </span>
+                <span className="block text-xs font-normal leading-relaxed text-muted-foreground">
+                  Install the skills and let your agent configure and verify
+                  telemetry.
+                </span>
+              </span>
             </Button>
             <Button
+              aria-label="Set up manually"
               aria-pressed={mode === "manual"}
-              variant={mode === "manual" ? "secondary" : "outline"}
+              variant="outline"
+              className={cn(
+                "h-auto items-start justify-start gap-3 p-4 text-left whitespace-normal",
+                mode === "manual" && "border-primary/60 bg-primary/5",
+              )}
               disabled={busy}
-              onClick={() => advance("local", "manual")}
+              onClick={() => selectMode("manual")}
             >
-              Set up manually
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                  mode === "manual"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/40",
+                )}
+              >
+                {mode === "manual" && <Check className="size-3" />}
+              </span>
+              <span className="space-y-1.5">
+                <span className="block text-sm font-medium">
+                  Set up manually
+                </span>
+                <span className="block text-xs font-normal leading-relaxed text-muted-foreground">
+                  Follow the guide and configure OpenTelemetry yourself.
+                </span>
+              </span>
             </Button>
           </fieldset>
           {mode === "agent" ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                From your project directory, install Everr's bundled skills for
-                your agent:
-              </p>
-              <CopyBlock
-                text="everr skills install --all --project"
-                label="Copy skills command"
-              />
-              <Button disabled={busy} onClick={() => advance("local")}>
-                Project skills installed
-                <ArrowRight data-icon="inline-end" />
-              </Button>
-            </>
+            <ol className="space-y-6">
+              <li className="space-y-3">
+                <h3 className="text-sm font-medium">
+                  1. Install the project skills
+                </h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Run this in your project's terminal. Already installed them?
+                  Go straight to the next instruction.
+                </p>
+                <CopyBlock
+                  text="everr skills install --all --project"
+                  label="Copy skills command"
+                />
+              </li>
+              <li className="space-y-3">
+                <h3 className="text-sm font-medium">
+                  2. Ask your agent to instrument the app
+                </h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Send this to your coding agent from the same project. It will
+                  inspect your app, configure telemetry, and check that data
+                  arrives.
+                </p>
+                <CopyBlock text={SETUP_COMMAND} label="Copy setup command" />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Let the agent finish before continuing. It also documents
+                  production setup in your project's README.
+                </p>
+              </li>
+            </ol>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              Manual setup skips the project skills. Select Set up manually to
-              continue to the instrumentation guide.
-            </p>
+            <div className="space-y-4">
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Follow the guide for your language or framework. Reuse any
+                existing OpenTelemetry setup and point its exporter at your
+                local collector. No agent skills or Cloud key needed.
+              </p>
+              <GuideLink href={LOCAL_GUIDE}>
+                Open the instrumentation guide
+              </GuideLink>
+            </div>
           )}
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Once the app is instrumented, we'll check its data in the local UI.
+          </p>
         </>
       ),
     },
     {
       id: "local",
-      title: "Setup telemetry",
+      title: "Verify locally",
+      footer: (
+        <Button disabled={busy} onClick={() => advance("production")}>
+          I can see my local telemetry
+          <ArrowRight data-icon="inline-end" />
+        </Button>
+      ),
       content: (
         <>
-          <p className="text-sm text-muted-foreground">
-            Instrument the app in development, exercise a real path, and find
-            its telemetry in the local UI before preparing production.
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Check that you can see data from your running app before setting up
+            production. This Cloud page can't detect telemetry on your machine.
           </p>
-          {mode === "agent" ? (
-            <>
-              <p className="text-sm">
-                Send this command to your coding agent from the project:
+          <ol className="space-y-5">
+            <li className="space-y-2">
+              <h3 className="text-sm font-medium">
+                1. Open your local Everr UI
+              </h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Run this in your terminal and open the returned <code>ui:</code>{" "}
+                URL. If the collector is stopped, run{" "}
+                <code>everr local start</code> first.
               </p>
-              <CopyBlock text={SETUP_COMMAND} label="Copy setup command" />
-              <p className="text-xs text-muted-foreground">
-                The setup command also provides production instructions and
-                documents them in your project's README.
+              <CopyBlock
+                text="everr local status"
+                label="Copy local status command"
+              />
+            </li>
+            <li className="space-y-2">
+              <h3 className="text-sm font-medium">2. Use your app</h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Open a page, make a request, or run a job covered by your
+                instrumentation. Keep the app running while you check Everr.
               </p>
-            </>
-          ) : (
-            <GuideLink href={LOCAL_GUIDE}>
-              Open the instrumentation guide
-            </GuideLink>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Use the local UI URL returned by the CLI. Copying a command or
-            opening a guide does not confirm that data arrived.
-          </p>
-          <Button disabled={busy} onClick={() => advance("production")}>
-            I can see my local telemetry
-            <ArrowRight data-icon="inline-end" />
-          </Button>
+            </li>
+            <li className="space-y-2">
+              <h3 className="text-sm font-medium">
+                3. Find the data from that action
+              </h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                In the local UI, open Traces or Logs, select your app's service,
+                and look for a recent record from the action you just performed.
+              </p>
+            </li>
+          </ol>
+          <Collapsible className="rounded-md border text-sm">
+            <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-md px-4 py-3 text-left font-medium hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              No data yet?
+              <ChevronDown
+                aria-hidden="true"
+                className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180"
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-3 px-4 pb-3 text-sm leading-relaxed text-muted-foreground">
+              <p>
+                Check that the collector is running and your app's exporter uses
+                the <code>otlp:</code> URL from the status command. Restart the
+                app after changing its configuration, then try the action again.
+              </p>
+              {mode === "agent" ? (
+                <p>
+                  Ask your agent to check the missing local telemetry using{" "}
+                  <code>everr-setup-telemetry</code>, or go back to the
+                  instrumentation step.
+                </p>
+              ) : (
+                <GuideLink href={LOCAL_GUIDE}>
+                  Open the instrumentation guide
+                </GuideLink>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
         </>
       ),
     },
@@ -303,35 +429,64 @@ function HomeContent({
       id: "production",
       title: "To production",
       keepMounted: true,
+      footer: (
+        <Button disabled={busy} onClick={() => void finish()}>
+          {complete.isPending && (
+            <Loader2 className="animate-spin" data-icon="inline-start" />
+          )}
+          Finish onboarding
+          <Check data-icon="inline-end" />
+        </Button>
+      ),
       content: (
         <>
-          <p className="text-sm text-muted-foreground">
-            Create an ingestion key with the Send telemetry capability for{" "}
-            {status.organizationName}. Use it with the Cloud endpoint below in
-            your production deployment.
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Send production telemetry to Everr Cloud for{" "}
+            <span className="font-medium text-foreground">
+              {status.organizationName}
+            </span>
+            . Keep development connected to your local collector.
           </p>
           {status.canCreateKeys ? (
-            <div className="flex flex-wrap gap-3">
-              <CreateApiKeyDialog
-                defaultScopes={["ingest"]}
-                triggerLabel="Create ingestion key"
-              />
-              <CreateApiKeyDialog
-                defaultPublic
-                triggerLabel="Create public browser key"
-                triggerVariant="outline"
-              />
+            <div className="grid gap-6 border-y py-6 sm:grid-cols-2 sm:gap-8">
+              <div className="flex flex-col items-start gap-4">
+                <div className="flex-1 space-y-1.5">
+                  <h3 className="text-sm font-medium">Server</h3>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    A secret ingestion key for your services. Store it in your
+                    secret manager.
+                  </p>
+                </div>
+                <CreateApiKeyDialog
+                  defaultScopes={["ingest"]}
+                  triggerLabel="Create ingestion key"
+                  triggerVariant="outline"
+                />
+              </div>
+              <div className="flex flex-col items-start gap-4">
+                <div className="flex-1 space-y-1.5">
+                  <h3 className="text-sm font-medium">Browser</h3>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    A public key restricted to your app's origins. Safe to use
+                    in the browser.
+                  </p>
+                </div>
+                <CreateApiKeyDialog
+                  defaultPublic
+                  triggerLabel="Create public browser key"
+                  triggerVariant="outline"
+                />
+              </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm leading-relaxed text-muted-foreground">
               An organization admin or owner needs to create the ingestion keys.
               You can still finish onboarding and ask an admin for keys when
               you're ready to deploy.
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            Server keys belong in your secret manager. Browser apps use public
-            keys restricted to their origins. Already have keys? Reuse them.
+            Already have ingestion keys? You can use your existing ones.
           </p>
           <div className="space-y-2">
             <p className="text-sm font-medium">Production OTLP/HTTP endpoint</p>
@@ -340,36 +495,28 @@ function HomeContent({
               label="Copy production endpoint"
             />
           </div>
-          {mode === "agent" ? (
-            <p className="text-sm text-muted-foreground">
-              Follow the production instructions from the setup command in the
-              previous step, also documented in your project's README. They
-              explain where to set the key and endpoint, how to deploy, and how
-              to verify Cloud ingestion. Keep local development connected to the
-              local collector.
+          <div className="space-y-4">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Configure your production app's OpenTelemetry exporter with this
+              endpoint and the appropriate ingestion key, then rebuild or
+              restart your deployment. Use the app and check for fresh traces or
+              logs in Everr Cloud. Keep local development connected to the local
+              collector.
             </p>
-          ) : (
             <GuideLink href={PRODUCTION_GUIDE}>
               Open the production guide
             </GuideLink>
-          )}
-          <div className="space-y-4 border-t pt-6">
-            <p className="text-sm text-muted-foreground">
-              You can finish now and deploy later. Cloud ingestion is verified
-              separately when your production app sends data.
+          </div>
+          <div className="space-y-4">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              You can finish now and deploy later. Verify Cloud ingestion once
+              your production app sends data.
             </p>
             {complete.error && (
               <p role="alert" className="text-sm text-destructive">
                 {complete.error.message}
               </p>
             )}
-            <Button disabled={busy} onClick={() => void finish()}>
-              {complete.isPending && (
-                <Loader2 className="animate-spin" data-icon="inline-start" />
-              )}
-              Finish onboarding
-              <Check data-icon="inline-end" />
-            </Button>
           </div>
         </>
       ),
@@ -387,16 +534,13 @@ function HomeContent({
         hidden={view !== "onboarding"}
         navigationLabel="Setup progress"
       >
-        <div className="space-y-2 pt-4">
-          <p className="text-sm font-medium text-primary">
-            Start with your app, on your machine
-          </p>
+        <div className="space-y-3">
           <h1 className="text-3xl font-semibold tracking-tight">
-            See where your app slows down or fails
+            Welcome to Everr
           </h1>
-          <p className="max-w-2xl text-muted-foreground">
-            Get useful telemetry locally first. Then reuse your setup to monitor
-            production with your team. Follow the guide below at your own pace.
+          <p className="max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base">
+            Connect your app to see its traces, logs, and errors. Start on your
+            machine, then take your setup to production.
           </p>
         </div>
       </MultiStep>
