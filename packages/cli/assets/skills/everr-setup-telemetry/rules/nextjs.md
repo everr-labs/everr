@@ -8,12 +8,19 @@ this setup: the browser half is `browser.md` (`@everr/otel-web`), and joining
 browser and server traces into one trace follows the seam section of
 `vite-ssr.md`, which applies to Next.js unchanged.
 
+## Contents
+
+- Setup: [Prerequisites](#prerequisites), [File placement](#file-placement), [Node SDK](#node-sdk-setup), [Setup notes](#setup-notes)
+- Destination: [Local collector](#local-collector-configuration) or [Cloud](#cloud-configuration), for the selected environments only
+- Signals: [Route handlers](#route-handler-enrichment), [Errors](#error-handling), [Metrics](#metrics)
+- Completion: [Validation](#validation), [References](#references)
+
 ## Prerequisites
 
 - Next.js 13+ with App Router.
 - Route handlers or server actions run on the Node.js runtime.
-- A local or production OTLP HTTP endpoint.
-- OTLP endpoint and ingest-key variables available to the server process.
+- An OTLP HTTP endpoint for the selected local or cloud destination.
+- OTLP endpoint configuration available to the server process, plus an ingest key only for cloud export.
 
 Use the project package manager. Typical server packages:
 
@@ -52,17 +59,17 @@ Use existing deployment variables for version and environment if the app already
 has them. Do not add sampling or protocol variables just to enable local
 signals.
 
-## Production Configuration
+## Cloud Configuration
 
-Use this when the Next.js server exports to hosted ingest.
+Use this only for environments selected for hosted ingest. Local-only setup requires no cloud key and preserves existing production configuration.
 
-Set these in the deployment platform environment, not in source code:
+Set these in the deployment platform environment, or the local environment for development cloud export, not in source code:
 
 ```bash
 EVERR_INGEST_KEY=<secret-manager-reference>
 ```
 
-The setup code should derive the production endpoint and bearer header from the
+The setup code should derive the hosted endpoint and bearer header from the
 ingest key. Keep release and environment metadata on existing deployment
 variables such as `VERCEL_GIT_COMMIT_SHA`, `VERCEL_ENV`, or `NODE_ENV`.
 
@@ -382,7 +389,7 @@ After setup:
 
 1. Run `next build`. The dev server skips strict type checking, so a setup
    that works under `next dev` can still fail the production build.
-2. Start the app with a local OTLP endpoint.
+2. Start the app with the selected local or cloud OTLP endpoint. Follow [Validation](validation.md) for the matching query command and filters.
 3. Hit a route handler that should produce telemetry.
 4. Verify a server span exists for the route under `service.name`.
 5. Verify an exception path emits an error-severity log with

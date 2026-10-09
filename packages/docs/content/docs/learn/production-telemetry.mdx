@@ -1,16 +1,26 @@
 ---
 title: Send production telemetry
-description: Step 3, mint an API key and forward telemetry to Everr Cloud.
+description: Prepare ingestion keys and send production application telemetry to Everr Cloud.
 ---
 
-This is step 3 of getting started with Everr: mint an API key, point your deployed service's OpenTelemetry export at Everr Cloud, and confirm telemetry arrives. Everything you queried locally in step 2 works the same way once it's flowing from production.
+Reuse your verified local instrumentation in production: create an ingestion key, configure the deployed application's OpenTelemetry exporter for Everr Cloud, and confirm telemetry arrives. Keep development configured for the local collector. The local Everr collector never forwards data to Cloud.
 
 ## Mint an API key
 
-In the Everr dashboard, open the user menu (top-left) and click **API keys**, then **New key**.
+From **To production** in the Home onboarding, select **Create ingestion key** for a server. The **Send telemetry** capability is preselected. For browser applications, use **Create public browser key** and restrict it to your application's origins. You can also open **API keys** from the user menu and create a key there.
+
+An organization admin or owner must create keys. Other members can continue with an existing key supplied through their deployment's secret manager.
 
 - Select the **Send telemetry** capability: it's what lets the key authenticate OTLP requests.
 - The full key is shown only once, at creation time. Copy it into your secret manager; you can't retrieve it later.
+
+Never paste server keys into agent prompts or commit them to your project. See [Browser telemetry](/docs/guides/browser-telemetry) for public browser keys.
+
+## Follow your setup's production instructions
+
+The `everr-setup-telemetry` command used for local setup also provides production instructions in its final response and in your project's README, under **Telemetry**. Follow those instructions to configure the ingestion key, select the Cloud endpoint, build or redeploy, and verify fresh telemetry. They identify the settings consumed by your application's actual instrumentation and any code changes still needed.
+
+The production OTLP/HTTP endpoint is `https://ingest.everr.dev/`, also shown in the Home onboarding. Provide credentials through your secret manager or deployment configuration. For manual configuration, follow the steps below.
 
 ## Point your service at Everr Cloud
 
@@ -23,7 +33,7 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <your-api-key>"
 
 Most OpenTelemetry SDKs and the Collector read these automatically.
 
-If you already run your own OpenTelemetry Collector, forward from it instead of instrumenting each service directly.
+If your production infrastructure already runs its own OpenTelemetry Collector, configure that collector's exporter. This is separate from Everr's local collector.
 
 ## Confirm telemetry arrives
 
@@ -35,3 +45,5 @@ If nothing shows up:
 - Confirm you're using the key you just minted, not a local or stale one.
 
 **Next:** [Build your first dashboard](/docs/learn/first-dashboard).
+
+You can select **Finish onboarding** in the Cloud Home before creating keys or deploying. The organization returns to its ordinary Home, even when no data has arrived yet. To prepare production later, create keys from **API keys** in the user menu and follow the instructions in your project's README or this guide. Creating a key or opening this guide does not confirm deployment or ingestion.

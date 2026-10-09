@@ -2,6 +2,13 @@
 
 Use this rule for Node.js services, CLIs, workers, background jobs, and test runners.
 
+## Contents
+
+- Approach: [Default pattern](#default-pattern), [Framework-specific setup](#framework-specific-opentelemetry-first)
+- Setup: [Packages](#packages), [Environment](#env-vars), [Setup module](#setup-module)
+- Signals: [Auto-instrumentation](#auto-instrumentation-coverage), [Custom spans](#custom-spans), [Trace context](#trace-context), [Error tracking](#error-tracking)
+- Integration: [Full-stack frameworks](#full-stack-frameworks-and-shared-code), [Troubleshooting](#troubleshooting)
+
 ## Default Pattern
 
 - Follow the framework's OpenTelemetry guidance before writing generic custom instrumentation. Read either the framework docs or the relevant OpenTelemetry contrib package README for the exact framework, version, runtime, startup hook, and error hook being used.
@@ -61,7 +68,7 @@ Local development or test:
 OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:54318
 ```
 
-Production Everr ingest:
+Cloud ingest, only for environments selected for cloud export:
 
 ```bash
 EVERR_INGEST_KEY=<secret-manager-reference>
@@ -316,4 +323,4 @@ The division of ownership stays as above:
 | Logs silently absent with no errors | Two `@opentelemetry/api-logs` versions in the tree (check with the package manager's why/ls command): the global logger registry is per-version, so the SDK registers on one copy and the app emits into the other. Align the direct OTel package versions with what `@everr/otel-errors` resolves |
 | Each error captured twice | `@everr/otel-errors` running alongside leftover hand-rolled `uncaughtException`/`unhandledRejection` handlers: remove the hand-rolled ones |
 
-After changes, run the instrumented path and validate with `everr local query`. Filter by `ServiceName`, a recent time window, and a run/request/test marker when practical.
+After changes, run the instrumented path and follow [Validation](validation.md) using `everr local query` or `everr cloud query` for the selected destination. Filter by `ServiceName`, the expected environment, a recent time window, and a run/request/test marker when practical.

@@ -2,6 +2,13 @@
 
 Use this rule for Rust services, CLIs, workers, schedulers, and Tauri backends that need OpenTelemetry.
 
+## Contents
+
+- Setup: [Default pattern](#default-pattern), [Packages](#packages), [Environment](#env-vars), [Setup module](#setup-module)
+- Destination: [Endpoint shape](#endpoint-shape)
+- Signals: [Traces](#traces), [Logs](#logs), [Metrics](#metrics), [Errors and panics](#errors-and-panics)
+- Checks: [Sensitive data](#sensitive-data), [Troubleshooting](#troubleshooting)
+
 ## Default Pattern
 
 - Use a `telemetry_setup.rs` module and call it at the start of `main` before starting servers, workers, queues, database pools, or Tauri builders.
@@ -41,7 +48,7 @@ Local development or test:
 OTEL_EXPORTER_OTLP_ENDPOINT=<otlp-url-from-status>
 ```
 
-Production Everr ingest:
+Cloud ingest, only for environments selected for cloud export:
 
 ```bash
 EVERR_INGEST_KEY=<secret-manager-reference>
@@ -249,7 +256,7 @@ For long-running servers, use the app's existing graceful shutdown path and call
 
 For the Rust OTLP HTTP builder, pass the base endpoint and let the exporter append signal paths. Do not pass `/v1/traces`, `/v1/metrics`, or `/v1/logs` unless the specific SDK call expects a signal endpoint.
 
-Local development uses the base endpoint from `everr local status`. Production uses `https://ingest.everr.dev` with the bearer header built from `EVERR_INGEST_KEY`.
+Local export uses the base endpoint from `everr local status`. Cloud export uses `https://ingest.everr.dev` with the bearer header built from `EVERR_INGEST_KEY`. Select the destination independently of the app's environment and preserve configuration outside the task.
 
 ## Traces
 
@@ -331,4 +338,4 @@ Prefer explicit safe fields and source-level redaction.
 | Duplicate logs | Both app logger and bridge emit the same event more than once |
 | Missing shutdown data | Provider handles dropped early or graceful shutdown path does not call `shutdown()` |
 
-After changes, run the instrumented path and validate with `everr local query`. Filter by `ServiceName`, a recent time window, and a run/request/test marker when practical.
+After changes, run the instrumented path and follow [Validation](validation.md) using `everr local query` or `everr cloud query` for the selected destination. Filter by `ServiceName`, the expected environment, a recent time window, and a run/request/test marker when practical.

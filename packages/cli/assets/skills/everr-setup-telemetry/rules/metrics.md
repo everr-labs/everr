@@ -6,6 +6,13 @@ Before creating a custom metric, check the OpenTelemetry semantic conventions fo
 
 Create a custom metric only when no semantic convention or installed instrumentation already covers the measurement.
 
+## Contents
+
+- Coverage: [Automatic instrumentation](#metrics-from-automatic-instrumentation), [RED metrics](#red-metrics)
+- Design: [Custom metrics](#creating-custom-metrics), [Units](#units), [Cardinality](#cardinality-management), [Attribute placement](#attribute-placement)
+- Delivery: [Flushing on shutdown or crash](#flushing-on-shutdown-or-crash)
+- Verification: [Testing metric data](#testing-metric-data), [Anti-patterns](#anti-patterns)
+
 ## Metrics From Automatic Instrumentation
 
 Some auto-instrumentation packages emit semantic convention metrics without custom code. Before adding a metric, verify that the project is not already emitting it.
