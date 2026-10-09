@@ -50,6 +50,8 @@ If an Everr command fails, investigate why: collector stopped, stale app, wrong 
 
 **Read `rules/schema.md` before your first query.** It lists the tables, columns, units, value spellings (`SpanKind`, `StatusCode`), how to read JSON attributes, the query rules, and starter queries: freshness, span names, errors, a full trace by id, and error fingerprints. The same tables exist on cloud and local, except `alert_events`, which is cloud only (read `rules/alert-history.md` before querying it).
 
+Cloud queries time out after 30 seconds and fail past 25,000 result rows or 4 MB of result. They fail; they do not truncate.
+
 ## Error Troubleshooting
 
 | Error | Action |
@@ -68,7 +70,7 @@ When a local query fails, always run `everr local status` to diagnose the collec
 | --- | --- |
 | Inventing subcommands or flags (`query traces`, `--filter`, `--window`) | Only `everr cloud query "<SQL>"` or `everr local query "<SQL>"` with optional `--format`. Everything else is in the SQL. |
 | Writing queries without a time window | Always add `WHERE Timestamp > now() - INTERVAL N HOUR/MINUTE`. |
-| Writing cloud queries without LIMIT | Cloud fails past 25,000 rows or 4 MB. Always include `LIMIT`. |
+| Writing cloud queries without LIMIT | Cloud fails past its result cap (see Schema And Queries). Always include `LIMIT`. |
 | Assuming attribute names without discovering them | List the keys first (see `rules/schema.md`). Conventions vary. |
 | Getting "collector isn't running" but not running `everr local start` | Follow the error message literally. |
 | Diagnosing without checking freshness | Query `max(Timestamp)` first. If data is hours old, it's stale. |

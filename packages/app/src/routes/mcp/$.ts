@@ -43,12 +43,10 @@ function createTransport() {
           });
           return {
             isError: result.isError,
-            content: [
-              { type: "text", text: result.text },
-              ...(result.note
-                ? [{ type: "text" as const, text: result.note }]
-                : []),
-            ],
+            content: result.content.map((text) => ({
+              type: "text" as const,
+              text,
+            })),
           };
         },
       );

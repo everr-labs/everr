@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import type { DataFormat } from "@clickhouse/client";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
 import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
@@ -85,9 +86,7 @@ function sqlApiOrgPolicyName(organizationId: string, table: string): string {
 // to that user, so user SQL cannot override the tenant filter via SETTINGS or
 // any other channel. The query authenticates with HMAC-derived credentials per
 // query and reuses the shared `clickhouse` HTTP client.
-function runSqlApiQuery<
-  Format extends "JSONEachRow" | "JSON" | "JSONCompactEachRowWithNamesAndTypes",
->(
+function runSqlApiQuery<Format extends DataFormat>(
   query: string,
   organizationId: string,
   query_params: Record<string, unknown> | undefined,
@@ -165,11 +164,7 @@ export async function querySqlApiWithMeta<T>(
   };
 }
 
-export interface SqlApiPreview {
-  columns: string[];
-  columnTypes: string[];
-  /** One array per row, values in `columns` order. */
-  rows: unknown[][];
+export interface SqlApiPreview extends SqlApiResult<unknown[]> {
   /** The query had more than `maxRows` rows; the rest were never read. */
   truncated: boolean;
 }
@@ -177,15 +172,14 @@ export interface SqlApiPreview {
 /**
  * Read at most `maxRows` rows of a SQL API query, then cancel it. For callers
  * that show a preview (the MCP tool): ClickHouse stops producing rows when the
- * connection closes, instead of sending up to the profile's 25k rows / 4 MB to
- * be discarded here. Column names and types arrive even for an empty result.
+ * connection closes, instead of sending up to the profile's result cap to be
+ * discarded here. Column names and types arrive even for an empty result.
  */
 export async function previewSqlApi(
   query: string,
   organizationId: string,
   maxRows: number,
 ): Promise<SqlApiPreview> {
-  if (!organizationId) throw new Error("Missing ClickHouse tenant context");
   const abort = new AbortController();
   const result = await runSqlApiQuery(
     query,
@@ -195,13 +189,13 @@ export async function previewSqlApi(
     abort.signal,
   );
 
-  // The first two lines are the column names and the column types.
+  // The format always sends two header lines, names then types, before rows.
   const lines: unknown[][] = [];
   let truncated = false;
   try {
     read: for await (const batch of result.stream()) {
       for (const row of batch) {
-        if (lines.length === maxRows + 2) {
+        if (lines.length - 2 === maxRows) {
           truncated = true;
           break read;
         }
@@ -212,13 +206,12 @@ export async function previewSqlApi(
     abort.abort();
   }
 
-  const [columns = [], columnTypes = [], ...rows] = lines;
-  return {
-    columns: columns as string[],
-    columnTypes: columnTypes as string[],
-    rows,
-    truncated,
-  };
+  const [columns, columnTypes, ...rows] = lines as [
+    string[],
+    string[],
+    ...unknown[][],
+  ];
+  return { columns, columnTypes, rows, truncated };
 }
 
 export function createClickhouseQuery(organizationId: string) {

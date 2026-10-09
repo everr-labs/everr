@@ -1,6 +1,6 @@
 # Telemetry Schema
 
-The tables, columns, units, and value spellings that SQL over Everr telemetry reads, plus the queries to start from. Read this before writing a query: every wrong guess about a column or an attribute name costs a round trip.
+The tables, columns, units, and value spellings of Everr telemetry, plus the queries to start from.
 
 ## Tables
 
@@ -11,7 +11,7 @@ The sort key of `traces` and `logs` is `ServiceName, Timestamp`. Filter on both 
 - `metrics_gauge`, `metrics_sum`: `TimeUnix`, `ServiceName`, `MetricName`, `MetricUnit`, `Attributes`, `Value`. `metrics_sum` adds `IsMonotonic` and `AggregationTemporality`.
 - `metrics_histogram`: `TimeUnix`, `ServiceName`, `MetricName`, `MetricUnit`, `Attributes`, `Count`, `Sum`, `Min`, `Max`, `BucketCounts`, `ExplicitBounds`. `metrics_exponential_histogram` and `metrics_summary` are similar: run `DESCRIBE TABLE` on them.
 - `traces_trace_id_ts`: `TraceId`, `Start`, `End`. The time window of each trace in whole seconds, one row per trace per ingested batch. Aggregate with `min(Start)` and `max(End)`.
-- `alert_events`: alert history, cloud only. Read `rules/alert-history.md` (or run `DESCRIBE TABLE alert_events`) before you query it, and filter `is_live`.
+- `alert_events`: alert history, cloud only. One row per evaluation, state transition, withheld notification, or delivery attempt, told apart by `event_type`. Run `DESCRIBE TABLE alert_events` before you query it, bound `event_time`, and filter `is_live` (preview alerts write to the same table).
 
 ## Units And Values
 
@@ -42,9 +42,7 @@ LIMIT 100
 ## Query Rules
 
 - Every diagnostic query needs a time window (`Timestamp`, or `TimeUnix` for metrics) and a `LIMIT`. `DESCRIBE` and freshness checks may omit the window.
-- Cloud queries time out after 30 seconds and fail past 25,000 result rows or 4 MB. They fail; they do not truncate.
 - Aggregate (`count()`, `quantile`, `GROUP BY`) before you list rows.
-- Read-only SQL only: `SELECT`, `WITH`, `EXPLAIN`, `DESCRIBE`, `SHOW`.
 - **Trace by id**: `traces` and `logs` are not sorted by `TraceId`, so a bare `TraceId = '...'` reads every part. Take the window from `traces_trace_id_ts` first, as in "One trace" below.
 
 ## Starter Queries
@@ -112,17 +110,7 @@ LIMIT 200
 
 ## Group Errors By Fingerprint
 
-Everr groups error logs into Errors by a *fingerprint*: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The ClickHouse function `errorFingerprint` computes it, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint.
-
-An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message:
-```sql
-has(ResourceAttributesKeys, 'service.name')
-AND SeverityNumber >= 17
-AND (
-  has(LogAttributesKeys, 'exception.type')
-  OR has(LogAttributesKeys, 'exception.message')
-)
-```
+Everr groups error logs into Errors by a *fingerprint*: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The ClickHouse function `errorFingerprint` computes it, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint. An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message.
 
 Occurrences of one Fingerprint (widen the window if the Error is older):
 ```sql
