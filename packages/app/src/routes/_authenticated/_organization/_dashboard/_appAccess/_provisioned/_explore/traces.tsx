@@ -1,3 +1,4 @@
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   TraceSearchParamsSchema,
   TracesSearch,
@@ -11,7 +12,6 @@ import {
 } from "@tanstack/react-router";
 import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
-import { ExploreSearchShape } from "@/lib/explore-search";
 
 // service/environment live in the shared _explore topbar but must also be in
 // the child schema so the leaf route's validateSearch doesn't strip them.

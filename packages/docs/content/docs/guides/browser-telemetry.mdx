@@ -7,11 +7,11 @@ Everr accepts OpenTelemetry (OTLP) straight from the browser. Because anything i
 
 ## Mint a public key
 
-In the Everr dashboard, open the user menu (top-left), click **API keys**, then **New key**.
+In the Everr dashboard, open the user menu (top-left), click **API keys**, then **New public key** in the **Public keys** section.
 
-1. Turn on **Public browser key**.
+1. Enter a name and choose an expiration.
 2. Add every origin your app is served from, one per line, for example `https://app.example.com`. An origin is scheme://host with an optional port, and no path.
-3. Create the key and copy it. Origins cannot be edited later; to change them, mint a new key and rotate the value in your frontend config.
+3. Click **Create public key** and copy the key. Origins cannot be edited later; to change them, mint a new key and rotate the value in your frontend config.
 
 ## Let your Agent wire it up
 
@@ -49,4 +49,4 @@ Logs and metrics work the same way with the matching exporters (`/v1/logs`, `/v1
 
 ## Local development
 
-The local Everr collector (started by the CLI and the desktop app) accepts browser OTLP on `http://127.0.0.1:54318` with no key and no origin setup. Public keys only matter for sending browser telemetry to Everr Cloud.
+The local Everr collector (started by `everr local start`) accepts browser OTLP at the `otlp:` URL printed by `everr local start` or `everr local status`, with no key and no origin setup. Public keys only matter for sending browser telemetry to Everr Cloud.

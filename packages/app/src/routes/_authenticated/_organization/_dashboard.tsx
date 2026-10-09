@@ -1,4 +1,5 @@
 import { resolve } from "@everr/datemath";
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   createFileRoute,
   redirect,
@@ -7,7 +8,6 @@ import {
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { ExploreSearchRetainShape } from "@/lib/explore-search";
 import {
   ResolvedTimeRangeSearchSchema,
   TimeRangeSearchSchema,
@@ -17,7 +17,7 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   // Explore section filters live at this level (not deeper on `_explore`) so the
   // sidebar links — rendered in this layout — retain them on click. See the
   // retainSearchParams note below.
-  ...ExploreSearchRetainShape,
+  ...ExploreSearchShape,
   github_install: z.string().optional(),
   reason: z.string().optional(),
   // Active preview (a preview/branch name). App-wide context: retained across

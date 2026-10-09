@@ -1,19 +1,19 @@
 ---
 title: Instrument your app
-description: Step 2, set up OpenTelemetry, emit your first signal (a log), and see it in the local Collector.
+description: Set up and verify application telemetry locally with your coding agent or by hand.
 ---
 
-This is step 2 of getting started with Everr: set up OpenTelemetry in your app, point it at the local Collector, and confirm it works by emitting your first signal. A log is the easiest thing to add, so start there. Do each part with your Agent or by hand.
+After [installing Everr](/docs/learn/install), set up OpenTelemetry in your project, send to the local collector, and exercise a real application path. Confirm that the data appears in the local UI before preparing production. Follow the agent path or configure it by hand.
 
 ## Set up OpenTelemetry
 
 **With your Agent**: the fastest path is to let it run the `everr-setup-telemetry` skill.
 
 ```text
-/everr-setup-telemetry Instrument this app and send telemetry to my local Everr Collector
+/everr-setup-telemetry Set up a basic telemetry baseline for this project in development using my local Everr collector. Reuse existing instrumentation, verify ingestion by exercising a real application path, run the build or typecheck, and open the local UI on the verified data.
 ```
 
-The skill adds the OpenTelemetry SDK to your app, points its exporter at the local Collector (starting the Collector if needed), and confirms the wiring works.
+Run the prompt from your project with its Everr skills installed (`everr skills install --all --project`). The skill inspects existing instrumentation, fills in the basic signals your app needs, starts the local collector if necessary, and checks real ingestion. It also validates the build or typecheck and opens the local UI on the verified data. Its final response and your project's README include the instructions to activate production telemetry later.
 
 **By hand**: install the OpenTelemetry SDK for your language and point its exporter at the local Collector's endpoint. If your app already emits OpenTelemetry, that's the only change. Keep this to development and test environments.
 
@@ -41,8 +41,10 @@ Look in my local Everr Collector for logs from this app and show me the most rec
 everr local query "SELECT Timestamp, ServiceName, SeverityText, Body FROM logs ORDER BY Timestamp DESC LIMIT 20"
 ```
 
-You should see your log line with its `ServiceName`. That's your first signal in Everr. You can also open Everr Desktop to browse logs, traces, and metrics visually.
+You should see your log line with its `ServiceName`. That's your first signal in Everr. Open the `ui:` URL printed by `everr local start` to browse local logs, traces, and errors.
 
-If no rows appear, make sure Everr Desktop is running and your app restarted after setup, then trigger the path again.
+If no rows appear, make sure `everr local start` is running and your app restarted after setup, then trigger the path again.
+
+After verifying the local UI, select **I can see my local telemetry** in the Cloud Home to continue to production setup. The Cloud app cannot detect your local telemetry automatically.
 
 **Next:** [Send production telemetry](/docs/learn/production-telemetry).

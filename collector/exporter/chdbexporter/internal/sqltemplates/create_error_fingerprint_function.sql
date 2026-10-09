@@ -1,5 +1,5 @@
 -- errorFingerprint UDF for the local collector's chDB. Registered on schema
--- init so `everr local query` and the desktop app group Errors the same way the
+-- init so `everr local query` and the local browser UI group Errors the same way the
 -- cloud does.
 --
 -- Keep in step with clickhouse/init/04-create-error-fingerprint-function.sql

@@ -1,0 +1,39 @@
+{
+  "name": "@everr/local-app",
+  "private": true,
+  "version": "0.9.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node ./scripts/dev.ts",
+    "dev:ui": "vite dev",
+    "watch": "node ./scripts/dev.ts --no-open",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit && tsc --noEmit --project tsconfig.node.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@everr/otel-web": "workspace:*",
+    "@everr/telemetry-explorer": "workspace:*",
+    "@everr/ui": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "1.170.41",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "sonner": "^2.0.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@tanstack/react-router-devtools": "1.166.13",
+    "@tanstack/router-plugin": "1.168.27",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "jsdom": "^29.1.1",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "@types/node": "^25.6.2"
+  }
+}

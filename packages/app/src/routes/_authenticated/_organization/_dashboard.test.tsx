@@ -1,9 +1,17 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { HomeStatus } from "@/common/onboarding";
+import { homeStatusQueryOptions } from "@/data/onboarding/options";
 
 const mocks = vi.hoisted(() => ({
   activeOrganizationId: "test_org",
+  matches: [] as {
+    routeId: string;
+    search: { setup?: number };
+    staticData: { showDataControls?: boolean };
+  }[],
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -16,6 +24,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
       options,
       useRouteContext: () => ({
         session: {
+          user: { id: "test_user" },
           session: { activeOrganizationId: mocks.activeOrganizationId },
         },
       }),
@@ -23,14 +32,20 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
     }),
     useRouteContext: () => ({
       session: {
+        user: { id: "test_user" },
         session: { activeOrganizationId: mocks.activeOrganizationId },
       },
     }),
     useSearch: () => ({}),
     Outlet: () => <div>Route content</div>,
-    useMatches: () => [],
+    useMatches: () => mocks.matches,
   };
 });
+
+vi.mock("@/data/onboarding/server", () => ({
+  getHomeStatus: vi.fn(() => new Promise(() => {})),
+  completeOnboarding: vi.fn(),
+}));
 
 vi.mock("@everr/ui/components/sidebar", () => ({
   SidebarInset: ({ children }: { children: ReactNode }) => (
@@ -74,14 +89,33 @@ import { Route } from "./_dashboard";
 
 beforeEach(() => {
   mocks.activeOrganizationId = "test_org";
+  mocks.matches = [];
 });
+
+const clients: QueryClient[] = [];
+afterEach(() => {
+  for (const client of clients.splice(0)) client.clear();
+});
+function renderLayout(status?: HomeStatus) {
+  const client = new QueryClient();
+  clients.push(client);
+  if (status)
+    client.setQueryData(
+      homeStatusQueryOptions("test_user", "test_org").queryKey,
+      status,
+    );
+  const Component = Route.options.component as React.ComponentType;
+  return render(
+    <QueryClientProvider client={client}>
+      <Component />
+    </QueryClientProvider>,
+  );
+}
 
 describe("dashboard layout", () => {
   it("renders only route content when there is no active organization", () => {
     mocks.activeOrganizationId = "";
-    const Component = Route.options.component as React.ComponentType;
-
-    render(<Component />);
+    renderLayout();
 
     expect(screen.getByText("Route content")).toBeInTheDocument();
     expect(screen.queryByText("Organization navigation")).toBeNull();
@@ -89,12 +123,37 @@ describe("dashboard layout", () => {
   });
 
   it("renders organization navigation when there is an active organization", () => {
-    const Component = Route.options.component as React.ComponentType;
-
-    render(<Component />);
+    renderLayout();
 
     expect(screen.getByText("Route content")).toBeInTheDocument();
     expect(screen.getByText("Organization navigation")).toBeInTheDocument();
     expect(screen.getByRole("banner")).toBeInTheDocument();
+  });
+
+  it.each([
+    "onboarding",
+    "dashboard",
+    "reopened",
+  ])("keeps navigation and shows time controls only for the ordinary Home (%s)", (view) => {
+    mocks.matches = [
+      {
+        routeId:
+          "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/",
+        staticData: { showDataControls: true },
+        search: view === "reopened" ? { setup: 1 } : {},
+      },
+    ];
+    const status: HomeStatus = {
+      canCreateKeys: false,
+      onboardingCompleted: ["dashboard", "reopened"].includes(view),
+    };
+    renderLayout(status);
+    expect(screen.getByText("Organization navigation")).toBeInTheDocument();
+    expect(Boolean(screen.queryByText("Time range picker"))).toBe(
+      view === "dashboard",
+    );
+    expect(Boolean(screen.queryByText("Refresh picker"))).toBe(
+      view === "dashboard",
+    );
   });
 });

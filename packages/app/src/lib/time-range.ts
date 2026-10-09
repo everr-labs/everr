@@ -1,24 +1,9 @@
-import { isValid } from "@everr/datemath";
-import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
-import * as z from "zod";
-
-const datemath = z.string().refine(isValid);
+export {
+  ResolvedTimeRangeSearchSchema,
+  TimeRangeSearchSchema,
+} from "@everr/ui/lib/time-range";
 
 export type RefreshInterval = string;
-
-export const TimeRangeSearchSchema = z.object({
-  from: z.string().optional(),
-  to: z.string().optional(),
-  refresh: z.string().optional(),
-});
-
-export const ResolvedTimeRangeSearchSchema = z.object({
-  from: datemath
-    .catch(DEFAULT_TIME_RANGE.from)
-    .default(DEFAULT_TIME_RANGE.from),
-  to: datemath.catch(DEFAULT_TIME_RANGE.to).default(DEFAULT_TIME_RANGE.to),
-  refresh: z.string().default("off"),
-});
 
 /**
  * A route-level default time range/refresh, layered UNDER the URL search params.

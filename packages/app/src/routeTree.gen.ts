@@ -32,11 +32,7 @@ import { Route as WelcomeSignedInCreateOrganizationRouteImport } from './routes/
 import { Route as WelcomeAuthErrorRouteImport } from './routes/_welcome/auth/error'
 import { Route as WelcomeInviteInvitationIdRouteImport } from './routes/_welcome/invite.$invitationId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
 import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
-import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
-import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
-import { Route as ApiCliReposRouteImport } from './routes/api/cli/repos'
 import { Route as ApiCliResourcesRouteImport } from './routes/api/cli/resources'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
@@ -53,8 +49,6 @@ import { Route as WelcomeGuestAuthSignUpRouteImport } from './routes/_welcome/_g
 import { Route as WelcomeSignedInOrganizationOrganizationPendingRouteImport } from './routes/_welcome/_signedIn/_organization/organization-pending'
 import { Route as WelcomeSignedInOrganizationOrganizationSetupRouteImport } from './routes/_welcome/_signedIn/_organization/organization-setup'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
-import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
-import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/histogram'
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
@@ -222,29 +216,9 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCliImportRoute = ApiCliImportRouteImport.update({
-  id: '/import',
-  path: '/import',
-  getParentRoute: () => ApiCliRoute,
-} as any)
 const ApiCliMeRoute = ApiCliMeRouteImport.update({
   id: '/me',
   path: '/me',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliNotificationRoute = ApiCliNotificationRouteImport.update({
-  id: '/notification',
-  path: '/notification',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliOrgRoute = ApiCliOrgRouteImport.update({
-  id: '/org',
-  path: '/org',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliReposRoute = ApiCliReposRouteImport.update({
-  id: '/repos',
-  path: '/repos',
   getParentRoute: () => ApiCliRoute,
 } as any)
 const ApiCliResourcesRoute = ApiCliResourcesRouteImport.update({
@@ -331,16 +305,6 @@ const WelcomeSignedInOrganizationOrganizationSetupRoute =
 const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
   id: '/$traceId',
   path: '/$traceId',
-  getParentRoute: () => ApiCliRunsRoute,
-} as any)
-const ApiCliRunsFilterOptionsRoute = ApiCliRunsFilterOptionsRouteImport.update({
-  id: '/filter-options',
-  path: '/filter-options',
-  getParentRoute: () => ApiCliRunsRoute,
-} as any)
-const ApiCliRunsHistogramRoute = ApiCliRunsHistogramRouteImport.update({
-  id: '/histogram',
-  path: '/histogram',
   getParentRoute: () => ApiCliRunsRoute,
 } as any)
 const ApiCliRunsStatusRoute = ApiCliRunsStatusRouteImport.update({
@@ -763,11 +727,7 @@ export interface FileRoutesByFullPath {
   '/auth/error': typeof WelcomeAuthErrorRoute
   '/invite/$invitationId': typeof WelcomeInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
-  '/api/cli/notification': typeof ApiCliNotificationRoute
-  '/api/cli/org': typeof ApiCliOrgRoute
-  '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
@@ -782,8 +742,6 @@ export interface FileRoutesByFullPath {
   '/organization-pending': typeof WelcomeSignedInOrganizationOrganizationPendingRoute
   '/organization-setup': typeof WelcomeSignedInOrganizationOrganizationSetupRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
-  '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
-  '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -844,11 +802,7 @@ export interface FileRoutesByTo {
   '/auth/error': typeof WelcomeAuthErrorRoute
   '/invite/$invitationId': typeof WelcomeInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
-  '/api/cli/notification': typeof ApiCliNotificationRoute
-  '/api/cli/org': typeof ApiCliOrgRoute
-  '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
@@ -863,8 +817,6 @@ export interface FileRoutesByTo {
   '/organization-pending': typeof WelcomeSignedInOrganizationOrganizationPendingRoute
   '/organization-setup': typeof WelcomeSignedInOrganizationOrganizationSetupRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
-  '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
-  '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -929,11 +881,7 @@ export interface FileRoutesById {
   '/_welcome/auth/error': typeof WelcomeAuthErrorRoute
   '/_welcome/invite/$invitationId': typeof WelcomeInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
-  '/api/cli/notification': typeof ApiCliNotificationRoute
-  '/api/cli/org': typeof ApiCliOrgRoute
-  '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
@@ -950,8 +898,6 @@ export interface FileRoutesById {
   '/_welcome/_signedIn/_organization/organization-pending': typeof WelcomeSignedInOrganizationOrganizationPendingRoute
   '/_welcome/_signedIn/_organization/organization-setup': typeof WelcomeSignedInOrganizationOrganizationSetupRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
-  '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
-  '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -1021,11 +967,7 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
-    | '/api/cli/import'
     | '/api/cli/me'
-    | '/api/cli/notification'
-    | '/api/cli/org'
-    | '/api/cli/repos'
     | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
@@ -1040,8 +982,6 @@ export interface FileRouteTypes {
     | '/organization-pending'
     | '/organization-setup'
     | '/api/cli/runs/$traceId'
-    | '/api/cli/runs/filter-options'
-    | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -1102,11 +1042,7 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
-    | '/api/cli/import'
     | '/api/cli/me'
-    | '/api/cli/notification'
-    | '/api/cli/org'
-    | '/api/cli/repos'
     | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
@@ -1121,8 +1057,6 @@ export interface FileRouteTypes {
     | '/organization-pending'
     | '/organization-setup'
     | '/api/cli/runs/$traceId'
-    | '/api/cli/runs/filter-options'
-    | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -1186,11 +1120,7 @@ export interface FileRouteTypes {
     | '/_welcome/auth/error'
     | '/_welcome/invite/$invitationId'
     | '/api/auth/$'
-    | '/api/cli/import'
     | '/api/cli/me'
-    | '/api/cli/notification'
-    | '/api/cli/org'
-    | '/api/cli/repos'
     | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
@@ -1207,8 +1137,6 @@ export interface FileRouteTypes {
     | '/_welcome/_signedIn/_organization/organization-pending'
     | '/_welcome/_signedIn/_organization/organization-setup'
     | '/api/cli/runs/$traceId'
-    | '/api/cli/runs/filter-options'
-    | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -1442,39 +1370,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cli/import': {
-      id: '/api/cli/import'
-      path: '/import'
-      fullPath: '/api/cli/import'
-      preLoaderRoute: typeof ApiCliImportRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
     '/api/cli/me': {
       id: '/api/cli/me'
       path: '/me'
       fullPath: '/api/cli/me'
       preLoaderRoute: typeof ApiCliMeRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/notification': {
-      id: '/api/cli/notification'
-      path: '/notification'
-      fullPath: '/api/cli/notification'
-      preLoaderRoute: typeof ApiCliNotificationRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/org': {
-      id: '/api/cli/org'
-      path: '/org'
-      fullPath: '/api/cli/org'
-      preLoaderRoute: typeof ApiCliOrgRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/repos': {
-      id: '/api/cli/repos'
-      path: '/repos'
-      fullPath: '/api/cli/repos'
-      preLoaderRoute: typeof ApiCliReposRouteImport
       parentRoute: typeof ApiCliRoute
     }
     '/api/cli/resources': {
@@ -1587,20 +1487,6 @@ declare module '@tanstack/react-router' {
       path: '/$traceId'
       fullPath: '/api/cli/runs/$traceId'
       preLoaderRoute: typeof ApiCliRunsTraceIdRouteImport
-      parentRoute: typeof ApiCliRunsRoute
-    }
-    '/api/cli/runs/filter-options': {
-      id: '/api/cli/runs/filter-options'
-      path: '/filter-options'
-      fullPath: '/api/cli/runs/filter-options'
-      preLoaderRoute: typeof ApiCliRunsFilterOptionsRouteImport
-      parentRoute: typeof ApiCliRunsRoute
-    }
-    '/api/cli/runs/histogram': {
-      id: '/api/cli/runs/histogram'
-      path: '/histogram'
-      fullPath: '/api/cli/runs/histogram'
-      preLoaderRoute: typeof ApiCliRunsHistogramRouteImport
       parentRoute: typeof ApiCliRunsRoute
     }
     '/api/cli/runs/status': {
@@ -2463,15 +2349,11 @@ const ApiCliRunsTraceIdRouteWithChildren =
 
 interface ApiCliRunsRouteChildren {
   ApiCliRunsTraceIdRoute: typeof ApiCliRunsTraceIdRouteWithChildren
-  ApiCliRunsFilterOptionsRoute: typeof ApiCliRunsFilterOptionsRoute
-  ApiCliRunsHistogramRoute: typeof ApiCliRunsHistogramRoute
   ApiCliRunsStatusRoute: typeof ApiCliRunsStatusRoute
 }
 
 const ApiCliRunsRouteChildren: ApiCliRunsRouteChildren = {
   ApiCliRunsTraceIdRoute: ApiCliRunsTraceIdRouteWithChildren,
-  ApiCliRunsFilterOptionsRoute: ApiCliRunsFilterOptionsRoute,
-  ApiCliRunsHistogramRoute: ApiCliRunsHistogramRoute,
   ApiCliRunsStatusRoute: ApiCliRunsStatusRoute,
 }
 
@@ -2480,22 +2362,14 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
 )
 
 interface ApiCliRouteChildren {
-  ApiCliImportRoute: typeof ApiCliImportRoute
   ApiCliMeRoute: typeof ApiCliMeRoute
-  ApiCliNotificationRoute: typeof ApiCliNotificationRoute
-  ApiCliOrgRoute: typeof ApiCliOrgRoute
-  ApiCliReposRoute: typeof ApiCliReposRoute
   ApiCliResourcesRoute: typeof ApiCliResourcesRouteWithChildren
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSqlRoute: typeof ApiCliSqlRoute
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
-  ApiCliImportRoute: ApiCliImportRoute,
   ApiCliMeRoute: ApiCliMeRoute,
-  ApiCliNotificationRoute: ApiCliNotificationRoute,
-  ApiCliOrgRoute: ApiCliOrgRoute,
-  ApiCliReposRoute: ApiCliReposRoute,
   ApiCliResourcesRoute: ApiCliResourcesRouteWithChildren,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSqlRoute: ApiCliSqlRoute,

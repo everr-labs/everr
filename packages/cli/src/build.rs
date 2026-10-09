@@ -1,0 +1,252 @@
+use std::path::PathBuf;
+
+use anyhow::Context;
+
+pub const SESSION_NAMESPACE: &str = "everr";
+
+#[cfg(debug_assertions)]
+pub const BUILD_TYPE_LABEL: &str = "debug";
+
+#[cfg(not(debug_assertions))]
+pub const BUILD_TYPE_LABEL: &str = "release";
+
+#[cfg(debug_assertions)]
+pub const DEFAULT_API_BASE_URL: &str = "http://localhost:5173";
+
+#[cfg(not(debug_assertions))]
+pub const DEFAULT_API_BASE_URL: &str = "https://app.everr.dev";
+
+#[cfg(debug_assertions)]
+pub const DEFAULT_DOCS_BASE_URL: &str = "http://localhost:3000";
+
+#[cfg(not(debug_assertions))]
+pub const DEFAULT_DOCS_BASE_URL: &str = "https://everr.dev";
+
+#[cfg(debug_assertions)]
+pub const DEFAULT_SESSION_FILE_NAME: &str = "session-dev.json";
+
+#[cfg(not(debug_assertions))]
+pub const DEFAULT_SESSION_FILE_NAME: &str = "session.json";
+
+pub const fn build_type_label() -> &'static str {
+    BUILD_TYPE_LABEL
+}
+
+pub fn command_name() -> &'static str {
+    use std::sync::OnceLock;
+    static NAME: OnceLock<&'static str> = OnceLock::new();
+    *NAME.get_or_init(|| {
+        let is_dev = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .map(|name| name.starts_with("everr-dev"))
+            .unwrap_or(false);
+        if is_dev { "everr-dev" } else { "everr" }
+    })
+}
+
+pub const fn default_api_base_url() -> &'static str {
+    DEFAULT_API_BASE_URL
+}
+
+pub const fn default_docs_base_url() -> &'static str {
+    DEFAULT_DOCS_BASE_URL
+}
+
+pub const fn default_session_file_name() -> &'static str {
+    DEFAULT_SESSION_FILE_NAME
+}
+
+pub const fn session_namespace() -> &'static str {
+    SESSION_NAMESPACE
+}
+
+#[cfg(debug_assertions)]
+const TELEMETRY_SUBDIR: &str = "telemetry-dev";
+
+#[cfg(not(debug_assertions))]
+const TELEMETRY_SUBDIR: &str = "telemetry";
+
+const TELEMETRY_DIR_OVERRIDE_ENV: &str = "EVERR_TELEMETRY_DIR";
+
+#[cfg(debug_assertions)]
+pub const OTLP_HTTP_PORT: u16 = 54318;
+
+#[cfg(not(debug_assertions))]
+pub const OTLP_HTTP_PORT: u16 = 54418;
+
+#[cfg(debug_assertions)]
+pub const SQL_HTTP_PORT: u16 = 54320;
+
+#[cfg(not(debug_assertions))]
+pub const SQL_HTTP_PORT: u16 = 54420;
+
+#[cfg(debug_assertions)]
+pub const LOCAL_UI_PORT: u16 = 54321;
+#[cfg(not(debug_assertions))]
+pub const LOCAL_UI_PORT: u16 = 54421;
+
+pub fn local_ui_origin() -> String {
+    #[cfg(debug_assertions)]
+    if let Ok(origin) = std::env::var("EVERR_LOCAL_UI_ORIGIN") {
+        return origin;
+    }
+    format!("http://127.0.0.1:{LOCAL_UI_PORT}")
+}
+
+/// Origin (scheme + host + port) for the local OTLP HTTP collector.
+/// Instrumented code points its OTLP HTTP exporter at this.
+pub fn otlp_http_origin() -> String {
+    #[cfg(debug_assertions)]
+    if let Ok(origin) = std::env::var("EVERR_OTLP_HTTP_ORIGIN") {
+        return origin;
+    }
+    format!("http://127.0.0.1:{OTLP_HTTP_PORT}")
+}
+
+/// Readiness endpoint served by the local collector's SQL HTTP listener.
+pub fn healthcheck_endpoint() -> String {
+    format!("{}/health", sql_http_origin().trim_end_matches('/'))
+}
+
+/// Origin for the local telemetry SQL HTTP endpoint served by the collector
+/// sidecar's `sqlhttp` extension. The `everr local` CLI targets this.
+pub fn sql_http_origin() -> String {
+    #[cfg(debug_assertions)]
+    if let Ok(origin) = std::env::var("EVERR_SQL_HTTP_ORIGIN") {
+        return origin;
+    }
+    format!("http://127.0.0.1:{SQL_HTTP_PORT}")
+}
+
+/// Resolve the local-only diagnostic telemetry directory for this build.
+///
+/// On macOS this is `~/Library/Application Support/everr/telemetry[-dev]/`.
+/// Debug builds resolve to
+/// `telemetry-dev/`; release builds resolve to `telemetry/`.
+///
+/// The local collector and CLI queries share this data directory.
+pub fn telemetry_dir() -> anyhow::Result<PathBuf> {
+    if let Ok(path) = std::env::var(TELEMETRY_DIR_OVERRIDE_ENV) {
+        if !path.trim().is_empty() {
+            return Ok(PathBuf::from(path));
+        }
+    }
+
+    let base = dirs::data_local_dir().context("failed to resolve user local data dir")?;
+    Ok(base.join(SESSION_NAMESPACE).join(TELEMETRY_SUBDIR))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        build_type_label, default_api_base_url, default_session_file_name, session_namespace,
+        telemetry_dir,
+    };
+
+    #[test]
+    fn debug_builds_use_local_defaults() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert_eq!(build_type_label(), "debug");
+        assert_eq!(default_api_base_url(), "http://localhost:5173");
+        assert_eq!(default_session_file_name(), "session-dev.json");
+        assert_eq!(session_namespace(), "everr");
+    }
+
+    #[test]
+    fn telemetry_dir_uses_everr_namespace_and_debug_subdir() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let dir = telemetry_dir().expect("resolve telemetry dir");
+        let components: Vec<String> = dir
+            .components()
+            .rev()
+            .take(2)
+            .map(|c: std::path::Component| c.as_os_str().to_string_lossy().into_owned())
+            .collect();
+        // On debug builds the last two components are `everr` then `telemetry-dev`.
+        assert_eq!(components[0], "telemetry-dev");
+        assert_eq!(components[1], "everr");
+    }
+
+    #[test]
+    fn otlp_http_origin_honors_debug_override() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        const KEY: &str = "EVERR_OTLP_HTTP_ORIGIN";
+        let previous = std::env::var_os(KEY);
+
+        unsafe {
+            std::env::set_var(KEY, "http://127.0.0.1:65529");
+        }
+
+        let origin = super::otlp_http_origin();
+
+        match previous {
+            Some(value) => unsafe {
+                std::env::set_var(KEY, value);
+            },
+            None => unsafe {
+                std::env::remove_var(KEY);
+            },
+        }
+
+        assert_eq!(origin, "http://127.0.0.1:65529");
+    }
+
+    #[test]
+    fn healthcheck_endpoint_uses_sql_origin() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        const KEY: &str = "EVERR_SQL_HTTP_ORIGIN";
+        let previous = std::env::var_os(KEY);
+
+        unsafe {
+            std::env::set_var(KEY, "http://127.0.0.1:65531");
+        }
+
+        let origin = super::healthcheck_endpoint();
+
+        match previous {
+            Some(value) => unsafe {
+                std::env::set_var(KEY, value);
+            },
+            None => unsafe {
+                std::env::remove_var(KEY);
+            },
+        }
+
+        assert_eq!(origin, "http://127.0.0.1:65531/health");
+    }
+
+    #[test]
+    fn sql_http_origin_honors_debug_override() {
+        let _guard = crate::test_support::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        const KEY: &str = "EVERR_SQL_HTTP_ORIGIN";
+        let previous = std::env::var_os(KEY);
+
+        unsafe {
+            std::env::set_var(KEY, "http://127.0.0.1:65530");
+        }
+
+        let origin = super::sql_http_origin();
+
+        match previous {
+            Some(value) => unsafe {
+                std::env::set_var(KEY, value);
+            },
+            None => unsafe {
+                std::env::remove_var(KEY);
+            },
+        }
+
+        assert_eq!(origin, "http://127.0.0.1:65530");
+    }
+}

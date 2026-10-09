@@ -107,7 +107,7 @@ the write boundary.
 object copies: the grant, a default-deny row policy, and
 per-organization policies from provisioning code. The caller-facing
 artifact is the skill file
-`crates/everr-core/assets/skills/everr-use-telemetry/rules/alert-history.md`.
+`packages/cli/assets/skills/everr-use-telemetry/rules/alert-history.md`.
 The permission transcript was verified on dev, including default deny
 returning zero rows before the per-organization policy exists.
 

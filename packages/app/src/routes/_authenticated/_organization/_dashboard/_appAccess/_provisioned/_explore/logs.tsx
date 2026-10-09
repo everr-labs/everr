@@ -1,34 +1,23 @@
 import {
   LogsExplorer,
   type LogsExplorerSearch,
-  LogsSearchFiltersShape,
+  LogsSearchSchema,
 } from "@everr/telemetry-explorer/logs";
 import { Button } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { FileSearch } from "lucide-react";
-import { z } from "zod";
 import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
 import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 import { runJobsOptions } from "@/data/runs/options";
-import { ExploreSearchShape } from "@/lib/explore-search";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
-
-const SearchSchema = TimeRangeSearchSchema.extend({
-  q: z.string().optional(),
-  ...LogsSearchFiltersShape,
-  ...ExploreSearchShape,
-  traceId: z.string().optional(),
-  showVolume: z.boolean().default(true),
-}).omit({ services: true });
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs",
 )({
   staticData: { breadcrumb: "Logs" },
   head: () => ({ meta: [{ title: "Everr - Logs" }] }),
-  validateSearch: SearchSchema,
+  validateSearch: LogsSearchSchema,
   component: LogsExplorerPage,
 });
 

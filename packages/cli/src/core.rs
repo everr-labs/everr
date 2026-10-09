@@ -1,0 +1,1173 @@
+use std::io::{self, IsTerminal, Write};
+
+use crate::git::{resolve_git_context, run_git};
+use anyhow::{Context, Result, bail};
+use serde::Serialize;
+use tokio::pin;
+
+use futures_util::StreamExt;
+
+use crate::api::{
+    ApiClient, NotifyPayload, ShowJob, ShowRunDetails, StepLogEntry, WatchRun, WatchState,
+};
+use crate::auth;
+use crate::cli::{
+    GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
+    TelemetryQueryArgs, WatchArgs,
+};
+use crate::command_telemetry;
+use crate::telemetry;
+
+fn resolve_commit(explicit: Option<String>, cwd: &std::path::Path) -> Result<String> {
+    match explicit {
+        Some(input) if looks_like_full_sha(&input) => Ok(input),
+        Some(input) => {
+            run_git(["rev-parse", &input], cwd).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "failed to resolve commit '{input}'; pass a full commit SHA or run from a git repository"
+                )
+            })
+        }
+        None => run_git(["rev-parse", "HEAD"], cwd).ok_or_else(|| {
+            anyhow::anyhow!(
+                "failed to resolve target commit; pass --commit <sha> or run from a git repository"
+            )
+        }),
+    }
+}
+
+fn looks_like_full_sha(input: &str) -> bool {
+    input.len() >= 40 && input.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+pub async fn status(args: StatusArgs) -> Result<()> {
+    let session = auth::require_session()?;
+    let client = ApiClient::from_session(&session)?;
+    let cwd = std::env::current_dir()?;
+    let git = resolve_git_context(&cwd);
+    let run_id_filter = args.run_id;
+    let resolve_from_git = run_id_filter.is_none();
+    let commit = if resolve_from_git {
+        Some(resolve_commit(args.commit, &cwd)?)
+    } else {
+        args.commit
+    };
+    let repo = args.repo.or(git.repo).ok_or_else(|| {
+        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
+    })?;
+    let branch = if resolve_from_git {
+        Some(
+            args.branch
+                .or(git.branch)
+                .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?,
+        )
+    } else {
+        args.branch
+    };
+
+    let mut query = vec![("repo", repo)];
+    if let Some(commit) = commit {
+        query.push(("commit", commit));
+    }
+    if let Some(branch) = branch {
+        query.push(("branch", branch));
+    }
+    if let Some(run_id) = run_id_filter {
+        query.push(("runId", run_id));
+    }
+    let payload = client.get_status(&query).await?;
+    print_json(&payload)?;
+    Ok(())
+}
+
+pub async fn cloud_query(args: TelemetryQueryArgs) -> Result<()> {
+    let session = auth::require_session()?;
+    let client = ApiClient::from_session(&session)?;
+    let body = client.post_sql(&args.sql).await?;
+    let rows = telemetry::client::parse_ndjson(&body)?;
+    let format = args.format.unwrap_or_else(|| {
+        if io::stdout().is_terminal() {
+            TelemetryFormat::Table
+        } else {
+            TelemetryFormat::Ndjson
+        }
+    });
+    telemetry::commands::render(&rows, format);
+    Ok(())
+}
+
+pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
+    let session = auth::require_session()?;
+    let client = ApiClient::from_session(&session)?;
+    let cwd = std::env::current_dir()?;
+    let git = resolve_git_context(&cwd);
+    let repo = args.repo.or(git.repo);
+    let branch = if args.current_branch {
+        args.branch.or(git.branch)
+    } else {
+        args.branch
+    };
+
+    let mut query: Vec<(&str, String)> = Vec::new();
+    push_opt(&mut query, "repo", repo);
+    push_opt(&mut query, "branch", branch);
+    push_opt(&mut query, "conclusion", args.conclusion);
+    push_opt(&mut query, "workflowName", args.workflow_name);
+    push_opt(&mut query, "runId", args.run_id);
+    push_pagination(&mut query, args.limit, args.offset);
+    push_opt(&mut query, "from", args.from);
+    push_opt(&mut query, "to", args.to);
+
+    let payload = client.get_runs_list(&query).await?;
+    print_json(&payload)?;
+    Ok(())
+}
+
+pub async fn runs_show(args: ShowRunArgs) -> Result<()> {
+    let session = auth::require_session()?;
+    let client = ApiClient::from_session(&session)?;
+    let mut query = vec![];
+    if args.failed {
+        query.push(("failed", "true".to_string()));
+    }
+    let payload = client.get_run_details(&args.trace_id, &query).await?;
+    print_json(&payload)?;
+    Ok(())
+}
+
+pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
+    let session = auth::require_session()?;
+    let client = ApiClient::from_session(&session)?;
+    let paging = args.paging();
+    let (job_filter, step_number) = resolve_logs_job(&client, &args).await?;
+    let mut query: Vec<(&str, String)> = vec![("stepNumber", step_number)];
+    match job_filter {
+        LogsJobFilter::ByName(name) => query.push(("jobName", name)),
+        LogsJobFilter::ById(id) => query.push(("jobId", id)),
+    }
+    push_opt(&mut query, "egrep", args.egrep.clone());
+
+    if let Some(paging) = paging {
+        let paged_logs = get_paged_step_logs(&client, &args.trace_id, query, paging).await?;
+        print_step_logs(&paged_logs.logs, args.color)?;
+        if paged_logs.has_more {
+            print_more_logs_notice(paged_logs.page_size, paged_logs.next_offset)?;
+        }
+        if args.egrep.is_some() && paged_logs.logs.is_empty() {
+            command_telemetry::exit(1);
+        }
+        return Ok(());
+    }
+
+    let tail_lines = args.tail.unwrap_or(1000);
+    query.push(("tail", tail_lines.to_string()));
+    if let Some(offset) = args.offset {
+        query.push(("offset", offset.to_string()));
+    }
+
+    let response = client.get_step_logs(&args.trace_id, &query).await?;
+    print_step_logs(&response.logs, args.color)?;
+    if args.egrep.is_some() && response.logs.is_empty() {
+        command_telemetry::exit(1);
+    }
+    Ok(())
+}
+
+pub async fn watch(args: WatchArgs) -> Result<()> {
+    use std::collections::{HashMap, HashSet};
+
+    let session = auth::require_session()?;
+    let client = ApiClient::from_session(&session)?;
+    let cwd = std::env::current_dir()?;
+    let git = resolve_git_context(&cwd);
+    let explicit_commit = args.commit.is_some();
+    let run_id_filter = args.run_id.clone();
+    let target_commit = if explicit_commit || run_id_filter.is_none() {
+        Some(resolve_commit(args.commit, &cwd)?)
+    } else {
+        None
+    };
+    let repo = args.repo.or(git.repo).ok_or_else(|| {
+        anyhow::anyhow!("failed to resolve repository; provide --repo (for example: owner/name)")
+    })?;
+    let branch = if target_commit.is_none() {
+        args.branch
+    } else if explicit_commit {
+        args.branch
+    } else {
+        Some(
+            args.branch
+                .or(git.branch)
+                .ok_or_else(|| anyhow::anyhow!("failed to resolve branch; provide --branch"))?,
+        )
+    };
+
+    let mut query = vec![("repo", repo.clone())];
+    if let Some(ref commit) = target_commit {
+        query.push(("commit", commit.clone()));
+    }
+    if let Some(ref b) = branch {
+        query.push(("branch", b.clone()));
+    }
+    if let Some(attempt) = args.attempt {
+        query.push(("attempt", attempt.to_string()));
+    }
+    if let Some(ref run_id) = run_id_filter {
+        query.push(("runId", run_id.clone()));
+    }
+
+    let initial = client.get_status(&query).await?;
+
+    if matches!(initial.state, WatchState::Completed) {
+        return check_run_conclusions(&initial.completed);
+    }
+
+    if initial.active.is_empty() && initial.completed.is_empty() {
+        let branch_part = branch
+            .as_deref()
+            .map(|b| format!("  branch: {b}"))
+            .unwrap_or_default();
+        let commit_part = target_commit
+            .as_deref()
+            .map(|commit| format!("  commit: {commit}"))
+            .unwrap_or_default();
+        let run_id_part = run_id_filter
+            .as_deref()
+            .map(|run_id| format!("  run-id: {run_id}"))
+            .unwrap_or_default();
+        println!(
+            "no runs found yet, waiting...  [repo: {repo}{commit_part}{branch_part}{run_id_part}]"
+        );
+    }
+
+    if args.fail_fast {
+        if let Some(run) = initial
+            .completed
+            .iter()
+            .find(|r| is_non_success_conclusion(r.conclusion.as_deref()))
+        {
+            bail!("run failed: {}", run.workflow_name);
+        }
+    }
+
+    // Print backfill lines for already-known state
+    for run in &initial.active {
+        for job in &run.active_jobs {
+            println!("{} → {}  in_progress", run.workflow_name, job);
+        }
+    }
+    for run in &initial.completed {
+        let conclusion = run.conclusion.as_deref().unwrap_or("completed");
+        println!("Run completed: {}  {}", run.workflow_name, conclusion);
+    }
+
+    if !initial.active.is_empty() {
+        let names: Vec<&str> = initial
+            .active
+            .iter()
+            .map(|r| r.workflow_name.as_str())
+            .collect();
+        println!("  waiting for: {}", names.join(", "));
+    }
+
+    // Track run states
+    let mut known: HashSet<String> = initial
+        .active
+        .iter()
+        .chain(initial.completed.iter())
+        .map(|r| r.trace_id.clone())
+        .collect();
+    let mut terminal: HashSet<String> = initial
+        .completed
+        .iter()
+        .map(|r| r.trace_id.clone())
+        .collect();
+    let mut conclusions: HashMap<String, Option<String>> = initial
+        .completed
+        .iter()
+        .map(|r| (r.trace_id.clone(), r.conclusion.clone()))
+        .collect();
+    let mut run_names: HashMap<String, String> = initial
+        .active
+        .iter()
+        .chain(initial.completed.iter())
+        .map(|r| (r.trace_id.clone(), r.workflow_name.clone()))
+        .collect();
+
+    let stream_trace_id = initial
+        .active
+        .first()
+        .or_else(|| initial.completed.first())
+        .map(|run| run.trace_id.clone());
+    let (stream_scope, stream_key) = match (run_id_filter.as_ref(), stream_trace_id, target_commit)
+    {
+        (Some(_), Some(trace_id), _) => ("trace", Some(trace_id)),
+        (Some(_), None, Some(commit)) => ("commit", Some(commit)),
+        (Some(_), None, None) => ("tenant", None),
+        (None, _, Some(commit)) => ("commit", Some(commit)),
+        (None, _, None) => {
+            bail!(
+                "failed to resolve target commit; pass --commit <sha> or run from a git repository"
+            )
+        }
+    };
+    let event_stream = client
+        .events_stream(stream_scope, stream_key.as_deref())
+        .await?;
+    pin!(event_stream);
+
+    loop {
+        match event_stream.next().await {
+            Some(Ok(event)) => match event.event_type.as_str() {
+                "job" => {
+                    if run_id_filter.as_deref() != Some(event.run_id.as_str())
+                        && run_id_filter.is_some()
+                    {
+                        continue;
+                    }
+                    println!("{}", format_watch_event_line(&event));
+                }
+                "run" => {
+                    if run_id_filter.as_deref() != Some(event.run_id.as_str())
+                        && run_id_filter.is_some()
+                    {
+                        continue;
+                    }
+                    known.insert(event.trace_id.clone());
+                    run_names.insert(event.trace_id.clone(), event.workflow_name.clone());
+                    if event.status == "completed" {
+                        println!("{}", format_watch_event_line(&event));
+                        if args.fail_fast && is_non_success_conclusion(event.conclusion.as_deref())
+                        {
+                            bail!("run failed: {}", event.name);
+                        }
+                        conclusions.insert(event.trace_id.clone(), event.conclusion.clone());
+                        terminal.insert(event.trace_id.clone());
+                        let pending: Vec<&str> = known
+                            .iter()
+                            .filter(|id| !terminal.contains(*id))
+                            .filter_map(|id| run_names.get(id).map(|s| s.as_str()))
+                            .collect();
+                        if !pending.is_empty() {
+                            println!("  waiting for: {}", pending.join(", "));
+                        }
+                    }
+                    if !known.is_empty() && terminal.is_superset(&known) {
+                        let final_status = client.get_status(&query).await?;
+                        return check_run_conclusions(&final_status.completed);
+                    }
+                }
+                _ => {}
+            },
+            Some(Err(e)) => return Err(e),
+            None => {
+                // Stream closed — final poll to handle the race between initial status and stream open
+                let final_status = client.get_status(&query).await?;
+                if matches!(final_status.state, WatchState::Completed) {
+                    return check_run_conclusions(&final_status.completed);
+                }
+                bail!("SSE connection closed unexpectedly");
+            }
+        }
+    }
+}
+
+fn format_watch_event_line(event: &NotifyPayload) -> String {
+    let status = if event.status == "completed" {
+        event
+            .conclusion
+            .as_deref()
+            .unwrap_or("completed")
+            .to_string()
+    } else {
+        event.status.clone()
+    };
+    if event.event_type == "job" {
+        format!("{} → {}  {}", event.workflow_name, event.name, status)
+    } else {
+        format!("Run completed: {}  {}", event.name, status)
+    }
+}
+
+fn is_non_success_conclusion(conclusion: Option<&str>) -> bool {
+    matches!(
+        conclusion,
+        Some("failure") | Some("timed_out") | Some("startup_failure") | Some("action_required")
+    )
+}
+
+fn print_watch_summary(completed: &[WatchRun]) {
+    println!("--");
+    for run in completed {
+        let conclusion = run.conclusion.as_deref().unwrap_or("unknown");
+        let duration = run
+            .duration_seconds
+            .map(|s| {
+                if s >= 60 {
+                    format!("{}m {:02}s", s / 60, s % 60)
+                } else {
+                    format!("{}s", s)
+                }
+            })
+            .unwrap_or_default();
+        if duration.is_empty() {
+            println!("{} | {}", run.workflow_name, conclusion);
+        } else {
+            println!("{} | {} | {}", run.workflow_name, conclusion, duration);
+        }
+        for job in &run.failing_jobs {
+            if let Some(step) = &job.first_failing_step {
+                println!(
+                    "  {} → step {}: {}",
+                    job.name, step.step_number, step.step_name
+                );
+                println!(
+                    "  everr ci logs {} --job-name {:?} --step-number {}",
+                    run.trace_id, job.name, step.step_number
+                );
+            } else {
+                println!("  {}", job.name);
+                println!("  everr ci logs {} --job-name {:?}", run.trace_id, job.name);
+            }
+        }
+    }
+}
+
+fn check_run_conclusions(completed: &[WatchRun]) -> Result<()> {
+    print_watch_summary(completed);
+    if completed
+        .iter()
+        .any(|r| is_non_success_conclusion(r.conclusion.as_deref()))
+    {
+        bail!("pipeline finished with failed runs");
+    }
+    Ok(())
+}
+
+enum LogsJobFilter {
+    ByName(String),
+    ById(String),
+}
+
+async fn resolve_logs_job(
+    client: &ApiClient,
+    args: &GetLogsArgs,
+) -> Result<(LogsJobFilter, String)> {
+    // Fast paths: both identifier and step number are known — no API call needed
+    if let (Some(name), Some(step)) = (args.job_name.as_deref(), args.step_number.as_deref()) {
+        return Ok((LogsJobFilter::ByName(name.to_string()), step.to_string()));
+    }
+    if let (Some(id), Some(step)) = (args.job_id.as_deref(), args.step_number.as_deref()) {
+        return Ok((LogsJobFilter::ById(id.to_string()), step.to_string()));
+    }
+
+    // Need run details to resolve the failing step via --log-failed.
+    // Only pass ?failed=true when --log-failed is set; otherwise all jobs are visible.
+    let details_query: Vec<(&str, String)> = if args.log_failed {
+        vec![("failed", "true".to_string())]
+    } else {
+        vec![]
+    };
+    let details = client
+        .get_run_details(&args.trace_id, &details_query)
+        .await?;
+    let show: ShowRunDetails =
+        serde_json::from_value(details).context("failed to parse run details")?;
+
+    let job: &ShowJob = match (args.job_name.as_deref(), args.job_id.as_deref()) {
+        (Some(name), _) => show
+            .jobs
+            .iter()
+            .find(|j| j.name == name)
+            .ok_or_else(|| anyhow::anyhow!("no job found matching {:?}", name))?,
+        (_, Some(id)) => show
+            .jobs
+            .iter()
+            .find(|j| j.job_id.as_deref() == Some(id))
+            .ok_or_else(|| anyhow::anyhow!("no job found matching {:?}", id))?,
+        _ => unreachable!("clap ensures job_name or job_id is always present"),
+    };
+
+    let step = job
+        .first_failing_step
+        .ok_or_else(|| anyhow::anyhow!("no failing step found for job {:?}", job.name))?
+        .to_string();
+
+    // Prefer job_id when it was provided — avoids duplicate display-name issues
+    let filter = match args.job_id.as_deref() {
+        Some(id) => LogsJobFilter::ById(id.to_string()),
+        None => LogsJobFilter::ByName(job.name.clone()),
+    };
+
+    Ok((filter, step))
+}
+
+fn print_json<T: Serialize>(value: &T) -> Result<()> {
+    println!("{}", serde_json::to_string_pretty(value)?);
+    Ok(())
+}
+
+fn print_step_logs(logs: &[StepLogEntry], color: bool) -> Result<()> {
+    let stdout = io::stdout();
+    let mut handle = stdout.lock();
+    write_step_logs(&mut handle, logs, color)?;
+    handle.flush().context("failed to flush step log output")
+}
+
+fn strip_ansi_codes(s: &str) -> std::borrow::Cow<'_, str> {
+    if !s.contains('\x1b') {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    match strip_ansi_escapes::strip_str(s) {
+        stripped if stripped == s => std::borrow::Cow::Borrowed(s),
+        stripped => std::borrow::Cow::Owned(stripped),
+    }
+}
+
+fn write_step_logs(mut writer: impl Write, logs: &[StepLogEntry], color: bool) -> Result<()> {
+    for log in logs {
+        let body: std::borrow::Cow<'_, str> = if color {
+            std::borrow::Cow::Borrowed(&log.body)
+        } else {
+            strip_ansi_codes(&log.body)
+        };
+        writer
+            .write_all(body.as_bytes())
+            .context("failed to write step log body")?;
+        if !body.ends_with('\n') {
+            writer
+                .write_all(b"\n")
+                .context("failed to terminate step log line")?;
+        }
+    }
+
+    Ok(())
+}
+
+fn print_more_logs_notice(page_size: u32, next_offset: u32) -> Result<()> {
+    let mut stderr = io::stderr().lock();
+    writeln!(
+        stderr,
+        "More logs available. Rerun with --limit {page_size} --offset {next_offset} to continue."
+    )
+    .context("failed to write step log pagination hint")?;
+    stderr
+        .flush()
+        .context("failed to flush step log pagination hint")
+}
+
+async fn get_paged_step_logs(
+    client: &ApiClient,
+    trace_id: &str,
+    mut query: Vec<(&str, String)>,
+    paging: LogPagingArgs,
+) -> Result<PagedStepLogs> {
+    query.push(("limit", paging.limit.saturating_add(1).to_string()));
+    query.push(("offset", paging.offset.to_string()));
+
+    let response = client.get_step_logs(trace_id, &query).await?;
+    let mut logs = response.logs;
+    let has_more = logs.len() > paging.limit as usize;
+    if has_more {
+        logs.truncate(paging.limit as usize);
+    }
+
+    Ok(PagedStepLogs {
+        logs,
+        has_more,
+        page_size: paging.limit,
+        next_offset: paging.offset.saturating_add(paging.limit),
+    })
+}
+
+struct PagedStepLogs {
+    logs: Vec<StepLogEntry>,
+    has_more: bool,
+    page_size: u32,
+    next_offset: u32,
+}
+
+fn push_opt(query: &mut Vec<(&str, String)>, key: &'static str, value: Option<String>) {
+    if let Some(v) = value {
+        query.push((key, v));
+    }
+}
+
+fn push_pagination(query: &mut Vec<(&str, String)>, limit: u32, offset: u32) {
+    query.push(("limit", limit.to_string()));
+    query.push(("offset", offset.to_string()));
+}
+
+/// Renders a cliclack prompt like a warning — a yellow `▲` and matching side
+/// bar — to flag that a live apply is about to write. Scoped around the live
+/// confirmation via `set_theme`/`reset_theme`.
+struct WarnTheme;
+
+impl cliclack::Theme for WarnTheme {
+    fn bar_color(&self, state: &cliclack::ThemeState) -> console::Style {
+        use cliclack::ThemeState::*;
+        match state {
+            Active | Error(_) => console::Style::new().yellow(),
+            Cancel => console::Style::new().red(),
+            Submit => console::Style::new().bright().black(),
+        }
+    }
+
+    fn state_symbol(&self, state: &cliclack::ThemeState) -> String {
+        use cliclack::ThemeState::*;
+        let symbol = match state {
+            Active | Error(_) => console::Emoji("▲", "x"),
+            Cancel => console::Emoji("■", "x"),
+            Submit => console::Emoji("◇", "o"),
+        };
+        self.state_symbol_color(state).apply_to(symbol).to_string()
+    }
+}
+
+/// Build an API client using the same credential precedence as apply: an
+/// `EVERR_API_KEY` (or deprecated `EVERR_API_TOKEN`) in the environment wins
+/// (CI); otherwise fall back to the logged-in session (`cloud login`).
+fn build_api_client() -> anyhow::Result<crate::api::ApiClient> {
+    let token_env = std::env::var("EVERR_API_KEY")
+        .ok()
+        .filter(|t| !t.is_empty())
+        .map(|t| ("EVERR_API_KEY", t))
+        .or_else(|| {
+            std::env::var("EVERR_API_TOKEN")
+                .ok()
+                .filter(|t| !t.is_empty())
+                .map(|t| ("EVERR_API_TOKEN", t))
+        });
+    match token_env {
+        Some((var_name, token)) => {
+            let base_url = std::env::var("EVERR_API_URL")
+                .ok()
+                .filter(|u| !u.is_empty())
+                .or_else(persisted_api_base_url)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("{var_name} is set but no base URL; set EVERR_API_URL")
+                })?;
+            crate::api::ApiClient::from_token(&base_url, &token)
+        }
+        None => {
+            let session = crate::auth::require_session()?;
+            crate::api::ApiClient::from_session(&session)
+        }
+    }
+}
+
+pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Result<()> {
+    use crate::cli::ResourcesSubcommand as R;
+    // `everr resources` targets the session-authenticated /api/cli routes, so it
+    // uses the logged-in session only. Unlike `apply`, it does NOT accept
+    // EVERR_API_KEY (those routes have no API-key path), so authenticate with the
+    // session directly rather than via apply's token-first `build_api_client`.
+    let session = crate::auth::require_session()?;
+    let client = crate::api::ApiClient::from_session(&session)?;
+    match cmd {
+        R::List(args) => resources_list(&client, args).await,
+        R::Show(args) => resources_show(&client, args).await,
+        R::Delete(args) => resources_delete(&client, args).await,
+        R::Adopt(args) => resources_adopt(&client, args).await,
+    }
+}
+
+/// Resolve this repository's repoid from `dir` (manifest, else inferred origin
+/// remote), the same precedence as `apply` (both funnel into `resolve_repoid`).
+fn resolve_repoid_for_dir(dir: &std::path::Path) -> anyhow::Result<String> {
+    let remote = crate::apply::origin_remote(dir);
+    crate::apply::resolve_repoid(dir, remote.as_deref())
+}
+
+async fn resources_list(
+    client: &crate::api::ApiClient,
+    args: crate::cli::ResourcesListArgs,
+) -> anyhow::Result<()> {
+    let kind = args.kind.map(|k| k.as_str());
+    let resources = client.list_resources(kind, args.repoid.as_deref()).await?;
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&resources)?);
+        return Ok(());
+    }
+    if resources.is_empty() {
+        println!("No resources.");
+        return Ok(());
+    }
+    // Best-effort repoid for the current directory, used only to star "this
+    // repo's" rows.
+    let mine = resolve_repoid_for_dir(std::path::Path::new(".")).ok();
+    println!(
+        "{:<10}  {:<10}  {:<28}  {:<24}  UPDATED",
+        "KIND", "PROJECT", "SLUG", "REPOID"
+    );
+    for r in &resources {
+        let repoid: &str = if r.repoid.is_empty() {
+            "(ui)"
+        } else {
+            &r.repoid
+        };
+        let star = match &mine {
+            Some(m) if *m == r.repoid && !r.repoid.is_empty() => "*",
+            _ => " ",
+        };
+        println!(
+            "{star}{:<9}  {:<10}  {:<28}  {:<24}  {}",
+            r.kind, r.project, r.slug, repoid, r.updated_at
+        );
+    }
+    if mine.is_some() {
+        println!("\n* owned by this repository");
+    }
+    Ok(())
+}
+
+async fn resources_show(
+    client: &crate::api::ApiClient,
+    args: crate::cli::ResourcesShowArgs,
+) -> anyhow::Result<()> {
+    let document = client
+        .get_resource(args.kind.as_str(), &args.project, &args.slug)
+        .await?;
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&document)?);
+    } else {
+        print!("{}", serde_yaml::to_string(&document)?);
+    }
+    Ok(())
+}
+
+async fn resources_delete(
+    client: &crate::api::ApiClient,
+    args: crate::cli::ResourcesDeleteArgs,
+) -> anyhow::Result<()> {
+    let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
+    client
+        .delete_resource(args.kind.as_str(), &args.project, &args.slug)
+        .await?;
+    println!("Deleted {target}.");
+    println!(
+        "note: if this resource is still defined in your as-code tree, the next `everr apply` will recreate it."
+    );
+    Ok(())
+}
+
+async fn resources_adopt(
+    client: &crate::api::ApiClient,
+    args: crate::cli::ResourcesTargetArgs,
+) -> anyhow::Result<()> {
+    let repoid = resolve_repoid_for_dir(std::path::Path::new("."))?;
+
+    let target = format!("{}/{}/{}", args.kind.as_str(), args.project, args.slug);
+    if !confirm_action(
+        format!("Adopt {target} into «{repoid}»?"),
+        args.yes,
+        false,
+        "refusing to proceed without confirmation; re-run with --yes".into(),
+    )? {
+        println!("Aborted.");
+        return Ok(());
+    }
+    let outcome = client
+        .adopt_resource(args.kind.as_str(), &args.project, &args.slug, &repoid)
+        .await?;
+    if outcome.already_owned {
+        println!("{target} is already owned by «{repoid}». Nothing to do.");
+        return Ok(());
+    }
+    println!("Adopted {target} into «{repoid}».");
+    println!(
+        "note: if this resource is not in your local tree, the next `everr apply` will delete it.\n      save it first: everr resources show {} {} --project {} > everr/{}.{}.yaml",
+        args.kind.as_str(),
+        args.slug,
+        args.project,
+        args.slug,
+        args.kind.as_str()
+    );
+    Ok(())
+}
+
+/// Gate a destructive action behind confirmation: `--yes` skips the prompt,
+/// interactive terminals ask (warning-styled when `warn`), and non-interactive
+/// contexts refuse with `refusal`.
+fn confirm_action(
+    question: String,
+    yes: bool,
+    warn: bool,
+    refusal: String,
+) -> anyhow::Result<bool> {
+    if yes {
+        return Ok(true);
+    }
+    if !(std::io::stdin().is_terminal() && std::io::stdout().is_terminal()) {
+        anyhow::bail!(refusal);
+    }
+    if warn {
+        cliclack::set_theme(WarnTheme);
+    }
+    let proceed = cliclack::confirm(question).interact();
+    if warn {
+        cliclack::reset_theme();
+    }
+    Ok(proceed?)
+}
+
+pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
+    use crate::apply::{
+        ApplyRequest, classify_documents, detect_git_source, load_apply_manifest,
+        load_resource_documents, resolve_preview_name, resolve_repoid,
+    };
+
+    let dir = std::path::Path::new(&args.dir);
+    if !dir.is_dir() {
+        anyhow::bail!("{} is not a directory", args.dir);
+    }
+    // The repoid (apply ownership boundary) comes from everr.yaml when
+    // present, else from the normalized origin remote that detect_git_source
+    // already read (one git invocation; the shipped source.remote and the
+    // inferred repoid are the same string). Resolve it before parsing
+    // resources so unrelated YAML errors cannot hide a missing identity.
+    let source = detect_git_source(dir);
+    let repoid = resolve_repoid(dir, source.as_ref().and_then(|s| s.remote.as_deref()))?;
+    let repoid_origin = if load_apply_manifest(dir)?.is_some() {
+        "everr.yaml"
+    } else {
+        "inferred from origin remote"
+    };
+    println!("Repoid: {repoid} ({repoid_origin})");
+    let documents = load_resource_documents(dir)?;
+    if documents.is_empty() {
+        eprintln!(
+            "warning: no resource files (.yaml/.yml/.json) found under {}",
+            args.dir
+        );
+    }
+
+    let state = classify_documents(documents)?.into_wire();
+    let preview = match args.preview.as_deref() {
+        Some(flag) => Some(resolve_preview_name(dir, flag)?),
+        None => None,
+    };
+
+    let client = build_api_client()?;
+
+    // Plan first (dry run) to learn the destination org and the change set.
+    let plan = client
+        .apply(&ApplyRequest {
+            repoid: repoid.clone(),
+            state: state.clone(),
+            source: source.clone(),
+            preview: preview.clone(),
+            dry_run: true,
+            adopt: args.adopt,
+        })
+        .await?;
+    print_apply_summary(&plan, true);
+
+    if args.dry_run {
+        return Ok(());
+    }
+
+    let has_changes = plan
+        .results
+        .iter()
+        .any(|r| !r.created.is_empty() || !r.updated.is_empty() || !r.deleted.is_empty());
+    if !has_changes {
+        println!("Nothing to apply.");
+        return Ok(());
+    }
+
+    // Previews are cheap and disposable, so they apply without confirmation.
+    // A live apply is the real thing: gate it behind an explicit, warning-styled
+    // confirmation.
+    if preview.is_none() {
+        let org = console::style(&plan.organization.name).color256(208).bold();
+        if !confirm_action(
+            format!("Are you sure you want to apply this change to {org}?"),
+            args.yes,
+            true,
+            format!(
+                "refusing to apply to {} without confirmation; re-run with --yes",
+                plan.organization.name
+            ),
+        )? {
+            println!("Aborted.");
+            return Ok(());
+        }
+    }
+
+    let summary = client
+        .apply(&ApplyRequest {
+            repoid,
+            state,
+            source,
+            preview: preview.clone(),
+            dry_run: false,
+            adopt: args.adopt,
+        })
+        .await?;
+    print_apply_summary(&summary, false);
+    if let Some(name) = &preview {
+        let url = format!(
+            "{}/dashboards?preview={}",
+            client.base_url(),
+            percent_encode(name)
+        );
+        println!("Preview: {}", preview_link(&url));
+    }
+    Ok(())
+}
+
+/// Render a URL as a clickable terminal hyperlink (OSC 8). A bare printed URL is
+/// only clickable if the terminal happens to auto-detect it — many don't, or
+/// mangle the `?`/`%2F` query — so we emit an explicit hyperlink instead. Falls
+/// back to the plain URL when stdout isn't a TTY (pipes, CI) or NO_COLOR is set,
+/// so scripts still get a clean, copyable address.
+fn preview_link(url: &str) -> String {
+    if std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none() {
+        osc8_hyperlink(url)
+    } else {
+        url.to_string()
+    }
+}
+
+/// Wrap a URL in an OSC 8 hyperlink escape, using the URL itself as the visible
+/// text so it stays readable and copyable in terminals that don't support OSC 8.
+fn osc8_hyperlink(url: &str) -> String {
+    format!("\x1b]8;;{url}\x1b\\{url}\x1b]8;;\x1b\\")
+}
+
+/// Minimal RFC 3986 query-component encoding for the preview deep link.
+fn percent_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+fn print_apply_summary(summary: &crate::apply::ApplySummary, plan: bool) {
+    let label = if plan { "(plan) " } else { "" };
+    println!("{label}Destination org: «{}»", summary.organization.name);
+    for r in &summary.results {
+        println!(
+            "{label}{}: {} created, {} updated, {} deleted{}",
+            r.kind,
+            r.created.len(),
+            r.updated.len(),
+            r.deleted.len(),
+            if r.adopted.is_empty() {
+                String::new()
+            } else {
+                format!(", {} adopted", r.adopted.len())
+            }
+        );
+        for s in &r.created {
+            println!("  + {s}");
+        }
+        for s in &r.updated {
+            println!("  ~ {s}");
+        }
+        for s in &r.deleted {
+            println!("  - {s}");
+        }
+        for s in &r.adopted {
+            println!("  ⇄ {s}");
+        }
+        if let Some(note) = &r.note {
+            println!("  note: {note}");
+        }
+    }
+}
+
+fn persisted_api_base_url() -> Option<String> {
+    let store = crate::auth::session_store();
+    // We load whatever session is persisted and return its base URL.
+    // `load_session` (without a filter) loads the most-recently saved session.
+    store
+        .load_session()
+        .ok()
+        .map(|session| session.api_base_url)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::git::parse_repo_from_remote_url;
+
+    use crate::api::StepLogEntry;
+
+    use super::{LogPagingArgs, push_opt, push_pagination};
+
+    #[test]
+    fn format_watch_event_line_formats_job_event() {
+        use crate::api::NotifyPayload;
+        let event = NotifyPayload {
+            tenant_id: "1".to_string(),
+            trace_id: "t1".to_string(),
+            run_id: "42".to_string(),
+            sha: "abc".to_string(),
+            repo: "org/repo".to_string(),
+            branch: "main".to_string(),
+            author_email: None,
+            workflow_name: "CI".to_string(),
+            name: "build".to_string(),
+            event_type: "job".to_string(),
+            status: "in_progress".to_string(),
+            conclusion: None,
+            job_id: Some(1),
+        };
+        assert_eq!(
+            super::format_watch_event_line(&event),
+            "CI → build  in_progress"
+        );
+    }
+
+    #[test]
+    fn format_watch_event_line_formats_run_event() {
+        use crate::api::NotifyPayload;
+        let event = NotifyPayload {
+            tenant_id: "1".to_string(),
+            trace_id: "t1".to_string(),
+            run_id: "42".to_string(),
+            sha: "abc".to_string(),
+            repo: "org/repo".to_string(),
+            branch: "main".to_string(),
+            author_email: None,
+            workflow_name: "CI".to_string(),
+            name: "CI".to_string(),
+            event_type: "run".to_string(),
+            status: "completed".to_string(),
+            conclusion: Some("success".to_string()),
+            job_id: None,
+        };
+        assert_eq!(
+            super::format_watch_event_line(&event),
+            "Run completed: CI  success"
+        );
+    }
+
+    #[test]
+    fn percent_encode_escapes_slashes_in_branch_names() {
+        assert_eq!(
+            super::percent_encode("gio/apply-previews"),
+            "gio%2Fapply-previews"
+        );
+        assert_eq!(super::percent_encode("a b&c"), "a%20b%26c");
+        assert_eq!(super::percent_encode("safe-_.~AZ09"), "safe-_.~AZ09");
+    }
+
+    #[test]
+    fn osc8_hyperlink_wraps_url_as_clickable_link() {
+        assert_eq!(
+            super::osc8_hyperlink("https://app.everr.dev/dashboards?preview=x"),
+            "\x1b]8;;https://app.everr.dev/dashboards?preview=x\x1b\\https://app.everr.dev/dashboards?preview=x\x1b]8;;\x1b\\"
+        );
+    }
+
+    #[test]
+    fn is_non_success_conclusion_returns_true_for_failure() {
+        assert!(super::is_non_success_conclusion(Some("failure")));
+        assert!(super::is_non_success_conclusion(Some("timed_out")));
+        assert!(super::is_non_success_conclusion(Some("startup_failure")));
+        assert!(super::is_non_success_conclusion(Some("action_required")));
+    }
+
+    #[test]
+    fn is_non_success_conclusion_returns_false_for_success() {
+        assert!(!super::is_non_success_conclusion(Some("success")));
+        assert!(!super::is_non_success_conclusion(Some("skipped")));
+        assert!(!super::is_non_success_conclusion(Some("cancelled")));
+        assert!(!super::is_non_success_conclusion(None));
+    }
+
+    #[test]
+    fn print_step_logs_terminates_lines_without_trailing_newlines() {
+        let logs = vec![
+            StepLogEntry {
+                timestamp: "2026-03-10T10:00:00.000Z".to_string(),
+                body: "first".to_string(),
+            },
+            StepLogEntry {
+                timestamp: "2026-03-10T10:00:01.000Z".to_string(),
+                body: "second\n".to_string(),
+            },
+        ];
+
+        let mut output = Vec::new();
+        super::write_step_logs(&mut output, &logs, false).expect("write step logs");
+
+        assert_eq!(String::from_utf8(output).expect("utf8"), "first\nsecond\n");
+    }
+
+    #[test]
+    fn write_step_logs_strips_ansi_codes_by_default() {
+        let logs = vec![StepLogEntry {
+            timestamp: "2026-03-10T10:00:00.000Z".to_string(),
+            body: "\x1b[32mgreen text\x1b[0m".to_string(),
+        }];
+
+        let mut output = Vec::new();
+        super::write_step_logs(&mut output, &logs, false).expect("write step logs");
+
+        assert_eq!(String::from_utf8(output).expect("utf8"), "green text\n");
+    }
+
+    #[test]
+    fn write_step_logs_preserves_ansi_codes_when_color_enabled() {
+        let logs = vec![StepLogEntry {
+            timestamp: "2026-03-10T10:00:00.000Z".to_string(),
+            body: "\x1b[32mgreen text\x1b[0m".to_string(),
+        }];
+
+        let mut output = Vec::new();
+        super::write_step_logs(&mut output, &logs, true).expect("write step logs");
+
+        assert_eq!(
+            String::from_utf8(output).expect("utf8"),
+            "\x1b[32mgreen text\x1b[0m\n"
+        );
+    }
+
+    #[test]
+    fn paged_logs_notice_uses_next_requested_offset() {
+        let paging = LogPagingArgs {
+            limit: 1000,
+            offset: 2000,
+        };
+
+        assert_eq!(paging.offset.saturating_add(paging.limit), 3000);
+    }
+
+    #[test]
+    fn parse_repo_from_remote_rejects_invalid_values() {
+        assert_eq!(
+            parse_repo_from_remote_url("https://github.com/everr-app"),
+            None
+        );
+        assert_eq!(parse_repo_from_remote_url("everr-app"), None);
+        assert_eq!(parse_repo_from_remote_url(""), None);
+    }
+
+    #[test]
+    fn push_opt_only_includes_present_values() {
+        let mut query = Vec::new();
+        push_opt(&mut query, "repo", Some("everr-labs/everr".to_string()));
+        push_opt(&mut query, "branch", None);
+
+        assert_eq!(query, vec![("repo", "everr-labs/everr".to_string())]);
+    }
+
+    #[test]
+    fn push_pagination_always_includes_limit_and_offset() {
+        let mut query = Vec::new();
+        push_pagination(&mut query, 25, 50);
+
+        assert_eq!(
+            query,
+            vec![("limit", "25".to_string()), ("offset", "50".to_string())]
+        );
+    }
+}

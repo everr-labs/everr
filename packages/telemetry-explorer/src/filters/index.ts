@@ -1,3 +1,4 @@
+export { ExploreSearchSchema, ExploreSearchShape } from "./explore-search";
 export {
   countPersistentFilters,
   ExploreGlobalFilters,

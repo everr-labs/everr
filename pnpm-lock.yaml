@@ -371,90 +371,24 @@ importers:
         specifier: ^5.2.0
         version: 5.2.0(typescript@6.0.3)(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
 
+  packages/cli:
+    dependencies:
+      zx:
+        specifier: ^8.8.5
+        version: 8.8.5
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.2
+        version: 25.6.2
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   packages/datemath:
     devDependencies:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
-
-  packages/desktop-app:
-    dependencies:
-      '@everr/otel-web':
-        specifier: workspace:*
-        version: link:../otel-web
-      '@everr/telemetry-explorer':
-        specifier: workspace:*
-        version: link:../telemetry-explorer
-      '@everr/ui':
-        specifier: workspace:*
-        version: link:../ui
-      '@tanstack/react-query':
-        specifier: 'catalog:'
-        version: 5.100.9(react@19.2.6)
-      '@tanstack/react-router':
-        specifier: 1.170.41
-        version: 1.170.41(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@tauri-apps/api':
-        specifier: ^2.11.0
-        version: 2.11.0
-      lucide-react:
-        specifier: 'catalog:'
-        version: 1.14.0(react@19.2.6)
-      react:
-        specifier: 'catalog:'
-        version: 19.2.6
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.2.6(react@19.2.6)
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
-    devDependencies:
-      '@tailwindcss/vite':
-        specifier: 'catalog:'
-        version: 4.3.0(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
-      '@tanstack/react-router-devtools':
-        specifier: 1.166.13
-        version: 1.166.13(@tanstack/react-router@1.170.41(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(@tanstack/router-core@1.171.34)(csstype@3.2.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@tauri-apps/cli':
-        specifier: ^2.11.1
-        version: 2.11.1
-      '@testing-library/jest-dom':
-        specifier: ^6.9.1
-        version: 6.9.1
-      '@testing-library/react':
-        specifier: ^16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.2.3(@types/react@19.2.14)
-      '@types/semver':
-        specifier: ^7.7.1
-        version: 7.7.1
-      '@vitejs/plugin-react':
-        specifier: 'catalog:'
-        version: 6.0.1(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
-      jsdom:
-        specifier: ^29.1.1
-        version: 29.1.1(@noble/hashes@2.2.0)
-      semver:
-        specifier: ^7.8.0
-        version: 7.8.0
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vite:
-        specifier: 'catalog:'
-        version: 8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)
-      zx:
-        specifier: ^8.8.5
-        version: 8.8.5
 
   packages/docs:
     dependencies:
@@ -564,6 +498,73 @@ importers:
       vite-plugin-svgr:
         specifier: ^5.2.0
         version: 5.2.0(typescript@6.0.3)(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+
+  packages/local-app:
+    dependencies:
+      '@everr/otel-web':
+        specifier: workspace:*
+        version: link:../otel-web
+      '@everr/telemetry-explorer':
+        specifier: workspace:*
+        version: link:../telemetry-explorer
+      '@everr/ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@tanstack/react-query':
+        specifier: 'catalog:'
+        version: 5.100.9(react@19.2.6)
+      '@tanstack/react-router':
+        specifier: 1.170.41
+        version: 1.170.41(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.14.0(react@19.2.6)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.6
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.6(react@19.2.6)
+      sonner:
+        specifier: ^2.0.7
+        version: 2.0.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: 'catalog:'
+        version: 4.3.0(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+      '@tanstack/react-router-devtools':
+        specifier: 1.166.13
+        version: 1.166.13(@tanstack/react-router@1.170.41(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(@tanstack/router-core@1.171.34)(csstype@3.2.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@tanstack/router-plugin':
+        specifier: 1.168.27
+        version: 1.168.27(@tanstack/react-router@1.170.41(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(esbuild@0.28.1)(rolldown@1.1.0)(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+      '@testing-library/jest-dom':
+        specifier: ^6.9.1
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@types/node':
+        specifier: ^25.6.2
+        version: 25.6.2
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: 'catalog:'
+        version: 6.0.1(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+      jsdom:
+        specifier: ^29.1.1
+        version: 29.1.1(@noble/hashes@2.2.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/otel-errors:
     devDependencies:
@@ -747,9 +748,6 @@ importers:
 
   packages/telemetry-explorer:
     dependencies:
-      '@everr/datemath':
-        specifier: workspace:*
-        version: link:../datemath
       '@everr/ui':
         specifier: workspace:*
         version: link:../ui
@@ -4699,6 +4697,10 @@ packages:
     peerDependencies:
       solid-js: '>=1.9.9'
 
+  '@tanstack/history@1.162.1':
+    resolution: {integrity: sha512-DR9t6lfLVdrjgCwpglrR9DR7Ok8/HlXjcOE+goWXF3zyuLUO/ug7vMbSFxTqrQTtbRghJfyhmIZ0S6LhPIy44w==}
+    engines: {node: '>=20.19'}
+
   '@tanstack/history@1.162.4':
     resolution: {integrity: sha512-utTS5L2OkeYUzXGohL1Z8sefu1GLNOJcxe8Hd6iIdc/Xo1K1nDB2JEp4iSFhvYh33xKC9V91TxrS8qfrpoKobQ==}
     engines: {node: '>=20.19'}
@@ -4838,6 +4840,10 @@ packages:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
+  '@tanstack/router-core@1.171.19':
+    resolution: {integrity: sha512-uCZhgnfmuBA3PoRLIVSjUhQpJQd/HA7p0XxG1IFKnvXU9lIMZ7gIqx45hyuf9JopxXZI8k7qaz9/6PC7mZLdfQ==}
+    engines: {node: '>=20.19'}
+
   '@tanstack/router-core@1.171.34':
     resolution: {integrity: sha512-X+19pGuuLVPvvAvPYw9v/+ktRk5cCll8AtfpBpOhDRmVgUMrfqze0467xtq8YRVVs/mmo5rVtWn/7Tp32RDBKw==}
     engines: {node: '>=20.19'}
@@ -4862,9 +4868,34 @@ packages:
       csstype:
         optional: true
 
+  '@tanstack/router-generator@1.167.25':
+    resolution: {integrity: sha512-M+S+QvGicfiH7kMkjrm6q+UMWXTdl7v9+pvMVnzA+lFm7whe8qmVOY72h/O8GGnejNn14jxdPrnLXv97NJjlWQ==}
+    engines: {node: '>=20.19'}
+
   '@tanstack/router-generator@1.167.40':
     resolution: {integrity: sha512-WkEueqEvsBBudzO0fx1nWfOmRNW8OAvBoVABTGls9bAWzjdC+KDGHvjCNrvn88ofs1F6gqL8aWnzKCbxW3dCyQ==}
     engines: {node: '>=20.19'}
+
+  '@tanstack/router-plugin@1.168.27':
+    resolution: {integrity: sha512-M/3XG6RIxid8+f5VKXILtPpapQPjIgKRKV1JxuvYJwQM811iSUzK9onrZnezUktZcHaWJN+wD7FR5HedH/WY7Q==}
+    engines: {node: '>=20.19'}
+    peerDependencies:
+      '@rsbuild/core': '>=1.0.2 || ^2.0.0'
+      '@tanstack/react-router': ^1.170.22
+      vite: '>=5.0.0 || >=6.0.0 || >=7.0.0 || >=8.0.0'
+      vite-plugin-solid: ^2.11.10 || ^3.0.0-0
+      webpack: '>=5.92.0'
+    peerDependenciesMeta:
+      '@rsbuild/core':
+        optional: true
+      '@tanstack/react-router':
+        optional: true
+      vite:
+        optional: true
+      vite-plugin-solid:
+        optional: true
+      webpack:
+        optional: true
 
   '@tanstack/router-plugin@1.168.42':
     resolution: {integrity: sha512-vAR5WXJh/ErseEWQftDhsJcr2c++ucRQ6FbqN3ygMO44+ZxxRfW3sIpZmddHROVSmBk8jc6MrwjTPNjVhd62Vw==}
@@ -4886,6 +4917,10 @@ packages:
         optional: true
       webpack:
         optional: true
+
+  '@tanstack/router-utils@1.162.2':
+    resolution: {integrity: sha512-hTWqJtqIFFdvuCl8WXNyrodp2L9zo2G37xKRrcVmVRWpAB2h+U1LuRAfS4tsFTiWOIoE/B+WDVFB8JpoEdw6jQ==}
+    engines: {node: '>=20.19'}
 
   '@tanstack/router-utils@1.162.3':
     resolution: {integrity: sha512-Icb0xGuG1+54IV0WMLRcc3ErTx2HeJWyPG661FkQ8UT6guoBq1FJjFRqlG/JS0xi4mFFkBhvwO7tbLa32f3yxA==}
@@ -4928,85 +4963,6 @@ packages:
   '@tanstack/virtual-file-routes@1.162.0':
     resolution: {integrity: sha512-uhOeFyxLcU41HzvrxsGpiWdcMbScY1EDgbZ5K7DVRMYInbLYWAC0EA/kx9wXAoSM8q82bUG2hRl8+EAjE6XAbA==}
     engines: {node: '>=20.19'}
-
-  '@tauri-apps/api@2.11.0':
-    resolution: {integrity: sha512-7CinYODhky9lmO23xHnUFv0Xt43fbtWMyxZcLcRBlFkcgXKuEirBvHpmtJ89YMhyeGcq20Wuc47Fa4XjyniywA==}
-
-  '@tauri-apps/cli-darwin-arm64@2.11.1':
-    resolution: {integrity: sha512-6eEKMBXsQPCuM1EmvrjT2+aBuxWQuFdKdW8pzNuNQtpq45nEEpBlD5gr8pUeAyOU1DQKlkFaEc/MPBxb/Pfjtg==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@tauri-apps/cli-darwin-x64@2.11.1':
-    resolution: {integrity: sha512-LQUO7exfRWjWALNhetph5guWpMeHphRpokOLk0OIbTTExaNwJNFu3I4vb+CCM/4G/QGoZe/5XikZOJdNEFP1ig==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [darwin]
-
-  '@tauri-apps/cli-linux-arm-gnueabihf@2.11.1':
-    resolution: {integrity: sha512-5i/awiBCRRhOUG8yjn0fMHXIWD5Ez8eEk5LtvOxyQrKuJkRaZDvnbIjZbE183blAwkoA4xN3aO/prJiqscl02Q==}
-    engines: {node: '>= 10'}
-    cpu: [arm]
-    os: [linux]
-
-  '@tauri-apps/cli-linux-arm64-gnu@2.11.1':
-    resolution: {integrity: sha512-9LrwDw3S9Fygtw/Q6WDhOP+3svJRGAsejeE+GKrc0eO1ThMVhwi2LL6hw4dlKw93IfS7VY1G19sWGxJ/NcU4nA==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [linux]
-    libc: [glibc]
-
-  '@tauri-apps/cli-linux-arm64-musl@2.11.1':
-    resolution: {integrity: sha512-mNA5dbbqPqDUdTIwdUYYuhO2GvIe9UnB2r0VU2njxBOS3Opbx4gKNC5yP0Iu4rYmEmqdlwry9VzGZQ3wq9dyFg==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [linux]
-    libc: [musl]
-
-  '@tauri-apps/cli-linux-riscv64-gnu@2.11.1':
-    resolution: {integrity: sha512-fZj3Gwq+6fUs305T5WQiD5iSGJw+j/4w/HGmk4sHDAcy+rp9zU5eaxB7nOyz5/I/nkNAuKPqfp6uIbiUBXkBCw==}
-    engines: {node: '>= 10'}
-    cpu: [riscv64]
-    os: [linux]
-    libc: [glibc]
-
-  '@tauri-apps/cli-linux-x64-gnu@2.11.1':
-    resolution: {integrity: sha512-XFxGxOvHM7jjeD6ozCKdGfhzJ7lERYDGZl1/Kb4fsvchaJsfLJ981TlyTG8Qy/gFq+f5GitH3bfrX9JAkjPEyw==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [linux]
-    libc: [glibc]
-
-  '@tauri-apps/cli-linux-x64-musl@2.11.1':
-    resolution: {integrity: sha512-d5C2/Zm+68v7R9wTuTCjRQEVrWjcdMkJBZ1+rXse+QdMMlTB9+u9PDNDLw9PQflWxYLaYZ7tjxxL9Nb9II6PbA==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [linux]
-    libc: [musl]
-
-  '@tauri-apps/cli-win32-arm64-msvc@2.11.1':
-    resolution: {integrity: sha512-YdeVWFAR1pTXzUU6NLstPq4G6OLxuDrXCXEBdmBH+5EZIDXUx0D2kJlz3+YjpazkKvAzYpgziTsyRagls0OfRQ==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [win32]
-
-  '@tauri-apps/cli-win32-ia32-msvc@2.11.1':
-    resolution: {integrity: sha512-VBGkuH0eB9K9LLSMv361Gzr5Ou72sCS4+ztpmkWEQ+wd/amhcYOsf3X6qn1RJZDzIhiOYHJEOysZUC3baD01rA==}
-    engines: {node: '>= 10'}
-    cpu: [ia32]
-    os: [win32]
-
-  '@tauri-apps/cli-win32-x64-msvc@2.11.1':
-    resolution: {integrity: sha512-b3ORhIAKgp9ZYY+zBt7b7r0kLU2kjvyGF0+MS2SBym3emsweGPybEqocJcmtMuxyBhkOKHP4CiuEJEDuAlTx6A==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [win32]
-
-  '@tauri-apps/cli@2.11.1':
-    resolution: {integrity: sha512-rpEbaJ/HzNb6fwsquwoAbq29/Vt4gADhS423A8fdkwL4edJ0wZmoB8ar7O6JPDL834MUKOCm/rrJ7c9oAaEaYQ==}
-    engines: {node: '>= 10'}
-    hasBin: true
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -13341,6 +13297,8 @@ snapshots:
       - react
       - vue
 
+  '@tanstack/history@1.162.1': {}
+
   '@tanstack/history@1.162.4': {}
 
   '@tanstack/pacer-lite@0.1.1': {}
@@ -13578,6 +13536,13 @@ snapshots:
       react-dom: 19.2.6(react@19.2.6)
       use-sync-external-store: 1.6.0(react@19.2.6)
 
+  '@tanstack/router-core@1.171.19':
+    dependencies:
+      '@tanstack/history': 1.162.1
+      cookie-es: 3.1.1
+      seroval: 1.6.8
+      seroval-plugins: 1.6.8(seroval@1.6.8)
+
   '@tanstack/router-core@1.171.34':
     dependencies:
       '@tanstack/history': 1.162.4
@@ -13601,6 +13566,19 @@ snapshots:
     optionalDependencies:
       csstype: 3.2.3
 
+  '@tanstack/router-generator@1.167.25':
+    dependencies:
+      '@babel/types': 7.29.8
+      '@tanstack/router-core': 1.171.19
+      '@tanstack/router-utils': 1.162.2
+      '@tanstack/virtual-file-routes': 1.162.0
+      jiti: 2.7.0
+      magic-string: 0.30.21
+      prettier: 3.9.9
+      zod: 4.6.5
+    transitivePeerDependencies:
+      - supports-color
+
   '@tanstack/router-generator@1.167.40':
     dependencies:
       '@babel/types': 7.29.8
@@ -13613,6 +13591,30 @@ snapshots:
       zod: 4.6.5
     transitivePeerDependencies:
       - supports-color
+
+  '@tanstack/router-plugin@1.168.27(@tanstack/react-router@1.170.41(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(esbuild@0.28.1)(rolldown@1.1.0)(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))':
+    dependencies:
+      '@babel/core': 7.29.7
+      '@babel/template': 7.29.7
+      '@babel/types': 7.29.8
+      '@tanstack/router-core': 1.171.19
+      '@tanstack/router-generator': 1.167.25
+      '@tanstack/router-utils': 1.162.2
+      chokidar: 5.0.0
+      unplugin: 3.4.0(esbuild@0.28.1)(rolldown@1.1.0)(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+      zod: 4.6.5
+    optionalDependencies:
+      '@tanstack/react-router': 1.170.41(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      vite: 8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)
+    transitivePeerDependencies:
+      - '@farmfe/core'
+      - '@rspack/core'
+      - bun-types-no-globals
+      - esbuild
+      - rolldown
+      - rollup
+      - supports-color
+      - unloader
 
   '@tanstack/router-plugin@1.168.42(@tanstack/react-router@1.170.41(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(esbuild@0.28.1)(rolldown@1.1.0)(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
@@ -13637,6 +13639,19 @@ snapshots:
       - rollup
       - supports-color
       - unloader
+
+  '@tanstack/router-utils@1.162.2':
+    dependencies:
+      '@babel/generator': 7.29.8
+      '@babel/parser': 7.29.8
+      '@babel/types': 7.29.8
+      ansis: 4.3.1
+      babel-dead-code-elimination: 1.0.12
+      diff: 8.0.4
+      pathe: 2.0.3
+      tinyglobby: 0.2.17
+    transitivePeerDependencies:
+      - supports-color
 
   '@tanstack/router-utils@1.162.3':
     dependencies:
@@ -13771,55 +13786,6 @@ snapshots:
   '@tanstack/store@0.9.3': {}
 
   '@tanstack/virtual-file-routes@1.162.0': {}
-
-  '@tauri-apps/api@2.11.0': {}
-
-  '@tauri-apps/cli-darwin-arm64@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli-darwin-x64@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli-linux-arm-gnueabihf@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli-linux-arm64-gnu@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli-linux-arm64-musl@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli-linux-riscv64-gnu@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli-linux-x64-gnu@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli-linux-x64-musl@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli-win32-arm64-msvc@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli-win32-ia32-msvc@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli-win32-x64-msvc@2.11.1':
-    optional: true
-
-  '@tauri-apps/cli@2.11.1':
-    optionalDependencies:
-      '@tauri-apps/cli-darwin-arm64': 2.11.1
-      '@tauri-apps/cli-darwin-x64': 2.11.1
-      '@tauri-apps/cli-linux-arm-gnueabihf': 2.11.1
-      '@tauri-apps/cli-linux-arm64-gnu': 2.11.1
-      '@tauri-apps/cli-linux-arm64-musl': 2.11.1
-      '@tauri-apps/cli-linux-riscv64-gnu': 2.11.1
-      '@tauri-apps/cli-linux-x64-gnu': 2.11.1
-      '@tauri-apps/cli-linux-x64-musl': 2.11.1
-      '@tauri-apps/cli-win32-arm64-msvc': 2.11.1
-      '@tauri-apps/cli-win32-ia32-msvc': 2.11.1
-      '@tauri-apps/cli-win32-x64-msvc': 2.11.1
 
   '@testing-library/dom@10.4.1':
     dependencies:

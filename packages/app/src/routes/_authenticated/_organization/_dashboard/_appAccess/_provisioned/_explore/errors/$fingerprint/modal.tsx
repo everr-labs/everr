@@ -1,6 +1,8 @@
-import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
+import {
+  DetailRouteDialog,
+  ErrorIssueSearchSchema,
+} from "@everr/telemetry-explorer/errors";
 import { createFileRoute } from "@tanstack/react-router";
-import { DetailRouteDialog } from "@/components/detail-route-dialog";
 import { ErrorDetailRouteContent } from "../../-error-detail";
 
 export const Route = createFileRoute(

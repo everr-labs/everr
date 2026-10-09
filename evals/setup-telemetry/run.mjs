@@ -27,7 +27,7 @@ import { fileURLToPath } from "node:url";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SKILL_DIR = join(
   REPO_ROOT,
-  "crates/everr-core/assets/skills/everr-setup-telemetry",
+  "packages/cli/assets/skills/everr-setup-telemetry",
 );
 const AGENT_TIMEOUT_MS = 30 * 60 * 1000;
 const REGISTRY_PORT = 4873;

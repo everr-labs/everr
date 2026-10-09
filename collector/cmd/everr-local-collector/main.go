@@ -21,21 +21,18 @@ import (
 	chdbexporter "github.com/everr-labs/everr/collector/exporter/chdbexporter"
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 	localconfig "github.com/everr-labs/everr/collector/internal/localgateway/config"
-	"github.com/everr-labs/everr/collector/internal/localgateway/health"
 	"github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp"
 )
 
 const (
-	defaultOTLPEndpoint   = "http://127.0.0.1:4318"
-	defaultHealthEndpoint = "http://127.0.0.1:13133"
-	defaultSQLEndpoint    = "http://127.0.0.1:8080"
-	defaultChDBPath       = "./chdb"
-	defaultTTL            = 7 * 24 * time.Hour
+	defaultOTLPEndpoint = "http://127.0.0.1:4318"
+	defaultSQLEndpoint  = "http://127.0.0.1:8080"
+	defaultChDBPath     = "./chdb"
+	defaultTTL          = 7 * 24 * time.Hour
 )
 
 type options struct {
 	OTLP     localconfig.Endpoint
-	Health   localconfig.Endpoint
 	SQL      localconfig.Endpoint
 	ChDBPath string
 	TTL      time.Duration
@@ -53,7 +50,6 @@ func parseOptions(args []string) (options, error) {
 	fs.SetOutput(os.Stderr)
 
 	otlpEndpoint := fs.String("otlp-http-endpoint", defaultOTLPEndpoint, "OTLP HTTP endpoint apps send telemetry to")
-	healthEndpoint := fs.String("health-http-endpoint", defaultHealthEndpoint, "HTTP readiness endpoint")
 	sqlEndpoint := fs.String("sql-http-endpoint", defaultSQLEndpoint, "SQL HTTP endpoint")
 	chdbPath := fs.String("chdb-path", defaultChDBPath, "chDB database path")
 	ttl := defaultTTL
@@ -66,10 +62,6 @@ func parseOptions(args []string) (options, error) {
 	otlp, err := localconfig.ParseEndpoint(*otlpEndpoint)
 	if err != nil {
 		return options{}, fmt.Errorf("otlp http endpoint: %w", err)
-	}
-	healthEndpointParsed, err := localconfig.ParseEndpoint(*healthEndpoint)
-	if err != nil {
-		return options{}, fmt.Errorf("health http endpoint: %w", err)
 	}
 	sql, err := localconfig.ParseEndpoint(*sqlEndpoint)
 	if err != nil {
@@ -84,7 +76,6 @@ func parseOptions(args []string) (options, error) {
 
 	return options{
 		OTLP:     otlp,
-		Health:   healthEndpointParsed,
 		SQL:      sql,
 		ChDBPath: *chdbPath,
 		TTL:      ttl,
@@ -143,17 +134,7 @@ func run(ctx context.Context, args []string) error {
 	}
 	defer func() { _ = handle.Close() }()
 
-	healthServer := health.NewServer(opts.Health.ListenAddress)
-	if err := healthServer.Start(); err != nil {
-		return fmt.Errorf("start health server: %w", err)
-	}
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = healthServer.Shutdown(shutdownCtx)
-	}()
-
-	sqlServer := sqlhttp.NewServer(sqlhttp.Config{Endpoint: opts.SQL.ListenAddress}, handle, logger)
+	sqlServer := sqlhttp.NewServer(sqlhttp.Config{Endpoint: opts.SQL.ListenAddress}, handle, logger, sqlhttp.Identity{Version: os.Getenv("EVERR_LOCAL_VERSION"), InstanceID: os.Getenv("EVERR_LOCAL_INSTANCE_ID")})
 	if err := sqlServer.Start(); err != nil {
 		return fmt.Errorf("start sql http server: %w", err)
 	}
@@ -185,7 +166,7 @@ func run(ctx context.Context, args []string) error {
 			return err
 		case <-ticker.C:
 			if collector.GetState() == otelcol.StateRunning {
-				healthServer.SetReady(true)
+				sqlServer.SetReady(true)
 				return <-done
 			}
 		case <-ctx.Done():

@@ -46,16 +46,18 @@ const EXPIRY_OPTIONS = [
 
 type Expiry = (typeof EXPIRY_OPTIONS)[number]["value"];
 
-function defaultScopes(): Record<ApiKeyScope, boolean> {
-  // Default to no capabilities — least privilege. The user must opt into
-  // each capability the key needs, and creation requires at least one.
+function scopeSelection(
+  defaultScopes: readonly ApiKeyScope[],
+): Record<ApiKeyScope, boolean> {
   return Object.fromEntries(
-    ALL_API_KEY_SCOPES.map((scope) => [scope, false]),
+    ALL_API_KEY_SCOPES.map((scope) => [scope, defaultScopes.includes(scope)]),
   ) as Record<ApiKeyScope, boolean>;
 }
 
 interface CreateApiKeyDialogProps {
-  /** Open the dialog with the public-browser-key toggle already on. */
+  /** Preselected capabilities, applied initially and whenever the dialog opens. */
+  defaultScopes?: readonly ApiKeyScope[];
+  /** Create a public browser key, with origins required and ingest-only scope. */
   defaultPublic?: boolean;
   /** Trigger button label. */
   triggerLabel?: string;
@@ -64,6 +66,7 @@ interface CreateApiKeyDialogProps {
 }
 
 export function CreateApiKeyDialog({
+  defaultScopes = [],
   defaultPublic = false,
   triggerLabel = "New key",
   triggerVariant,
@@ -71,8 +74,9 @@ export function CreateApiKeyDialog({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [expiry, setExpiry] = useState<Expiry>("never");
-  const [scopes, setScopes] =
-    useState<Record<ApiKeyScope, boolean>>(defaultScopes);
+  const [scopes, setScopes] = useState<Record<ApiKeyScope, boolean>>(() =>
+    scopeSelection(defaultScopes),
+  );
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   // The key kind is fixed by which entry point opened the dialog ("New key"
@@ -88,7 +92,7 @@ export function CreateApiKeyDialog({
   const reset = () => {
     setName("");
     setExpiry("never");
-    setScopes(defaultScopes());
+    setScopes(scopeSelection(defaultScopes));
     setIssuedKey(null);
     setCopied(false);
     setOriginsText("");
@@ -107,10 +111,7 @@ export function CreateApiKeyDialog({
     setScopes((prev) => ({ ...prev, [scope]: !prev[scope] }));
   };
 
-  // A public browser key is locked to a single capability, so derive the
-  // selection from `isPublic` instead of mirroring it into `scopes`. That
-  // keeps `isPublic` the single source of truth and preserves the user's
-  // prior capability picks across a public on/off toggle.
+  // Public browser keys always have ingest-only scope.
   const selectedScopes = isPublic
     ? [PUBLIC_KEY_SCOPE]
     : ALL_API_KEY_SCOPES.filter((s) => scopes[s]);
@@ -124,10 +125,7 @@ export function CreateApiKeyDialog({
       toast.error("Pick at least one capability for the key");
       return;
     }
-    // Only public keys carry origins; ignore any text left over from toggling
-    // public off. The policy module owns the invariants (>=1 origin, each a
-    // valid origin, ingest-only scope) so the UI pre-check stays in lock-step
-    // with the server schema instead of re-encoding a fragment of it.
+    // The shared policy validates origins and capabilities on client and server.
     const origins = isPublic
       ? Array.from(
           new Set(

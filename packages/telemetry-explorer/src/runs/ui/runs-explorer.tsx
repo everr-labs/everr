@@ -30,7 +30,6 @@ export interface RunsExplorerSearch {
   branches: string[];
   conclusions: RunStatusFilter[];
   workflowNames: string[];
-  onlyMine: boolean;
   showVolume: boolean;
 }
 
@@ -40,8 +39,6 @@ export interface RunsExplorerProps {
   search: RunsExplorerSearch;
   onSearchChange: (patch: Partial<RunsExplorerSearch>) => void;
   onTimeRangeSelect: (from: Date, to: Date) => void;
-  /** Render the "Your runs" toggle in the sidebar. */
-  showMineFilter?: boolean;
   renderRunLink: RenderRunLink;
   renderRowActions?: RenderRunRowActions;
 }
@@ -52,19 +49,11 @@ export function RunsExplorer({
   search,
   onSearchChange,
   onTimeRangeSelect,
-  showMineFilter = false,
   renderRunLink,
   renderRowActions,
 }: RunsExplorerProps) {
-  const {
-    runId,
-    repos,
-    branches,
-    conclusions,
-    workflowNames,
-    onlyMine,
-    showVolume,
-  } = search;
+  const { runId, repos, branches, conclusions, workflowNames, showVolume } =
+    search;
 
   const filterInput = {
     timeRange,
@@ -73,7 +62,6 @@ export function RunsExplorer({
     conclusions,
     workflowNames,
     runId: runId || undefined,
-    onlyMine,
   };
 
   const {
@@ -140,9 +128,7 @@ export function RunsExplorer({
               branches,
               conclusions,
               workflowNames,
-              onlyMine,
             }}
-            showMineFilter={showMineFilter}
             onChange={onSearchChange}
           />
 
