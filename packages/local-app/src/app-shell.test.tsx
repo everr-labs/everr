@@ -72,9 +72,8 @@ function renderMainApp(
         return {
           name: "Test User",
           email: "user@example.com",
+          organizationName: "Test Organization",
         };
-      case "get_org":
-        return { name: "Test Organization" };
       case "get_collector_status":
         return collectorStatus;
       case "telemetry_sql_query":
@@ -131,6 +130,24 @@ describe("local telemetry explorer", () => {
     fireEvent.click(openBrowser);
     await waitFor(() => expect(openSignInBrowserSpy).toHaveBeenCalledTimes(1));
     expect(screen.queryByText("CI author emails")).not.toBeInTheDocument();
+  });
+
+  it("shows the account identity and removes it after sign-out", async () => {
+    renderMainApp({ signedIn: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Account" }));
+
+    expect(await screen.findByText("Test User")).toBeVisible();
+    expect(screen.getByText("Test Organization")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Test User")).not.toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    expect(
+      await screen.findByRole("menuitem", { name: "Sign in" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Test Organization")).not.toBeInTheDocument();
   });
 });
 

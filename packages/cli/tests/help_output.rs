@@ -20,6 +20,8 @@ fn root_help_lists_main_commands() {
         .stdout(predicates::str::contains("\n  login").not())
         .stdout(predicates::str::contains("\n  logout").not())
         .stdout(predicates::str::contains("setup-assistant").not())
+        .stdout(predicates::str::contains("\n  setup").not())
+        .stdout(predicates::str::contains("\n  init").not())
         .stdout(predicates::str::contains("ai-instructions").not())
         .stdout(contains("cloud"))
         .stdout(contains("ci"))

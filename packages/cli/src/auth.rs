@@ -26,10 +26,9 @@ pub(crate) async fn print_session_identity(session: &Session) -> Result<()> {
     };
 
     let me = client.get_me().await.ok();
-    let org = client.get_org().await.ok();
     for line in identity_summary_lines(
         me.as_ref().map(|me| me.email.as_str()),
-        org.as_ref().map(|org| org.name.as_str()),
+        me.as_ref().map(|me| me.organization_name.as_str()),
     ) {
         cliclack::log::success(line)?;
     }

@@ -23,7 +23,6 @@ import {
 import { useState } from "react";
 import {
   useAuthStatusQuery,
-  useOrgQuery,
   useSignInMutation,
   useSignOutMutation,
   useUserProfileQuery,
@@ -119,9 +118,8 @@ function AuthStatusIndicator() {
   const signOutMutation = useSignOutMutation();
   const signedIn = authStatusQuery.data?.status === "signed_in";
   const profileQuery = useUserProfileQuery(signedIn);
-  const orgQuery = useOrgQuery(signedIn);
   const profile = profileQuery.data;
-  const orgName = orgQuery.data?.name;
+  const orgName = profile?.organizationName;
   const displayName = profile?.name || profile?.email;
 
   return (

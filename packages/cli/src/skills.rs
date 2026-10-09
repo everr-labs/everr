@@ -14,8 +14,6 @@ use crate::cli::{
     SkillsUninstallArgs, SkillsUpdateArgs,
 };
 
-pub(crate) const GLOBAL_SKILL_SCOPE_DEFAULT: bool = true;
-
 pub fn run(args: SkillsArgs) -> Result<()> {
     match args.command {
         SkillsSubcommand::List(args) => run_list(args),
@@ -213,28 +211,8 @@ fn run_uninstall(args: SkillsUninstallArgs) -> Result<()> {
     Ok(())
 }
 
-/// Install all bundled skills for setup and return the summary so the caller
-/// can report results through cliclack.
-pub(crate) fn install_all_for_setup(
-    scope: SkillScope,
-    providers: Vec<SkillProvider>,
-) -> Result<SkillOperationSummary> {
-    let cwd = std::env::current_dir().context("could not determine current directory")?;
-    let home_dir = resolve_home_dir()?;
-    let options = SkillOperationOptions {
-        scope,
-        cwd,
-        home_dir,
-        providers,
-        skill_names: Vec::new(),
-        all: true,
-        dry_run: false,
-    };
-    install_bundled_skills(&options)
-}
-
 /// Remove every globally installed bundled skill for all providers. Used by the
-/// top-level `uninstall` command to clean up the skills `setup` installs.
+/// top-level `uninstall` command to clean up globally installed skills.
 pub(crate) fn uninstall_all_global() -> Result<()> {
     let cwd = std::env::current_dir().context("could not determine current directory")?;
     let home_dir = resolve_home_dir()?;
@@ -303,7 +281,7 @@ fn is_interactive_terminal() -> bool {
 
 fn prompt_scope() -> Result<SkillScope> {
     let global: bool = cliclack::confirm("Install skills globally instead of in this project?")
-        .initial_value(GLOBAL_SKILL_SCOPE_DEFAULT)
+        .initial_value(false)
         .interact()?;
     if global {
         Ok(SkillScope::Global)
@@ -376,13 +354,5 @@ fn print_summary(done: &str, dry_run: &str, summary: &crate::skill_store::SkillO
             ),
             None => println!("- {} {}: {}", change.skill, action, change.path),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn skills_install_defaults_to_global_scope() {
-        assert!(super::GLOBAL_SKILL_SCOPE_DEFAULT);
     }
 }

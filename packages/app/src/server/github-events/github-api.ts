@@ -20,7 +20,7 @@ const MAX_RATE_LIMIT_RETRIES = 3;
 // Typed errors
 // ---------------------------------------------------------------------------
 
-export class GitHubApiError extends Error {
+class GitHubApiError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {
     super(message);

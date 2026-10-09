@@ -35,11 +35,6 @@ pub enum Commands {
     Local(LocalArgs),
     /// Run a command and capture its output as local logs
     Wrap(WrapArgs),
-    /// Install agent skills for local telemetry onboarding
-    #[command(name = "setup")]
-    Setup,
-    /// Connect the current repository and import its CI history
-    Init,
     /// Manage bundled Everr skills
     #[command(name = "skills")]
     Skills(SkillsArgs),
@@ -64,8 +59,6 @@ impl Commands {
             Commands::Ci(args) => args.command.prints_human_stdout(stdout_is_terminal),
             Commands::Local(args) => args.command.prints_human_stdout(stdout_is_terminal),
             Commands::Wrap(_) => false,
-            Commands::Setup => true,
-            Commands::Init => true,
             Commands::Skills(_) => true,
             Commands::Apply(_) => true,
             Commands::Resources(args) => args.command.prints_human_stdout(stdout_is_terminal),
@@ -1133,15 +1126,13 @@ mod tests {
     }
 
     #[test]
-    fn setup_parses_without_arguments() {
-        let cli = Cli::try_parse_from(["everr", "setup"]).expect("setup command");
-        assert!(matches!(cli.command, Commands::Setup));
+    fn setup_is_no_longer_accepted() {
+        assert!(Cli::try_parse_from(["everr", "setup"]).is_err());
     }
 
     #[test]
-    fn init_parses_without_arguments() {
-        let cli = Cli::try_parse_from(["everr", "init"]).expect("init command");
-        assert!(matches!(cli.command, Commands::Init));
+    fn init_is_no_longer_accepted() {
+        assert!(Cli::try_parse_from(["everr", "init"]).is_err());
     }
 
     #[test]

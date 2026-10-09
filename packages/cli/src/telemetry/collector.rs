@@ -1,5 +1,6 @@
 use std::fs;
 use std::io;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
@@ -53,7 +54,7 @@ pub async fn run_start(
     let status = super::local_instance::LocalStatus::inspect().await;
     if status.running_instance().is_some() {
         if !args.quiet {
-            print_endpoints();
+            print_startup();
         }
         open_ui(&args);
         return Ok(());
@@ -62,8 +63,9 @@ pub async fn run_start(
     if args.detach {
         local_lifecycle::start_detached().await?;
         if !args.quiet {
-            print_endpoints();
-            println!("log: {}", super::local_log::path()?.display());
+            let log_path = super::local_log::path()?;
+            print_startup();
+            println!("log: {}", log_path.display());
         }
         open_ui(&args);
         return Ok(());
@@ -82,7 +84,7 @@ pub async fn run_start(
     let child = start_collector(&assets, &telemetry_dir, &instance_id).await?;
 
     if !args.quiet {
-        print_endpoints();
+        print_startup();
     }
 
     let mut child = Some(child);
@@ -296,7 +298,10 @@ pub(super) async fn terminate_child(child: &mut Child) {
     }
 }
 
-fn print_endpoints() {
+fn print_startup() {
+    if io::stdout().is_terminal() {
+        crate::banner::print_banner();
+    }
     println!("otlp: {}", crate::build::otlp_http_origin());
     println!("sql: {}", crate::build::sql_http_origin());
     println!("ui: {}", crate::build::local_ui_origin());

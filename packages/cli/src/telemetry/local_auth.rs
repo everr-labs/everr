@@ -6,7 +6,7 @@ use serde::Serialize;
 use tokio::sync::Mutex;
 
 use crate::{
-    api::ApiClient,
+    api::{ApiClient, MeResponse},
     device_auth::{
         AuthConfig, DeviceAuthorization, DevicePollStatus, poll_device_authorization,
         session_from_device_token, start_device_authorization,
@@ -31,17 +31,6 @@ pub(super) enum AuthResponse {
     },
     Denied,
     Expired,
-}
-
-#[derive(Serialize)]
-pub(super) struct UserProfile {
-    email: String,
-    name: String,
-}
-
-#[derive(Serialize)]
-pub(super) struct Organization {
-    name: String,
 }
 
 struct PendingAuth {
@@ -193,20 +182,14 @@ impl LocalAuth {
         self.status()
     }
 
-    pub async fn user_profile(&self) -> Result<Option<UserProfile>> {
+    pub async fn user_profile(&self) -> Result<Option<MeResponse>> {
         if !self
             .store
             .has_active_session_for_api_base_url(&self.config.api_base_url)?
         {
             return Ok(None);
         }
-        Ok(Some(fetch_profile(self.api()?).await?))
-    }
-
-    pub async fn org(&self) -> Result<Organization> {
-        Ok(Organization {
-            name: self.api()?.get_org().await?.name,
-        })
+        Ok(Some(self.api()?.get_me().await?))
     }
 
     fn api(&self) -> Result<ApiClient> {
@@ -216,14 +199,6 @@ impl LocalAuth {
                 .load_session_for_api_base_url(&self.config.api_base_url)?,
         )
     }
-}
-
-async fn fetch_profile(client: ApiClient) -> Result<UserProfile> {
-    let profile = client.get_me().await?;
-    Ok(UserProfile {
-        email: profile.email,
-        name: profile.name,
-    })
 }
 
 #[cfg(test)]
@@ -278,14 +253,10 @@ mod tests {
             .mock("GET", "/api/cli/me")
             .match_header("authorization", "Bearer test-token")
             .with_header("content-type", "application/json")
-            .with_body(r#"{"email":"user@example.test","name":"Test User"}"#)
+            .with_body(
+                r#"{"email":"user@example.test","name":"Test User","organizationName":"Test Org"}"#,
+            )
             .expect(1)
-            .create_async()
-            .await;
-        server
-            .mock("GET", "/api/cli/org")
-            .with_header("content-type", "application/json")
-            .with_body(r#"{"name":"Test Org"}"#)
             .create_async()
             .await;
         let (_dir, auth, store) = test_auth(server.url());
@@ -343,14 +314,11 @@ mod tests {
                 .token,
             "test-token"
         );
-        let user = json!({"email":"user@example.test", "name":"Test User"});
+        let user =
+            json!({"email":"user@example.test", "name":"Test User", "organizationName":"Test Org"});
         assert_eq!(
             serde_json::to_value(auth.user_profile().await.unwrap()).unwrap(),
             user
-        );
-        assert_eq!(
-            serde_json::to_value(auth.org().await.unwrap()).unwrap(),
-            json!({"name":"Test Org"})
         );
         assert_eq!(
             serde_json::to_value(auth.sign_out().await.unwrap()).unwrap()["status"],

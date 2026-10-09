@@ -29,9 +29,10 @@ describe.each(["start", "poll"] as const)("sign-in %s results", (source) => {
         ? { status, session_path: "/tmp/session.json" }
         : { status };
     const profileKey = ["local-app", "user-profile"];
-    const orgKey = ["local-app", "org"];
-    queryClient.setQueryData(profileKey, { name: "Previous user" });
-    queryClient.setQueryData(orgKey, { name: "Previous organization" });
+    queryClient.setQueryData(profileKey, {
+      name: "Previous user",
+      organizationName: "Previous organization",
+    });
     mockCommands((command) => {
       switch (command) {
         case "get_auth_status":
@@ -70,13 +71,10 @@ describe.each(["start", "poll"] as const)("sign-in %s results", (source) => {
         result,
       );
       expect(queryClient.getQueryData(profileKey)).toBeUndefined();
-      expect(queryClient.getQueryData(orgKey)).toBeUndefined();
     } else {
       expect(queryClient.getQueryData(profileKey)).toEqual({
         name: "Previous user",
-      });
-      expect(queryClient.getQueryData(orgKey)).toEqual({
-        name: "Previous organization",
+        organizationName: "Previous organization",
       });
     }
     queryClient.clear();

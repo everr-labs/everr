@@ -34,6 +34,7 @@ export const requireOrgMiddleware = createMiddleware()
     const [organization] = await db
       .select({
         id: organizationTable.id,
+        name: organizationTable.name,
         metadata: organizationTable.metadata,
       })
       .from(organizationTable)

@@ -271,7 +271,6 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Res
         "open_sign_in_browser" => json_response(state.auth.open_sign_in_browser().await?),
         "sign_out" => json_response(state.auth.sign_out().await?),
         "get_user_profile" => json_response(state.auth.user_profile().await?),
-        "get_org" => json_response(state.auth.org().await?),
         "get_collector_status" => json_response(collector_status(state).await?),
         "restart_collector" => {
             let (tx, rx) = oneshot::channel();

@@ -242,14 +242,6 @@ impl ApiClient {
         Ok(stream)
     }
 
-    pub async fn get_org(&self) -> Result<OrgResponse> {
-        self.get("/org", &[]).await
-    }
-
-    pub async fn get_repos(&self) -> Result<Vec<RepoEntry>> {
-        self.get("/repos", &[]).await
-    }
-
     pub async fn list_resources(
         &self,
         kind: Option<&str>,
@@ -328,18 +320,6 @@ impl ApiClient {
             .json()
             .await
             .context("failed to decode adopt response")
-    }
-
-    /// Calls POST /api/cli/import and returns once the server acknowledges the import has started.
-    pub async fn start_import_repos(&self, repos: &[String]) -> Result<()> {
-        let request = self
-            .http
-            .post(format!("{}/import", self.base_endpoint))
-            .json(&serde_json::json!({ "repos": repos }));
-        self.send_checked(request, "import request failed", "import request")
-            .await?;
-
-        Ok(())
     }
 
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
@@ -482,34 +462,7 @@ pub struct WatchResponse {
 pub struct MeResponse {
     pub email: String,
     pub name: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct OrgResponse {
-    pub name: String,
-    #[serde(default)]
-    pub role: Option<String>,
-}
-
-impl OrgResponse {
-    pub fn can_manage_runs_import(&self) -> bool {
-        match self.role.as_deref() {
-            Some("admin" | "owner") => true,
-            Some(_) => false,
-            None => true,
-        }
-    }
-
-    pub fn can_manage_runs_import_or_default(org: Option<&Self>) -> bool {
-        org.map(Self::can_manage_runs_import).unwrap_or(true)
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct RepoEntry {
-    pub full_name: String,
+    pub organization_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -596,97 +549,39 @@ mod api_client_tests {
     }
 
     #[tokio::test]
-    async fn get_org_parses_response() {
+    async fn get_me_parses_identity_response() {
         let mut server = mockito::Server::new_async().await;
         let mock = server
-            .mock("GET", "/api/cli/org")
+            .mock("GET", "/api/cli/me")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(r#"{"name":"Test Org","onboardingCompleted":true,"role":"admin"}"#)
+            .with_body(
+                r#"{"email":"user@example.test","name":"Test User","organizationName":"Test Org"}"#,
+            )
             .create_async()
             .await;
 
         let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
-        let org = client.get_org().await.unwrap();
+        let identity = client.get_me().await.unwrap();
 
-        assert_eq!(org.name, "Test Org");
-        assert_eq!(org.role.as_deref(), Some("admin"));
-        mock.assert_async().await;
-    }
-
-    #[test]
-    fn org_response_allows_imports_for_admins_and_owners() {
-        for role in ["admin", "owner"] {
-            let org = OrgResponse {
-                name: "Acme".to_string(),
-                role: Some(role.to_string()),
-            };
-
-            assert!(org.can_manage_runs_import());
-        }
-    }
-
-    #[test]
-    fn org_response_blocks_imports_for_members() {
-        let org = OrgResponse {
-            name: "Acme".to_string(),
-            role: Some("member".to_string()),
-        };
-
-        assert!(!org.can_manage_runs_import());
-    }
-
-    #[tokio::test]
-    async fn get_repos_parses_response() {
-        let mut server = mockito::Server::new_async().await;
-        let mock = server
-            .mock("GET", "/api/cli/repos")
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(r#"[{"fullName":"org/repo-a"},{"fullName":"org/repo-b"}]"#)
-            .create_async()
-            .await;
-
-        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
-        let repos = client.get_repos().await.unwrap();
-
-        assert_eq!(repos.len(), 2);
-        assert_eq!(repos[0].full_name, "org/repo-a");
+        assert_eq!(identity.email, "user@example.test");
+        assert_eq!(identity.name, "Test User");
+        assert_eq!(identity.organization_name, "Test Org");
         mock.assert_async().await;
     }
 
     #[tokio::test]
-    async fn start_import_repos_returns_ok() {
+    async fn get_me_unauthorized_requires_reauthentication() {
         let mut server = mockito::Server::new_async().await;
         let mock = server
-            .mock("POST", "/api/cli/import")
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(r#"{"ok":true}"#)
-            .create_async()
-            .await;
-
-        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
-        client
-            .start_import_repos(&["org/repo-a".to_string()])
-            .await
-            .unwrap();
-
-        mock.assert_async().await;
-    }
-
-    #[tokio::test]
-    async fn get_repos_unauthorized_requires_reauthentication() {
-        let mut server = mockito::Server::new_async().await;
-        let mock = server
-            .mock("GET", "/api/cli/repos")
+            .mock("GET", "/api/cli/me")
             .with_status(401)
             .with_body(r#"{"error":"expired"}"#)
             .create_async()
             .await;
 
         let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
-        let error = client.get_repos().await.unwrap_err();
+        let error = client.get_me().await.unwrap_err();
 
         assert!(is_reauthentication_required(&error));
         assert_eq!(

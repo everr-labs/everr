@@ -298,8 +298,6 @@ impl CommandTelemetry {
                 }),
             ),
             Commands::Wrap(_) => ("wrap", None),
-            Commands::Setup => ("setup", None),
-            Commands::Init => ("init", None),
             Commands::Skills(args) => (
                 "skills",
                 Some(match &args.command {

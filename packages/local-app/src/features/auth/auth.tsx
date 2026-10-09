@@ -13,7 +13,6 @@ import { invokeCommand, toErrorMessageText } from "../../lib/local-api";
 import { FeatureErrorText, SettingsSection } from "../app-shell/ui";
 
 const userProfileQueryKey = ["local-app", "user-profile"] as const;
-const orgQueryKey = ["local-app", "org"] as const;
 
 type AuthStatus = {
   status: "signed_in" | "signed_out";
@@ -23,10 +22,7 @@ type AuthStatus = {
 type UserProfileResponse = {
   email: string;
   name: string;
-};
-
-type OrgResponse = {
-  name: string;
+  organizationName: string;
 };
 
 type PendingSignIn = {
@@ -78,10 +74,6 @@ function getUserProfile() {
   return invokeCommand<UserProfileResponse | null>("get_user_profile");
 }
 
-function getOrg() {
-  return invokeCommand<OrgResponse | null>("get_org");
-}
-
 function isPendingSignIn(
   value: SignInResponse | PendingSignIn | null | undefined,
 ): value is PendingSignIn {
@@ -116,7 +108,6 @@ function useNow(tickMs = 1_000) {
 
 function clearAccountCache(queryClient: QueryClient) {
   queryClient.removeQueries({ queryKey: userProfileQueryKey });
-  queryClient.removeQueries({ queryKey: orgQueryKey });
 }
 
 function handleSignInResponse(queryClient: QueryClient, data: SignInResponse) {
@@ -155,14 +146,6 @@ export function useUserProfileQuery(enabled = true) {
   return useQuery({
     queryKey: userProfileQueryKey,
     queryFn: getUserProfile,
-    enabled,
-  });
-}
-
-export function useOrgQuery(enabled = true) {
-  return useQuery({
-    queryKey: orgQueryKey,
-    queryFn: getOrg,
     enabled,
   });
 }

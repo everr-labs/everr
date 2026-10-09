@@ -32,10 +32,7 @@ import { Route as WelcomeSignedInCreateOrganizationRouteImport } from './routes/
 import { Route as WelcomeAuthErrorRouteImport } from './routes/_welcome/auth/error'
 import { Route as WelcomeInviteInvitationIdRouteImport } from './routes/_welcome/invite.$invitationId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
 import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
-import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
-import { Route as ApiCliReposRouteImport } from './routes/api/cli/repos'
 import { Route as ApiCliResourcesRouteImport } from './routes/api/cli/resources'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
@@ -219,24 +216,9 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCliImportRoute = ApiCliImportRouteImport.update({
-  id: '/import',
-  path: '/import',
-  getParentRoute: () => ApiCliRoute,
-} as any)
 const ApiCliMeRoute = ApiCliMeRouteImport.update({
   id: '/me',
   path: '/me',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliOrgRoute = ApiCliOrgRouteImport.update({
-  id: '/org',
-  path: '/org',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliReposRoute = ApiCliReposRouteImport.update({
-  id: '/repos',
-  path: '/repos',
   getParentRoute: () => ApiCliRoute,
 } as any)
 const ApiCliResourcesRoute = ApiCliResourcesRouteImport.update({
@@ -745,10 +727,7 @@ export interface FileRoutesByFullPath {
   '/auth/error': typeof WelcomeAuthErrorRoute
   '/invite/$invitationId': typeof WelcomeInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
-  '/api/cli/org': typeof ApiCliOrgRoute
-  '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
@@ -823,10 +802,7 @@ export interface FileRoutesByTo {
   '/auth/error': typeof WelcomeAuthErrorRoute
   '/invite/$invitationId': typeof WelcomeInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
-  '/api/cli/org': typeof ApiCliOrgRoute
-  '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
@@ -905,10 +881,7 @@ export interface FileRoutesById {
   '/_welcome/auth/error': typeof WelcomeAuthErrorRoute
   '/_welcome/invite/$invitationId': typeof WelcomeInviteInvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
-  '/api/cli/org': typeof ApiCliOrgRoute
-  '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
@@ -994,10 +967,7 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
-    | '/api/cli/import'
     | '/api/cli/me'
-    | '/api/cli/org'
-    | '/api/cli/repos'
     | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
@@ -1072,10 +1042,7 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
-    | '/api/cli/import'
     | '/api/cli/me'
-    | '/api/cli/org'
-    | '/api/cli/repos'
     | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
@@ -1153,10 +1120,7 @@ export interface FileRouteTypes {
     | '/_welcome/auth/error'
     | '/_welcome/invite/$invitationId'
     | '/api/auth/$'
-    | '/api/cli/import'
     | '/api/cli/me'
-    | '/api/cli/org'
-    | '/api/cli/repos'
     | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
@@ -1406,32 +1370,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cli/import': {
-      id: '/api/cli/import'
-      path: '/import'
-      fullPath: '/api/cli/import'
-      preLoaderRoute: typeof ApiCliImportRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
     '/api/cli/me': {
       id: '/api/cli/me'
       path: '/me'
       fullPath: '/api/cli/me'
       preLoaderRoute: typeof ApiCliMeRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/org': {
-      id: '/api/cli/org'
-      path: '/org'
-      fullPath: '/api/cli/org'
-      preLoaderRoute: typeof ApiCliOrgRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/repos': {
-      id: '/api/cli/repos'
-      path: '/repos'
-      fullPath: '/api/cli/repos'
-      preLoaderRoute: typeof ApiCliReposRouteImport
       parentRoute: typeof ApiCliRoute
     }
     '/api/cli/resources': {
@@ -2419,20 +2362,14 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
 )
 
 interface ApiCliRouteChildren {
-  ApiCliImportRoute: typeof ApiCliImportRoute
   ApiCliMeRoute: typeof ApiCliMeRoute
-  ApiCliOrgRoute: typeof ApiCliOrgRoute
-  ApiCliReposRoute: typeof ApiCliReposRoute
   ApiCliResourcesRoute: typeof ApiCliResourcesRouteWithChildren
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSqlRoute: typeof ApiCliSqlRoute
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
-  ApiCliImportRoute: ApiCliImportRoute,
   ApiCliMeRoute: ApiCliMeRoute,
-  ApiCliOrgRoute: ApiCliOrgRoute,
-  ApiCliReposRoute: ApiCliReposRoute,
   ApiCliResourcesRoute: ApiCliResourcesRouteWithChildren,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSqlRoute: ApiCliSqlRoute,

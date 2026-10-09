@@ -12,17 +12,15 @@ The Everr CLI queries local and Cloud telemetry, inspects GitHub Actions CI runs
 - `everr cloud query "<SQL>"`: run read-only SQL against CI and Production telemetry stored in Everr Cloud
   - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
 
-## Setup and maintenance
+## Maintenance
 
-- `everr setup`: install bundled agent skills and show how to start local telemetry
-- `everr init`: connect the current GitHub repository and import its CI history
 - `everr upgrade`: upgrade the CLI and its bundled local browser UI
 - `everr uninstall`: remove local Everr state and globally installed skills, then print the command that removes the CLI binary
 
 ## Skills
 
 - `everr skills list [--project|--global] [--agent <codex|claude-code|cursor|all>]`: list bundled Everr skills for a scope and Agent
-- `everr skills install [--all] [--project|--global] [--agent <agent>] [--dry-run]`: install all bundled skills. In an interactive terminal, omitted choices are prompted. In a non-interactive context, `--all` is required and the scope defaults to the project.
+- `everr skills install [--all] [--project|--global] [--agent <agent>] [--dry-run]`: install all bundled skills. In an interactive terminal, omitted choices are prompted with project scope selected by default. In a non-interactive context, `--all` is required and the scope defaults to the project. Use `--global` to explicitly install across projects.
 - `everr skills update [SKILL]... [--project|--global] [--agent <agent>] [--dry-run]`: update bundled skills already installed in the selected scope. With no scope, update matching installations in both project and global scopes.
 - `everr skills uninstall [SKILL]... [--all] [--project|--global] [--agent <agent>] [--yes] [--dry-run]`: uninstall named bundled skills. `--all` requires `--yes`.
 
@@ -68,7 +66,7 @@ The `--agent` option can be repeated. With no Agent filter, a command targets al
   - `-d`, `--detach`: run in the background and return once ready. The instance survives closing the terminal; stop it with `everr local stop`. Detached mode does not start at boot or automatically restart a crashed supervisor.
   - `--no-open`: start without opening a browser
   - `--quiet`: suppress startup output and browser launch
-  - Prints `otlp:`, `sql:`, and `ui:` URLs once ready. Detached startup also prints a `log:` path. Ctrl+C stops a foreground instance started by this invocation.
+  - Prints `otlp:`, `sql:`, and `ui:` URLs once ready. In a terminal, successful startup also shows the Everr banner. Redirected output contains only the endpoints and, for detached startup, a `log:` path. Ctrl+C stops a foreground instance started by this invocation.
   - If a matching collector and UI are already ready, prints their endpoints and exits successfully. An existing foreground instance still needs its original terminal session.
   - Occupied ports and partial or mismatched instances produce an error. Existing processes remain running.
 - `everr local stop`: gracefully stop the recognized foreground or detached instance and wait for telemetry to flush and cleanup to finish

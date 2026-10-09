@@ -2,7 +2,7 @@
 
 `pnpm --filter @everr/cli build:debug` builds the local UI, prepares the collector and chDB library, and embeds them in the CLI. `build:release` produces the release binary and checksum. The CLI version comes from this package's `package.json`.
 
-`everr local start` serves the bundled UI and starts the collector until interrupted. Successful startup prints only the OTLP, SQL, and UI addresses; detached startup also prints the log path. `--no-open` suppresses browser launch; `--quiet` suppresses startup output and browser launch. If the collector and UI are already ready and share an instance ID, another `local start` prints the endpoints and exits successfully. Partial instances or occupied ports cause an error; startup never stops existing listeners.
+`everr local start` serves the bundled UI and starts the collector until interrupted. Successful startup prints the Everr banner in a terminal and the OTLP, SQL, and UI addresses; detached startup also prints the log path. Redirected output omits the banner. `--no-open` suppresses browser launch; `--quiet` suppresses startup output and browser launch. If the collector and UI are already ready and share an instance ID, another `local start` prints the endpoints and exits successfully. Partial instances or occupied ports cause an error; startup never stops existing listeners.
 
 `everr local start -d` (or `--detach`) runs the same supervisor in the background and returns once the collector and UI are ready. It survives closing the terminal. A lock prevents two instances from opening the same telemetry data directory.
 
@@ -12,4 +12,4 @@ Detached supervisor and collector output goes to `~/Library/Logs/everr/local.log
 
 `everr local status` checks both `/health` responses for the expected service, protocol, version, readiness, and instance ID. It prints the same OTLP, SQL, and UI rows as startup, showing a URL for a running service or its state in place of the URL otherwise. It distinguishes starting, stopped, unrecognized listeners, and connection failures, warns about mismatched instances, and exits with code 2 unless the collector and UI are a matching ready instance.
 
-`everr setup` installs agent skills and shows how to start local telemetry. Cloud sign-in and ingest keys are separate follow-up steps when you want hosted telemetry or CI.
+Install bundled agent skills for your project with `everr skills install --all --project`. Start local telemetry with `everr local start`. Cloud sign-in and ingest keys are separate follow-up steps when you want hosted telemetry or CI.

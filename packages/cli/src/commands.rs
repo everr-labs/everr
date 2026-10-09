@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::cli::{CiSubcommand, CloudSubcommand, Commands};
-use crate::{auth, core, init, onboarding, skills, telemetry, uninstall, upgrade, wrap};
+use crate::{auth, core, skills, telemetry, uninstall, upgrade, wrap};
 
 pub async fn run_command(
     command: Commands,
@@ -24,8 +24,6 @@ pub async fn run_command(
         },
         Commands::Local(args) => telemetry::commands::run(args, lifetime).await?,
         Commands::Wrap(args) => wrap::run(args).await?,
-        Commands::Setup => onboarding::run().await?,
-        Commands::Init => init::run().await?,
         Commands::Skills(args) => skills::run(args)?,
         Commands::Apply(args) => core::run_apply(args).await?,
         Commands::Resources(args) => core::run_resources(args.command).await?,

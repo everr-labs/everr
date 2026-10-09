@@ -13,11 +13,11 @@ const LOGO_LINES: &[&str] = &[
     "  ⠉⠛⠛⠛⠛⠛⠛⠛⠛⠛⠁",
 ];
 const WORDMARK_LINES: &[&str] = &[
-    "░████████ ░██    ░██  ░███████  ░██░████ ░██░████",
-    "░██       ░██    ░██ ░██    ░██ ░███     ░███",
-    "░███████   ░██  ░██  ░█████████ ░██      ░██",
-    "░██         ░██░██   ░██        ░██      ░██",
-    "░████████    ░███     ░███████  ░██      ░██",
+    " ░███████  ░██    ░██  ░███████  ░██░████ ░██░████",
+    "░██    ░██ ░██    ░██ ░██    ░██ ░███     ░███",
+    "░█████████  ░██  ░██  ░█████████ ░██      ░██",
+    "░██          ░██░██   ░██        ░██      ░██",
+    " ░███████     ░███     ░███████  ░██      ░██",
 ];
 const LOGO_COLUMN_WIDTH: usize = 16;
 
@@ -32,13 +32,14 @@ fn should_use_color() -> bool {
 pub(crate) fn print_banner() {
     println!();
     print!("{}", render_banner(should_use_color()));
+    println!("\nObservability made simple.");
     println!();
 }
 
 fn render_banner(use_color: bool) -> String {
     let mut banner = String::new();
     let total_lines = LOGO_LINES.len().max(WORDMARK_LINES.len());
-    let wordmark_offset = (total_lines - WORDMARK_LINES.len()) / 2;
+    let wordmark_offset = (total_lines - WORDMARK_LINES.len()).div_ceil(2);
     for line_index in 0..total_lines {
         let logo = LOGO_LINES.get(line_index).copied().unwrap_or("");
         let logo = if use_color {
