@@ -3,14 +3,11 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { getMcpIdentity } from "@/data/mcp/identity";
 import { assertCurrentMember } from "@/data/mcp/membership";
+import { QUERY_TOOL_DESCRIPTION } from "@/data/mcp/query-tool-description";
 import { runSqlForConnection } from "@/data/mcp/run-sql";
 import { AUTH_ISSUER, MCP_RESOURCE } from "@/lib/mcp-resource";
 import { mcpResourceClient } from "@/lib/mcp-resource-client";
-import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
 import { mergeTelemetryIdentity } from "@/telemetry/identity";
-
-// Single source of truth: the tables the per-org ClickHouse role can read.
-const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
 
 // Per-request identity, carried on the verified token's AuthInfo.extra. The MCP
 // SDK threads AuthInfo into every tool call's `extra`, so there's no need to
@@ -28,9 +25,7 @@ function createTransport() {
       server.registerTool(
         "query",
         {
-          description:
-            `Run a read-only ClickHouse SQL query against your organization's ` +
-            `telemetry. Readable tables: ${READABLE_TABLES}. OpenTelemetry. Results are capped.`,
+          description: QUERY_TOOL_DESCRIPTION,
           inputSchema: { sql: z.string() },
         },
         async ({ sql }, extra) => {
