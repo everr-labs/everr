@@ -31,7 +31,6 @@ import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authen
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
 import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
-import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
 import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
 import { Route as ApiCliReposRouteImport } from './routes/api/cli/repos'
 import { Route as ApiCliResourcesRouteImport } from './routes/api/cli/resources'
@@ -59,8 +58,6 @@ import { Route as AuthenticatedDashboardPreviewableRunbooksRouteRouteImport } fr
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
-import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
-import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/histogram'
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
@@ -200,11 +197,6 @@ const ApiCliImportRoute = ApiCliImportRouteImport.update({
 const ApiCliMeRoute = ApiCliMeRouteImport.update({
   id: '/me',
   path: '/me',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliNotificationRoute = ApiCliNotificationRouteImport.update({
-  id: '/notification',
-  path: '/notification',
   getParentRoute: () => ApiCliRoute,
 } as any)
 const ApiCliOrgRoute = ApiCliOrgRouteImport.update({
@@ -356,16 +348,6 @@ const AuthenticatedDashboardRunsTraceIdRouteRoute =
 const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
   id: '/$traceId',
   path: '/$traceId',
-  getParentRoute: () => ApiCliRunsRoute,
-} as any)
-const ApiCliRunsFilterOptionsRoute = ApiCliRunsFilterOptionsRouteImport.update({
-  id: '/filter-options',
-  path: '/filter-options',
-  getParentRoute: () => ApiCliRunsRoute,
-} as any)
-const ApiCliRunsHistogramRoute = ApiCliRunsHistogramRouteImport.update({
-  id: '/histogram',
-  path: '/histogram',
   getParentRoute: () => ApiCliRunsRoute,
 } as any)
 const ApiCliRunsStatusRoute = ApiCliRunsStatusRouteImport.update({
@@ -569,7 +551,6 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
-  '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/org': typeof ApiCliOrgRoute
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
@@ -594,8 +575,6 @@ export interface FileRoutesByFullPath {
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRouteWithChildren
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
-  '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
-  '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -645,7 +624,6 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
-  '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/org': typeof ApiCliOrgRoute
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
@@ -666,8 +644,6 @@ export interface FileRoutesByTo {
   '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
-  '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
-  '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -725,7 +701,6 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/import': typeof ApiCliImportRoute
   '/api/cli/me': typeof ApiCliMeRoute
-  '/api/cli/notification': typeof ApiCliNotificationRoute
   '/api/cli/org': typeof ApiCliOrgRoute
   '/api/cli/repos': typeof ApiCliReposRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
@@ -751,8 +726,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/repos': typeof AuthenticatedDashboardPaddedReposRoute
   '/_authenticated/_dashboard/_previewable/alerts': typeof AuthenticatedDashboardPreviewableAlertsRouteWithChildren
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
-  '/api/cli/runs/filter-options': typeof ApiCliRunsFilterOptionsRoute
-  '/api/cli/runs/histogram': typeof ApiCliRunsHistogramRoute
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
@@ -806,7 +779,6 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cli/import'
     | '/api/cli/me'
-    | '/api/cli/notification'
     | '/api/cli/org'
     | '/api/cli/repos'
     | '/api/cli/resources'
@@ -831,8 +803,6 @@ export interface FileRouteTypes {
     | '/repos'
     | '/alerts'
     | '/api/cli/runs/$traceId'
-    | '/api/cli/runs/filter-options'
-    | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -882,7 +852,6 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cli/import'
     | '/api/cli/me'
-    | '/api/cli/notification'
     | '/api/cli/org'
     | '/api/cli/repos'
     | '/api/cli/resources'
@@ -903,8 +872,6 @@ export interface FileRouteTypes {
     | '/cost-analysis'
     | '/repos'
     | '/api/cli/runs/$traceId'
-    | '/api/cli/runs/filter-options'
-    | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -961,7 +928,6 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cli/import'
     | '/api/cli/me'
-    | '/api/cli/notification'
     | '/api/cli/org'
     | '/api/cli/repos'
     | '/api/cli/resources'
@@ -987,8 +953,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/repos'
     | '/_authenticated/_dashboard/_previewable/alerts'
     | '/api/cli/runs/$traceId'
-    | '/api/cli/runs/filter-options'
-    | '/api/cli/runs/histogram'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
@@ -1199,13 +1163,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliMeRouteImport
       parentRoute: typeof ApiCliRoute
     }
-    '/api/cli/notification': {
-      id: '/api/cli/notification'
-      path: '/notification'
-      fullPath: '/api/cli/notification'
-      preLoaderRoute: typeof ApiCliNotificationRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
     '/api/cli/org': {
       id: '/api/cli/org'
       path: '/org'
@@ -1393,20 +1350,6 @@ declare module '@tanstack/react-router' {
       path: '/$traceId'
       fullPath: '/api/cli/runs/$traceId'
       preLoaderRoute: typeof ApiCliRunsTraceIdRouteImport
-      parentRoute: typeof ApiCliRunsRoute
-    }
-    '/api/cli/runs/filter-options': {
-      id: '/api/cli/runs/filter-options'
-      path: '/filter-options'
-      fullPath: '/api/cli/runs/filter-options'
-      preLoaderRoute: typeof ApiCliRunsFilterOptionsRouteImport
-      parentRoute: typeof ApiCliRunsRoute
-    }
-    '/api/cli/runs/histogram': {
-      id: '/api/cli/runs/histogram'
-      path: '/histogram'
-      fullPath: '/api/cli/runs/histogram'
-      preLoaderRoute: typeof ApiCliRunsHistogramRouteImport
       parentRoute: typeof ApiCliRunsRoute
     }
     '/api/cli/runs/status': {
@@ -1988,15 +1931,11 @@ const ApiCliRunsTraceIdRouteWithChildren =
 
 interface ApiCliRunsRouteChildren {
   ApiCliRunsTraceIdRoute: typeof ApiCliRunsTraceIdRouteWithChildren
-  ApiCliRunsFilterOptionsRoute: typeof ApiCliRunsFilterOptionsRoute
-  ApiCliRunsHistogramRoute: typeof ApiCliRunsHistogramRoute
   ApiCliRunsStatusRoute: typeof ApiCliRunsStatusRoute
 }
 
 const ApiCliRunsRouteChildren: ApiCliRunsRouteChildren = {
   ApiCliRunsTraceIdRoute: ApiCliRunsTraceIdRouteWithChildren,
-  ApiCliRunsFilterOptionsRoute: ApiCliRunsFilterOptionsRoute,
-  ApiCliRunsHistogramRoute: ApiCliRunsHistogramRoute,
   ApiCliRunsStatusRoute: ApiCliRunsStatusRoute,
 }
 
@@ -2007,7 +1946,6 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
 interface ApiCliRouteChildren {
   ApiCliImportRoute: typeof ApiCliImportRoute
   ApiCliMeRoute: typeof ApiCliMeRoute
-  ApiCliNotificationRoute: typeof ApiCliNotificationRoute
   ApiCliOrgRoute: typeof ApiCliOrgRoute
   ApiCliReposRoute: typeof ApiCliReposRoute
   ApiCliResourcesRoute: typeof ApiCliResourcesRouteWithChildren
@@ -2018,7 +1956,6 @@ interface ApiCliRouteChildren {
 const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliImportRoute: ApiCliImportRoute,
   ApiCliMeRoute: ApiCliMeRoute,
-  ApiCliNotificationRoute: ApiCliNotificationRoute,
   ApiCliOrgRoute: ApiCliOrgRoute,
   ApiCliReposRoute: ApiCliReposRoute,
   ApiCliResourcesRoute: ApiCliResourcesRouteWithChildren,

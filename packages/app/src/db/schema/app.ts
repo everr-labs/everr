@@ -289,7 +289,7 @@ export const previews = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: text("organization_id").notNull(),
     repoid: text("repoid").notNull(),
-    // Raw preview name (usually a git branch, e.g. "gio/desktop-app"),
+    // Raw preview name (usually a git branch, e.g. "gio/local-browser-ui"),
     // stored verbatim; URL-encoded only at the edges.
     name: text("name").notNull(),
     lastAppliedAt: timestamp("last_applied_at", { withTimezone: true })

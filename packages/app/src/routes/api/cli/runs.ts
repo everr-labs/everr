@@ -15,8 +15,8 @@ const RunsListQuerySchema = z.strictObject({
   branch: z.string().optional(),
   conclusion: ConclusionEnum.optional(),
   workflowName: z.string().optional(),
-  // Plural variants let the desktop app pass multi-select filters as repeated
-  // query params while the singular ones keep the CLI working.
+  // Plural variants accept multi-select filters as repeated query params;
+  // singular variants accept the CLI's single-value filters.
   repos: z.array(z.string()).optional(),
   branches: z.array(z.string()).optional(),
   conclusions: z.array(ConclusionEnum).optional(),

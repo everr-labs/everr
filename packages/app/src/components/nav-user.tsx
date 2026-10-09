@@ -20,7 +20,6 @@ import {
   ChevronsUpDown,
   CookieIcon,
   CreditCard,
-  Download,
   GitPullRequest,
   KeyRound,
   LogOut,
@@ -31,7 +30,6 @@ import {
 import { useState } from "react";
 import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
 import { getOrganizationCreationOptions } from "@/data/organizations";
-import { PLATFORMS } from "@/lib/app-download";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { useOpenConsentSettings } from "@/telemetry/consent-gate";
@@ -43,7 +41,6 @@ export function NavUser() {
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: orgs } = authClient.useListOrganizations();
-  const downloadUrl = PLATFORMS[0].downloadUrl;
   const userRole = activeOrg?.members?.find(
     (m) => m.userId === session?.user?.id,
   )?.role;
@@ -199,18 +196,6 @@ export function NavUser() {
                   <CookieIcon />
                   Privacy preferences
                 </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  nativeButton={false}
-                  render={
-                    <a href={downloadUrl} download>
-                      <Download />
-                      Download App
-                    </a>
-                  }
-                />
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem

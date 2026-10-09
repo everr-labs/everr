@@ -26,7 +26,7 @@ export interface RunsFiltersProps {
   repo: RunsRepositoryLike;
   timeRange: TimeRange;
   value: RunsFiltersValue;
-  /** Render the "Your runs" switch (the desktop CI page scopes to the user). */
+  /** Render the "Your runs" switch to scope results to the current user. */
   showMineFilter?: boolean;
   onChange: (patch: Partial<RunsFiltersValue>) => void;
 }

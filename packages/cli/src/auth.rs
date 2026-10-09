@@ -1,8 +1,8 @@
-use anyhow::{Result, anyhow};
 use crate::api::ApiClient;
-use crate::device_auth::{AuthConfig, login_with_prompt};
 use crate::build;
+use crate::device_auth::{AuthConfig, login_with_prompt};
 use crate::state::{AppStateStore, Session};
+use anyhow::{Result, anyhow};
 
 use crate::cli::LoginArgs;
 

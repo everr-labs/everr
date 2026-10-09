@@ -39,7 +39,7 @@ export interface RunsFilter {
   runId?: string;
   /**
    * When true, scope to the current user's own runs. The repository decides
-   * what "mine" means (e.g. the desktop app matches author email); the explorer
+   * what "mine" means (e.g. matching author email); the explorer
    * just forwards the flag.
    */
   onlyMine?: boolean;

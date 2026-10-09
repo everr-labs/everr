@@ -150,11 +150,11 @@ describe("createBuildTelemetry", () => {
       GITHUB_RUN_ATTEMPT: "1",
       EVERR_CI_JOB_NAME: "Build, Sign, Notarize Desktop",
     };
-    const telemetry = createBuildTelemetry({ buildName: "desktop release build", env });
+    const telemetry = createBuildTelemetry({ buildName: "cli release build", env });
 
     let phaseChildEnv: Record<string, string> | undefined;
     await expect(
-      telemetry.phase("build tauri app", async (span) => {
+      telemetry.phase("build cli", async (span) => {
         phaseChildEnv = span.childEnv();
         return "ok";
       }),
@@ -162,10 +162,10 @@ describe("createBuildTelemetry", () => {
     expect(phaseChildEnv?.EVERR_BUILD_TRACE_ID).toBe("ce3e4cc4a1ed6e03e580b6b9174acdbf");
     expect(phaseChildEnv?.EVERR_BUILD_PARENT_SPAN_ID).toMatch(/^[0-9a-f]{16}$/);
     await expect(
-      telemetry.phase("notarize dmg", async () => {
-        throw new Error("notarytool exploded");
+      telemetry.phase("package cli", async () => {
+        throw new Error("packaging failed");
       }),
-    ).rejects.toThrow("notarytool exploded");
+    ).rejects.toThrow("packaging failed");
   });
 
   it("marks the phase span as errored in the OTLP payload", async () => {

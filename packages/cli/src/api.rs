@@ -5,8 +5,8 @@ use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use opentelemetry::global;
 use opentelemetry::propagation::Injector;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::StatusCode;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -148,14 +148,6 @@ impl ApiClient {
         self.get_json("/runs", query).await
     }
 
-    pub async fn get_runs_histogram(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/runs/histogram", query).await
-    }
-
-    pub async fn get_run_filter_options(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/runs/filter-options", query).await
-    }
-
     pub async fn get_status(&self, query: &[(&str, String)]) -> Result<WatchResponse> {
         self.get("/runs/status", query).await
     }
@@ -204,15 +196,6 @@ impl ApiClient {
     ) -> Result<StepLogsResponse> {
         let path = format!("/runs/{trace_id}/logs");
         self.get(&path, query).await
-    }
-
-    pub async fn get_notification_for_trace(
-        &self,
-        trace_id: &str,
-    ) -> Result<Option<FailureNotification>> {
-        let query = [("traceId", trace_id.to_string())];
-        let results: Vec<FailureNotification> = self.get("/notification", &query).await?;
-        Ok(results.into_iter().next())
     }
 
     pub async fn events_stream(
@@ -432,8 +415,8 @@ impl Injector for HeaderInjector<'_> {
 }
 
 /// Trace-propagation headers for the current span, to add to an outgoing
-/// request. Empty when no tracer/propagator is installed (e.g. in tests, the
-/// desktop app, or when telemetry is disabled) — the global propagator defaults
+/// request. Empty when no tracer/propagator is installed (e.g. in tests or when
+/// telemetry is disabled). The global propagator defaults
 /// to a no-op, so nothing is injected and the request is unchanged.
 fn current_trace_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
@@ -541,29 +524,6 @@ pub struct MeResponse {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct FailureNotification {
-    pub dedupe_key: String,
-    pub trace_id: String,
-    pub repo: String,
-    pub branch: String,
-    pub workflow_name: String,
-    pub failed_at: String,
-    pub details_url: String,
-    /// All failed jobs in the run with their first failing step.
-    #[serde(default)]
-    pub failed_jobs: Vec<FailedJobInfo>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct FailedJobInfo {
-    pub job_name: String,
-    pub step_number: String,
-    pub step_name: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub struct OrgResponse {
     pub name: String,
     pub is_only_member: bool,
@@ -654,8 +614,8 @@ where
 #[cfg(test)]
 mod api_client_tests {
     use super::*;
-    use futures_util::pin_mut;
     use futures_util::StreamExt;
+    use futures_util::pin_mut;
 
     fn make_session(base_url: &str) -> crate::state::Session {
         crate::state::Session {

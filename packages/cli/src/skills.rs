@@ -1,12 +1,12 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
 use crate::skill_store::{
     self as core_skills, SkillOperationOptions, SkillOperationSummary, SkillPathAction,
     SkillProvider, SkillScope, bundled_skills, install_bundled_skills, uninstall_bundled_skills,
     update_bundled_skills,
 };
+use anyhow::{Context, Result, bail};
 use std::io::IsTerminal;
 
 use crate::cli::{

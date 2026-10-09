@@ -1,7 +1,7 @@
 use std::io::{self, IsTerminal, Write};
 
-use anyhow::{Context, Result, bail};
 use crate::git::{resolve_git_context, run_git};
+use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use tokio::pin;
 
