@@ -204,15 +204,18 @@ function HomeContent({
       content: (
         <>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Run this command in your terminal. Local telemetry works without
-            signing in or creating an ingestion key.
+            <a
+              href="https://everr.dev/docs/reference/cli"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Everr CLI
+            </a>{" "}
+            is the fundamental tool to query local and cloud telemetry, and
+            manage resources such as dashboards, alerts, runbooks, and bundled
+            skills.
           </p>
           <CopyBlock text={INSTALL_COMMAND} label="Copy install command" />
-          <p className="text-xs text-muted-foreground">
-            The installer may also offer to install global agent skills. Connect
-            this project in the next step even if you already installed them
-            globally.
-          </p>
         </>
       ),
     },
@@ -228,8 +231,10 @@ function HomeContent({
       content: (
         <>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Add OpenTelemetry to your app and send data to the local collector.
-            Use your coding agent or follow the guide yourself.
+            Instrumentation is the process of adding telemetry to your app.
+            <br />
+            Collected data is stored and queried locally for faster development
+            feedback, and sent to Everr Cloud when you deploy your app.
           </p>
           <fieldset
             className="grid gap-3 sm:grid-cols-2"
@@ -303,11 +308,12 @@ function HomeContent({
             <ol className="space-y-6">
               <li className="space-y-3">
                 <h3 className="text-sm font-medium">
-                  1. Install the project skills
+                  1. Install the Everr skills
                 </h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  Run this in your project's terminal. Already installed them?
-                  Go straight to the next instruction.
+                  Our skills are specialized capabilities that help AI agents
+                  handle observability tasks. Run the command below from the
+                  project root.
                 </p>
                 <CopyBlock
                   text="everr skills install --all --project"
@@ -319,14 +325,15 @@ function HomeContent({
                   2. Ask your agent to instrument the app
                 </h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  Send this to your coding agent from the same project. It will
-                  inspect your app, configure telemetry, and check that data
-                  arrives.
+                  Run the skill in your coding agent. It will inspect your app,
+                  configure telemetry, and check that data arrives.
+                  <br />
+                  Yes, it works in monorepo projects too.
                 </p>
                 <CopyBlock text={SETUP_COMMAND} label="Copy setup command" />
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  Let the agent finish before continuing. It also documents
-                  production setup in your project's README.
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Follow the agent's instructions until the end. Part of the
+                  setup process continues there.
                 </p>
               </li>
             </ol>
@@ -342,9 +349,6 @@ function HomeContent({
               </GuideLink>
             </div>
           )}
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Once the app is instrumented, we'll check its data in the local UI.
-          </p>
         </>
       ),
     },
@@ -361,7 +365,8 @@ function HomeContent({
         <>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Check that you can see data from your running app before setting up
-            production. This Cloud page can't detect telemetry on your machine.
+            production. You can use local observability also for debugging
+            during development.
           </p>
           <ol className="space-y-5">
             <li className="space-y-2">
@@ -369,9 +374,8 @@ function HomeContent({
                 1. Open your local Everr UI
               </h3>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Run this in your terminal and open the returned <code>ui:</code>{" "}
-                URL. If the collector is stopped, run{" "}
-                <code>everr local start</code> first.
+                You can find the local UI URL in the output using the command
+                below
               </p>
               <CopyBlock
                 text="everr local status"
@@ -390,8 +394,8 @@ function HomeContent({
                 3. Find the data from that action
               </h3>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                In the local UI, open Traces or Logs, select your app's service,
-                and look for a recent record from the action you just performed.
+                Navigate the local UI and see your app's behavior throught logs,
+                traces, and dashboards.
               </p>
             </li>
           </ol>
@@ -441,12 +445,17 @@ function HomeContent({
       content: (
         <>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Send production telemetry to Everr Cloud for{" "}
-            <span className="font-medium text-foreground">
-              {status.organizationName}
-            </span>
-            . Keep development connected to your local collector.
+            While local telemetry is sent to Everr Local, production telemetry
+            must be sent to Everr Cloud.
           </p>
+          <div className="space-y-4">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Configure your production app's OpenTelemetry exporter with Everr
+              Cloud's endpoint and the appropriate ingestion key, then rebuild
+              or restart your deployment. Use the app and check for fresh traces
+              or logs in Everr Cloud.
+            </p>
+          </div>
           {status.canCreateKeys ? (
             <div className="grid gap-6 border-y py-6 sm:grid-cols-2 sm:gap-8">
               <div className="flex flex-col items-start gap-4">
@@ -485,9 +494,6 @@ function HomeContent({
               you're ready to deploy.
             </p>
           )}
-          <p className="text-xs text-muted-foreground">
-            Already have ingestion keys? You can use your existing ones.
-          </p>
           <div className="space-y-2">
             <p className="text-sm font-medium">Production OTLP/HTTP endpoint</p>
             <CopyBlock
@@ -497,21 +503,15 @@ function HomeContent({
           </div>
           <div className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Configure your production app's OpenTelemetry exporter with this
-              endpoint and the appropriate ingestion key, then rebuild or
-              restart your deployment. Use the app and check for fresh traces or
-              logs in Everr Cloud. Keep local development connected to the local
-              collector.
+              Missing something? Ask to your AI Agent using the
+              /everr-setup-telemetry skill or open{" "}
+              <a href={PRODUCTION_GUIDE} target="_blank" rel="noreferrer">
+                the production guide
+              </a>
+              .
             </p>
-            <GuideLink href={PRODUCTION_GUIDE}>
-              Open the production guide
-            </GuideLink>
           </div>
           <div className="space-y-4">
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              You can finish now and deploy later. Verify Cloud ingestion once
-              your production app sends data.
-            </p>
             {complete.error && (
               <p role="alert" className="text-sm text-destructive">
                 {complete.error.message}
@@ -538,9 +538,9 @@ function HomeContent({
           <h1 className="text-3xl font-semibold tracking-tight">
             Welcome to Everr
           </h1>
-          <p className="max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Connect your app to see its traces, logs, and errors. Start on your
-            machine, then take your setup to production.
+          <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
+            Connect your app to see its traces, logs, and errors. We'll guide
+            you through the setup process.
           </p>
         </div>
       </MultiStep>
