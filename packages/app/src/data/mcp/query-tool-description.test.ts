@@ -1,7 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("@/lib/clickhouse", () => ({}));
-
+import { describe, expect, it } from "vitest";
 import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
 import { QUERY_TOOL_DESCRIPTION } from "./query-tool-description";
 

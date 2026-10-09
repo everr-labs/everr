@@ -85,7 +85,9 @@ function sqlApiOrgPolicyName(organizationId: string, table: string): string {
 // to that user, so user SQL cannot override the tenant filter via SETTINGS or
 // any other channel. The query authenticates with HMAC-derived credentials per
 // query and reuses the shared `clickhouse` HTTP client.
-function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
+function runSqlApiQuery<
+  Format extends "JSONEachRow" | "JSON" | "JSONCompactEachRowWithNamesAndTypes",
+>(
   query: string,
   organizationId: string,
   query_params: Record<string, unknown> | undefined,
@@ -160,6 +162,62 @@ export async function querySqlApiWithMeta<T>(
     rows: body.data ?? [],
     columns: (body.meta ?? []).map((m) => m.name),
     columnTypes: (body.meta ?? []).map((m) => m.type ?? ""),
+  };
+}
+
+export interface SqlApiPreview {
+  columns: string[];
+  columnTypes: string[];
+  /** One array per row, values in `columns` order. */
+  rows: unknown[][];
+  /** The query had more than `maxRows` rows; the rest were never read. */
+  truncated: boolean;
+}
+
+/**
+ * Read at most `maxRows` rows of a SQL API query, then cancel it. For callers
+ * that show a preview (the MCP tool): ClickHouse stops producing rows when the
+ * connection closes, instead of sending up to the profile's 25k rows / 4 MB to
+ * be discarded here. Column names and types arrive even for an empty result.
+ */
+export async function previewSqlApi(
+  query: string,
+  organizationId: string,
+  maxRows: number,
+): Promise<SqlApiPreview> {
+  if (!organizationId) throw new Error("Missing ClickHouse tenant context");
+  const abort = new AbortController();
+  const result = await runSqlApiQuery(
+    query,
+    organizationId,
+    undefined,
+    "JSONCompactEachRowWithNamesAndTypes",
+    abort.signal,
+  );
+
+  // The first two lines are the column names and the column types.
+  const lines: unknown[][] = [];
+  let truncated = false;
+  try {
+    read: for await (const batch of result.stream()) {
+      for (const row of batch) {
+        if (lines.length === maxRows + 2) {
+          truncated = true;
+          break read;
+        }
+        lines.push(row.json<unknown[]>());
+      }
+    }
+  } finally {
+    abort.abort();
+  }
+
+  const [columns = [], columnTypes = [], ...rows] = lines;
+  return {
+    columns: columns as string[],
+    columnTypes: columnTypes as string[],
+    rows,
+    truncated,
   };
 }
 

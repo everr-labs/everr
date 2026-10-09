@@ -2,8 +2,9 @@
 // granted to sql_api_role in clickhouse/init/15-create-sql-api-role.sql. The
 // canonical readable-table list: exported so callers (the schema-probe error)
 // advertise exactly these instead of hand-syncing copies, and so a test can
-// check that the MCP query tool description documents each one. Lives apart from the ClickHouse client so consumers of
-// the list alone don't import node:crypto or the server env.
+// check that the MCP query tool description documents each one. Lives apart
+// from the ClickHouse client so consumers of the list alone don't import
+// node:crypto or the server env.
 export const SQL_API_TENANT_TABLES = [
   "traces",
   "logs",

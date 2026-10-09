@@ -43,7 +43,12 @@ function createTransport() {
           });
           return {
             isError: result.isError,
-            content: [{ type: "text", text: result.text }],
+            content: [
+              { type: "text", text: result.text },
+              ...(result.note
+                ? [{ type: "text" as const, text: result.note }]
+                : []),
+            ],
           };
         },
       );
