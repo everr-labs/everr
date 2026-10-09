@@ -1,7 +1,17 @@
 use std::fmt::Write as _;
 use std::io::IsTerminal;
 
-const LOGO_LINES: &[&str] = &["⢠⡾⢻⣦⡀", "⣿⠁⣾⣉⣻⣦⡀", "⣿ ⣿⣉⣽⢿⡿⣦⡀", "⠘⣧⡈⠻⣧⣼⣧⡼⠿⣦", " ⠈⠛⠶⣤⣤⣤⣴⠾⠋"];
+// Braille rendition of packages/ui/src/assets/favicon.svg.
+const LOGO_LINES: &[&str] = &[
+    "     ⣠⣤⣤⡀",
+    "     ⣿⡿⢿⠇   \x1b[38;2;215;255;0m⣶\x1b[0m",
+    "    ⢀⣀⣸⣧⣤⣀⡀\x1b[38;2;215;255;0m⠘⠃⢀⣠⡤\x1b[0m",
+    "  ⣠⣾⣿⠿⠛⠛⠛⠛⠛⠷⣄\x1b[38;2;215;255;0m⠉⠁\x1b[0m",
+    " ⢸⣿⣿⠃ \x1b[38;2;215;255;0m⢀\x1b[0m   \x1b[38;2;215;255;0m⢀\x1b[0m ⠘⣇",
+    "⣼⡇⣿⣏  \x1b[38;2;215;255;0m⢿⠇\x1b[0m  \x1b[38;2;215;255;0m⢿⠇\x1b[0m ⣿",
+    "⠘⠣⣿⣿⣄      ⢀⣠⠏",
+    "  ⠉⠛⠛⠛⠛⠛⠛⠛⠛⠛⠁",
+];
 const WORDMARK_LINES: &[&str] = &[
     "░████████ ░██    ░██  ░███████  ░██░████ ░██░████",
     "░██       ░██    ░██ ░██    ░██ ░███     ░███",
@@ -9,9 +19,7 @@ const WORDMARK_LINES: &[&str] = &[
     "░██         ░██░██   ░██        ░██      ░██",
     "░████████    ░███     ░███████  ░██      ░██",
 ];
-const LOGO_COLUMN_WIDTH: usize = 10;
-const BANNER_COLOR: &str = "\x1b[38;2;223;255;0m";
-const ANSI_RESET: &str = "\x1b[0m";
+const LOGO_COLUMN_WIDTH: usize = 16;
 
 fn should_use_color() -> bool {
     std::io::stdout().is_terminal()
@@ -23,30 +31,31 @@ fn should_use_color() -> bool {
 
 pub(crate) fn print_banner() {
     println!();
-    let banner = render_banner();
-    if should_use_color() {
-        print!("{BANNER_COLOR}{banner}{ANSI_RESET}");
-    } else {
-        print!("{banner}");
-    }
+    print!("{}", render_banner(should_use_color()));
     println!();
 }
 
-fn render_banner() -> String {
+fn render_banner(use_color: bool) -> String {
     let mut banner = String::new();
     let total_lines = LOGO_LINES.len().max(WORDMARK_LINES.len());
+    let wordmark_offset = (total_lines - WORDMARK_LINES.len()) / 2;
     for line_index in 0..total_lines {
         let logo = LOGO_LINES.get(line_index).copied().unwrap_or("");
-        let wordmark = WORDMARK_LINES.get(line_index).copied().unwrap_or("");
+        let logo = if use_color {
+            std::borrow::Cow::Borrowed(logo)
+        } else {
+            console::strip_ansi_codes(logo)
+        };
+        let wordmark = line_index
+            .checked_sub(wordmark_offset)
+            .and_then(|index| WORDMARK_LINES.get(index))
+            .copied()
+            .unwrap_or("");
         if wordmark.is_empty() {
             writeln!(&mut banner, "{logo}").expect("banner line");
         } else {
-            writeln!(
-                &mut banner,
-                "{logo:<width$}   {wordmark}",
-                width = LOGO_COLUMN_WIDTH
-            )
-            .expect("banner line");
+            let padding = " ".repeat(LOGO_COLUMN_WIDTH - console::measure_text_width(&logo));
+            writeln!(&mut banner, "{logo}{padding}   {wordmark}").expect("banner line");
         }
     }
     banner
@@ -57,9 +66,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn renders_banner_with_logo_and_wordmark() {
-        let banner = render_banner();
+    fn renders_same_banner_with_or_without_color() {
+        let banner = render_banner(false);
         assert!(banner.contains("░████████"));
-        assert!(banner.lines().count() >= 5);
+        assert!(!banner.contains('\x1b'));
+        assert_eq!(console::strip_ansi_codes(&render_banner(true)), banner);
     }
 }

@@ -24,7 +24,7 @@ pub async fn run() -> Result<()> {
     step_install_skills()?;
 
     print_summary()?;
-    cliclack::outro("Observability, simplified.")?;
+    cliclack::outro("Observability made simple.")?;
     Ok(())
 }
 
