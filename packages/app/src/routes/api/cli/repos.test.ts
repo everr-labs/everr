@@ -88,8 +88,8 @@ describe("/api/cli/repos", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([
-      { id: 1, fullName: "org/repo-a" },
-      { id: 2, fullName: "org/repo-b" },
+      { fullName: "org/repo-a" },
+      { fullName: "org/repo-b" },
     ]);
     expect(mockedListRepos).toHaveBeenCalledWith(99);
   });

@@ -29,6 +29,7 @@ import {
 } from "@tanstack/react-router";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
+import { useExploreControls } from "../explore/use-explore-controls";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
@@ -71,6 +72,7 @@ export function ErrorsPage() {
 }
 
 function ErrorsListView() {
+  const controls = useExploreControls("/errors");
   const search = useSearch({ strict: false }) as ErrorIssueSearch & {
     environment?: string[];
   };
@@ -94,20 +96,7 @@ function ErrorsListView() {
       title="Errors"
       timeRange={timeRange}
       refresh={refresh ?? ""}
-      onTimeRangeChange={(range) =>
-        navigate({
-          to: "/errors",
-          search: { ...search, from: range.from, to: range.to },
-          replace: true,
-        })
-      }
-      onRefreshChange={(value) =>
-        navigate({
-          to: "/errors",
-          search: { ...search, refresh: value || undefined },
-          replace: true,
-        })
-      }
+      {...controls}
     >
       <LocalTelemetryGate>
         <ErrorIssues

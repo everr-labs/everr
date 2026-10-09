@@ -58,7 +58,7 @@ where
     F: FnOnce(String, String) -> Fut,
     Fut: std::future::Future<Output = ()>,
 {
-    let client = build_http_client()?;
+    let client = build_auth_http_client()?;
     let authorization = start_device_authorization(&client, config).await?;
 
     // Run the prompt to completion before polling so we never have a
@@ -149,27 +149,19 @@ pub fn session_from_device_token(
     config: &AuthConfig,
     token: DeviceTokenResponse,
 ) -> Result<Session> {
-    build_session(config.api_base_url.clone(), token)
-}
-
-fn build_http_client() -> Result<reqwest::Client> {
-    reqwest::Client::builder()
-        .build()
-        .context("failed to build HTTP client")
-}
-
-pub fn build_auth_http_client() -> Result<reqwest::Client> {
-    build_http_client()
-}
-
-fn build_session(api_base_url: String, token: DeviceTokenResponse) -> Result<Session> {
     if token.access_token.trim().is_empty() {
         bail!("received an empty access token");
     }
     Ok(Session {
-        api_base_url,
+        api_base_url: config.api_base_url.clone(),
         token: token.access_token,
     })
+}
+
+pub fn build_auth_http_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .build()
+        .context("failed to build HTTP client")
 }
 
 fn map_device_authorization(

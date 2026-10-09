@@ -167,8 +167,9 @@ impl LocalAuth {
     }
 
     pub async fn sign_out(&self) -> Result<AuthResponse> {
+        let mut pending = self.pending.lock().await;
         self.store.clear_session()?;
-        *self.pending.lock().await = None;
+        *pending = None;
         self.status()
     }
 
@@ -265,7 +266,7 @@ mod tests {
         server
             .mock("GET", "/api/cli/org")
             .with_header("content-type", "application/json")
-            .with_body(r#"{"name":"Test Org","isOnlyMember":false}"#)
+            .with_body(r#"{"name":"Test Org"}"#)
             .create_async()
             .await;
         let (_dir, auth, store) = test_auth(server.url());
@@ -344,6 +345,50 @@ mod tests {
         for request in pending_requests {
             request.assert_async().await;
         }
+    }
+
+    #[tokio::test]
+    async fn sign_out_wins_over_an_in_flight_sign_in_poll() {
+        let mut server = mockito::Server::new_async().await;
+        code(&mut server, 60).await;
+        let started = std::sync::Arc::new(tokio::sync::Notify::new());
+        let token_started = started.clone();
+        let (release, wait_for_release) = std::sync::mpsc::channel();
+        let wait_for_release = std::sync::Mutex::new(wait_for_release);
+        server
+            .mock("POST", "/api/auth/device/token")
+            .with_header("content-type", "application/json")
+            .with_chunked_body(move |writer| {
+                token_started.notify_one();
+                wait_for_release.lock().unwrap().recv().unwrap();
+                writer.write_all(br#"{"access_token":"test-token"}"#)
+            })
+            .create_async()
+            .await;
+        let (_dir, auth, _) = test_auth(server.url());
+        auth.start_sign_in().await.unwrap();
+
+        let (poll, sign_out) = tokio::join!(auth.poll_sign_in(), async {
+            started.notified().await;
+            let sign_out = auth.sign_out();
+            tokio::pin!(sign_out);
+            let result = futures_util::poll!(&mut sign_out);
+            release.send(()).unwrap();
+            match result {
+                std::task::Poll::Ready(result) => result,
+                std::task::Poll::Pending => sign_out.await,
+            }
+        });
+        poll.unwrap();
+        assert!(matches!(sign_out.unwrap(), AuthResponse::SignedOut { .. }));
+        assert!(matches!(
+            auth.status().unwrap(),
+            AuthResponse::SignedOut { .. }
+        ));
+        assert!(matches!(
+            auth.poll_sign_in().await.unwrap(),
+            AuthResponse::Expired
+        ));
     }
 
     #[tokio::test]

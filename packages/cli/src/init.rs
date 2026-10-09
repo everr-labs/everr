@@ -163,7 +163,6 @@ mod tests {
     fn member_org_does_not_show_runs_import_step() {
         let org = OrgResponse {
             name: "Acme".to_string(),
-            is_only_member: false,
             role: Some("member".to_string()),
         };
 
@@ -174,7 +173,6 @@ mod tests {
     fn owner_org_shows_runs_import_step() {
         let org = OrgResponse {
             name: "Acme".to_string(),
-            is_only_member: false,
             role: Some("owner".to_string()),
         };
 

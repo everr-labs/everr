@@ -1,35 +1,22 @@
-import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   LogsExplorer,
   type LogsExplorerSearch,
   LogsRepository,
-  LogsSearchFiltersShape,
+  type LogsSearch,
 } from "@everr/telemetry-explorer/logs";
-import { TimeRangeSearchSchema, withTimeRange } from "@everr/ui/lib/time-range";
+import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { z } from "zod";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
+import { useExploreControls } from "../explore/use-explore-controls";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "./local-sql-client";
-
-// `services` lives in the shared topbar now (as the cross-page `service` param),
-// so it is omitted from the per-page schema and the sidebar service control is
-// hidden via `hideSharedFilters`.
-export const LogsSearchSchema = TimeRangeSearchSchema.extend({
-  q: z.string().optional(),
-  ...LogsSearchFiltersShape,
-  ...ExploreSearchShape,
-  traceId: z.string().optional(),
-  showVolume: z.boolean().default(true),
-}).omit({ services: true });
-
-type LogsSearch = z.infer<typeof LogsSearchSchema>;
 
 export function LogsPage() {
   const search = useSearch({ strict: false }) as LogsSearch;
   const navigate = useNavigate();
+  const controls = useExploreControls("/logs");
 
   const repo = useMemo(() => new LogsRepository(localSqlClient), []);
 
@@ -52,20 +39,7 @@ export function LogsPage() {
       title="Logs"
       timeRange={timeRange}
       refresh={search.refresh ?? ""}
-      onTimeRangeChange={(range) =>
-        navigate({
-          to: "/logs",
-          search: (prev) => ({ ...prev, from: range.from, to: range.to }),
-          replace: true,
-        })
-      }
-      onRefreshChange={(value) =>
-        navigate({
-          to: "/logs",
-          search: (prev) => ({ ...prev, refresh: value || undefined }),
-          replace: true,
-        })
-      }
+      {...controls}
     >
       <LocalTelemetryGate>
         <LogsExplorer

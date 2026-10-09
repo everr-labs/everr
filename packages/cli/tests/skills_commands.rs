@@ -334,9 +334,7 @@ fn init_skips_runs_import_step_for_non_admin_member() {
         .match_header("authorization", "Bearer token-123")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(
-            r#"{"name":"Acme","isOnlyMember":false,"onboardingCompleted":false,"role":"member"}"#,
-        )
+        .with_body(r#"{"name":"Acme","onboardingCompleted":false,"role":"member"}"#)
         .create();
     let repos_mock = server.mock("GET", "/api/cli/repos").expect(0).create();
     let import_mock = server.mock("POST", "/api/cli/import").expect(0).create();
