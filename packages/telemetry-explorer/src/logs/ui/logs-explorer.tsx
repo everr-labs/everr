@@ -210,22 +210,26 @@ export function LogsExplorer({
 
   // Optimistic local mirror of the search filter state. Filter toggles update
   // synchronously so the UI feels instant; onSearchChange runs alongside.
-  const [filters, setFilters] = useState(() => ({
-    q,
-    levels,
-    services,
-    attributes,
-    traceId,
+  const [filterState, setFilterState] = useState(() => ({
+    search,
+    value: { q, levels, services, attributes, traceId },
   }));
 
-  // Sync from search prop when it changes externally (back/forward, link nav, time range).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    setFilters({ q, levels, services, attributes, traceId });
-  }, [search]);
+  // Reconcile external navigation before children render, retaining optimistic
+  // edits until the route supplies a new search object.
+  const filters =
+    filterState.search === search
+      ? filterState.value
+      : { q, levels, services, attributes, traceId };
+  if (filterState.search !== search) {
+    setFilterState({ search, value: filters });
+  }
 
   const applyFilters = (updates: Partial<typeof filters>) => {
-    setFilters((prev) => ({ ...prev, ...updates }));
+    setFilterState((previous) => ({
+      ...previous,
+      value: { ...previous.value, ...updates },
+    }));
     onSearchChange({ ...search, ...updates });
   };
 

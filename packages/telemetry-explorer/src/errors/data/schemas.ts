@@ -1,5 +1,7 @@
-import { isValid } from "@everr/datemath";
-import { TimeRangeSchema } from "@everr/ui/lib/time-range";
+import {
+  TimeRangeSchema,
+  LenientTimeRangeSearchSchema as TimeRangeSearchSchema,
+} from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
   attributesField,
@@ -14,24 +16,12 @@ export type {
 } from "../../attribute-filter/schemas";
 export { AttributeFilterSchema } from "../../attribute-filter/schemas";
 
-const optionalDatemath = z.preprocess(
-  (value) => (typeof value === "string" && isValid(value) ? value : undefined),
-  z.string().optional(),
-);
-const optionalSearchString = z.preprocess(
-  (value) => (typeof value === "string" ? value : undefined),
-  z.string().optional(),
-);
 const searchString = z.preprocess(
   (value) => (typeof value === "string" ? value : ""),
   z.string().trim(),
 );
 
-export const TimeRangeSearchSchema = z.object({
-  from: optionalDatemath,
-  to: optionalDatemath,
-  refresh: optionalSearchString,
-});
+export { TimeRangeSearchSchema };
 
 export const ErrorSortSchema = z.enum(["lastSeen", "count"]);
 

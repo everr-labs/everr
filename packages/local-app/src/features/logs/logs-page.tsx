@@ -5,8 +5,7 @@ import {
   LogsRepository,
   LogsSearchFiltersShape,
 } from "@everr/telemetry-explorer/logs";
-import type { TimeRange } from "@everr/ui/components/time-range-picker";
-import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
+import { TimeRangeSearchSchema, withTimeRange } from "@everr/ui/lib/time-range";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { z } from "zod";
@@ -18,18 +17,13 @@ import { localSqlClient } from "./local-sql-client";
 // `services` lives in the shared topbar now (as the cross-page `service` param),
 // so it is omitted from the per-page schema and the sidebar service control is
 // hidden via `hideSharedFilters`.
-export const LogsSearchSchema = z
-  .object({
-    from: z.string().optional(),
-    to: z.string().optional(),
-    refresh: z.string().optional(),
-    q: z.string().optional(),
-    ...LogsSearchFiltersShape,
-    ...ExploreSearchShape,
-    traceId: z.string().optional(),
-    showVolume: z.boolean().default(true),
-  })
-  .omit({ services: true });
+export const LogsSearchSchema = TimeRangeSearchSchema.extend({
+  q: z.string().optional(),
+  ...LogsSearchFiltersShape,
+  ...ExploreSearchShape,
+  traceId: z.string().optional(),
+  showVolume: z.boolean().default(true),
+}).omit({ services: true });
 
 type LogsSearch = z.infer<typeof LogsSearchSchema>;
 
@@ -42,10 +36,7 @@ export function LogsPage() {
   const service = search.service ?? [];
   const environment = search.environment ?? [];
 
-  const timeRange: TimeRange = {
-    from: search.from ?? DEFAULT_TIME_RANGE.from,
-    to: search.to ?? DEFAULT_TIME_RANGE.to,
-  };
+  const { timeRange } = withTimeRange(search);
 
   const explorerSearch: LogsExplorerSearch = {
     q: search.q,

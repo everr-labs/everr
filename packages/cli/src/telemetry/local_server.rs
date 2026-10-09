@@ -109,7 +109,7 @@ impl LocalServer {
                     origin: build::local_ui_origin(),
                     identity: super::local_instance::Identity::ui(_instance_id),
                     auth: Arc::new(LocalAuth::new(
-                        crate::auth::state_store(),
+                        crate::auth::session_store(),
                         crate::auth::resolve_auth_config()?,
                         build_auth_http_client()?,
                     )),
@@ -376,7 +376,7 @@ mod tests {
             origin: origin.clone(),
             identity: crate::telemetry::local_instance::Identity::ui("test-instance".into()),
             auth: Arc::new(LocalAuth::new(
-                crate::state::AppStateStore::for_namespace(auth_dir.path().to_string_lossy()),
+                crate::state::SessionStore::for_namespace(auth_dir.path().to_string_lossy()),
                 crate::device_auth::AuthConfig {
                     api_base_url: "http://example.test".into(),
                 },

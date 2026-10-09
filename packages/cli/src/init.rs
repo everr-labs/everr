@@ -8,7 +8,7 @@ use crate::auth;
 
 pub async fn run() -> Result<()> {
     // Step 1: require auth
-    let session = auth::require_session_with_refresh().await?;
+    let session = auth::require_session()?;
 
     // Step 2: detect repo
     let cwd = std::env::current_dir().context("could not determine current directory")?;

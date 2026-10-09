@@ -98,6 +98,52 @@ afterEach(() => {
 });
 
 describe("Logs page filter rail", () => {
+  it("retains optimistic toggles until external navigation replaces the filters", async () => {
+    const user = userEvent.setup();
+    const repo = makeRepo();
+    const onSearchChange = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const page = (search: LogsExplorerSearch) => (
+      <QueryClientProvider client={queryClient}>
+        <LogsExplorer
+          repo={repo}
+          timeRange={{ from: "now-1h", to: "now" }}
+          search={search}
+          onSearchChange={onSearchChange}
+        />
+      </QueryClientProvider>
+    );
+    const { rerender, unmount } = render(page(emptySearch));
+    await user.click(screen.getByRole("button", { name: /^error/i }));
+    await user.click(screen.getByRole("button", { name: /^error/i }));
+    expect(onSearchChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ levels: [] }),
+    );
+
+    rerender(
+      page({
+        ...emptySearch,
+        q: "external",
+        levels: ["info"],
+      }),
+    );
+    expect(
+      screen.getByPlaceholderText("Search messages, errors, IDs"),
+    ).toHaveValue("external");
+    await waitFor(() =>
+      expect(repo.explorer).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          query: "external",
+          levels: ["info"],
+        }),
+      ),
+    );
+    unmount();
+    queryClient.clear();
+  });
+
   it("puts the persistent zone above the page filters in one rail", () => {
     render(<LogsPageHarness persistentFilters={<div>persistent zone</div>} />);
 

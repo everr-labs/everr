@@ -57,31 +57,15 @@ impl ApiClient {
     }
 
     pub fn from_session(session: &Session) -> Result<Self> {
-        let mut headers = HeaderMap::new();
-        let bearer = format!("Bearer {}", session.token);
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&bearer).context("invalid token for Authorization header")?,
-        );
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-
-        let http = reqwest::Client::builder()
-            .default_headers(headers)
-            .build()
-            .context("failed to build HTTP client")?;
-        let base_url = session.api_base_url.trim_end_matches('/').to_string();
-        let base_endpoint = format!("{}/api/cli", base_url);
-
-        Ok(Self {
-            http,
-            base_url,
-            base_endpoint,
-            auth_kind: AuthKind::Session,
-        })
+        Self::from_bearer(&session.api_base_url, &session.token, AuthKind::Session)
     }
 
     /// Build a client from a raw bearer token + base URL (for CI: `EVERR_API_KEY`).
     pub fn from_token(api_base_url: &str, token: &str) -> Result<Self> {
+        Self::from_bearer(api_base_url, token, AuthKind::Token)
+    }
+
+    fn from_bearer(api_base_url: &str, token: &str, auth_kind: AuthKind) -> Result<Self> {
         let mut headers = HeaderMap::new();
         let bearer = format!("Bearer {token}");
         headers.insert(
@@ -99,7 +83,7 @@ impl ApiClient {
             http,
             base_url,
             base_endpoint,
-            auth_kind: AuthKind::Token,
+            auth_kind,
         })
     }
 
@@ -123,8 +107,7 @@ impl ApiClient {
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
             // A 401 means different things per credential: a bad EVERR_API_KEY
             // can't be fixed by `cloud login`, so the token path returns its own
-            // message; a missing/expired session (already refresh-attempted)
-            // routes through the standard reauth path that directs `cloud login`.
+            // message; a missing/expired session directs `cloud login`.
             if status == StatusCode::UNAUTHORIZED {
                 return Err(match self.auth_kind {
                     AuthKind::Token => anyhow::anyhow!(
@@ -779,8 +762,7 @@ mod api_client_tests {
         let request = empty_apply_request();
         let error = client.apply(&request).await.unwrap_err();
 
-        // Session path: a 401 (after refresh) routes through the standard reauth
-        // path that directs the user to `cloud login` — not the token message.
+        // Session path: a 401 directs the user to `cloud login`.
         assert!(is_reauthentication_required(&error));
         let message = error.to_string();
         assert!(message.contains("cloud login"), "got: {message}");

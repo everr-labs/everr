@@ -9,7 +9,6 @@ import {
   ErrorTracePanel,
   getErrorOccurrenceKey,
   getErrorTraceWindow,
-  useDetailRouteDialogClose,
 } from "@everr/telemetry-explorer/errors";
 import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
@@ -154,9 +153,6 @@ export function ErrorDetailPage() {
   };
   const search = useSearch({ strict: false }) as ErrorIssueSearch;
   const navigate = useNavigate();
-  // Inside the modal, ask the dialog to close through the route owner so the
-  // dialog stays open until navigation removes it.
-  const closeDialog = useDetailRouteDialogClose();
   const { timeRange, service, refresh } = withTimeRange(search);
 
   return (
@@ -169,10 +165,6 @@ export function ErrorDetailPage() {
         service={service ?? []}
         occurrence={search.occurrence}
         onClose={() => {
-          if (closeDialog) {
-            closeDialog();
-            return;
-          }
           navigate({
             to: "/errors",
             search: { ...search, occurrence: "" },

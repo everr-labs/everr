@@ -15,86 +15,61 @@ pub struct Session {
     pub token: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct AppState {
-    pub session: Option<Session>,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        Self { session: None }
-    }
+struct SessionFile {
+    session: Option<Session>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AppStateStore {
+pub struct SessionStore {
     namespace: String,
-    state_file_name: String,
 }
 
-impl AppStateStore {
+impl SessionStore {
     pub fn for_namespace(namespace: impl Into<String>) -> Self {
-        Self::for_namespace_with_file_name(namespace, build::default_session_file_name())
-    }
-
-    pub fn for_namespace_with_file_name(
-        namespace: impl Into<String>,
-        state_file_name: impl Into<String>,
-    ) -> Self {
         Self {
             namespace: namespace.into(),
-            state_file_name: state_file_name.into(),
         }
-    }
-
-    pub fn namespace(&self) -> &str {
-        &self.namespace
-    }
-
-    pub fn session_file_name(&self) -> &str {
-        &self.state_file_name
     }
 
     pub fn session_file_path(&self) -> Result<PathBuf> {
         let config_dir = dirs::config_dir().context("failed to resolve user config dir")?;
-        Ok(config_dir.join(&self.namespace).join(&self.state_file_name))
+        Ok(config_dir
+            .join(&self.namespace)
+            .join(build::default_session_file_name()))
     }
 
-    pub fn load_state(&self) -> Result<AppState> {
-        self.load_state_unlocked()
-    }
-
-    fn load_state_unlocked(&self) -> Result<AppState> {
+    fn load_file(&self) -> Result<SessionFile> {
         let path = self.session_file_path()?;
         if !path.exists() {
-            return Ok(AppState::default());
+            return Ok(SessionFile::default());
         }
 
         let raw = fs::read_to_string(&path)
             .with_context(|| format!("failed to read {}", path.display()))?;
         let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&raw) else {
-            return Ok(AppState::default());
+            return Ok(SessionFile::default());
         };
         let Some(object) = value.as_object_mut() else {
-            return Ok(AppState::default());
+            return Ok(SessionFile::default());
         };
         // Desktop-era session files included settings. Ignore that field while
         // retaining strict validation of the session envelope.
         object.remove("settings");
         if object.len() != 1 || !object.contains_key("session") {
-            return Ok(AppState::default());
+            return Ok(SessionFile::default());
         }
 
-        match serde_json::from_value::<AppState>(value) {
-            Ok(state) => Ok(state),
-            Err(_) => Ok(AppState::default()),
+        match serde_json::from_value::<SessionFile>(value) {
+            Ok(file) => Ok(file),
+            Err(_) => Ok(SessionFile::default()),
         }
     }
 
-    pub fn save_state(&self, state: &AppState) -> Result<()> {
+    fn save_file(&self, file: &SessionFile) -> Result<()> {
         let path = self.session_file_path()?;
-        if state == &AppState::default() {
+        if file.session.is_none() {
             if path.exists() {
                 fs::remove_file(&path)
                     .with_context(|| format!("failed to remove {}", path.display()))?;
@@ -108,7 +83,7 @@ impl AppStateStore {
         }
 
         let serialized =
-            serde_json::to_string_pretty(state).context("failed to serialize app state")?;
+            serde_json::to_string_pretty(file).context("failed to serialize session file")?;
         let tmp = path.with_extension("tmp");
         fs::write(&tmp, serialized)
             .with_context(|| format!("failed to write {}", tmp.display()))?;
@@ -118,33 +93,28 @@ impl AppStateStore {
     }
 
     pub fn load_session(&self) -> Result<Session> {
-        self.load_state()?
+        self.load_file()?
             .session
             .ok_or_else(|| anyhow!(NO_ACTIVE_SESSION))
     }
 
     pub fn save_session(&self, session: &Session) -> Result<()> {
-        let _lock = self.lock_exclusive()?;
-        self.save_state(&AppState {
+        let _lock = self.acquire_lock()?;
+        self.save_file(&SessionFile {
             session: Some(session.clone()),
         })?;
         Ok(())
     }
 
     pub fn clear_session(&self) -> Result<bool> {
-        let _lock = self.lock_exclusive()?;
-        let mut state = self.load_state_unlocked()?;
-        if state.session.is_none() {
+        let _lock = self.acquire_lock()?;
+        let file = self.load_file()?;
+        if file.session.is_none() {
             return Ok(false);
         }
 
-        state.session = None;
-        self.save_state(&state)?;
+        self.save_file(&SessionFile::default())?;
         Ok(true)
-    }
-
-    pub fn has_active_session(&self) -> Result<bool> {
-        Ok(self.load_state()?.session.is_some())
     }
 
     pub fn load_session_for_api_base_url(&self, expected_api_base_url: &str) -> Result<Session> {
@@ -156,7 +126,7 @@ impl AppStateStore {
         bail!(NO_ACTIVE_SESSION);
     }
 
-    /// Deletes the state file entirely, removing the saved session.
+    /// Deletes the session file entirely, including malformed files.
     pub fn wipe(&self) -> Result<()> {
         let path = self.session_file_path()?;
         if path.exists() {
@@ -172,10 +142,6 @@ impl AppStateStore {
             Err(error) if is_no_active_session_error(&error) => Ok(false),
             Err(error) => Err(error),
         }
-    }
-
-    fn lock_exclusive(&self) -> Result<fs::File> {
-        self.acquire_lock()
     }
 
     fn acquire_lock(&self) -> Result<fs::File> {
@@ -203,7 +169,7 @@ fn session_matches_api_base_url(actual: &str, expected: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{AppState, AppStateStore, Session};
+    use super::{Session, SessionStore, is_no_active_session_error};
     use crate::test_support::ENV_LOCK;
     use serde_json::json;
     use tempfile::tempdir;
@@ -215,7 +181,7 @@ mod tests {
         }
     }
 
-    fn write_fixture(store: &AppStateStore, value: serde_json::Value) {
+    fn write_fixture(store: &SessionStore, value: serde_json::Value) {
         let path = store.session_file_path().unwrap();
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, value.to_string()).unwrap();
@@ -230,10 +196,10 @@ mod tests {
             assert!(path.with_extension("lock").is_file());
             assert!(!path.with_extension("tmp").exists());
             assert_eq!(
-                store.session_file_name(),
-                crate::build::default_session_file_name()
+                path.file_name().unwrap(),
+                crate::build::default_session_file_name(),
             );
-            assert_eq!(store.namespace(), "everr");
+            assert_eq!(path.parent().unwrap().file_name().unwrap(), "everr");
         });
     }
 
@@ -268,7 +234,9 @@ mod tests {
                 json!({"session":{"token":42}}),
             ] {
                 write_fixture(&store, value);
-                assert_eq!(store.load_state().unwrap(), AppState::default());
+                assert!(is_no_active_session_error(
+                    &store.load_session().unwrap_err()
+                ));
             }
         });
     }
@@ -301,13 +269,7 @@ mod tests {
         });
     }
 
-    #[test]
-    fn custom_state_filename_is_preserved() {
-        let store = AppStateStore::for_namespace_with_file_name("everr", "custom-session.json");
-        assert_eq!(store.session_file_name(), "custom-session.json");
-    }
-
-    fn with_temp_config_home(test: impl FnOnce(AppStateStore)) {
+    fn with_temp_config_home(test: impl FnOnce(SessionStore)) {
         let _guard = ENV_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -322,7 +284,7 @@ mod tests {
             std::env::set_var("XDG_CONFIG_HOME", &config_home);
         }
 
-        let store = AppStateStore::for_namespace("everr");
+        let store = SessionStore::for_namespace("everr");
         test(store);
 
         match original_home {

@@ -751,9 +751,6 @@ importers:
 
   packages/telemetry-explorer:
     dependencies:
-      '@everr/datemath':
-        specifier: workspace:*
-        version: link:../datemath
       '@everr/ui':
         specifier: workspace:*
         version: link:../ui

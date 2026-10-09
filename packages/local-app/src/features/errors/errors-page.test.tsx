@@ -7,7 +7,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -48,7 +48,14 @@ vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
     ...actual,
     ErrorsRepository: class ErrorsRepository {},
     ErrorIssues: () => <div>Error list page</div>,
-    ErrorDetail: () => <div>Error detail page</div>,
+    ErrorDetail: ({ onClose }: { onClose: () => void }) => (
+      <div>
+        Error detail page
+        <button type="button" onClick={onClose}>
+          Close detail
+        </button>
+      </div>
+    ),
   };
 });
 
@@ -98,13 +105,25 @@ describe("local errors routes", () => {
         <RouterProvider router={router} />
       </QueryClientProvider>,
     );
+    return router;
   }
 
   it("renders direct error detail routes through the dialog route", async () => {
-    renderErrorsRoute(["/errors/fp-1"]);
+    const router = renderErrorsRoute([
+      "/errors/fp-1?q=timeout&occurrence=old-occurrence",
+    ]);
 
     expect(await screen.findByText("Error list page")).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Error detail page")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close detail" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText("Error list page")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/errors");
+    expect(router.state.location.search).toMatchObject({
+      q: "timeout",
+      occurrence: "",
+    });
   });
 });

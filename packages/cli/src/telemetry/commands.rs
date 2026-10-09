@@ -68,20 +68,11 @@ fn is_connect_error(err: &anyhow::Error) -> bool {
 }
 
 fn connection_failure_message(err: &anyhow::Error) -> &'static str {
-    if is_permission_denied(err) {
+    if crate::collector::error_chain_contains_permission_denied(err.as_ref()) {
         return LOCALHOST_NETWORK_BLOCKED_MESSAGE;
     }
 
     COLLECTOR_UNAVAILABLE_MESSAGE
-}
-
-fn is_permission_denied(err: &anyhow::Error) -> bool {
-    err.chain().any(|cause| {
-        cause
-            .downcast_ref::<std::io::Error>()
-            .map(|source| source.kind() == std::io::ErrorKind::PermissionDenied)
-            .unwrap_or(false)
-    })
 }
 
 pub(crate) fn render(rows: &Rows, format: TelemetryFormat) {

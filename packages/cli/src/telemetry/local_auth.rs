@@ -11,7 +11,7 @@ use crate::{
         AuthConfig, DeviceAuthorization, DevicePollStatus, poll_device_authorization,
         session_from_device_token, start_device_authorization,
     },
-    state::AppStateStore,
+    state::SessionStore,
 };
 
 #[derive(Debug, Serialize)]
@@ -63,14 +63,14 @@ impl PendingAuth {
 }
 
 pub(super) struct LocalAuth {
-    store: AppStateStore,
+    store: SessionStore,
     config: AuthConfig,
     http: reqwest::Client,
     pending: Mutex<Option<PendingAuth>>,
 }
 
 impl LocalAuth {
-    pub fn new(store: AppStateStore, config: AuthConfig, http: reqwest::Client) -> Self {
+    pub fn new(store: SessionStore, config: AuthConfig, http: reqwest::Client) -> Self {
         Self {
             store,
             config,
@@ -211,9 +211,9 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn test_auth(url: String) -> (tempfile::TempDir, LocalAuth, AppStateStore) {
+    fn test_auth(url: String) -> (tempfile::TempDir, LocalAuth, SessionStore) {
         let dir = tempfile::tempdir().unwrap();
-        let store = AppStateStore::for_namespace(dir.path().to_string_lossy());
+        let store = SessionStore::for_namespace(dir.path().to_string_lossy());
         let auth = LocalAuth::new(
             store.clone(),
             AuthConfig { api_base_url: url },
@@ -337,7 +337,7 @@ mod tests {
             "signed_out"
         );
         assert!(auth.user_profile().await.unwrap().is_none());
-        assert!(!store.has_active_session().unwrap());
+        assert!(!store.session_file_path().unwrap().exists());
         code.assert_async().await;
         authorized.assert_async().await;
         profile.assert_async().await;
@@ -366,7 +366,7 @@ mod tests {
                 json!({"status":status})
             );
             assert!(auth.pending_sign_in().await.is_none());
-            assert!(!store.has_active_session().unwrap());
+            assert!(!store.session_file_path().unwrap().exists());
             assert!(matches!(
                 auth.poll_sign_in().await.unwrap(),
                 AuthResponse::Expired

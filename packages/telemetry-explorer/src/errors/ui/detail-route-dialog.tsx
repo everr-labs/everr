@@ -5,19 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@everr/ui/components/dialog";
-import { createContext, type ReactNode, useCallback, useContext } from "react";
-
-const DetailRouteDialogCloseContext = createContext<(() => void) | null>(null);
-
-/**
- * Inside a {@link DetailRouteDialog} this returns a function that closes the
- * detail route. Returns `null` when the detail is not rendered inside the modal
- * (e.g. opened as a full page via a direct URL), so callers can fall back to
- * navigating directly.
- */
-export function useDetailRouteDialogClose() {
-  return useContext(DetailRouteDialogCloseContext);
-}
+import type { ReactNode } from "react";
 
 export function DetailRouteDialog({
   title,
@@ -28,15 +16,11 @@ export function DetailRouteDialog({
   children: ReactNode;
   onClose: () => Promise<unknown> | undefined;
 }) {
-  const close = useCallback(() => {
-    void onClose();
-  }, [onClose]);
-
   return (
     <Dialog
       open={true}
       onOpenChange={(next) => {
-        if (!next) close();
+        if (!next) void onClose();
       }}
     >
       <DialogContent
@@ -47,11 +31,9 @@ export function DetailRouteDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{title}</DialogDescription>
         </DialogHeader>
-        <DetailRouteDialogCloseContext.Provider value={close}>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {children}
-          </div>
-        </DetailRouteDialogCloseContext.Provider>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {children}
+        </div>
       </DialogContent>
     </Dialog>
   );

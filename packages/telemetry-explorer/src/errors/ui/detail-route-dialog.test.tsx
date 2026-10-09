@@ -1,10 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import {
-  DetailRouteDialog,
-  useDetailRouteDialogClose,
-} from "./detail-route-dialog";
+import { DetailRouteDialog } from "./detail-route-dialog";
 
 vi.mock("@everr/ui/components/dialog", () => ({
   Dialog: ({
@@ -44,16 +41,6 @@ function createDeferred() {
   return { promise, resolve };
 }
 
-function ContextCloseButton() {
-  const close = useDetailRouteDialogClose();
-
-  return (
-    <button type="button" onClick={() => close?.()}>
-      Context close
-    </button>
-  );
-}
-
 describe("DetailRouteDialog", () => {
   it("keeps the dialog open while mounted after requesting a route close", async () => {
     const closeDeferred = createDeferred();
@@ -61,11 +48,11 @@ describe("DetailRouteDialog", () => {
 
     render(
       <DetailRouteDialog title="Detail" onClose={onClose}>
-        <ContextCloseButton />
+        <div>Detail content</div>
       </DetailRouteDialog>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Context close" }));
+    fireEvent.click(screen.getByRole("button", { name: "Primitive close" }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("dialog-root")).toHaveAttribute(
