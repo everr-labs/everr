@@ -1,8 +1,8 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::{Context, Result, anyhow, bail};
+use reqwest::Client;
 use reqwest::StatusCode;
-use reqwest::blocking::Client;
 use serde_json::Value;
 
 #[derive(Debug)]
@@ -10,6 +10,7 @@ pub struct Rows {
     pub values: Vec<Value>,
 }
 
+#[derive(Clone)]
 pub struct QueryClient {
     origin: String,
     http: Client,
@@ -18,6 +19,7 @@ pub struct QueryClient {
 impl QueryClient {
     pub fn new(origin: String) -> Self {
         let http = Client::builder()
+            .no_proxy()
             .timeout(Duration::from_secs(10))
             .build()
             .expect("reqwest client");
@@ -25,8 +27,12 @@ impl QueryClient {
     }
 
     /// Run a SQL query. Retries once on 503 after the server's Retry-After.
-    pub fn query(&self, sql: &str) -> Result<Rows> {
+    pub async fn query(&self, sql: &str, params: &HashMap<String, Value>) -> Result<Rows> {
         let url = format!("{}/sql", self.origin);
+        let query: Vec<_> = params
+            .iter()
+            .map(|(name, value)| (format!("param_{name}"), value.to_string()))
+            .collect();
         let mut attempt = 0;
 
         loop {
@@ -34,8 +40,10 @@ impl QueryClient {
                 .http
                 .post(&url)
                 .header("content-type", "text/plain")
+                .query(&query)
                 .body(sql.to_string())
                 .send()
+                .await
                 .with_context(|| format!("POST {url}"))?;
 
             let status = resp.status();
@@ -46,12 +54,12 @@ impl QueryClient {
                     .and_then(|v| v.to_str().ok())
                     .and_then(|s| s.parse::<u64>().ok())
                     .unwrap_or(1);
-                std::thread::sleep(Duration::from_secs(retry));
+                tokio::time::sleep(Duration::from_secs(retry)).await;
                 attempt += 1;
                 continue;
             }
 
-            let body = resp.text().unwrap_or_default();
+            let body = resp.text().await.context("read collector query response")?;
             return match status {
                 StatusCode::OK => parse_ndjson(&body),
                 StatusCode::SERVICE_UNAVAILABLE => {
@@ -100,33 +108,33 @@ mod tests {
         body: &'static str,
     }
 
-    #[test]
-    fn query_parses_ndjson_rows() {
+    #[tokio::test]
+    async fn query_parses_ndjson_rows() {
         let origin = spawn_server(vec![TestResponse {
             status: 200,
             headers: &[("content-type", "application/x-ndjson")],
             body: "{\"a\":1}\n{\"a\":2}\n",
         }]);
         let cli = QueryClient::new(origin);
-        let rows = cli.query("SELECT *").unwrap();
+        let rows = cli.query("SELECT *", &Default::default()).await.unwrap();
         assert_eq!(rows.values.len(), 2);
         assert_eq!(rows.values[0].get("a").unwrap(), &Value::Number(1.into()));
     }
 
-    #[test]
-    fn query_surfaces_error_envelope() {
+    #[tokio::test]
+    async fn query_surfaces_error_envelope() {
         let origin = spawn_server(vec![TestResponse {
             status: 400,
             headers: &[],
             body: r#"{"error":"bad sql"}"#,
         }]);
         let cli = QueryClient::new(origin);
-        let err = cli.query("bogus").unwrap_err();
+        let err = cli.query("bogus", &Default::default()).await.unwrap_err();
         assert!(err.to_string().contains("bad sql"));
     }
 
-    #[test]
-    fn query_retries_once_on_503() {
+    #[tokio::test]
+    async fn query_retries_once_on_503() {
         let origin = spawn_server(vec![
             TestResponse {
                 status: 503,
@@ -140,9 +148,46 @@ mod tests {
             },
         ]);
         let cli = QueryClient::new(origin);
-        let rows = cli.query("SELECT 1").unwrap();
+        let rows = cli.query("SELECT 1", &Default::default()).await.unwrap();
         assert_eq!(rows.values.len(), 1);
         assert_eq!(rows.values[0].get("ok").unwrap(), &Value::Number(1.into()));
+    }
+
+    #[tokio::test]
+    async fn query_serializes_parameters_and_preserves_error_envelopes_after_retry() {
+        let mut server = mockito::Server::new_async().await;
+        let retry = server
+            .mock("POST", "/sql")
+            .match_query(mockito::Matcher::UrlEncoded(
+                "param_name".into(),
+                "\"test value\"".into(),
+            ))
+            .match_body("SELECT {name:String}")
+            .with_status(503)
+            .with_header("retry-after", "0")
+            .expect(1)
+            .create_async()
+            .await;
+        let failure = server
+            .mock("POST", "/sql")
+            .match_query(mockito::Matcher::UrlEncoded(
+                "param_name".into(),
+                "\"test value\"".into(),
+            ))
+            .with_status(400)
+            .with_body(r#"{"error":"invalid query"}"#)
+            .expect(1)
+            .create_async()
+            .await;
+        let client = QueryClient::new(server.url());
+        let params = HashMap::from([("name".into(), serde_json::json!("test value"))]);
+        let error = client
+            .query("SELECT {name:String}", &params)
+            .await
+            .unwrap_err();
+        assert_eq!(error.to_string(), "invalid query");
+        retry.assert_async().await;
+        failure.assert_async().await;
     }
 
     fn spawn_server(responses: Vec<TestResponse>) -> String {

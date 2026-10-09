@@ -12,7 +12,7 @@ pub fn run_uninstall() -> Result<()> {
     print_uninstall_effects(&cli_path);
     wait_for_enter()?;
 
-    auth::state_store().wipe()?;
+    auth::session_store().wipe()?;
 
     // Best-effort: removing skills must not block wiping the rest of the state.
     if let Err(err) = crate::skills::uninstall_all_global() {

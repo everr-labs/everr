@@ -15,6 +15,7 @@ export type Checkout = {
   id: string;
   status: string;
   url: string;
+  successUrl: string | null;
   expiresAt: Date;
   customerId: string | null;
   externalCustomerId: string | null;
@@ -66,6 +67,7 @@ export interface PolarGateway {
     metadata: Metadata;
     successUrl: string;
   }): Promise<Checkout>;
+  updateCheckoutSuccessUrl(id: string, successUrl: string): Promise<Checkout>;
   subscription(id: string): Promise<Subscription>;
   checkoutSubscription(checkout: Checkout): Promise<Subscription | null>;
   revokeSubscription(id: string): Promise<void>;
@@ -74,7 +76,6 @@ export type BillingDependencies = {
   db: Database;
   polar: PolarGateway;
   lock: <T>(key: string, run: () => Promise<T>) => Promise<T>;
-  provisionOrganization: (id: string) => Promise<unknown>;
   appUrl: string;
 };
 export type BillingErrorCode =

@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use tokio::time::sleep;
 
-use crate::state::{AppStateStore, Session};
+use crate::state::{Session, SessionStore};
 
 #[derive(Debug, Clone)]
 pub struct AuthConfig {
@@ -51,14 +51,14 @@ pub enum DevicePollStatus {
 
 pub async fn login_with_prompt<F, Fut>(
     config: &AuthConfig,
-    store: &AppStateStore,
+    store: &SessionStore,
     show_prompt: F,
 ) -> Result<Session>
 where
     F: FnOnce(String, String) -> Fut,
     Fut: std::future::Future<Output = ()>,
 {
-    let client = build_http_client()?;
+    let client = build_auth_http_client()?;
     let authorization = start_device_authorization(&client, config).await?;
 
     // Run the prompt to completion before polling so we never have a
@@ -149,27 +149,19 @@ pub fn session_from_device_token(
     config: &AuthConfig,
     token: DeviceTokenResponse,
 ) -> Result<Session> {
-    build_session(config.api_base_url.clone(), token)
-}
-
-fn build_http_client() -> Result<reqwest::Client> {
-    reqwest::Client::builder()
-        .build()
-        .context("failed to build HTTP client")
-}
-
-pub fn build_auth_http_client() -> Result<reqwest::Client> {
-    build_http_client()
-}
-
-fn build_session(api_base_url: String, token: DeviceTokenResponse) -> Result<Session> {
     if token.access_token.trim().is_empty() {
         bail!("received an empty access token");
     }
     Ok(Session {
-        api_base_url,
+        api_base_url: config.api_base_url.clone(),
         token: token.access_token,
     })
+}
+
+pub fn build_auth_http_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .build()
+        .context("failed to build HTTP client")
 }
 
 fn map_device_authorization(
@@ -219,7 +211,7 @@ async fn complete_device_authorization(
 #[cfg(test)]
 mod tests {
     use super::{AuthConfig, DeviceTokenResponse, login_with_prompt, session_from_device_token};
-    use crate::state::AppStateStore;
+    use crate::state::SessionStore;
 
     #[tokio::test]
     async fn terminal_login_preserves_device_token_outcomes() {
@@ -273,7 +265,7 @@ mod tests {
                 .create_async()
                 .await;
             let dir = tempfile::tempdir().expect("tempdir");
-            let store = AppStateStore::for_namespace(dir.path().to_string_lossy());
+            let store = SessionStore::for_namespace(dir.path().to_string_lossy());
             let config = AuthConfig {
                 api_base_url: server.url(),
             };

@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
+import { organization } from "@/db/schema";
 import { setTestDatabase } from "./db-proxy";
+import { TEST_ORG } from "./fixtures";
 import { failedJobs, pendingJobs, runDueJobs } from "./job-driver";
 import { createTestDatabase, type TestDatabase } from "./pglite-database";
 import { activeClickHouse, type TestClickHouse } from "./test-clickhouse";
@@ -39,6 +41,14 @@ export async function createAlertingHarness(): Promise<AlertingHarness> {
   vi.useFakeTimers({ toFake: ["Date"] });
   const database = await createTestDatabase();
   setTestDatabase(database.db);
+  const seedOrganization = () =>
+    database.db.insert(organization).values({
+      id: TEST_ORG,
+      name: TEST_ORG,
+      slug: TEST_ORG,
+      createdAt: new Date(),
+    });
+  await seedOrganization();
 
   let responder: FetchResponder = { status: 200, body: "ok" };
   const calls: { url: string; body: unknown }[] = [];
@@ -87,6 +97,7 @@ export async function createAlertingHarness(): Promise<AlertingHarness> {
     },
     async reset() {
       await database.truncate();
+      await seedOrganization();
       activeClickHouse.reset();
       calls.length = 0;
       responder = { status: 200, body: "ok" };

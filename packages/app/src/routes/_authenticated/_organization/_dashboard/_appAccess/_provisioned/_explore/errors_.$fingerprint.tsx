@@ -1,0 +1,34 @@
+import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
+import { createFileRoute } from "@tanstack/react-router";
+import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+import { ErrorDetailRouteContent } from "./-error-detail";
+
+export const Route = createFileRoute(
+  "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint",
+)({
+  staticData: { breadcrumb: "Detail", hideExploreBar: true },
+  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
+  validateSearch: ErrorIssueSearchSchema,
+  component: ErrorDetailPage,
+});
+
+function ErrorDetailPage() {
+  useRealtimeSubscription({ scope: "tenant" });
+  const { fingerprint } = Route.useParams();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  return (
+    <ErrorDetailRouteContent
+      fingerprint={fingerprint}
+      search={search}
+      detailTo="/errors/$fingerprint"
+      onBack={() =>
+        navigate({
+          to: "/errors",
+          search: { ...search, occurrence: "" },
+        })
+      }
+    />
+  );
+}

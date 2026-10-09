@@ -1,16 +1,25 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
+  router: { navigate: vi.fn(), invalidate: vi.fn() },
   entitlement: vi.fn(),
   portal: vi.fn(),
   checkout: vi.fn(),
   settings: vi.fn(),
   transfer: vi.fn(),
+}));
+vi.mock("@/data/auth", () => ({ getActiveOrganization: vi.fn() }));
+vi.mock("@tanstack/react-router", async (original) => ({
+  ...(await original<typeof import("@tanstack/react-router")>()),
+  useRouter: () => mocks.router,
+  Link: ({ children }: { children: ReactNode }) => (
+    <a href="/account">{children}</a>
+  ),
 }));
 vi.mock("@/data/organizations", () => ({ createOrganization: mocks.create }));
 vi.mock("@/data/billing", () => ({
@@ -30,8 +39,8 @@ vi.mock("@/components/page-header", () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
 
-import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
-import { Route } from "@/routes/_authenticated/_dashboard/_padded/_organization/billing";
+import { OrganizationCreation } from "@/components/organization-creation";
+import { Route } from "@/routes/_authenticated/_organization/_dashboard/_padded/_admin/billing";
 
 const BillingPage = Route.options.component as ComponentType;
 function billingPage() {
@@ -58,14 +67,16 @@ beforeEach(() => {
     canChangeOwner: false,
   });
 });
-it("submits a new Pro organization with only its plan and name", async () => {
+it("submits a new Pro organization with its plan, name and default destination", async () => {
   mocks.create.mockRejectedValue(new Error("Test checkout failure"));
   render(
-    <CreateOrganizationDialog
-      canCreateHobby={false}
-      open
-      onOpenChange={vi.fn()}
-    />,
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <OrganizationCreation canCreateHobby={false} />
+    </QueryClientProvider>,
   );
   expect(screen.queryByLabelText(/billing email/i)).not.toBeInTheDocument();
   await userEvent.type(screen.getByLabelText("Organization name"), "Acme");
@@ -76,7 +87,7 @@ it("submits a new Pro organization with only its plan and name", async () => {
     "Test checkout failure",
   );
   expect(mocks.create).toHaveBeenCalledWith({
-    data: { plan: "pro", organizationName: "Acme" },
+    data: { plan: "pro", organizationName: "Acme", returnTo: "/" },
   });
 });
 it("shows upgrade immediately for a Hobby organization", async () => {
@@ -133,3 +144,9 @@ it("allows an owner to select a different billing owner", async () => {
   );
   expect(mocks.transfer).toHaveBeenCalledWith({ data: { userId: "other" } });
 });
+
+vi.mock("@/data/organization-provisioning", () => ({
+  completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
+  getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
+  retryOrganizationProvisioning: vi.fn(),
+}));

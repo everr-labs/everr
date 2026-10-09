@@ -1,17 +1,16 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, watch, type FSWatcher } from "node:fs";
-import { copyFile, rename } from "node:fs/promises";
 import { createServer as createNetServer } from "node:net";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { createServer, type ViteDevServer } from "vite";
+import { compileCli, embeddedAssets, resolveCliBuild } from "../../cli/scripts/cli-build.ts";
 
 const appDir = fileURLToPath(new URL("..", import.meta.url));
 const repoDir = path.resolve(appDir, "../..");
 const cliDir = path.join(repoDir, "packages/cli");
-const assetsDir = path.join(repoDir, "target/cli-embedded-assets");
-const binary = path.join(repoDir, "target/debug/everr-dev");
+const binary = resolveCliBuild("debug").outputBin;
 const backendOrigin = "http://127.0.0.1:54321";
 const shutdown = new AbortController();
 const tasks = new Set<Task>();
@@ -91,11 +90,13 @@ async function waitForBackend(task: Task) {
     shutdown.signal.throwIfAborted();
     if (task.finished) throw new Error("The local CLI stopped before it became ready.");
     try {
-      const response = await fetch(backendOrigin, {
+      const response = await fetch(`${backendOrigin}/health`, {
         signal: AbortSignal.any([shutdown.signal, AbortSignal.timeout(1_000)]),
       });
-      await response.body?.cancel();
-      if (response.ok) return;
+      const identity = await response.json();
+      if (response.ok && identity.service === "everr-local-ui" &&
+          identity.protocol_version === 1 && identity.status === "ok" &&
+          typeof identity.instance_id === "string" && identity.instance_id.length > 0) return;
     } catch {
       shutdown.signal.throwIfAborted();
     }
@@ -106,20 +107,13 @@ async function waitForBackend(task: Task) {
 
 async function rebuildBackend() {
   console.log("[local dev] Building Rust backend...");
-  await run("cargo", ["build", "--manifest-path", path.join(cliDir, "Cargo.toml")], {
-    ...process.env,
-    EVERR_EMBEDDED_COLLECTOR_GZ: path.join(assetsDir, "everr-local-collector.gz"),
-    EVERR_EMBEDDED_CHDB_GZ: path.join(assetsDir, "libchdb.so.gz"),
-    EVERR_REQUIRE_EMBEDDED_COLLECTOR: "1",
-  });
+  await compileCli("debug", embeddedAssets, run);
   // A failed build leaves the running backend available. Replace it only after
   // compilation succeeds, and rename the binary to avoid overwriting a running executable.
   const previous = backend;
   backend = undefined;
   if (previous) await stop(previous);
   shutdown.signal.throwIfAborted();
-  await copyFile(path.join(repoDir, "target/debug/everr"), `${binary}.tmp`);
-  await rename(`${binary}.tmp`, binary);
   const task = start(binary, ["local", "start", "--no-open"]);
   backend = task;
   void task.done.then(({ code, error }) => {
@@ -157,8 +151,8 @@ function scheduleRebuild() {
 async function main() {
   await assertBackendPortFree();
   const required = [
-    path.join(assetsDir, "everr-local-collector.gz"),
-    path.join(assetsDir, "libchdb.so.gz"),
+    embeddedAssets.collectorGz,
+    embeddedAssets.chdbGz,
     path.join(appDir, "dist/index.html"),
   ];
   if (!required.every(existsSync)) {

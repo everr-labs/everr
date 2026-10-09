@@ -59,7 +59,7 @@ jobs:
           go-version-file: collector/go.mod
           cache-dependency-path: collector/**/go.sum
       - run: pnpm install --frozen-lockfile
-      - run: cargo test -p everr-cli
+      - run: pnpm --filter @everr/cli test:rust
       - name: Import Apple Developer ID certificate
         if: runner.os == 'macOS'
         env:

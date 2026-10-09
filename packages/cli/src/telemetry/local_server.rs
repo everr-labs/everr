@@ -45,6 +45,7 @@ struct ServerState {
     auth: Arc<LocalAuth>,
     supervisor: mpsc::Sender<SupervisorRequest>,
     http: reqwest::Client,
+    sql: super::client::QueryClient,
 }
 
 #[derive(Deserialize)]
@@ -108,11 +109,12 @@ impl LocalServer {
                     origin: build::local_ui_origin(),
                     identity: super::local_instance::Identity::ui(_instance_id),
                     auth: Arc::new(LocalAuth::new(
-                        crate::auth::state_store(),
+                        crate::auth::session_store(),
                         crate::auth::resolve_auth_config()?,
                         build_auth_http_client()?,
                     )),
                     supervisor: _supervisor,
+                    sql: crate::telemetry::client::QueryClient::new(build::sql_http_origin()),
                     http: reqwest::Client::builder()
                         .timeout(Duration::from_secs(15))
                         .build()?,
@@ -304,24 +306,7 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Res
         "telemetry_sql_query" => {
             let SqlQuery { sql, params } =
                 serde_json::from_value(args).context("invalid SQL arguments")?;
-            let query: Vec<_> = params
-                .into_iter()
-                .map(|(name, value)| (format!("param_{name}"), value.to_string()))
-                .collect();
-            let response = state
-                .http
-                .post(format!("{}/sql", build::sql_http_origin()))
-                .header("content-type", "text/plain")
-                .query(&query)
-                .body(sql)
-                .send()
-                .await?;
-            let status = response.status();
-            let body = response.text().await?;
-            if !status.is_success() {
-                bail!("collector query failed ({status}): {body}");
-            }
-            json_response(super::client::parse_ndjson(&body)?.values)
+            json_response(state.sql.query(&sql, &params).await?.values)
         }
         "get_telemetry_context" => json_response(TelemetryContext {
             service_version: env!("EVERR_VERSION"),
@@ -391,7 +376,7 @@ mod tests {
             origin: origin.clone(),
             identity: crate::telemetry::local_instance::Identity::ui("test-instance".into()),
             auth: Arc::new(LocalAuth::new(
-                crate::state::AppStateStore::for_namespace(auth_dir.path().to_string_lossy()),
+                crate::state::SessionStore::for_namespace(auth_dir.path().to_string_lossy()),
                 crate::device_auth::AuthConfig {
                     api_base_url: "http://example.test".into(),
                 },
@@ -399,6 +384,7 @@ mod tests {
             )),
             supervisor,
             http: reqwest::Client::new(),
+            sql: crate::telemetry::client::QueryClient::new(build::sql_http_origin()),
         };
         let task = tokio::spawn(async move {
             let _auth_dir = auth_dir;

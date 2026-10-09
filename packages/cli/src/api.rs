@@ -5,8 +5,8 @@ use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use opentelemetry::global;
 use opentelemetry::propagation::Injector;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::StatusCode;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -57,31 +57,15 @@ impl ApiClient {
     }
 
     pub fn from_session(session: &Session) -> Result<Self> {
-        let mut headers = HeaderMap::new();
-        let bearer = format!("Bearer {}", session.token);
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&bearer).context("invalid token for Authorization header")?,
-        );
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-
-        let http = reqwest::Client::builder()
-            .default_headers(headers)
-            .build()
-            .context("failed to build HTTP client")?;
-        let base_url = session.api_base_url.trim_end_matches('/').to_string();
-        let base_endpoint = format!("{}/api/cli", base_url);
-
-        Ok(Self {
-            http,
-            base_url,
-            base_endpoint,
-            auth_kind: AuthKind::Session,
-        })
+        Self::from_bearer(&session.api_base_url, &session.token, AuthKind::Session)
     }
 
     /// Build a client from a raw bearer token + base URL (for CI: `EVERR_API_KEY`).
     pub fn from_token(api_base_url: &str, token: &str) -> Result<Self> {
+        Self::from_bearer(api_base_url, token, AuthKind::Token)
+    }
+
+    fn from_bearer(api_base_url: &str, token: &str, auth_kind: AuthKind) -> Result<Self> {
         let mut headers = HeaderMap::new();
         let bearer = format!("Bearer {token}");
         headers.insert(
@@ -99,7 +83,7 @@ impl ApiClient {
             http,
             base_url,
             base_endpoint,
-            auth_kind: AuthKind::Token,
+            auth_kind,
         })
     }
 
@@ -123,8 +107,7 @@ impl ApiClient {
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
             // A 401 means different things per credential: a bad EVERR_API_KEY
             // can't be fixed by `cloud login`, so the token path returns its own
-            // message; a missing/expired session (already refresh-attempted)
-            // routes through the standard reauth path that directs `cloud login`.
+            // message; a missing/expired session directs `cloud login`.
             if status == StatusCode::UNAUTHORIZED {
                 return Err(match self.auth_kind {
                     AuthKind::Token => anyhow::anyhow!(
@@ -146,14 +129,6 @@ impl ApiClient {
 
     pub async fn get_runs_list(&self, query: &[(&str, String)]) -> Result<Value> {
         self.get_json("/runs", query).await
-    }
-
-    pub async fn get_runs_histogram(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/runs/histogram", query).await
-    }
-
-    pub async fn get_run_filter_options(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/runs/filter-options", query).await
     }
 
     pub async fn get_status(&self, query: &[(&str, String)]) -> Result<WatchResponse> {
@@ -186,7 +161,9 @@ impl ApiClient {
                 .header(CONTENT_TYPE, "text/plain")
                 .headers(current_trace_headers())
                 .body(sql.to_string());
-            let response = self.send_checked(request, "CLI SQL").await?;
+            let response = self
+                .send_checked(request, "CLI SQL request failed", "CLI SQL")
+                .await?;
 
             response
                 .text()
@@ -204,15 +181,6 @@ impl ApiClient {
     ) -> Result<StepLogsResponse> {
         let path = format!("/runs/{trace_id}/logs");
         self.get(&path, query).await
-    }
-
-    pub async fn get_notification_for_trace(
-        &self,
-        trace_id: &str,
-    ) -> Result<Option<FailureNotification>> {
-        let query = [("traceId", trace_id.to_string())];
-        let results: Vec<FailureNotification> = self.get("/notification", &query).await?;
-        Ok(results.into_iter().next())
     }
 
     pub async fn events_stream(
@@ -307,24 +275,22 @@ impl ApiClient {
     }
 
     /// Send a request and return the response, mapping any non-2xx status to a
-    /// `http_status_error` (reading the body for the message). `context` labels
-    /// the operation in the error, e.g. "delete resource".
+    /// `http_status_error` (reading the body for the message). Transport failures
+    /// and HTTP status errors retain their operation-specific context.
     async fn send_checked(
         &self,
         request: reqwest::RequestBuilder,
-        context: &'static str,
+        request_error: &'static str,
+        status_context: &'static str,
     ) -> Result<reqwest::Response> {
-        let response = request
-            .send()
-            .await
-            .with_context(|| format!("{context} request failed"))?;
+        let response = request.send().await.context(request_error)?;
         if !response.status().is_success() {
             let status = response.status();
             let text = response
                 .text()
                 .await
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, context));
+            return Err(http_status_error(status, text, status_context));
         }
         Ok(response)
     }
@@ -335,7 +301,8 @@ impl ApiClient {
             self.base_endpoint,
             resource_path(kind, project, slug)
         ));
-        self.send_checked(request, "delete resource").await?;
+        self.send_checked(request, "delete resource request failed", "delete resource")
+            .await?;
         Ok(())
     }
 
@@ -354,7 +321,9 @@ impl ApiClient {
                 resource_path(kind, project, slug)
             ))
             .json(&serde_json::json!({ "repoid": repoid }));
-        let response = self.send_checked(request, "adopt resource").await?;
+        let response = self
+            .send_checked(request, "adopt resource request failed", "adopt resource")
+            .await?;
         response
             .json()
             .await
@@ -363,22 +332,12 @@ impl ApiClient {
 
     /// Calls POST /api/cli/import and returns once the server acknowledges the import has started.
     pub async fn start_import_repos(&self, repos: &[String]) -> Result<()> {
-        let response = self
+        let request = self
             .http
             .post(format!("{}/import", self.base_endpoint))
-            .json(&serde_json::json!({ "repos": repos }))
-            .send()
-            .await
-            .context("import request failed")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "import request"));
-        }
+            .json(&serde_json::json!({ "repos": repos }));
+        self.send_checked(request, "import request failed", "import request")
+            .await?;
 
         Ok(())
     }
@@ -388,22 +347,13 @@ impl ApiClient {
     }
 
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
-        let response = self
+        let request = self
             .http
             .get(format!("{}{}", self.base_endpoint, path))
-            .query(query)
-            .send()
-            .await
-            .context("CLI API request failed")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "CLI API request"));
-        }
+            .query(query);
+        let response = self
+            .send_checked(request, "CLI API request failed", "CLI API request")
+            .await?;
 
         response
             .json::<T>()
@@ -432,8 +382,8 @@ impl Injector for HeaderInjector<'_> {
 }
 
 /// Trace-propagation headers for the current span, to add to an outgoing
-/// request. Empty when no tracer/propagator is installed (e.g. in tests, the
-/// desktop app, or when telemetry is disabled) — the global propagator defaults
+/// request. Empty when no tracer/propagator is installed (e.g. in tests or when
+/// telemetry is disabled). The global propagator defaults
 /// to a no-op, so nothing is injected and the request is unchanged.
 fn current_trace_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
@@ -541,32 +491,8 @@ pub struct MeResponse {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct FailureNotification {
-    pub dedupe_key: String,
-    pub trace_id: String,
-    pub repo: String,
-    pub branch: String,
-    pub workflow_name: String,
-    pub failed_at: String,
-    pub details_url: String,
-    /// All failed jobs in the run with their first failing step.
-    #[serde(default)]
-    pub failed_jobs: Vec<FailedJobInfo>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct FailedJobInfo {
-    pub job_name: String,
-    pub step_number: String,
-    pub step_name: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub struct OrgResponse {
     pub name: String,
-    pub is_only_member: bool,
     #[serde(default)]
     pub role: Option<String>,
 }
@@ -588,7 +514,6 @@ impl OrgResponse {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoEntry {
-    pub id: i64,
     pub full_name: String,
 }
 
@@ -654,8 +579,8 @@ where
 #[cfg(test)]
 mod api_client_tests {
     use super::*;
-    use futures_util::pin_mut;
     use futures_util::StreamExt;
+    use futures_util::pin_mut;
 
     fn make_session(base_url: &str) -> crate::state::Session {
         crate::state::Session {
@@ -682,9 +607,7 @@ mod api_client_tests {
             .mock("GET", "/api/cli/org")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(
-                r#"{"name":"Test Org","isOnlyMember":true,"onboardingCompleted":true,"role":"admin"}"#,
-            )
+            .with_body(r#"{"name":"Test Org","onboardingCompleted":true,"role":"admin"}"#)
             .create_async()
             .await;
 
@@ -692,7 +615,6 @@ mod api_client_tests {
         let org = client.get_org().await.unwrap();
 
         assert_eq!(org.name, "Test Org");
-        assert!(org.is_only_member);
         assert_eq!(org.role.as_deref(), Some("admin"));
         mock.assert_async().await;
     }
@@ -702,7 +624,6 @@ mod api_client_tests {
         for role in ["admin", "owner"] {
             let org = OrgResponse {
                 name: "Acme".to_string(),
-                is_only_member: false,
                 role: Some(role.to_string()),
             };
 
@@ -714,7 +635,6 @@ mod api_client_tests {
     fn org_response_blocks_imports_for_members() {
         let org = OrgResponse {
             name: "Acme".to_string(),
-            is_only_member: false,
             role: Some("member".to_string()),
         };
 
@@ -728,7 +648,7 @@ mod api_client_tests {
             .mock("GET", "/api/cli/repos")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(r#"[{"id":1,"fullName":"org/repo-a"},{"id":2,"fullName":"org/repo-b"}]"#)
+            .with_body(r#"[{"fullName":"org/repo-a"},{"fullName":"org/repo-b"}]"#)
             .create_async()
             .await;
 
@@ -819,8 +739,7 @@ mod api_client_tests {
         let request = empty_apply_request();
         let error = client.apply(&request).await.unwrap_err();
 
-        // Session path: a 401 (after refresh) routes through the standard reauth
-        // path that directs the user to `cloud login` — not the token message.
+        // Session path: a 401 directs the user to `cloud login`.
         assert!(is_reauthentication_required(&error));
         let message = error.to_string();
         assert!(message.contains("cloud login"), "got: {message}");

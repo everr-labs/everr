@@ -1,3 +1,4 @@
+import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
   LogHistogramInput,
@@ -12,12 +13,14 @@ export type LogsExplorerInfiniteInput = Omit<LogsExplorerInput, "offset">;
 export function logsExplorerInfiniteOptions(
   repo: LogsRepositoryLike,
   input: LogsExplorerInfiniteInput,
+  refresh = "",
 ) {
   return infiniteQueryOptions({
     queryKey: ["logs", "explorer", "infinite", input] as const,
     queryFn: ({ pageParam }: { pageParam: number }) =>
       repo.explorer({ ...input, offset: pageParam }),
     initialPageParam: 0,
+    refetchInterval: getRefreshIntervalMs(refresh) ?? false,
     getNextPageParam: (
       lastPage: { logs: unknown[] } | undefined,
       allPages: { logs: unknown[] }[],
@@ -32,9 +35,11 @@ export function logsExplorerInfiniteOptions(
 export function logsTotalsOptions(
   repo: LogsRepositoryLike,
   input: LogsTotalsInput,
+  refresh = "",
 ) {
   return queryOptions({
     queryKey: ["logs", "totals", input],
+    refetchInterval: getRefreshIntervalMs(refresh) ?? false,
     queryFn: () => repo.totals(input),
   });
 }
@@ -52,9 +57,11 @@ export function logDetailOptions(
 export function logsHistogramOptions(
   repo: LogsRepositoryLike,
   input: LogHistogramInput,
+  refresh = "",
 ) {
   return queryOptions({
     queryKey: ["logs", "histogram", input],
+    refetchInterval: getRefreshIntervalMs(refresh) ?? false,
     queryFn: () => repo.histogram(input),
   });
 }

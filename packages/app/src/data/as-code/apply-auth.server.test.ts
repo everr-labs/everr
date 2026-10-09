@@ -47,7 +47,7 @@ function headers(map: Record<string, string>): Headers {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  orgRows = [];
+  orgRows = [{ name: "Acme", metadata: null }];
 });
 
 describe("extractBearerKey", () => {
@@ -172,16 +172,15 @@ describe("resolveApplyAuth", () => {
     });
   });
 
-  it("falls back to the org id when the org row is missing", async () => {
+  it("rejects a key whose organization no longer exists", async () => {
     verifyApiKey.mockResolvedValueOnce({
       valid: true,
       key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
     });
     orgRows = [];
-    const result = await resolveApplyAuth(
-      headers({ authorization: "Bearer ek_abc" }),
-    );
-    expect(result.organizationName).toBe("org-1");
+    await expect(
+      resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })),
+    ).rejects.toThrow("Organization not found");
   });
 
   it("throws when an ek_ key is invalid", async () => {
@@ -388,4 +387,20 @@ describe("requireOrgOrApiKeyMiddleware", () => {
     expect(arg.context.organization).toEqual({ id: "org-1", name: "Acme" });
     expect(arg.context.applyActions).toEqual(["*"]);
   });
+});
+
+it("returns a retryable setup response for a pending API-key organization", async () => {
+  verifyApiKey.mockResolvedValueOnce({
+    valid: true,
+    key: { id: "key", referenceId: "org", permissions: { apply: ["*"] } },
+  });
+  orgRows = [{ name: "Pending", metadata: '{"clickhouseReady":false}' }];
+  try {
+    await resolveApplyAuth(headers({ authorization: "Bearer ek_pending" }));
+    throw new Error("Expected pending organization rejection");
+  } catch (error) {
+    const response = applyAuthErrorResponse(error);
+    expect(response?.status).toBe(503);
+    expect(response?.headers.get("Retry-After")).toBe("5");
+  }
 });

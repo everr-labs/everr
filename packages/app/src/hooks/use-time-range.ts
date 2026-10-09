@@ -28,7 +28,9 @@ export function useRouteTimeDefaults(): RouteTimeDefaults {
 }
 
 export function useTimeRange() {
-  const search = useSearch({ from: "/_authenticated/_dashboard" });
+  const search = useSearch({
+    from: "/_authenticated/_organization/_dashboard",
+  });
   const defaults = useRouteTimeDefaults();
   const { from, to } = ResolvedTimeRangeSearchSchema.parse(
     applyRouteTimeDefaults(search, defaults),

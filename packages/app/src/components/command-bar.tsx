@@ -26,7 +26,9 @@ import { navGroups } from "@/lib/navigation";
 
 export function CommandBar() {
   const navigate = useNavigate();
-  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
+  const { preview } = useSearch({
+    from: "/_authenticated/_organization/_dashboard",
+  });
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 200);

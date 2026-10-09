@@ -8,10 +8,8 @@ import type {
 } from "../schemas";
 
 /**
- * Data source for the runs explorer. Each app implements this against its own
- * backend — the web app via authenticated server functions, the desktop app
- * via Tauri commands that hit Everr Cloud — so the UI stays identical across
- * surfaces.
+ * Data source for the runs explorer. The web app implements this against
+ * authenticated server functions, keeping transport details out of the UI.
  */
 export interface RunsRepositoryLike {
   explorer(input: RunsExplorerInput): Promise<RunsExplorerResult>;

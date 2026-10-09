@@ -1,14 +1,14 @@
 use std::process::Command as ProcessCommand;
 
-use anyhow::{Context, Result, bail};
 use crate::api::{ApiClient, OrgResponse};
 use crate::build;
+use anyhow::{Context, Result, bail};
 
 use crate::auth;
 
 pub async fn run() -> Result<()> {
     // Step 1: require auth
-    let session = auth::require_session_with_refresh().await?;
+    let session = auth::require_session()?;
 
     // Step 2: detect repo
     let cwd = std::env::current_dir().context("could not determine current directory")?;
@@ -163,7 +163,6 @@ mod tests {
     fn member_org_does_not_show_runs_import_step() {
         let org = OrgResponse {
             name: "Acme".to_string(),
-            is_only_member: false,
             role: Some("member".to_string()),
         };
 
@@ -174,7 +173,6 @@ mod tests {
     fn owner_org_shows_runs_import_step() {
         let org = OrgResponse {
             name: "Acme".to_string(),
-            is_only_member: false,
             role: Some("owner".to_string()),
         };
 

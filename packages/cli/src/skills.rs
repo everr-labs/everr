@@ -1,12 +1,12 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
 use crate::skill_store::{
     self as core_skills, SkillOperationOptions, SkillOperationSummary, SkillPathAction,
     SkillProvider, SkillScope, bundled_skills, install_bundled_skills, uninstall_bundled_skills,
     update_bundled_skills,
 };
+use anyhow::{Context, Result, bail};
 use std::io::IsTerminal;
 
 use crate::cli::{
@@ -213,9 +213,8 @@ fn run_uninstall(args: SkillsUninstallArgs) -> Result<()> {
     Ok(())
 }
 
-/// Install all bundled skills for the setup wizard. Stays quiet (no stdout) so
-/// the caller reports results through cliclack; returns the summary instead of
-/// printing it (a raw print would break the wizard's gutter rendering).
+/// Install all bundled skills for setup and return the summary so the caller
+/// can report results through cliclack.
 pub(crate) fn install_all_for_setup(
     scope: SkillScope,
     providers: Vec<SkillProvider>,

@@ -1,3 +1,4 @@
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   type TraceDetailParams,
   TraceDetailParamsSchema,
@@ -16,9 +17,9 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { PageTitleBar } from "../app-shell/title-bar";
-import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
+import { useExploreControls } from "../explore/use-explore-controls";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
@@ -37,6 +38,7 @@ export function TracesPage() {
     environment?: string[];
   };
   const navigate = useNavigate();
+  const controls = useExploreControls("/traces");
   const { timeRange } = withTimeRange(search);
   const refresh = search.refresh ?? "";
   const service = search.service ?? [];
@@ -47,20 +49,7 @@ export function TracesPage() {
       title="Traces"
       timeRange={timeRange}
       refresh={refresh}
-      onTimeRangeChange={(range) =>
-        navigate({
-          to: "/traces",
-          search: (prev) => ({ ...prev, from: range.from, to: range.to }),
-          replace: true,
-        })
-      }
-      onRefreshChange={(value) =>
-        navigate({
-          to: "/traces",
-          search: (prev) => ({ ...prev, refresh: value || undefined }),
-          replace: true,
-        })
-      }
+      {...controls}
     >
       <LocalTelemetryGate>
         <TracesSearch

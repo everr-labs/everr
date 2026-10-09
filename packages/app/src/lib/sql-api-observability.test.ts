@@ -1,5 +1,6 @@
 import { ClickHouseError } from "@clickhouse/client";
 import { describe, expect, it } from "vitest";
+import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
 import { classifyCloudQueryError } from "@/lib/sql-api-observability";
 
 // The guard (when present) throws an Error named "SqlApiGuardError"; the
@@ -25,6 +26,11 @@ function clickhouseError(code: string, type?: string): ClickHouseError {
 }
 
 describe("classifyCloudQueryError", () => {
+  it("classifies pending organization setup as an expected account setup outcome", () => {
+    expect(
+      classifyCloudQueryError(new ClickhouseProvisioningPendingError()),
+    ).toEqual({ outcome: "user_error", kind: "account_setup" });
+  });
   it("classifies a guard rejection as a blocked user error", () => {
     expect(classifyCloudQueryError(guardError())).toEqual({
       outcome: "user_error",

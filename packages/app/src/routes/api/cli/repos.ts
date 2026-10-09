@@ -38,9 +38,7 @@ export const Route = createFileRoute("/api/cli/repos")({
           throw error;
         }
 
-        return Response.json(
-          repos.map((r) => ({ id: r.id, fullName: r.full_name })),
-        );
+        return Response.json(repos.map((r) => ({ fullName: r.full_name })));
       },
     },
   },

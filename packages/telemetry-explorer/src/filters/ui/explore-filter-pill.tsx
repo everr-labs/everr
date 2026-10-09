@@ -159,8 +159,7 @@ export function ExploreFilterPill<TData>({
             <ChevronDownIcon className="text-muted-foreground size-3 shrink-0" />
           )}
         </TooltipTrigger>
-        {/* Open downward: these pills sit in a topbar, so a top-side tooltip can
-            collide with window chrome above (e.g. the desktop traffic lights). */}
+        {/* Open downward to keep tooltips within the topbar's viewport. */}
         <TooltipContent side="bottom">
           {isActive
             ? `${label}: ${values.join(", ")}`

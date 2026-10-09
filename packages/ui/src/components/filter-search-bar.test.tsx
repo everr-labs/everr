@@ -3,6 +3,28 @@ import { describe, expect, it, vi } from "vitest";
 import { FilterSearchBar } from "./filter-search-bar";
 
 describe("FilterSearchBar", () => {
+  it("preserves unsubmitted drafts until an external value changes", () => {
+    const onChange = vi.fn();
+    const field = (value: string) => (
+      <FilterSearchBar
+        id="s"
+        label="Search"
+        value={value}
+        onChange={onChange}
+        placeholder="Search messages"
+      />
+    );
+    const { rerender } = render(field("old"));
+    const input = screen.getByLabelText("Search");
+    fireEvent.change(input, { target: { value: "unsubmitted draft" } });
+    rerender(field("old"));
+    expect(input).toHaveValue("unsubmitted draft");
+
+    rerender(field("external"));
+    expect(input).toHaveValue("external");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("commits the trimmed draft on submit", () => {
     const onChange = vi.fn();
     render(

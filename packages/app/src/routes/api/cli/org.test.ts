@@ -77,7 +77,7 @@ function invokePatch() {
 beforeEach(() => vi.clearAllMocks());
 
 describe("/api/cli/org", () => {
-  it("returns org name and isOnlyMember true when user is the only member", async () => {
+  it("returns the organization name and current user's role", async () => {
     await mockGetFullOrganization(makeOrg());
 
     const response = await invokeGet();
@@ -85,7 +85,6 @@ describe("/api/cli/org", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       name: "Test Org",
-      isOnlyMember: true,
       onboardingCompleted: true,
       role: "admin",
     });
@@ -114,37 +113,6 @@ describe("/api/cli/org", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ role: "member" });
-  });
-
-  it("returns isOnlyMember false when another member exists", async () => {
-    await mockGetFullOrganization(
-      makeOrg({
-        members: [
-          { userId: "user_abc", role: "admin" },
-          { userId: "user_def", role: "member" },
-        ],
-      }),
-    );
-
-    const response = await invokeGet();
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ isOnlyMember: false });
-  });
-
-  it("returns isOnlyMember false when the user is not the only member", async () => {
-    await mockGetFullOrganization(
-      makeOrg({
-        members: [
-          { userId: "user_abc", role: "admin" },
-          { userId: "user_def", role: "admin" },
-        ],
-      }),
-    );
-
-    const response = await invokeGet();
-
-    expect(await response.json()).toMatchObject({ isOnlyMember: false });
   });
 
   it("accepts the legacy onboarding PATCH as a no-op", async () => {

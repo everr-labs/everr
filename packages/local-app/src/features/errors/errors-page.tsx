@@ -1,4 +1,5 @@
 import {
+  DetailRouteDialog,
   ErrorDetail,
   type ErrorIssueSearch,
   ErrorIssueSearchSchema,
@@ -9,6 +10,7 @@ import {
   getErrorOccurrenceKey,
   getErrorTraceWindow,
 } from "@everr/telemetry-explorer/errors";
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   getTraceOptions,
   type Span,
@@ -25,13 +27,9 @@ import {
   useParams,
   useSearch,
 } from "@tanstack/react-router";
-import {
-  DetailRouteDialog,
-  useDetailRouteDialogClose,
-} from "@/components/detail-route-dialog";
-import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
+import { useExploreControls } from "../explore/use-explore-controls";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
@@ -74,6 +72,7 @@ export function ErrorsPage() {
 }
 
 function ErrorsListView() {
+  const controls = useExploreControls("/errors");
   const search = useSearch({ strict: false }) as ErrorIssueSearch & {
     environment?: string[];
   };
@@ -97,20 +96,7 @@ function ErrorsListView() {
       title="Errors"
       timeRange={timeRange}
       refresh={refresh ?? ""}
-      onTimeRangeChange={(range) =>
-        navigate({
-          to: "/errors",
-          search: { ...search, from: range.from, to: range.to },
-          replace: true,
-        })
-      }
-      onRefreshChange={(value) =>
-        navigate({
-          to: "/errors",
-          search: { ...search, refresh: value || undefined },
-          replace: true,
-        })
-      }
+      {...controls}
     >
       <LocalTelemetryGate>
         <ErrorIssues
@@ -156,9 +142,6 @@ export function ErrorDetailPage() {
   };
   const search = useSearch({ strict: false }) as ErrorIssueSearch;
   const navigate = useNavigate();
-  // Inside the modal, ask the dialog to close through the route owner so the
-  // dialog stays open until navigation removes it.
-  const closeDialog = useDetailRouteDialogClose();
   const { timeRange, service, refresh } = withTimeRange(search);
 
   return (
@@ -171,10 +154,6 @@ export function ErrorDetailPage() {
         service={service ?? []}
         occurrence={search.occurrence}
         onClose={() => {
-          if (closeDialog) {
-            closeDialog();
-            return;
-          }
           navigate({
             to: "/errors",
             search: { ...search, occurrence: "" },

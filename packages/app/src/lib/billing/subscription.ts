@@ -129,10 +129,7 @@ export function createBillingSubscriptions(
         "identity_conflict",
         "Organization has a different billing customer.",
       );
-    if (!intent.completedAt) {
-      await deps.provisionOrganization(org.id);
-      await identity.reconcile(org.id);
-    }
+    if (!intent.completedAt) await identity.reconcile(org.id);
     await store.saveSubscription(org.id, subscription);
     await db
       .update(proOrganizationCheckout)

@@ -11,6 +11,7 @@ import {
   alertDefaultChannels,
   alertDefinitions,
   alertSilences,
+  organization,
   previews,
 } from "@/db/schema";
 
@@ -101,6 +102,16 @@ export async function insertRule(
   // what starts a rule off, so a bare row insert here would sit in the
   // table forever with nothing to evaluate it.
   const row = await db.transaction(async (tx) => {
+    const organizationId = overrides.organizationId ?? TEST_ORG;
+    await tx
+      .insert(organization)
+      .values({
+        id: organizationId,
+        name: organizationId,
+        slug: organizationId,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing();
     const [inserted] = await tx
       .insert(alertDefinitions)
       .values({

@@ -1,8 +1,8 @@
-use anyhow::{Result, anyhow};
 use crate::api::ApiClient;
-use crate::device_auth::{AuthConfig, login_with_prompt};
 use crate::build;
-use crate::state::{AppStateStore, Session};
+use crate::device_auth::{AuthConfig, login_with_prompt};
+use crate::state::{Session, SessionStore, is_no_active_session_error};
+use anyhow::{Result, anyhow};
 
 use crate::cli::LoginArgs;
 
@@ -10,7 +10,7 @@ const API_BASE_URL_OVERRIDE_ENV: &str = "EVERR_API_BASE_URL_FOR_TESTS";
 
 pub async fn login(_args: LoginArgs) -> Result<()> {
     let config = resolve_auth_config()?;
-    let store = state_store();
+    let store = session_store();
     let session = login_with_prompt(&config, &store, open_browser_immediately).await?;
     print_session_identity(&session).await?;
     println!(
@@ -77,7 +77,7 @@ fn trimmed_non_empty(value: &str) -> Option<&str> {
 }
 
 pub fn logout() -> Result<()> {
-    let store = state_store();
+    let store = session_store();
     let had_session = store.clear_session()?;
     if had_session {
         println!("Logged out.");
@@ -88,18 +88,16 @@ pub fn logout() -> Result<()> {
     Ok(())
 }
 
-pub async fn require_session_with_refresh() -> Result<Session> {
-    let store = state_store();
+pub fn require_session() -> Result<Session> {
+    let store = session_store();
     let api_base_url = current_api_base_url()?;
     match store.load_session_for_api_base_url(&api_base_url) {
         Ok(session) => Ok(session),
-        Err(error) => {
-            if error.to_string().contains("no active session") {
-                Err(anyhow!("no active session; run `{}`", login_command_hint()))
-            } else {
-                Err(error)
-            }
-        }
+        Err(error) if is_no_active_session_error(&error) => Err(anyhow!(
+            "no active session; run `{} cloud login`",
+            build::command_name()
+        )),
+        Err(error) => Err(error),
     }
 }
 
@@ -109,23 +107,8 @@ pub fn resolve_auth_config() -> Result<AuthConfig> {
     })
 }
 
-fn login_command_hint() -> String {
-    format!("{} cloud login", command_name())
-}
-
-fn command_name() -> String {
-    std::env::current_exe()
-        .ok()
-        .and_then(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .map(str::to_owned)
-        })
-        .unwrap_or_else(|| "everr".to_string())
-}
-
-pub fn state_store() -> AppStateStore {
-    AppStateStore::for_namespace(build::session_namespace())
+pub fn session_store() -> SessionStore {
+    SessionStore::for_namespace(build::session_namespace())
 }
 
 fn current_api_base_url() -> Result<String> {
@@ -142,15 +125,18 @@ fn current_api_base_url() -> Result<String> {
 mod tests {
     use crate::build;
 
-    use super::state_store;
+    use super::session_store;
 
     #[test]
     fn session_namespace_is_fixed() {
-        let store = state_store();
-
-        assert_eq!(store.namespace(), build::session_namespace());
+        let store = session_store();
+        let path = store.session_file_path().unwrap();
         assert_eq!(
-            store.session_file_name(),
+            path.parent().unwrap().file_name().unwrap(),
+            build::session_namespace()
+        );
+        assert_eq!(
+            path.file_name().unwrap(),
             build::default_session_file_name()
         );
     }

@@ -27,6 +27,7 @@ const collectorStatusQueryKey = ["local-app", "collector-status"] as const;
 export function useCollectorStatusQuery() {
   return useQuery({
     queryKey: collectorStatusQueryKey,
+    refetchInterval: 10_000,
     queryFn: () =>
       invokeCommand<CollectorStatusResponse>("get_collector_status"),
   });

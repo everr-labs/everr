@@ -8,7 +8,7 @@ import { Kbd } from "@everr/ui/components/kbd";
 import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
 import { CornerDownLeft, Search, X } from "lucide-react";
-import { type ComponentType, useEffect, useState } from "react";
+import { type ComponentType, useState } from "react";
 
 export function FilterSearchBar({
   id,
@@ -28,14 +28,16 @@ export function FilterSearchBar({
   icon?: ComponentType<{ className?: string }>;
 }) {
   const [draft, setDraft] = useState(value);
+  const [previousValue, setPreviousValue] = useState(value);
   // Whether the input itself holds focus. `group-focus-within` would also match
   // the clear button, and hiding a focused button drops the focus on the floor.
   const [inputFocused, setInputFocused] = useState(false);
   // Take the draft again when the value changes from outside, for example on
   // "Clear page filters", on a link, or on Back.
-  useEffect(() => {
+  if (previousValue !== value) {
+    setPreviousValue(value);
     setDraft(value);
-  }, [value]);
+  }
 
   // `dirty` = the field holds an edit that hasn't been run yet. It colours the
   // leading icon, so an unrun edit reads as pending under the "press Enter"

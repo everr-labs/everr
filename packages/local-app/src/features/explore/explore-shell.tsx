@@ -1,12 +1,21 @@
-import {
-  getRefreshIntervalMs,
-  RefreshPicker,
-} from "@everr/ui/components/refresh-picker";
+import { RefreshPicker } from "@everr/ui/components/refresh-picker";
 import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { useIsFetching, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import {
+  type QueryFilters,
+  useIsFetching,
+  useQueryClient,
+} from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { PageTitleBar } from "../app-shell/title-bar";
+
+const exploreQueries = {
+  type: "active",
+  predicate: ({ queryKey }) =>
+    queryKey[0] === "logs" ||
+    queryKey[0] === "errors" ||
+    queryKey[0] === "traces",
+} satisfies QueryFilters;
 
 // The shared header for the Explore pages: Logs, Errors and Traces. It holds the
 // page title, the time range control and the refresh control.
@@ -26,28 +35,7 @@ export function ExploreShell({
   children: ReactNode;
 }) {
   const queryClient = useQueryClient();
-  const isFetching = useIsFetching() > 0;
-  const refreshMs = useMemo(
-    () => (refresh ? getRefreshIntervalMs(refresh) : null),
-    [refresh],
-  );
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (refreshMs) {
-      intervalRef.current = setInterval(
-        () => void queryClient.invalidateQueries(),
-        refreshMs,
-      );
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [refreshMs, queryClient]);
+  const isFetching = useIsFetching(exploreQueries) > 0;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -59,7 +47,9 @@ export function ExploreShell({
             <RefreshPicker
               value={refresh}
               onChange={onRefreshChange}
-              onRefresh={() => void queryClient.invalidateQueries()}
+              onRefresh={() =>
+                void queryClient.invalidateQueries(exploreQueries)
+              }
               isFetching={isFetching}
             />
           </>

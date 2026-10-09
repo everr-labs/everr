@@ -123,17 +123,40 @@ describe("createOrganization", () => {
     expect(auth.api.createOrganization).not.toHaveBeenCalled();
   });
 
-  it("starts Pro checkout with only the name, without creating the organization", async () => {
+  it("starts Pro checkout with the name and destination, without creating the organization", async () => {
     await expect(
       createOrganization({
-        data: { plan: "pro", organizationName: "  Acme  " },
+        data: {
+          plan: "pro",
+          organizationName: "  Acme  ",
+          returnTo: "/logs?service=api",
+        },
       }),
     ).resolves.toEqual({
       kind: "checkout",
       url: "https://polar.example/checkout_1",
     });
-    expect(mocks.startCheckout).toHaveBeenCalledWith("test_user", "Acme");
+    expect(mocks.startCheckout).toHaveBeenCalledWith(
+      "test_user",
+      "Acme",
+      "/logs?service=api",
+    );
     expect(auth.api.createOrganization).not.toHaveBeenCalled();
+  });
+  it.each([
+    undefined,
+    "https://other.example",
+    "//other.example",
+    "/organization-setup",
+  ])("defaults a missing or unsafe checkout destination (%s) to home", async (returnTo) => {
+    await createOrganization({
+      data: { plan: "pro", organizationName: "Acme", returnTo },
+    });
+    expect(mocks.startCheckout).toHaveBeenCalledWith(
+      "test_user",
+      "Acme",
+      returnTo === undefined ? undefined : "/",
+    );
   });
   it("reports a retryable checkout failure", async () => {
     mocks.startCheckout.mockRejectedValueOnce(new Error("unavailable"));

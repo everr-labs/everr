@@ -3,19 +3,16 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { getMcpIdentity } from "@/data/mcp/identity";
 import { assertCurrentMember } from "@/data/mcp/membership";
+import { QUERY_TOOL_DESCRIPTION } from "@/data/mcp/query-tool-description";
 import { runSqlForConnection } from "@/data/mcp/run-sql";
 import { AUTH_ISSUER, MCP_RESOURCE } from "@/lib/mcp-resource";
 import { mcpResourceClient } from "@/lib/mcp-resource-client";
-import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
 import { mergeTelemetryIdentity } from "@/telemetry/identity";
-
-// Single source of truth: the tables the per-org ClickHouse role can read.
-const READABLE_TABLES = SQL_API_TENANT_TABLES.join(", ");
 
 // Per-request identity, carried on the verified token's AuthInfo.extra. The MCP
 // SDK threads AuthInfo into every tool call's `extra`, so there's no need to
 // thread it through the handler or stash it in AsyncLocalStorage ourselves.
-type McpContext = { orgId: string; userId: string };
+type McpContext = { orgId: string; userId: string; metadata: string | null };
 
 function contextOf(extra: { authInfo?: { extra?: Record<string, unknown> } }) {
   const ctx = extra.authInfo?.extra as McpContext | undefined;
@@ -28,9 +25,7 @@ function createTransport() {
       server.registerTool(
         "query",
         {
-          description:
-            `Run a read-only ClickHouse SQL query against your organization's ` +
-            `telemetry. Readable tables: ${READABLE_TABLES}. OpenTelemetry. Results are capped.`,
+          description: QUERY_TOOL_DESCRIPTION,
           inputSchema: { sql: z.string() },
         },
         async ({ sql }, extra) => {
@@ -41,10 +36,17 @@ function createTransport() {
               content: [{ type: "text", text: "No org context." }],
             };
           }
-          const result = await runSqlForConnection({ orgId: ctx.orgId, sql });
+          const result = await runSqlForConnection({
+            orgId: ctx.orgId,
+            metadata: ctx.metadata,
+            sql,
+          });
           return {
             isError: result.isError,
-            content: [{ type: "text", text: result.text }],
+            content: result.content.map((text) => ({
+              type: "text" as const,
+              text,
+            })),
           };
         },
       );
@@ -116,7 +118,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
 
   // Re-check membership at request time (revocation / removal after consent).
   // A non-member throws McpMembershipError -> withMcpAuth answers 401.
-  await assertCurrentMember(userId, orgId);
+  const { metadata } = await assertCurrentMember(userId, orgId);
   mergeTelemetryIdentity({ organizationId: orgId, userId });
 
   return {
@@ -127,7 +129,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
         ? payload.scope.split(" ")
         : ["observability:read"],
     expiresAt: typeof payload.exp === "number" ? payload.exp : undefined,
-    extra: { orgId, userId } satisfies McpContext,
+    extra: { orgId, userId, metadata } satisfies McpContext,
   };
 }
 

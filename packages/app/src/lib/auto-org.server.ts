@@ -1,6 +1,7 @@
+import type { GenericEndpointContext } from "better-auth";
 import { and, eq, gt, sql } from "drizzle-orm";
-import { db } from "@/db/client";
-import { invitation, member, user } from "@/db/schema";
+import { type Database, db } from "@/db/client";
+import { invitation, member, session as sessionTable, user } from "@/db/schema";
 import {
   deriveOrgName,
   generateOrgSlug,
@@ -8,17 +9,68 @@ import {
   shouldCreateAutomaticOrganization,
 } from "@/lib/auto-org";
 import { lockHobbyOrganizationOwnership } from "@/lib/billing-data.server";
+import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+
+type CreateAutomaticOrganization = (body: {
+  name: string;
+  slug: string;
+  userId: string;
+  plan: "hobby";
+}) => Promise<{ id: string } | null>;
+
+// Better Auth runs session after-hooks after the signup transaction commits.
+// The ownership check and organization creation can then see the new user.
+export function createAutomaticOrganizationSessionHook(
+  createOrganization: CreateAutomaticOrganization,
+  database: Database = db,
+  onCreated?: (
+    session: { id: string; activeOrganizationId: string },
+    context: GenericEndpointContext | null,
+  ) => Promise<void>,
+) {
+  return async (
+    session: {
+      id: string;
+      userId: string;
+      activeOrganizationId?: string | null;
+    },
+    context: GenericEndpointContext | null = null,
+  ) => {
+    if (session.activeOrganizationId) return;
+    try {
+      let createdOrganizationId: string | undefined;
+      const activeOrganizationId = await ensureAutomaticOrganization(
+        session.userId,
+        async (body) => {
+          const created = await createOrganization(body);
+          createdOrganizationId = created?.id;
+          return created;
+        },
+        database,
+      );
+      if (!activeOrganizationId) return;
+      await database
+        .update(sessionTable)
+        .set({ activeOrganizationId })
+        .where(eq(sessionTable.id, session.id));
+      session.activeOrganizationId = activeOrganizationId;
+      if (createdOrganizationId === activeOrganizationId)
+        await onCreated?.({ id: session.id, activeOrganizationId }, context);
+    } catch (error) {
+      serverLogger.error("auto_org.create_personal_org.failed", {
+        ...exceptionAttributes(error),
+        "user.id": session.userId,
+      });
+    }
+  };
+}
 
 export async function ensureAutomaticOrganization(
   userId: string,
-  createOrganization: (body: {
-    name: string;
-    slug: string;
-    userId: string;
-    plan: "hobby";
-  }) => Promise<{ id: string } | null>,
+  createOrganization: CreateAutomaticOrganization,
+  database: Database = db,
 ): Promise<string | null> {
-  return db.transaction(async (tx) => {
+  return database.transaction(async (tx) => {
     await lockHobbyOrganizationOwnership(tx, userId);
 
     // Another sign-in, explicit creation, or downgrade may have added a

@@ -70,6 +70,7 @@ export const createOrganization = createPartiallyAuthenticatedServerFn({
       return await billing.startNewOrganizationCheckout(
         session.user.id,
         data.organizationName,
+        data.returnTo,
       );
     } catch (error) {
       throw new OrganizationCreationError(

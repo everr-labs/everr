@@ -262,14 +262,10 @@ fn setup_works_without_cloud_session_and_skips_undetected_agents() {
         .success()
         .stderr(contains("everr local start"));
 
-    let state: everr_cli::state::AppState =
-        serde_json::from_slice(&fs::read(env.session_path()).expect("read setup state"))
-            .expect("parse setup state");
     assert!(
-        state.session.is_none(),
-        "local setup must not require a Cloud session"
+        !env.session_path().exists(),
+        "local setup must not create a Cloud session file"
     );
-    assert!(state.settings.wizard_state.wizard_completed);
 
     // With no agents detected in non-interactive mode, skills are skipped.
     assert!(
@@ -338,9 +334,7 @@ fn init_skips_runs_import_step_for_non_admin_member() {
         .match_header("authorization", "Bearer token-123")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(
-            r#"{"name":"Acme","isOnlyMember":false,"onboardingCompleted":false,"role":"member"}"#,
-        )
+        .with_body(r#"{"name":"Acme","onboardingCompleted":false,"role":"member"}"#)
         .create();
     let repos_mock = server.mock("GET", "/api/cli/repos").expect(0).create();
     let import_mock = server.mock("POST", "/api/cli/import").expect(0).create();

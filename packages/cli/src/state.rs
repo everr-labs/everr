@@ -15,129 +15,61 @@ pub struct Session {
     pub token: String,
 }
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub struct WizardState {
-    pub wizard_completed: bool,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub struct UserProfile {
-    pub email: String,
-    pub name: String,
-    pub profile_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub struct AppSettings {
-    pub completed_base_url: Option<String>,
-    #[serde(flatten)]
-    pub wizard_state: WizardState,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub notification_emails: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_profile: Option<UserProfile>,
-}
-
-impl AppSettings {
-    pub fn mark_setup_complete(&mut self, current_base_url: &str) {
-        self.completed_base_url = Some(current_base_url.to_string());
-        self.wizard_state.wizard_completed = true;
-    }
-
-    pub fn apply_runtime_base_url(&mut self, current_base_url: &str) {
-        if self.wizard_state.wizard_completed
-            && self.completed_base_url.as_deref() != Some(current_base_url)
-        {
-            self.wizard_state.wizard_completed = false;
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct AppState {
-    pub session: Option<Session>,
-    pub settings: AppSettings,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        Self {
-            session: None,
-            settings: AppSettings::default(),
-        }
-    }
+struct SessionFile {
+    session: Option<Session>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AppStateStore {
+pub struct SessionStore {
     namespace: String,
-    state_file_name: String,
 }
 
-impl AppStateStore {
+impl SessionStore {
     pub fn for_namespace(namespace: impl Into<String>) -> Self {
-        Self::for_namespace_with_file_name(namespace, build::default_session_file_name())
-    }
-
-    pub fn for_namespace_with_file_name(
-        namespace: impl Into<String>,
-        state_file_name: impl Into<String>,
-    ) -> Self {
         Self {
             namespace: namespace.into(),
-            state_file_name: state_file_name.into(),
         }
-    }
-
-    pub fn namespace(&self) -> &str {
-        &self.namespace
-    }
-
-    pub fn session_file_name(&self) -> &str {
-        &self.state_file_name
     }
 
     pub fn session_file_path(&self) -> Result<PathBuf> {
         let config_dir = dirs::config_dir().context("failed to resolve user config dir")?;
-        Ok(config_dir.join(&self.namespace).join(&self.state_file_name))
+        Ok(config_dir
+            .join(&self.namespace)
+            .join(build::default_session_file_name()))
     }
 
-    pub fn load_state(&self) -> Result<AppState> {
-        self.load_state_unlocked()
-    }
-
-    fn load_state_unlocked(&self) -> Result<AppState> {
+    fn load_file(&self) -> Result<SessionFile> {
         let path = self.session_file_path()?;
         if !path.exists() {
-            return Ok(AppState::default());
+            return Ok(SessionFile::default());
         }
 
         let raw = fs::read_to_string(&path)
             .with_context(|| format!("failed to read {}", path.display()))?;
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
-            return Ok(AppState::default());
+        let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+            return Ok(SessionFile::default());
         };
-        let Some(object) = value.as_object() else {
-            return Ok(AppState::default());
+        let Some(object) = value.as_object_mut() else {
+            return Ok(SessionFile::default());
         };
-        if object.len() != 2 || !object.contains_key("session") || !object.contains_key("settings")
-        {
-            return Ok(AppState::default());
+        // Desktop-era session files included settings. Ignore that field while
+        // retaining strict validation of the session envelope.
+        object.remove("settings");
+        if object.len() != 1 || !object.contains_key("session") {
+            return Ok(SessionFile::default());
         }
 
-        match serde_json::from_value::<AppState>(value) {
-            Ok(state) => Ok(state),
-            Err(_) => Ok(AppState::default()),
+        match serde_json::from_value::<SessionFile>(value) {
+            Ok(file) => Ok(file),
+            Err(_) => Ok(SessionFile::default()),
         }
     }
 
-    pub fn save_state(&self, state: &AppState) -> Result<()> {
+    fn save_file(&self, file: &SessionFile) -> Result<()> {
         let path = self.session_file_path()?;
-        if state == &AppState::default() {
+        if file.session.is_none() {
             if path.exists() {
                 fs::remove_file(&path)
                     .with_context(|| format!("failed to remove {}", path.display()))?;
@@ -151,7 +83,7 @@ impl AppStateStore {
         }
 
         let serialized =
-            serde_json::to_string_pretty(state).context("failed to serialize app state")?;
+            serde_json::to_string_pretty(file).context("failed to serialize session file")?;
         let tmp = path.with_extension("tmp");
         fs::write(&tmp, serialized)
             .with_context(|| format!("failed to write {}", tmp.display()))?;
@@ -160,42 +92,29 @@ impl AppStateStore {
         Ok(())
     }
 
-    pub fn update_state<F, T>(&self, mutate: F) -> Result<T>
-    where
-        F: FnOnce(&mut AppState) -> T,
-    {
-        let _lock = self.lock_exclusive()?;
-        let mut state = self.load_state_unlocked()?;
-        let result = mutate(&mut state);
-        self.save_state(&state)?;
-        Ok(result)
-    }
-
     pub fn load_session(&self) -> Result<Session> {
-        self.load_state()?
+        self.load_file()?
             .session
             .ok_or_else(|| anyhow!(NO_ACTIVE_SESSION))
     }
 
     pub fn save_session(&self, session: &Session) -> Result<()> {
-        self.update_state(|state| state.session = Some(session.clone()))?;
+        let _lock = self.acquire_lock()?;
+        self.save_file(&SessionFile {
+            session: Some(session.clone()),
+        })?;
         Ok(())
     }
 
     pub fn clear_session(&self) -> Result<bool> {
-        let _lock = self.lock_exclusive()?;
-        let mut state = self.load_state_unlocked()?;
-        if state.session.is_none() {
+        let _lock = self.acquire_lock()?;
+        let file = self.load_file()?;
+        if file.session.is_none() {
             return Ok(false);
         }
 
-        state.session = None;
-        self.save_state(&state)?;
+        self.save_file(&SessionFile::default())?;
         Ok(true)
-    }
-
-    pub fn has_active_session(&self) -> Result<bool> {
-        Ok(self.load_state()?.session.is_some())
     }
 
     pub fn load_session_for_api_base_url(&self, expected_api_base_url: &str) -> Result<Session> {
@@ -207,7 +126,7 @@ impl AppStateStore {
         bail!(NO_ACTIVE_SESSION);
     }
 
-    /// Deletes the state file entirely, removing all session and settings data.
+    /// Deletes the session file entirely, including malformed files.
     pub fn wipe(&self) -> Result<()> {
         let path = self.session_file_path()?;
         if path.exists() {
@@ -223,10 +142,6 @@ impl AppStateStore {
             Err(error) if is_no_active_session_error(&error) => Ok(false),
             Err(error) => Err(error),
         }
-    }
-
-    fn lock_exclusive(&self) -> Result<fs::File> {
-        self.acquire_lock()
     }
 
     fn acquire_lock(&self) -> Result<fs::File> {
@@ -254,366 +169,107 @@ fn session_matches_api_base_url(actual: &str, expected: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::{Session, SessionStore, is_no_active_session_error};
+    use crate::test_support::ENV_LOCK;
     use serde_json::json;
     use tempfile::tempdir;
 
-    use super::{AppSettings, AppState, AppStateStore, Session, UserProfile, WizardState};
-    use crate::build;
+    fn session() -> Session {
+        Session {
+            api_base_url: "https://app.everr.dev".into(),
+            token: "test-token".into(),
+        }
+    }
 
-    use crate::test_support::ENV_LOCK;
-
-    #[test]
-    fn default_state_store_matches_current_build_defaults() {
-        let store = AppStateStore::for_namespace("everr");
-
-        assert_eq!(store.namespace(), "everr");
-        assert_eq!(
-            store.session_file_name(),
-            build::default_session_file_name()
-        );
+    fn write_fixture(store: &SessionStore, value: serde_json::Value) {
+        let path = store.session_file_path().unwrap();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, value.to_string()).unwrap();
     }
 
     #[test]
-    fn custom_state_file_name_is_preserved() {
-        let store = AppStateStore::for_namespace_with_file_name("everr", "session-dev.json");
-
-        assert_eq!(store.namespace(), "everr");
-        assert_eq!(store.session_file_name(), "session-dev.json");
-    }
-
-    #[test]
-    fn app_state_round_trips() {
+    fn session_round_trips_atomically_and_uses_a_lock() {
         with_temp_config_home(|store| {
-            let state = AppState {
-                session: Some(Session {
-                    api_base_url: "https://app.everr.dev".to_string(),
-                    token: "token-123".to_string(),
-                }),
-                settings: AppSettings {
-                    completed_base_url: Some("https://app.everr.dev".to_string()),
-                    wizard_state: WizardState {
-                        wizard_completed: true,
-                    },
-                    notification_emails: vec!["user@example.com".to_string()],
-                    user_profile: Some(UserProfile {
-                        email: "user@example.com".to_string(),
-                        name: "Test User".to_string(),
-                        profile_url: None,
-                    }),
-                    ..AppSettings::default()
-                },
-            };
-
-            store.save_state(&state).expect("save state");
-
-            assert_eq!(store.load_state().expect("load state"), state);
-        });
-    }
-
-    #[test]
-    fn saving_session_preserves_settings() {
-        with_temp_config_home(|store| {
-            store
-                .save_state(&AppState {
-                    session: None,
-                    settings: AppSettings {
-                        completed_base_url: Some("https://app.everr.dev".to_string()),
-                        wizard_state: WizardState {
-                            wizard_completed: true,
-                        },
-                        ..AppSettings::default()
-                    },
-                })
-                .expect("save state");
-
-            store
-                .save_session(&Session {
-                    api_base_url: "https://app.everr.dev".to_string(),
-                    token: "token-123".to_string(),
-                })
-                .expect("save session");
-
-            let state = store.load_state().expect("load state");
+            store.save_session(&session()).unwrap();
+            assert_eq!(store.load_session().unwrap(), session());
+            let path = store.session_file_path().unwrap();
+            assert!(path.with_extension("lock").is_file());
+            assert!(!path.with_extension("tmp").exists());
             assert_eq!(
-                state.settings.completed_base_url.as_deref(),
-                Some("https://app.everr.dev")
+                path.file_name().unwrap(),
+                crate::build::default_session_file_name(),
             );
-            assert!(state.settings.wizard_state.wizard_completed);
+            assert_eq!(path.parent().unwrap().file_name().unwrap(), "everr");
         });
     }
 
     #[test]
-    fn updating_settings_preserves_session() {
+    fn desktop_session_files_remain_readable_and_save_without_unused_settings() {
         with_temp_config_home(|store| {
-            store
-                .save_state(&AppState {
-                    session: Some(Session {
-                        api_base_url: "https://app.everr.dev".to_string(),
-                        token: "token-123".to_string(),
-                    }),
-                    settings: AppSettings::default(),
-                })
-                .expect("save state");
-
-            store
-                .update_state(|state| {
-                    state.settings.mark_setup_complete("https://app.everr.dev");
-                })
-                .expect("update state");
-
-            let state = store.load_state().expect("load state");
-            assert_eq!(
-                state.session.as_ref().map(|session| session.token.as_str()),
-                Some("token-123")
+            write_fixture(
+                &store,
+                json!({"session": session(), "settings": {
+                    "wizard_completed": true, "completed_base_url": "https://app.everr.dev",
+                    "notification_emails": ["old@example.test"], "user_profile": {"name": "Old profile"}
+                }}),
             );
-            assert!(state.settings.wizard_state.wizard_completed);
-        });
-    }
-
-    #[test]
-    fn clearing_session_leaves_settings_intact() {
-        with_temp_config_home(|store| {
-            store
-                .save_state(&AppState {
-                    session: Some(Session {
-                        api_base_url: "https://app.everr.dev".to_string(),
-                        token: "token-123".to_string(),
-                    }),
-                    settings: AppSettings {
-                        completed_base_url: Some("https://app.everr.dev".to_string()),
-                        wizard_state: WizardState {
-                            wizard_completed: true,
-                        },
-                        ..AppSettings::default()
-                    },
-                })
-                .expect("save state");
-
-            assert!(store.clear_session().expect("clear session"));
-
-            let state = store.load_state().expect("load state");
-            assert!(state.session.is_none());
-            assert_eq!(
-                state.settings.completed_base_url.as_deref(),
-                Some("https://app.everr.dev")
-            );
-            assert!(state.settings.wizard_state.wizard_completed);
-        });
-    }
-
-    #[test]
-    fn load_session_for_api_base_url_rejects_mismatch_without_clearing() {
-        with_temp_config_home(|store| {
-            store
-                .save_state(&AppState {
-                    session: Some(Session {
-                        api_base_url: "https://app.everr.dev".to_string(),
-                        token: "token-123".to_string(),
-                    }),
-                    settings: AppSettings {
-                        completed_base_url: Some("https://app.everr.dev".to_string()),
-                        wizard_state: WizardState {
-                            wizard_completed: true,
-                        },
-                        ..AppSettings::default()
-                    },
-                })
-                .expect("save state");
-
-            let error = store
-                .load_session_for_api_base_url("http://localhost:5173")
-                .expect_err("mismatched session should be rejected");
-            assert_eq!(error.to_string(), "no active session");
-
-            let state = store.load_state().expect("load state");
-            let session = state.session.expect("session preserved on mismatch");
-            assert_eq!(session.api_base_url, "https://app.everr.dev");
-            assert_eq!(session.token, "token-123");
-            assert_eq!(
-                state.settings.completed_base_url.as_deref(),
-                Some("https://app.everr.dev")
-            );
-            assert!(state.settings.wizard_state.wizard_completed);
-        });
-    }
-
-    #[test]
-    fn unsupported_old_format_loads_as_default_state() {
-        with_temp_config_home(|store| {
-            let path = store.session_file_path().expect("state path");
-            let parent = path.parent().expect("state parent");
-            std::fs::create_dir_all(parent).expect("create state dir");
-            std::fs::write(
-                &path,
-                serde_json::to_string_pretty(&json!({
-                "api_base_url": "https://app.everr.dev",
-                "token": "token-123",
-                    "settings": {
-                        "completed_base_url": "https://app.everr.dev",
-                        "wizard_completed": true,
-                    }
-                }))
-                .expect("serialize old state"),
+            assert_eq!(store.load_session().unwrap(), session());
+            store.save_session(&session()).unwrap();
+            let saved: serde_json::Value = serde_json::from_str(
+                &std::fs::read_to_string(store.session_file_path().unwrap()).unwrap(),
             )
-            .expect("write old state");
-
-            assert_eq!(store.load_state().expect("load state"), AppState::default());
+            .unwrap();
+            assert_eq!(saved, json!({"session": session()}));
         });
     }
 
     #[test]
-    fn first_successful_save_after_unsupported_load_rewrites_canonical_format() {
+    fn malformed_or_unsupported_envelopes_do_not_create_a_session() {
         with_temp_config_home(|store| {
-            let path = store.session_file_path().expect("state path");
-            let parent = path.parent().expect("state parent");
-            std::fs::create_dir_all(parent).expect("create state dir");
-            std::fs::write(
-                &path,
-                serde_json::to_string_pretty(&json!({
-                    "settings": {
-                        "wizard_completed": true,
-                    }
-                }))
-                .expect("serialize old state"),
-            )
-            .expect("write old state");
-
-            assert_eq!(store.load_state().expect("load state"), AppState::default());
-
-            store
-                .update_state(|state| {
-                    state.settings.completed_base_url = Some("https://app.everr.dev".to_string());
-                })
-                .expect("save canonical state");
-
-            let raw = std::fs::read_to_string(&path).expect("read canonical state");
-            assert_eq!(
-                serde_json::from_str::<serde_json::Value>(&raw).expect("parse canonical state"),
-                json!({
-                    "session": null,
-                    "settings": {
-                        "completed_base_url": "https://app.everr.dev",
-                        "wizard_completed": false,
-                    }
-                })
-            );
+            for value in [
+                json!(null),
+                json!({"token":"old", "api_base_url":"https://app.everr.dev"}),
+                json!({"settings": {}}),
+                json!({"session":session(), "unknown":true}),
+                json!({"session":{"token":42}}),
+            ] {
+                write_fixture(&store, value);
+                assert!(is_no_active_session_error(
+                    &store.load_session().unwrap_err()
+                ));
+            }
         });
     }
 
     #[test]
-    fn settings_without_notification_emails_loads_with_empty_defaults() {
+    fn mismatched_base_url_preserves_the_saved_session() {
         with_temp_config_home(|store| {
-            let path = store.session_file_path().expect("state path");
-            let parent = path.parent().expect("state parent");
-            std::fs::create_dir_all(parent).expect("create state dir");
-            std::fs::write(
-                &path,
-                serde_json::to_string_pretty(&serde_json::json!({
-                    "session": null,
-                    "settings": {
-                        "completed_base_url": "https://app.everr.dev",
-                        "wizard_completed": true
-                    }
-                }))
-                .expect("serialize"),
-            )
-            .expect("write");
-
-            let state = store.load_state().expect("load state");
-            assert!(state.settings.notification_emails.is_empty());
-            assert!(state.settings.user_profile.is_none());
-            assert!(state.settings.wizard_state.wizard_completed);
-        });
-    }
-
-    #[test]
-    fn save_state_does_not_leave_tmp_file_on_success() {
-        with_temp_config_home(|store| {
-            let state = AppState {
-                session: Some(Session {
-                    api_base_url: "https://app.example.com".to_string(),
-                    token: "token-123".to_string(),
-                }),
-                settings: AppSettings::default(),
-            };
-
-            store.save_state(&state).expect("save state");
-
-            let tmp_path = store
-                .session_file_path()
-                .expect("path")
-                .with_extension("tmp");
+            store.save_session(&session()).unwrap();
             assert!(
-                !tmp_path.exists(),
-                "tmp file should be cleaned up after atomic rename"
+                store
+                    .load_session_for_api_base_url("http://localhost:5173")
+                    .is_err()
             );
-            assert_eq!(store.load_state().expect("load state"), state);
-        });
-    }
-
-    #[test]
-    fn load_state_does_not_create_lock_file() {
-        with_temp_config_home(|store| {
-            let state = AppState {
-                session: Some(Session {
-                    api_base_url: "https://app.example.com".to_string(),
-                    token: "token-123".to_string(),
-                }),
-                settings: AppSettings::default(),
-            };
-            store.save_state(&state).expect("save state");
-
-            let lock_path = store
-                .session_file_path()
-                .expect("path")
-                .with_extension("lock");
+            assert_eq!(store.load_session().unwrap(), session());
             assert!(
-                !lock_path.exists(),
-                "save_state should not create a lock file"
-            );
-
-            assert_eq!(store.load_state().expect("load state"), state);
-            assert!(
-                !lock_path.exists(),
-                "load_state should not create a lock file"
+                store
+                    .load_session_for_api_base_url("https://app.everr.dev/")
+                    .is_ok()
             );
         });
     }
 
     #[test]
-    fn update_state_creates_lock_file() {
+    fn logout_removes_the_session_file_and_is_repeatable() {
         with_temp_config_home(|store| {
-            store
-                .save_state(&AppState {
-                    session: None,
-                    settings: AppSettings::default(),
-                })
-                .expect("initial save");
-
-            store
-                .update_state(|state| {
-                    state.settings.completed_base_url = Some("https://app.example.com".to_string());
-                })
-                .expect("update state");
-
-            let lock_path = store
-                .session_file_path()
-                .expect("path")
-                .with_extension("lock");
-            assert!(
-                lock_path.exists(),
-                "lock file should exist after update_state"
-            );
-
-            let state = store.load_state().expect("load state");
-            assert_eq!(
-                state.settings.completed_base_url.as_deref(),
-                Some("https://app.example.com")
-            );
+            store.save_session(&session()).unwrap();
+            assert!(store.clear_session().unwrap());
+            assert!(!store.session_file_path().unwrap().exists());
+            assert!(!store.clear_session().unwrap());
         });
     }
 
-    fn with_temp_config_home(test: impl FnOnce(AppStateStore)) {
+    fn with_temp_config_home(test: impl FnOnce(SessionStore)) {
         let _guard = ENV_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -628,7 +284,7 @@ mod tests {
             std::env::set_var("XDG_CONFIG_HOME", &config_home);
         }
 
-        let store = AppStateStore::for_namespace("everr");
+        let store = SessionStore::for_namespace("everr");
         test(store);
 
         match original_home {

@@ -19,12 +19,9 @@ export const Route = createFileRoute("/api/cli/org")({
           );
         }
 
-        const isOnlyMember =
-          org.members.length === 1 && org.members[0].userId === user.id;
         const currentMember = org.members.find((m) => m.userId === user.id);
         return Response.json({
           name: org.name,
-          isOnlyMember,
           // Compatibility for installed CLI versions that still gate their
           // cloud setup on organization onboarding. Keep this compatibility flag
           // independent of the web Home onboarding.

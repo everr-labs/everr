@@ -2,50 +2,28 @@ import {
   LogsExplorer,
   type LogsExplorerSearch,
   LogsRepository,
-  LogsSearchFiltersShape,
+  type LogsSearch,
 } from "@everr/telemetry-explorer/logs";
-import type { TimeRange } from "@everr/ui/components/time-range-picker";
-import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
+import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { z } from "zod";
-import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
+import { useExploreControls } from "../explore/use-explore-controls";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "./local-sql-client";
-
-// `services` lives in the shared topbar now (as the cross-page `service` param),
-// so it is omitted from the per-page schema and the sidebar service control is
-// hidden via `hideSharedFilters`.
-export const LogsSearchSchema = z
-  .object({
-    from: z.string().optional(),
-    to: z.string().optional(),
-    refresh: z.string().optional(),
-    q: z.string().optional(),
-    ...LogsSearchFiltersShape,
-    ...ExploreSearchShape,
-    traceId: z.string().optional(),
-    showVolume: z.boolean().default(true),
-  })
-  .omit({ services: true });
-
-type LogsSearch = z.infer<typeof LogsSearchSchema>;
 
 export function LogsPage() {
   const search = useSearch({ strict: false }) as LogsSearch;
   const navigate = useNavigate();
+  const controls = useExploreControls("/logs");
 
   const repo = useMemo(() => new LogsRepository(localSqlClient), []);
 
   const service = search.service ?? [];
   const environment = search.environment ?? [];
 
-  const timeRange: TimeRange = {
-    from: search.from ?? DEFAULT_TIME_RANGE.from,
-    to: search.to ?? DEFAULT_TIME_RANGE.to,
-  };
+  const { timeRange } = withTimeRange(search);
 
   const explorerSearch: LogsExplorerSearch = {
     q: search.q,
@@ -61,24 +39,12 @@ export function LogsPage() {
       title="Logs"
       timeRange={timeRange}
       refresh={search.refresh ?? ""}
-      onTimeRangeChange={(range) =>
-        navigate({
-          to: "/logs",
-          search: (prev) => ({ ...prev, from: range.from, to: range.to }),
-          replace: true,
-        })
-      }
-      onRefreshChange={(value) =>
-        navigate({
-          to: "/logs",
-          search: (prev) => ({ ...prev, refresh: value || undefined }),
-          replace: true,
-        })
-      }
+      {...controls}
     >
       <LocalTelemetryGate>
         <LogsExplorer
           repo={repo}
+          refresh={search.refresh ?? ""}
           timeRange={timeRange}
           search={explorerSearch}
           environment={environment}

@@ -1,5 +1,7 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
+import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
+import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
 import { parseAlertingPrincipal } from "@/data/alerting/session";
 import { db } from "@/db/client";
 import { organization } from "@/db/schema";
@@ -53,15 +55,17 @@ export function extractBearerKey(headers: Headers): string | null {
 /**
  * Look up the org's display name directly from the DB. This avoids the
  * session-gated `getFullOrganization` endpoint, so it works on the API key
- * path (which has no session) too. Falls back to the id if the org isn't found.
+ * path (which has no session) too. Check readiness at the same boundary.
  */
 async function organizationName(organizationId: string): Promise<string> {
   const [row] = await db
-    .select({ name: organization.name })
+    .select({ name: organization.name, metadata: organization.metadata })
     .from(organization)
     .where(eq(organization.id, organizationId))
     .limit(1);
-  return row?.name ?? organizationId;
+  if (!row) throw new Error("Organization not found");
+  assertOrganizationProvisioned(row.metadata);
+  return row.name;
 }
 
 /**
@@ -154,9 +158,15 @@ const AUTH_ERROR_STATUS: Record<string, number> = {
   "API key is not authorized to apply resources": 403,
   Unauthenticated: 401,
   "No active organization": 403,
+  "Organization not found": 403,
 };
 
 export function applyAuthErrorResponse(error: unknown): Response | null {
+  if (error instanceof ClickhouseProvisioningPendingError)
+    return Response.json(
+      { error: error.message },
+      { status: 503, headers: { "Retry-After": "5" } },
+    );
   const message = error instanceof Error ? error.message : "";
   const status = AUTH_ERROR_STATUS[message];
   if (!status) return null;

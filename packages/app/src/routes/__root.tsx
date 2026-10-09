@@ -20,6 +20,10 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { createIsomorphicFn, createServerFn } from "@tanstack/react-start";
 import { getCookie, getRequestHeaders } from "@tanstack/react-start/server";
 import { auth } from "@/lib/auth.server";
+import {
+  ORGANIZATION_CREATION_COOKIE,
+  readCreatedOrganizationId,
+} from "@/lib/organization-creation-continuation.server";
 import appCss from "@/styles/app.css?url";
 import { CONSENT_COOKIE, isConsentDecision } from "@/telemetry/consent";
 import { ConsentGate } from "@/telemetry/consent-gate";
@@ -33,6 +37,10 @@ const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
   const consentValue = getCookie(CONSENT_COOKIE);
 
   return {
+    createdOrganizationId: await readCreatedOrganizationId(
+      getCookie(ORGANIZATION_CREATION_COOKIE),
+      session?.session,
+    ),
     session:
       session?.session && session?.user
         ? { user: session.user, session: session.session }
@@ -45,7 +53,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: createIsomorphicFn()
     .server(() =>
       process.env.TSS_PRERENDERING === "true"
-        ? { session: null, consent: undefined }
+        ? { session: null, consent: undefined, createdOrganizationId: null }
         : getRootContext(),
     )
     .client(() => getRootContext()),
@@ -75,14 +83,6 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         rel: "icon",
         type: "image/svg+xml",
         href: favicon,
-      },
-      {
-        rel: "apple-touch-icon",
-        href: "/logo192.png",
-      },
-      {
-        rel: "manifest",
-        href: "/manifest.json",
       },
     ],
   }),
