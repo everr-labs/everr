@@ -1,9 +1,12 @@
 import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
+import {
+  ExploreSearchSchema,
+  ExploreSearchShape,
+} from "@everr/telemetry-explorer/filters";
 import { LogsSearchFiltersShape } from "@everr/telemetry-explorer/logs";
 import { TraceSearchParamsSchema } from "@everr/telemetry-explorer/traces";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { ExploreSearchSchema, ExploreSearchShape } from "@/lib/explore-search";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 // Regression test for: service/environment being stripped by child-route

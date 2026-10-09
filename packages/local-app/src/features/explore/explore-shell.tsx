@@ -1,11 +1,8 @@
-import {
-  getRefreshIntervalMs,
-  RefreshPicker,
-} from "@everr/ui/components/refresh-picker";
+import { RefreshPicker } from "@everr/ui/components/refresh-picker";
 import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import type { ReactNode } from "react";
 import { PageTitleBar } from "../app-shell/title-bar";
 
 // The shared header for the Explore pages: Logs, Errors and Traces. It holds the
@@ -27,27 +24,6 @@ export function ExploreShell({
 }) {
   const queryClient = useQueryClient();
   const isFetching = useIsFetching() > 0;
-  const refreshMs = useMemo(
-    () => (refresh ? getRefreshIntervalMs(refresh) : null),
-    [refresh],
-  );
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (refreshMs) {
-      intervalRef.current = setInterval(
-        () => void queryClient.invalidateQueries(),
-        refreshMs,
-      );
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [refreshMs, queryClient]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">

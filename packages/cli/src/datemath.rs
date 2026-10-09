@@ -304,18 +304,6 @@ pub fn resolve(expression: &str, now: SystemTime) -> Result<SystemTime, DateMath
     evaluate(&expr, now)
 }
 
-/// Resolve a date math expression to epoch nanoseconds.
-pub fn resolve_to_epoch_ns(expression: &str, now: SystemTime) -> Result<u64, DateMathError> {
-    let t = resolve(expression, now)?;
-    Ok(system_time_to_epoch_ns(t))
-}
-
-fn system_time_to_epoch_ns(t: SystemTime) -> u64 {
-    t.duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64)
-        .unwrap_or(0)
-}
-
 /// Evaluate a parsed expression to a [`SystemTime`].
 pub fn evaluate(expr: &Expression, now: SystemTime) -> Result<SystemTime, DateMathError> {
     let mut epoch_secs: i64 = match &expr.anchor {
@@ -571,13 +559,6 @@ mod tests {
             .as_secs();
         // 2024-06-15T00:00:00Z
         assert_eq!(epoch_secs, 1718409600);
-    }
-
-    #[test]
-    fn resolve_to_ns_works() {
-        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1000);
-        let ns = resolve_to_epoch_ns("now", now).unwrap();
-        assert_eq!(ns, 1_000_000_000_000);
     }
 
     #[test]

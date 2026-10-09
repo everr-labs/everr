@@ -1,11 +1,12 @@
 {
   "compilerOptions": {
     "composite": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ES2022",
     "allowSyntheticDefaultImports": true
   },
-  "include": ["vite.config.ts", "scripts/*.ts"]
+  "include": ["vite.config.ts", "scripts/*.ts", "../cli/scripts/cli-build.ts"]
 }

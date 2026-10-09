@@ -37,12 +37,6 @@ export interface RunsFilter {
   conclusions?: RunStatusFilter[];
   workflowNames?: string[];
   runId?: string;
-  /**
-   * When true, scope to the current user's own runs. The repository decides
-   * what "mine" means (e.g. matching author email); the explorer
-   * just forwards the flag.
-   */
-  onlyMine?: boolean;
 }
 
 export interface RunsExplorerInput extends RunsFilter {

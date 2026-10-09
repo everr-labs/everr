@@ -1,11 +1,8 @@
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { Label } from "@everr/ui/components/label";
-import { Separator } from "@everr/ui/components/separator";
-import { Switch } from "@everr/ui/components/switch";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
-import { User } from "lucide-react";
 import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
 import { runsFilterOptions } from "../data/options";
 import type { RunsRepositoryLike } from "../data/repository";
@@ -19,15 +16,12 @@ export interface RunsFiltersValue {
   branches: string[];
   conclusions: RunStatusFilter[];
   workflowNames: string[];
-  onlyMine: boolean;
 }
 
 export interface RunsFiltersProps {
   repo: RunsRepositoryLike;
   timeRange: TimeRange;
   value: RunsFiltersValue;
-  /** Render the "Your runs" switch to scope results to the current user. */
-  showMineFilter?: boolean;
   onChange: (patch: Partial<RunsFiltersValue>) => void;
 }
 
@@ -35,11 +29,9 @@ export function RunsFilters({
   repo,
   timeRange,
   value,
-  showMineFilter = false,
   onChange,
 }: RunsFiltersProps) {
-  const { runId, repos, branches, conclusions, workflowNames, onlyMine } =
-    value;
+  const { runId, repos, branches, conclusions, workflowNames } = value;
 
   const toggleStatus = (status: RunStatusFilter) => {
     onChange({
@@ -55,8 +47,6 @@ export function RunsFilters({
   // window. Each control counts one time, whatever number of values it holds,
   // so the badge means the same thing here as on Logs and Traces.
   //
-  // "Your runs" is owned by its dedicated switch, so it counts toward neither
-  // this badge nor "Clear page filters".
   const pageFilterCount =
     (runId !== undefined ? 1 : 0) +
     (repos.length > 0 ? 1 : 0) +
@@ -82,23 +72,6 @@ export function RunsFilters({
         })
       }
     >
-      {showMineFilter ? (
-        <>
-          <div className="flex h-8 w-full items-center justify-between gap-2 px-2 text-xs">
-            <span className="flex min-w-0 items-center gap-2">
-              <User className="text-muted-foreground size-3.5 shrink-0" />
-              <span className="truncate">Your runs</span>
-            </span>
-            <Switch
-              aria-label="Your runs"
-              checked={onlyMine}
-              onCheckedChange={(checked) => onChange({ onlyMine: checked })}
-            />
-          </div>
-          <Separator />
-        </>
-      ) : null}
-
       <FilterSearchBar
         id="runs-search"
         label="Search"

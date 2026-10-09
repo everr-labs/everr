@@ -16,9 +16,7 @@ pub async fn run(args: LocalArgs, lifetime: &mut super::SupervisorLifetime) -> R
     match args.command {
         LocalSubcommand::Start(start) => collector::run_start(start, lifetime).await,
         LocalSubcommand::Stop => super::local_lifecycle::stop().await,
-        LocalSubcommand::Query(q) => tokio::task::spawn_blocking(move || run_query(q))
-            .await
-            .context("telemetry query task failed")?,
+        LocalSubcommand::Query(q) => run_query(q).await,
         LocalSubcommand::Status => run_status().await,
     }
 }
@@ -36,9 +34,9 @@ async fn run_status() -> Result<()> {
     }
 }
 
-fn run_query(args: TelemetryQueryArgs) -> Result<()> {
+async fn run_query(args: TelemetryQueryArgs) -> Result<()> {
     let client = QueryClient::new(crate::build::sql_http_origin());
-    let rows = match client.query(&args.sql) {
+    let rows = match client.query(&args.sql, &Default::default()).await {
         Ok(rows) => rows,
         Err(err) => {
             if is_connect_error(&err) {

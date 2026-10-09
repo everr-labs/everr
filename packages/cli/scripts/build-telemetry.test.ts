@@ -39,19 +39,6 @@ describe("resolveBuildTraceContext", () => {
     GITHUB_RUN_ATTEMPT: "1",
   };
 
-  it("prefers explicit child-script trace context", () => {
-    const context = resolveBuildTraceContext({
-      ...ciEnv,
-      EVERR_BUILD_TRACE_ID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      EVERR_BUILD_PARENT_SPAN_ID: "bbbbbbbbbbbbbbbb",
-    });
-    expect(context).toEqual({
-      traceId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      parentSpanId: "bbbbbbbbbbbbbbbb",
-      source: "child-script",
-    });
-  });
-
   it("parents under the job span when the job name is known", () => {
     const context = resolveBuildTraceContext({
       ...ciEnv,
@@ -143,7 +130,7 @@ describe("buildTelemetryResourceAttributes", () => {
 });
 
 describe("createBuildTelemetry", () => {
-  it("records phases as children of the root span and exposes child env", async () => {
+  it("records phases under the root span and preserves their results", async () => {
     const env = {
       GITHUB_REPOSITORY_ID: "123456",
       GITHUB_RUN_ID: "9876543210",
@@ -152,20 +139,21 @@ describe("createBuildTelemetry", () => {
     };
     const telemetry = createBuildTelemetry({ buildName: "cli release build", env });
 
-    let phaseChildEnv: Record<string, string> | undefined;
-    await expect(
-      telemetry.phase("build cli", async (span) => {
-        phaseChildEnv = span.childEnv();
-        return "ok";
-      }),
-    ).resolves.toBe("ok");
-    expect(phaseChildEnv?.EVERR_BUILD_TRACE_ID).toBe("ce3e4cc4a1ed6e03e580b6b9174acdbf");
-    expect(phaseChildEnv?.EVERR_BUILD_PARENT_SPAN_ID).toMatch(/^[0-9a-f]{16}$/);
+    await expect(telemetry.phase("build cli", async () => "ok")).resolves.toBe("ok");
     await expect(
       telemetry.phase("package cli", async () => {
         throw new Error("packaging failed");
       }),
     ).rejects.toThrow("packaging failed");
+    const payload = await capturePayload(telemetry);
+    const spans = payload.resourceSpans[0].scopeSpans[0].spans;
+    const root = spans.find((span) => span.name === "cli release build");
+    expect(root?.parentSpanId).toBe("fb1a2fcb5d794586");
+    for (const phase of spans.filter((span) => span !== root)) {
+      expect(phase.parentSpanId).toBe(root?.spanId);
+      expect(phase.traceId).toBe("ce3e4cc4a1ed6e03e580b6b9174acdbf");
+    }
+
   });
 
   it("marks the phase span as errored in the OTLP payload", async () => {

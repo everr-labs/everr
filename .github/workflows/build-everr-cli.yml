@@ -15,10 +15,17 @@ on:
       - packages/local-app/**
       - Cargo.toml
       - Cargo.lock
-      - Makefile
+      - collector/**
+      - packages/ui/**
+      - packages/telemetry-explorer/**
+      - packages/otel-web/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .nvmrc
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
-      - packages/docs/content/docs/cli/**
+      - packages/docs/content/docs/reference/cli.mdx
   push:
     branches: [main]
     paths:
@@ -27,10 +34,17 @@ on:
       - packages/local-app/**
       - Cargo.toml
       - Cargo.lock
-      - Makefile
+      - collector/**
+      - packages/ui/**
+      - packages/telemetry-explorer/**
+      - packages/otel-web/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .nvmrc
       - packages/docs/Dockerfile
       - packages/docs/public/install.sh
-      - packages/docs/content/docs/cli/**
+      - packages/docs/content/docs/reference/cli.mdx
 
 jobs:
   build:
@@ -45,6 +59,17 @@ jobs:
         with:
           check-run-id: ${{ job.check_run_id }}
 
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache-dependency-path: collector/**/go.sum
+      - run: pnpm install --frozen-lockfile
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -54,10 +79,10 @@ jobs:
           workspaces: . -> target
 
       - name: Test
-        run: cargo test --manifest-path packages/cli/Cargo.toml
+        run: pnpm --filter @everr/cli test:rust
 
       - name: Build release binary
-        run: cargo build --release --manifest-path packages/cli/Cargo.toml
+        run: pnpm --filter @everr/cli build:release
 
       - name: Smoke test
         run: ./target/release/everr --help

@@ -1,4 +1,5 @@
 import {
+  DetailRouteDialog,
   ErrorDetail,
   type ErrorIssueSearch,
   ErrorIssueSearchSchema,
@@ -8,7 +9,9 @@ import {
   ErrorTracePanel,
   getErrorOccurrenceKey,
   getErrorTraceWindow,
+  useDetailRouteDialogClose,
 } from "@everr/telemetry-explorer/errors";
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   getTraceOptions,
   type Span,
@@ -25,11 +28,6 @@ import {
   useParams,
   useSearch,
 } from "@tanstack/react-router";
-import {
-  DetailRouteDialog,
-  useDetailRouteDialogClose,
-} from "@/components/detail-route-dialog";
-import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";

@@ -1,3 +1,4 @@
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   LogsExplorer,
   type LogsExplorerSearch,
@@ -9,7 +10,6 @@ import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { z } from "zod";
-import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
@@ -79,6 +79,7 @@ export function LogsPage() {
       <LocalTelemetryGate>
         <LogsExplorer
           repo={repo}
+          refresh={search.refresh ?? ""}
           timeRange={timeRange}
           search={explorerSearch}
           environment={environment}

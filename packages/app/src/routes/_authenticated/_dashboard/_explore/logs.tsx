@@ -1,3 +1,4 @@
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   LogsExplorer,
   type LogsExplorerSearch,
@@ -12,7 +13,6 @@ import { z } from "zod";
 import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
 import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 import { runJobsOptions } from "@/data/runs/options";
-import { ExploreSearchShape } from "@/lib/explore-search";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 const SearchSchema = TimeRangeSearchSchema.extend({

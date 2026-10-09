@@ -43,6 +43,7 @@ export interface LogsExplorerSearch {
 export interface LogsExplorerProps {
   repo: LogsRepositoryLike;
   timeRange: TimeRange;
+  refresh?: string;
   search: LogsExplorerSearch;
   environment?: string[];
   // The top zone of the rail: Service and Environment. The host app supplies it,
@@ -188,6 +189,7 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton() {
 export function LogsExplorer({
   repo,
   timeRange,
+  refresh = "",
   search,
   environment = [],
   persistentFilters,
@@ -246,20 +248,28 @@ export function LogsExplorer({
     error,
     refetch,
   } = useInfiniteQuery({
-    ...logsExplorerInfiniteOptions(repo, { ...filterInput, limit: PAGE_SIZE }),
+    ...logsExplorerInfiniteOptions(
+      repo,
+      { ...filterInput, limit: PAGE_SIZE },
+      refresh,
+    ),
     placeholderData: keepPreviousData,
   });
 
   const { data: totals } = useQuery({
-    ...logsTotalsOptions(repo, filterInput),
+    ...logsTotalsOptions(repo, filterInput, refresh),
     placeholderData: keepPreviousData,
   });
 
   const { data: histogram = [], isPending: isHistogramPending } = useQuery({
-    ...logsHistogramOptions(repo, {
-      ...filterInput,
-      histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
-    }),
+    ...logsHistogramOptions(
+      repo,
+      {
+        ...filterInput,
+        histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
+      },
+      refresh,
+    ),
     enabled: showVolume,
     placeholderData: keepPreviousData,
   });

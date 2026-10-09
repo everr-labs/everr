@@ -5,24 +5,13 @@ use std::process::Command;
 pub struct GitContext {
     pub repo: Option<String>,
     pub branch: Option<String>,
-    pub email: Option<String>,
 }
 
 pub fn resolve_git_context(cwd: &Path) -> GitContext {
     let branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd).map(normalize_branch_name);
     let origin = run_git(["config", "--get", "remote.origin.url"], cwd);
     let repo = origin.as_deref().and_then(parse_repo_from_remote_url);
-    let email = resolve_git_email(cwd);
-    GitContext {
-        repo,
-        branch,
-        email,
-    }
-}
-
-pub fn resolve_git_email(cwd: &Path) -> Option<String> {
-    run_git(["config", "--get", "user.email"], cwd)
-        .or_else(|| run_git(["config", "--global", "--get", "user.email"], cwd))
+    GitContext { repo, branch }
 }
 
 pub fn run_git<const N: usize>(args: [&str; N], cwd: &Path) -> Option<String> {

@@ -11,7 +11,7 @@ use crate::{
         AuthConfig, DeviceAuthorization, DevicePollStatus, poll_device_authorization,
         session_from_device_token, start_device_authorization,
     },
-    state::{AppStateStore, UserProfile},
+    state::AppStateStore,
 };
 
 #[derive(Debug, Serialize)]
@@ -31,6 +31,13 @@ pub(super) enum AuthResponse {
     },
     Denied,
     Expired,
+}
+
+#[derive(Serialize)]
+pub(super) struct UserProfile {
+    email: String,
+    name: String,
+    profile_url: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -128,11 +135,7 @@ impl LocalAuth {
         match status {
             DevicePollStatus::Authorized(token) => {
                 let session = session_from_device_token(&self.config, token)?;
-                let profile = fetch_profile(ApiClient::from_session(&session)?).await.ok();
-                self.store.update_state(|state| {
-                    state.session = Some(session);
-                    state.settings.user_profile = profile;
-                })?;
+                self.store.save_session(&session)?;
                 *guard = None;
                 self.status()
             }
@@ -256,7 +259,7 @@ mod tests {
             .match_header("authorization", "Bearer test-token")
             .with_header("content-type", "application/json")
             .with_body(r#"{"email":"user@example.test","name":"Test User","profileUrl":null}"#)
-            .expect(2)
+            .expect(1)
             .create_async()
             .await;
         server
@@ -323,10 +326,6 @@ mod tests {
         let user = json!({"email":"user@example.test", "name":"Test User", "profile_url":null});
         assert_eq!(
             serde_json::to_value(auth.user_profile().await.unwrap()).unwrap(),
-            user
-        );
-        assert_eq!(
-            serde_json::to_value(store.load_state().unwrap().settings.user_profile).unwrap(),
             user
         );
         assert_eq!(

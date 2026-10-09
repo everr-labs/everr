@@ -16,16 +16,16 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { createGzip } from "node:zlib";
 import { $ } from "zx";
+import { embeddedAssets } from "./cli-build.ts";
 import { type BuildPhases, noopBuildPhases } from "./build-telemetry.ts";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 const packageDir = path.resolve(scriptDir, "..");
 const repoDir = path.resolve(packageDir, "..", "..");
-const cliDir = packageDir;
 const docsPublicDir = path.join(repoDir, "packages", "docs", "public");
 const envFile = path.join(packageDir, ".env");
-const cliEmbeddedAssetsDir = path.join(repoDir, "target", "cli-embedded-assets");
+const cliEmbeddedAssetsDir = path.dirname(embeddedAssets.collectorGz);
 export const CHDB_RELEASE_VERSION = "v26.5.0";
 
 export type ChdbAsset = { assetName: string; sha256: string };
@@ -211,10 +211,7 @@ async function gzipFile(source: string, dest: string) {
   console.log(`Compressed ${source} -> ${dest}`);
 }
 
-export type CliEmbeddedAssets = {
-  collectorGz: string;
-  chdbGz: string;
-};
+export type CliEmbeddedAssets = typeof embeddedAssets;
 
 export async function prepareCliEmbeddedAssets(
   mode: string,
@@ -229,8 +226,7 @@ export async function prepareCliEmbeddedAssets(
   const collectorSource = path.join(repoDir, "collector", "build-local", LOCAL_COLLECTOR_BIN_NAME);
   const collectorPrepared = path.join(cliEmbeddedAssetsDir, LOCAL_COLLECTOR_BIN_NAME);
   const chdbPrepared = path.join(cliEmbeddedAssetsDir, CHDB_LIB_FILE_NAME);
-  const collectorGz = `${collectorPrepared}.gz`;
-  const chdbGz = `${chdbPrepared}.gz`;
+  const { collectorGz, chdbGz } = embeddedAssets;
 
   console.log(`Building local OTel collector for CLI embedding (${mode})...`);
   await telemetry.phase(
@@ -253,23 +249,6 @@ export async function prepareCliEmbeddedAssets(
   });
 
   return { collectorGz, chdbGz };
-}
-
-export function resolveCliBuild(mode: string) {
-  switch (mode) {
-    case "debug":
-      return {
-        buildArgs: ["--manifest-path", path.join(cliDir, "Cargo.toml")],
-        builtBin: path.join(repoDir, "target", "debug", "everr"),
-      };
-    case "release":
-      return {
-        buildArgs: ["--release", "--manifest-path", path.join(cliDir, "Cargo.toml")],
-        builtBin: path.join(repoDir, "target", "release", "everr"),
-      };
-    default:
-      throw new Error(`Unsupported mode: ${mode}`);
-  }
 }
 
 async function signBinaryIfNeeded(binaryPath: string) {

@@ -5,7 +5,6 @@ use crate::build;
 use crate::skill_store::{self as core_skills, SkillOperationOptions, SkillProvider, SkillScope};
 use anyhow::{Context, Result};
 
-use crate::auth;
 use crate::skills as cli_skills;
 
 fn print_summary() -> Result<()> {
@@ -23,12 +22,6 @@ pub async fn run() -> Result<()> {
     cliclack::intro("Setup")?;
 
     step_install_skills()?;
-
-    auth::state_store().update_state(|state| {
-        state
-            .settings
-            .mark_setup_complete(build::default_api_base_url());
-    })?;
 
     print_summary()?;
     cliclack::outro("Observability, simplified.")?;
@@ -187,50 +180,5 @@ mod tests {
             super::default_targets(&statuses),
             vec![super::SkillTarget::Claude]
         );
-    }
-
-    #[test]
-    fn setup_marks_wizard_complete() {
-        use crate::build;
-        use crate::state::AppStateStore;
-
-        let _guard = crate::test_support::ENV_LOCK
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let temp = tempfile::tempdir().expect("tempdir");
-        let config_home = temp.path().join("config");
-        std::fs::create_dir_all(&config_home).expect("create config dir");
-
-        let original_home = std::env::var_os("HOME");
-        let original_xdg = std::env::var_os("XDG_CONFIG_HOME");
-        unsafe {
-            std::env::set_var("HOME", temp.path());
-            std::env::set_var("XDG_CONFIG_HOME", &config_home);
-        }
-
-        let store = AppStateStore::for_namespace(build::session_namespace());
-        store
-            .update_state(|state| {
-                state
-                    .settings
-                    .mark_setup_complete(build::default_api_base_url());
-            })
-            .expect("mark setup complete");
-
-        let state = store.load_state().expect("loaded state");
-        assert!(state.settings.wizard_state.wizard_completed);
-        assert_eq!(
-            state.settings.completed_base_url.as_deref(),
-            Some(build::default_api_base_url())
-        );
-
-        match original_home {
-            Some(value) => unsafe { std::env::set_var("HOME", value) },
-            None => unsafe { std::env::remove_var("HOME") },
-        }
-        match original_xdg {
-            Some(value) => unsafe { std::env::set_var("XDG_CONFIG_HOME", value) },
-            None => unsafe { std::env::remove_var("XDG_CONFIG_HOME") },
-        }
     }
 }

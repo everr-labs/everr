@@ -1,3 +1,4 @@
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   type TraceDetailParams,
   TraceDetailParamsSchema,
@@ -16,7 +17,6 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { PageTitleBar } from "../app-shell/title-bar";
-import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";

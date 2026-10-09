@@ -10,11 +10,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { invokeCommand, toErrorMessageText } from "../../lib/local-api";
-import {
-  FeatureErrorText,
-  FeatureLoadingText,
-  SettingsSection,
-} from "../app-shell/ui";
+import { FeatureErrorText, SettingsSection } from "../app-shell/ui";
 
 const userProfileQueryKey = ["local-app", "user-profile"] as const;
 const orgQueryKey = ["local-app", "org"] as const;
@@ -151,6 +147,7 @@ function handleSignInResponse(queryClient: QueryClient, data: SignInResponse) {
 export function useAuthStatusQuery() {
   return useQuery({
     queryKey: authStatusQueryKey,
+    refetchInterval: 10_000,
     queryFn: getAuthStatus,
   });
 }
@@ -174,6 +171,7 @@ export function useOrgQuery(enabled = true) {
 function usePendingSignInQuery(enabled: boolean) {
   return useQuery({
     queryKey: pendingSignInQueryKey,
+    refetchInterval: 10_000,
     queryFn: getPendingSignIn,
     enabled,
   });
@@ -229,13 +227,9 @@ function AuthContent() {
   const description =
     "Connect the CLI to Everr Cloud or complete a pending sign-in.";
   const queryClient = useQueryClient();
-  const authStatusQuery = useAuthStatusQuery();
   const signInMutation = useSignInMutation();
   const openBrowserMutation = useOpenSignInBrowserMutation();
-  const signedIn = authStatusQuery.data?.status === "signed_in";
-  const pendingQuery = usePendingSignInQuery(
-    !signedIn && !authStatusQuery.isPending,
-  );
+  const pendingQuery = usePendingSignInQuery(true);
   const pendingSignIn = pendingQuery.data;
   const now = useNow();
   const expiresAtMs = pendingSignIn
@@ -264,48 +258,23 @@ function AuthContent() {
   }, [pollQuery.data, queryClient]);
 
   const pendingError = pendingQuery.error ?? pollQuery.error;
-  const showAction = signedIn || !pendingSignIn || isExpired;
+  const showAction = !pendingSignIn || isExpired;
   const action = showAction ? (
     <Button
       size="lg"
-      disabled={
-        authStatusQuery.isPending ||
-        signInMutation.isPending ||
-        authStatusQuery.isError
-      }
+      disabled={signInMutation.isPending}
       onClick={() => void signInMutation.mutateAsync()}
     >
       {signInMutation.isPending
         ? pendingSignIn
           ? "Refreshing..."
           : "Preparing code..."
-        : signedIn
-          ? "Re-authenticate"
-          : pendingSignIn && isExpired
-            ? "Refresh code"
-            : "Sign in"}
+        : pendingSignIn && isExpired
+          ? "Refresh code"
+          : "Sign in"}
     </Button>
   ) : undefined;
-  const content = authStatusQuery.isPending ? (
-    <FeatureLoadingText text="Loading account connection..." />
-  ) : authStatusQuery.isError ? (
-    <FeatureErrorText
-      message={toErrorMessageText(authStatusQuery.error)}
-      action={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void authStatusQuery.refetch()}
-        >
-          Retry
-        </Button>
-      }
-    />
-  ) : signedIn ? (
-    <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
-      The CLI is connected to Everr Cloud.
-    </p>
-  ) : pendingError ? (
+  const content = pendingError ? (
     <FeatureErrorText
       message={toErrorMessageText(pendingError)}
       action={

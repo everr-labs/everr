@@ -26,17 +26,12 @@ const DEFAULT_LOCAL_OTLP_ENDPOINT = "http://127.0.0.1:54318";
 const EVERR_HOSTED_OTLP_ENDPOINT = "https://ingest.everr.dev";
 const EXPORT_TIMEOUT_MS = 10_000;
 
-const TRACE_ID_ENV = "EVERR_BUILD_TRACE_ID";
-const PARENT_SPAN_ID_ENV = "EVERR_BUILD_PARENT_SPAN_ID";
-
 const SPAN_KIND_INTERNAL = 1;
 const STATUS_CODE_OK = 1;
 const STATUS_CODE_ERROR = 2;
 
 export type BuildTelemetryEnv = Partial<
   Record<
-    | "EVERR_BUILD_PARENT_SPAN_ID"
-    | "EVERR_BUILD_TRACE_ID"
     | "EVERR_CI_JOB_NAME"
     | "EVERR_INGEST_KEY"
     | "GITHUB_ACTIONS"
@@ -67,7 +62,7 @@ type RecordedSpan = {
 export type BuildTraceContext = {
   traceId: string;
   parentSpanId: string | undefined;
-  source: "child-script" | "github-actions" | "local";
+  source: "github-actions" | "local";
 };
 
 function sha256Hex(input: string) {
@@ -99,12 +94,6 @@ function errorMessage(error: unknown) {
 }
 
 export function resolveBuildTraceContext(env: BuildTelemetryEnv): BuildTraceContext {
-  const envTraceId = cleanEnvValue(env.EVERR_BUILD_TRACE_ID);
-  const envParentSpanId = cleanEnvValue(env.EVERR_BUILD_PARENT_SPAN_ID);
-  if (envTraceId && envParentSpanId) {
-    return { traceId: envTraceId, parentSpanId: envParentSpanId, source: "child-script" };
-  }
-
   const repositoryId = cleanEnvValue(env.GITHUB_REPOSITORY_ID);
   const runId = cleanEnvValue(env.GITHUB_RUN_ID);
   const runAttempt = cleanEnvValue(env.GITHUB_RUN_ATTEMPT);
@@ -213,16 +202,11 @@ function nowUnixNano() {
   return BigInt(Date.now()) * 1_000_000n;
 }
 
-export type PhaseHandle = {
-  /** Trace context env vars for nested build scripts, so their spans attach under this phase span. */
-  childEnv(): Record<string, string>;
-};
-
 export type BuildTelemetry = {
   /** Runs fn inside a span that is a child of the root build span. */
   phase<T>(
     name: string,
-    fn: (span: PhaseHandle) => Promise<T>,
+    fn: () => Promise<T>,
     attributes?: Record<string, SpanAttributeValue>,
   ): Promise<T>;
   setRootAttribute(key: string, value: SpanAttributeValue): void;
@@ -235,7 +219,7 @@ export type BuildPhases = Pick<BuildTelemetry, "phase">;
 
 /** Default for helpers whose callers do not record build telemetry. */
 export const noopBuildPhases: BuildPhases = {
-  phase: (_name, fn) => fn({ childEnv: () => ({}) }),
+  phase: (_name, fn) => fn(),
 };
 
 export function createBuildTelemetry({
@@ -252,11 +236,6 @@ export function createBuildTelemetry({
   const spans: RecordedSpan[] = [];
   let flushed = false;
 
-  const childEnvFor = (spanId: string) => ({
-    [TRACE_ID_ENV]: context.traceId,
-    [PARENT_SPAN_ID_ENV]: spanId,
-  });
-
   return {
     async phase(name, fn, attributes = {}) {
       const spanId = randomBytes(8).toString("hex");
@@ -264,7 +243,7 @@ export function createBuildTelemetry({
       let statusCode = STATUS_CODE_OK;
       let statusMessage: string | undefined;
       try {
-        return await fn({ childEnv: () => childEnvFor(spanId) });
+        return await fn();
       } catch (error) {
         statusCode = STATUS_CODE_ERROR;
         statusMessage = errorMessage(error);

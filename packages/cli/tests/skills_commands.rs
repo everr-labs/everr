@@ -262,14 +262,10 @@ fn setup_works_without_cloud_session_and_skips_undetected_agents() {
         .success()
         .stderr(contains("everr local start"));
 
-    let state: everr_cli::state::AppState =
-        serde_json::from_slice(&fs::read(env.session_path()).expect("read setup state"))
-            .expect("parse setup state");
     assert!(
-        state.session.is_none(),
-        "local setup must not require a Cloud session"
+        !env.session_path().exists(),
+        "local setup must not create a Cloud session file"
     );
-    assert!(state.settings.wizard_state.wizard_completed);
 
     // With no agents detected in non-interactive mode, skills are skipped.
     assert!(

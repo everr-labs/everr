@@ -8,6 +8,10 @@ export {
 export * from "./data/schemas";
 export * from "./data/types";
 export { errorIssueCountExpr } from "./sql/fingerprint";
+export {
+  DetailRouteDialog,
+  useDetailRouteDialogClose,
+} from "./ui/detail-route-dialog";
 export { ErrorDetail, type ErrorDetailProps } from "./ui/error-detail";
 export {
   ErrorIssues,

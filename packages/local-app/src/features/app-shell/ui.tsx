@@ -43,14 +43,6 @@ export function SettingsSection({
   );
 }
 
-export function FeatureLoadingText({ text }: { text: string }) {
-  return (
-    <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
-      {text}
-    </p>
-  );
-}
-
 export function FeatureErrorText({
   message,
   action,

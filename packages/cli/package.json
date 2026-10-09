@@ -8,6 +8,7 @@
     "build:debug": "node ./scripts/build-cli.ts debug",
     "build:release": "node ./scripts/build-cli.ts release",
     "test": "vitest run",
+    "test:rust": "node ./scripts/test-cli.ts",
     "install:debug": "node ./scripts/build-cli.ts debug --install"
   },
   "dependencies": {

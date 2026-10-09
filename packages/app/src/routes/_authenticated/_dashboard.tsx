@@ -1,4 +1,5 @@
 import { resolve } from "@everr/datemath";
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import { Separator } from "@everr/ui/components/separator";
 import {
   SidebarInset,
@@ -21,7 +22,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
 import { PreviewIndicator } from "@/components/preview-indicator";
-import { ExploreSearchRetainShape } from "@/lib/explore-search";
 import { SIDEBAR_TRACKED_LEFT } from "@/lib/sidebar-tracked-left";
 import {
   ResolvedTimeRangeSearchSchema,
@@ -32,7 +32,7 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   // Explore section filters live at this level (not deeper on `_explore`) so the
   // sidebar links — rendered in this layout — retain them on click. See the
   // retainSearchParams note below.
-  ...ExploreSearchRetainShape,
+  ...ExploreSearchShape,
   github_install: z.string().optional(),
   reason: z.string().optional(),
   // Active preview (a preview/branch name). App-wide context: retained across
