@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import type { DataFormat } from "@clickhouse/client";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
 import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
@@ -85,7 +86,7 @@ function sqlApiOrgPolicyName(organizationId: string, table: string): string {
 // to that user, so user SQL cannot override the tenant filter via SETTINGS or
 // any other channel. The query authenticates with HMAC-derived credentials per
 // query and reuses the shared `clickhouse` HTTP client.
-function runSqlApiQuery<Format extends "JSONEachRow" | "JSON">(
+function runSqlApiQuery<Format extends DataFormat>(
   query: string,
   organizationId: string,
   query_params: Record<string, unknown> | undefined,
@@ -161,6 +162,56 @@ export async function querySqlApiWithMeta<T>(
     columns: (body.meta ?? []).map((m) => m.name),
     columnTypes: (body.meta ?? []).map((m) => m.type ?? ""),
   };
+}
+
+export interface SqlApiPreview extends SqlApiResult<unknown[]> {
+  /** The query had more than `maxRows` rows; the rest were never read. */
+  truncated: boolean;
+}
+
+/**
+ * Read at most `maxRows` rows of a SQL API query, then cancel it. For callers
+ * that show a preview (the MCP tool): ClickHouse stops producing rows when the
+ * connection closes, instead of sending up to the profile's result cap to be
+ * discarded here. Column names and types arrive even for an empty result.
+ */
+export async function previewSqlApi(
+  query: string,
+  organizationId: string,
+  maxRows: number,
+): Promise<SqlApiPreview> {
+  const abort = new AbortController();
+  const result = await runSqlApiQuery(
+    query,
+    organizationId,
+    undefined,
+    "JSONCompactEachRowWithNamesAndTypes",
+    abort.signal,
+  );
+
+  // The format always sends two header lines, names then types, before rows.
+  const lines: unknown[][] = [];
+  let truncated = false;
+  try {
+    read: for await (const batch of result.stream()) {
+      for (const row of batch) {
+        if (lines.length - 2 === maxRows) {
+          truncated = true;
+          break read;
+        }
+        lines.push(row.json<unknown[]>());
+      }
+    }
+  } finally {
+    abort.abort();
+  }
+
+  const [columns, columnTypes, ...rows] = lines as [
+    string[],
+    string[],
+    ...unknown[][],
+  ];
+  return { columns, columnTypes, rows, truncated };
 }
 
 export function createClickhouseQuery(organizationId: string) {

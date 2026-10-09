@@ -28,6 +28,8 @@ COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui
 COPY packages/telemetry-explorer ./packages/telemetry-explorer
 COPY packages/app ./packages/app
+# The MCP query tool description inlines the telemetry skill's schema at build time.
+COPY crates/everr-core/assets/skills/everr-use-telemetry/rules/schema.md ./crates/everr-core/assets/skills/everr-use-telemetry/rules/schema.md
 # SPA prerender initializes auth and mailer configuration without using them.
 # These values exist only during this command; runtime configuration is required.
 RUN SKIP_ENV_VALIDATION=true \
