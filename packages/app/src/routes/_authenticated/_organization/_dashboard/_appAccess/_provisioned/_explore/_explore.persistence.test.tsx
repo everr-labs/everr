@@ -3,11 +3,9 @@ import {
   ExploreSearchSchema,
   ExploreSearchShape,
 } from "@everr/telemetry-explorer/filters";
-import { LogsSearchFiltersShape } from "@everr/telemetry-explorer/logs";
+import { LogsSearchSchema } from "@everr/telemetry-explorer/logs";
 import { TraceSearchParamsSchema } from "@everr/telemetry-explorer/traces";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
 
 // Regression test for: service/environment being stripped by child-route
 // validateSearch when navigating between Explore sections.
@@ -17,18 +15,9 @@ import { TimeRangeSearchSchema } from "@/lib/time-range";
 // arrival at the leaf route. The fix spreads ExploreSearchShape into every
 // child schema, mirroring how TimeRangeSearchSchema carries from/to.
 //
-// These schemas are reconstructed exactly as the route files define them so we
-// can test the schemas in isolation without pulling in the route files'
+// Use shared schemas, composing the remaining route-specific Explore fields,
+// without pulling in the route files'
 // transitive server-side imports (remoteRepo → server.ts).
-
-// Mirrors logs.tsx SearchSchema
-const LogsSearchSchema = TimeRangeSearchSchema.extend({
-  q: z.string().optional(),
-  ...LogsSearchFiltersShape,
-  ...ExploreSearchShape,
-  traceId: z.string().optional(),
-  showVolume: z.boolean().default(true),
-}).omit({ services: true });
 
 // Mirrors errors.tsx RouteSearchSchema
 const ErrorsSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);

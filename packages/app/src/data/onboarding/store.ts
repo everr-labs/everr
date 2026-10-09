@@ -26,7 +26,6 @@ export function createOnboardingStore(
     async getStatus(scope: OnboardingScope): Promise<HomeStatus> {
       const [row] = await database
         .select({
-          name: organization.name,
           role: member.role,
           onboardingCompleted,
         })
@@ -37,7 +36,6 @@ export function createOnboardingStore(
       if (!row)
         throw new Error("You are no longer a member of this organization.");
       return {
-        organizationName: row.name,
         canCreateKeys: isOrganizationAdmin(row.role),
         onboardingCompleted: row.onboardingCompleted,
       };

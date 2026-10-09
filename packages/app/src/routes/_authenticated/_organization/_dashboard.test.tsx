@@ -144,7 +144,6 @@ describe("dashboard layout", () => {
       },
     ];
     const status: HomeStatus = {
-      organizationName: "Test org",
       canCreateKeys: false,
       onboardingCompleted: ["dashboard", "reopened"].includes(view),
     };

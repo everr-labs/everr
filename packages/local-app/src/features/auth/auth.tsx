@@ -23,7 +23,6 @@ type AuthStatus = {
 type UserProfileResponse = {
   email: string;
   name: string;
-  profile_url: string | null;
 };
 
 type OrgResponse = {

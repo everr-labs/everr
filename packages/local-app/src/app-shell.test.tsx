@@ -72,7 +72,6 @@ function renderMainApp(
         return {
           name: "Test User",
           email: "user@example.com",
-          profile_url: null,
         };
       case "get_org":
         return { name: "Test Organization" };

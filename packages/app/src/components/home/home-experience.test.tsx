@@ -29,7 +29,6 @@ vi.mock("@/data/api-keys", () => ({
 vi.mock("@/lib/auth-client", () => ({ authClient: { apiKey: {} } }));
 
 const initial = (): HomeStatus => ({
-  organizationName: "My organization",
   canCreateKeys: true,
   onboardingCompleted: false,
 });

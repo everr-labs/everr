@@ -121,7 +121,6 @@ it("makes completion idempotent and preserves other metadata including changes s
   await store.complete(scope);
   expect(await store.complete(scope)).toEqual({ onboardingCompleted: true });
   expect(await store.getStatus(scope)).toEqual({
-    organizationName: "First organization",
     canCreateKeys: true,
     onboardingCompleted: true,
   });

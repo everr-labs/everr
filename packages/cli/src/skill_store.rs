@@ -150,7 +150,7 @@ pub fn install_bundled_skills(options: &SkillOperationOptions) -> Result<SkillOp
 
     for (skill_name, dir) in &skills {
         let canonical_dir = canonical_skill_dir(options, skill_name);
-        let canonical_changed = sync_bundled_skill_dir(
+        sync_bundled_skill_dir(
             dir,
             &canonical_dir,
             options.dry_run,
@@ -172,10 +172,6 @@ pub fn install_bundled_skills(options: &SkillOperationOptions) -> Result<SkillOp
                 options.dry_run,
                 &mut changes,
             )?;
-        }
-
-        if canonical_changed {
-            continue;
         }
     }
 
@@ -529,7 +525,7 @@ fn sync_bundled_skill_dir(
     dry_run: bool,
     skill_name: &str,
     changes: &mut Vec<SkillPathChange>,
-) -> Result<bool> {
+) -> Result<()> {
     match existing_dir_state(dir, target)? {
         ExistingDirState::Missing => {
             if !dry_run {
@@ -550,7 +546,6 @@ fn sync_bundled_skill_dir(
                     SkillPathAction::Written
                 },
             });
-            Ok(true)
         }
         ExistingDirState::Same => {
             changes.push(SkillPathChange {
@@ -560,7 +555,6 @@ fn sync_bundled_skill_dir(
                 canonical_path: None,
                 action: SkillPathAction::Unchanged,
             });
-            Ok(false)
         }
         ExistingDirState::MissingBundledFiles(files) => {
             if !dry_run {
@@ -577,7 +571,6 @@ fn sync_bundled_skill_dir(
                     SkillPathAction::Written
                 },
             });
-            Ok(true)
         }
         ExistingDirState::Different => {
             if !dry_run {
@@ -595,9 +588,9 @@ fn sync_bundled_skill_dir(
                     SkillPathAction::Written
                 },
             });
-            Ok(true)
         }
     }
+    Ok(())
 }
 
 enum ExistingDirState {

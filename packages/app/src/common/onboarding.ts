@@ -9,7 +9,6 @@ export const HomeSearchSchema = z.object({
 });
 
 export interface HomeStatus {
-  organizationName: string;
   canCreateKeys: boolean;
   onboardingCompleted: boolean;
 }

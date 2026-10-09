@@ -128,7 +128,7 @@ impl ApiClient {
     }
 
     pub async fn get_runs_list(&self, query: &[(&str, String)]) -> Result<Value> {
-        self.get_json("/runs", query).await
+        self.get("/runs", query).await
     }
 
     pub async fn get_status(&self, query: &[(&str, String)]) -> Result<WatchResponse> {
@@ -141,7 +141,7 @@ impl ApiClient {
 
     pub async fn get_run_details(&self, trace_id: &str, query: &[(&str, String)]) -> Result<Value> {
         let path = format!("/runs/{trace_id}");
-        self.get_json(&path, query).await
+        self.get(&path, query).await
     }
 
     pub async fn post_sql(&self, sql: &str) -> Result<String> {
@@ -342,10 +342,6 @@ impl ApiClient {
         Ok(())
     }
 
-    async fn get_json(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
-        self.get(path, query).await
-    }
-
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
         let request = self
             .http
@@ -486,7 +482,6 @@ pub struct WatchResponse {
 pub struct MeResponse {
     pub email: String,
     pub name: String,
-    pub profile_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
