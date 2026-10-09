@@ -111,6 +111,23 @@ describe("runSqlForConnection", () => {
     expect(note).toMatch(new RegExp(`^First ${shown} rows shown`));
   });
 
+  it("rejects a header that alone exceeds the output budget", async () => {
+    const columns = Array.from(
+      { length: MCP_MAX_OUTPUT_CHARS / 10 },
+      (_, i) => `column_${i}`,
+    );
+    previewSqlApi.mockResolvedValueOnce({
+      columns,
+      columnTypes: columns.map(() => "String"),
+      rows: [],
+      truncated: false,
+    });
+    const result = await run("SELECT *");
+    expect(result.isError).toBe(true);
+    expect(result.content).toHaveLength(1);
+    expect(result.content[0]).toMatch(/Select fewer columns/);
+  });
+
   it("returns a query error as is when no hint applies", async () => {
     previewSqlApi.mockRejectedValueOnce(new Error("Syntax error near FROM"));
     expect(await run("SELEC 1")).toEqual({

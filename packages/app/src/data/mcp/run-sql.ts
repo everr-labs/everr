@@ -44,6 +44,14 @@ export async function runSqlForConnection(args: {
       JSON.stringify(result.columnTypes),
     ];
     let size = lines[0].length + lines[1].length;
+    if (size > MCP_MAX_OUTPUT_CHARS) {
+      return {
+        isError: true,
+        content: [
+          `The column names and types alone exceed ${MCP_MAX_OUTPUT_CHARS} chars. Select fewer columns or shorter aliases.`,
+        ],
+      };
+    }
     for (const row of result.rows) {
       const line = `[${row.map(cellJson).join(",")}]`;
       size += line.length + 1;
