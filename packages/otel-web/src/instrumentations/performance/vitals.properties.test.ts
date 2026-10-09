@@ -2,8 +2,11 @@ import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Emit } from "../../pipeline/emitter.js";
 import { createTracer } from "../../pipeline/tracer.js";
+import { createSessionContext } from "../../state/session.js";
 import { startInp } from "./inp.js";
 import { startWebVitals } from "./webvitals.js";
+
+const [, current] = createSessionContext(location.href, undefined);
 
 // Property tests for the calculations from web-vitals in this package. They
 // examine the selection of the p98 candidate for the INP, the durations of its
@@ -114,7 +117,7 @@ describe("INP", () => {
       fc.property(interactions, ([ids, durations]) => {
         emitted = [];
         setVisibility("visible");
-        const stop = startInp(emit, tracer, true, false);
+        const stop = startInp(emit, tracer, current, true, false);
         fire(
           "event",
           ids.map((id, i) => ({
@@ -170,7 +173,7 @@ describe("INP", () => {
       fc.property(timing, (entry) => {
         spans = [];
         setVisibility("visible");
-        const stop = startInp(emit, tracer, false, true);
+        const stop = startInp(emit, tracer, current, false, true);
         fire("event", [
           {
             entryType: "event",

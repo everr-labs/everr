@@ -54,6 +54,8 @@ Attribution for LCP, CLS, and TTFB rides under `everr.browser.web_vital.<metric>
 
 The INP vital does not use that prefix. It carries the same attribution as the `slow_interaction` span, under the same names: `everr.browser.interaction.*` (`name`, `type`, phases, `total_*` breakdown, `script.*`) plus element attrs. `everr.browser.interaction.id` joins the vital to the `slow_interaction` span of the same interaction.
 
+INP remains document-wide between bfcache restores, rather than resetting on SPA navigation. The INP vital and its `slow_interaction` span retain the URL, route, page-view ID, and referrer captured when that interaction was first observed, even when reported after a later SPA navigation.
+
 ### Exceptions
 
 `exception.type`, `exception.message`, `exception.stacktrace`, `everr.error.mechanism` (`onerror`, `unhandledrejection`, `react`; a manual `captureError` record carries no mechanism), `everr.react.component_stack` (React boundaries only). These are error logs (`SeverityNumber >= 17`), so the fingerprint grouping in SKILL.md applies to them unchanged.
