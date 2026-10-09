@@ -1,5 +1,6 @@
 import { generateId } from "better-auth";
 import { and, eq, isNull } from "drizzle-orm";
+import { returnToSchema } from "@/common/return-to";
 import { orgSubscription, proOrganizationCheckout } from "@/db/schema";
 import { generateOrgSlug } from "@/lib/auto-org";
 import { creationLock, metadataFor } from "./attempts";
@@ -14,14 +15,19 @@ export function createBillingCheckouts(
   identity: ReturnType<typeof createBillingIdentity>,
 ) {
   const { db, polar, lock } = deps;
-  const successUrl = (fresh: boolean) =>
+  const successUrl = (
+    fresh: boolean,
+    returnTo = "/",
+    checkoutId = "{CHECKOUT_ID}",
+  ) =>
     new URL(
-      `${fresh ? "/organizations" : ""}/checkout/success?checkout_id={CHECKOUT_ID}`,
+      `${fresh ? "/organizations" : ""}/checkout/success?checkout_id=${checkoutId}${fresh ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`,
       deps.appUrl,
     ).toString();
   return {
-    async startNew(ownerId: string, name: string) {
+    async startNew(ownerId: string, name: string, returnTo = "/") {
       name = name.trim();
+      returnTo = returnToSchema.parse(returnTo);
       return lock(creationLock(ownerId, name), async () => {
         let [intent] = await db
           .select()
@@ -83,8 +89,17 @@ export function createBillingCheckouts(
             customerId: customer.id,
             orgId: intent.orgId,
             metadata,
-            successUrl: successUrl(true),
+            successUrl: successUrl(true, returnTo),
           });
+        else if (
+          checkout.status === "open" &&
+          checkout.successUrl !==
+            successUrl(true, returnTo, encodeURIComponent(checkout.id))
+        )
+          checkout = await polar.updateCheckoutSuccessUrl(
+            checkout.id,
+            successUrl(true, returnTo, encodeURIComponent(checkout.id)),
+          );
         await db
           .update(proOrganizationCheckout)
           .set({ checkoutId: checkout.id })
@@ -94,10 +109,7 @@ export function createBillingCheckouts(
           url:
             checkout.status === "open"
               ? checkout.url
-              : new URL(
-                  `/organizations/checkout/success?checkout_id=${encodeURIComponent(checkout.id)}`,
-                  deps.appUrl,
-                ).toString(),
+              : successUrl(true, returnTo, encodeURIComponent(checkout.id)),
         };
       });
     },

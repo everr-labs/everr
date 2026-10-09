@@ -13,8 +13,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@everr/ui/components/sidebar";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   Check,
   ChevronsUpDown,
@@ -27,16 +26,14 @@ import {
   Settings,
   Users,
 } from "lucide-react";
-import { useState } from "react";
-import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
-import { getOrganizationCreationOptions } from "@/data/organizations";
+import { toast } from "sonner";
+import { useOrganizationActivation } from "@/components/use-organization-activation";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { useOpenConsentSettings } from "@/telemetry/consent-gate";
 
 export function NavUser() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
+  const activateOrganization = useOrganizationActivation();
   const openConsentSettings = useOpenConsentSettings();
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
@@ -45,17 +42,18 @@ export function NavUser() {
     (m) => m.userId === session?.user?.id,
   )?.role;
   const isAdmin = isOrganizationAdmin(userRole);
-  const [isCreateOrgDialogOpen, setCreateOrgDialogOpen] = useState(false);
-  const organizationCreationOptions = useQuery({
-    queryKey: ["organization-creation-options"],
-    queryFn: () => getOrganizationCreationOptions(),
-  });
   const { isMobile } = useSidebar();
 
   async function handleSwitchOrg(orgId: string) {
-    await authClient.organization.setActive({ organizationId: orgId });
-    await queryClient.invalidateQueries();
-    router.invalidate();
+    try {
+      await activateOrganization(orgId);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not switch organization.",
+      );
+    }
   }
 
   if (!session?.user) {
@@ -72,157 +70,150 @@ export function NavUser() {
     (firstName.slice(0, 1) + lastName.slice(0, 1)).toUpperCase() || "?";
 
   return (
-    <>
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <SidebarMenuButton
-                  size="lg"
-                  className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <SidebarMenuButton
+                size="lg"
+                className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
+              />
+            }
+          >
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
+              {user.image ? (
+                <img
+                  src={user.image}
+                  alt={fullName}
+                  className="size-full object-cover rounded-sm"
                 />
-              }
-            >
+              ) : (
+                initials
+              )}
+            </div>
+            <div className="grid flex-1 text-left text-sm leading-tight transition-opacity duration-200 ease-sidebar motion-reduce:transition-none group-data-[collapsible=icon]:opacity-0">
+              <span className="overflow-hidden whitespace-nowrap font-medium">
+                {fullName}
+              </span>
+              <span className="overflow-hidden whitespace-nowrap text-xs">
+                {activeOrg?.name ?? " "}
+              </span>
+            </div>
+            <ChevronsUpDown className="ml-auto size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="w-(--anchor-width) min-w-56 rounded-lg"
+            side={isMobile ? "bottom" : "right"}
+            align="end"
+            sideOffset={4}
+          >
+            <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
-                {user.image ? (
-                  <img
-                    src={user.image}
-                    alt={fullName}
-                    className="size-full object-cover rounded-sm"
-                  />
-                ) : (
-                  initials
-                )}
+                {initials}
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight transition-opacity duration-200 ease-sidebar motion-reduce:transition-none group-data-[collapsible=icon]:opacity-0">
-                <span className="overflow-hidden whitespace-nowrap font-medium">
-                  {fullName}
-                </span>
-                <span className="overflow-hidden whitespace-nowrap text-xs">
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">{fullName}</span>
+                <span className="truncate text-xs">
                   {activeOrg?.name ?? " "}
                 </span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              className="w-(--anchor-width) min-w-56 rounded-lg"
-              side={isMobile ? "bottom" : "right"}
-              align="end"
-              sideOffset={4}
-            >
-              <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
-                  {initials}
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{fullName}</span>
-                  <span className="truncate text-xs">
-                    {activeOrg?.name ?? " "}
-                  </span>
-                </div>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Organization</DropdownMenuLabel>
-                {orgs?.map((org) => (
-                  <DropdownMenuItem
-                    key={org.id}
-                    onClick={() => void handleSwitchOrg(org.id)}
-                  >
-                    {org.id === activeOrg?.id ? (
-                      <Check />
-                    ) : (
-                      <span className="size-4" />
-                    )}
-                    <span className="truncate">{org.name}</span>
-                  </DropdownMenuItem>
-                ))}
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Organization</DropdownMenuLabel>
+              {orgs?.map((org) => (
                 <DropdownMenuItem
-                  disabled={!organizationCreationOptions.data}
-                  onClick={() => setCreateOrgDialogOpen(true)}
+                  key={org.id}
+                  onClick={() => void handleSwitchOrg(org.id)}
                 >
-                  <Plus />
-                  Create organization
+                  {org.id === activeOrg?.id ? (
+                    <Check />
+                  ) : (
+                    <span className="size-4" />
+                  )}
+                  <span className="truncate">{org.name}</span>
                 </DropdownMenuItem>
-              </DropdownMenuGroup>
-              {activeOrg && isAdmin ? (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel>Organization settings</DropdownMenuLabel>
-                    <DropdownMenuItem
-                      render={<Link to="/users-management" />}
-                      nativeButton={false}
-                    >
-                      <Users />
-                      Members
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      render={<Link to="/api-keys" />}
-                      nativeButton={false}
-                    >
-                      <KeyRound />
-                      API keys
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      render={<Link to="/github" />}
-                      nativeButton={false}
-                    >
-                      <GitPullRequest />
-                      GitHub
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      render={<Link to="/billing" />}
-                      nativeButton={false}
-                    >
-                      <CreditCard />
-                      Plan &amp; Billing
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                </>
-              ) : null}
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Account &amp; privacy</DropdownMenuLabel>
-                <DropdownMenuItem
-                  render={<Link to="/account" />}
-                  nativeButton={false}
-                >
-                  <Settings />
-                  Account settings
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={openConsentSettings}>
-                  <CookieIcon />
-                  Privacy preferences
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
+              ))}
               <DropdownMenuItem
-                onClick={() =>
-                  void authClient.signOut({
-                    fetchOptions: {
-                      onSuccess: () => {
-                        window.location.href = "/";
-                      },
-                    },
-                  })
+                render={
+                  <Link to="/create-organization" search={{ returnTo: "/" }} />
                 }
+                nativeButton={false}
               >
-                <LogOut />
-                Log out
+                <Plus />
+                Create organization
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </SidebarMenuItem>
-      </SidebarMenu>
-      {organizationCreationOptions.data ? (
-        <CreateOrganizationDialog
-          canCreateHobby={organizationCreationOptions.data.canCreateHobby}
-          open={isCreateOrgDialogOpen}
-          onOpenChange={setCreateOrgDialogOpen}
-        />
-      ) : null}
-    </>
+            </DropdownMenuGroup>
+            {activeOrg && isAdmin ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Organization settings</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    render={<Link to="/users-management" />}
+                    nativeButton={false}
+                  >
+                    <Users />
+                    Members
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    render={<Link to="/api-keys" />}
+                    nativeButton={false}
+                  >
+                    <KeyRound />
+                    API keys
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    render={<Link to="/github" />}
+                    nativeButton={false}
+                  >
+                    <GitPullRequest />
+                    GitHub
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    render={<Link to="/billing" />}
+                    nativeButton={false}
+                  >
+                    <CreditCard />
+                    Plan &amp; Billing
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </>
+            ) : null}
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Account &amp; privacy</DropdownMenuLabel>
+              <DropdownMenuItem
+                render={<Link to="/account" />}
+                nativeButton={false}
+              >
+                <Settings />
+                Account settings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openConsentSettings}>
+                <CookieIcon />
+                Privacy preferences
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() =>
+                void authClient.signOut({
+                  fetchOptions: {
+                    onSuccess: () => {
+                      window.location.href = "/";
+                    },
+                  },
+                })
+              }
+            >
+              <LogOut />
+              Log out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }

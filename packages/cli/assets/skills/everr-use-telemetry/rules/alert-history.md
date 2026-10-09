@@ -15,8 +15,8 @@ incident in timestamp order with no join.
    is about a preview, or on a point lookup by `notification_event_id`: the
    id already pins one chain, live or preview, and the filter would hide a
    preview chain you asked for by id.
-2. **Always carry a `LIMIT`.** The cloud profile throws at 1000 result rows,
-   so a query without a limit fails instead of truncating.
+2. **Always carry a `LIMIT`.** The cloud result cap throws rather than
+   truncates, so a large query without a limit fails.
 3. **Never filter `tenant_id`.** A row policy already scopes every read to
    your organization. Adding the predicate cannot widen a result, and getting
    the value wrong empties it.

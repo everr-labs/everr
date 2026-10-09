@@ -10,7 +10,7 @@ import { type DbExecutor, db, type Transaction } from "@/db/client";
 // `add_job` writes `coalesce(run_at, now())`: a job that means "as soon as
 // possible" is dated by the database, and a skewed app node cannot schedule
 // it early or late.
-function addJob(
+export function addWorkerJobUsing(
   executor: DbExecutor,
   identifier: string,
   payload: unknown,
@@ -36,7 +36,7 @@ export async function addWorkerJob(
   payload: unknown,
   spec: TaskSpec = {},
 ): Promise<void> {
-  await addJob(db, identifier, payload, spec);
+  await addWorkerJobUsing(db, identifier, payload, spec);
 }
 
 export async function addWorkerJobInTransaction(
@@ -45,5 +45,5 @@ export async function addWorkerJobInTransaction(
   payload: unknown,
   spec: TaskSpec = {},
 ): Promise<void> {
-  await addJob(tx, identifier, payload, spec);
+  await addWorkerJobUsing(tx, identifier, payload, spec);
 }

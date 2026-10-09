@@ -11,7 +11,13 @@ import { organizationBillingFields } from "@/common/organization-billing-fields"
 export const authClient = createAuthClient({
   plugins: [
     organizationClient({
-      schema: { organization: { additionalFields: organizationBillingFields } },
+      schema: {
+        organization: {
+          additionalFields: {
+            ...organizationBillingFields,
+          },
+        },
+      },
     }),
     apiKeyClient(),
     deviceAuthorizationClient(),

@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const telemetryMocks = vi.hoisted(() => {
   const span = {
     end: vi.fn(),
+    setStatus: vi.fn(),
   };
 
   return {
     captureError: vi.fn(),
+    boundaryCapture: false,
     loggerInfo: vi.fn(),
     span,
     startActiveSpan: vi.fn(
@@ -35,10 +37,16 @@ vi.mock("./logger", () => ({
   }),
 }));
 
+vi.mock("./error-boundary", () => ({
+  hasBoundaryErrorCapture: () => telemetryMocks.boundaryCapture,
+}));
+
 import { instrumentClickhouseOperation } from "./clickhouse";
 
 describe("instrumentClickhouseOperation", () => {
   beforeEach(() => {
+    telemetryMocks.boundaryCapture = false;
+    telemetryMocks.span.setStatus.mockClear();
     telemetryMocks.captureError.mockClear();
     telemetryMocks.loggerInfo.mockClear();
     telemetryMocks.span.end.mockClear();
@@ -117,4 +125,23 @@ describe("instrumentClickhouseOperation", () => {
     });
     expect(telemetryMocks.loggerInfo).not.toHaveBeenCalled();
   });
+});
+
+it("defers one exception record to the job boundary while marking the child span failed", async () => {
+  telemetryMocks.captureError.mockClear();
+  telemetryMocks.boundaryCapture = true;
+  await expect(
+    instrumentClickhouseOperation(
+      { client: "admin", operation: "QUERY" },
+      async () => {
+        throw new Error("stall");
+      },
+    ),
+  ).rejects.toThrow("stall");
+  expect(telemetryMocks.captureError).not.toHaveBeenCalled();
+  expect(telemetryMocks.span.setStatus).toHaveBeenCalledWith({
+    code: 2,
+    message: "stall",
+  });
+  expect(telemetryMocks.span.end).toHaveBeenCalled();
 });

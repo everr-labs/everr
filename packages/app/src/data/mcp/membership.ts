@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { member } from "@/db/schema";
+import { member, organization } from "@/db/schema";
 
 export class McpMembershipError extends Error {}
 
@@ -8,10 +8,11 @@ export class McpMembershipError extends Error {}
 export async function assertCurrentMember(
   userId: string,
   organizationId: string,
-): Promise<void> {
+) {
   const rows = await db
-    .select({ id: member.id })
+    .select({ metadata: organization.metadata })
     .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(
       and(eq(member.userId, userId), eq(member.organizationId, organizationId)),
     )
@@ -19,4 +20,5 @@ export async function assertCurrentMember(
   if (!rows[0]) {
     throw new McpMembershipError("Not a member of the requested organization.");
   }
+  return rows[0];
 }

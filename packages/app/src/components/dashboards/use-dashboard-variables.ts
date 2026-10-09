@@ -39,7 +39,9 @@ export interface DashboardVariablesState {
 const EMPTY_VARIABLES: Variable[] = [];
 
 export function useDashboardVariables(): DashboardVariablesState {
-  const { vars } = useSearch({ from: "/_authenticated/_dashboard" });
+  const { vars } = useSearch({
+    from: "/_authenticated/_organization/_dashboard",
+  });
   // Effective range (URL → route defaults → global), matching the panels.
   const {
     timeRange: { from, to },

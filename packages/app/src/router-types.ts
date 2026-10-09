@@ -9,6 +9,8 @@ export interface BreadcrumbSegment {
 
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
+    authEntry?: "/auth/sign-up";
+    showDataControls?: boolean;
     breadcrumb?:
       | string
       | ((match: AnyRouteMatch) => string | BreadcrumbSegment[] | undefined);

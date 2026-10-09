@@ -1,5 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
 import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
 import { renderMessage } from "@/data/alerting/delivery/template";
 import { uuidv7 } from "@/data/alerting/history/ids";
@@ -22,6 +23,7 @@ import {
   alertEvaluations,
   alertEvents,
   alertInstances,
+  organization,
 } from "@/db/schema";
 import { env } from "@/env";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
@@ -370,11 +372,16 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   }
   const payload = parsed.data;
   const scheduledFor = new Date(payload.scheduledFor);
-  const [def] = await db
-    .select()
+  const [record] = await db
+    .select({ definition: alertDefinitions, metadata: organization.metadata })
     .from(alertDefinitions)
+    .innerJoin(
+      organization,
+      eq(organization.id, alertDefinitions.organizationId),
+    )
     .where(eq(alertDefinitions.id, payload.alertDefinitionId))
     .limit(1);
+  const def = record?.definition;
   if (
     !def?.active ||
     (payload.ruleVersion !== undefined && def.version !== payload.ruleVersion)
@@ -412,6 +419,7 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   // floor, not the plan: a rule quiet for 15 minutes has already missed the
   // window it exists to watch.
   try {
+    assertOrganizationProvisioned(record.metadata);
     await evaluateAlertRule(def, payload, scheduledFor);
     recordAlertEvaluation("ok");
   } catch (cause) {

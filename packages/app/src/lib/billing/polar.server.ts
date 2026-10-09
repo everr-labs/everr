@@ -167,6 +167,8 @@ export function createPolarGateway(client: Polar = polarClient): PolarGateway {
         returnUrl: env.BETTER_AUTH_URL,
       }),
     subscription: (id) => client.subscriptions.get({ id }),
+    updateCheckoutSuccessUrl: (id, successUrl) =>
+      client.checkouts.update({ id, checkoutUpdate: { successUrl } }),
     async checkoutSubscription(checkout) {
       if (!checkout.customerId || !checkout.productId) return null;
       const matches = (s: {
@@ -215,6 +217,10 @@ export function createPolarGateway(client: Polar = polarClient): PolarGateway {
     checkout: guarded("checkout", gateway.checkout),
     checkouts: guarded("checkouts", gateway.checkouts),
     createCheckout: guarded("createCheckout", gateway.createCheckout),
+    updateCheckoutSuccessUrl: guarded(
+      "updateCheckoutSuccessUrl",
+      gateway.updateCheckoutSuccessUrl,
+    ),
     subscription: guarded("subscription", gateway.subscription),
     checkoutSubscription: guarded(
       "checkoutSubscription",
