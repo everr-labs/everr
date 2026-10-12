@@ -6,7 +6,9 @@ Install with `npm install --save-dev @everr/cli` and run commands with `npx ever
 
 Changesets versions this private workspace package and creates its release tag. `deploy-cli.yml` builds all three platform binaries, verifies their checksums, and hands them to the standalone deployment and npm publishing jobs. `scripts/npm-packages.mjs` generates the launcher and platform manifests from this package's version. Generated packages live under `target/cli-npm`; they are not workspace packages and need no separate changesets. `scripts/publish-npm.mjs` publishes the platform packages first and the launcher last, skipping versions already present so failed releases can be retried. Prereleases use the `next` npm tag.
 
-Configure npm publishing access for `@everr/cli`, `@everr/cli-darwin-arm64`, `@everr/cli-linux-arm64`, and `@everr/cli-linux-x64`. Each package's trusted publisher should allow GitHub organization `everr-labs`, repository `everr`, and workflow `deploy-cli.yml`. The job runs on a GitHub-hosted runner with OIDC permission. For the first publish, or while configuring trusted publishers, the workflow can use the repository's `NPM_TOKEN` secret, exposed as `NODE_AUTH_TOKEN`. Configure package publishing permissions before merging the version PR.
+The workflow reuses the repository's existing `NPM_TOKEN` secret as `NODE_AUTH_TOKEN`. If that token permits publishing new packages in the `@everr` scope, no additional credentials are needed. If its access is restricted to existing packages, extend it to cover `@everr/cli`, `@everr/cli-darwin-arm64`, `@everr/cli-linux-arm64`, and `@everr/cli-linux-x64` before the first release.
+
+To use trusted publishing instead, configure each CLI package to allow GitHub organization `everr-labs`, repository `everr`, and workflow `deploy-cli.yml`. The job already runs on a GitHub-hosted runner with OIDC permission.
 
 To inspect packages from an existing release payload without publishing:
 
