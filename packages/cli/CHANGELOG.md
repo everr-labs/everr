@@ -1,5 +1,11 @@
 # @everr/cli
 
+## 0.10.0
+
+### Minor Changes
+
+- 0ecdfff: Replace the desktop app with a bundled local browser UI served by `everr local start`. Explore local logs, traces, and errors without an account, with optional Cloud sign-in and collector settings in one CLI installation.
+
 ## 0.9.0
 
 ### Minor Changes
