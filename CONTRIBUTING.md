@@ -2,6 +2,18 @@
 
 ## Development
 
+### Develop bundled skills
+
+The public Everr skills live in `skills/`. The CLI embeds these files at build time, and `npx skills add everr-labs/everr` discovers them for installation.
+
+Each public skill is symlinked into `.agents/skills/`, and `.claude/skills` points to `.agents/skills`. Local assistants therefore use the same files we distribute. Edit either path to develop a skill without keeping an installed copy in sync. If an assistant does not pick up a change, restart its session.
+
+To check what users can install without installing anything:
+
+```bash
+npx skills add . --list
+```
+
 ### System prerequisites
 
 You need the standard toolchains on every platform: Rust (stable), Node + pnpm,
