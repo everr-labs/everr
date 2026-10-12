@@ -14,4 +14,6 @@ Detached supervisor and collector output goes to `~/Library/Logs/everr/local.log
 
 `everr local ui` opens the configured local UI URL in your default browser and prints `ui: <url>`. It requires the same matching ready instance as `local status`. Otherwise, it reports the same diagnostics and exits with code 2, without starting services. If browser launch fails, it exits with code 1 and prints the URL to open manually.
 
+`everr cloud status` checks the saved session with Everr Cloud and prints the current user's name, email, organization, and Cloud URL as `Name:`, `Email:`, `Organization:`, and `Cloud:` rows. Missing or expired sessions and request failures produce an error without changing the saved session. The command does not print the session token.
+
 Install bundled agent skills for your project with `everr skills install --all --project`. Start local telemetry with `everr local start`. Cloud sign-in and ingest keys are separate follow-up steps when you want hosted telemetry or CI.

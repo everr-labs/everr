@@ -9,6 +9,8 @@ The Everr CLI queries local and Cloud telemetry, inspects GitHub Actions CI runs
 
 - `everr cloud login`: authenticate with Everr Cloud and save the local session
 - `everr cloud logout`: clear the saved Everr Cloud session
+- `everr cloud status`: check the current session and print the user's name, email, organization, and Cloud URL
+  - Prints `Name:`, `Email:`, `Organization:`, and `Cloud:` rows. Missing or expired sessions and request failures produce an error without changing the saved session.
 - `everr cloud query "<SQL>"`: run read-only SQL against CI and Production telemetry stored in Everr Cloud
   - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
 

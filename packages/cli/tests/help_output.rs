@@ -72,6 +72,9 @@ fn cloud_help_lists_cloud_subcommands() {
         .success()
         .stdout(contains("login"))
         .stdout(contains("logout"))
+        .stdout(contains(
+            "Show the current Everr Cloud user, organization, and session URL",
+        ))
         .stdout(predicates::str::contains("\n  grep").not())
         .stdout(predicates::str::contains("\n  logs").not());
 }
@@ -161,6 +164,16 @@ fn local_ui_has_help() {
         .assert()
         .success()
         .stdout(contains("Usage: everr local ui"));
+}
+
+#[test]
+fn cloud_status_has_help() {
+    let env = CliTestEnv::new();
+    env.command()
+        .args(["cloud", "status", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("Usage: everr cloud status"));
 }
 
 #[test]

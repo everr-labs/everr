@@ -87,6 +87,18 @@ pub fn logout() -> Result<()> {
     Ok(())
 }
 
+pub async fn status() -> Result<()> {
+    let session = require_session()?;
+    let client = ApiClient::from_session(&session)?;
+    let me = client.get_me().await?;
+
+    println!("Name: {}", me.name);
+    println!("Email: {}", me.email);
+    println!("Organization: {}", me.organization_name);
+    println!("Cloud: {}", session.api_base_url);
+    Ok(())
+}
+
 pub fn require_session() -> Result<Session> {
     let store = session_store();
     let api_base_url = current_api_base_url()?;

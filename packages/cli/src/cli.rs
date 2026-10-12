@@ -78,6 +78,8 @@ pub enum CloudSubcommand {
     Login(LoginArgs),
     /// Clear the saved Everr Cloud session
     Logout,
+    /// Show the current Everr Cloud user, organization, and session URL
+    Status,
     /// Run read-only SQL against CI and Production telemetry in Everr Cloud
     Query(TelemetryQueryArgs),
 }
@@ -85,7 +87,7 @@ pub enum CloudSubcommand {
 impl CloudSubcommand {
     fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
         match self {
-            CloudSubcommand::Login(_) | CloudSubcommand::Logout => true,
+            CloudSubcommand::Login(_) | CloudSubcommand::Logout | CloudSubcommand::Status => true,
             CloudSubcommand::Query(args) => {
                 telemetry_query_prints_human_stdout(args, stdout_is_terminal)
             }
@@ -627,6 +629,22 @@ mod tests {
             cli.command,
             Commands::Local(super::LocalArgs {
                 command: LocalSubcommand::Ui
+            })
+        ));
+        assert!(Cli::try_parse_from(args.into_iter().chain(["extra"])).is_err());
+        assert!(Cli::try_parse_from(args.into_iter().chain(["--json"])).is_err());
+    }
+
+    #[test]
+    fn parses_cloud_status_as_human_output_without_arguments() {
+        let args = ["everr", "cloud", "status"];
+        let cli = Cli::try_parse_from(args).expect("valid command");
+        assert!(cli.prints_human_stdout(true));
+        assert!(cli.prints_human_stdout(false));
+        assert!(matches!(
+            cli.command,
+            Commands::Cloud(super::CloudArgs {
+                command: CloudSubcommand::Status
             })
         ));
         assert!(Cli::try_parse_from(args.into_iter().chain(["extra"])).is_err());

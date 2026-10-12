@@ -13,6 +13,7 @@ pub async fn run_command(
         Commands::Cloud(args) => match args.command {
             CloudSubcommand::Login(login) => auth::login(login).await?,
             CloudSubcommand::Logout => auth::logout()?,
+            CloudSubcommand::Status => auth::status().await?,
             CloudSubcommand::Query(args) => core::cloud_query(args).await?,
         },
         Commands::Ci(args) => match args.command {
