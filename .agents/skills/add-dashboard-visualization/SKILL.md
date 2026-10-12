@@ -2,6 +2,8 @@
 name: add-dashboard-visualization
 description: Use when adding a new visualization type (chart, table, stat, gauge, etc.) to the dashboard panel system, or adding options to an existing one. Guides creating the spec schema, the read-only renderer component, registering both, and keeping the viz-gallery dashboard exhaustive.
 user-invocable: true
+metadata:
+  internal: true
 ---
 
 # Adding a Dashboard Visualization
@@ -181,7 +183,7 @@ Without this, `everr apply` accepts any spec for the new kind instead of rejecti
 
 ### 6. Document the options
 
-Add the new kind and its option table to `packages/docs/content/docs/dashboards/visualizations.mdx`, and update the `everr-setup-resources` skill in `packages/cli/assets/skills/` so dashboard-authoring agents know the options exist.
+Add the new kind and its option table to `packages/docs/content/docs/dashboards/visualizations.mdx`, and update the `everr-setup-resources` skill in `skills/` so dashboard-authoring agents know the options exist.
 
 ### 7. Add it to the gallery dashboard
 

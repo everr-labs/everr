@@ -36,7 +36,7 @@ splitting it adds a value that only this branch writes.
   `droppedUnannounced` map, which calls `journalTerminalRow(event)` with no
   options)
 - `packages/app/src/data/alerting/vocabulary.ts` if the decision adds a value
-- `packages/cli/assets/skills/everr-use-telemetry/rules/alert-history.md`
+- `skills/everr-use-telemetry/rules/alert-history.md`
   and the Reference table in `../02-alerting-clickhouse-surface.md`
 
 **Blocked by:** nothing.
