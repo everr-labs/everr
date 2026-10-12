@@ -15,6 +15,11 @@ const FALLBACK_COMMAND: &str = "curl -fsSL https://everr.dev/upgrade.sh | bash";
 pub const DOWNLOAD_BASE_URL_OVERRIDE_ENV: &str = "EVERR_DOWNLOAD_BASE_URL_FOR_TESTS";
 
 pub async fn run() -> Result<()> {
+    if let Some(scope) = crate::install_source::npm_scope() {
+        println!("Everr is managed by npm. Update it with:");
+        println!("  {}", scope.update_command());
+        return Ok(());
+    }
     let metadata = update_notice::fetch_release_metadata(METADATA_TIMEOUT).await?;
     let client = download_client()?;
     upgrade_cli(&metadata, &client).await?;

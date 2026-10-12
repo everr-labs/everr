@@ -16,6 +16,7 @@ on:
 jobs:
   build:
     name: Build CLI ${{ matrix.name }}
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/@everr/cli@')
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -127,6 +128,10 @@ jobs:
           shasum -a 256 "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
       - name: Smoke test
         run: ./target/cli-release/${{ matrix.asset }} --help
+      - name: Test npm packaging and installed binary
+        env:
+          EVERR_NPM_SMOKE_BINARY: target/cli-release/${{ matrix.asset }}
+        run: node --test packages/cli/scripts/npm-packages.test.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: everr-cli-${{ matrix.name }}-${{ github.sha }}
@@ -137,6 +142,8 @@ jobs:
   package-release:
     runs-on: ubuntu-24.04
     needs: build
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -183,3 +190,27 @@ jobs:
           event-type: cli-release
           client-payload: |
             {"source_repo":"${{ github.repository }}","run_id":"${{ github.run_id }}","sha":"${{ github.sha }}","version":"${{ steps.version.outputs.version }}","artifact_name":"everr-cli-release-${{ steps.version.outputs.version }}"}
+
+  publish-npm:
+    name: Publish CLI to npm
+    runs-on: ubuntu-24.04
+    needs: package-release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: everr-cli-release-${{ needs.package-release.outputs.version }}
+          path: target/cli-release
+      - name: Verify release payload
+        working-directory: target/cli-release
+        run: sha256sum --check SHA256SUMS
+      - name: Generate npm packages
+        run: node packages/cli/scripts/npm-packages.mjs target/cli-release target/cli-npm
+      - name: Publish platform packages and launcher
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node packages/cli/scripts/publish-npm.mjs target/cli-npm

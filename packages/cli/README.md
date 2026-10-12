@@ -1,5 +1,24 @@
 # Everr CLI
 
+Install with `npm install --save-dev @everr/cli` and run commands with `npx everr`, or use `npm install --global @everr/cli` to expose `everr` across projects. See [the npm package README](npm/README.md) for platform requirements and update instructions.
+
+## npm releases
+
+Changesets versions this private workspace package and creates its release tag. `deploy-cli.yml` builds all three platform binaries, verifies their checksums, and hands them to the standalone deployment and npm publishing jobs. `scripts/npm-packages.mjs` generates the launcher and platform manifests from this package's version. Generated packages live under `target/cli-npm`; they are not workspace packages and need no separate changesets. `scripts/publish-npm.mjs` publishes the platform packages first and the launcher last, skipping versions already present so failed releases can be retried. Prereleases use the `next` npm tag.
+
+Configure npm publishing access for `@everr/cli`, `@everr/cli-darwin-arm64`, `@everr/cli-linux-arm64`, and `@everr/cli-linux-x64`. Each package's trusted publisher should allow GitHub organization `everr-labs`, repository `everr`, and workflow `deploy-cli.yml`. The job runs on a GitHub-hosted runner with OIDC permission. For the first publish, or while configuring trusted publishers, the workflow can use the repository's `NPM_TOKEN` secret, exposed as `NODE_AUTH_TOKEN`. Configure package publishing permissions before merging the version PR.
+
+To inspect packages from an existing release payload without publishing:
+
+```sh
+node packages/cli/scripts/npm-packages.mjs target/cli-release target/cli-npm
+node packages/cli/scripts/publish-npm.mjs target/cli-npm --dry-run
+```
+
+Run `pnpm --filter @everr/cli test:npm` for offline tarball installation tests, launcher argument and signal forwarding, and publishing retry checks. Set `EVERR_NPM_SMOKE_BINARY` to a current native binary to additionally test its project, global, and temporary npm installations. Release builds run that check on each supported platform.
+
+## Development
+
 `pnpm --filter @everr/cli build:debug` builds the local UI, prepares the collector and chDB library, and embeds them in the CLI. `build:release` produces the release binary and checksum. The CLI version comes from this package's `package.json`.
 
 `everr local start` serves the bundled UI and starts the collector until interrupted. Successful startup prints the Everr banner in a terminal and the OTLP, SQL, and UI addresses; detached startup also prints the log path. Redirected output omits the banner. `--no-open` suppresses browser launch; `--quiet` suppresses startup output and browser launch. If the collector and UI are already ready and share an instance ID, another `local start` prints the endpoints and exits successfully. Partial instances or occupied ports cause an error; startup never stops existing listeners.

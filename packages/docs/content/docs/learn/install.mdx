@@ -7,7 +7,24 @@ Start with Everr on your machine: install the CLI, connect your project to your 
 
 ## Install the CLI
 
-Run the installer from a terminal:
+Install the CLI as a development dependency in your project:
+
+```sh
+npm install --save-dev @everr/cli
+npx everr local start
+```
+
+For a project installation, prefix the `everr` commands in this guide with `npx`, or invoke them from an npm script. Requires Node.js 20 or newer. Supported platforms are macOS Apple Silicon and Linux ARM64 or x64 with glibc (binaries are built on Ubuntu 24.04). Keep optional dependencies enabled so npm installs the matching binary package.
+
+To make `everr` available across projects:
+
+```sh
+npm install --global @everr/cli
+```
+
+You can also run `npx @everr/cli local start` without adding a project dependency.
+
+If you prefer the standalone installer:
 
 ```sh
 curl -fsSL https://everr.dev/install.sh | sh
@@ -15,7 +32,7 @@ curl -fsSL https://everr.dev/install.sh | sh
 
 Expected output: the installer adds the `everr` CLI to your PATH and prints how to start local telemetry.
 
-For the full list of supported platforms and every install flag, see the [CLI reference](/docs/reference/cli).
+For the full command list, see the [CLI reference](/docs/reference/cli).
 
 Local telemetry works without signing in or creating an ingest key. Install agent skills for your project as described below.
 
@@ -27,7 +44,7 @@ Run `everr local start` to start the local collector and open its browser UI. Ke
 
 If Everr is already running, the command prints its endpoints and exits successfully. If it was started in the foreground, keep the original terminal session running. Use the `ui:` URL printed by `everr local start` or `everr local status` to reopen the UI.
 
-The browser UI is bundled with the CLI. Run `everr upgrade` to update both.
+The browser UI is bundled with the CLI. For npm installations, update both with `npm install @everr/cli@latest`, or `npm install --global @everr/cli@latest` for a global installation. For the standalone installer, run `everr upgrade`. When installed through npm, `everr upgrade` prints the appropriate npm command.
 
 ## Install skills for your Agent
 

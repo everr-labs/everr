@@ -14,8 +14,8 @@ The Everr CLI queries local and Cloud telemetry, inspects GitHub Actions CI runs
 
 ## Maintenance
 
-- `everr upgrade`: upgrade the CLI and its bundled local browser UI
-- `everr uninstall`: remove local Everr state and globally installed skills, then print the command that removes the CLI binary
+- `everr upgrade`: upgrade the standalone CLI and its bundled local browser UI. For npm installations, print the npm update command without replacing the binary. Project installations use `npm install @everr/cli@latest`; global installations use `npm install --global @everr/cli@latest`.
+- `everr uninstall`: remove local Everr state and globally installed skills, then print the removal instruction. For npm installations, use `npm uninstall @everr/cli` (or `npm uninstall --global @everr/cli` for a global installation).
 
 ## Skills
 
