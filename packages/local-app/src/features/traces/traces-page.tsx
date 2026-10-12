@@ -118,6 +118,7 @@ export function TraceDetailPage() {
               params: { traceId },
               search: (prev) => ({ ...prev, span: spanId }),
               replace: true,
+              resetScroll: false,
             })
           }
         />

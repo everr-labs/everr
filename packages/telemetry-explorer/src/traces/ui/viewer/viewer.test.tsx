@@ -1,5 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { type Ref, useImperativeHandle } from "react";
+import type { VirtuosoHandle } from "react-virtuoso";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TracesRepositoryLike } from "../../data/repository";
 import type { Span } from "../../data/types";
@@ -7,12 +9,35 @@ import type { TraceNode } from "./model";
 import * as processor from "./processor";
 import { TraceExplorer, type TraceExplorerProps } from "./viewer";
 
-vi.mock("./flamegraph", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./flamegraph")>()),
-  TraceFlamegraph: () => <div data-testid="flamegraph" />,
+const mocks = vi.hoisted(() => ({
+  scrollToIndex: vi.fn(),
+  scrollToSpan: vi.fn(),
 }));
 
-afterEach(() => vi.restoreAllMocks());
+vi.mock("./flamegraph", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./flamegraph")>()),
+  TraceFlamegraph: ({
+    onSelect,
+    ref,
+  }: {
+    onSelect: (id: string) => void;
+    ref?: Ref<{ scrollToSpan: (id: string) => void }>;
+  }) => {
+    useImperativeHandle(ref, () => ({ scrollToSpan: mocks.scrollToSpan }));
+    return (
+      <div data-testid="flamegraph">
+        <button type="button" onClick={() => onSelect("child")}>
+          Select flamegraph child
+        </button>
+      </div>
+    );
+  },
+}));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+});
 
 vi.mock("./waterfall", () => ({
   TraceWaterfall: ({
@@ -21,36 +46,43 @@ vi.mock("./waterfall", () => ({
     onSelect,
     openNodes,
     onToggle,
+    virtuosoRef,
   }: {
     rows: TraceNode[];
     selectedSpanId?: string;
     onSelect: (id: string) => void;
     openNodes: Set<string>;
     onToggle: (id: string) => void;
-  }) => (
-    <div>
-      {rows.map((row) => (
-        <div key={row.spanId}>
-          {row.hasChildren && (
+    virtuosoRef?: Ref<Pick<VirtuosoHandle, "scrollToIndex">>;
+  }) => {
+    useImperativeHandle(virtuosoRef, () => ({
+      scrollToIndex: mocks.scrollToIndex,
+    }));
+    return (
+      <div>
+        {rows.map((row) => (
+          <div key={row.spanId}>
+            {row.hasChildren && (
+              <button
+                type="button"
+                aria-expanded={openNodes.has(row.spanId)}
+                onClick={() => onToggle(row.spanId)}
+              >
+                Toggle {row.name}
+              </button>
+            )}
             <button
               type="button"
-              aria-expanded={openNodes.has(row.spanId)}
-              onClick={() => onToggle(row.spanId)}
+              aria-pressed={selectedSpanId === row.spanId}
+              onClick={() => onSelect(row.spanId)}
             >
-              Toggle {row.name}
+              Select {row.name}
             </button>
-          )}
-          <button
-            type="button"
-            aria-pressed={selectedSpanId === row.spanId}
-            onClick={() => onSelect(row.spanId)}
-          >
-            Select {row.name}
-          </button>
-        </div>
-      ))}
-    </div>
-  ),
+          </div>
+        ))}
+      </div>
+    );
+  },
 }));
 
 function span(id: string, parentSpanId = ""): Span {
@@ -113,6 +145,66 @@ function renderExplorer(
 }
 
 describe("shared trace explorer", () => {
+  it("keeps the waterfall in place when a visible row is selected", async () => {
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation(
+      (callback) => {
+        callback(0);
+        return 0;
+      },
+    );
+    const { props } = renderExplorer();
+    await screen.findByRole("button", { name: "Select child" });
+    fireEvent.click(screen.getByRole("button", { name: /Flamegraph/ }));
+    await screen.findByTestId("flamegraph");
+    fireEvent.click(screen.getByRole("button", { name: "Select child" }));
+    expect(props.onSpanChange).toHaveBeenCalledWith("child");
+    expect(mocks.scrollToIndex).not.toHaveBeenCalled();
+    expect(mocks.scrollToSpan).toHaveBeenCalledWith("child");
+  });
+
+  it("reveals the waterfall row when a span is selected in the flamegraph", async () => {
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation(
+      (callback) => {
+        callback(0);
+        return 0;
+      },
+    );
+    const { props } = renderExplorer();
+    await screen.findByRole("button", { name: "Select child" });
+    fireEvent.click(screen.getByRole("button", { name: /Flamegraph/ }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Select flamegraph child" }),
+    );
+    expect(props.onSpanChange).toHaveBeenCalledWith("child");
+    expect(mocks.scrollToIndex).toHaveBeenCalledWith({
+      index: 1,
+      align: "center",
+    });
+    expect(mocks.scrollToSpan).not.toHaveBeenCalled();
+  });
+
+  it("reveals search matches in both views", async () => {
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation(
+      (callback) => {
+        callback(0);
+        return 0;
+      },
+    );
+    renderExplorer();
+    await screen.findByRole("button", { name: "Select child" });
+    fireEvent.click(screen.getByRole("button", { name: /Flamegraph/ }));
+    await screen.findByTestId("flamegraph");
+    fireEvent.change(screen.getByRole("textbox", { name: "Search spans" }), {
+      target: { value: "child" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next matching span" }));
+    expect(mocks.scrollToSpan).toHaveBeenCalledWith("child");
+    expect(mocks.scrollToIndex).toHaveBeenCalledWith({
+      index: 1,
+      align: "center",
+    });
+  });
+
   it("expands new parents after a refresh while preserving existing choices", async () => {
     const initial = [
       span("root"),
