@@ -22,7 +22,10 @@ afterEach(() => {
   mocks.rects = [];
 });
 
-it("keeps partially visible clicked bars in place without suppressing later external selections", () => {
+it.each([
+  [undefined, "external"],
+  ["external", undefined],
+])("preserves pending clicks across layout changes and clears them on competing selection (%s to %s)", (initialSelection, competingSelection) => {
   vi.stubGlobal("PointerEvent", MouseEvent);
   const props = {
     model: buildTraceModel([]),
@@ -68,7 +71,15 @@ it("keeps partially visible clicked bars in place without suppressing later exte
   viewport.scrollTop = 60;
   fireEvent.pointerUp(canvas, { clientX: 50, clientY: 5 });
   expect(props.onSelect).toHaveBeenCalledWith("clicked");
-  view.rerender(<TraceFlamegraph {...props} selectedSpanId="clicked" />);
+  const refreshedLayout = { ...props.layout };
+  view.rerender(<TraceFlamegraph {...props} layout={refreshedLayout} />);
+  view.rerender(
+    <TraceFlamegraph
+      {...props}
+      layout={refreshedLayout}
+      selectedSpanId="clicked"
+    />,
+  );
   expect(viewport.scrollTop).toBe(60);
   view.rerender(<TraceFlamegraph {...props} selectedSpanId="external" />);
   expect(viewport.scrollTop).toBe(430);
@@ -79,6 +90,17 @@ it("keeps partially visible clicked bars in place without suppressing later exte
   expect(viewport.scrollTop).toBe(60);
   view.rerender(<TraceFlamegraph {...props} selectedSpanId="external" />);
   expect(viewport.scrollTop).toBe(430);
+  view.rerender(<TraceFlamegraph {...props} selectedSpanId="clicked" />);
+  expect(viewport.scrollTop).toBe(0);
+
+  view.rerender(
+    <TraceFlamegraph {...props} selectedSpanId={initialSelection} />,
+  );
+  viewport.scrollTop = 60;
+  fireEvent.pointerUp(canvas, { clientX: 50, clientY: 5 });
+  view.rerender(
+    <TraceFlamegraph {...props} selectedSpanId={competingSelection} />,
+  );
   view.rerender(<TraceFlamegraph {...props} selectedSpanId="clicked" />);
   expect(viewport.scrollTop).toBe(0);
 });
