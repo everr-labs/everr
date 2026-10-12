@@ -6,7 +6,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use include_dir::{Dir, DirEntry, include_dir};
 use serde::Serialize;
 
-static BUNDLED_SKILLS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/skills");
+static BUNDLED_SKILLS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../skills");
 
 const LEGACY_SKILL_RENAMES: &[(&str, &str)] = &[
     ("everr-ci-debugging", "everr-working-with-ci"),

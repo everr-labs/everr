@@ -12,6 +12,7 @@ on:
     paths:
       - .github/workflows/build-everr-cli.yml
       - packages/cli/**
+      - skills/**
       - packages/local-app/**
       - Cargo.toml
       - Cargo.lock
@@ -31,6 +32,7 @@ on:
     paths:
       - .github/workflows/build-everr-cli.yml
       - packages/cli/**
+      - skills/**
       - packages/local-app/**
       - Cargo.toml
       - Cargo.lock

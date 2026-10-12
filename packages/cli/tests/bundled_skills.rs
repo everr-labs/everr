@@ -84,7 +84,7 @@ fn installs_all_bundled_skills_and_supporting_files() {
 
     install_bundled_skills(&options).expect("install all bundled skills");
 
-    let bundled_files = skill_files(&Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/skills"));
+    let bundled_files = skill_files(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills"));
     let installed_files = skill_files(&repo.path().join(".agents/skills"));
     assert_eq!(
         installed_files.keys().collect::<Vec<_>>(),
@@ -107,7 +107,7 @@ fn install_adds_missing_rule_files() {
     fs::create_dir_all(&skill_dir).expect("create existing skill dir");
     let bundled_skill = fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("assets/skills/everr-setup-telemetry/SKILL.md"),
+            .join("../../skills/everr-setup-telemetry/SKILL.md"),
     )
     .expect("read bundled skill");
     fs::write(skill_dir.join("SKILL.md"), bundled_skill).expect("write existing skill");
@@ -135,7 +135,7 @@ fn install_overwrites_modified_rule() {
     fs::create_dir_all(skill_dir.join("rules")).expect("create existing skill dir");
     let bundled_skill = fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("assets/skills/everr-setup-telemetry/SKILL.md"),
+            .join("../../skills/everr-setup-telemetry/SKILL.md"),
     )
     .expect("read bundled skill");
     fs::write(skill_dir.join("SKILL.md"), bundled_skill).expect("write existing skill");

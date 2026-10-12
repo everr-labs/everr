@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/build-and-push-images.yml
       - packages/app/**
+      - skills/everr-use-telemetry/rules/schema.md
       - packages/datemath/**
       - packages/docs/**
       - packages/otel-errors/**
@@ -54,6 +55,7 @@ jobs:
             app:
               - .github/workflows/build-and-push-images.yml
               - packages/app/**
+              - skills/everr-use-telemetry/rules/schema.md
               - packages/datemath/**
               - packages/otel-errors/**
               - packages/otel-web/**
