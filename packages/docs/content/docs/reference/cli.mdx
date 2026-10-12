@@ -76,6 +76,9 @@ The `--agent` option can be repeated. With no Agent filter, a command targets al
   - Exits with code 0 when both belong to the same ready instance, or code 2 otherwise.
 - `everr local query "<SQL>"`: run read-only SQL against local telemetry
   - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
+- `everr local ui`: open the running local UI in the default browser and print `ui: <url>`
+  - Requires the same matching ready collector and UI instance as `local status`. Otherwise, reports the same diagnostics and exits with code 2, without starting services.
+  - If browser launch fails, exits with code 1 and prints the URL to open manually.
 - `everr wrap -- <command>`: run a command and capture its stdout, stderr, and exit status as local logs
   - The command only starts when the local Collector is available.
   - The CLI preserves the command's exit code.

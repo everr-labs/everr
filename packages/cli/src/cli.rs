@@ -141,12 +141,17 @@ pub enum LocalSubcommand {
     Query(TelemetryQueryArgs),
     /// Show the local Collector status and endpoints
     Status,
+    /// Open the running local UI in the default browser
+    Ui,
 }
 
 impl LocalSubcommand {
     fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
         match self {
-            LocalSubcommand::Start(_) | LocalSubcommand::Stop | LocalSubcommand::Status => true,
+            LocalSubcommand::Start(_)
+            | LocalSubcommand::Stop
+            | LocalSubcommand::Status
+            | LocalSubcommand::Ui => true,
             LocalSubcommand::Query(args) => {
                 telemetry_query_prints_human_stdout(args, stdout_is_terminal)
             }
@@ -610,6 +615,22 @@ mod tests {
             panic!("expected local command");
         };
         assert!(matches!(local.command, LocalSubcommand::Status));
+    }
+
+    #[test]
+    fn parses_local_ui_as_human_output_without_arguments() {
+        let args = ["everr", "local", "ui"];
+        let cli = Cli::try_parse_from(args).expect("valid command");
+        assert!(cli.prints_human_stdout(true));
+        assert!(cli.prints_human_stdout(false));
+        assert!(matches!(
+            cli.command,
+            Commands::Local(super::LocalArgs {
+                command: LocalSubcommand::Ui
+            })
+        ));
+        assert!(Cli::try_parse_from(args.into_iter().chain(["extra"])).is_err());
+        assert!(Cli::try_parse_from(args.into_iter().chain(["--json"])).is_err());
     }
 
     #[test]

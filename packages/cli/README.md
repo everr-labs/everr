@@ -12,4 +12,6 @@ Detached supervisor and collector output goes to `~/Library/Logs/everr/local.log
 
 `everr local status` checks both `/health` responses for the expected service, protocol, version, readiness, and instance ID. It prints the same OTLP, SQL, and UI rows as startup, showing a URL for a running service or its state in place of the URL otherwise. It distinguishes starting, stopped, unrecognized listeners, and connection failures, warns about mismatched instances, and exits with code 2 unless the collector and UI are a matching ready instance.
 
+`everr local ui` opens the configured local UI URL in your default browser and prints `ui: <url>`. It requires the same matching ready instance as `local status`. Otherwise, it reports the same diagnostics and exits with code 2, without starting services. If browser launch fails, it exits with code 1 and prints the URL to open manually.
+
 Install bundled agent skills for your project with `everr skills install --all --project`. Start local telemetry with `everr local start`. Cloud sign-in and ingest keys are separate follow-up steps when you want hosted telemetry or CI.

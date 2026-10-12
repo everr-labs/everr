@@ -143,6 +143,7 @@ fn local_help_lists_collector_commands() {
         .stdout(contains("start"))
         .stdout(contains("query"))
         .stdout(contains("status"))
+        .stdout(contains("Open the running local UI in the default browser"))
         .stdout(predicates::str::contains("\n  endpoint").not());
 
     env.command()
@@ -150,6 +151,16 @@ fn local_help_lists_collector_commands() {
         .assert()
         .success()
         .stdout(contains("--quiet"));
+}
+
+#[test]
+fn local_ui_has_help() {
+    let env = CliTestEnv::new();
+    env.command()
+        .args(["local", "ui", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("Usage: everr local ui"));
 }
 
 #[test]
