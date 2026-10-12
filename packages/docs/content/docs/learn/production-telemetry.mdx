@@ -3,56 +3,43 @@ title: Send production telemetry
 description: Connect your deployed app to Everr Cloud and verify fresh traces or logs.
 ---
 
-Once you've [verified telemetry locally](/docs/learn/instrument-your-app), use the same instrumentation to understand your deployed app. Configure its production exporter for Everr Cloud and keep development pointed at the local collector. Everr's local collector does not forward data to Cloud.
+Once you've [verified telemetry locally](/docs/learn/instrument-your-app), use the same instrumentation to understand your deployed app. Configure its production exporter for Everr Cloud and keep development pointed at the local collector.
 
 ## Create an ingestion key
 
-In Home's **To production** step, choose the key for your runtime:
+Under [API Keys](https://app.everr.dev/api-keys), choose the key for your runtime:
 
-- **Server:** select **Create ingestion key**. The **Send telemetry** capability is preselected. Store the secret key in your deployment's secret manager; the full value is shown only once.
-- **Browser:** select **Create public browser key** and restrict it to your app's origins. Follow [Browser telemetry](/docs/guides/browser-telemetry) for client configuration.
+- **Server:**  create a new API Key selecting the **Send telemetry** flag
+- **Browser:** create a new Public Key and restrict it to your app's origins. Follow [Browser telemetry](/docs/guides/browser-telemetry) for client configuration.
 
-You can also create keys from **API keys** in the user menu. An organization admin or owner creates the keys; other members can use a key already configured for their deployment. Keep secret server keys out of source control, browser bundles, and agent prompts.
+API Keys are shared within the organization, and only admins can create them.
 
 ## Configure your deployed app
 
-If your agent set up telemetry, follow the **Telemetry** section in your project's README. It lists the endpoint, key variables, and activation steps used by your app. Ask for help with any remaining production configuration:
+If your agent set up telemetry, you should find a **Telemetry** section in your project's README. It lists the endpoint, key variables, and activation steps used by your app. Ask for help with any remaining production configuration:
 
 ```text
 /everr-setup-telemetry Prepare this app's production export to Everr Cloud using the existing instrumentation. Document the required deployment settings and how to verify ingestion.
 ```
 
-The OTLP/HTTP base endpoint is:
-
-```text
-https://ingest.everr.dev/
-```
-
-For a server SDK that reads the standard OpenTelemetry environment variables, configure these in your deployment:
-
+If you're configuring production manually, here are the common environment variables: 
 ```sh
 export OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.everr.dev/
-export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer%20<your-ingestion-key>"
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <ingestion-key>"
 ```
 
-Replace the key placeholder through your secret manager. `%20` encodes the space in the bearer header for the [OpenTelemetry header environment variable](https://opentelemetry.io/docs/specs/otel/protocol/exporter/#specifying-headers-via-environment-variables). If your instrumentation configures the exporter in code, use the settings that code reads instead and pass the header as `Authorization: Bearer <your-ingestion-key>`. Set `deployment.environment.name` to `production` and keep the same stable `service.name` used in local development.
+The `ingestion-key` is the API Key generated above. Don't forget to set `deployment.environment.name` to `production` and keep the same stable `service.name` used in local development. 
 
 Rebuild, redeploy, or restart as required by your runtime. If you already run your own OpenTelemetry Collector in production, configure its exporter instead. See [Production telemetry](/docs/guides/production-telemetry) for collector configuration and authentication details.
 
 ## Verify Cloud ingestion
 
-Trigger a request or job covered by your production instrumentation. Open [Everr Cloud](https://app.everr.dev/), select the organization that owns the ingestion key, and find fresh data for your service and production environment in **Traces** or **Logs**.
+Trigger a request or job covered by your production instrumentation and be sure your CLI is acting as that organization with `everr cloud login`.
 
-For CLI verification, sign in to that organization:
-
-```sh
-everr cloud login
-```
-
-CLI login gives you query access. The ingestion key authenticates your app's exporter; these are separate credentials.
-
-Replace `my-service` with your service name and query recent traces:
+Then, you can ask your AI agent:
+ ```
+/everr-use-telemetry verify cloud telemetry sent from production environment
+```  Or, use the CLI manually, replacing `my-service` with your service name:
 
 ```sh
 everr cloud query "$(cat <<'SQL'
@@ -67,10 +54,6 @@ SQL
 )"
 ```
 
-For logs, use the [log query from local verification](/docs/learn/instrument-your-app) with `everr cloud query` and filter for the production environment as above. Check that the rows match the action you performed in the deployed app. Creating a key or completing onboarding alone does not verify ingestion.
+Or, open [Everr Cloud](https://app.everr.dev/), select the organization that owns the ingestion key, and find fresh data for your service and production environment in **Traces** or **Logs**.
 
 If data is missing, check the deployed exporter settings and that the SDK has flushed. A `401` response means the key is missing, invalid, or lacks **Send telemetry**. With an agent, ask `everr-setup-telemetry` to trace the export and ingestion path.
-
-You can select **Finish onboarding** before deploying. When you're ready, return to this guide and your README's production instructions.
-
-**Next:** [Build your first dashboard](/docs/learn/first-dashboard).
