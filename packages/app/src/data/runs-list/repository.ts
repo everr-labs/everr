@@ -3,8 +3,7 @@ import { getRunFilterOptions, getRunsHistogram, getRunsList } from "./server";
 
 /**
  * Web app implementation of the shared runs explorer data source, backed by the
- * authenticated server functions. The web shows all org runs, so `onlyMine` is
- * ignored.
+ * authenticated server functions.
  */
 export const runsRepository: RunsRepositoryLike = {
   explorer: (input) =>

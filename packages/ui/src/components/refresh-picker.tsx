@@ -1,5 +1,5 @@
 import { ChevronDownIcon, RefreshCwIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 import {
@@ -40,13 +40,13 @@ export function RefreshPicker({
   onRefresh: () => void;
   isFetching: boolean;
 }) {
-  const [spinning, setSpinning] = useState(false);
+  const [wasFetching, setWasFetching] = useState(isFetching);
+  const [spinning, setSpinning] = useState(isFetching);
 
-  useEffect(() => {
-    if (isFetching) {
-      setSpinning(true);
-    }
-  }, [isFetching]);
+  if (wasFetching !== isFetching) {
+    setWasFetching(isFetching);
+    if (isFetching) setSpinning(true);
+  }
 
   const handleAnimationIteration = useCallback(() => {
     if (!isFetching) {

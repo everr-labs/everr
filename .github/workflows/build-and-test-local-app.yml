@@ -1,0 +1,79 @@
+name: Build & Test Local App
+
+permissions:
+  contents: read
+
+concurrency:
+  # For pushes, this lets concurrent runs happen, so each push gets a result.
+  # But for other events (e.g. PRs), we can cancel the previous runs.
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/build-and-test-local-app.yml
+      - .nvmrc
+      - Cargo.toml
+      - Cargo.lock
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - packages/local-app/**
+      - packages/cli/**
+      - packages/otel-web/**
+      - packages/telemetry-explorer/**
+      - packages/ui/**
+
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-and-test-local-app.yml
+      - .nvmrc
+      - Cargo.toml
+      - Cargo.lock
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - packages/local-app/**
+      - packages/cli/**
+      - packages/otel-web/**
+      - packages/telemetry-explorer/**
+      - packages/ui/**
+
+jobs:
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck local frontend
+        run: pnpm --filter @everr/local-app typecheck
+
+      - name: Test local frontend
+        run: pnpm --filter @everr/local-app test
+
+      - name: Test CLI build scripts
+        run: pnpm --filter @everr/cli test
+
+      - name: Build local frontend
+        run: pnpm --filter @everr/local-app build

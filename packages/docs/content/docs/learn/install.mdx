@@ -1,9 +1,9 @@
 ---
 title: Install Everr
-description: Step 1, install the CLI and run first-time setup.
+description: Step 1, install the CLI and connect your project to your coding agent.
 ---
 
-This is step 1 of getting started with Everr: install the CLI and finish first-time setup. By the end you'll have `everr` on your PATH, authenticated, and ready for step 2: instrumenting your app.
+Start with Everr on your machine: install the CLI, connect your project to your coding agent, and verify local telemetry before preparing production. If you prefer manual instrumentation, install the CLI and continue to the [instrumentation guide](/docs/learn/instrument-your-app).
 
 ## Install the CLI
 
@@ -13,32 +13,34 @@ Run the installer from a terminal:
 curl -fsSL https://everr.dev/install.sh | sh
 ```
 
-Expected output: the installer adds the `everr` CLI to your PATH and, if your terminal is interactive, runs `everr setup` automatically.
+Expected output: the installer adds the `everr` CLI to your PATH and prints how to start local telemetry.
 
 For the full list of supported platforms and every install flag, see the [CLI reference](/docs/reference/cli).
 
-## Finish setup
+Local telemetry works without signing in or creating an ingest key. Install agent skills for your project as described below.
 
-If setup didn't run automatically, or was interrupted, run it yourself:
+When you want Cloud telemetry or CI visibility later, run `everr cloud login`.
 
-```sh
-everr setup
-```
+## Start local telemetry
 
-Setup connects GitHub and authorizes the CLI.
+Run `everr local start` to start the local collector and open its browser UI. Keep that terminal session running while you work locally. For an agent, use `everr local start -d --no-open` to run in the background without opening a browser. Detached mode survives closing the terminal; stop it with `everr local stop` when you're finished.
 
-If the GitHub App is installed for your repository, Everr starts receiving CI runs from new workflow executions automatically. Trigger or wait for a new run, then check the dashboard or CLI once ingestion catches up.
+If Everr is already running, the command prints its endpoints and exits successfully. If it was started in the foreground, keep the original terminal session running. Use the `ui:` URL printed by `everr local start` or `everr local status` to reopen the UI.
 
-## Keep Everr Desktop open
-
-Everr Desktop runs your local Collector, the service that receives telemetry on your machine. Keep it open while you work locally; the rest of this path assumes the Collector is running. If it ever isn't, the `everr-setup-telemetry` skill will start it for you.
+The browser UI is bundled with the CLI. Run `everr upgrade` to update both.
 
 ## Install skills for your Agent
 
-Skills teach your Agent when and how to use Everr. Install them globally so every project picks them up:
+Skills teach your agent when and how to use Everr. From your project directory, install the bundled skills for that project:
 
 ```sh
-everr skills install --all --global
+everr skills install --all --project
 ```
+
+To explicitly make the skills available across projects instead, use `everr skills install --all --global`.
+
+The Cloud Home guides you through one step at a time, from installation through production. After installing the CLI, **Instrument your app** contains both the project-skills command and agent setup command, or the manual instrumentation guide. Select **Check my telemetry** when instrumentation is ready. **Verify locally** walks you through opening the local UI, exercising the app, and finding fresh data before continuing to production. Previous steps remain available to review while onboarding is incomplete. Copying a command does not run it. You can finish onboarding before deploying. When you're ready for production, follow the instructions in your project's README or the [production telemetry guide](/docs/learn/production-telemetry), and create any required keys from **API keys** in the user menu.
+
+The onboarding stays in your organization's Home until you select **Finish onboarding**, even if the organization already has telemetry or CI data. Completion is shared by all members of the organization. Your current step and AI or manual choice are saved in this browser, separately for each user and organization.
 
 **Next:** [Instrument your app](/docs/learn/instrument-your-app).

@@ -83,15 +83,8 @@ case ":${PATH}:" in
       echo "  Added ${INSTALL_DIR} to your PATH in ${rc}"
       echo "  Restart your shell or run: ${line}"
     fi
-
-    # Make everr available on PATH for the guided setup below.
-    PATH="${INSTALL_DIR}:${PATH}"
-    export PATH
     ;;
 esac
 
-# --- Guided setup ---
-if [ -t 1 ]; then
-  echo
-  "${INSTALL_PATH}" setup </dev/tty
-fi
+echo
+echo "Start local telemetry: everr local start"

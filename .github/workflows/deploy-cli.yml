@@ -1,0 +1,185 @@
+name: Deploy CLI
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    tags: ["@everr/cli@*"]
+
+jobs:
+  build:
+    name: Build CLI ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            runner: blacksmith-6vcpu-macos-15
+            asset: everr
+          - name: linux-arm64
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
+            asset: everr-linux-arm64
+          - name: linux-x86_64
+            runner: ubuntu-24.04
+            asset: everr-linux-x86_64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Verify CLI release tag
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const { version } = JSON.parse(readFileSync('packages/cli/package.json', 'utf8'));
+          if (process.env.GITHUB_REF_NAME !== `@everr/cli@${version}`) {
+            throw new Error('Release tag does not match the CLI package version');
+          }
+          JS
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache-dependency-path: collector/**/go.sum
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @everr/cli test:rust
+      - name: Import Apple Developer ID certificate
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          certificate_path="$RUNNER_TEMP/everr-developer-id.p12"
+          keychain_path="$RUNNER_TEMP/everr-build.keychain-db"
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$certificate_path" 2>/dev/null || \
+            printf '%s' "$APPLE_CERTIFICATE" | base64 -D > "$certificate_path"
+
+          security create-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$keychain_path"
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/productsign
+          security list-keychains -d user -s "$keychain_path"
+          security default-keychain -s "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$APPLE_KEYCHAIN_PASSWORD" \
+            "$keychain_path"
+
+          cert_info="$(security find-identity -v -p codesigning "$keychain_path" | awk '/Developer ID Application/ { print; exit }')"
+          if [[ -z "$cert_info" ]]; then
+            echo "No Developer ID Application identity was found in the imported certificate."
+            security find-identity -v -p codesigning "$keychain_path"
+            exit 1
+          fi
+
+          cert_id="$(printf '%s' "$cert_info" | awk -F'"' '{print $2}')"
+          {
+            echo "APPLE_SIGNING_IDENTITY=$cert_id"
+            echo "APPLE_KEYCHAIN_PATH=$keychain_path"
+          } >> "$GITHUB_ENV"
+
+      - name: Build CLI with local UI and collector
+        env:
+          EVERR_CI_JOB_NAME: Build CLI ${{ matrix.name }}
+          EVERR_INGEST_KEY: ${{ secrets.EVERR_INGEST_KEY }}
+          EVERR_RELEASE_SHA: ${{ github.sha }}
+        run: pnpm --filter @everr/cli build:release
+      - name: Remove temporary signing keychain
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          if [[ -n "${APPLE_KEYCHAIN_PATH:-}" ]]; then
+            security delete-keychain "$APPLE_KEYCHAIN_PATH"
+          fi
+      - name: Stage binary
+        shell: bash
+        run: |
+          mkdir -p target/cli-release
+          cp packages/docs/public/everr "target/cli-release/${{ matrix.asset }}"
+          chmod +x "target/cli-release/${{ matrix.asset }}"
+          cd target/cli-release
+          shasum -a 256 "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
+      - name: Smoke test
+        run: ./target/cli-release/${{ matrix.asset }} --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: everr-cli-${{ matrix.name }}-${{ github.sha }}
+          path: target/cli-release
+          if-no-files-found: error
+          compression-level: 0
+
+  package-release:
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: everr-cli-*-${{ github.sha }}
+          path: target/cli-release
+          merge-multiple: true
+      - name: Create release metadata
+        id: version
+        run: |
+          node packages/cli/scripts/release-metadata.ts target/cli-release
+          echo "version=$(node -p "require('./packages/cli/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Verify payload
+        run: |
+          cd target/cli-release
+          sha256sum --check SHA256SUMS
+          test -f everr
+          test -f everr-linux-arm64
+          test -f everr-linux-x86_64
+      - uses: actions/attest@v4
+        with:
+          subject-checksums: target/cli-release/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: everr-cli-release-${{ steps.version.outputs.version }}
+          path: target/cli-release
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          app-id: ${{ secrets.EVERR_DEPLOY_BOT_APP_ID }}
+          private-key: ${{ secrets.EVERR_DEPLOY_BOT_PRIVATE_KEY }}
+          owner: everr-labs
+          repositories: everr-deploy
+      - uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: everr-labs/everr-deploy
+          event-type: cli-release
+          client-payload: |
+            {"source_repo":"${{ github.repository }}","run_id":"${{ github.run_id }}","sha":"${{ github.sha }}","version":"${{ steps.version.outputs.version }}","artifact_name":"everr-cli-release-${{ steps.version.outputs.version }}"}

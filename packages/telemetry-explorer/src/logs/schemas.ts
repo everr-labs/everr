@@ -1,4 +1,7 @@
-import { TimeRangeSchema } from "@everr/ui/lib/time-range";
+import {
+  TimeRangeSchema,
+  TimeRangeSearchSchema,
+} from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
   type AttributeKey,
@@ -7,6 +10,7 @@ import {
   attributesField,
   attributeValuesInputSchema,
 } from "../attribute-filter/schemas";
+import { ExploreSearchShape } from "../filters/explore-search";
 
 export const LogLevelSchema = z.enum([
   "error",
@@ -50,6 +54,17 @@ export const LogsSearchFiltersShape = {
   services: z.array(z.string()).default([]),
   attributes: attributesField(["resource", "log", "scope"]),
 } as const;
+
+// Service selection is shared across Explore pages through the `service` param.
+export const LogsSearchSchema = TimeRangeSearchSchema.extend({
+  q: z.string().optional(),
+  ...LogsSearchFiltersShape,
+  ...ExploreSearchShape,
+  traceId: z.string().optional(),
+  showVolume: z.boolean().default(true),
+}).omit({ services: true });
+
+export type LogsSearch = z.infer<typeof LogsSearchSchema>;
 
 const LogsFilterShape = {
   timeRange: TimeRangeSchema,

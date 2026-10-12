@@ -59,11 +59,6 @@ function buildRunsFilterClause(data: RunsFilter, organizationId: string) {
     clauses.push(`run_id::text = $${params.length}`);
   }
 
-  if (data.authorEmails?.length) {
-    params.push(data.authorEmails);
-    clauses.push(`author_email = ANY($${params.length})`);
-  }
-
   return {
     whereClause: clauses.join("\n          AND "),
     params,

@@ -7,7 +7,7 @@ truth: for the table's exact shape read
 `clickhouse/init/12-create-alert-events.sql`, and for the caller-facing
 reference (every column, the event-type table, worked queries) read the
 shipped skill file
-`crates/everr-core/assets/skills/everr-use-telemetry/rules/alert-history.md`.
+`packages/cli/assets/skills/everr-use-telemetry/rules/alert-history.md`.
 That file is the artifact this design exists to produce, so it is kept in
 lockstep with the DDL and nothing here restates it.
 
@@ -334,7 +334,7 @@ the whole alerting stack, with plain commits rather than a cascade.
 | Concern | File |
 |---|---|
 | Table DDL | `clickhouse/init/12-create-alert-events.sql` |
-| Caller-facing reference | `crates/everr-core/assets/skills/everr-use-telemetry/rules/alert-history.md` |
+| Caller-facing reference | `packages/cli/assets/skills/everr-use-telemetry/rules/alert-history.md` |
 | Row builders and the insert | `server/alerting/history/clickhouse.ts` |
 | Deterministic history ids | `data/alerting/history/ids.ts` |
 | Sanitizing and length caps | `server/alerting/history/content.ts` |

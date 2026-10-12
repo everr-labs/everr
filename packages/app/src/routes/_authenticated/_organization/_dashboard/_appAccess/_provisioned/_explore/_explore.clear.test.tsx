@@ -16,6 +16,8 @@
  * value (clears never stick). This test reconstructs the real middleware chain
  * and exercises set / clear / cross-route persistence end to end.
  */
+
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -30,10 +32,6 @@ import {
 import { render, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import {
-  ExploreSearchRetainShape,
-  ExploreSearchShape,
-} from "@/lib/explore-search";
 
 function buildRouter(initialEntries: string[]) {
   const rootRoute = createRootRoute({ component: Outlet });
@@ -51,7 +49,7 @@ function buildRouter(initialEntries: string[]) {
       from: z.string().optional(),
       to: z.string().optional(),
       refresh: z.string().optional(),
-      ...ExploreSearchRetainShape,
+      ...ExploreSearchShape,
     }),
     search: {
       middlewares: [

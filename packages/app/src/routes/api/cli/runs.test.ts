@@ -29,7 +29,7 @@ describe("/api/cli/runs", () => {
 
     const response = await getHandler()({
       request: new Request(
-        "http://localhost/api/cli/runs?repo=everr-labs%2Feverr&limit=15&offset=30",
+        "http://localhost/api/cli/runs?repo=everr-labs%2Feverr&branch=main&conclusion=failure&workflowName=CI&runId=123&limit=15&offset=30",
       ),
     });
 
@@ -43,10 +43,10 @@ describe("/api/cli/runs", () => {
         limit: 15,
         offset: 30,
         repos: ["everr-labs/everr"],
-        branches: undefined,
-        conclusions: undefined,
-        workflowNames: undefined,
-        runId: undefined,
+        branches: ["main"],
+        conclusions: ["failure"],
+        workflowNames: ["CI"],
+        runId: "123",
       },
     });
 
@@ -55,14 +55,20 @@ describe("/api/cli/runs", () => {
       from: "now-7d",
       to: "now",
       repo: "everr-labs/everr",
+      branch: "main",
+      conclusion: "failure",
+      workflowName: "CI",
+      runId: "123",
       limit: 15,
       offset: 30,
     });
   });
 
-  it("rejects removed legacy query parameters", async () => {
+  it("rejects unsupported desktop filter options", async () => {
     const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/runs?commit=abc123"),
+      request: new Request(
+        "http://localhost/api/cli/runs?repos=everr-labs%2Feverr&authorEmails=user%40example.test",
+      ),
     });
 
     expect(response.status).toBe(400);

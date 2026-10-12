@@ -39,7 +39,6 @@ const RunsFilterShape = {
   conclusions: z.array(z.enum(RUN_STATUS_FILTERS)).optional(),
   workflowNames: z.array(z.string()).optional(),
   runId: z.string().optional(),
-  authorEmails: z.array(z.string()).optional(),
 };
 
 export const RunsListInputSchema = z.object({

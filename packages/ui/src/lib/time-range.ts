@@ -13,9 +13,42 @@ export const DEFAULT_TIME_RANGE: TimeRange = {
 
 const datemath = z.string().refine(isValid);
 
+// Route schemas keep these optional so absent URL values stay absent. The
+// policies preserve each consumer's existing handling of malformed search.
+export const TimeRangeSearchSchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  refresh: z.string().optional(),
+});
+
+export const StrictTimeRangeSearchSchema = TimeRangeSearchSchema.extend({
+  from: datemath.optional(),
+  to: datemath.optional(),
+});
+
+const optionalDatemath = z.preprocess(
+  (value) => (typeof value === "string" && isValid(value) ? value : undefined),
+  z.string().optional(),
+);
+
+export const LenientTimeRangeSearchSchema = TimeRangeSearchSchema.extend({
+  from: optionalDatemath,
+  to: optionalDatemath,
+  refresh: z.preprocess(
+    (value) => (typeof value === "string" ? value : undefined),
+    z.string().optional(),
+  ),
+});
+
 export const TimeRangeSchema = z.object({
   from: datemath.catch(DEFAULT_TIME_RANGE.from),
   to: datemath.catch(DEFAULT_TIME_RANGE.to),
+});
+
+export const ResolvedTimeRangeSearchSchema = TimeRangeSchema.extend({
+  from: TimeRangeSchema.shape.from.default(DEFAULT_TIME_RANGE.from),
+  to: TimeRangeSchema.shape.to.default(DEFAULT_TIME_RANGE.to),
+  refresh: z.string().default("off"),
 });
 
 export function toClickHouseDateTime(date: Date): string {

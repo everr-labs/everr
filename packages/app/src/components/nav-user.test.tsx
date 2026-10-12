@@ -155,10 +155,9 @@ describe("NavUser", () => {
 
     expect(await screen.findByText("Organization settings")).toBeVisible();
     expect(screen.getByText("Account & privacy")).toBeVisible();
-    const downloadItem = screen.getByRole("menuitem", {
-      name: "Download App",
-    });
-    expect(downloadItem.querySelector(".sr-only")).toBeNull();
+    expect(
+      screen.queryByRole("menuitem", { name: "Download App" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Billing details")).not.toBeInTheDocument();
     expect(
       screen.getByRole("menuitem", { name: "Plan & Billing" }),

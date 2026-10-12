@@ -6,7 +6,6 @@ require (
 	github.com/everr-labs/everr/collector/exporter/chdbexporter v0.0.0-00010101000000-000000000000
 	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0
 	github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0-00010101000000-000000000000
-	github.com/everr-labs/everr/collector/internal/localgateway/health v0.0.0-00010101000000-000000000000
 	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.66.0
@@ -198,7 +197,5 @@ replace github.com/everr-labs/everr/collector/exporter/chdbexporter => ../../exp
 replace github.com/everr-labs/everr/collector/internal/localgateway/chdb => ../../internal/localgateway/chdb
 
 replace github.com/everr-labs/everr/collector/internal/localgateway/config => ../../internal/localgateway/config
-
-replace github.com/everr-labs/everr/collector/internal/localgateway/health => ../../internal/localgateway/health
 
 replace github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp => ../../internal/localgateway/sqlhttp

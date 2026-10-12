@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// These vectors are shared with the desktop build scripts, which derive the
+// These vectors are shared with the CLI build scripts, which derive the
 // same ids to attach build-phase spans to workflow traces. Keep them in sync
-// with packages/desktop-app/scripts/build-telemetry.test.ts; a change to the
+// with packages/cli/scripts/build-telemetry.test.ts; a change to the
 // derivation on either side must fail that side's suite.
 func TestBuildTelemetrySharedVectors(t *testing.T) {
 	traceID, err := generateTraceID(123456, 9876543210, 1)

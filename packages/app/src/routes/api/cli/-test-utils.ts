@@ -1,31 +1,6 @@
-import { vi } from "vitest";
-
 type RouteLike = {
   options: unknown;
 };
-
-type MockedDbLike = {
-  select: ReturnType<typeof vi.fn>;
-};
-
-/**
- * Sets up the mocked `db.select().from().where()` chain to resolve with the
- * given installation rows. Each test file must pass its own `vi.mocked(db)`
- * so the per-file `vi.mock("@/db/client", ...)` hoisting remains intact.
- */
-export function mockDbInstallations(
-  mockedDb: MockedDbLike,
-  installations: Array<{ installationId: number; status: string }>,
-) {
-  const where = vi.fn().mockResolvedValue(
-    installations.map((i) => ({
-      installationId: i.installationId,
-      status: i.status,
-    })),
-  );
-  const from = vi.fn().mockReturnValue({ where });
-  vi.mocked(mockedDb.select).mockReturnValue({ from } as never);
-}
 
 type HandlerMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -51,7 +26,7 @@ export function getRouteHandler<T>(
 }
 
 /** Default organization id used across CLI route tests. */
-export const CLI_TEST_ORG_ID = "org-42";
+const CLI_TEST_ORG_ID = "org-42";
 
 /**
  * Builds the minimal `context` object that CLI route handlers expect after

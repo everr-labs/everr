@@ -1,5 +1,5 @@
+import { ExploreSearchSchema } from "@everr/telemetry-explorer/filters";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { ExploreSearchSchema } from "@/lib/explore-search";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore",

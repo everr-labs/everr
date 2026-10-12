@@ -1,3 +1,5 @@
+import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
+import { TraceSearchParamsSchema } from "@everr/telemetry-explorer/traces";
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
 import { formatTimeRangeDisplay } from "@everr/ui/components/time-range-picker";
 import {
@@ -12,7 +14,15 @@ import { describe, expect, it } from "vitest";
 import {
   applyRouteTimeDefaults,
   ResolvedTimeRangeSearchSchema,
+  TimeRangeSearchSchema,
 } from "./time-range";
+
+it("preserves each explorer's handling of invalid time-range URLs", () => {
+  const search = { from: "invalid-time" };
+  expect(TimeRangeSearchSchema.parse(search).from).toBe("invalid-time");
+  expect(TraceSearchParamsSchema.safeParse(search).success).toBe(false);
+  expect(ErrorIssueSearchSchema.parse(search).from).toBeUndefined();
+});
 
 describe("TimeRangeSchema", () => {
   it("accepts valid datemath expressions", () => {

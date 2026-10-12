@@ -89,7 +89,7 @@
   // via `Pick<>` interfaces are kept even when no current consumer is visible.
   "publicPackages": [
     "@everr/ui",
-    "@everr/logs-explorer",
+    "@everr/telemetry-explorer",
     // Published to npm: the exported surface is the product, so exports with
     // no in-repo consumer are intentional.
     "@everr/otel-errors",

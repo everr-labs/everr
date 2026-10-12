@@ -43,6 +43,7 @@ export interface LogsExplorerSearch {
 export interface LogsExplorerProps {
   repo: LogsRepositoryLike;
   timeRange: TimeRange;
+  refresh?: string;
   search: LogsExplorerSearch;
   environment?: string[];
   // The top zone of the rail: Service and Environment. The host app supplies it,
@@ -188,6 +189,7 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton() {
 export function LogsExplorer({
   repo,
   timeRange,
+  refresh = "",
   search,
   environment = [],
   persistentFilters,
@@ -208,22 +210,26 @@ export function LogsExplorer({
 
   // Optimistic local mirror of the search filter state. Filter toggles update
   // synchronously so the UI feels instant; onSearchChange runs alongside.
-  const [filters, setFilters] = useState(() => ({
-    q,
-    levels,
-    services,
-    attributes,
-    traceId,
+  const [filterState, setFilterState] = useState(() => ({
+    search,
+    value: { q, levels, services, attributes, traceId },
   }));
 
-  // Sync from search prop when it changes externally (back/forward, link nav, time range).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    setFilters({ q, levels, services, attributes, traceId });
-  }, [search]);
+  // Reconcile external navigation before children render, retaining optimistic
+  // edits until the route supplies a new search object.
+  const filters =
+    filterState.search === search
+      ? filterState.value
+      : { q, levels, services, attributes, traceId };
+  if (filterState.search !== search) {
+    setFilterState({ search, value: filters });
+  }
 
   const applyFilters = (updates: Partial<typeof filters>) => {
-    setFilters((prev) => ({ ...prev, ...updates }));
+    setFilterState((previous) => ({
+      ...previous,
+      value: { ...previous.value, ...updates },
+    }));
     onSearchChange({ ...search, ...updates });
   };
 
@@ -246,20 +252,28 @@ export function LogsExplorer({
     error,
     refetch,
   } = useInfiniteQuery({
-    ...logsExplorerInfiniteOptions(repo, { ...filterInput, limit: PAGE_SIZE }),
+    ...logsExplorerInfiniteOptions(
+      repo,
+      { ...filterInput, limit: PAGE_SIZE },
+      refresh,
+    ),
     placeholderData: keepPreviousData,
   });
 
   const { data: totals } = useQuery({
-    ...logsTotalsOptions(repo, filterInput),
+    ...logsTotalsOptions(repo, filterInput, refresh),
     placeholderData: keepPreviousData,
   });
 
   const { data: histogram = [], isPending: isHistogramPending } = useQuery({
-    ...logsHistogramOptions(repo, {
-      ...filterInput,
-      histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
-    }),
+    ...logsHistogramOptions(
+      repo,
+      {
+        ...filterInput,
+        histogramBuckets: DEFAULT_HISTOGRAM_BUCKETS,
+      },
+      refresh,
+    ),
     enabled: showVolume,
     placeholderData: keepPreviousData,
   });

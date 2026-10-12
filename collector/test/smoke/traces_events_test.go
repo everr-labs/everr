@@ -26,14 +26,14 @@ func TestOTLPSpanEventsAndLinksRoundTrip(t *testing.T) {
 		t.Skipf("collector binary not built: %v", err)
 	}
 
-	otlpPort, healthPort, sqlPort := freeTCPPort(t), freeTCPPort(t), freeTCPPort(t)
+	otlpPort, sqlPort := freeTCPPort(t), freeTCPPort(t)
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "collector.log")
 	output, err := os.Create(logPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(binary, gatewayArgs(filepath.Join(dir, "chdb"), otlpPort, healthPort, sqlPort)...)
+	cmd := exec.Command(binary, gatewayArgs(filepath.Join(dir, "chdb"), otlpPort, sqlPort)...)
 	withChDBLibEnv(t, cmd)
 	cmd.Stdout, cmd.Stderr = output, output
 	if err := cmd.Start(); err != nil {
@@ -49,7 +49,7 @@ func TestOTLPSpanEventsAndLinksRoundTrip(t *testing.T) {
 			t.Logf("collector output:\n%s", logs)
 		}
 	})
-	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/", healthPort), 10*time.Second)
+	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/health", sqlPort), 10*time.Second)
 
 	payload := strings.ReplaceAll(spanEventsPayload, "$START", strconv.FormatInt(time.Now().UnixNano(), 10))
 	payload = strings.ReplaceAll(payload, "$END", strconv.FormatInt(time.Now().Add(time.Millisecond).UnixNano(), 10))

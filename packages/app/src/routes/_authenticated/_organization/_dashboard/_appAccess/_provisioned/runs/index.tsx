@@ -39,15 +39,12 @@ function RunsListPage() {
       repo={runsRepository}
       timeRange={timeRange}
       // The web shows all org runs and doesn't expose the "mine" filter, so
-      // `onlyMine` is a constant and isn't part of the URL schema.
-      showMineFilter={false}
       search={{
         runId: search.runId,
         repos: search.repos,
         branches: search.branches,
         conclusions: search.conclusions,
         workflowNames: search.workflowNames,
-        onlyMine: false,
         showVolume: search.showVolume,
       }}
       // Each filter mutation pushes a history entry so Back undoes one change at

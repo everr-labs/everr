@@ -2,6 +2,7 @@ import {
   ErrorIssueSearchSchema,
   ErrorIssues,
 } from "@everr/telemetry-explorer/errors";
+import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import {
   createFileRoute,
@@ -13,7 +14,6 @@ import {
 import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
-import { ExploreSearchShape } from "@/lib/explore-search";
 
 const RouteSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
 const defaultSearch = RouteSearchSchema.parse({});

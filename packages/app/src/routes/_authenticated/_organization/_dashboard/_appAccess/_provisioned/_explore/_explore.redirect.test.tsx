@@ -55,7 +55,10 @@ vi.mock("@/data/traces/remote-repo", () => ({
   remoteTracesRepo: {},
 }));
 
-vi.mock("@everr/telemetry-explorer/filters", () => ({
+vi.mock("@everr/telemetry-explorer/filters", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@everr/telemetry-explorer/filters")
+  >()),
   ExploreGlobalFilters: ({
     onServiceChange,
   }: {

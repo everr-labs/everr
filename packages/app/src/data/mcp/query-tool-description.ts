@@ -1,6 +1,6 @@
 // The schema half is shared with the everr-use-telemetry skill, so the MCP tool
 // and `everr cloud query` agents read the same tables, units, and recipes.
-import schema from "../../../../../crates/everr-core/assets/skills/everr-use-telemetry/rules/schema.md?raw";
+import schema from "../../../../cli/assets/skills/everr-use-telemetry/rules/schema.md?raw";
 
 // The SQL API's result cap is sized for dashboards. An LLM pays for every row
 // in context, so the MCP tool shows far less and says so.
