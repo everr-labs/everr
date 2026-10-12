@@ -3,12 +3,76 @@ import { afterEach, expect, it, vi } from "vitest";
 import { TraceFlamegraph } from "./flamegraph";
 import { buildTraceModel } from "./model";
 import { computeVisualLayout } from "./rendering/compute-visual-layout";
+import type { SpanRect } from "./rendering/types";
 
-const mocks = vi.hoisted(() => ({ draw: vi.fn() }));
+const mocks = vi.hoisted(() => ({ draw: vi.fn(), rects: [] as SpanRect[] }));
 vi.mock("./rendering/use-flamegraph-draw", () => ({
-  useFlamegraphDraw: () => mocks.draw,
+  useFlamegraphDraw: ({
+    spanRectsRef,
+  }: {
+    spanRectsRef: { current: SpanRect[] };
+  }) => {
+    spanRectsRef.current = mocks.rects;
+    return mocks.draw;
+  },
 }));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  mocks.rects = [];
+});
+
+it("keeps a partially visible clicked bar in place while revealing external selections", () => {
+  vi.stubGlobal("PointerEvent", MouseEvent);
+  const props = {
+    model: buildTraceModel([]),
+    layout: {
+      ...computeVisualLayout([]),
+      spanToVisualRow: { clicked: 2, external: 20 },
+    },
+    matchingIds: new Set<string>(),
+    filterActive: false,
+    colorBy: "service.name",
+    range: { start: 0, end: 1000 },
+    onRangeChange: vi.fn(),
+    onSelect: vi.fn(),
+  };
+  mocks.rects = [
+    {
+      span: {
+        spanId: "clicked",
+        parentSpanId: "",
+        name: "clicked",
+        timestamp: 0,
+        durationNano: 1000,
+        hasError: false,
+        resource: {},
+        attributes: {},
+        event: [],
+      },
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 12,
+      level: 2,
+    },
+  ];
+  const view = render(<TraceFlamegraph {...props} />);
+  const canvas = view.getByRole("img");
+  const viewport = view.container.querySelector<HTMLElement>(
+    '[data-slot="scroll-area-viewport"]',
+  );
+  if (!viewport) throw new Error("Flamegraph viewport was not rendered");
+  Object.defineProperty(viewport, "clientHeight", { value: 100 });
+  Object.defineProperty(canvas, "releasePointerCapture", { value: vi.fn() });
+  viewport.scrollTop = 60;
+  fireEvent.pointerUp(canvas, { clientX: 50, clientY: 5 });
+  expect(props.onSelect).toHaveBeenCalledWith("clicked");
+  view.rerender(<TraceFlamegraph {...props} selectedSpanId="clicked" />);
+  expect(viewport.scrollTop).toBe(60);
+  view.rerender(<TraceFlamegraph {...props} selectedSpanId="external" />);
+  expect(viewport.scrollTop).toBe(430);
+});
 
 it("shows a time guide over empty canvas space and updates its time after zoom", () => {
   vi.stubGlobal("PointerEvent", MouseEvent);

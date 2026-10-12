@@ -72,6 +72,7 @@ export function TraceFlamegraph({
   const containerRef = useRef<HTMLDivElement>(null);
   const spanRectsRef = useRef<SpanRect[]>([]);
   const eventRectsRef = useRef<EventRect[]>([]);
+  const directSelectionRef = useRef<string | undefined>(undefined);
   const dragRef = useRef<{
     x: number;
     range: ViewRange;
@@ -104,6 +105,10 @@ export function TraceFlamegraph({
 
   // URL selection controls the external scroll surface, not local selection state.
   useLayoutEffect(() => {
+    if (selectedSpanId && selectedSpanId === directSelectionRef.current) {
+      directSelectionRef.current = undefined;
+      return;
+    }
     const row = selectedSpanId
       ? layout.spanToVisualRow[selectedSpanId]
       : undefined;
@@ -289,7 +294,10 @@ export function TraceFlamegraph({
                     y >= s.y &&
                     y <= s.y + s.height,
                 );
-              if (hit) onSelect(hit.span.spanId);
+              if (hit) {
+                directSelectionRef.current = hit.span.spanId;
+                onSelect(hit.span.spanId);
+              }
             }}
             onPointerCancel={() => {
               dragRef.current = null;
