@@ -295,7 +295,10 @@ export function TraceFlamegraph({
                     y <= s.y + s.height,
                 );
               if (hit) {
-                directSelectionRef.current = hit.span.spanId;
+                directSelectionRef.current =
+                  hit.span.spanId === selectedSpanId
+                    ? undefined
+                    : hit.span.spanId;
                 onSelect(hit.span.spanId);
               }
             }}

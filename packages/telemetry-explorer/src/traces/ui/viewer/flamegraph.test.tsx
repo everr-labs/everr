@@ -22,7 +22,7 @@ afterEach(() => {
   mocks.rects = [];
 });
 
-it("keeps a partially visible clicked bar in place while revealing external selections", () => {
+it("keeps partially visible clicked bars in place without suppressing later external selections", () => {
   vi.stubGlobal("PointerEvent", MouseEvent);
   const props = {
     model: buildTraceModel([]),
@@ -72,6 +72,15 @@ it("keeps a partially visible clicked bar in place while revealing external sele
   expect(viewport.scrollTop).toBe(60);
   view.rerender(<TraceFlamegraph {...props} selectedSpanId="external" />);
   expect(viewport.scrollTop).toBe(430);
+  view.rerender(<TraceFlamegraph {...props} selectedSpanId="clicked" />);
+  viewport.scrollTop = 60;
+  fireEvent.pointerUp(canvas, { clientX: 50, clientY: 5 });
+  expect(props.onSelect).toHaveBeenCalledTimes(2);
+  expect(viewport.scrollTop).toBe(60);
+  view.rerender(<TraceFlamegraph {...props} selectedSpanId="external" />);
+  expect(viewport.scrollTop).toBe(430);
+  view.rerender(<TraceFlamegraph {...props} selectedSpanId="clicked" />);
+  expect(viewport.scrollTop).toBe(0);
 });
 
 it("shows a time guide over empty canvas space and updates its time after zoom", () => {
