@@ -26,7 +26,6 @@ interface UseFlamegraphDrawArgs {
   connectors: ConnectorLine[];
   viewStartTs: number;
   viewEndTs: number;
-  scrollTop: number;
   rowHeight: number;
   selectedSpanId: string | undefined;
   hoveredSpanId: string;
@@ -212,7 +211,6 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
     connectors,
     viewStartTs,
     viewEndTs,
-    scrollTop,
     rowHeight,
     selectedSpanId,
     hoveredSpanId,
@@ -227,6 +225,7 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
     if (!canvas || !container) {
       return;
     }
+    const scrollTop = container.scrollTop;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) {
@@ -318,7 +317,6 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
     connectors,
     viewStartTs,
     viewEndTs,
-    scrollTop,
     rowHeight,
     selectedSpanId,
     hoveredSpanId,

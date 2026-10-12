@@ -79,7 +79,6 @@ export function TraceFlamegraph({
     moved: boolean;
   } | null>(null);
   const [cursor, setCursor] = useState<{ x: number; width: number }>();
-  const [scrollTop, setScrollTop] = useState(0);
   const [hover, setHover] = useState<{
     span: SpanRect;
     event?: EventRect;
@@ -93,7 +92,6 @@ export function TraceFlamegraph({
     connectors: layout.connectors,
     viewStartTs: range.start,
     viewEndTs: range.end,
-    scrollTop,
     rowHeight: 24,
     selectedSpanId,
     hoveredSpanId: hover?.span.span.spanId ?? "",
@@ -141,7 +139,7 @@ export function TraceFlamegraph({
   );
 
   // Synchronize an imperative drawing surface and its actual viewport size.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
@@ -206,7 +204,7 @@ export function TraceFlamegraph({
         viewportRef={containerRef}
         className="min-h-0 flex-1"
         viewportProps={{
-          onScroll: (event) => setScrollTop(event.currentTarget.scrollTop),
+          onScroll: () => drawFlamegraph(),
         }}
       >
         <div
