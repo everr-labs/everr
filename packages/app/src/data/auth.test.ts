@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { auth } from "@/lib/auth.server";
-import { getActiveOrganization } from "./auth";
+import { getActiveOrganization, getOrganizations } from "./auth";
 
 // getActiveOrganization reads request headers; the shared test-setup does not
 // mock this subpath, so stub it here.
@@ -12,6 +12,31 @@ vi.mock("@tanstack/react-start/server", () => ({
 // endpoints — cast to Mock to drive them.
 const getSession = auth.api.getSession as unknown as Mock;
 const getFullOrganization = auth.api.getFullOrganization as unknown as Mock;
+
+it("lists the authenticated user's organizations for device approval", async () => {
+  vi.mocked(auth.api.listOrganizations).mockResolvedValue([
+    {
+      id: "org-a",
+      name: "Org A",
+      slug: "org-a",
+      createdAt: new Date(),
+      plan: "hobby",
+    },
+    {
+      id: "org-b",
+      name: "Org B",
+      slug: "org-b",
+      createdAt: new Date(),
+      plan: "pro",
+    },
+  ]);
+
+  expect(await getOrganizations()).toEqual([
+    { id: "org-a", name: "Org A" },
+    { id: "org-b", name: "Org B" },
+  ]);
+  expect(auth.api.listOrganizations).toHaveBeenCalledWith({ headers: {} });
+});
 
 describe("getActiveOrganization (partial-auth server fn)", () => {
   beforeEach(() => {

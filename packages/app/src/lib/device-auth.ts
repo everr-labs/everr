@@ -24,9 +24,23 @@ async function verifyDeviceCode(userCode: string): Promise<DeviceActionResult> {
 
 export async function approveDevice(
   userCode: string,
+  organizationId: string,
 ): Promise<DeviceActionResult> {
   const verified = await verifyDeviceCode(userCode);
   if (!verified.ok) return verified;
+
+  // The approval hook binds the browser session's active organization to the
+  // device. Activate the selection immediately before approving the code.
+  const activation = await authClient.organization.setActive({
+    organizationId,
+  });
+  if (activation.error) {
+    return {
+      ok: false,
+      message:
+        activation.error.message ?? "Could not select this organization.",
+    };
+  }
 
   const result = await authClient.device.approve({ userCode });
   if (result.error || !result.data?.success) {
