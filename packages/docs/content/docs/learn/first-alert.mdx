@@ -1,119 +1,96 @@
 ---
 title: Create your first alert
-description: Step 5, write an AlertRule as code, apply it, and get notified.
+description: Choose an actionable signal, preview an alert rule, and connect notifications.
 ---
 
-This is step 5 of getting started with Everr: write one rule, reconcile it with `everr apply`, and open it in the Alerts UI. Apply uses your `everr cloud login` session; for CI or non-interactive use, set `EVERR_API_KEY` to a key with the **Manage as code** capability (see the [`everr apply` reference](/docs/reference/cli)). The example alerts on Node.js runtime metrics; swap the query for a signal your own services emit.
+An alert should tell you when something needs attention and give you a reason to act. Start with a symptom your users experience, such as slow requests or a rising error rate. Keep signals that only help diagnose a problem in dashboards.
 
-## Let your Agent pick a starter
+Use the same `everr/` directory and Cloud session from [your first dashboard](/docs/learn/first-dashboard). The rule becomes a file you review alongside your code.
 
-The hard part of a first alert is knowing what to alert on. Everr ships the `everr-setup-resources` skill; run this from the repository that emits the telemetry:
+## Use your coding agent
+
+Ask your agent to choose a signal and threshold from your app's data:
 
 ```text
-/everr-setup-resources Help me build a good first alert based on the telemetry we have in production
+/everr-setup-resources Suggest one actionable alert from this app's production telemetry in Everr Cloud. Use the observed baseline, explain when I should act, and preview the rule before publishing.
 ```
 
-The Agent picks the signal, sets a threshold from your real baselines, writes the rule, and stages it in a preview. Make sure it's actionable: fire on symptoms users feel, not causes.
+The agent checks available signals, writes the rule, tests its query, and stages a preview. Review why it fires and what you would do in response.
 
-## Alternative: write it by hand
+## Write it manually
 
-The rest of this step is the same workflow done manually. If you already created an `everr/` directory in the previous step, reuse it: apply discovers and reconciles everything under it, and alerts (`*.alert.yaml`) sit flat alongside dashboards.
+The example below builds on the dashboard's request latency signal. It alerts when p99 latency exceeds 500ms across at least 100 successful requests in the last 5 minutes, with the breach lasting 2 minutes before firing.
 
-Apply scopes everything to your repository's identity (its `repoid`), inferred from the repo's `origin` remote as `host/owner/repo`. Nothing to configure.
+The threshold and minimum request count are examples. Adjust both to your traffic and latency goals before publishing. The query counts recorded server spans, so sampling affects this minimum. Replace `my-service` with the same service name used in your dashboard.
 
-## Write the rule
-
-`everr/eventloop-delay.alert.yaml`:
+Save this as `everr/api-latency.alert.yaml`:
 
 ```yaml
 kind: AlertRule
 metadata:
-  name: eventloop-delay
+  name: api-latency
 spec:
   display:
-    name: Node.js event loop delay
-    description: Services whose event loop is blocked over the last 5 minutes.
+    name: Slow API requests
+    description: Sustained high p99 latency for successful server requests.
   evaluationInterval: 1m
+  for: 2m
+  resolveAfter: 2
+  instanceLabels: [ServiceName]
   notificationMessage:
-    title: "${ServiceName} event loop is lagging"
-    description: "p99 event loop delay averaged ${value}ms over the last 5 minutes"
+    title: "${ServiceName} requests are slow"
+    description: "p99 latency is ${value}ms over the last 5 minutes"
   condition:
     operator: gt
-    threshold: 100
+    threshold: 500
   query: |
     SELECT
       ServiceName,
-      round(avg(Value) * 1000, 1) AS value
-    FROM metrics_gauge
-    WHERE MetricName = 'nodejs.eventloop.delay.p99'
-      AND TimeUnix >= now() - INTERVAL 5 MINUTE
+      count() AS requests,
+      round(quantile(0.99)(Duration) / 1e6, 1) AS p99_ms,
+      if(requests >= 100, p99_ms, 0) AS value
+    FROM traces
+    WHERE ServiceName = 'my-service'
+      AND Timestamp >= now() - INTERVAL 5 MINUTE
+      AND SpanKind = 'Server'
+      AND StatusCode != 'Error'
+      AND toString(ResourceAttributes.`deployment.environment.name`) = 'production'
     GROUP BY ServiceName
-    ORDER BY value DESC
 ```
 
-A few things worth noting:
+The SQL returns the measured signal as a numeric `value`; `condition` decides whether it breaches. Returning non-breaching values keeps the signal visible when the alert is healthy.
 
-- `metadata.name` is the rule's **slug** and identity. Use lowercase letters, digits, and hyphens.
-- The query returns one row per service, including healthy services, with the measured signal aliased to the required numeric `value` column. `condition` fires only rows above 100ms. This lets the same query display useful data when no alert is firing. `nodejs.eventloop.delay.p99` is reported in seconds, so the query converts it to milliseconds. Tune the threshold to your services. Averaging over the 5-minute window keeps a single momentary blip from paging.
-- `ServiceName` is a string column, so Everr uses it as each instance's identity automatically: one alert instance per service.
-- `notificationMessage` is templated with `${ServiceName}` and `${value}` from that instance's row; only columns the query returns can be referenced.
-- `evaluationInterval: 1m` runs the query once a minute, the minimum. See the [AlertRule spec](/docs/reference/alert-spec) for every field and constraint.
-- Link a runbook to the rule with `spec.runbook` so responders get a documented procedure when it fires.
+- `instanceLabels` identifies the alert instance by service. Keep identities stable between evaluations.
+- `evaluationInterval` runs the query once a minute. `for` waits for a sustained breach, and `resolveAfter` requires two consecutive non-breaching evaluations before resolving.
+- `notificationMessage` can use columns returned by the query, including `${value}`.
+- The request-count guard avoids paging on a percentile from too few requests. Low or missing traffic needs its own signal if that should alert.
 
-## Test the change
+This rule uses the same server, environment, and status filters as the dashboard. See the [AlertRule spec](/docs/reference/alert-spec) for all fields, and [Writing good alerts](/docs/guides/writing-good-alerts) for signal selection.
 
-Stage it into a preview. The rule deploys under a preview name, evaluates for real, but never sends notifications:
+## Preview the rule
 
 ```sh
 everr apply ./everr --preview
 ```
 
-Expected output ends with a shareable link:
+Open the printed `Preview:` link and go to **Alerts**. Preview rules evaluate against real data but do not send notifications. Check the measured value, threshold, and evaluation state. If the query fails or returns no expected data, fix the file and preview again.
 
-```
-Destination org: «Acme Corp»
-AlertRule: 1 created, 0 updated, 0 deleted
-  + eventloop-delay
-Preview: https://app.everr.dev/dashboards?preview=my-branch
-```
+## Connect notifications
 
-Open the link, go to **Alerts**, and watch the rule's firing/ok state before publishing. Previews expire on their own 7 days after their last apply.
+Open **Notifications** in Everr Cloud and create a channel for Slack, Discord, Telegram, or an HTTPS webhook. Your first channel becomes the organization's default destination. See [Set up alert notifications](/docs/guides/set-up-notifications) for configuration.
 
-## Publish it
+You can see an alert's state in the UI without a channel. A channel is needed to receive its notifications.
+
+## Publish and check
+
+When the preview and destination are ready:
 
 ```sh
 everr apply ./everr
 ```
 
-Apply first prints a plan, then asks you to confirm before writing. Answer the `Apply to «Acme Corp»?` prompt, or pass `--yes` (`-y`) to skip it (required in CI and piped contexts). Expected output, after confirming:
+Review the plan and confirm. Open **Alerts**, find **Slow API requests** in the rules list, and check its detail page for the signal history, threshold, and evaluation health.
 
-```
-Destination org: «Acme Corp»
-AlertRule: 1 created, 0 updated, 0 deleted
-  + eventloop-delay
-```
+Edit the file when you need to tune the rule, then preview and apply the whole directory again. Keep the same project and slug to update it in place. Notifications follow alert transitions rather than every evaluation.
 
-If there are no changes, apply prints `Nothing to apply.` and exits without prompting: re-running is idempotent.
-
-## Open it in Everr
-
-Open Everr and go to **Alerts** (`/alerts`). Your `eventloop-delay` rule appears in the **Rules** list with its current state. Open it:
-
-- The facts under the title say how the rule behaves: its severity, how often it evaluates, how long a breach has to last before it fires, how many non-breaching evaluations resolve it, and where it delivers.
-- **Breaching instances** counts the instances over the threshold right now. The **Signal history** chart below plots the rule's own signal against its threshold, so a breach that comes and goes is visible.
-- If the query errors, the rule shows an evaluation error on the detail page. Fix the SQL and re-apply.
-
-## Get notified
-
-Seeing the alert fire in the UI needs no setup. To actually receive it, create a channel on the Notifications page: Slack, Discord, Telegram, or any HTTPS webhook. Your first channel becomes the organization's default destination, so one channel is a complete setup. See [Set up alert notifications](/docs/guides/set-up-notifications).
-
-## Change and re-apply
-
-Edit the file (say, tighten `condition.threshold` to `200`) and apply again. A changed rule is updated in place; the slug and URL don't change because the slug didn't. Reconciliation is delete-by-default within the repoid: delete the file and apply, and Everr removes the rule.
-
-```sh
-rm everr/eventloop-delay.alert.yaml
-everr apply ./everr
-```
-
-**Next:** [Add a runbook](/docs/learn/add-a-runbook).
+**Next:** [Add a runbook](/docs/learn/add-a-runbook) so the alert leads to a concrete response.
