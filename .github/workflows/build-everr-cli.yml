@@ -13,6 +13,7 @@ on:
       - .github/workflows/build-everr-cli.yml
       - .github/workflows/deploy-cli.yml
       - packages/cli/**
+      - skills/**
       - packages/local-app/**
       - Cargo.toml
       - Cargo.lock
@@ -33,6 +34,7 @@ on:
       - .github/workflows/build-everr-cli.yml
       - .github/workflows/deploy-cli.yml
       - packages/cli/**
+      - skills/**
       - packages/local-app/**
       - Cargo.toml
       - Cargo.lock

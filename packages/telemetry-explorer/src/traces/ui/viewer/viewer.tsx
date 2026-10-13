@@ -267,7 +267,7 @@ function TraceViewer({
   );
 
   const selectSpan = useCallback(
-    (id: string) => {
+    (id: string, source: "flamegraph" | "waterfall" | "search" = "search") => {
       const ancestors = getAncestorSpanIds(model.waterfall, id);
       const expanded = new Set([...openNodes, ...ancestors]);
       setCollapsedNodes((prev) => {
@@ -276,7 +276,8 @@ function TraceViewer({
         return next;
       });
       onSpanChange(id);
-      flamegraphRef.current?.scrollToSpan(id);
+      if (source !== "flamegraph") flamegraphRef.current?.scrollToSpan(id);
+      if (source === "waterfall") return;
       const rows = getVisibleSpans(model.waterfall, expanded);
       const index = rows.findIndex((s) => s.spanId === id);
       requestAnimationFrame(() => {
@@ -542,7 +543,7 @@ function TraceViewer({
                       colorBy={colorBy ?? "service.name"}
                       range={range}
                       onRangeChange={setZoomRange}
-                      onSelect={selectSpan}
+                      onSelect={(id) => selectSpan(id, "flamegraph")}
                     />
                   </ResizablePanel>
                   <ResizableHandle
@@ -566,7 +567,7 @@ function TraceViewer({
                     previewField={previewField ?? ""}
                     range={range}
                     virtuosoRef={waterfallRef}
-                    onSelect={selectSpan}
+                    onSelect={(id) => selectSpan(id, "waterfall")}
                     onToggle={(id) =>
                       setCollapsedNodes((prev) => {
                         const next = new Set(prev);

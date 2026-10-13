@@ -17,6 +17,7 @@ on:
       - biome.json
       - package.json
       - packages/app/**
+      - skills/everr-use-telemetry/rules/schema.md
       - packages/datemath/**
       - packages/otel-errors/**
       - packages/otel-web/**
@@ -35,6 +36,7 @@ on:
       - biome.json
       - package.json
       - packages/app/**
+      - skills/everr-use-telemetry/rules/schema.md
       - packages/datemath/**
       - packages/otel-errors/**
       - packages/otel-web/**

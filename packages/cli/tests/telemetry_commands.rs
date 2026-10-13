@@ -98,6 +98,44 @@ fn stopped_origin() -> String {
 }
 
 #[test]
+fn ui_reports_the_same_unavailable_states_as_status() {
+    let env = CliTestEnv::new();
+    let collector = health_server("everr-local-collector", "one", false);
+    let ui = health_server("everr-local-ui", "one", false);
+    let mismatched_ui = health_server("everr-local-ui", "two", false);
+    let starting = health_server("everr-local-collector", "one", true);
+    let mut unrelated = mockito::Server::new();
+    unrelated
+        .mock("GET", "/health")
+        .with_body("not Everr")
+        .create();
+    for (collector_origin, ui_origin) in [
+        (stopped_origin(), stopped_origin()),
+        (collector.url(), stopped_origin()),
+        (stopped_origin(), ui.url()),
+        (starting.url(), ui.url()),
+        (collector.url(), mismatched_ui.url()),
+        (unrelated.url(), ui.url()),
+        (collector.url(), unrelated.url()),
+    ] {
+        let output = |subcommand| {
+            env.command()
+                .env("EVERR_SQL_HTTP_ORIGIN", &collector_origin)
+                .env("EVERR_LOCAL_UI_ORIGIN", &ui_origin)
+                .args(["local", subcommand])
+                .assert()
+                .code(2)
+                .get_output()
+                .clone()
+        };
+        let status = output("status");
+        let ui = output("ui");
+        assert_eq!(ui.stdout, status.stdout);
+        assert_eq!(ui.stderr, status.stderr);
+    }
+}
+
+#[test]
 fn status_reports_running_when_collector_and_ui_belong_together() {
     let env = CliTestEnv::new();
     let collector = health_server("everr-local-collector", "one", false);

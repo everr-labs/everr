@@ -72,13 +72,14 @@ export function TraceFlamegraph({
   const containerRef = useRef<HTMLDivElement>(null);
   const spanRectsRef = useRef<SpanRect[]>([]);
   const eventRectsRef = useRef<EventRect[]>([]);
+  const directSelectionRef = useRef<string | undefined>(undefined);
+  const lastSelectedSpanIdRef = useRef(selectedSpanId);
   const dragRef = useRef<{
     x: number;
     range: ViewRange;
     moved: boolean;
   } | null>(null);
   const [cursor, setCursor] = useState<{ x: number; width: number }>();
-  const [scrollTop, setScrollTop] = useState(0);
   const [hover, setHover] = useState<{
     span: SpanRect;
     event?: EventRect;
@@ -92,7 +93,6 @@ export function TraceFlamegraph({
     connectors: layout.connectors,
     viewStartTs: range.start,
     viewEndTs: range.end,
-    scrollTop,
     rowHeight: 24,
     selectedSpanId,
     hoveredSpanId: hover?.span.span.spanId ?? "",
@@ -104,6 +104,14 @@ export function TraceFlamegraph({
 
   // URL selection controls the external scroll surface, not local selection state.
   useLayoutEffect(() => {
+    const selectionChanged = selectedSpanId !== lastSelectedSpanIdRef.current;
+    lastSelectedSpanIdRef.current = selectedSpanId;
+    if (selectionChanged) {
+      const isDirectSelection =
+        selectedSpanId && selectedSpanId === directSelectionRef.current;
+      directSelectionRef.current = undefined;
+      if (isDirectSelection) return;
+    }
     const row = selectedSpanId
       ? layout.spanToVisualRow[selectedSpanId]
       : undefined;
@@ -136,7 +144,7 @@ export function TraceFlamegraph({
   );
 
   // Synchronize an imperative drawing surface and its actual viewport size.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
@@ -201,7 +209,7 @@ export function TraceFlamegraph({
         viewportRef={containerRef}
         className="min-h-0 flex-1"
         viewportProps={{
-          onScroll: (event) => setScrollTop(event.currentTarget.scrollTop),
+          onScroll: () => drawFlamegraph(),
         }}
       >
         <div
@@ -289,7 +297,13 @@ export function TraceFlamegraph({
                     y >= s.y &&
                     y <= s.y + s.height,
                 );
-              if (hit) onSelect(hit.span.spanId);
+              if (hit) {
+                directSelectionRef.current =
+                  hit.span.spanId === selectedSpanId
+                    ? undefined
+                    : hit.span.spanId;
+                onSelect(hit.span.spanId);
+              }
             }}
             onPointerCancel={() => {
               dragRef.current = null;
