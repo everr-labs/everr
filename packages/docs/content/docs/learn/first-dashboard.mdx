@@ -1,23 +1,24 @@
 ---
-title: Build your first dashboard
-description: Turn your Cloud telemetry into a dashboard you can review and maintain in your repo.
+title: Your first dashboard
+description: Turn your telemetry into visualizations.
 ---
 
-A useful first dashboard answers one question. Start with something you want to understand about your app, such as how request latency changes over time. Your coding agent can choose panels from the telemetry you already have, or you can use the example below.
+Dashboards are powerful visualization tools for monitoring the system and quickly seeing what's happening. They can track request latency over time, response status codes, endpoint duration, disk usage, and web vitals, as well as product metrics such as visitors, page views, and product activations. 
 
-This guide uses [telemetry sent to Everr Cloud](/docs/learn/production-telemetry). Dashboards, alerts, and runbooks live together in an `everr/` directory at your project root and are published with `everr apply`.
+Everr includes several built-in dashboards for common use cases. After you [send telemetry to Everr Cloud](/docs/learn/production-telemetry), they should be available in the [Dashboards](https://app.everr.dev/dashboards) section.
 
-## Connect the CLI to Cloud
+![Example dashboard](dashboard-example.png)
 
-Run this once and select the organization receiving your app's telemetry:
 
-```sh
-everr cloud login
-```
+## Custom dashboards
 
-Your saved session lets the CLI query telemetry and publish resources. For automated publishing, see [Publishing resources](/docs/guides/publishing-resources).
+At some point, you want to move beyond built-in dashboards and build your own visualizations. 
 
-## Use your coding agent
+Following our pillars, Everr dashboards are based on the [perses](https://perses.dev/), a YAML open standard to define layout and panels, and they are intended to be files versioned in the project's repository. See [Observability as code](/docs/concepts/observability-as-code) for more details.
+
+To create your first dashboard, be sure [production telemetry is sent to Everr Cloud](/docs/learn/production-telemetry) and the CLI's session is active (`everr cloud login`).
+
+### Use your coding agent
 
 From the project where you installed the Everr skills, ask:
 
@@ -27,7 +28,7 @@ From the project where you installed the Everr skills, ask:
 
 The agent inspects your data, writes the dashboard file, checks its queries, and applies it to a preview. Open the printed link to review the result before publishing.
 
-## Build it manually
+### Build it manually
 
 Create `everr/` if it doesn't exist. Keep all resources for this repository in that directory. Apply infers the repository identity (`repoid`) from its Git `origin` remote. For a project without an origin, see [Observability as code](/docs/concepts/observability-as-code).
 
@@ -93,7 +94,7 @@ The panel shows the latency below which 99% of sampled successful requests fall.
 
 This example needs server spans with `deployment.environment.name` set to `production`. Adapt the filters to your verified instrumentation. See the [dashboard spec](/docs/reference/dashboard-spec) for more options.
 
-## Preview and review
+### Preview and review
 
 ```sh
 everr apply ./everr --preview
@@ -103,7 +104,7 @@ The CLI prints the destination organization, a change summary, and a `Preview:` 
 
 The preview name defaults to your current Git branch. If no branch name is available, give it a name, for example `everr apply ./everr --preview first-dashboard`.
 
-## Publish and open
+### Publish and open
 
 When the preview looks right:
 
@@ -117,4 +118,3 @@ Keep editing the file to add panels or refine the query. Preview, review, and ap
 
 Apply reconciles the entire directory for this repository identity, across dashboards, alerts, and runbooks. Removing a file and applying deletes its resource. Use one complete apply directory per repository identity so you keep the resources you want to retain.
 
-**Next:** [Create your first alert](/docs/learn/first-alert).
