@@ -72,6 +72,9 @@ fn cloud_help_lists_cloud_subcommands() {
         .success()
         .stdout(contains("login"))
         .stdout(contains("logout"))
+        .stdout(contains(
+            "Show the current Everr Cloud user, organization, and session URL",
+        ))
         .stdout(predicates::str::contains("\n  grep").not())
         .stdout(predicates::str::contains("\n  logs").not());
 }
@@ -143,6 +146,7 @@ fn local_help_lists_collector_commands() {
         .stdout(contains("start"))
         .stdout(contains("query"))
         .stdout(contains("status"))
+        .stdout(contains("Open the running local UI in the default browser"))
         .stdout(predicates::str::contains("\n  endpoint").not());
 
     env.command()
@@ -150,6 +154,26 @@ fn local_help_lists_collector_commands() {
         .assert()
         .success()
         .stdout(contains("--quiet"));
+}
+
+#[test]
+fn local_ui_has_help() {
+    let env = CliTestEnv::new();
+    env.command()
+        .args(["local", "ui", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("Usage: everr local ui"));
+}
+
+#[test]
+fn cloud_status_has_help() {
+    let env = CliTestEnv::new();
+    env.command()
+        .args(["cloud", "status", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("Usage: everr cloud status"));
 }
 
 #[test]

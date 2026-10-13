@@ -275,6 +275,7 @@ impl CommandTelemetry {
                 Some(match &args.command {
                     CloudSubcommand::Login(_) => "login",
                     CloudSubcommand::Logout => "logout",
+                    CloudSubcommand::Status => "status",
                     CloudSubcommand::Query(_) => "query",
                 }),
             ),
@@ -295,6 +296,7 @@ impl CommandTelemetry {
                     LocalSubcommand::Stop => "stop",
                     LocalSubcommand::Query(_) => "query",
                     LocalSubcommand::Status => "status",
+                    LocalSubcommand::Ui => "ui",
                 }),
             ),
             Commands::Wrap(_) => ("wrap", None),
@@ -456,6 +458,26 @@ mod tests {
 
     use super::{CommandTelemetry, option_names, signal_endpoint};
     use crate::cli::Cli;
+
+    #[test]
+    fn records_local_ui_command_name() {
+        let argv = ["everr", "local", "ui"].map(OsString::from);
+        let cli = Cli::try_parse_from(argv.clone()).unwrap();
+        let metadata = CommandTelemetry::from_cli_and_argv(&cli, argv);
+        assert_eq!(metadata.command, "local");
+        assert_eq!(metadata.subcommand, Some("ui"));
+        assert!(metadata.options.is_empty());
+    }
+
+    #[test]
+    fn records_cloud_status_command_name() {
+        let argv = ["everr", "cloud", "status"].map(OsString::from);
+        let cli = Cli::try_parse_from(argv.clone()).unwrap();
+        let metadata = CommandTelemetry::from_cli_and_argv(&cli, argv);
+        assert_eq!(metadata.command, "cloud");
+        assert_eq!(metadata.subcommand, Some("status"));
+        assert!(metadata.options.is_empty());
+    }
 
     #[test]
     fn records_command_subcommand_and_option_names_without_values() {
