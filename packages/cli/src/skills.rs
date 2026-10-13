@@ -280,14 +280,13 @@ fn is_interactive_terminal() -> bool {
 }
 
 fn prompt_scope() -> Result<SkillScope> {
-    let global: bool = cliclack::confirm("Install skills globally instead of in this project?")
-        .initial_value(false)
-        .interact()?;
-    if global {
-        Ok(SkillScope::Global)
-    } else {
-        Ok(SkillScope::Project)
-    }
+    Ok(
+        cliclack::select("Install skills at project's level or globally?")
+            .item(SkillScope::Project, "Project", "")
+            .item(SkillScope::Global, "Globally", "")
+            .initial_value(SkillScope::Project)
+            .interact()?,
+    )
 }
 
 fn prompt_providers(home_dir: &PathBuf) -> Result<Vec<SkillProvider>> {
