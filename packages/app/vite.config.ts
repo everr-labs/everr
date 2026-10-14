@@ -65,6 +65,24 @@ const config = defineConfig(({ mode }) => {
       }),
       nitro({
         traceDeps: ["tslib*"],
+        hooks: {
+          "rollup:before": (nitro, config) => {
+            if (mode === "cloud" || nitro.options.dev) return;
+            config.input = {
+              index: nitro.options.entry,
+              recovery: new URL(
+                "./src/app/commands/recovery.ts",
+                import.meta.url,
+              ).pathname,
+            };
+            const outputs = Array.isArray(config.output)
+              ? config.output
+              : [config.output];
+            for (const output of outputs) {
+              if (output) output.entryFileNames = "[name].mjs";
+            }
+          },
+        },
       }),
       viteReact(),
       // dimensions: false drops the svg's fixed width/height, so the icon

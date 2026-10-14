@@ -17,8 +17,9 @@ verification, and password recovery. URL-encode special characters in SMTP
 credentials; single-quote `.env` values containing `$`.
 
 Without SMTP, the app starts and invitations can be shared by link. Email
-verification and password recovery still require email delivery; invited users
-cannot complete the current verification flow without SMTP.
+verification and email-based password recovery still require email delivery;
+invited users cannot complete the current verification flow without SMTP.
+Operators can recover existing local accounts using the commands below.
 
 Start the stack:
 
@@ -94,3 +95,43 @@ installation; this bundle currently targets fresh installations.
 
 The repository root's `docker-compose.yaml` remains the development dependency
 stack. Run installation commands from this directory to select this stack.
+
+## Account recovery
+
+The self-hosted image includes a recovery command. Run it from this directory
+with the installation's existing `.env`. PostgreSQL must be running; if needed,
+start it with `docker compose up -d postgres`.
+
+To generate a one-time password reset link:
+
+```sh
+docker compose run --rm --no-deps app .output/server/recovery.mjs link --email admin@example.com
+```
+
+The link expires after 15 minutes and opens the existing password reset page.
+`BETTER_AUTH_URL` must be the app's reachable public URL, and the web app must
+be running when the user opens the link. Share the link privately with the
+account holder.
+
+To set a password directly, including when the web app cannot start:
+
+```sh
+docker compose run --rm --no-deps app .output/server/recovery.mjs password --email admin@example.com
+```
+
+Enter the password twice at the hidden prompts. Use an interactive terminal
+(do not pass `-T`); passwords are never supplied as command-line arguments.
+Passwords must contain 8 to 128 characters. Ctrl+C cancels without changing
+the account.
+
+Both commands operate only on existing accounts with local passwords. They
+immediately invalidate the account's sessions and previous password reset
+links, without changing workspace membership, role, or email-verification
+status. Completing a reset link also invalidates sessions created since the
+link was issued. Accounts that only use an external identity provider must
+be recovered through that provider.
+
+The command is built alongside the self-hosted server by
+`pnpm build:self-hosted`. Direct password recovery needs only database
+configuration; link generation also needs `BETTER_AUTH_URL`. It does not start
+the web server or workers, and requires neither SMTP nor ClickHouse.
