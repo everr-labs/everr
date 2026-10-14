@@ -1,3 +1,4 @@
+import { missingWorkspaceRoute } from "@app/client";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -52,7 +53,7 @@ export function OrganizationProvisioning({
       (!status.data || status.data.id !== organizationId)
     ) {
       void router.navigate({
-        to: "/choose-organization",
+        to: missingWorkspaceRoute,
         search: { returnTo },
         replace: true,
       });

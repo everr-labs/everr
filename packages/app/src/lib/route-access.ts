@@ -1,3 +1,4 @@
+import { missingWorkspaceRoute } from "@app/client";
 import { redirect } from "@tanstack/react-router";
 import { getActiveOrganizationAccess } from "@/data/organization-access";
 import type { auth } from "@/lib/auth.server";
@@ -34,15 +35,15 @@ export async function requireOrganization({
   location: { href: string };
   search: { returnTo?: string };
 }) {
-  const chooseOrganization = () =>
+  const missingWorkspace = () =>
     redirect({
-      to: "/choose-organization",
+      to: missingWorkspaceRoute,
       search: { returnTo: search.returnTo ?? location.href },
       replace: true,
     });
-  if (!session.session.activeOrganizationId) throw chooseOrganization();
+  if (!session.session.activeOrganizationId) throw missingWorkspace();
   const access = await getActiveOrganizationAccess();
-  if (access.status === "missing") throw chooseOrganization();
+  if (access.status === "missing") throw missingWorkspace();
   return {
     organization: access.organization,
     session: {

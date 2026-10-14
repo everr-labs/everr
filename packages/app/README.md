@@ -434,8 +434,8 @@ The build argument defaults to `cloud`; it is not a runtime environment variable
 - `src/cloud/app`: selects subscription policy, Polar configuration, billing
   auth extensions, navigation, and access redirects. Billing server functions, checkout completion,
   screens, and their tests live under `src/cloud`.
-- `src/app`: direct organization creation, collaboration without
-  subscriptions and no billing auth extensions.
+- `src/app`: one installation workspace, invitation-only onboarding, collaboration
+  without subscriptions, and no billing auth extensions.
 - `src/product`: shared policy contracts and membership enforcement. Membership
   roles still determine which users may invite, administer, or delete resources.
 
@@ -462,6 +462,42 @@ pnpm --filter @everr/app test:cloud
 
 The normal test suite uses the cloud implementation. The self-hosted suite selects
 its implementation through the same alias as the production build.
+
+### Single-workspace setup
+
+The default app supports exactly one workspace per installation. On a fresh
+installation, browser visits open `/setup`. Configure `EVERR_SETUP_TOKEN` with
+an operator-generated random secret of at least 32 characters before starting
+the app. Enter that token, a workspace name, and the initial owner's name, email,
+and password (at least 8 characters) on the setup screen.
+
+Setup atomically creates the owner, password credentials, workspace, owner
+membership, and provisioning job. Concurrent requests cannot create a second
+workspace. After setup, the owner signs in and continues through telemetry
+configuration. The setup token can then be removed from runtime configuration;
+setup remains closed while the workspace exists.
+
+If setup fails before committing, no owner, workspace, or provisioning job is
+left behind; submit the form again after resolving the error. If the connection
+is lost after committing, or automatic sign-in fails, sign in with the owner
+credentials entered during setup. Repeating setup cannot create another workspace.
+Provisioning resumes through the persisted job after a restart. If its retries
+are exhausted, the provisioning screen offers **Try again** for the same
+workspace. Do not delete the workspace to restart provisioning.
+
+Later users need an invitation. Public signup and automatic personal workspace
+creation are disabled. Invited users verify their email before accepting an
+invitation. Existing members sign in directly; users without membership see
+access instructions. The product has no organization switcher or creation action.
+Direct organization creation and deletion are rejected server-side. The last owner
+must transfer ownership before deleting their account.
+
+An existing database containing one organization uses that workspace. Databases
+with multiple organizations are rejected with an operator-facing error; this
+change does not merge, select, or delete existing organizations. Keep such an
+installation on the previous build until its data has been migrated deliberately.
+No schema change or generated migration is needed. Cloud retains its existing
+organization creation, selection, and signup flows.
 
 ### Optional product integrations
 
@@ -538,21 +574,30 @@ requires no database migration.
 
 ### Source independence
 
+The default production runtime needs Postgres, ClickHouse, authentication and
+ingest-verification secrets, and SMTP configuration. Polar and Google credentials
+are not required. GitHub jobs are registered only when its optional integration
+is configured. The core workers run alerts, preview retention, and workspace
+provisioning independently of those integrations.
+
+
 Self-hosted source can typecheck, run its tests, and build with `src/cloud` absent. Billing server functions are not part of the
-shared data interface and have no self-hosted stubs. Billing and checkout routes
+shared data interface and have no self-hosted stubs. Billing, checkout, and organization creation and selection routes
 live entirely under `src/cloud/routes`; the product router does not register them.
 
 `appRoutes()` in `vite.app.ts` composes TanStack physical route
-directories at build time. The product uses `src/routes` and generates
-`src/routeTree.gen.ts`. Cloud adds `src/cloud/routes` and generates its own
+directories at build time. The product uses `src/routes` plus `src/app/routes` (setup and workspace access), and generates
+`src/routeTree.gen.ts`. Cloud combines the shared `src/routes` with `src/cloud/routes` and generates its own
 `src/cloud/routeTree.gen.ts`. Its leaves inherit product authentication and
 organization layouts. `@app/route-tree` selects the matching tree for the
 single shared router factory. Builds do not overwrite each other's route types.
 
 The organization menu renders `@app/navigation`; only Cloud contributes
 the billing item. The app access guard calls `@app/app-access`; only Cloud
-redirects suspended subscriptions to its recovery route. Neither seam requires a
-billing URL in shared product code.
+redirects suspended subscriptions to its recovery route. `@app/client` selects
+the missing-workspace destination: `/access-required` for the product and
+`/choose-organization` for Cloud. Creation, selection, and switching screens live
+in `src/cloud/components`. Shared guards and provisioning do not depend on Cloud URLs.
 
 `typecheck:self-hosted` checks production sources using the `@app/*` alias.
 It excludes test roots and cloud roots, then examines the complete TypeScript

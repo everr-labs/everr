@@ -1,8 +1,8 @@
+import { OrganizationSwitcher } from "@app/navigation";
 import { Button } from "@everr/ui/components/button";
 import { EverrLogo } from "@everr/ui/components/everr-logo";
 import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
-import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { authClient } from "@/lib/auth-client";
 import { AsciiLogo } from "./_welcome/-components/ascii-logo";
 

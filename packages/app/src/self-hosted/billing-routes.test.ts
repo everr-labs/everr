@@ -7,7 +7,9 @@ import {
 import { expect, it, vi } from "vitest";
 
 // Exercise the generated topology without loading unrelated page dependencies.
-for (const path of Object.keys(import.meta.glob("../routes/**/*.{ts,tsx}"))) {
+for (const path of Object.keys(
+  import.meta.glob(["../routes/**/*.{ts,tsx}", "../app/routes/**/*.{ts,tsx}"]),
+)) {
   vi.doMock(path, () => ({
     Route:
       path === "../routes/__root.tsx"
@@ -22,6 +24,8 @@ const router = createRouter({
 });
 
 it.each([
+  "/choose-organization",
+  "/create-organization",
   "/billing",
   "/billing/suspended",
   "/checkout/success",
@@ -33,6 +37,8 @@ it.each([
 });
 
 it.each([
+  "/access-required",
+  "/setup",
   "/logs",
   "/traces",
   "/users-management",

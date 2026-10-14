@@ -35,25 +35,11 @@ it("permits collaboration independently of subscription state", async () => {
   await expect(assertCanInviteMembers("org")).resolves.toBeUndefined();
 });
 
-it("creates organizations directly with the authenticated owner and no plan selection", async () => {
-  vi.mocked(auth.api.createOrganization).mockResolvedValue({
-    id: "new-org",
-    name: "Acme",
-  } as never);
+it("rejects additional organization creation", async () => {
   await expect(
     createOrganization({ data: { organizationName: "Acme" } }),
-  ).resolves.toEqual({
-    kind: "created",
-    organization: { id: "new-org", name: "Acme" },
-  });
-  expect(auth.api.createOrganization).toHaveBeenCalledWith({
-    body: {
-      name: "Acme",
-      slug: expect.any(String),
-      userId: "test_user",
-      plan: "self-hosted",
-    },
-  });
+  ).rejects.toThrow("one workspace");
+  expect(auth.api.createOrganization).not.toHaveBeenCalled();
 });
 
 it("rejects attempts to select a commercial plan", async () => {
@@ -68,4 +54,21 @@ it("keeps authentication required for organization creation", async () => {
   await expect(
     createOrganization({ data: { organizationName: "Acme" } }),
   ).rejects.toThrow("Unauthenticated");
+});
+
+it("rejects organization creation and deletion through authentication hooks", async () => {
+  const { beforeCreateOrganization, identityLifecycle } = await import(
+    "@app/auth"
+  );
+  await expect(beforeCreateOrganization()).rejects.toThrow("one workspace");
+  await expect(identityLifecycle.assertDeletable("test_org")).rejects.toThrow(
+    "cannot be deleted",
+  );
+});
+
+it("never creates a personal workspace on sign-in", async () => {
+  const { createSessionOnboardingHook } = await import("@app/onboarding");
+  const create = vi.fn();
+  await createSessionOnboardingHook(create)({ id: "session", userId: "user" });
+  expect(create).not.toHaveBeenCalled();
 });

@@ -32,7 +32,7 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-import { OrganizationCreation } from "./organization-creation";
+import { OrganizationCreation } from "@/cloud/components/organization-creation";
 
 beforeEach(() => {
   vi.useFakeTimers();

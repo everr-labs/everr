@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { OrganizationSelection } from "@/cloud/components/organization-selection";
 import { returnToSchema } from "@/common/return-to";
-import { OrganizationSelection } from "@/components/organization-selection";
 
 export const Route = createFileRoute("/_welcome/_signedIn/choose-organization")(
   {

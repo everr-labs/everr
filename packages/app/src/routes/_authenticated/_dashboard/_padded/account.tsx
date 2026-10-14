@@ -1,3 +1,4 @@
+import { canDeleteWorkspace } from "@app/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,7 +64,8 @@ function AccountSettingsPage() {
   const currentMemberRole = activeOrganizationMembers.find(
     (member) => member.userId === session?.user?.id,
   )?.role;
-  const canDeleteActiveOrganization = isOrganizationOwner(currentMemberRole);
+  const canDeleteActiveOrganization =
+    canDeleteWorkspace && isOrganizationOwner(currentMemberRole);
   const isOnlyActiveOrganizationOwner =
     canDeleteActiveOrganization &&
     activeOrganizationMembers.filter((member) =>

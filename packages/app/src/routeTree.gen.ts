@@ -17,6 +17,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedOrganizationRouteImport } from './routes/_authenticated/_organization'
 import { Route as WelcomeGuestRouteImport } from './routes/_welcome/_guest'
 import { Route as WelcomeSignedInRouteImport } from './routes/_welcome/_signedIn'
+import { Route as WelcomeSetupRouteImport } from './app/routes/_welcome/setup'
 import { Route as ApiApplyRouteImport } from './routes/api/apply'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -27,8 +28,7 @@ import { Route as AuthenticatedDashboardPaddedRouteImport } from './routes/_auth
 import { Route as AuthenticatedOrganizationDashboardRouteImport } from './routes/_authenticated/_organization/_dashboard'
 import { Route as AuthenticatedOrganizationDeviceRouteImport } from './routes/_authenticated/_organization/device'
 import { Route as WelcomeSignedInOrganizationRouteImport } from './routes/_welcome/_signedIn/_organization'
-import { Route as WelcomeSignedInChooseOrganizationRouteImport } from './routes/_welcome/_signedIn/choose-organization'
-import { Route as WelcomeSignedInCreateOrganizationRouteImport } from './routes/_welcome/_signedIn/create-organization'
+import { Route as WelcomeSignedInAccessRequiredRouteImport } from './app/routes/_welcome/_signedIn/access-required'
 import { Route as WelcomeAuthErrorRouteImport } from './routes/_welcome/auth/error'
 import { Route as WelcomeInviteDotinvitationIdRouteImport } from './routes/_welcome/invite.$invitationId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -131,6 +131,11 @@ const WelcomeSignedInRoute = WelcomeSignedInRouteImport.update({
   id: '/_signedIn',
   getParentRoute: () => WelcomeRoute,
 } as any)
+const WelcomeSetupRoute = WelcomeSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => WelcomeRoute,
+} as any)
 const ApiApplyRoute = ApiApplyRouteImport.update({
   id: '/api/apply',
   path: '/api/apply',
@@ -182,16 +187,10 @@ const WelcomeSignedInOrganizationRoute =
     id: '/_organization',
     getParentRoute: () => WelcomeSignedInRoute,
   } as any)
-const WelcomeSignedInChooseOrganizationRoute =
-  WelcomeSignedInChooseOrganizationRouteImport.update({
-    id: '/choose-organization',
-    path: '/choose-organization',
-    getParentRoute: () => WelcomeSignedInRoute,
-  } as any)
-const WelcomeSignedInCreateOrganizationRoute =
-  WelcomeSignedInCreateOrganizationRouteImport.update({
-    id: '/create-organization',
-    path: '/create-organization',
+const WelcomeSignedInAccessRequiredRoute =
+  WelcomeSignedInAccessRequiredRouteImport.update({
+    id: '/access-required',
+    path: '/access-required',
     getParentRoute: () => WelcomeSignedInRoute,
   } as any)
 const WelcomeAuthErrorRoute = WelcomeAuthErrorRouteImport.update({
@@ -675,6 +674,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute
   '/.well-known/oauth-authorization-server': typeof Char91DotChar93wellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof Char91DotChar93wellKnownOauthProtectedResourceRoute
+  '/setup': typeof WelcomeSetupRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
@@ -682,8 +682,7 @@ export interface FileRoutesByFullPath {
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/device': typeof AuthenticatedOrganizationDeviceRoute
-  '/choose-organization': typeof WelcomeSignedInChooseOrganizationRoute
-  '/create-organization': typeof WelcomeSignedInCreateOrganizationRoute
+  '/access-required': typeof WelcomeSignedInAccessRequiredRoute
   '/auth/error': typeof WelcomeAuthErrorRoute
   '/invite/$invitationId': typeof WelcomeInviteDotinvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -746,6 +745,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute
   '/.well-known/oauth-authorization-server': typeof Char91DotChar93wellKnownOauthAuthorizationServerRouteWithChildren
   '/.well-known/oauth-protected-resource': typeof Char91DotChar93wellKnownOauthProtectedResourceRoute
+  '/setup': typeof WelcomeSetupRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
@@ -753,8 +753,7 @@ export interface FileRoutesByTo {
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/device': typeof AuthenticatedOrganizationDeviceRoute
-  '/choose-organization': typeof WelcomeSignedInChooseOrganizationRoute
-  '/create-organization': typeof WelcomeSignedInCreateOrganizationRoute
+  '/access-required': typeof WelcomeSignedInAccessRequiredRoute
   '/auth/error': typeof WelcomeAuthErrorRoute
   '/invite/$invitationId': typeof WelcomeInviteDotinvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -818,6 +817,7 @@ export interface FileRoutesById {
   '/_authenticated/_organization': typeof AuthenticatedOrganizationRouteWithChildren
   '/_welcome/_guest': typeof WelcomeGuestRouteWithChildren
   '/_welcome/_signedIn': typeof WelcomeSignedInRouteWithChildren
+  '/_welcome/setup': typeof WelcomeSetupRoute
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
@@ -828,8 +828,7 @@ export interface FileRoutesById {
   '/_authenticated/_organization/_dashboard': typeof AuthenticatedOrganizationDashboardRouteWithChildren
   '/_authenticated/_organization/device': typeof AuthenticatedOrganizationDeviceRoute
   '/_welcome/_signedIn/_organization': typeof WelcomeSignedInOrganizationRouteWithChildren
-  '/_welcome/_signedIn/choose-organization': typeof WelcomeSignedInChooseOrganizationRoute
-  '/_welcome/_signedIn/create-organization': typeof WelcomeSignedInCreateOrganizationRoute
+  '/_welcome/_signedIn/access-required': typeof WelcomeSignedInAccessRequiredRoute
   '/_welcome/auth/error': typeof WelcomeAuthErrorRoute
   '/_welcome/invite/$invitationId': typeof WelcomeInviteDotinvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -901,6 +900,7 @@ export interface FileRouteTypes {
     | '/'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/setup'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
@@ -908,8 +908,7 @@ export interface FileRouteTypes {
     | '/mcp/consent'
     | '/webhook/github'
     | '/device'
-    | '/choose-organization'
-    | '/create-organization'
+    | '/access-required'
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
@@ -972,6 +971,7 @@ export interface FileRouteTypes {
     | '/'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/setup'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
@@ -979,8 +979,7 @@ export interface FileRouteTypes {
     | '/mcp/consent'
     | '/webhook/github'
     | '/device'
-    | '/choose-organization'
-    | '/create-organization'
+    | '/access-required'
     | '/auth/error'
     | '/invite/$invitationId'
     | '/api/auth/$'
@@ -1043,6 +1042,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_organization'
     | '/_welcome/_guest'
     | '/_welcome/_signedIn'
+    | '/_welcome/setup'
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
@@ -1053,8 +1053,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_organization/_dashboard'
     | '/_authenticated/_organization/device'
     | '/_welcome/_signedIn/_organization'
-    | '/_welcome/_signedIn/choose-organization'
-    | '/_welcome/_signedIn/create-organization'
+    | '/_welcome/_signedIn/access-required'
     | '/_welcome/auth/error'
     | '/_welcome/invite/$invitationId'
     | '/api/auth/$'
@@ -1197,6 +1196,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WelcomeSignedInRouteImport
       parentRoute: typeof WelcomeRoute
     }
+    '/_welcome/setup': {
+      id: '/_welcome/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof WelcomeSetupRouteImport
+      parentRoute: typeof WelcomeRoute
+    }
     '/api/apply': {
       id: '/api/apply'
       path: '/api/apply'
@@ -1267,18 +1273,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WelcomeSignedInOrganizationRouteImport
       parentRoute: typeof WelcomeSignedInRoute
     }
-    '/_welcome/_signedIn/choose-organization': {
-      id: '/_welcome/_signedIn/choose-organization'
-      path: '/choose-organization'
-      fullPath: '/choose-organization'
-      preLoaderRoute: typeof WelcomeSignedInChooseOrganizationRouteImport
-      parentRoute: typeof WelcomeSignedInRoute
-    }
-    '/_welcome/_signedIn/create-organization': {
-      id: '/_welcome/_signedIn/create-organization'
-      path: '/create-organization'
-      fullPath: '/create-organization'
-      preLoaderRoute: typeof WelcomeSignedInCreateOrganizationRouteImport
+    '/_welcome/_signedIn/access-required': {
+      id: '/_welcome/_signedIn/access-required'
+      path: '/access-required'
+      fullPath: '/access-required'
+      preLoaderRoute: typeof WelcomeSignedInAccessRequiredRouteImport
       parentRoute: typeof WelcomeSignedInRoute
     }
     '/_welcome/auth/error': {
@@ -2107,17 +2106,13 @@ const WelcomeSignedInOrganizationRouteWithChildren =
 
 interface WelcomeSignedInRouteChildren {
   WelcomeSignedInOrganizationRoute: typeof WelcomeSignedInOrganizationRouteWithChildren
-  WelcomeSignedInChooseOrganizationRoute: typeof WelcomeSignedInChooseOrganizationRoute
-  WelcomeSignedInCreateOrganizationRoute: typeof WelcomeSignedInCreateOrganizationRoute
+  WelcomeSignedInAccessRequiredRoute: typeof WelcomeSignedInAccessRequiredRoute
 }
 
 const WelcomeSignedInRouteChildren: WelcomeSignedInRouteChildren = {
   WelcomeSignedInOrganizationRoute:
     WelcomeSignedInOrganizationRouteWithChildren,
-  WelcomeSignedInChooseOrganizationRoute:
-    WelcomeSignedInChooseOrganizationRoute,
-  WelcomeSignedInCreateOrganizationRoute:
-    WelcomeSignedInCreateOrganizationRoute,
+  WelcomeSignedInAccessRequiredRoute: WelcomeSignedInAccessRequiredRoute,
 }
 
 const WelcomeSignedInRouteWithChildren = WelcomeSignedInRoute._addFileChildren(
@@ -2127,6 +2122,7 @@ const WelcomeSignedInRouteWithChildren = WelcomeSignedInRoute._addFileChildren(
 interface WelcomeRouteChildren {
   WelcomeGuestRoute: typeof WelcomeGuestRouteWithChildren
   WelcomeSignedInRoute: typeof WelcomeSignedInRouteWithChildren
+  WelcomeSetupRoute: typeof WelcomeSetupRoute
   WelcomeAuthErrorRoute: typeof WelcomeAuthErrorRoute
   WelcomeInviteDotinvitationIdRoute: typeof WelcomeInviteDotinvitationIdRoute
 }
@@ -2134,6 +2130,7 @@ interface WelcomeRouteChildren {
 const WelcomeRouteChildren: WelcomeRouteChildren = {
   WelcomeGuestRoute: WelcomeGuestRouteWithChildren,
   WelcomeSignedInRoute: WelcomeSignedInRouteWithChildren,
+  WelcomeSetupRoute: WelcomeSetupRoute,
   WelcomeAuthErrorRoute: WelcomeAuthErrorRoute,
   WelcomeInviteDotinvitationIdRoute: WelcomeInviteDotinvitationIdRoute,
 }

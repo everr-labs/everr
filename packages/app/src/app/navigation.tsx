@@ -1,3 +1,11 @@
 export function OrganizationMenuItems() {
   return null;
 }
+export function WorkspaceMenu() {
+  return null;
+}
+export function OrganizationSwitcher(_props: {
+  activeOrganizationId?: string | null;
+}) {
+  return null;
+}

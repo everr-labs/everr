@@ -6,6 +6,11 @@ import {
   membershipPlugins,
   organizationHooks,
 } from "@app/auth";
+import {
+  beforeUserCreate,
+  createSessionOnboardingHook,
+  requireVerifiedInvitation,
+} from "@app/onboarding";
 import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
@@ -31,7 +36,6 @@ import { db } from "@/db/client";
 import { member, session as sessionTable } from "@/db/schema";
 import { env } from "@/env";
 import { selectSoleOrganization } from "@/lib/auto-org";
-import { createAutomaticOrganizationSessionHook } from "@/lib/auto-org.server";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -202,6 +206,7 @@ export const auth = betterAuth({
   },
   databaseHooks: {
     user: {
+      create: { before: beforeUserCreate },
       delete: {
         before: async (user) => {
           await identityLifecycle.beforeUserDelete(user.id);
@@ -246,7 +251,7 @@ export const auth = betterAuth({
             },
           };
         },
-        after: createAutomaticOrganizationSessionHook(
+        after: createSessionOnboardingHook(
           async (body): Promise<{ id: string } | null> =>
             auth.api.createOrganization({ body }),
           db,
@@ -289,9 +294,8 @@ export const auth = betterAuth({
       // billable Organization cannot bypass a confirmed Polar payment.
       allowUserToCreateOrganization: false,
       creatorRole: "owner",
-      // Preserve pre-1.6.11 behavior: don't require the recipient's email to be
-      // verified to view/accept an invitation. 1.6.11 flipped this default to true.
-      requireEmailVerificationOnInvitation: false,
+      // The app selects whether invitation acceptance requires a verified email.
+      requireEmailVerificationOnInvitation: requireVerifiedInvitation,
       sendInvitationEmail: async (data) => {
         sendInvitationEmail({
           to: data.email,

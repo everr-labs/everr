@@ -1,3 +1,4 @@
+import { canOpenSignup } from "@app/signup";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -23,8 +24,26 @@ const SignUpSearchSchema = z.object({
 
 export const Route = createFileRoute("/_welcome/_guest/auth/sign-up")({
   validateSearch: SignUpSearchSchema,
-  component: SignUp,
+  beforeLoad: async ({ search }) => ({
+    signupAllowed: await canOpenSignup({ data: { redirect: search.redirect } }),
+  }),
+  component: SignupEntry,
 });
+
+function SignupEntry() {
+  const { signupAllowed } = Route.useRouteContext();
+  return signupAllowed ? (
+    <SignUp />
+  ) : (
+    <>
+      <AuthPageHeader
+        title="Invitation required"
+        subtitle="Contact your administrator for an invitation."
+      />
+      <Link to="/auth/sign-in">Back to sign in</Link>
+    </>
+  );
+}
 
 function SignUp() {
   const navigate = useNavigate();
@@ -52,6 +71,7 @@ function SignUp() {
           name: value.name,
           email: value.email,
           password: value.password,
+          callbackURL,
         });
 
         if (result.error) {

@@ -73,7 +73,7 @@ vi.mock("@/data/organizations", () => ({
     .mockResolvedValue({ canCreateHobby: true }),
 }));
 
-import { OrganizationSelection } from "@/components/organization-selection";
+import { OrganizationSelection } from "@/cloud/components/organization-selection";
 import { authClient } from "@/lib/auth-client";
 
 function CachedOrganizationMenu() {

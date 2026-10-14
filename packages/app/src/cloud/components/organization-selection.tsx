@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
 import { ArrowRight, Loader2, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { OrganizationCreation } from "@/components/organization-creation";
+import { OrganizationCreation } from "@/cloud/components/organization-creation";
 import { useOrganizationActivation } from "@/components/use-organization-activation";
 import { getOrganizationCreationOptions } from "@/data/organizations";
 import { authClient } from "@/lib/auth-client";

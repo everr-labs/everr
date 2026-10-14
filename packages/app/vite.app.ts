@@ -37,7 +37,7 @@ export function appRoutes(mode: string) {
       file: "routes/__root.tsx",
       children: [
         { type: "physical" as const, directory: "routes", pathPrefix: "" },
-        ...(mode === "cloud" ? [{ type: "physical" as const, directory: "cloud/routes", pathPrefix: "" }] : []),
+        { type: "physical" as const, directory: mode === "cloud" ? "cloud/routes" : "app/routes", pathPrefix: "" },
       ],
     },
   };

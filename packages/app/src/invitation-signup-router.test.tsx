@@ -60,12 +60,12 @@ vi.mock("@/data/invite", async () => {
   };
 });
 
+import { Route as chooseRoute } from "@/cloud/routes/_welcome/_signedIn/choose-organization";
 import { Route as authRoute } from "@/routes/_welcome";
 import { Route as guestRoute } from "@/routes/_welcome/_guest";
 import { Route as signupRoute } from "@/routes/_welcome/_guest/auth/sign-up";
 import { Route as onboardingRoute } from "@/routes/_welcome/_signedIn";
 import { Route as setupRoute } from "@/routes/_welcome/_signedIn/_organization/organization-setup";
-import { Route as chooseRoute } from "@/routes/_welcome/_signedIn/choose-organization";
 import { Route as invitationRoute } from "@/routes/_welcome/invite.$invitationId";
 
 function signUpInvitedUser() {
@@ -112,6 +112,7 @@ function invitationSignupRouter() {
     getParentRoute: () => guest,
     path: "/auth/sign-up",
     validateSearch: signupRoute.options.validateSearch,
+    beforeLoad: (options) => signupRoute.options.beforeLoad?.(options as never),
     component: signupRoute.options.component,
   });
   const onboarding = createRoute({

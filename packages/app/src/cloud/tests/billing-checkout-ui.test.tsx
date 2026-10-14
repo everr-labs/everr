@@ -39,8 +39,8 @@ vi.mock("@/components/page-header", () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
 
+import { OrganizationCreation } from "@/cloud/components/organization-creation";
 import { Route } from "@/cloud/routes/_authenticated/_organization/_dashboard/_padded/_admin/billing";
-import { OrganizationCreation } from "@/components/organization-creation";
 
 const BillingPage = Route.options.component as ComponentType;
 function billingPage() {

@@ -142,7 +142,7 @@
       "exports": ["FileRouteTypes", "RootRouteChildren"]
     },
     {
-      "file": "packages/app/src/cloud/routes/**",
+      "file": "packages/app/src/{app,cloud}/routes/**",
       "exports": ["Route"]
     },
     {

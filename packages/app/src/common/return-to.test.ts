@@ -8,6 +8,7 @@ it.each([
   "/logs\n",
   "/organization-setup",
   "/organization-pending",
+  "/access-required",
   "/choose-organization",
   "/create-organization",
 ])("rejects unsafe or looping destinations: %s", (target) => {
