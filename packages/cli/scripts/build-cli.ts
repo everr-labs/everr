@@ -4,7 +4,7 @@ import {
   prepareCliEmbeddedAssets,
   publishCliArtifact,
 } from "./build-support.ts";
-import { compileCli } from "./cli-build.ts";
+import { compileCli, resolveCliBuild } from "./cli-build.ts";
 import { withBuildTelemetry } from "./build-telemetry.ts";
 
 const args = process.argv.slice(2);
@@ -15,6 +15,8 @@ if (args.length < 1 || args.length > 2) {
 }
 
 const [mode, flag] = args;
+// Validate before building assets or publishing any release artifact.
+resolveCliBuild(mode);
 let installBin = false;
 
 if (flag === "--install") {
