@@ -37,7 +37,6 @@ COPY skills/everr-use-telemetry/rules/schema.md ./skills/everr-use-telemetry/rul
 RUN SKIP_ENV_VALIDATION=true \
     BETTER_AUTH_URL=http://localhost:3000 \
     BETTER_AUTH_SECRET=prerender-only-not-a-runtime-secret \
-    EMAIL_DSN=smtp://localhost:1025 \
     pnpm --filter @everr/app build:${EVERR_BUILD_TARGET} && \
     test -s packages/app/.output/public/_shell.html
 
