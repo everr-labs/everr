@@ -4,15 +4,32 @@ description: Install the CLI and give your coding agent the tools to work with t
 ---
 
 The Everr CLI is all you need for observability tasks. With a single command, you can:
+
 - Start a local collector and UI to explore local telemetry
 - Use specialized AI skills
-- Query local and cloud telemetry with SQL syntax—or let your agent do it
+- Query local and cloud telemetry with SQL syntax, or let your agent do it
 - Preview and publish your dashboards, alerts, and other [Observability as code](/docs/concepts/observability-as-code) resources.
-
 
 ## Install the CLI
 
-Run this in your terminal:
+Install the CLI as a development dependency in your project:
+
+```sh
+npm install --save-dev @everr/cli
+npx everr local start
+```
+
+For a project installation, prefix the `everr` commands in this guide with `npx`, or invoke them from an npm script. Requires Node.js 20 or newer. Supported platforms are macOS Apple Silicon and Linux ARM64 or x64 with glibc (binaries are built on Ubuntu 24.04). Keep optional dependencies enabled so npm installs the matching binary package.
+
+To make `everr` available across projects:
+
+```sh
+npm install --global @everr/cli
+```
+
+You can also run `npx @everr/cli local start` without adding a project dependency.
+
+If you prefer the standalone installer:
 
 ```sh
 curl -fsSL https://everr.dev/install.sh | sh
@@ -24,7 +41,9 @@ Follow the installer's PATH instructions, then check that the CLI is available:
 everr --version
 ```
 
-See the [CLI reference](/docs/reference/cli) for supported platforms and install options. Use `everr upgrade` to update the CLI and its bundled local UI.
+See the [CLI reference](/docs/reference/cli) for the full command list.
+
+The browser UI is bundled with the CLI. For npm installations, update both with `npm install @everr/cli@latest`, or `npm install --global @everr/cli@latest` for a global installation. For the standalone installer, run `everr upgrade`. When installed through npm, `everr upgrade` prints the appropriate npm command.
 
 ## Connect your coding agent
 

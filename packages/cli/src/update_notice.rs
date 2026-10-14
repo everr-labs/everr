@@ -13,7 +13,6 @@ use crate::cli::{Cli, Commands};
 const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const FETCH_TIMEOUT: Duration = Duration::from_millis(750);
 const RELEASE_METADATA_PATH: &str = "/everr-app/release-metadata.json";
-const UPGRADE_COMMAND: &str = "everr upgrade";
 
 const RELEASE_METADATA_URL_OVERRIDE_ENV: &str = "EVERR_RELEASE_METADATA_URL_FOR_TESTS";
 
@@ -52,7 +51,10 @@ pub async fn maybe_print(cli: &Cli) {
 
     if status.update_available {
         println!("A new version is available: {}", status.latest_version);
-        println!("Run: {UPGRADE_COMMAND}");
+        let command = crate::install_source::npm_scope()
+            .map(|scope| scope.update_command())
+            .unwrap_or("everr upgrade");
+        println!("Run: {command}");
     }
 }
 

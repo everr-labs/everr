@@ -22,6 +22,21 @@ fn cached_update_prints_notice_without_network() {
 }
 
 #[test]
+fn npm_update_notice_uses_the_package_manager_command() {
+    let env = CliTestEnv::new();
+    write_cache(&env, "2099.1.0", true, "2099-01-01T00:00:00Z");
+
+    env.command()
+        .env("EVERR_INSTALL_SOURCE", "npm")
+        .env("EVERR_NPM_INSTALL_SCOPE", "global")
+        .args(["skills", "list"])
+        .assert()
+        .success()
+        .stdout(contains("Run: npm install --global @everr/cli@latest"))
+        .stdout(contains("Run: everr upgrade").not());
+}
+
+#[test]
 fn stale_cache_fetches_release_metadata_and_records_update() {
     let env = CliTestEnv::new();
     write_cache(&env, "0.0.1", false, "2000-01-01T00:00:00Z");

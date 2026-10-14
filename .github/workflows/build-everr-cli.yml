@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/build-everr-cli.yml
+      - .github/workflows/deploy-cli.yml
       - packages/cli/**
       - skills/**
       - packages/local-app/**
@@ -31,6 +32,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/build-everr-cli.yml
+      - .github/workflows/deploy-cli.yml
       - packages/cli/**
       - skills/**
       - packages/local-app/**
@@ -83,8 +85,16 @@ jobs:
       - name: Test
         run: pnpm --filter @everr/cli test:rust
 
+      - name: Test npm packaging
+        run: node --test packages/cli/scripts/npm-packages.test.mjs
+
       - name: Build release binary
         run: pnpm --filter @everr/cli build:release
 
       - name: Smoke test
         run: ./target/release/everr --help
+
+      - name: Test npm installation of release binary
+        env:
+          EVERR_NPM_SMOKE_BINARY: target/release/everr
+        run: node --test --test-name-pattern="packaged Rust binary" packages/cli/scripts/npm-packages.test.mjs

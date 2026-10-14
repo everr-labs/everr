@@ -20,8 +20,12 @@ pub fn run_uninstall() -> Result<()> {
     }
 
     println!();
-    println!("To remove the CLI binary, run:");
-    println!("  rm \"{}\"", cli_path.display());
+    if let Some(scope) = crate::install_source::npm_scope() {
+        println!("{}", scope.removal_instruction());
+    } else {
+        println!("To remove the CLI binary, run:");
+        println!("  rm \"{}\"", cli_path.display());
+    }
 
     Ok(())
 }

@@ -11,6 +11,7 @@ mod core;
 pub mod datemath;
 pub mod device_auth;
 pub mod git;
+mod install_source;
 pub mod skill_store;
 mod skills;
 pub mod state;
