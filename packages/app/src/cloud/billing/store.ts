@@ -1,5 +1,6 @@
-import { and, eq, isNull, or, sql } from "drizzle-orm";
-import { member, organization, orgSubscription, user } from "@/db/schema";
+import { and, eq, getTableColumns, isNull, or, sql } from "drizzle-orm";
+import { organizationBilling, orgSubscription } from "@/cloud/db/schema";
+import { member, organization, user } from "@/db/schema";
 import {
   isOrganizationAdmin,
   isOrganizationOwner,
@@ -27,8 +28,18 @@ export function createBillingStore({ db }: BillingDependencies) {
     },
     async organization(id: string) {
       const [org] = await db
-        .select()
+        .select({
+          ...getTableColumns(organization),
+          plan: sql<
+            "hobby" | "pro"
+          >`coalesce(${organizationBilling.plan}, 'hobby')`,
+          polarCustomerId: organizationBilling.polarCustomerId,
+        })
         .from(organization)
+        .leftJoin(
+          organizationBilling,
+          eq(organizationBilling.orgId, organization.id),
+        )
         .where(eq(organization.id, id));
       if (!org)
         throw new BillingError(
@@ -39,18 +50,17 @@ export function createBillingStore({ db }: BillingDependencies) {
     },
     async linkCustomer(orgId: string, customerId: string) {
       const updated = await db
-        .update(organization)
-        .set({ polarCustomerId: customerId })
-        .where(
-          and(
-            eq(organization.id, orgId),
-            or(
-              isNull(organization.polarCustomerId),
-              eq(organization.polarCustomerId, customerId),
-            ),
+        .insert(organizationBilling)
+        .values({ orgId, polarCustomerId: customerId })
+        .onConflictDoUpdate({
+          target: organizationBilling.orgId,
+          set: { polarCustomerId: customerId },
+          setWhere: or(
+            isNull(organizationBilling.polarCustomerId),
+            eq(organizationBilling.polarCustomerId, customerId),
           ),
-        )
-        .returning({ id: organization.id });
+        })
+        .returning({ id: organizationBilling.orgId });
       if (!updated.length)
         throw new BillingError(
           "identity_conflict",
@@ -110,9 +120,12 @@ export function createBillingStore({ db }: BillingDependencies) {
           .returning();
         if (updated.length && subscription.status === "active")
           await tx
-            .update(organization)
-            .set({ plan: "pro" })
-            .where(eq(organization.id, orgId));
+            .insert(organizationBilling)
+            .values({ orgId, plan: "pro" })
+            .onConflictDoUpdate({
+              target: organizationBilling.orgId,
+              set: { plan: "pro" },
+            });
       });
     },
   };

@@ -1,17 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveBrowserTelemetryConfig,
   resolveTelemetryConfig,
   signalUrl,
   telemetryResourceAttributes,
 } from "./config";
 
 describe("telemetry config", () => {
-  it("uses the local collector endpoint by default", () => {
-    expect(resolveTelemetryConfig({}, "instance-1")).toEqual({
+  it("uses the local collector in development when no endpoint is configured", () => {
+    const env = { NODE_ENV: "development" };
+    expect(resolveTelemetryConfig(env, "instance-1")).toEqual({
       endpoint: "http://127.0.0.1:54318",
       headers: undefined,
-      resourceAttributes: telemetryResourceAttributes({}, "instance-1"),
+      resourceAttributes: telemetryResourceAttributes(env, "instance-1"),
     });
+  });
+
+  it("does not configure telemetry in production without an endpoint", () => {
+    expect(
+      resolveTelemetryConfig({ NODE_ENV: "production" }, "instance-1"),
+    ).toBeNull();
   });
 
   it("uses the explicit OTLP endpoint without leaking hosted ingest auth", () => {
@@ -36,28 +44,47 @@ describe("telemetry config", () => {
     });
   });
 
-  it("uses hosted ingest only when an ingest key is present", () => {
-    expect(
-      resolveTelemetryConfig(
-        {
-          DEPLOYMENT_ENVIRONMENT: "production",
-          EVERR_INGEST_KEY: "secret",
-          SERVICE_VERSION: "release-2026-06-02",
-        },
-        "instance-1",
-      ),
-    ).toEqual({
-      endpoint: "https://ingest.everr.dev",
-      headers: { Authorization: "Bearer secret" },
-      resourceAttributes: telemetryResourceAttributes(
-        {
-          DEPLOYMENT_ENVIRONMENT: "production",
-          SERVICE_VERSION: "release-2026-06-02",
-        },
-        "instance-1",
-      ),
-    });
+  it("uses the build's default Everr endpoint only when an ingest key is present", () => {
+    const env = {
+      DEPLOYMENT_ENVIRONMENT: "production",
+      EVERR_INGEST_KEY: "secret",
+      SERVICE_VERSION: "release-2026-06-02",
+    };
+    const expectedEndpoint =
+      import.meta.env.MODE === "cloud" ? "https://ingest.everr.dev" : undefined;
+
+    expect(resolveTelemetryConfig(env, "instance-1")).toEqual(
+      expectedEndpoint
+        ? {
+            endpoint: expectedEndpoint,
+            headers: { Authorization: "Bearer secret" },
+            resourceAttributes: telemetryResourceAttributes(
+              {
+                DEPLOYMENT_ENVIRONMENT: "production",
+                SERVICE_VERSION: "release-2026-06-02",
+              },
+              "instance-1",
+            ),
+          }
+        : null,
+    );
   });
+
+  it.skipIf(
+    Boolean(
+      import.meta.env.MODE === "cloud" ? "https://ingest.everr.dev" : undefined,
+    ),
+  )(
+    "keeps the local development default when self-hosted has only a key",
+    () => {
+      const env = { NODE_ENV: "development", EVERR_INGEST_KEY: "secret" };
+      expect(resolveTelemetryConfig(env, "instance-1")).toEqual({
+        endpoint: "http://127.0.0.1:54318",
+        headers: undefined,
+        resourceAttributes: telemetryResourceAttributes(env, "instance-1"),
+      });
+    },
+  );
 
   it("uses an authenticated custom Everr ingest endpoint", () => {
     expect(
@@ -78,6 +105,35 @@ describe("telemetry config", () => {
         },
         "instance-1",
       ),
+    });
+  });
+
+  it("uses only the selected build's browser endpoint when a key is present", () => {
+    const config = resolveBrowserTelemetryConfig({ publicKey: "public-key" });
+    if (
+      import.meta.env.MODE === "cloud" ? "https://ingest.everr.dev" : undefined
+    ) {
+      expect(config).toEqual({
+        endpoint:
+          import.meta.env.MODE === "cloud"
+            ? "https://ingest.everr.dev"
+            : undefined,
+        ingestKey: "public-key",
+      });
+    } else {
+      expect(config).toEqual({ endpoint: undefined, ingestKey: undefined });
+    }
+  });
+
+  it("preserves an explicit browser endpoint and public key", () => {
+    expect(
+      resolveBrowserTelemetryConfig({
+        endpoint: "https://collector.example/",
+        publicKey: "public-key",
+      }),
+    ).toEqual({
+      endpoint: "https://collector.example/",
+      ingestKey: "public-key",
     });
   });
 

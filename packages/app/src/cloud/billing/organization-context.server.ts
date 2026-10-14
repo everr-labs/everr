@@ -28,3 +28,13 @@ export async function beforeCreateCheckoutOrganization({
     throw new Error("Organization creation context mismatch");
   return { data: { id: context.id } };
 }
+
+export function organizationCreationPlan(
+  organizationId: string,
+): "hobby" | "pro" {
+  const context = creationContext.getStore();
+  if (!context) return "hobby";
+  if (context.id !== organizationId)
+    throw new Error("Organization creation context mismatch");
+  return "pro";
+}

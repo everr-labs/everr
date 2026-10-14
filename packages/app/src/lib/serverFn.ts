@@ -1,6 +1,6 @@
+import { assertStorageReady } from "@app/storage-readiness";
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
-import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
 import { db } from "@/db/client";
 import { member, organization as organizationTable } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
@@ -67,15 +67,15 @@ export const requireOrgMiddleware = createMiddleware()
     });
   });
 
-const requireProvisionedOrgMiddleware = createMiddleware()
+const requireStorageReadyMiddleware = createMiddleware()
   .middleware([requireOrgMiddleware])
   .server(({ next, context: { organization } }) => {
-    assertOrganizationProvisioned(organization.metadata);
+    assertStorageReady(organization.metadata);
     return next();
   });
 
 export const createAuthenticatedServerFn = createServerFn().middleware([
-  requireProvisionedOrgMiddleware,
+  requireStorageReadyMiddleware,
 ]);
 
 export class NotOrganizationAdminError extends Error {

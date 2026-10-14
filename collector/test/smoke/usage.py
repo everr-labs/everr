@@ -63,7 +63,7 @@ def verify_month_query(db):
             ('2026-09', 'wrong-month', 'wrong-month', 'one', '2026-09-30 23:58:00', '2026-10-01 00:00:05', 999)
         )
     )"""
-    query = (ROOT / 'extension/everrusageextension/customer-usage.sql').read_text().replace('FROM metrics_sum', 'FROM ' + fixture)
+    query = (ROOT / 'cloud/extension/everrusageextension/customer-usage.sql').read_text().replace('FROM metrics_sum', 'FROM ' + fixture)
     september = {r['customer']: int(r['bytes']) for r in db(query.replace('{month:String}', "'2026-09'"))}
     assert set(september) == {'a', 'large'}, september
     assert september['a'] == 450, september
@@ -101,7 +101,7 @@ def verify_clock_queries(db):
             ('2026-09', 'traces', '0', 70), ('2026-10', 'logs', '2', 80)
         )
     )"""
-    canonical = (ROOT / 'extension/everrusageextension/customer-usage.sql').read_text().replace('FROM metrics_sum', 'FROM ' + fixture)
+    canonical = (ROOT / 'cloud/extension/everrusageextension/customer-usage.sql').read_text().replace('FROM metrics_sum', 'FROM ' + fixture)
     for month, expected in [('2026-09', {'logs': 270, 'metrics': 100, 'traces': 70}), ('2026-10', {'logs': 80})]:
         actual = {r['signal']: int(r['bytes']) for r in db(canonical.replace('{month:String}', repr(month)))}
         assert actual == expected, (month, actual, expected)
@@ -277,7 +277,7 @@ def main():
         proc = None
 
         def start():
-            process = subprocess.Popen([str(ROOT / 'build/everr-collector'), '--config', str(temp / 'config.json')],
+            process = subprocess.Popen([str(ROOT / 'build/cloud/everr-collector'), '--config', str(temp / 'config.json')],
                                        stdout=log, stderr=log)
             def ready():
                 if process.poll() is not None:
@@ -291,7 +291,7 @@ def main():
             return process
 
         usage_where = f"ServiceName='everr-ingestion' AND MetricName='everr.ingestion.volume' AND startsWith(Attributes['everr.usage.tenant.id'], '{run}') AND TimeUnix > now()-INTERVAL 10 MINUTE"
-        query = (ROOT / 'extension/everrusageextension/customer-usage.sql').read_text()
+        query = (ROOT / 'cloud/extension/everrusageextension/customer-usage.sql').read_text()
         query = query.replace('{month:String}', "'" + month + "'")
         query = query.replace("AND MetricName = 'everr.ingestion.volume'", f"AND MetricName = 'everr.ingestion.volume' AND startsWith(Attributes['everr.usage.tenant.id'], '{run}')")
 

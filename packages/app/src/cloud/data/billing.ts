@@ -8,8 +8,9 @@ import {
   readOrgEntitlement,
   userOwnsHobbyOrganization,
 } from "@/cloud/billing-data.server";
+import { organizationBilling } from "@/cloud/db/schema";
 import { db } from "@/db/client";
-import { invitation, member, organization } from "@/db/schema";
+import { invitation, member } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import {
   createOrganizationAdminServerFn,
@@ -135,9 +136,9 @@ export const downgradeSuspendedOrganization = createServerFn({ method: "POST" })
             )
             .returning({ id: invitation.id });
           await tx
-            .update(organization)
+            .update(organizationBilling)
             .set({ plan: "hobby" })
-            .where(eq(organization.id, orgId));
+            .where(eq(organizationBilling.orgId, orgId));
           return {
             removedMembers: removedMembers.length,
             canceledInvitations: canceledInvitations.length,

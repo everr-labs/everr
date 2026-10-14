@@ -124,10 +124,11 @@ vi.mock("@/cloud/app/env", async () => ({
   appEnv: (await import("@/env")).env,
 }));
 
-it("does not silently treat a self-hosted organization as a cloud subscription", async () => {
-  selectLimit.mockResolvedValueOnce([{ plan: "self-hosted" }]);
+it("defaults an organization without billing state to Hobby", async () => {
   selectLimit.mockResolvedValueOnce([]);
-  await expect(readOrgEntitlement("self-hosted-org")).rejects.toThrow(
-    "assigned a cloud plan",
-  );
+  selectLimit.mockResolvedValueOnce([]);
+  await expect(readOrgEntitlement("org")).resolves.toMatchObject({
+    plan: "hobby",
+    appState: "hobby",
+  });
 });

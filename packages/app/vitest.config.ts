@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => ({
 	test: {
     include: mode === "self-hosted" ? [
       "src/self-hosted/**/*.test.{ts,tsx}",
+      "src/server/alerting/history/clickhouse.test.ts",
+      "src/telemetry/config.test.ts",
       "src/lib/session-recovery.test.ts",
       "src/routes/-authenticated-guard.test.ts",
       "src/routes/api/internal/verify-key.test.ts",

@@ -279,7 +279,7 @@ describe("organization readiness boundary", () => {
     };
     await expect(
       mocked.allDefinitions[2]?.__handler(args),
-    ).rejects.toMatchObject({ name: "ClickhouseProvisioningPendingError" });
+    ).rejects.toMatchObject({ name: "StorageNotReadyError" });
     expect(args.next).not.toHaveBeenCalled();
     await getRequireOrgHandler()(args);
     expect(args.next).toHaveBeenCalledOnce();

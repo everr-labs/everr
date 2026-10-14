@@ -1,3 +1,4 @@
+import { internalIngestHeaders } from "@app/ingestion";
 import { requireGithubConfiguration } from "@/integrations/github/configuration";
 import { retentionForOrg } from "@/product/retention.server";
 import { GH_EVENTS_CONFIG } from "./config";
@@ -5,7 +6,6 @@ import { recordToHeaders, stripHopByHopHeaders } from "./headers";
 import type { WebhookHeaders } from "./types";
 import { TerminalEventError } from "./types";
 
-const tenantHeaderName = "x-everr-tenant-id";
 // The collector's internal pipeline copies these into resource attributes
 // (collector/config.example.yml, processor `resource`); the views stamp
 // retention_days from them and strip them before storage.
@@ -38,7 +38,11 @@ export async function replayWebhookToCollector(
 ): Promise<void> {
   const headers = recordToHeaders(event.headers);
   stripHopByHopHeaders(headers);
-  headers.set(tenantHeaderName, organizationId);
+  for (const [name, value] of Object.entries(
+    internalIngestHeaders(organizationId),
+  )) {
+    headers.set(name, value);
+  }
   const retention = await retentionForOrg(organizationId);
   headers.set(retentionHeaderNames.logsDays, String(retention.logsDays));
   headers.set(retentionHeaderNames.tracesDays, String(retention.tracesDays));

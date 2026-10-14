@@ -1,7 +1,7 @@
 import { generateId } from "better-auth";
 import { and, eq, isNull } from "drizzle-orm";
+import { orgSubscription, proOrganizationCheckout } from "@/cloud/db/schema";
 import { returnToSchema } from "@/common/return-to";
-import { orgSubscription, proOrganizationCheckout } from "@/db/schema";
 import { generateOrgSlug } from "@/lib/auto-org";
 import { creationLock, metadataFor } from "./attempts";
 import type { createBillingIdentity } from "./identity";

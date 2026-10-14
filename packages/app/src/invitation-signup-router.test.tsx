@@ -45,7 +45,7 @@ vi.mock("@/lib/auth-client", () => ({
   },
 }));
 vi.mock("@/data/auth", () => ({ getActiveOrganization: () => null }));
-vi.mock("@/data/organizations", () => ({
+vi.mock("@/cloud/data/organizations", () => ({
   getOrganizationCreationOptions: async () => ({ canCreateHobby: true }),
 }));
 vi.mock("@/data/invite", async () => {
@@ -64,12 +64,12 @@ vi.mock("@/data/invite", async () => {
   };
 });
 
+import { Route as setupRoute } from "@/cloud/routes/_welcome/_signedIn/_organization/organization-setup";
 import { Route as chooseRoute } from "@/cloud/routes/_welcome/_signedIn/choose-organization";
 import { Route as authRoute } from "@/routes/_welcome";
 import { Route as guestRoute } from "@/routes/_welcome/_guest";
 import { Route as signupRoute } from "@/routes/_welcome/_guest/auth/sign-up";
 import { Route as onboardingRoute } from "@/routes/_welcome/_signedIn";
-import { Route as setupRoute } from "@/routes/_welcome/_signedIn/_organization/organization-setup";
 import { Route as invitationRoute } from "@/routes/_welcome/invite.$invitationId";
 
 function signUpInvitedUser() {
@@ -199,7 +199,7 @@ it.each([
   expect(screen.queryByLabelText("Organization name")).toBeNull();
 });
 
-vi.mock("@/data/organization-provisioning", () => ({
+vi.mock("@/cloud/organization-provisioning/actions", () => ({
   completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
   getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
   retryOrganizationProvisioning: vi.fn(),

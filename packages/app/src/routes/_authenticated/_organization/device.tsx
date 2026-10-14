@@ -1,3 +1,4 @@
+import { DEVICE_LOGIN_RESTART_INSTRUCTION } from "@app/device-login-copy";
 import { Button } from "@everr/ui/components/button";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -105,9 +106,7 @@ function CliDeviceApprovalPage() {
 
               {status === "error" ? (
                 <p className="mt-4 text-center text-sm text-red-400">
-                  Invalid or expired code. Restart{" "}
-                  <code className="font-mono">everr cloud login</code> from your
-                  terminal.
+                  Invalid or expired code. {DEVICE_LOGIN_RESTART_INSTRUCTION}
                 </p>
               ) : null}
             </>

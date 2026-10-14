@@ -1,5 +1,5 @@
+import { assertStorageReady } from "@app/storage-readiness";
 import { ClickHouseError } from "@clickhouse/client";
-import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
 import {
   MCP_MAX_CELL_CHARS,
   MCP_MAX_OUTPUT_CHARS,
@@ -7,7 +7,7 @@ import {
 } from "@/data/mcp/query-tool-description";
 import { previewSqlApi } from "@/lib/clickhouse";
 import { sanitizeSqlApiError } from "@/lib/sql-api-error";
-import { classifyCloudQueryError } from "@/lib/sql-api-observability";
+import { classifySqlQueryError } from "@/lib/sql-api-observability";
 import { truncateWithEllipsis } from "@/lib/truncate";
 
 export interface RunSqlResult {
@@ -37,7 +37,7 @@ export async function runSqlForConnection(args: {
   }
 
   try {
-    assertOrganizationProvisioned(args.metadata);
+    assertStorageReady(args.metadata);
     const result = await previewSqlApi(sql, args.orgId, MCP_MAX_ROWS);
     const lines = [
       JSON.stringify(result.columns),
@@ -121,8 +121,7 @@ const DYNAMIC_HINT =
 
 function errorHint(error: unknown): string | undefined {
   if (!(error instanceof ClickHouseError)) return undefined;
-  if (classifyCloudQueryError(error).kind === "timeout")
-    return NARROW_SCAN_HINT;
+  if (classifySqlQueryError(error).kind === "timeout") return NARROW_SCAN_HINT;
   return (
     ERROR_HINTS[error.type ?? ""] ??
     (error.message.includes("Dynamic") ? DYNAMIC_HINT : undefined)

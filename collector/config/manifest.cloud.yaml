@@ -1,0 +1,13 @@
+connectors:
+  - gomod: github.com/everr-labs/everr/collector/connector/everrusageconnector v0.160.0
+
+processors:
+  - gomod: github.com/everr-labs/everr/collector/processor/everrusageprocessor v0.160.0
+
+extensions:
+  - gomod: github.com/everr-labs/everr/collector/extension/everrusageextension v0.160.0
+
+replaces:
+  - github.com/everr-labs/everr/collector/connector/everrusageconnector => ../cloud/connector/everrusageconnector
+  - github.com/everr-labs/everr/collector/extension/everrusageextension => ../cloud/extension/everrusageextension
+  - github.com/everr-labs/everr/collector/processor/everrusageprocessor => ../cloud/processor/everrusageprocessor

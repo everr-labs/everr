@@ -1,3 +1,5 @@
+import { additionalBuiltinManifest } from "@app/dashboard-manifest";
+
 /**
  * The catalog's identity strip — id and name only — for surfaces that list
  * built-ins without rendering them (the command bar in the app shell). A
@@ -28,7 +30,7 @@ export const BUILTIN_MANIFEST: BuiltinManifestEntry[] = [
   { id: "redis-overview", name: "Redis Overview" },
   { id: "mongodb-overview", name: "MongoDB Overview" },
   { id: "kubernetes-workloads", name: "Kubernetes Workloads" },
-  { id: "telemetry-usage", name: "Telemetry Usage" },
+  ...additionalBuiltinManifest,
   { id: "web-vitals", name: "Web Vitals" },
   { id: "product-analytics", name: "Product Analytics" },
 ];

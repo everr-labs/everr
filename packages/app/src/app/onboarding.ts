@@ -1,8 +1,8 @@
 import { APIError } from "better-auth/api";
-import type { createAutomaticOrganizationSessionHook } from "@/lib/auto-org.server";
+import type { SessionOnboardingHookFactory } from "@/product/onboarding";
 import { assertInvitedUser } from "./installation.server";
 
-export const createSessionOnboardingHook: typeof createAutomaticOrganizationSessionHook =
+export const createSessionOnboardingHook: SessionOnboardingHookFactory =
   () => async () => {};
 export async function beforeUserCreate(user: { email: string }) {
   try {
@@ -13,4 +13,3 @@ export async function beforeUserCreate(user: { email: string }) {
     });
   }
 }
-export const requireVerifiedInvitation = true;

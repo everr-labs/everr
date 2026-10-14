@@ -8,10 +8,13 @@ import {
   it,
   vi,
 } from "vitest";
+import {
+  type AlertingHarness,
+  createAlertingHarness,
+} from "@/cloud/testing/alerting-harness";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
 import { alertDeliveries, alertInstances } from "@/db/schema";
 import { insertDirectRule } from "./testing/fixtures";
-import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import("./testing/db-proxy");
@@ -19,6 +22,10 @@ vi.mock("@/db/client", async () => {
 });
 
 vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
+vi.mock(
+  "@/lib/clickhouse-writer",
+  async () => import("./testing/test-clickhouse"),
+);
 
 let harness: AlertingHarness;
 

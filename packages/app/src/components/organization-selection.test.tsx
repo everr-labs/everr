@@ -63,7 +63,7 @@ vi.mock("@tanstack/react-start/server", () => ({ getRequestHeaders: vi.fn() }));
 vi.mock("@/data/auth", () => ({
   getActiveOrganization: vi.fn(),
 }));
-vi.mock("@/data/organizations", () => ({
+vi.mock("@/cloud/data/organizations", () => ({
   createOrganization: vi.fn().mockResolvedValue({
     kind: "created",
     organization: { id: "new", name: "New organization" },
@@ -165,7 +165,7 @@ it("keeps the setup step mounted when the new membership becomes visible", async
   ).toBeNull();
 });
 
-vi.mock("@/data/organization-provisioning", () => ({
+vi.mock("@/cloud/organization-provisioning/actions", () => ({
   completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
   getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
   retryOrganizationProvisioning: vi.fn(),

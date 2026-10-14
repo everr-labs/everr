@@ -1,4 +1,3 @@
-import { InvitationAccess } from "@app/pages/invitation";
 import { Button } from "@everr/ui/components/button";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
@@ -38,11 +37,7 @@ function AcceptInvitation() {
         {data.status === "unauthenticated" && (
           <UnauthenticatedContent invitationId={invitationId} data={data} />
         )}
-        {data.status === "accept-ready" && (
-          <InvitationAccess invitationId={invitationId}>
-            <AcceptReadyContent data={data} />
-          </InvitationAccess>
-        )}
+        {data.status === "accept-ready" && <AcceptReadyContent data={data} />}
         {data.status === "wrong-recipient" && (
           <WrongRecipientContent invitationId={invitationId} data={data} />
         )}

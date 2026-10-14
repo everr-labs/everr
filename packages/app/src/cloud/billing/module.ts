@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
-import { member, orgSubscription } from "@/db/schema";
+import { orgSubscription } from "@/cloud/db/schema";
+import { member } from "@/db/schema";
 import { isOrganizationOwner } from "@/lib/organization-role";
 import { createBillingCheckouts } from "./checkout";
 import { createBillingIdentity } from "./identity";

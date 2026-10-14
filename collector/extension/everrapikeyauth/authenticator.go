@@ -22,11 +22,16 @@ type authData struct {
 
 func newAuthData(vr verifyResponse) *authData {
 	attrs := map[string]string{
-		"tenant_id":              vr.TenantID,
 		"key_id":                 vr.KeyID,
 		"retention_logs_days":    strconv.FormatUint(uint64(vr.LogsDays), 10),
 		"retention_traces_days":  strconv.FormatUint(uint64(vr.TracesDays), 10),
 		"retention_metrics_days": strconv.FormatUint(uint64(vr.MetricsDays), 10),
+	}
+	// Self-hosted verify-key responses intentionally omit the tenant. Keep the
+	// key authenticated and retention-scoped without exposing an empty tenant
+	// value to downstream processors.
+	if vr.TenantID != "" {
+		attrs["tenant_id"] = vr.TenantID
 	}
 	names := make([]string, 0, len(attrs))
 	for name := range attrs {

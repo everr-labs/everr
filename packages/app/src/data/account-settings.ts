@@ -31,7 +31,7 @@ export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
   .handler(async ({ data, context: { session } }) => {
     const headers = getRequestHeaders();
     const organizations = await getFullOrganizations(headers);
-    assertAccountDeletionAllowed(
+    await assertAccountDeletionAllowed(
       organizations.filter((organization) => {
         const currentMember = organization?.members.find(
           (member) => member.userId === session.user.id,

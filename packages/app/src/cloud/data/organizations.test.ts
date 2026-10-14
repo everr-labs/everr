@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { completeProOrganizationCheckout } from "@/cloud/data/organization-checkout";
-import { createOrganization } from "@/data/organizations";
+import { createOrganization } from "@/cloud/data/organizations";
 import { auth } from "@/lib/auth.server";
 
 const mocks = vi.hoisted(() => ({
@@ -100,7 +100,6 @@ describe("createOrganization", () => {
         name: "Acme",
         slug: expect.any(String),
         userId: "test_user",
-        plan: "hobby",
       },
     });
     expect(mocks.lockHobbyOrganizationOwnership).toHaveBeenCalledWith(

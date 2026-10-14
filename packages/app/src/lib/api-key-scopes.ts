@@ -10,7 +10,7 @@
  * A key with no capabilities (a `null`/`undefined`/empty `permissions` map)
  * is rejected: it grants nothing. Keys minted before scopes existed are
  * backfilled with the full capability set by a one-time migration
- * (`drizzle/0006_backfill_api_key_capabilities.sql`), so they keep working
+ * (`the API-key capabilities backfill migration`), so they keep working
  * without relying on an implicit "null means everything" fallback.
  */
 export const API_KEY_SCOPES = {

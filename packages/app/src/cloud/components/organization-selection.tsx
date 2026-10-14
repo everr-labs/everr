@@ -4,8 +4,8 @@ import { Link, useSearch } from "@tanstack/react-router";
 import { ArrowRight, Loader2, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { OrganizationCreation } from "@/cloud/components/organization-creation";
+import { getOrganizationCreationOptions } from "@/cloud/data/organizations";
 import { useOrganizationActivation } from "@/components/use-organization-activation";
-import { getOrganizationCreationOptions } from "@/data/organizations";
 import { authClient } from "@/lib/auth-client";
 
 export function OrganizationSelection() {

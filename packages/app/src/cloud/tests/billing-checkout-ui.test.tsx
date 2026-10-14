@@ -21,7 +21,9 @@ vi.mock("@tanstack/react-router", async (original) => ({
     <a href="/account">{children}</a>
   ),
 }));
-vi.mock("@/data/organizations", () => ({ createOrganization: mocks.create }));
+vi.mock("@/cloud/data/organizations", () => ({
+  createOrganization: mocks.create,
+}));
 vi.mock("@/cloud/data/billing", () => ({
   getOrgBillingSettings: mocks.settings,
   changeOrgBillingOwner: mocks.transfer,
@@ -145,7 +147,7 @@ it("allows an owner to select a different billing owner", async () => {
   expect(mocks.transfer).toHaveBeenCalledWith({ data: { userId: "other" } });
 });
 
-vi.mock("@/data/organization-provisioning", () => ({
+vi.mock("@/cloud/organization-provisioning/actions", () => ({
   completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
   getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
   retryOrganizationProvisioning: vi.fn(),

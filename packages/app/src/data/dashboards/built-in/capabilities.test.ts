@@ -70,7 +70,7 @@ describe("buildCapabilitiesQuery", () => {
     );
   });
 
-  // Written out rather than filtered from `SQL_API_TENANT_TABLES`: the suite
+  // Written out rather than filtered from `SQL_API_TABLES`: the suite
   // setup mocks `@/lib/clickhouse`, so the real list is not importable here.
   // A metric requirement is one branch per table, and the prefix stays in the
   // WHERE so `MetricName` (the third ORDER BY column) can prune granules.

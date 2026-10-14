@@ -8,6 +8,7 @@ import {
   WebSDK,
 } from "@everr/otel-web";
 import { readConsent } from "@/telemetry/consent";
+import { resolveBrowserTelemetryConfig } from "./config";
 
 // The browser telemetry of the web app, and this app uses our own product. The
 // page views, the frustration clicks, the web vitals, and the errors go to Everr
@@ -31,12 +32,18 @@ import { readConsent } from "@/telemetry/consent";
 // sends the data to the local collector. The TanStack adapter gives the route
 // pattern with setRouteResolver, and `getRouter()` registers the router with
 // that adapter.
+const browserTelemetry = resolveBrowserTelemetryConfig({
+  endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,
+  publicKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
+});
+
 new WebSDK({
   persistence: readConsent() === "granted" ? "localStorage" : "memory",
   serviceName: "everr-dev-app-web",
   deploymentEnvironment: import.meta.env.MODE,
-  ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
-  endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,
+  // Pass credentials only when this build has selected a destination.
+  ingestKey: browserTelemetry.ingestKey,
+  endpoint: browserTelemetry.endpoint,
   dev: import.meta.env.DEV,
   // The caller must select the capture. This app uses all the built-in
   // instrumentations. By default performance() includes the load window of the

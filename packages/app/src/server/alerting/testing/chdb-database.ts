@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -8,17 +9,26 @@ import { retentionForDays } from "@/product/retention.test-fixtures";
 
 const HISTORY_TABLE = "app.alert_events";
 
-function clickhouseInitDir(): string {
+function clickhouseRoot(): string {
   // testing/ -> alerting/ -> server/ -> src/ -> app/ -> packages/ -> repo root
   return join(
     dirname(fileURLToPath(import.meta.url)),
-    "../../../../../../clickhouse/init",
+    "../../../../../../clickhouse",
   );
 }
 
+function renderCloudInitDir(outputDir: string): string {
+  execFileSync(
+    process.execPath,
+    [join(clickhouseRoot(), "render.mjs"), "cloud", outputDir],
+    { stdio: "pipe" },
+  );
+  return outputDir;
+}
+
 // Strip line comments before splitting statements: comments can contain semicolons.
-function statementsIn(file: string): string[] {
-  return readFileSync(join(clickhouseInitDir(), file), "utf8")
+function statementsIn(initDir: string, file: string): string[] {
+  return readFileSync(join(initDir, file), "utf8")
     .split("\n")
     .map((line) => line.replace(/--.*$/, ""))
     .join("\n")
@@ -107,6 +117,13 @@ export function createChdbDatabase(): ChdbDatabase {
   const host = globalThis as unknown as ChdbHost;
   const existing = host[ACTIVE_KEY];
   if (existing) return existing;
+  const initDir = mkdtempSync(join(tmpdir(), "everr-chdb-init-"));
+  try {
+    renderCloudInitDir(initDir);
+  } catch (error) {
+    rmSync(initDir, { recursive: true, force: true });
+    throw error;
+  }
   const dataDir = mkdtempSync(join(tmpdir(), "everr-chdb-"));
   const session = new Session(dataDir);
 
@@ -137,7 +154,7 @@ export function createChdbDatabase(): ChdbDatabase {
   };
 
   run("CREATE DATABASE IF NOT EXISTS app");
-  for (const statement of statementsIn("12-create-alert-events.sql")) {
+  for (const statement of statementsIn(initDir, "12-create-alert-events.sql")) {
     if (isAccessControl(statement)) continue;
     run(withoutTtl(statement));
   }
@@ -254,6 +271,7 @@ export function createChdbDatabase(): ChdbDatabase {
     close() {
       session.cleanup();
       rmSync(dataDir, { recursive: true, force: true });
+      rmSync(initDir, { recursive: true, force: true });
       host[ACTIVE_KEY] = undefined;
     },
   };

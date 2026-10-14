@@ -1,4 +1,5 @@
-vi.mock("@/data/organization-provisioning", () => ({
+vi.mock("@/lib/mailer.server", () => ({ mailer: null }));
+vi.mock("@/cloud/organization-provisioning/actions", () => ({
   completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/data/organization-access", () => ({
@@ -42,7 +43,7 @@ vi.mock("@tanstack/react-start", () => ({
   }),
 }));
 
-import { useOrganizationSetupCompletion } from "@/components/use-organization-setup-completion";
+import { useOrganizationSetupCompletion } from "@/cloud/components/use-organization-setup-completion";
 import { auth } from "@/lib/auth.server";
 import { Route as root } from "@/routes/__root";
 import { Route as authRoute } from "@/routes/_welcome";

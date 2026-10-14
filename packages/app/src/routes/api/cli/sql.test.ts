@@ -6,7 +6,6 @@ vi.mock("@/lib/clickhouse", () => ({
   querySqlApi: vi.fn(),
 }));
 
-import { CLICKHOUSE_SETUP_MESSAGE } from "@/common/clickhouse-provisioning";
 import { querySqlApi } from "@/lib/clickhouse";
 import { SCHEMA_PROBE_MESSAGE } from "@/lib/sql-api-error";
 import { Route } from "./sql";
@@ -56,13 +55,16 @@ describe("/api/cli/sql", () => {
     expect(mockedQuerySqlApi).not.toHaveBeenCalled();
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBe("5");
-    expect(await response.json()).toEqual({ error: CLICKHOUSE_SETUP_MESSAGE });
+    expect(await response.json()).toEqual({
+      error:
+        "We're setting up your organization's data access. This is taking a little longer than usual. We'll keep trying automatically. Please try again shortly.",
+    });
     expect(span.setAttribute).toHaveBeenCalledWith(
-      "everr.cloud_query.outcome",
+      "everr.sql_query.outcome",
       "user_error",
     );
     expect(span.setAttribute).toHaveBeenCalledWith(
-      "everr.cloud_query.kind",
+      "everr.sql_query.kind",
       "account_setup",
     );
     expect(span.setStatus).not.toHaveBeenCalled();

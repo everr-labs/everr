@@ -3,6 +3,7 @@ import * as z from "zod";
 export const appEnv = createEnv({
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
   server: {
+    CLICKHOUSE_SQL_API_MASTER_KEY: z.string().min(32),
     // Shared environment validation checks the SMTP URL and sender format.
     EMAIL_DSN: z.string().min(1),
     EMAIL_FROM: z.string().min(1),
@@ -13,6 +14,7 @@ export const appEnv = createEnv({
     POLAR_PRO_LEGACY_PRODUCT_IDS: z.string().optional(),
   },
   runtimeEnv: {
+    CLICKHOUSE_SQL_API_MASTER_KEY: process.env.CLICKHOUSE_SQL_API_MASTER_KEY,
     EMAIL_DSN: process.env.EMAIL_DSN,
     EMAIL_FROM: process.env.EMAIL_FROM,
     POLAR_ACCESS_TOKEN: process.env.POLAR_ACCESS_TOKEN,

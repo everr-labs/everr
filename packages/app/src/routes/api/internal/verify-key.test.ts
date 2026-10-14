@@ -121,7 +121,7 @@ describe("/api/internal/verify-key", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      tenantId: "org_42",
+      ...(import.meta.env.MODE === "cloud" ? { tenantId: "org_42" } : {}),
       keyId: "ak_3",
       tracesDays: 14,
       logsDays: 7,
@@ -199,7 +199,7 @@ describe("/api/internal/verify-key browser origin policy", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      tenantId: "org_42",
+      ...(import.meta.env.MODE === "cloud" ? { tenantId: "org_42" } : {}),
       keyId: "ak_public",
       tracesDays: 365,
       logsDays: 365,
@@ -267,7 +267,7 @@ describe("/api/internal/verify-key browser origin policy", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      tenantId: "org_42",
+      ...(import.meta.env.MODE === "cloud" ? { tenantId: "org_42" } : {}),
       keyId: "ak_secret",
       tracesDays: 365,
       logsDays: 365,

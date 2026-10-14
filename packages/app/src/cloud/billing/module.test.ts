@@ -1,12 +1,12 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterAll, beforeEach, expect, it, vi } from "vitest";
+import * as cloudSchema from "@/cloud/db/schema";
 import type { Database } from "@/db/client";
-import * as schema from "@/db/schema";
+import * as coreSchema from "@/db/schema";
 import { serverLogger } from "@/telemetry/logger";
 import { billingOrganizationHooks } from "./membership-plugin.server";
 import { createBillingModule } from "./module";
@@ -28,6 +28,7 @@ function required<T>(value: T | null | undefined): T {
   if (value == null) throw new Error("Missing test fixture");
   return value;
 }
+const schema = { ...coreSchema, ...cloudSchema };
 const client = new PGlite();
 const database = drizzle(client, { schema });
 await client.exec(`
@@ -36,15 +37,11 @@ CREATE TABLE organization (id text PRIMARY KEY, name text NOT NULL, slug text NO
 CREATE TABLE member (id text PRIMARY KEY, organization_id text NOT NULL REFERENCES organization(id), user_id text NOT NULL REFERENCES "user"(id), role text NOT NULL, created_at timestamp NOT NULL DEFAULT now());
 CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(id), polar_subscription_id text NOT NULL, polar_product_id text NOT NULL, status text NOT NULL, current_period_end timestamp, cancel_at_period_end boolean NOT NULL DEFAULT false, polar_modified_at timestamp NOT NULL, updated_at timestamp NOT NULL DEFAULT now());
 `);
-await client.exec(
-  await readFile(
-    new URL(
-      "../../../drizzle/0012_organization_customer_teams.sql",
-      import.meta.url,
-    ),
-    "utf8",
-  ),
-);
+await client.exec(`
+CREATE TABLE organization_billing (org_id text PRIMARY KEY REFERENCES organization(id) ON DELETE CASCADE, plan text NOT NULL DEFAULT 'hobby', polar_customer_id text UNIQUE);
+CREATE TABLE pro_organization_checkout (org_id text PRIMARY KEY, owner_id text NOT NULL, organization_name text NOT NULL, organization_slug text NOT NULL UNIQUE, checkout_id text, polar_customer_id text, created_at timestamp NOT NULL DEFAULT now(), completed_at timestamp);
+CREATE UNIQUE INDEX pro_organization_checkout_pending_owner_name_uidx ON pro_organization_checkout(owner_id, organization_name) WHERE completed_at IS NULL;
+`);
 afterAll(() => client.close());
 const customers = new Map<string, Customer>();
 const members = new Map<string, BillingMember>();
@@ -169,7 +166,7 @@ const createOrganization = vi.fn(
   async ({
     body,
   }: {
-    body: { name: string; slug: string; userId: string; plan: "pro" };
+    body: { name: string; slug: string; userId: string };
   }) => {
     const context = await beforeCreateCheckoutOrganization({
       organization: body,
@@ -181,7 +178,6 @@ const createOrganization = vi.fn(
       id,
       name: body.name,
       slug: body.slug,
-      plan: body.plan,
       createdAt: new Date(),
     });
     await database.insert(schema.member).values({
@@ -202,7 +198,7 @@ beforeEach(async () => {
   subscriptions.clear();
   locks.clear();
   await client.exec(
-    `TRUNCATE org_subscription,pro_organization_checkout,member,organization,"user"; INSERT INTO "user" (id,name,email) VALUES ('owner','Owner','owner@example.com'),('other','Other','other@example.com'),('admin','Admin','admin@example.com'),('regular','Regular','regular@example.com'); INSERT INTO organization(id,name,slug) VALUES ('org','Acme','acme'); INSERT INTO member(id,organization_id,user_id,role) VALUES ('m1','org','owner','owner'),('m2','org','other','owner'),('m3','org','admin','admin'),('m4','org','regular','member'); UPDATE member SET created_at = created_at - interval '1 day' WHERE user_id = 'owner';`,
+    `TRUNCATE organization_billing,org_subscription,pro_organization_checkout,member,organization,"user"; INSERT INTO "user" (id,name,email) VALUES ('owner','Owner','owner@example.com'),('other','Other','other@example.com'),('admin','Admin','admin@example.com'),('regular','Regular','regular@example.com'); INSERT INTO organization(id,name,slug) VALUES ('org','Acme','acme'); INSERT INTO organization_billing(org_id) VALUES ('org'); INSERT INTO member(id,organization_id,user_id,role) VALUES ('m1','org','owner','owner'),('m2','org','other','owner'),('m3','org','admin','admin'),('m4','org','regular','member'); UPDATE member SET created_at = created_at - interval '1 day' WHERE user_id = 'owner';`,
   );
 });
 async function upgrade() {
@@ -255,7 +251,7 @@ it("does not contact Polar for a new Hobby owner, then creates its team at the f
   }
 
   await billing.startUpgradeCheckout("org", "owner");
-  const [org] = await database.select().from(schema.organization);
+  const [org] = await database.select().from(schema.organizationBilling);
   expect(org.plan).toBe("hobby");
   expect(org.polarCustomerId).toBe([...customers.keys()][0]);
   expect(gateway.createTeam).toHaveBeenCalledOnce();
@@ -267,7 +263,7 @@ it("does not contact Polar for a new Hobby owner, then creates its team at the f
 });
 
 it("recovers a Pro organization's missing customer reference through Polar", async () => {
-  await database.update(schema.organization).set({ plan: "pro" });
+  await database.update(schema.organizationBilling).set({ plan: "pro" });
   const customer = await gateway.createTeam({
     orgId: "org",
     owner: { id: "owner", name: "Owner", email: "owner@example.com" },
@@ -276,7 +272,8 @@ it("recovers a Pro organization's missing customer reference through Polar", asy
   await billing.afterMembershipChange("org");
   expect(gateway.findCustomer).toHaveBeenCalledWith("org");
   expect(
-    (await database.select().from(schema.organization))[0].polarCustomerId,
+    (await database.select().from(schema.organizationBilling))[0]
+      .polarCustomerId,
   ).toBe(customer.id);
   expect(gateway.createTeam).not.toHaveBeenCalled();
 });
@@ -706,7 +703,7 @@ it("revokes removed members before the downgrade commits", async () => {
     await revokeBillingAccess();
     expect([...members.values()].map((m) => m.externalId)).toEqual(["owner"]);
     await client.exec(
-      "DELETE FROM member WHERE user_id <> 'owner'; UPDATE organization SET plan = 'hobby' WHERE id = 'org'",
+      "DELETE FROM member WHERE user_id <> 'owner'; UPDATE organization_billing SET plan = 'hobby' WHERE org_id = 'org'",
     );
   });
   await expect(billing.openPortal("org", "admin")).rejects.toMatchObject({
@@ -817,9 +814,9 @@ it("does not grant Pro from an upgrade webhook before payment succeeds", async (
     },
     createOrganization,
   );
-  expect((await database.select().from(schema.organization))[0].plan).toBe(
-    "hobby",
-  );
+  expect(
+    (await database.select().from(schema.organizationBilling))[0].plan,
+  ).toBe("hobby");
   expect(await database.select().from(schema.orgSubscription)).toHaveLength(0);
 });
 
@@ -885,9 +882,9 @@ it("does not block checkout after a failed local membership write", async () => 
   );
 });
 
-it("stores the verified customer on the organization and reuses its ID", async () => {
+it("stores the verified billing customer and reuses its ID", async () => {
   await upgrade();
-  const [org] = await database.select().from(schema.organization);
+  const [org] = await database.select().from(schema.organizationBilling);
   expect(org.polarCustomerId).toBe([...customers.keys()][0]);
   gateway.findCustomer.mockClear();
   await billing.openPortal("org", "owner");
@@ -904,16 +901,19 @@ it("does not replace a stored customer whose external ID belongs to another org"
   ).rejects.toMatchObject({ code: "identity_conflict" });
   expect(gateway.findCustomer).not.toHaveBeenCalled();
   expect(
-    (await database.select().from(schema.organization))[0].polarCustomerId,
+    (await database.select().from(schema.organizationBilling))[0]
+      .polarCustomerId,
   ).toBe(customer.id);
 });
-it("copies the reserved customer onto the new Pro organization after payment", async () => {
+it("links the reserved billing customer to the new Pro organization after payment", async () => {
   const { c, event } = await paidNew();
   await billing.syncSubscription(event, createOrganization);
   const [org] = await database
     .select()
-    .from(schema.organization)
-    .where(eq(schema.organization.id, required(c.externalCustomerId)));
+    .from(schema.organizationBilling)
+    .where(
+      eq(schema.organizationBilling.orgId, required(c.externalCustomerId)),
+    );
   expect(org.polarCustomerId).toBe(c.customerId);
 });
 

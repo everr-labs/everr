@@ -45,7 +45,7 @@ it.each([
   expect(await screen.findByRole("alert")).toBeVisible();
   expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
     "href",
-    "/auth/sign-in?redirect=%2Forganization-setup",
+    "/auth/sign-in?redirect=%2F",
   );
   expect(screen.queryByRole("button", { name: "Create workspace" })).toBeNull();
   expect(mocks.setup).toHaveBeenCalledTimes(1);
@@ -58,7 +58,7 @@ it("keeps setup retryable after rollback and offers sign-in if the response was 
   expect(await screen.findByRole("alert")).toHaveTextContent("Connection lost");
   expect(
     screen.getByRole("link", { name: "sign in with your owner account" }),
-  ).toHaveAttribute("href", "/auth/sign-in?redirect=%2Forganization-setup");
+  ).toHaveAttribute("href", "/auth/sign-in?redirect=%2F");
   expect(mocks.signIn).not.toHaveBeenCalled();
   mocks.setup.mockResolvedValue({ organizationId: "workspace" });
   mocks.signIn.mockResolvedValue({ error: { message: "Sign in manually" } });

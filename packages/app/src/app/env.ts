@@ -9,6 +9,11 @@ const days = z
 export const appEnv = createEnv({
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
   server: {
+    CLICKHOUSE_SQL_API_USERNAME: z
+      .string()
+      .regex(/^[a-zA-Z0-9_]+$/)
+      .default("sql_api"),
+    CLICKHOUSE_SQL_API_PASSWORD: z.string().min(1),
     EVERR_PUBLIC_INGEST_URL: z
       .url()
       .refine((value) => {
@@ -30,6 +35,8 @@ export const appEnv = createEnv({
     EVERR_RETENTION_ALERT_LIFECYCLE_DAYS: days.optional(),
   },
   runtimeEnv: {
+    CLICKHOUSE_SQL_API_USERNAME: process.env.CLICKHOUSE_SQL_API_USERNAME,
+    CLICKHOUSE_SQL_API_PASSWORD: process.env.CLICKHOUSE_SQL_API_PASSWORD,
     EVERR_PUBLIC_INGEST_URL: process.env.EVERR_PUBLIC_INGEST_URL,
     EVERR_RETENTION_DAYS: process.env.EVERR_RETENTION_DAYS,
     EVERR_RETENTION_TRACES_DAYS: process.env.EVERR_RETENTION_TRACES_DAYS,

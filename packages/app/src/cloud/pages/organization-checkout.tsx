@@ -2,8 +2,8 @@ import { Button } from "@everr/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import type { ReactElement } from "react";
+import { OrganizationProvisioningContent } from "@/cloud/components/organization-provisioning-content";
 import { completeProOrganizationCheckout } from "@/cloud/data/organization-checkout";
-import { OrganizationProvisioningContent } from "@/components/organization-provisioning-content";
 import { useOrganizationActivation } from "@/components/use-organization-activation";
 
 const Route = getRouteApi("/_welcome/_signedIn/organizations/checkout/success");

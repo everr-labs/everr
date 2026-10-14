@@ -1,4 +1,3 @@
-export const billingEnabled = true;
 export const publicSignup = true;
 export const canDeleteWorkspace = true;
 

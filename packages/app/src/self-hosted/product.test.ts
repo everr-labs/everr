@@ -2,13 +2,8 @@
 
 import { productPolicy } from "@app/policy";
 import { beforeEach, expect, it, vi } from "vitest";
-import { createOrganization } from "@/data/organizations";
-import { auth } from "@/lib/auth.server";
 import { assertCanInviteMembers } from "@/product/membership.server";
 
-vi.mock("@polar-sh/sdk", () => {
-  throw new Error("Self-hosting loaded Polar");
-});
 vi.mock("@/cloud/billing-data.server", () => {
   throw new Error("Self-hosting read subscription state");
 });
@@ -21,13 +16,6 @@ it("permits collaboration independently of subscription state", async () => {
     canInviteMembers: true,
   });
   await expect(assertCanInviteMembers("org")).resolves.toBeUndefined();
-});
-
-it("rejects additional organization creation", async () => {
-  await expect(
-    createOrganization({ data: { organizationName: "Acme" } }),
-  ).rejects.toThrow("one workspace");
-  expect(auth.api.createOrganization).not.toHaveBeenCalled();
 });
 
 it("rejects organization creation and deletion through authentication hooks", async () => {

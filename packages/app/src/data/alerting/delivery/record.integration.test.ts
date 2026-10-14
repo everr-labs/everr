@@ -7,13 +7,13 @@
  * directly, the way `triage/history.integration.test.ts` does it.
  */
 import { describe, expect, it, vi } from "vitest";
+import { useAlertingHarness } from "@/cloud/testing/alerting-harness";
 import { uuidv7 } from "@/data/alerting/history/ids";
 import {
   type AlertHistoryDefinition,
   journalTerminalRow,
 } from "@/server/alerting/history/clickhouse";
 import { TEST_ORG } from "@/server/alerting/testing/fixtures";
-import { useAlertingHarness } from "@/server/alerting/testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import(

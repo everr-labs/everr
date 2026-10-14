@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
+vi.mock("@/lib/clickhouse-writer", () => ({ insertRows: vi.fn() }));
+
 vi.mock("@/db/schema", () => ({
   alertDeliveryEvents: {
     organizationId: "de_org",

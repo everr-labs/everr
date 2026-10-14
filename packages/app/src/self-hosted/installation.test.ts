@@ -4,7 +4,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { verifyPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/pglite";
-import { afterAll, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, expect, it } from "vitest";
 import {
   assertInvitedUser,
   assertWorkspaceOwnershipTransferred,
@@ -12,7 +12,7 @@ import {
   setupWorkspace,
 } from "@/app/installation.server";
 import { recoverAccount } from "@/app/recovery.server";
-import type { Database, DbExecutor } from "@/db/client";
+import type { Database } from "@/db/client";
 import * as schema from "@/db/schema";
 
 const client = new PGlite();
@@ -20,17 +20,16 @@ const database = drizzle(client, { schema }) as unknown as Database;
 await client.exec(`
 CREATE TABLE "user" (id text PRIMARY KEY, name text NOT NULL, email text UNIQUE NOT NULL, email_verified boolean NOT NULL DEFAULT false, image text, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now());
 CREATE TABLE account (id text PRIMARY KEY, account_id text NOT NULL, provider_id text NOT NULL, user_id text NOT NULL REFERENCES "user"(id), access_token text, refresh_token text, id_token text, access_token_expires_at timestamp, refresh_token_expires_at timestamp, scope text, password text, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now());
-CREATE TABLE organization (id text PRIMARY KEY, name text NOT NULL, slug text UNIQUE NOT NULL, logo text, metadata text, polar_customer_id text, plan text NOT NULL, created_at timestamp NOT NULL);
+CREATE TABLE organization (id text PRIMARY KEY, name text NOT NULL, slug text UNIQUE NOT NULL, logo text, metadata text, created_at timestamp NOT NULL);
 CREATE TABLE member (id text PRIMARY KEY, organization_id text NOT NULL REFERENCES organization(id), user_id text NOT NULL REFERENCES "user"(id), role text NOT NULL, created_at timestamp NOT NULL);
 CREATE TABLE invitation (id text PRIMARY KEY, organization_id text NOT NULL REFERENCES organization(id), email text NOT NULL, role text, status text NOT NULL, expires_at timestamp NOT NULL, created_at timestamp NOT NULL DEFAULT now(), inviter_id text NOT NULL REFERENCES "user"(id));
 CREATE TABLE session (id text PRIMARY KEY, user_id text NOT NULL REFERENCES "user"(id), token text NOT NULL UNIQUE, expires_at timestamp NOT NULL, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now(), ip_address text, user_agent text, active_organization_id text);
 CREATE TABLE verification (id text PRIMARY KEY, identifier text NOT NULL, value text NOT NULL, expires_at timestamp NOT NULL, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now());
-CREATE TABLE provisioning_jobs (organization_id text NOT NULL REFERENCES organization(id));
 `);
 afterAll(() => client.close());
 beforeEach(async () => {
   await client.exec(
-    'TRUNCATE "user", account, organization, member, invitation, provisioning_jobs, session, verification CASCADE',
+    'TRUNCATE "user", account, organization, member, invitation, session, verification CASCADE',
   );
 });
 const input = {
@@ -39,18 +38,9 @@ const input = {
   email: "owner@example.test",
   password: "long-test-password",
 };
-const enqueue = vi.fn(
-  async (organizationId: string, tx: DbExecutor = database) => {
-    const { sql } = await import("drizzle-orm");
-    await tx.execute(
-      sql`INSERT INTO provisioning_jobs (organization_id) VALUES (${organizationId})`,
-    );
-  },
-);
-
-it("creates an owner, usable password and provisioning job together", async () => {
+it("creates an owner with a usable password", async () => {
   expect(await getInstallation(database)).toBeNull();
-  const result = await setupWorkspace(input, database, enqueue);
+  const result = await setupWorkspace(input, database);
   expect(await getInstallation(database)).toEqual({
     id: result.organizationId,
   });
@@ -75,19 +65,12 @@ it("creates an owner, usable password and provisioning job together", async () =
       role: "owner",
     }),
   ]);
-  expect(
-    (await client.query("SELECT * FROM provisioning_jobs")).rows,
-  ).toHaveLength(1);
 });
 
 it("allows only one of two overlapping setup attempts", async () => {
   const results = await Promise.allSettled([
-    setupWorkspace(input, database, enqueue),
-    setupWorkspace(
-      { ...input, email: "other@example.test" },
-      database,
-      enqueue,
-    ),
+    setupWorkspace(input, database),
+    setupWorkspace({ ...input, email: "other@example.test" }, database),
   ]);
   expect(
     results.filter((result) => result.status === "fulfilled"),
@@ -96,21 +79,22 @@ it("allows only one of two overlapping setup attempts", async () => {
   expect(await database.select().from(schema.user)).toHaveLength(1);
 });
 
-it("rolls back the whole setup if provisioning cannot be queued, allowing retry", async () => {
-  await expect(
-    setupWorkspace(input, database, async () => {
-      throw new Error("job unavailable");
-    }),
-  ).rejects.toThrow("job unavailable");
+it("rolls back the whole setup after a database constraint failure, allowing retry", async () => {
+  await client.exec(
+    "ALTER TABLE member ADD CONSTRAINT reject_initial_owner CHECK (role <> 'owner')",
+  );
+  await expect(setupWorkspace(input, database)).rejects.toThrow();
   expect(await getInstallation(database)).toBeNull();
   expect(await database.select().from(schema.user)).toHaveLength(0);
-  await expect(
-    setupWorkspace(input, database, enqueue),
-  ).resolves.toHaveProperty("organizationId");
+  expect(await database.select().from(schema.account)).toHaveLength(0);
+  await client.exec("ALTER TABLE member DROP CONSTRAINT reject_initial_owner");
+  await expect(setupWorkspace(input, database)).resolves.toHaveProperty(
+    "organizationId",
+  );
 });
 
 it("admits signup only for a pending, unexpired invitation in the workspace", async () => {
-  const { organizationId } = await setupWorkspace(input, database, enqueue);
+  const { organizationId } = await setupWorkspace(input, database);
   const [owner] = await database.select().from(schema.user);
   await database.insert(schema.invitation).values({
     id: "invite",
@@ -135,12 +119,11 @@ it("admits signup only for a pending, unexpired invitation in the workspace", as
 });
 
 it("does not silently choose a workspace in an existing multi-organization database", async () => {
-  await setupWorkspace(input, database, enqueue);
+  await setupWorkspace(input, database);
   await database.insert(schema.organization).values({
     id: "other",
     name: "Other",
     slug: "other",
-    plan: "self-hosted",
     createdAt: new Date(),
   });
   await expect(getInstallation(database)).rejects.toThrow(
@@ -149,7 +132,7 @@ it("does not silently choose a workspace in an existing multi-organization datab
 });
 
 it("requires ownership transfer before the last owner can delete their account", async () => {
-  const { organizationId } = await setupWorkspace(input, database, enqueue);
+  const { organizationId } = await setupWorkspace(input, database);
   const [owner] = await database.select().from(schema.user);
   await expect(
     assertWorkspaceOwnershipTransferred(owner.id, database),
@@ -172,14 +155,10 @@ it("requires ownership transfer before the last owner can delete their account",
 });
 
 it("rejects replay after a committed setup without changing the workspace or owner", async () => {
-  const result = await setupWorkspace(input, database, enqueue);
+  const result = await setupWorkspace(input, database);
   const originalUsers = await database.select().from(schema.user);
   await expect(
-    setupWorkspace(
-      { ...input, email: "another@example.test" },
-      database,
-      enqueue,
-    ),
+    setupWorkspace({ ...input, email: "another@example.test" }, database),
   ).rejects.toThrow("already configured");
   expect(await getInstallation(database)).toEqual({
     id: result.organizationId,
@@ -187,13 +166,10 @@ it("rejects replay after a committed setup without changing the workspace or own
   expect(await database.select().from(schema.user)).toEqual(originalUsers);
   expect(await database.select().from(schema.account)).toHaveLength(1);
   expect(await database.select().from(schema.member)).toHaveLength(1);
-  expect(
-    (await client.query("SELECT * FROM provisioning_jobs")).rows,
-  ).toHaveLength(1);
 });
 
 it("recovers a local password without changing identity and invalidates sessions and reset links", async () => {
-  await setupWorkspace(input, database, enqueue);
+  await setupWorkspace(input, database);
   const [owner] = await database.select().from(schema.user);
   await database.insert(schema.session).values({
     id: "old-session",
@@ -224,7 +200,7 @@ it("recovers a local password without changing identity and invalidates sessions
 });
 
 it("issues expiring links consumable once by Better Auth and replaces previous links", async () => {
-  await setupWorkspace(input, database, enqueue);
+  await setupWorkspace(input, database);
   const auth = betterAuth({
     baseURL: "https://everr.example",
     secret: "recovery-test-secret-at-least-32-characters",
@@ -282,7 +258,7 @@ it("refuses recovery for missing or external-only accounts without creating cred
       password: "replacement-password",
     }),
   ).rejects.toThrow("No account");
-  await setupWorkspace(input, database, enqueue);
+  await setupWorkspace(input, database);
   await database
     .update(schema.account)
     .set({ providerId: "google", password: null });

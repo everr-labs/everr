@@ -1,6 +1,6 @@
 -- Landing tables for the collector's ClickHouse exporter. ENGINE = Null
 -- stores nothing: an insert only triggers the materialized views in
--- 10-create-mvs.sql, which stamp tenant_id and retention_days from the
+-- 10-create-mvs.sql, which stamp retention_days (and Cloud tenancy) from the
 -- resource attributes and write the row into app.*. Column lists follow the
 -- upstream clickhouseexporter schema for the version pinned in
 -- collector/config/manifest.yaml (v0.160.0); app.* copies its types from here,

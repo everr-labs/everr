@@ -1,11 +1,14 @@
 import type { BetterAuthPlugin } from "better-auth";
-import type { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
+import { db } from "@/db/client";
 import { assertWorkspaceOwnershipTransferred } from "./installation.server";
 import { lockWorkspaceMembership } from "./request";
 
-export const identityAdapter = (adapter: ReturnType<typeof drizzleAdapter>) =>
-  adapter;
+export const identityAdapter = () => drizzleAdapter(db, { provider: "pg" });
+export async function afterCreateOrganization(_data: {
+  organization: { id: string; metadata?: unknown };
+}) {}
 export const organizationHooks = () => ({});
 export const beforeCreateOrganization = async () => {
   throw new APIError("FORBIDDEN", {

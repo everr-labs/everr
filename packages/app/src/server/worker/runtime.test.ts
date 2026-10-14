@@ -42,6 +42,13 @@ const runtimeMocks = vi.hoisted(() => {
   };
 });
 
+vi.mock("@/cloud/clickhouse/provisioning", () => ({
+  provisionSqlApiOrgUser: vi.fn(),
+  deprovisionSqlApiOrgUser: vi.fn(),
+}));
+
+vi.mock("@/lib/clickhouse-writer", () => ({ insertRows: vi.fn() }));
+
 vi.mock("pg", () => ({
   Pool: class {
     query = runtimeMocks.organizationPool.query;

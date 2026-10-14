@@ -1,11 +1,11 @@
 import { and, eq, ne, sql } from "drizzle-orm";
-import { z } from "zod";
 import {
   assertPolarProductGrantsPlan,
   planForPolarProductId,
 } from "@/cloud/billing/catalog.server";
+import { organizationBilling, orgSubscription } from "@/cloud/db/schema";
 import { db, type Transaction } from "@/db/client";
-import { member, organization, orgSubscription } from "@/db/schema";
+import { member } from "@/db/schema";
 
 export type OrganizationPlan = "hobby" | "pro";
 export type OrganizationAppState = "hobby" | "pro" | "suspended";
@@ -36,36 +36,13 @@ function appStateForPlan(
   return subscription?.status === "active" ? "pro" : "suspended";
 }
 
-const storageError = z.object({
-  code: z.unknown().optional(),
-  cause: z.unknown().optional(),
-});
-const unavailableStorageCodes = new Set<unknown>(["42P01", "42703"]);
-function isUnavailablePlanStorage(error: unknown) {
-  let current = error;
-  for (let depth = 0; depth < 4; depth += 1) {
-    const parsed = storageError.safeParse(current);
-    if (!parsed.success) return false;
-    if (unavailableStorageCodes.has(parsed.data.code)) return true;
-    current = parsed.data.cause;
-  }
-  return false;
-}
-
 async function readExplicitPlan(orgId: string) {
-  try {
-    const [plan] = await db
-      .select({ plan: organization.plan })
-      .from(organization)
-      .where(eq(organization.id, orgId))
-      .limit(1);
-    return plan;
-  } catch (error) {
-    // Keeps reads available during a rolling deployment before the new
-    // Organization columns are applied. Writes still fail closed.
-    if (isUnavailablePlanStorage(error)) return undefined;
-    throw error;
-  }
+  const [row] = await db
+    .select({ plan: organizationBilling.plan })
+    .from(organizationBilling)
+    .where(eq(organizationBilling.orgId, orgId))
+    .limit(1);
+  return row;
 }
 
 export type OrgEntitlement = {
@@ -88,14 +65,7 @@ export async function readOrgEntitlement(
       .limit(1),
   ]);
   const row = subscriptionRows[0];
-  // Organizations predating the Plan column keep their active Pro access.
-  if (storedPlan?.plan === "self-hosted") {
-    throw new Error(
-      "Self-hosted organizations must be assigned a cloud plan before use on Cloud.",
-    );
-  }
-  const plan: OrganizationPlan =
-    storedPlan?.plan ?? (row?.status === "active" ? "pro" : "hobby");
+  const plan: OrganizationPlan = storedPlan?.plan ?? "hobby";
   const appState = appStateForPlan(plan, row);
 
   return {
@@ -111,47 +81,21 @@ export async function userOwnsHobbyOrganization(
   userId: string,
   excludingOrgId?: string,
 ) {
-  try {
-    const memberships = await db
-      .select({ role: member.role })
-      .from(member)
-      .innerJoin(organization, eq(organization.id, member.organizationId))
-      .where(
-        and(
-          eq(member.userId, userId),
-          eq(organization.plan, "hobby"),
-          excludingOrgId
-            ? ne(member.organizationId, excludingOrgId)
-            : undefined,
-        ),
-      );
-    return memberships.some(({ role }) => hasRole(role, "owner"));
-  } catch (error) {
-    if (!isUnavailablePlanStorage(error)) throw error;
-  }
-
-  // Fall back to Memberships during a rolling deployment before the new
-  // Organization columns are available.
   const memberships = await db
-    .select({ organizationId: member.organizationId, role: member.role })
+    .select({ role: member.role })
     .from(member)
+    .leftJoin(
+      organizationBilling,
+      eq(organizationBilling.orgId, member.organizationId),
+    )
     .where(
-      excludingOrgId
-        ? and(
-            eq(member.userId, userId),
-            ne(member.organizationId, excludingOrgId),
-          )
-        : eq(member.userId, userId),
+      and(
+        eq(member.userId, userId),
+        sql`coalesce(${organizationBilling.plan}, 'hobby') = 'hobby'`,
+        excludingOrgId ? ne(member.organizationId, excludingOrgId) : undefined,
+      ),
     );
-  const ownedOrganizations = memberships.filter(({ role }) =>
-    hasRole(role, "owner"),
-  );
-  const entitlements = await Promise.all(
-    ownedOrganizations.map(({ organizationId }) =>
-      readOrgEntitlement(organizationId),
-    ),
-  );
-  return entitlements.some(({ plan }) => plan === "hobby");
+  return memberships.some(({ role }) => hasRole(role, "owner"));
 }
 
 export async function lockHobbyOrganizationOwnership(

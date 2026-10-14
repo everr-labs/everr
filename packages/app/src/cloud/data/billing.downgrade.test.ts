@@ -74,7 +74,7 @@ vi.mock("@/cloud/billing/server", () => ({
 }));
 
 import { downgradeSuspendedOrganization } from "@/cloud/data/billing";
-import { organization } from "@/db/schema";
+import { organizationBilling } from "@/cloud/db/schema";
 
 let members: Map<string, string>;
 let plan: "pro" | "hobby";
@@ -114,7 +114,7 @@ beforeEach(() => {
       update: (table: unknown) => ({
         set: () => ({
           where: () => {
-            if (table === organization) plan = "hobby";
+            if (table === organizationBilling) plan = "hobby";
             return { returning: async () => [] };
           },
         }),

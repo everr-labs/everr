@@ -41,7 +41,7 @@ export type SubscriptionEvent = {
   };
 };
 export type CreateOrganization = (input: {
-  body: { name: string; slug: string; userId: string; plan: "pro" };
+  body: { name: string; slug: string; userId: string };
 }) => Promise<unknown>;
 export interface PolarGateway {
   findCustomer(orgId: string): Promise<Customer | null>;

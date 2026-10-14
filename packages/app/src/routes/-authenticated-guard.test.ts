@@ -83,6 +83,12 @@ it("redirects revoked membership using the structured result", async () => {
   });
 });
 it("shows creation setup even when the new organization is already ready", async () => {
+  if (selfHosted) {
+    await expect(
+      open(organizationRoute, "test_org", "test_org"),
+    ).resolves.toMatchObject({ organization: { id: "test_org" } });
+    return;
+  }
   await expect(
     open(organizationRoute, "test_org", "test_org"),
   ).rejects.toMatchObject({
@@ -98,6 +104,10 @@ it("does not apply a different organization's creation continuation", async () =
   ).resolves.toMatchObject({ organization: { id: "test_org" } });
 });
 it("uses recovery instead of creation onboarding for an existing pending organization", async () => {
+  if (selfHosted) {
+    await expect(open(provisionedRoute, "test_org")).resolves.toBeUndefined();
+    return;
+  }
   await expect(open(provisionedRoute, "test_org")).rejects.toMatchObject({
     options: {
       to: "/organization-pending",

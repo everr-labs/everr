@@ -1,7 +1,7 @@
+import { assertStorageReady } from "@app/storage-readiness";
 import { createMiddleware } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
-import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
-import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
+import { StorageNotReadyError } from "@/common/storage-readiness";
 import { parseAlertingPrincipal } from "@/data/alerting/session";
 import { db } from "@/db/client";
 import { organization } from "@/db/schema";
@@ -65,7 +65,7 @@ async function organizationName(organizationId: string): Promise<string> {
     .where(eq(organization.id, organizationId))
     .limit(1);
   if (!row) throw new Error("Organization not found");
-  assertOrganizationProvisioned(row.metadata);
+  assertStorageReady(row.metadata);
   return row.name;
 }
 
@@ -163,7 +163,7 @@ const AUTH_ERROR_STATUS: Record<string, number> = {
 };
 
 export function applyAuthErrorResponse(error: unknown): Response | null {
-  if (error instanceof ClickhouseProvisioningPendingError)
+  if (error instanceof StorageNotReadyError)
     return Response.json(
       { error: error.message },
       { status: 503, headers: { "Retry-After": "5" } },

@@ -16,10 +16,10 @@ and `EMAIL_FROM` (an address your relay permits). Email is used for invitations,
 verification, and password recovery. URL-encode special characters in SMTP
 credentials; single-quote `.env` values containing `$`.
 
-Without SMTP, the app starts and invitations can be shared by link. Email
-verification and email-based password recovery still require email delivery;
-invited users cannot complete the current verification flow without SMTP.
-Operators can recover existing local accounts using the commands below.
+Without SMTP, invitations can be shared by link and accepted without a separate
+email verification step. Accepting an invitation does not mark the email address
+as verified. Password recovery directs users to their installation administrator;
+operators can use the recovery commands below.
 
 Start the stack:
 
@@ -32,7 +32,8 @@ Open <http://localhost:3000> and create the workspace and its owner. The first
 person to complete setup becomes the owner. Setup closes once the workspace
 exists, and concurrent attempts cannot create another workspace.
 
-The app applies PostgreSQL migrations during startup. ClickHouse initializes
+The self-hosted app applies the shared core PostgreSQL migration history during
+startup. The image contains only that history. ClickHouse initializes
 its schema and access roles on the first start with an empty data volume.
 Workers run inside the app; no separate worker service is needed.
 
@@ -68,8 +69,11 @@ application and check its service in Everr's traces, logs, or metrics explorer.
 The collector rejects unauthenticated ingestion and derives workspace and
 retention from the verified key. It keeps queued telemetry on a persistent volume.
 
-This stack has no Cloud billing or required GitHub configuration. GitHub webhook
-ingestion is not configured by this Compose bundle. Retention defaults to 30 days;
+This stack has no Cloud billing, usage metering, per-organization ClickHouse user
+provisioning, or required GitHub configuration. The SQL API uses one fixed restricted
+ClickHouse user named `sql_api`; its password is generated in `.env` as
+`CLICKHOUSE_SQL_API_PASSWORD`. GitHub webhook ingestion is not configured by this
+Compose bundle. Retention defaults to 30 days;
 set `EVERR_RETENTION_DAYS` to a supported window in `.env` to change it.
 
 ## Operations
@@ -82,7 +86,7 @@ docker compose down
 
 `down` preserves data. **`down --volumes` deletes this installation's data.**
 Keep `.env` with your backups: it contains database credentials, the authentication
-secret, and the key used to derive workspace SQL credentials. The configuration
+secret, and the fixed SQL API user password. The configuration
 script refuses to overwrite it. Changing database passwords in `.env` does not
 rotate credentials in an initialized database.
 

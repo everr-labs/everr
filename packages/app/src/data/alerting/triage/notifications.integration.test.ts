@@ -11,6 +11,7 @@
  * other two are a LEFT JOIN. All three are answerable only by a database.
  */
 import { describe, expect, it, vi } from "vitest";
+import { useAlertingHarness } from "@/cloud/testing/alerting-harness";
 import { uuidv7 } from "@/data/alerting/history/ids";
 import {
   alertEvents,
@@ -24,7 +25,6 @@ import {
   insertSilence,
   TEST_ORG,
 } from "@/server/alerting/testing/fixtures";
-import { useAlertingHarness } from "@/server/alerting/testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import(

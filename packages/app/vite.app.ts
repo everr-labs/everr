@@ -10,14 +10,17 @@ export function appAliases(mode: string) {
 }
 
 // Enforce the seam on the compiled graph, including external dependencies.
-export function selfHostedIsolation(mode: string): Plugin {
+export function appIsolation(mode: string): Plugin {
   return {
-    name: "self-hosted-isolation",
+    name: "app-isolation",
     apply: "build",
     generateBundle() {
-      if (mode === "cloud") return;
       for (const id of this.getModuleIds()) {
-        if (id.includes("@polar-sh/") || /\/src\/cloud\//.test(id)) {
+        if (mode === "cloud") {
+          if (/\/src\/app\//.test(id)) {
+            this.error(`Self-hosted implementation reached the Cloud build: ${id}`);
+          }
+        } else if (id.includes("@polar-sh/") || /\/src\/cloud\//.test(id)) {
           this.error(`Cloud implementation reached the self-hosted build: ${id}`);
         }
       }

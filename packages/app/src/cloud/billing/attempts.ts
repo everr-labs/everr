@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { proOrganizationCheckout } from "@/db/schema";
+import { proOrganizationCheckout } from "@/cloud/db/schema";
 import type { CreationMetadata } from "./metadata";
 import { type BillingDependencies, BillingError } from "./types";
 

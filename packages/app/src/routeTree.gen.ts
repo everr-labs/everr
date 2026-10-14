@@ -27,7 +27,6 @@ import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
 import { Route as AuthenticatedDashboardPaddedRouteImport } from './routes/_authenticated/_dashboard/_padded'
 import { Route as AuthenticatedOrganizationDashboardRouteImport } from './routes/_authenticated/_organization/_dashboard'
 import { Route as AuthenticatedOrganizationDeviceRouteImport } from './routes/_authenticated/_organization/device'
-import { Route as WelcomeSignedInOrganizationRouteImport } from './routes/_welcome/_signedIn/_organization'
 import { Route as WelcomeSignedInAccessRequiredRouteImport } from './app/routes/_welcome/_signedIn/access-required'
 import { Route as WelcomeAuthErrorRouteImport } from './routes/_welcome/auth/error'
 import { Route as WelcomeInviteDotinvitationIdRouteImport } from './routes/_welcome/invite.$invitationId'
@@ -45,8 +44,6 @@ import { Route as WelcomeGuestAuthForgotPasswordRouteImport } from './routes/_we
 import { Route as WelcomeGuestAuthResetPasswordRouteImport } from './routes/_welcome/_guest/auth/reset-password'
 import { Route as WelcomeGuestAuthSignInRouteImport } from './routes/_welcome/_guest/auth/sign-in'
 import { Route as WelcomeGuestAuthSignUpRouteImport } from './routes/_welcome/_guest/auth/sign-up'
-import { Route as WelcomeSignedInOrganizationOrganizationPendingRouteImport } from './routes/_welcome/_signedIn/_organization/organization-pending'
-import { Route as WelcomeSignedInOrganizationOrganizationSetupRouteImport } from './routes/_welcome/_signedIn/_organization/organization-setup'
 import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
 import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
@@ -182,11 +179,6 @@ const AuthenticatedOrganizationDeviceRoute =
     path: '/device',
     getParentRoute: () => AuthenticatedOrganizationRoute,
   } as any)
-const WelcomeSignedInOrganizationRoute =
-  WelcomeSignedInOrganizationRouteImport.update({
-    id: '/_organization',
-    getParentRoute: () => WelcomeSignedInRoute,
-  } as any)
 const WelcomeSignedInAccessRequiredRoute =
   WelcomeSignedInAccessRequiredRouteImport.update({
     id: '/access-required',
@@ -278,18 +270,6 @@ const WelcomeGuestAuthSignUpRoute = WelcomeGuestAuthSignUpRouteImport.update({
   path: '/auth/sign-up',
   getParentRoute: () => WelcomeGuestRoute,
 } as any)
-const WelcomeSignedInOrganizationOrganizationPendingRoute =
-  WelcomeSignedInOrganizationOrganizationPendingRouteImport.update({
-    id: '/organization-pending',
-    path: '/organization-pending',
-    getParentRoute: () => WelcomeSignedInOrganizationRoute,
-  } as any)
-const WelcomeSignedInOrganizationOrganizationSetupRoute =
-  WelcomeSignedInOrganizationOrganizationSetupRouteImport.update({
-    id: '/organization-setup',
-    path: '/organization-setup',
-    getParentRoute: () => WelcomeSignedInOrganizationRoute,
-  } as any)
 const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
   id: '/$traceId',
   path: '/$traceId',
@@ -698,8 +678,6 @@ export interface FileRoutesByFullPath {
   '/auth/reset-password': typeof WelcomeGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof WelcomeGuestAuthSignInRoute
   '/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
-  '/organization-pending': typeof WelcomeSignedInOrganizationOrganizationPendingRoute
-  '/organization-setup': typeof WelcomeSignedInOrganizationOrganizationSetupRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
@@ -769,8 +747,6 @@ export interface FileRoutesByTo {
   '/auth/reset-password': typeof WelcomeGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof WelcomeGuestAuthSignInRoute
   '/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
-  '/organization-pending': typeof WelcomeSignedInOrganizationOrganizationPendingRoute
-  '/organization-setup': typeof WelcomeSignedInOrganizationOrganizationSetupRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
@@ -827,7 +803,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded': typeof AuthenticatedDashboardPaddedRouteWithChildren
   '/_authenticated/_organization/_dashboard': typeof AuthenticatedOrganizationDashboardRouteWithChildren
   '/_authenticated/_organization/device': typeof AuthenticatedOrganizationDeviceRoute
-  '/_welcome/_signedIn/_organization': typeof WelcomeSignedInOrganizationRouteWithChildren
   '/_welcome/_signedIn/access-required': typeof WelcomeSignedInAccessRequiredRoute
   '/_welcome/auth/error': typeof WelcomeAuthErrorRoute
   '/_welcome/invite/$invitationId': typeof WelcomeInviteDotinvitationIdRoute
@@ -845,8 +820,6 @@ export interface FileRoutesById {
   '/_welcome/_guest/auth/reset-password': typeof WelcomeGuestAuthResetPasswordRoute
   '/_welcome/_guest/auth/sign-in': typeof WelcomeGuestAuthSignInRoute
   '/_welcome/_guest/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
-  '/_welcome/_signedIn/_organization/organization-pending': typeof WelcomeSignedInOrganizationOrganizationPendingRoute
-  '/_welcome/_signedIn/_organization/organization-setup': typeof WelcomeSignedInOrganizationOrganizationSetupRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
@@ -924,8 +897,6 @@ export interface FileRouteTypes {
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
-    | '/organization-pending'
-    | '/organization-setup'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
@@ -995,8 +966,6 @@ export interface FileRouteTypes {
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
-    | '/organization-pending'
-    | '/organization-setup'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
@@ -1052,7 +1021,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded'
     | '/_authenticated/_organization/_dashboard'
     | '/_authenticated/_organization/device'
-    | '/_welcome/_signedIn/_organization'
     | '/_welcome/_signedIn/access-required'
     | '/_welcome/auth/error'
     | '/_welcome/invite/$invitationId'
@@ -1070,8 +1038,6 @@ export interface FileRouteTypes {
     | '/_welcome/_guest/auth/reset-password'
     | '/_welcome/_guest/auth/sign-in'
     | '/_welcome/_guest/auth/sign-up'
-    | '/_welcome/_signedIn/_organization/organization-pending'
-    | '/_welcome/_signedIn/_organization/organization-setup'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
@@ -1266,13 +1232,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrganizationDeviceRouteImport
       parentRoute: typeof AuthenticatedOrganizationRoute
     }
-    '/_welcome/_signedIn/_organization': {
-      id: '/_welcome/_signedIn/_organization'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof WelcomeSignedInOrganizationRouteImport
-      parentRoute: typeof WelcomeSignedInRoute
-    }
     '/_welcome/_signedIn/access-required': {
       id: '/_welcome/_signedIn/access-required'
       path: '/access-required'
@@ -1391,20 +1350,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/sign-up'
       preLoaderRoute: typeof WelcomeGuestAuthSignUpRouteImport
       parentRoute: typeof WelcomeGuestRoute
-    }
-    '/_welcome/_signedIn/_organization/organization-pending': {
-      id: '/_welcome/_signedIn/_organization/organization-pending'
-      path: '/organization-pending'
-      fullPath: '/organization-pending'
-      preLoaderRoute: typeof WelcomeSignedInOrganizationOrganizationPendingRouteImport
-      parentRoute: typeof WelcomeSignedInOrganizationRoute
-    }
-    '/_welcome/_signedIn/_organization/organization-setup': {
-      id: '/_welcome/_signedIn/_organization/organization-setup'
-      path: '/organization-setup'
-      fullPath: '/organization-setup'
-      preLoaderRoute: typeof WelcomeSignedInOrganizationOrganizationSetupRouteImport
-      parentRoute: typeof WelcomeSignedInOrganizationRoute
     }
     '/api/cli/runs/$traceId': {
       id: '/api/cli/runs/$traceId'
@@ -2086,32 +2031,11 @@ const WelcomeGuestRouteWithChildren = WelcomeGuestRoute._addFileChildren(
   WelcomeGuestRouteChildren,
 )
 
-interface WelcomeSignedInOrganizationRouteChildren {
-  WelcomeSignedInOrganizationOrganizationPendingRoute: typeof WelcomeSignedInOrganizationOrganizationPendingRoute
-  WelcomeSignedInOrganizationOrganizationSetupRoute: typeof WelcomeSignedInOrganizationOrganizationSetupRoute
-}
-
-const WelcomeSignedInOrganizationRouteChildren: WelcomeSignedInOrganizationRouteChildren =
-  {
-    WelcomeSignedInOrganizationOrganizationPendingRoute:
-      WelcomeSignedInOrganizationOrganizationPendingRoute,
-    WelcomeSignedInOrganizationOrganizationSetupRoute:
-      WelcomeSignedInOrganizationOrganizationSetupRoute,
-  }
-
-const WelcomeSignedInOrganizationRouteWithChildren =
-  WelcomeSignedInOrganizationRoute._addFileChildren(
-    WelcomeSignedInOrganizationRouteChildren,
-  )
-
 interface WelcomeSignedInRouteChildren {
-  WelcomeSignedInOrganizationRoute: typeof WelcomeSignedInOrganizationRouteWithChildren
   WelcomeSignedInAccessRequiredRoute: typeof WelcomeSignedInAccessRequiredRoute
 }
 
 const WelcomeSignedInRouteChildren: WelcomeSignedInRouteChildren = {
-  WelcomeSignedInOrganizationRoute:
-    WelcomeSignedInOrganizationRouteWithChildren,
   WelcomeSignedInAccessRequiredRoute: WelcomeSignedInAccessRequiredRoute,
 }
 

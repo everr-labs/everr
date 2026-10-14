@@ -8,7 +8,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { forwardRef, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
+import { StorageNotReadyError } from "@/common/storage-readiness";
 
 const mocks = vi.hoisted(() => ({
   githubEnabled: false,
@@ -39,7 +39,7 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 
-vi.mock("@/data/organizations", () => ({
+vi.mock("@/cloud/data/organizations", () => ({
   createOrganization: vi.fn(),
   getOrganizationCreationOptions: vi
     .fn()
@@ -109,7 +109,7 @@ describe("NavUser", () => {
       staleTime: Number.POSITIVE_INFINITY,
       queryFn: async () => {
         if (pending && readiness === "pending")
-          throw new ClickhouseProvisioningPendingError();
+          throw new StorageNotReadyError();
         return [{ value: pending ? 2 : 1 }];
       },
     });

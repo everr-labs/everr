@@ -4,7 +4,6 @@ import { z } from "zod";
 import { type Database, db } from "@/db/client";
 import { account, invitation, member, organization, user } from "@/db/schema";
 import { isOrganizationOwner } from "@/lib/organization-role";
-import { enqueueOrganizationProvisioning } from "@/server/organization-provisioning/jobs";
 
 export class InstallationSetupError extends Error {}
 
@@ -54,7 +53,6 @@ export async function assertInvitedUser(
 export async function setupWorkspace(
   input: z.infer<typeof SetupWorkspaceSchema>,
   database: Database = db,
-  enqueue = enqueueOrganizationProvisioning,
 ) {
   const data = SetupWorkspaceSchema.parse(input);
   const password = await hashPassword(data.password);
@@ -89,9 +87,7 @@ export async function setupWorkspace(
       id: organizationId,
       name: data.workspaceName,
       slug: "workspace",
-      plan: "self-hosted",
       createdAt: now,
-      metadata: JSON.stringify({ clickhouseReady: false }),
     });
     await tx.insert(member).values({
       id: crypto.randomUUID(),
@@ -100,8 +96,6 @@ export async function setupWorkspace(
       role: "owner",
       createdAt: now,
     });
-    // Persist provisioning with the workspace, so a restart cannot lose the job.
-    await enqueue(organizationId, tx);
     return { organizationId };
   });
 }

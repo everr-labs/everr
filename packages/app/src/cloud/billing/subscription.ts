@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { member, organization, proOrganizationCheckout } from "@/db/schema";
+import { proOrganizationCheckout } from "@/cloud/db/schema";
+import { member, organization } from "@/db/schema";
 import { isOrganizationOwner } from "@/lib/organization-role";
 import { creationLock, readIntent } from "./attempts";
 import { assertTeam, type createBillingIdentity } from "./identity";
@@ -51,7 +52,6 @@ export function createBillingSubscriptions(
               name: intent.organizationName,
               slug: intent.organizationSlug,
               userId: intent.ownerId,
-              plan: "pro",
             },
           }),
       );

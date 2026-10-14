@@ -1,11 +1,8 @@
-// Tables that get a per-org row policy provisioned. Must match the read tables
-// granted to sql_api_role in clickhouse/init/15-create-sql-api-role.sql. The
-// canonical readable-table list: exported so callers (the schema-probe error)
-// advertise exactly these instead of hand-syncing copies, and so a test can
-// check that the MCP query tool description documents each one. Lives apart
-// from the ClickHouse client so consumers of the list alone don't import
-// node:crypto or the server env.
-export const SQL_API_TENANT_TABLES = [
+// Explicit readable-table allowlist, shared with the restricted SQL role in
+// clickhouse/schema/15-create-sql-api-role.sql.tpl. Row policies use this same
+// list. Keeping it separate from the client lets schema
+// discovery and MCP describe access without importing server credentials.
+export const SQL_API_TABLES = [
   "traces",
   "logs",
   "metrics_gauge",

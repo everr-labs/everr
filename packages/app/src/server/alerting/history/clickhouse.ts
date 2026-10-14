@@ -1,3 +1,4 @@
+import { decorateTelemetryRow } from "@app/telemetry-storage";
 import type { AlertHistoryEventType } from "@/data/alerting/history/event-types";
 import {
   deterministicDeliveryEventId,
@@ -13,7 +14,7 @@ import type {
 } from "@/data/alerting/types";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import { formatResourceName } from "@/data/as-code/identity";
-import { insertAdminRows } from "@/lib/clickhouse";
+import { insertRows } from "@/lib/clickhouse-writer";
 import { retentionForOrg } from "@/product/retention.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import {
@@ -114,7 +115,7 @@ export type AlertHistoryRow = {
   event_id: string;
   notification_event_id: string;
   episode_id: string;
-  tenant_id: string;
+  organizationId: string;
   alert_definition_id: string;
   repoid: string;
   slug: string;
@@ -160,7 +161,7 @@ function baseHistoryRow(opts: {
     event_id: opts.eventId ?? uuidv7(opts.occurredAt),
     notification_event_id: opts.notificationEventId ?? ZERO_UUID,
     episode_id: ZERO_UUID,
-    tenant_id: opts.def.organizationId,
+    organizationId: opts.def.organizationId,
     alert_definition_id: opts.def.id,
     repoid: opts.def.repoid,
     slug: opts.def.slug,
@@ -495,16 +496,17 @@ async function insertAlertHistoryRows(
   // the lookup runs once per tenant in the batch.
   const stamped = await Promise.all(
     rows.map(async (row) => {
-      const retention = await retentionForOrg(row.tenant_id);
-      return {
-        ...row,
+      const retention = await retentionForOrg(row.organizationId);
+      const { organizationId, ...storedRow } = row;
+      return decorateTelemetryRow(organizationId, {
+        ...storedRow,
         retention_days: isEvaluationHistoryEvent(row.event_type)
           ? retention.alertEvaluationDays
           : retention.alertLifecycleDays,
-      };
+      });
     }),
   );
-  return insertAdminRows("app.alert_events", stamped, {
+  return insertRows("app.alert_events", stamped, {
     async_insert: sync ? 0 : 1,
     ...(sync ? {} : { wait_for_async_insert: 1 }),
     date_time_input_format: "best_effort",

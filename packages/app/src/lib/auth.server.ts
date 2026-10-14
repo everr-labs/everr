@@ -1,4 +1,5 @@
 import {
+  afterCreateOrganization,
   authPlugins,
   beforeCreateOrganization,
   identityAdapter,
@@ -6,11 +7,7 @@ import {
   membershipPlugins,
   organizationHooks,
 } from "@app/auth";
-import {
-  beforeUserCreate,
-  createSessionOnboardingHook,
-  requireVerifiedInvitation,
-} from "@app/onboarding";
+import { beforeUserCreate, createSessionOnboardingHook } from "@app/onboarding";
 import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
@@ -31,8 +28,6 @@ import {
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { INVITATION_EMAIL_HEADER, invitationUrl } from "@/common/invitation";
-import { organizationBillingFields } from "@/common/organization-billing-fields";
-import { parseOrganizationMetadata } from "@/common/organization-provisioning";
 import { db } from "@/db/client";
 import { member, session as sessionTable } from "@/db/schema";
 import { env } from "@/env";
@@ -47,11 +42,10 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "@/lib/email.server";
+import { mailer } from "@/lib/mailer.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { markOrganizationCreated } from "@/lib/organization-creation-continuation.server";
-import { organizationLifecycleAdapter } from "@/lib/organization-lifecycle-adapter.server";
 import { assertCanInviteMembers } from "@/product/membership.server";
-import { waitForOrganizationProvisioning } from "@/server/organization-provisioning/fast-path";
 import {
   createIdentityAuthHooks,
   type ResolvedSession,
@@ -165,7 +159,7 @@ export const auth = betterAuth({
       env.BETTER_AUTH_URL.replace("127.0.0.1", "localhost"),
     ]),
   ),
-  database: identityAdapter(organizationLifecycleAdapter()),
+  database: identityAdapter(),
   ...(socialProviders ? { socialProviders: socialProviders } : {}),
   user: {
     deleteUser: {
@@ -178,9 +172,11 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     revokeSessionsOnPasswordReset: true,
-    sendResetPassword: async ({ user, url }) => {
-      sendPasswordResetEmail({ to: user.email, url });
-    },
+    sendResetPassword: mailer
+      ? async ({ user, url }) => {
+          sendPasswordResetEmail({ to: user.email, url });
+        }
+      : undefined,
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url }) => {
@@ -272,23 +268,11 @@ export const auth = betterAuth({
     organizationPlugin({
       ac: orgAc,
       roles: orgRoles,
-      schema: {
-        organization: {
-          additionalFields: {
-            ...organizationBillingFields,
-            plan: {
-              type: ["hobby", "pro", "self-hosted"],
-              required: true,
-            },
-          },
-        },
-      },
-      // Organization creation is orchestrated by server-owned flows so a
-      // billable Organization cannot bypass a confirmed Polar payment.
+      // Organization creation is controlled by server-owned flows.
       allowUserToCreateOrganization: false,
       creatorRole: "owner",
-      // The app selects whether invitation acceptance requires a verified email.
-      requireEmailVerificationOnInvitation: requireVerifiedInvitation,
+      // Invitation acceptance still requires the signed-in account to match the recipient.
+      requireEmailVerificationOnInvitation: false,
       sendInvitationEmail: async (data, request) => {
         if (request?.headers.get(INVITATION_EMAIL_HEADER) === "false") return;
         sendInvitationEmail({
@@ -302,24 +286,7 @@ export const auth = betterAuth({
       organizationHooks: {
         beforeCreateOrganization,
         ...organizationHooks(),
-        afterCreateOrganization: async ({ organization }) => {
-          if (await waitForOrganizationProvisioning(organization.id)) {
-            // Better Auth returns this object after running its after-hook.
-            Object.assign(organization, {
-              metadata: {
-                ...parseOrganizationMetadata(organization.metadata),
-                clickhouseReady: true,
-              },
-            });
-          }
-        },
-        beforeUpdateOrganization: async ({ organization }) => {
-          if ("plan" in organization) {
-            throw new APIError("FORBIDDEN", {
-              message: "Organization plan cannot be changed here.",
-            });
-          }
-        },
+        afterCreateOrganization,
         beforeAddMember: async ({ member: newMember }) => {
           const existingMembers = await db
             .select({ id: member.id })
@@ -376,13 +343,13 @@ export const auth = betterAuth({
         // key with no capabilities. The API keys UI always sends an explicit,
         // least-privilege scope set (at least one capability). Keys minted
         // before scopes existed are backfilled with the full set by
-        // drizzle/0006_backfill_api_key_capabilities.sql.
+        // the API-key capabilities backfill migration.
       },
     ]),
     bearer(),
     ...authPlugins(
       async (input: {
-        body: { name: string; slug: string; userId: string; plan: "pro" };
+        body: { name: string; slug: string; userId: string };
       }): Promise<unknown> => auth.api.createOrganization(input),
     ),
     jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),

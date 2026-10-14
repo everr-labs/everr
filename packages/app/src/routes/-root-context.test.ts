@@ -47,6 +47,7 @@ it("resolves the session and consent for live requests before auth guards run", 
     consent: "granted",
     createdOrganizationId: null,
     setupRequired: false,
+    emailEnabled: true,
   });
   expect(mocks.getSession).toHaveBeenCalledWith({ headers: mocks.headers });
 });
@@ -58,6 +59,7 @@ it("keeps signed-out live requests signed out", async () => {
   expect(await loadContext()).toEqual({
     createdOrganizationId: null,
     setupRequired: false,
+    emailEnabled: true,
     session: null,
     consent: undefined,
   });
@@ -72,6 +74,7 @@ it("generates the prerendered shell without looking up runtime session data", as
     consent: undefined,
     createdOrganizationId: null,
     setupRequired: false,
+    emailEnabled: false,
   });
   expect(mocks.getSession).not.toHaveBeenCalled();
   expect(mocks.getCookie).not.toHaveBeenCalled();

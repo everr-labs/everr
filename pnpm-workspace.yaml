@@ -1,5 +1,7 @@
 packages:
   - "crates/*"
+  # Keep the nested workspace first so source ownership is unambiguous to tooling.
+  - "packages/app/src/cloud"
   - "packages/*"
   - "collector"
   - ".github/actions/everr-action"

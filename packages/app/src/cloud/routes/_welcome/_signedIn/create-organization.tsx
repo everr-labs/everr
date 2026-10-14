@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { OrganizationCreation } from "@/cloud/components/organization-creation";
+import { getOrganizationCreationOptions } from "@/cloud/data/organizations";
 import { returnToSchema } from "@/common/return-to";
-import { getOrganizationCreationOptions } from "@/data/organizations";
 
 export const Route = createFileRoute("/_welcome/_signedIn/create-organization")(
   {

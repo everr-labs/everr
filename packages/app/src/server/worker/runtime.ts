@@ -1,12 +1,9 @@
 import { EventEmitter } from "node:events";
 import { integrationTasks } from "@app/integrations";
+import { startAppWorkers, stopAppWorkers } from "@app/workers";
 import { run, type WorkerEvents } from "graphile-worker";
 import { pool } from "@/db/client";
 import { alertCronItems, alertTaskList } from "@/server/alerting/runtime";
-import {
-  startOrganizationWorker,
-  stopOrganizationWorker,
-} from "@/server/organization-provisioning/worker";
 import {
   previewsCronItems,
   previewsTaskList,
@@ -47,13 +44,13 @@ const general = managedWorker({
 });
 
 registerShutdownHook("worker.general", "workers", () => general.stop());
-registerShutdownHook("worker.organizations", "workers", stopOrganizationWorker);
+registerShutdownHook("worker.app", "workers", stopAppWorkers);
 
 export async function startWorkerRuntime() {
-  await Promise.all([general.start(), startOrganizationWorker()]);
+  await Promise.all([general.start(), startAppWorkers()]);
   return {
     stop: async () => {
-      await Promise.all([general.stop(), stopOrganizationWorker()]);
+      await Promise.all([general.stop(), stopAppWorkers()]);
     },
   };
 }

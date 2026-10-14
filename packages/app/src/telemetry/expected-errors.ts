@@ -47,7 +47,7 @@ type ClickhouseTelemetryAttributes = {
 export function isExpectedServerFunctionError(error: unknown): boolean {
   return (
     error instanceof Error &&
-    (error instanceof ClickhouseProvisioningPendingError ||
+    (error instanceof StorageNotReadyError ||
       EXPECTED_SERVER_FUNCTION_MESSAGES.has(error.message))
   );
 }
@@ -77,4 +77,4 @@ function readErrorField(error: unknown, field: "code" | "type") {
     : "";
 }
 
-import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
+import { StorageNotReadyError } from "@/common/storage-readiness";

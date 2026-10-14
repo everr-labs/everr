@@ -1,7 +1,10 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readOrgEntitlement } from "@/cloud/billing-data.server";
 import { auth } from "@/lib/auth.server";
 import { deleteCurrentUserAccount } from "./account-settings";
+
+vi.mock("@/cloud/billing-data.server", () => ({ readOrgEntitlement: vi.fn() }));
 
 vi.mock("@/cloud/billing/lock.server", () => ({
   withBillingRequest: (run: () => Promise<unknown>) => run(),
@@ -16,12 +19,11 @@ type OrgMember = {
   role: string;
 };
 
-function activeOrg(members: OrgMember[], plan: "hobby" | "pro" = "hobby") {
+function activeOrg(members: OrgMember[]) {
   return {
     id: "test_org",
     name: "Test Org",
     members,
-    plan,
   };
 }
 
@@ -31,6 +33,13 @@ function orgSummary(id: string, name: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(readOrgEntitlement).mockResolvedValue({
+    plan: "hobby",
+    appState: "hobby",
+    status: null,
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+  });
   vi.mocked(auth.api.listOrganizations).mockResolvedValue([]);
 });
 
@@ -123,17 +132,21 @@ describe("deleteCurrentUserAccount", () => {
   });
 
   it("blocks deletion while the user owns a Pro organization", async () => {
+    vi.mocked(readOrgEntitlement).mockResolvedValueOnce({
+      plan: "pro",
+      appState: "pro",
+      status: "active",
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+    });
     vi.mocked(auth.api.listOrganizations).mockResolvedValueOnce([
       orgSummary("test_org", "Test Org"),
     ] as never);
     vi.mocked(auth.api.getFullOrganization).mockResolvedValueOnce(
-      activeOrg(
-        [
-          { userId: "test_user", role: "owner" },
-          { userId: "co_owner", role: "owner" },
-        ],
-        "pro",
-      ) as never,
+      activeOrg([
+        { userId: "test_user", role: "owner" },
+        { userId: "co_owner", role: "owner" },
+      ]) as never,
     );
 
     await expect(
@@ -144,6 +157,7 @@ describe("deleteCurrentUserAccount", () => {
       "You can't delete your account while you are an owner of one or more Pro organizations.",
     );
 
+    expect(readOrgEntitlement).toHaveBeenCalledExactlyOnceWith("test_org");
     expect(auth.api.deleteOrganization).not.toHaveBeenCalled();
     expect(auth.api.deleteUser).not.toHaveBeenCalled();
   });

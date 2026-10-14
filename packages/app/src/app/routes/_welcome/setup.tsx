@@ -31,7 +31,7 @@ function SetupPage() {
               Your workspace has been created. Sign in with the owner account to
               configure telemetry ingestion.
             </p>
-            <a href="/auth/sign-in?redirect=%2Forganization-setup">Sign in</a>
+            <a href="/auth/sign-in?redirect=%2F">Sign in</a>
           </>
         ) : (
           <form
@@ -59,7 +59,7 @@ function SetupPage() {
                   throw new Error(
                     "Workspace created. Please sign in to continue.",
                   );
-                window.location.assign("/organization-setup");
+                window.location.assign("/");
               } catch (cause) {
                 setError(
                   cause instanceof Error
@@ -130,10 +130,7 @@ function SetupPage() {
             {!created && (
               <p className="text-sm text-muted-foreground">
                 If your workspace was created before the connection was lost,{" "}
-                <a
-                  className="underline"
-                  href="/auth/sign-in?redirect=%2Forganization-setup"
-                >
+                <a className="underline" href="/auth/sign-in?redirect=%2F">
                   sign in with your owner account
                 </a>{" "}
                 to continue.

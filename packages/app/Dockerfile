@@ -4,8 +4,10 @@ WORKDIR /app
 
 # Stage 1: install dependencies
 FROM base AS deps
+ARG EVERR_BUILD_TARGET=cloud
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/app/package.json ./packages/app/
+COPY packages/app/src/cloud/package.json ./packages/app/src/cloud/
 COPY packages/otel-errors/package.json ./packages/otel-errors/
 COPY packages/otel-web/package.json ./packages/otel-web/
 COPY packages/tanstack-start-otel/package.json ./packages/tanstack-start-otel/
@@ -13,7 +15,11 @@ COPY packages/datemath/package.json ./packages/datemath/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/telemetry-explorer/package.json ./packages/telemetry-explorer/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --ignore-scripts
+    if [ "$EVERR_BUILD_TARGET" = "self-hosted" ]; then \
+      pnpm install --filter @everr/app... --frozen-lockfile --ignore-scripts; \
+    else \
+      pnpm install --frozen-lockfile --ignore-scripts; \
+    fi
 
 # Stage 2: build
 FROM deps AS build
@@ -30,6 +36,21 @@ COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui
 COPY packages/telemetry-explorer ./packages/telemetry-explorer
 COPY packages/app ./packages/app
+# Stage only the runtime migration inputs before self-hosted builds remove Cloud source.
+# Snapshots are generation metadata and are not needed by the runtime migrator.
+RUN set -eu; \
+    stage_migrations() { \
+      source_dir="$1"; target_dir="$2"; \
+      mkdir -p "/app/runtime-drizzle/$target_dir/meta"; \
+      cp "$source_dir"/*.sql "/app/runtime-drizzle/$target_dir/"; \
+      cp "$source_dir/meta/_journal.json" "/app/runtime-drizzle/$target_dir/meta/_journal.json"; \
+    }; \
+    stage_migrations packages/app/drizzle/core core; \
+    if [ "$EVERR_BUILD_TARGET" != "self-hosted" ]; then \
+      stage_migrations packages/app/src/cloud/drizzle cloud; \
+      stage_migrations packages/app/src/cloud/drizzle-legacy legacy; \
+    fi; \
+    if [ "$EVERR_BUILD_TARGET" = "self-hosted" ]; then rm -rf packages/app/src/cloud; fi
 # The MCP query tool description inlines the telemetry skill's schema at build time.
 COPY skills/everr-use-telemetry/rules/schema.md ./skills/everr-use-telemetry/rules/schema.md
 # SPA prerender initializes auth and mailer configuration without using them.
@@ -48,9 +69,8 @@ ENV NODE_ENV=production
 # Nitro includes the runtime dependencies in its standalone output.
 COPY --from=build /app/packages/app/.output ./.output
 
-# Drizzle needs the SQL files and journal, but not development snapshots.
-COPY packages/app/drizzle/*.sql ./drizzle/
-COPY packages/app/drizzle/meta/_journal.json ./drizzle/meta/_journal.json
+# Runtime migrations are staged by build target, with journals but no snapshots.
+COPY --from=build /app/runtime-drizzle ./drizzle
 
 EXPOSE 3000
 CMD [".output/server/index.mjs"]

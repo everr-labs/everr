@@ -23,6 +23,54 @@ services:
     volumes:
       - ./volumes/clickhouse:/var/lib/clickhouse:Z
 
+  clickhouse-self-hosted:
+    profiles: [self-hosted]
+    build:
+      context: ./clickhouse
+      args:
+        EVERR_BUILD_TARGET: self-hosted
+    ports:
+      - "127.0.0.1:18123:8123"
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: everr
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      COLLECTOR_RW_PASSWORD: collector-dev
+      APP_RO_PASSWORD: app-dev
+      WEB_APP_ADMIN_PASSWORD: web-app-admin-dev
+      CLICKHOUSE_SQL_API_PASSWORD: sql-api-dev
+    volumes:
+      - self-hosted-clickhouse-data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user default --password everr --query 'SELECT 1 FROM app.alert_events LIMIT 0'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  collector-self-hosted:
+    profiles: [self-hosted]
+    build:
+      context: ./collector
+      args:
+        EVERR_BUILD_TARGET: self-hosted
+    stop_grace_period: 60s
+    depends_on:
+      clickhouse-self-hosted:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:14318:4318"
+      - "127.0.0.1:14317:4317"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      EVERR_VERIFY_ENDPOINT: http://host.docker.internal:5173/api/internal/verify-key
+      CLICKHOUSE_ENDPOINT: http://clickhouse-self-hosted:8123
+      COLLECTOR_RW_PASSWORD: collector-dev
+      INGEST_VERIFY_SHARED_SECRET: ${INGEST_VERIFY_SHARED_SECRET:-dev-ingest-verify-secret-change-me-32chars}
+    volumes:
+      - ./deploy/collector.yaml:/etc/everr-collector/config.yaml:ro
+      - self-hosted-collector-queue:/var/lib/everr/queue
+
   postgres:
     # Matches the managed instance (Scaleway RDB `PostgreSQL-17`), so a
     # migration that passes here cannot fail on deploy. Scaleway offers no
@@ -74,4 +122,6 @@ services:
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
 
 volumes:
+  self-hosted-clickhouse-data:
+  self-hosted-collector-queue:
   collector-queue:

@@ -14,9 +14,9 @@
  */
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
+import { useAlertingHarness } from "@/cloud/testing/alerting-harness";
 import { alertSilences } from "@/db/schema";
 import { insertRule } from "@/server/alerting/testing/fixtures";
-import { useAlertingHarness } from "@/server/alerting/testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import(
