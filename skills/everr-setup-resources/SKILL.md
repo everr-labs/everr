@@ -20,7 +20,7 @@ Always read the relevant rule files before authoring or editing a resource. Load
 
 | Rule | Description |
 | --- | --- |
-| `queries` | The shared panel and query model: ClickHouse SQL, time params, bucketing, variables, data shapes. Read for any dashboard or runbook work. |
+| `queries` | The shared panel and query model: ClickHouse SQL, time params, bucketing, variables, data shapes, testing and `EXPLAIN` optimization. Read for any dashboard, runbook, or alert query. |
 | `dashboards` | Dashboard schema, grid layout, worked example |
 | `runbooks` | Runbook schema, pages, ```panel embeds, reading runbooks as an agent |
 | `alerts` | AlertRule schema, alert design, thresholds, notification messages, verification |
