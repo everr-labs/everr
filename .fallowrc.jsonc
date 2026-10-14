@@ -24,6 +24,8 @@
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
+    // Cloud composition selected by the explicit cloud Vite build alias.
+    "packages/app/src/cloud/app/**",
     // size-limit's own config file, resolved by its CLI at runtime; nothing
     // in the package imports it.
     "packages/otel-web/.size-limit.cjs",
@@ -134,6 +136,15 @@
     "ignore": ["**/routeTree.gen.ts"]
   },
   "ignoreExports": [
+    {
+      // TanStack generated route types and convention-based cloud route exports.
+      "file": "packages/app/src/cloud/routeTree.gen.ts",
+      "exports": ["FileRouteTypes", "RootRouteChildren"]
+    },
+    {
+      "file": "packages/app/src/cloud/routes/**",
+      "exports": ["Route"]
+    },
     {
       // Intentional namespace-barrel API: the app exposes a zero-prop
       // `<RefreshPicker />` / `<TimeRangePicker />` bound to app hooks; @everr/ui

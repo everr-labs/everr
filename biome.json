@@ -34,7 +34,7 @@
       "packages/datemath/**/src/**/*",
       "packages/datemath/vite.config.ts",
 
-      "!packages/**/src/routeTree.gen.ts"
+      "!packages/**/src/**/routeTree.gen.ts"
     ]
   },
   "formatter": {

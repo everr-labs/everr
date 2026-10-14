@@ -4,9 +4,16 @@ The Better Auth organization stores an optional, unique `polarCustomerId`. The e
 
 A person can own several teams with the same personal email. Within a team, Everr links its users to Polar members by `externalId = userId`, without a local member-mapping table. Member external IDs are reserved for Everr identities; independent contacts have no external ID. Email is a mutable contact field. An email collision with an independent contact fails explicitly rather than adopting that contact. Independent contacts, fiscal details, payment methods and history remain in Polar.
 
+## Cloud composition
+
+Billing is installed only by the cloud build through `@app/*`. The
+self-hosted build supplies its own organization policy and omits the Polar
+implementation and payment screens. See `packages/app/README.md` for build
+commands and the shared policy contract.
+
 ## Module boundaries
 
-`packages/app/src/lib/billing/module.ts` is the application interface. `server.ts` composes the database, Polar gateway, advisory locks and infrastructure provisioning. Better Auth supplies the organization-creation callback; the billing domain never imports `auth.server.ts`.
+`packages/app/src/cloud/billing/module.ts` is the application interface. `server.ts` composes the database, Polar gateway, advisory locks and infrastructure provisioning. Better Auth supplies the organization-creation callback; the billing domain never imports `auth.server.ts`.
 
 - `identity.ts` owns team identity, reads and transfers the Polar owner, authorizes portal access and reconciles members during billing actions.
 - `members.ts` reconciles managed identities and revokes obsolete grants.
@@ -59,7 +66,7 @@ Only creation metadata version 2 with a persisted customer-bound attempt is supp
 
 ## Verification and observability
 
-Run the app typecheck, Biome, Fallow dead-code/cycle checks, and tests under `src/lib/billing`, the billing and organization data tests, billing UI tests, account-settings tests and worker runtime tests. The module suite uses PGlite persistence and a controllable Polar gateway. Real Better Auth tests cover the reserved ID, hooks, blocked membership changes and anonymous verified-email updates. PostgreSQL tests preserve the real lock-pool contract.
+Run the app typecheck, Biome, Fallow dead-code/cycle checks, and tests under `src/cloud/billing`, the billing and organization data tests, billing UI tests, account-settings tests and worker runtime tests. The module suite uses PGlite persistence and a controllable Polar gateway. Real Better Auth tests cover the reserved ID, hooks, blocked membership changes and anonymous verified-email updates. PostgreSQL tests preserve the real lock-pool contract.
 
 `pnpm --filter @everr/app test:billing:sandbox` requires the app `.env` to select Polar sandbox. It creates and removes only its own temporary team fixtures. It verifies shared personal email across teams, explicit customer checkout, ownership transfer, email PATCH and rejection of an already-issued portal token after member deletion. It does not make a payment. The token requires customer, member, checkout, subscription and customer-session permissions.
 

@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@everr/ui/*": [
+        "../ui/src/*"
+      ],
+      "@app/*": [
+        "./src/app/*"
+      ]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "src/cloud",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
+}

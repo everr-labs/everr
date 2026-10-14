@@ -1,3 +1,4 @@
+import { initialOrganizationFields } from "@app/organization-fields";
 import type { GenericEndpointContext } from "better-auth";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { type Database, db } from "@/db/client";
@@ -8,14 +9,14 @@ import {
   selectSoleOrganization,
   shouldCreateAutomaticOrganization,
 } from "@/lib/auto-org";
-import { lockHobbyOrganizationOwnership } from "@/lib/billing-data.server";
+import { lockOrganizationOwnership } from "@/product/organization-lock.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 type CreateAutomaticOrganization = (body: {
   name: string;
   slug: string;
   userId: string;
-  plan: "hobby";
+  plan: "hobby" | "self-hosted";
 }) => Promise<{ id: string } | null>;
 
 // Better Auth runs session after-hooks after the signup transaction commits.
@@ -71,7 +72,7 @@ export async function ensureAutomaticOrganization(
   database: Database = db,
 ): Promise<string | null> {
   return database.transaction(async (tx) => {
-    await lockHobbyOrganizationOwnership(tx, userId);
+    await lockOrganizationOwnership(tx, userId);
 
     // Another sign-in, explicit creation, or downgrade may have added a
     // membership while this request waited for the ownership lock.
@@ -123,7 +124,7 @@ export async function ensureAutomaticOrganization(
       name: deriveOrgName(userRecord.name, userRecord.email),
       slug: generateOrgSlug(),
       userId,
-      plan: "hobby",
+      ...initialOrganizationFields,
     });
     return created?.id ?? null;
   });

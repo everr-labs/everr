@@ -2,7 +2,7 @@ import * as z from "zod";
 import { returnToSchema } from "./return-to";
 
 export const CreateOrganizationInputSchema = z.object({
-  plan: z.enum(["hobby", "pro"]),
+  plan: z.enum(["hobby", "pro"]).optional(),
   returnTo: returnToSchema.optional(),
   organizationName: z
     .string()

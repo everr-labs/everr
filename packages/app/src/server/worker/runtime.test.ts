@@ -57,8 +57,8 @@ vi.mock("graphile-worker", () => ({
   run: runtimeMocks.run,
 }));
 
-vi.mock("@/server/github-events/tasks", () => ({
-  githubEventsTaskList: runtimeMocks.githubEventsTaskList,
+vi.mock("@app/integrations", () => ({
+  integrationTasks: async () => runtimeMocks.githubEventsTaskList,
 }));
 
 vi.mock("@/server/previews/00-runtime", () => ({
@@ -133,7 +133,14 @@ describe("worker runtime", () => {
     await runtime.startWorkerRuntime();
 
     expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
-    expect(runtimeMocks.runOptions[0]).toMatchObject({
+    const general = runtimeMocks.runOptions.find(
+      (options) => options.pgPool === runtimeMocks.pool,
+    );
+    const organizations = runtimeMocks.runOptions.find(
+      (options) => options.pgPool !== runtimeMocks.pool,
+    );
+    if (!general || !organizations) throw new Error("Missing worker runner");
+    expect(general).toMatchObject({
       concurrency: 2,
       noHandleSignals: true,
       pgPool: runtimeMocks.pool,
@@ -143,7 +150,7 @@ describe("worker runtime", () => {
         ...runtimeMocks.previewsCronItems,
       ]),
     });
-    expect(Object.keys(runtimeMocks.runOptions[0].taskList).sort()).toEqual([
+    expect(Object.keys(general.taskList).sort()).toEqual([
       "alerts/evaluate",
       "alerts/flush-group",
       "alerts/process-event",
@@ -155,7 +162,7 @@ describe("worker runtime", () => {
       "github-events/status",
       "previews/retention",
     ]);
-    expect(runtimeMocks.runOptions[1]).toMatchObject({
+    expect(organizations).toMatchObject({
       concurrency: 2,
       noHandleSignals: true,
       pgPool: runtimeMocks.organizationPool,
@@ -165,7 +172,7 @@ describe("worker runtime", () => {
         }),
       ],
     });
-    expect(Object.keys(runtimeMocks.runOptions[1].taskList).sort()).toEqual([
+    expect(Object.keys(organizations.taskList).sort()).toEqual([
       "clickhouse/deprovision-organization",
       "clickhouse/provision-organization",
       "clickhouse/scan-pending-organizations",
@@ -203,9 +210,13 @@ describe("worker runtime", () => {
 
   it("keeps the organization worker alive when the general worker cannot start", async () => {
     const runtime = await loadRuntime();
-    runtimeMocks.run.mockRejectedValueOnce(
-      new Error("Shared worker unavailable"),
-    );
+    const start = runtimeMocks.run.getMockImplementation();
+    if (!start) throw new Error("Missing worker implementation");
+    runtimeMocks.run.mockImplementation(async (options) => {
+      if (options.pgPool === runtimeMocks.pool)
+        throw new Error("Shared worker unavailable");
+      return start(options);
+    });
     await runtime.startWorkerRuntime();
     expect(runtimeMocks.serverLoggerError).toHaveBeenCalledWith(
       "worker.runtime.failed",
@@ -216,6 +227,7 @@ describe("worker runtime", () => {
     );
     expect(runtimeMocks.runners[0].stop).not.toHaveBeenCalled();
     expect(runtimeMocks.organizationPool.end).not.toHaveBeenCalled();
+    runtimeMocks.run.mockImplementation(start);
   });
 
   it("keeps both workers alive if recovery of old retry schedules fails", async () => {

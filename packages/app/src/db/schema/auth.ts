@@ -92,7 +92,7 @@ export const organization = pgTable(
     createdAt: timestamp("created_at").notNull(),
     metadata: text("metadata"),
     polarCustomerId: text("polar_customer_id").unique(),
-    plan: text("plan", { enum: ["hobby", "pro"] })
+    plan: text("plan", { enum: ["hobby", "pro", "self-hosted"] })
       .default("hobby")
       .notNull(),
   },

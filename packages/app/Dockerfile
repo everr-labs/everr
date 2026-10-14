@@ -17,6 +17,8 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 
 # Stage 2: build
 FROM deps AS build
+# Cloud remains the default for existing deployments.
+ARG EVERR_BUILD_TARGET=cloud
 # Public (origin-bound, ingest-only) browser key baked into the client bundle by
 # Vite at build time. Optional: when unset, browser error tracking stays off.
 ARG VITE_EVERR_PUBLIC_INGEST_KEY
@@ -36,7 +38,7 @@ RUN SKIP_ENV_VALIDATION=true \
     BETTER_AUTH_URL=http://localhost:3000 \
     BETTER_AUTH_SECRET=prerender-only-not-a-runtime-secret \
     EMAIL_DSN=smtp://localhost:1025 \
-    pnpm --filter @everr/app build && \
+    pnpm --filter @everr/app build:${EVERR_BUILD_TARGET} && \
     test -s packages/app/.output/public/_shell.html
 
 # Stage 3: production

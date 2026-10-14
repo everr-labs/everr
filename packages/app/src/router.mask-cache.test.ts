@@ -11,7 +11,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 // Stub the generated tree: the real one pulls every route module (and the
 // server env, ClickHouse, and server functions with it) into the test. The
 // subject stays the real `getRouter`, with its real masks and mode branch.
-vi.mock("./routeTree.gen", () => {
+vi.mock("@app/route-tree", () => {
   const rootRoute = createRootRoute();
   return {
     routeTree: rootRoute.addChildren(

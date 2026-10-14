@@ -11,11 +11,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
 
 const mocks = vi.hoisted(() => ({
+  githubEnabled: false,
   invalidate: vi.fn(),
   openConsentSettings: vi.fn(),
   role: "owner",
   setActive: vi.fn(),
   organizations: [{ id: "org_1", name: "Acme" }],
+}));
+
+vi.mock("@/integrations/github/data", () => ({
+  getGithubAvailability: async () => ({ enabled: mocks.githubEnabled }),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -77,6 +82,7 @@ import { NavUser } from "./nav-user";
 describe("NavUser", () => {
   beforeEach(() => {
     mocks.role = "owner";
+    mocks.githubEnabled = false;
     mocks.organizations = [{ id: "org_1", name: "Acme" }];
     mocks.invalidate.mockReset();
     mocks.setActive.mockReset().mockResolvedValue({ error: null });
@@ -162,6 +168,32 @@ describe("NavUser", () => {
     expect(
       screen.getByRole("menuitem", { name: "Plan & Billing" }),
     ).toHaveAttribute("href", "/billing");
+  });
+
+  it.each([
+    true,
+    false,
+  ])("shows GitHub only when enabled (%s)", async (enabled) => {
+    mocks.githubEnabled = enabled;
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SidebarProvider>
+          <NavUser />
+        </SidebarProvider>
+      </QueryClientProvider>,
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /Test User/ }));
+    if (enabled)
+      expect(
+        await screen.findByRole("menuitem", { name: "GitHub" }),
+      ).toHaveAttribute("href", "/github");
+    else
+      expect(
+        screen.queryByRole("menuitem", { name: "GitHub" }),
+      ).not.toBeInTheDocument();
   });
 
   it("hides organization settings from ordinary members", async () => {

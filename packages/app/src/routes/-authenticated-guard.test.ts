@@ -3,10 +3,10 @@ import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("@/data/organization-access", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
-vi.mock("@/data/billing", () => ({ getActiveOrgAppAccess: vi.fn() }));
+vi.mock("@/data/product", () => ({ getActiveOrgPolicy: vi.fn() }));
 
-import { getActiveOrgAppAccess } from "@/data/billing";
 import { getActiveOrganizationAccess } from "@/data/organization-access";
+import { getActiveOrgPolicy } from "@/data/product";
 import { Route as sessionRoute } from "./_authenticated";
 import { Route as organizationRoute } from "./_authenticated/_organization";
 import { Route as accessRoute } from "./_authenticated/_organization/_dashboard/_appAccess";
@@ -42,8 +42,8 @@ beforeEach(() => {
     status: "available",
     organization: { id: "test_org", metadata: '{"clickhouseReady":true}' },
   });
-  vi.mocked(getActiveOrgAppAccess).mockResolvedValue({
-    appState: "hobby",
+  vi.mocked(getActiveOrgPolicy).mockResolvedValue({
+    access: "enabled",
   } as never);
 });
 
@@ -102,8 +102,8 @@ it("uses recovery instead of creation onboarding for an existing pending organiz
   });
 });
 it("routes suspended app access to billing recovery", async () => {
-  vi.mocked(getActiveOrgAppAccess).mockResolvedValue({
-    appState: "suspended",
+  vi.mocked(getActiveOrgPolicy).mockResolvedValue({
+    access: "suspended",
   } as never);
   await expect(open(accessRoute, "test_org")).rejects.toMatchObject({
     options: { to: "/billing/suspended" },

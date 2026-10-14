@@ -1,3 +1,4 @@
+import { billingEnabled } from "@app/client";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -60,7 +61,7 @@ export function OrganizationCreation({
     if (isCreating) return;
 
     const parsed = CreateOrganizationInputSchema.safeParse({
-      plan,
+      plan: billingEnabled ? plan : undefined,
       organizationName,
       returnTo,
     });
@@ -111,7 +112,7 @@ export function OrganizationCreation({
           />
         ) : isCreating ? (
           <OrganizationProvisioningContent
-            checkout={plan === "pro"}
+            checkout={billingEnabled && plan === "pro"}
             pending={!error}
           >
             {error ? (
@@ -160,63 +161,69 @@ export function OrganizationCreation({
                 Let's get you settled
               </h1>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Give your organization a name and choose a plan to get started.
+                {billingEnabled
+                  ? "Give your organization a name and choose a plan to get started."
+                  : "Give your organization a name to get started."}
               </p>
             </div>
             <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {canCreateHobby ? (
-                  <button
-                    type="button"
-                    disabled={isCreating}
-                    aria-pressed={plan === "hobby"}
-                    onClick={() => setPlan("hobby")}
-                    className={`rounded-lg border p-4 text-left transition-colors ${
-                      plan === "hobby"
-                        ? "border-primary bg-primary/5"
-                        : "hover:border-foreground/30"
-                    }`}
-                  >
-                    <div className="mb-2 flex items-center justify-between">
-                      <UserRound className="size-5" />
-                      {plan === "hobby" ? (
-                        <Check className="size-4 text-primary" />
-                      ) : null}
-                    </div>
-                    <p className="font-medium">Hobby</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Free, for one Owner.
-                    </p>
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={isCreating}
-                  aria-pressed={plan === "pro"}
-                  onClick={() => setPlan("pro")}
-                  className={`rounded-lg border p-4 text-left transition-colors ${
-                    plan === "pro"
-                      ? "border-primary bg-primary/5"
-                      : "hover:border-foreground/30"
-                  }`}
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <Sparkles className="size-5" />
-                    {plan === "pro" ? (
-                      <Check className="size-4 text-primary" />
+              {billingEnabled ? (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {canCreateHobby ? (
+                      <button
+                        type="button"
+                        disabled={isCreating}
+                        aria-pressed={plan === "hobby"}
+                        onClick={() => setPlan("hobby")}
+                        className={`rounded-lg border p-4 text-left transition-colors ${
+                          plan === "hobby"
+                            ? "border-primary bg-primary/5"
+                            : "hover:border-foreground/30"
+                        }`}
+                      >
+                        <div className="mb-2 flex items-center justify-between">
+                          <UserRound className="size-5" />
+                          {plan === "hobby" ? (
+                            <Check className="size-4 text-primary" />
+                          ) : null}
+                        </div>
+                        <p className="font-medium">Hobby</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Free, for one Owner.
+                        </p>
+                      </button>
                     ) : null}
+                    <button
+                      type="button"
+                      disabled={isCreating}
+                      aria-pressed={plan === "pro"}
+                      onClick={() => setPlan("pro")}
+                      className={`rounded-lg border p-4 text-left transition-colors ${
+                        plan === "pro"
+                          ? "border-primary bg-primary/5"
+                          : "hover:border-foreground/30"
+                      }`}
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <Sparkles className="size-5" />
+                        {plan === "pro" ? (
+                          <Check className="size-4 text-primary" />
+                        ) : null}
+                      </div>
+                      <p className="font-medium">Pro</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Paid, with team members.
+                      </p>
+                    </button>
                   </div>
-                  <p className="font-medium">Pro</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Paid, with team members.
-                  </p>
-                </button>
-              </div>
-              {!canCreateHobby ? (
-                <p className="text-xs text-muted-foreground">
-                  You already own a Hobby organization, so this organization
-                  must use Pro.
-                </p>
+                  {!canCreateHobby ? (
+                    <p className="text-xs text-muted-foreground">
+                      You already own a Hobby organization, so this organization
+                      must use Pro.
+                    </p>
+                  ) : null}
+                </>
               ) : null}
               <div className="space-y-2">
                 <Label htmlFor="organization-name">Organization name</Label>
@@ -243,7 +250,9 @@ export function OrganizationCreation({
               ) : null}
             </div>
             <Button type="submit" className="w-full">
-              {plan === "pro" ? "Continue to checkout" : "Create organization"}
+              {billingEnabled && plan === "pro"
+                ? "Continue to checkout"
+                : "Create organization"}
             </Button>
           </form>
         )}

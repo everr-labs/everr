@@ -1,3 +1,4 @@
+import { OrganizationMenuItems } from "@app/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,12 +14,12 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@everr/ui/components/sidebar";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   Check,
   ChevronsUpDown,
   CookieIcon,
-  CreditCard,
   GitPullRequest,
   KeyRound,
   LogOut,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useOrganizationActivation } from "@/components/use-organization-activation";
+import { githubAvailabilityOptions } from "@/integrations/github/options";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { useOpenConsentSettings } from "@/telemetry/consent-gate";
@@ -41,6 +43,10 @@ export function NavUser() {
   const userRole = activeOrg?.members?.find(
     (m) => m.userId === session?.user?.id,
   )?.role;
+  const github = useQuery({
+    ...githubAvailabilityOptions,
+    enabled: Boolean(session?.user),
+  });
   const isAdmin = isOrganizationAdmin(userRole);
   const { isMobile } = useSidebar();
 
@@ -164,20 +170,16 @@ export function NavUser() {
                     <KeyRound />
                     API keys
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/github" />}
-                    nativeButton={false}
-                  >
-                    <GitPullRequest />
-                    GitHub
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/billing" />}
-                    nativeButton={false}
-                  >
-                    <CreditCard />
-                    Plan &amp; Billing
-                  </DropdownMenuItem>
+                  {github.data?.enabled ? (
+                    <DropdownMenuItem
+                      render={<Link to="/github" />}
+                      nativeButton={false}
+                    >
+                      <GitPullRequest />
+                      GitHub
+                    </DropdownMenuItem>
+                  ) : null}
+                  <OrganizationMenuItems />
                 </DropdownMenuGroup>
               </>
             ) : null}

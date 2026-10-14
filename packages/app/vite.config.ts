@@ -5,6 +5,7 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
 import svgr from "vite-plugin-svgr";
+import { appAliases, appRoutes, selfHostedIsolation } from "./vite.app";
 import { smeeWebhookPlugin } from "./vite.smee";
 
 const config = defineConfig(({ mode }) => {
@@ -19,6 +20,7 @@ const config = defineConfig(({ mode }) => {
     resolve: {
       tsconfigPaths: true,
       alias: [
+        ...appAliases(mode),
         // tslib gets pulled in by Radix UI on SSR. Nitro/Rollup wraps tslib's
         // CJS as `__toESM(tslib).default` and destructures helpers off `.default`,
         // which is undefined — crashing route loaders with "Cannot destructure
@@ -49,6 +51,7 @@ const config = defineConfig(({ mode }) => {
       ],
     },
     plugins: [
+      selfHostedIsolation(mode),
       smeeWebhookPlugin({
         channel: env.SMEE_CHANNEL,
       }),
@@ -58,9 +61,7 @@ const config = defineConfig(({ mode }) => {
         spa: {
           enabled: true,
         },
-        router: {
-          routeFileIgnorePattern: "\\.test\\.",
-        },
+        router: appRoutes(mode),
       }),
       nitro({
         traceDeps: ["tslib*"],

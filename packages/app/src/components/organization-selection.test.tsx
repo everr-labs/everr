@@ -63,9 +63,6 @@ vi.mock("@tanstack/react-start/server", () => ({ getRequestHeaders: vi.fn() }));
 vi.mock("@/data/auth", () => ({
   getActiveOrganization: vi.fn(),
 }));
-vi.mock("@/data/billing", () => ({
-  getActiveOrgAppAccess: vi.fn(),
-}));
 vi.mock("@/data/organizations", () => ({
   createOrganization: vi.fn().mockResolvedValue({
     kind: "created",

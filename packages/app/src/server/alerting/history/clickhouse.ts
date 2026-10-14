@@ -14,7 +14,7 @@ import type {
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import { formatResourceName } from "@/data/as-code/identity";
 import { insertAdminRows } from "@/lib/clickhouse";
-import { retentionForOrg } from "@/lib/retention.server";
+import { retentionForOrg } from "@/product/retention.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import {
   capAlertLabels,

@@ -1,3 +1,11 @@
+import {
+  authPlugins,
+  beforeCreateOrganization,
+  identityAdapter,
+  identityLifecycle,
+  membershipPlugins,
+  organizationHooks,
+} from "@app/auth";
 import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
@@ -24,15 +32,6 @@ import { member, session as sessionTable } from "@/db/schema";
 import { env } from "@/env";
 import { selectSoleOrganization } from "@/lib/auto-org";
 import { createAutomaticOrganizationSessionHook } from "@/lib/auto-org.server";
-import { billingIdentityAdapter } from "@/lib/billing/auth-adapter.server";
-import { billingAuthPlugin } from "@/lib/billing/auth-plugin.server";
-import {
-  billingMembershipPlugin,
-  billingOrganizationHooks,
-} from "@/lib/billing/membership-plugin.server";
-import { beforeCreateCheckoutOrganization } from "@/lib/billing/organization-context.server";
-import { billing } from "@/lib/billing/server";
-import { readOrgEntitlement } from "@/lib/billing-data.server";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -45,6 +44,7 @@ import {
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
 import { markOrganizationCreated } from "@/lib/organization-creation-continuation.server";
 import { organizationLifecycleAdapter } from "@/lib/organization-lifecycle-adapter.server";
+import { assertCanInviteMembers } from "@/product/membership.server";
 import { waitForOrganizationProvisioning } from "@/server/organization-provisioning/fast-path";
 import {
   createIdentityAuthHooks,
@@ -169,7 +169,7 @@ export const auth = betterAuth({
       env.BETTER_AUTH_URL.replace("127.0.0.1", "localhost"),
     ]),
   ),
-  database: billingIdentityAdapter(organizationLifecycleAdapter()),
+  database: identityAdapter(organizationLifecycleAdapter()),
   ...(googleSocialProviders ? { socialProviders: googleSocialProviders } : {}),
   user: {
     deleteUser: {
@@ -204,7 +204,7 @@ export const auth = betterAuth({
     user: {
       delete: {
         before: async (user) => {
-          await billing.beforeUserDelete(user.id);
+          await identityLifecycle.beforeUserDelete(user.id);
         },
       },
     },
@@ -262,7 +262,7 @@ export const auth = betterAuth({
       auth.api.getSession({ headers, returnHeaders: true }),
   ),
   plugins: [
-    billingMembershipPlugin(),
+    ...membershipPlugins,
     cliDeviceOrganizationPlugin({
       onError: (stage, error) => {
         serverLogger.error(
@@ -279,7 +279,7 @@ export const auth = betterAuth({
           additionalFields: {
             ...organizationBillingFields,
             plan: {
-              type: ["hobby", "pro"],
+              type: ["hobby", "pro", "self-hosted"],
               required: true,
             },
           },
@@ -302,8 +302,8 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
-        beforeCreateOrganization: beforeCreateCheckoutOrganization,
-        ...billingOrganizationHooks(),
+        beforeCreateOrganization,
+        ...organizationHooks(),
         afterCreateOrganization: async ({ organization }) => {
           if (await waitForOrganizationProvisioning(organization.id)) {
             // Better Auth returns this object after running its after-hook.
@@ -330,51 +330,29 @@ export const auth = betterAuth({
             .limit(1);
           if (existingMembers.length === 0) return;
 
-          const entitlement = await readOrgEntitlement(
-            newMember.organizationId,
-          );
-          if (entitlement.appState !== "pro") {
-            throw new APIError("FORBIDDEN", {
-              message: "An active Pro plan is required to add members.",
-            });
-          }
-          await billing.beforeMembershipChange(
+          await assertCanInviteMembers(newMember.organizationId);
+          await identityLifecycle.beforeMembershipChange(
             newMember.organizationId,
             newMember.userId,
             newMember.role,
           );
         },
         beforeCreateInvitation: async ({ invitation: newInvitation }) => {
-          const entitlement = await readOrgEntitlement(
-            newInvitation.organizationId,
-          );
-          if (entitlement.appState !== "pro") {
-            throw new APIError("FORBIDDEN", {
-              message: "An active Pro plan is required to invite members.",
-            });
-          }
+          await assertCanInviteMembers(newInvitation.organizationId);
         },
         beforeAcceptInvitation: async ({
           invitation: acceptedInvitation,
           user,
         }) => {
-          const entitlement = await readOrgEntitlement(
-            acceptedInvitation.organizationId,
-          );
-          if (entitlement.appState !== "pro") {
-            throw new APIError("FORBIDDEN", {
-              message:
-                "This organization needs an active Pro plan before the invitation can be accepted.",
-            });
-          }
-          await billing.beforeMembershipChange(
+          await assertCanInviteMembers(acceptedInvitation.organizationId);
+          await identityLifecycle.beforeMembershipChange(
             acceptedInvitation.organizationId,
             user.id,
             acceptedInvitation.role,
           );
         },
         beforeDeleteOrganization: async ({ organization }) => {
-          await billing.assertDeletable(organization.id);
+          await identityLifecycle.assertDeletable(organization.id);
         },
       },
     }),
@@ -404,8 +382,10 @@ export const auth = betterAuth({
       },
     ]),
     bearer(),
-    billingAuthPlugin(
-      async (input): Promise<unknown> => auth.api.createOrganization(input),
+    ...authPlugins(
+      async (input: {
+        body: { name: string; slug: string; userId: string; plan: "pro" };
+      }): Promise<unknown> => auth.api.createOrganization(input),
     ),
     jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),
     oauthProvider({

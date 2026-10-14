@@ -16,16 +16,18 @@ vi.mock("@/telemetry/logger", () => ({
 
 // Cuts the import chain to the Postgres client. The tier is fixed to pro so
 // the stamped retention_days is a known value below.
-vi.mock("@/lib/retention.server", async () => {
-  const { resolveRetention } = await import("@/lib/retention");
+vi.mock("@/product/retention.server", async () => {
+  const { retentionForDays } = await import(
+    "@/product/retention.test-fixtures"
+  );
   return {
-    retentionForOrg: vi.fn(async () => resolveRetention("pro")),
+    retentionForOrg: vi.fn(async () => retentionForDays(365, 30)),
   };
 });
 
 import { uuidv7Time } from "@/data/alerting/history/ids";
-import { resolveRetention } from "@/lib/retention";
-import { retentionForOrg } from "@/lib/retention.server";
+import { retentionForOrg } from "@/product/retention.server";
+import { retentionForDays } from "@/product/retention.test-fixtures";
 import {
   deliveryHistoryRow,
   evaluationFailureHistoryRow,
@@ -80,7 +82,7 @@ describe("ClickHouse alert history", () => {
   beforeEach(() => {
     mocks.insertAdminRows.mockReset().mockResolvedValue(undefined);
     vi.mocked(retentionForOrg).mockImplementation(async () =>
-      resolveRetention("pro"),
+      retentionForDays(365, 30),
     );
     mocks.error.mockReset();
   });
@@ -153,7 +155,7 @@ describe("ClickHouse alert history", () => {
 
   it("stamps mixed tenants and event classes with their alert entitlements", async () => {
     vi.mocked(retentionForOrg).mockImplementation(async (orgId) =>
-      resolveRetention(orgId === "org-2" ? "hobby" : "pro"),
+      orgId === "org-2" ? retentionForDays(14) : retentionForDays(365, 30),
     );
     const rowFor = (organizationId: string) =>
       evaluationHistoryRow({

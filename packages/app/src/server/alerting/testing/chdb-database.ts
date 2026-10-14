@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Session } from "chdb";
 
-import { resolveRetention } from "@/lib/retention";
+import { retentionForDays } from "@/product/retention.test-fixtures";
 
 const HISTORY_TABLE = "app.alert_events";
 
@@ -207,7 +207,7 @@ export function createChdbDatabase(): ChdbDatabase {
     insert(rows, deduplicationToken) {
       if (rows.length === 0) return;
       // Direct fixture inserts need the retention stamp normally supplied by the writer.
-      const retention = resolveRetention("hobby");
+      const retention = retentionForDays(14);
       const stamped = rows.map((row) => {
         const eventType = "event_type" in row ? row.event_type : undefined;
         const isEvaluation =

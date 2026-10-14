@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveRetention } from "@/lib/retention";
+import { retentionForDays } from "@/product/retention.test-fixtures";
 import { Route } from "./verify-key";
 
 vi.mock("@/env", () => ({
@@ -17,7 +17,7 @@ vi.mock("@/lib/auth.server", () => ({
   },
 }));
 
-vi.mock("@/lib/retention.server", () => ({
+vi.mock("@/product/retention.server", () => ({
   retentionForOrg: vi.fn(),
 }));
 
@@ -51,8 +51,8 @@ async function mockVerify(result: unknown) {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  const { retentionForOrg } = await import("@/lib/retention.server");
-  vi.mocked(retentionForOrg).mockResolvedValue(resolveRetention("pro"));
+  const { retentionForOrg } = await import("@/product/retention.server");
+  vi.mocked(retentionForOrg).mockResolvedValue(retentionForDays(365, 30));
 });
 
 describe("/api/internal/verify-key", () => {
@@ -121,7 +121,7 @@ describe("/api/internal/verify-key", () => {
       logsDays: 365,
       metricsDays: 365,
     });
-    const { retentionForOrg } = await import("@/lib/retention.server");
+    const { retentionForOrg } = await import("@/product/retention.server");
     expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 
     // The configId pin is the sole guarantee that a CLI/user-scoped key

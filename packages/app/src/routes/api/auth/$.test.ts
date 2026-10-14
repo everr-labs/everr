@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ handler: vi.fn(), inBillingRequest: false }));
 vi.mock("@/lib/auth.server", () => ({ auth: { handler: mocks.handler } }));
-vi.mock("@/lib/billing/lock.server", () => ({
+vi.mock("@/cloud/billing/lock.server", () => ({
   withBillingRequest: async (run: () => Promise<Response>) => {
     mocks.inBillingRequest = true;
     try {
