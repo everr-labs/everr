@@ -12,6 +12,11 @@ import { Route as organizationRoute } from "./_authenticated/_organization";
 import { Route as accessRoute } from "./_authenticated/_organization/_dashboard/_appAccess";
 import { Route as provisionedRoute } from "./_authenticated/_organization/_dashboard/_appAccess/_provisioned";
 
+const selfHosted = import.meta.env.MODE === "self-hosted";
+const missingWorkspaceRoute = selfHosted
+  ? "/access-required"
+  : "/choose-organization";
+
 function open(
   route: { options: unknown },
   activeOrganizationId: string | null,
@@ -62,7 +67,7 @@ it("verifies membership before passing organization context to descendants", asy
 it("preserves the original destination when organization selection is missing", async () => {
   await expect(open(organizationRoute, null)).rejects.toMatchObject({
     options: {
-      to: "/choose-organization",
+      to: missingWorkspaceRoute,
       search: { returnTo: "/logs?service=api#results" },
       replace: true,
     },
@@ -74,7 +79,7 @@ it("redirects revoked membership using the structured result", async () => {
     status: "missing",
   });
   await expect(open(organizationRoute, "test_org")).rejects.toMatchObject({
-    options: { to: "/choose-organization" },
+    options: { to: missingWorkspaceRoute },
   });
 });
 it("shows creation setup even when the new organization is already ready", async () => {
@@ -101,14 +106,17 @@ it("uses recovery instead of creation onboarding for an existing pending organiz
     },
   });
 });
-it("routes suspended app access to billing recovery", async () => {
-  vi.mocked(getActiveOrgPolicy).mockResolvedValue({
-    access: "suspended",
-  } as never);
-  await expect(open(accessRoute, "test_org")).rejects.toMatchObject({
-    options: { to: "/billing/suspended" },
-  });
-});
+it.skipIf(selfHosted)(
+  "routes suspended app access to billing recovery",
+  async () => {
+    vi.mocked(getActiveOrgPolicy).mockResolvedValue({
+      access: "suspended",
+    } as never);
+    await expect(open(accessRoute, "test_org")).rejects.toMatchObject({
+      options: { to: "/billing/suspended" },
+    });
+  },
+);
 it("keeps infrastructure errors visible", async () => {
   vi.mocked(getActiveOrganizationAccess).mockRejectedValue(
     new Error("Organization database unavailable"),

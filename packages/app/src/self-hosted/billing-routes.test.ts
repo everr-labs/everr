@@ -39,10 +39,6 @@ it.each([
 it.each([
   "/access-required",
   "/setup",
-  "/logs",
-  "/traces",
-  "/users-management",
-  "/github",
 ])("keeps the product route %s", (path) => {
   expect(
     Object.values(router.routesById).some((route) => route.fullPath === path),

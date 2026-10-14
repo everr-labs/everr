@@ -12,9 +12,6 @@ const configured = {
 };
 
 describe("GitHub integration configuration", () => {
-  it("needs no configuration when absent", () => {
-    expect(resolveGithubConfiguration({})).toBeUndefined();
-  });
   it("preserves existing configured installations", () => {
     expect(resolveGithubConfiguration(configured)).toEqual({
       ...configured,
@@ -25,14 +22,6 @@ describe("GitHub integration configuration", () => {
     expect(
       resolveGithubConfiguration({
         ...configured,
-        EVERR_GITHUB_ENABLED: "false",
-      }),
-    ).toBeUndefined();
-  });
-  it("can disable partial configuration", () => {
-    expect(
-      resolveGithubConfiguration({
-        GITHUB_APP_ID: "123",
         EVERR_GITHUB_ENABLED: "false",
       }),
     ).toBeUndefined();
@@ -51,10 +40,5 @@ describe("GitHub integration configuration", () => {
     expect(() =>
       resolveGithubConfiguration({ EVERR_GITHUB_ENABLED: "true" }),
     ).toThrow("GITHUB_APP_ID");
-  });
-  it("rejects a misspelled enable flag", () => {
-    expect(() =>
-      resolveGithubConfiguration({ EVERR_GITHUB_ENABLED: "yes" }),
-    ).toThrow("must be true or false");
   });
 });

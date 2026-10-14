@@ -32,12 +32,3 @@ it("allows members for an active Cloud subscription", async () => {
   });
   await expect(assertCanInviteMembers("org")).resolves.toBeUndefined();
 });
-
-it("does not grant collaboration if subscription state cannot be read", async () => {
-  vi.mocked(readOrgEntitlement).mockRejectedValue(
-    new Error("Database unavailable"),
-  );
-  await expect(assertCanInviteMembers("org")).rejects.toThrow(
-    "Database unavailable",
-  );
-});

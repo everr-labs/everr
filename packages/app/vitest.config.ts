@@ -18,7 +18,12 @@ export default defineConfig(({ mode }) => ({
 		svgr({ svgrOptions: { dimensions: false } }),
 	],
 	test: {
-    include: mode === "self-hosted" ? ["src/self-hosted/**/*.test.{ts,tsx}"] : configDefaults.include,
+    include: mode === "self-hosted" ? [
+      "src/self-hosted/**/*.test.{ts,tsx}",
+      "src/lib/session-recovery.test.ts",
+      "src/routes/-authenticated-guard.test.ts",
+      "src/routes/api/internal/verify-key.test.ts",
+    ] : configDefaults.include,
     exclude: [...configDefaults.exclude, ...(mode === "self-hosted" ? [] : ["src/self-hosted/**"])],
 		environment: "jsdom",
 		setupFiles: ["./src/test-setup.ts"],

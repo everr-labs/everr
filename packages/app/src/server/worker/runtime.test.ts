@@ -57,8 +57,11 @@ vi.mock("graphile-worker", () => ({
   run: runtimeMocks.run,
 }));
 
-vi.mock("@app/integrations", () => ({
-  integrationTasks: async () => runtimeMocks.githubEventsTaskList,
+vi.mock("@/integrations/github/configuration", () => ({
+  getGithubConfiguration: () => ({}),
+}));
+vi.mock("@/integrations/github/events/tasks", () => ({
+  githubEventsTaskList: runtimeMocks.githubEventsTaskList,
 }));
 
 vi.mock("@/server/previews/00-runtime", () => ({
@@ -119,6 +122,7 @@ async function loadRuntime() {
   return {
     startWorkerRuntime: async () => {
       activeRuntime = await runtime.startWorkerRuntime();
+      await vi.dynamicImportSettled();
       return activeRuntime;
     },
   };

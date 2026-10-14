@@ -146,6 +146,7 @@ describe("NavUser", () => {
   });
 
   it("opens the flat menu without losing the menu group context", async () => {
+    mocks.githubEnabled = true;
     const user = userEvent.setup();
     const queryClient = new QueryClient();
 
@@ -160,6 +161,9 @@ describe("NavUser", () => {
     await user.click(screen.getByRole("button", { name: /Test User/ }));
 
     expect(await screen.findByText("Organization settings")).toBeVisible();
+    expect(
+      await screen.findByRole("menuitem", { name: "GitHub" }),
+    ).toHaveAttribute("href", "/github");
     expect(screen.getByText("Account & privacy")).toBeVisible();
     expect(
       screen.queryByRole("menuitem", { name: "Download App" }),
@@ -170,11 +174,8 @@ describe("NavUser", () => {
     ).toHaveAttribute("href", "/billing");
   });
 
-  it.each([
-    true,
-    false,
-  ])("shows GitHub only when enabled (%s)", async (enabled) => {
-    mocks.githubEnabled = enabled;
+  it("hides GitHub when the integration is disabled", async () => {
+    mocks.githubEnabled = false;
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
@@ -186,14 +187,9 @@ describe("NavUser", () => {
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: /Test User/ }));
-    if (enabled)
-      expect(
-        await screen.findByRole("menuitem", { name: "GitHub" }),
-      ).toHaveAttribute("href", "/github");
-    else
-      expect(
-        screen.queryByRole("menuitem", { name: "GitHub" }),
-      ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "GitHub" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides organization settings from ordinary members", async () => {

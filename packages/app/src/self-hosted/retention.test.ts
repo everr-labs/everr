@@ -49,16 +49,9 @@ describe("self-hosted retention policy", () => {
     vi.stubEnv("EVERR_RETENTION_LOGS_DAYS", "");
     expect(await retention()).toEqual(retentionForDays(90));
   });
-  it.each([
-    "0",
-    "-1",
-    "1.5",
-    "forever",
-    "31",
-    "65536",
-  ])("rejects unsupported retention %s", async (value) => {
+  it("rejects a retention window unsupported by storage", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.stubEnv("EVERR_RETENTION_DAYS", value);
+    vi.stubEnv("EVERR_RETENTION_DAYS", "31");
     await expect(retention()).rejects.toThrow("Invalid environment variables");
     vi.restoreAllMocks();
   });

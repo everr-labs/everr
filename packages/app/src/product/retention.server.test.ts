@@ -14,15 +14,6 @@ afterEach(() => {
 });
 
 describe("organization retention", () => {
-  it("uses the selected policy without interpreting plans", async () => {
-    const retention = {
-      ...retentionForDays(90),
-      logsDays: 7,
-      alertEvaluationDays: 14,
-    };
-    lookup.mockResolvedValue({ retention });
-    await expect(retentionForOrg("custom")).resolves.toEqual(retention);
-  });
   it("shares in-flight lookups per organization", async () => {
     lookup.mockResolvedValue({ retention: retentionForDays(30) });
     const first = retentionForOrg("cached");

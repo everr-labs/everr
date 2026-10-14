@@ -100,7 +100,13 @@ describe("/api/internal/verify-key", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 200 with tenantId for a valid ingest key", async () => {
+  it("returns the verified tenant and forwards each signal's retention", async () => {
+    const { retentionForOrg } = await import("@/product/retention.server");
+    vi.mocked(retentionForOrg).mockResolvedValueOnce({
+      ...retentionForDays(90),
+      tracesDays: 14,
+      logsDays: 7,
+    });
     await mockVerify({
       valid: true,
       error: null,
@@ -117,11 +123,10 @@ describe("/api/internal/verify-key", () => {
     expect(await res.json()).toEqual({
       tenantId: "org_42",
       keyId: "ak_3",
-      tracesDays: 365,
-      logsDays: 365,
-      metricsDays: 365,
+      tracesDays: 14,
+      logsDays: 7,
+      metricsDays: 90,
     });
-    const { retentionForOrg } = await import("@/product/retention.server");
     expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 
     // The configId pin is the sole guarantee that a CLI/user-scoped key

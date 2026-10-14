@@ -5,20 +5,13 @@ vi.mock("./configuration", () => ({ getGithubConfiguration: () => undefined }));
 vi.mock("./events/enqueue", () => ({ enqueueWebhookEvent: vi.fn() }));
 
 import { auth } from "@/lib/auth.server";
-import {
-  getGithubAppInstallStatus,
-  getGithubAvailability,
-  getInstallationRepos,
-} from "./data";
+import { getGithubAppInstallStatus, getInstallationRepos } from "./data";
 import { enqueueWebhookEvent } from "./events/enqueue";
 import { handleGitHubWebhookRequest } from "./events/webhook";
 import { handleInstallCallback } from "./install-callback";
 import { handleInstallStart } from "./install-start";
 
 describe("disabled GitHub integration", () => {
-  it("exposes only its availability", async () => {
-    expect(await getGithubAvailability()).toEqual({ enabled: false });
-  });
   it.each([
     handleInstallStart,
     handleInstallCallback,

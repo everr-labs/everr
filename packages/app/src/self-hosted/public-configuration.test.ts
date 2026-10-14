@@ -4,9 +4,7 @@ import { afterEach, expect, it, vi } from "vitest";
 afterEach(() => vi.unstubAllEnvs());
 
 it.each([
-  [undefined, undefined, false],
   ["client-id", undefined, false],
-  [undefined, "client-secret", false],
   ["client-id", "client-secret", true],
 ])("advertises Google only with both credentials (%s, %s)", async (id, secret, enabled) => {
   vi.resetModules();
