@@ -11,9 +11,14 @@ const mocks = vi.hoisted(() => ({
     }) => {},
   ),
   logError: vi.fn(),
+  enabled: true,
 }));
 
-vi.mock("@/lib/mailer.server", () => ({ mailer: { send: mocks.send } }));
+vi.mock("@/lib/mailer.server", () => ({
+  get mailer() {
+    return mocks.enabled ? { send: mocks.send } : null;
+  },
+}));
 vi.mock("@/env", () => ({
   env: { BETTER_AUTH_URL: "https://app.everr.dev" },
 }));
@@ -30,6 +35,7 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.enabled = true;
 });
 
 it.each([
@@ -102,4 +108,18 @@ it("logs a delivery failure without rejecting the auth callback", async () => {
     "mailer.send.failed",
     expect.objectContaining({ error: expect.any(Error) }),
   );
+});
+
+it("skips email delivery when SMTP is unconfigured", async () => {
+  mocks.enabled = false;
+  sendInvitationEmail({
+    to: "recipient@example.com",
+    inviterName: "Alex",
+    organizationName: "Example Team",
+    role: "member",
+    inviteUrl: "https://example.com/invite/token",
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(mocks.send).not.toHaveBeenCalled();
+  expect(mocks.logError).not.toHaveBeenCalled();
 });

@@ -22,16 +22,18 @@ export const env = createEnv({
         },
       )
       .optional(),
-    EMAIL_FROM: z.union([
-      z.email(),
-      z
-        .string()
-        .trim()
-        .refine((value) => {
-          const match = value.match(/^[^<>\r\n]+ <([^<>]+)>$/);
-          return match !== null && z.email().safeParse(match[1]).success;
-        }, "Must be an email address or a named email address"),
-    ]),
+    EMAIL_FROM: z
+      .union([
+        z.email(),
+        z
+          .string()
+          .trim()
+          .refine((value) => {
+            const match = value.match(/^[^<>\r\n]+ <([^<>]+)>$/);
+            return match !== null && z.email().safeParse(match[1]).success;
+          }, "Must be an email address or a named email address"),
+      ])
+      .optional(),
     EMAIL_REPLY_TO: z.email().optional(),
     // Preview apply controls: the alert-evaluation kill-switch ("off" stops
     // scheduling preview alert rows) and the hard-delete retention window.

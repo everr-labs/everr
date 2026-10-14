@@ -21,7 +21,6 @@ function show() {
   const Page = Route.options.component as ComponentType;
   render(<Page />);
   for (const [label, value] of [
-    ["Setup token", "test-setup-token-with-at-least-32-characters"],
     ["Workspace name", "Recovery workspace"],
     ["Your name", "Owner"],
     ["Email", "owner@example.test"],

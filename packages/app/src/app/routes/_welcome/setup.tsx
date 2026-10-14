@@ -41,7 +41,6 @@ function SetupPage() {
               if (pending) return;
               const fields = new FormData(event.currentTarget);
               const data = {
-                token: String(fields.get("token") ?? ""),
                 workspaceName: String(fields.get("workspaceName") ?? ""),
                 name: String(fields.get("name") ?? ""),
                 email: String(fields.get("email") ?? ""),
@@ -72,19 +71,6 @@ function SetupPage() {
               }
             }}
           >
-            <div className="space-y-2">
-              <Label htmlFor="setup-token">Setup token</Label>
-              <Input
-                id="setup-token"
-                name="token"
-                type="password"
-                required
-                autoComplete="off"
-              />
-              <p className="text-xs text-muted-foreground">
-                Use the setup token supplied by your administrator.
-              </p>
-            </div>
             <div className="space-y-2">
               <Label htmlFor="workspace-name">Workspace name</Label>
               <Input

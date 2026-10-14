@@ -30,6 +30,7 @@ import {
 } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { INVITATION_EMAIL_HEADER, invitationUrl } from "@/common/invitation";
 import { organizationBillingFields } from "@/common/organization-billing-fields";
 import { parseOrganizationMetadata } from "@/common/organization-provisioning";
 import { db } from "@/db/client";
@@ -287,13 +288,14 @@ export const auth = betterAuth({
       creatorRole: "owner",
       // The app selects whether invitation acceptance requires a verified email.
       requireEmailVerificationOnInvitation: requireVerifiedInvitation,
-      sendInvitationEmail: async (data) => {
+      sendInvitationEmail: async (data, request) => {
+        if (request?.headers.get(INVITATION_EMAIL_HEADER) === "false") return;
         sendInvitationEmail({
           to: data.email,
           inviterName: data.inviter.user.name,
           organizationName: data.organization.name,
           role: data.role,
-          inviteUrl: `${env.BETTER_AUTH_URL}/invite/${data.id}`,
+          inviteUrl: invitationUrl(data.id, env.BETTER_AUTH_URL),
         });
       },
       organizationHooks: {

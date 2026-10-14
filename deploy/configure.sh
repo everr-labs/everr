@@ -28,10 +28,10 @@ EVERR_RETENTION_DAYS=30
 
 # Generated secrets. Keep these with your backups.
 EOF
-  for key in POSTGRES_PASSWORD CLICKHOUSE_PASSWORD COLLECTOR_RW_PASSWORD APP_RO_PASSWORD WEB_APP_ADMIN_PASSWORD CLICKHOUSE_SQL_API_MASTER_KEY BETTER_AUTH_SECRET INGEST_VERIFY_SHARED_SECRET EVERR_SETUP_TOKEN; do
+  for key in POSTGRES_PASSWORD CLICKHOUSE_PASSWORD COLLECTOR_RW_PASSWORD APP_RO_PASSWORD WEB_APP_ADMIN_PASSWORD CLICKHOUSE_SQL_API_MASTER_KEY BETTER_AUTH_SECRET INGEST_VERIFY_SHARED_SECRET; do
     value=$(openssl rand -hex 32)
     printf '%s=%s\n' "$key" "$value"
   done
 } > .env
 
-echo 'Created .env. Set EMAIL_DSN and EMAIL_FROM, then run docker compose up -d --build --wait.'
+echo 'Created .env. Run docker compose up -d --build --wait.'

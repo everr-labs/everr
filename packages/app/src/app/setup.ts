@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { appEnv } from "./env";
 import {
   InstallationSetupError,
   SetupWorkspaceSchema,
@@ -10,7 +9,7 @@ export const completeSetup = createServerFn({ method: "POST" })
   .inputValidator(SetupWorkspaceSchema)
   .handler(async ({ data }) => {
     try {
-      return await setupWorkspace(data, appEnv.EVERR_SETUP_TOKEN);
+      return await setupWorkspace(data);
     } catch (error) {
       if (error instanceof InstallationSetupError) throw error;
       throw new Error(

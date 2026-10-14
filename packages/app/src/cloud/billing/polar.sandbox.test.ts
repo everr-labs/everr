@@ -11,6 +11,8 @@ it.skipIf(process.env.EVERR_POLAR_SANDBOX_TEST !== "1")(
     expect(cloudEnv.POLAR_SERVER).toBe("sandbox");
     const gateway = createPolarGateway();
     const id = randomUUID();
+    if (!env.EMAIL_FROM)
+      throw new Error("EMAIL_FROM is required for the sandbox test");
     const address = env.EMAIL_FROM.match(/<([^<>]+)>$/)?.[1] ?? env.EMAIL_FROM;
     const domain = address.split("@")[1];
     const email = `billing-test-${id}@${domain}`;

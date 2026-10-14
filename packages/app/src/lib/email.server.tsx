@@ -12,11 +12,13 @@ const assetBaseUrl = new URL("/email", env.BETTER_AUTH_URL).toString();
 // Auth emails are fire-and-forget: failures are logged, never surfaced to the
 // request that triggered them.
 function sendInBackground(
-  params: Parameters<typeof mailer.send>[0],
+  params: Parameters<NonNullable<typeof mailer>["send"]>[0],
   email: ReactElement,
 ): void {
+  const delivery = mailer;
+  if (!delivery) return;
   void render(email)
-    .then((html) => mailer.send({ ...params, html }))
+    .then((html) => delivery.send({ ...params, html }))
     .catch((error) =>
       serverLogger.error("mailer.send.failed", exceptionAttributes(error)),
     );

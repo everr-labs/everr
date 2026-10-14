@@ -33,12 +33,11 @@ services:
       CLICKHOUSE_SQL_API_MASTER_KEY: ${CLICKHOUSE_SQL_API_MASTER_KEY:?Run ./configure.sh first}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Run ./configure.sh first}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-      EVERR_SETUP_TOKEN: ${EVERR_SETUP_TOKEN:-}
       EVERR_PUBLIC_INGEST_URL: ${EVERR_PUBLIC_INGEST_URL:-http://localhost:4318}
       EVERR_RETENTION_DAYS: ${EVERR_RETENTION_DAYS:-30}
       INGEST_VERIFY_SHARED_SECRET: ${INGEST_VERIFY_SHARED_SECRET:?Run ./configure.sh first}
-      EMAIL_DSN: ${EMAIL_DSN:?Set your SMTP URL in .env}
-      EMAIL_FROM: ${EMAIL_FROM:?Set your sender address in .env}
+      EMAIL_DSN: ${EMAIL_DSN:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
       EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
       EVERR_GITHUB_ENABLED: "false"
     healthcheck:

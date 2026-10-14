@@ -28,9 +28,7 @@ beforeEach(async () => {
     'TRUNCATE "user", account, organization, member, invitation, provisioning_jobs CASCADE',
   );
 });
-const token = "local-setup-token-with-at-least-32-characters";
 const input = {
-  token,
   workspaceName: "Acme",
   name: "Owner",
   email: "owner@example.test",
@@ -47,7 +45,7 @@ const enqueue = vi.fn(
 
 it("creates an owner, usable password and provisioning job together", async () => {
   expect(await getInstallation(database)).toBeNull();
-  const result = await setupWorkspace(input, token, database, enqueue);
+  const result = await setupWorkspace(input, database, enqueue);
   expect(await getInstallation(database)).toEqual({
     id: result.organizationId,
   });
@@ -77,23 +75,11 @@ it("creates an owner, usable password and provisioning job together", async () =
   ).toHaveLength(1);
 });
 
-it.each([
-  undefined,
-  "wrong-token",
-])("rejects an invalid setup token before writing (%s)", async (configured) => {
-  await expect(
-    setupWorkspace(input, configured, database, enqueue),
-  ).rejects.toThrow("Invalid setup token");
-  expect(await getInstallation(database)).toBeNull();
-  expect(await database.select().from(schema.user)).toHaveLength(0);
-});
-
 it("allows only one of two overlapping setup attempts", async () => {
   const results = await Promise.allSettled([
-    setupWorkspace(input, token, database, enqueue),
+    setupWorkspace(input, database, enqueue),
     setupWorkspace(
       { ...input, email: "other@example.test" },
-      token,
       database,
       enqueue,
     ),
@@ -107,24 +93,19 @@ it("allows only one of two overlapping setup attempts", async () => {
 
 it("rolls back the whole setup if provisioning cannot be queued, allowing retry", async () => {
   await expect(
-    setupWorkspace(input, token, database, async () => {
+    setupWorkspace(input, database, async () => {
       throw new Error("job unavailable");
     }),
   ).rejects.toThrow("job unavailable");
   expect(await getInstallation(database)).toBeNull();
   expect(await database.select().from(schema.user)).toHaveLength(0);
   await expect(
-    setupWorkspace(input, token, database, enqueue),
+    setupWorkspace(input, database, enqueue),
   ).resolves.toHaveProperty("organizationId");
 });
 
 it("admits signup only for a pending, unexpired invitation in the workspace", async () => {
-  const { organizationId } = await setupWorkspace(
-    input,
-    token,
-    database,
-    enqueue,
-  );
+  const { organizationId } = await setupWorkspace(input, database, enqueue);
   const [owner] = await database.select().from(schema.user);
   await database.insert(schema.invitation).values({
     id: "invite",
@@ -149,7 +130,7 @@ it("admits signup only for a pending, unexpired invitation in the workspace", as
 });
 
 it("does not silently choose a workspace in an existing multi-organization database", async () => {
-  await setupWorkspace(input, token, database, enqueue);
+  await setupWorkspace(input, database, enqueue);
   await database.insert(schema.organization).values({
     id: "other",
     name: "Other",
@@ -163,12 +144,7 @@ it("does not silently choose a workspace in an existing multi-organization datab
 });
 
 it("requires ownership transfer before the last owner can delete their account", async () => {
-  const { organizationId } = await setupWorkspace(
-    input,
-    token,
-    database,
-    enqueue,
-  );
+  const { organizationId } = await setupWorkspace(input, database, enqueue);
   const [owner] = await database.select().from(schema.user);
   await expect(
     assertWorkspaceOwnershipTransferred(owner.id, database),
@@ -191,12 +167,11 @@ it("requires ownership transfer before the last owner can delete their account",
 });
 
 it("rejects replay after a committed setup without changing the workspace or owner", async () => {
-  const result = await setupWorkspace(input, token, database, enqueue);
+  const result = await setupWorkspace(input, database, enqueue);
   const originalUsers = await database.select().from(schema.user);
   await expect(
     setupWorkspace(
       { ...input, email: "another@example.test" },
-      token,
       database,
       enqueue,
     ),

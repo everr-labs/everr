@@ -11,22 +11,25 @@ cd deploy
 ./configure.sh
 ```
 
-Edit the generated `.env` and set `EMAIL_DSN` (an `smtp://` or `smtps://` URL)
+Optionally edit the generated `.env` and set `EMAIL_DSN` (an `smtp://` or `smtps://` URL)
 and `EMAIL_FROM` (an address your relay permits). Email is used for invitations,
 verification, and password recovery. URL-encode special characters in SMTP
 credentials; single-quote `.env` values containing `$`.
 
-Then start the stack:
+Without SMTP, the app starts and invitations can be shared by link. Email
+verification and password recovery still require email delivery; invited users
+cannot complete the current verification flow without SMTP.
+
+Start the stack:
 
 ```sh
 docker compose up -d --build --wait
 ```
 
 The first build downloads dependencies and compiles the app and collector.
-Open <http://localhost:3000>, enter `EVERR_SETUP_TOKEN` from `.env`, and create
-the workspace and its owner. Setup can only create one workspace. Once complete,
-remove `EVERR_SETUP_TOKEN` from `.env` and run `docker compose up -d` to remove
-it from the app container.
+Open <http://localhost:3000> and create the workspace and its owner. The first
+person to complete setup becomes the owner. Setup closes once the workspace
+exists, and concurrent attempts cannot create another workspace.
 
 The app applies PostgreSQL migrations during startup. ClickHouse initializes
 its schema and access roles on the first start with an empty data volume.

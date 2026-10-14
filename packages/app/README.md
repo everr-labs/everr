@@ -442,7 +442,9 @@ The build argument defaults to `cloud`; it is not a runtime environment variable
 A self-hosted build neither validates Polar credentials nor imports the Polar SDK
 or cloud implementation. The build checks its module graph and fails if those
 imports cross the seam. Other runtime configuration, including Postgres,
-ClickHouse, authentication, and email, is still required. GitHub is optional.
+ClickHouse and authentication, is still required. GitHub and SMTP are optional.
+Without SMTP, email verification and password recovery cannot deliver messages.
+Cloud requires both `EMAIL_DSN` and `EMAIL_FROM` at runtime.
 
 Self-hosted retention defaults to 30 days for all signals and alert
 history. Cloud retention remains defined by the existing plans. Self-hosted
@@ -490,16 +492,14 @@ availability, never its credentials. Both settings are read at server startup.
 ### Single-workspace setup
 
 The default app supports exactly one workspace per installation. On a fresh
-installation, browser visits open `/setup`. Configure `EVERR_SETUP_TOKEN` with
-an operator-generated random secret of at least 32 characters before starting
-the app. Enter that token, a workspace name, and the initial owner's name, email,
-and password (at least 8 characters) on the setup screen.
+installation, browser visits open `/setup`. The first person to complete setup
+becomes the workspace owner. Enter a workspace name and the owner's name, email,
+and password (at least 8 characters).
 
 Setup atomically creates the owner, password credentials, workspace, owner
 membership, and provisioning job. Concurrent requests cannot create a second
 workspace. After setup, the owner signs in and continues through telemetry
-configuration. The setup token can then be removed from runtime configuration;
-setup remains closed while the workspace exists.
+configuration. Setup remains closed while the workspace exists.
 
 If setup fails before committing, no owner, workspace, or provisioning job is
 left behind; submit the form again after resolving the error. If the connection

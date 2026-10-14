@@ -3,6 +3,9 @@ import * as z from "zod";
 export const appEnv = createEnv({
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
   server: {
+    // Shared environment validation checks the SMTP URL and sender format.
+    EMAIL_DSN: z.string().min(1),
+    EMAIL_FROM: z.string().min(1),
     POLAR_ACCESS_TOKEN: z.string(),
     POLAR_WEBHOOK_SECRET: z.string(),
     POLAR_SERVER: z.enum(["sandbox", "production"]).default("sandbox"),
@@ -10,6 +13,8 @@ export const appEnv = createEnv({
     POLAR_PRO_LEGACY_PRODUCT_IDS: z.string().optional(),
   },
   runtimeEnv: {
+    EMAIL_DSN: process.env.EMAIL_DSN,
+    EMAIL_FROM: process.env.EMAIL_FROM,
     POLAR_ACCESS_TOKEN: process.env.POLAR_ACCESS_TOKEN,
     POLAR_WEBHOOK_SECRET: process.env.POLAR_WEBHOOK_SECRET,
     POLAR_SERVER: process.env.POLAR_SERVER,

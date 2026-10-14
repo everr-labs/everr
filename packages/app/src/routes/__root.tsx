@@ -1,4 +1,5 @@
 import { getAppEntry } from "@app/entry";
+import { mailer } from "@/lib/mailer.server";
 import { getSession } from "@/lib/session.server";
 // This import has an effect at load. It starts the error capture of the browser
 // when the client build loads. It does nothing during the SSR and when the app
@@ -41,6 +42,7 @@ const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
 
   return {
     ...appEntry,
+    emailEnabled: mailer !== null,
     createdOrganizationId: await readCreatedOrganizationId(
       getCookie(ORGANIZATION_CREATION_COOKIE),
       session?.session,
@@ -71,6 +73,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           consent: undefined,
           createdOrganizationId: null,
           setupRequired: false,
+          emailEnabled: false,
         };
       return loadAppContext(location.pathname);
     })

@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -10,7 +9,6 @@ import { enqueueOrganizationProvisioning } from "@/server/organization-provision
 export class InstallationSetupError extends Error {}
 
 export const SetupWorkspaceSchema = z.object({
-  token: z.string().min(1).max(1024),
   workspaceName: z.string().trim().min(2).max(100),
   name: z.string().trim().min(1).max(100),
   email: z.email().transform((email) => email.toLowerCase()),
@@ -55,19 +53,10 @@ export async function assertInvitedUser(
 
 export async function setupWorkspace(
   input: z.infer<typeof SetupWorkspaceSchema>,
-  token: string | undefined,
   database: Database = db,
   enqueue = enqueueOrganizationProvisioning,
 ) {
   const data = SetupWorkspaceSchema.parse(input);
-  if (
-    !token ||
-    token.length < 32 ||
-    Buffer.byteLength(data.token) !== Buffer.byteLength(token) ||
-    !timingSafeEqual(Buffer.from(data.token), Buffer.from(token))
-  ) {
-    throw new InstallationSetupError("Invalid setup token.");
-  }
   const password = await hashPassword(data.password);
   return database.transaction(async (tx) => {
     // One installation-wide lock, shared by concurrent setup requests and replicas.

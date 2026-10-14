@@ -22,7 +22,6 @@ export const appEnv = createEnv({
         );
       }, "Must be a public HTTP(S) base URL without credentials, query, or fragment")
       .optional(),
-    EVERR_SETUP_TOKEN: z.string().min(32).max(1024).optional(),
     EVERR_RETENTION_DAYS: days.default(30),
     EVERR_RETENTION_TRACES_DAYS: days.optional(),
     EVERR_RETENTION_LOGS_DAYS: days.optional(),
@@ -32,7 +31,6 @@ export const appEnv = createEnv({
   },
   runtimeEnv: {
     EVERR_PUBLIC_INGEST_URL: process.env.EVERR_PUBLIC_INGEST_URL,
-    EVERR_SETUP_TOKEN: process.env.EVERR_SETUP_TOKEN,
     EVERR_RETENTION_DAYS: process.env.EVERR_RETENTION_DAYS,
     EVERR_RETENTION_TRACES_DAYS: process.env.EVERR_RETENTION_TRACES_DAYS,
     EVERR_RETENTION_LOGS_DAYS: process.env.EVERR_RETENTION_LOGS_DAYS,

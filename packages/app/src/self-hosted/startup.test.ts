@@ -14,11 +14,13 @@ it("validates production configuration and registers no integration jobs without
   vi.stubEnv("NODE_ENV", "production");
   vi.stubEnv("TSS_PRERENDERING", undefined);
   vi.stubEnv("EVERR_GITHUB_ENABLED", undefined);
-  vi.stubEnv("EVERR_SETUP_TOKEN", undefined);
-  vi.stubEnv("EMAIL_DSN", "smtp://localhost:1025");
+  vi.stubEnv("EMAIL_DSN", undefined);
+  vi.stubEnv("EMAIL_FROM", undefined);
 
   const { env } = await import("@/env");
   const { integrationTasks } = await import("@app/integrations");
+  const { mailer } = await import("@/lib/mailer.server");
+  expect(mailer).toBeNull();
   expect(env.NODE_ENV).toBe("production");
   expect(Object.keys(env).some((key) => key.startsWith("POLAR_"))).toBe(false);
   expect(await integrationTasks()).toEqual({});

@@ -17,20 +17,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@everr/ui/components/select";
+import { Switch } from "@everr/ui/components/switch";
+import { useRouteContext } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { invitationUrl } from "@/common/invitation";
+import { InvitationLink } from "./invitation-link";
 import { type OrgRole, useInviteMember } from "./queries";
 
 export function InviteMemberDialog() {
+  const { emailEnabled } = useRouteContext({ from: "__root__" });
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrgRole>("member");
+  const [sendEmail, setSendEmail] = useState(true);
+  const shouldSendEmail = emailEnabled && sendEmail;
+  const [createdLink, setCreatedLink] = useState<string | null>(null);
   const invite = useInviteMember();
 
   const reset = () => {
     setEmail("");
     setRole("member");
+    setSendEmail(true);
+    setCreatedLink(null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -44,12 +54,10 @@ export function InviteMemberDialog() {
     const trimmed = email.trim();
     if (!trimmed) return;
     invite.mutate(
-      { email: trimmed, role },
+      { email: trimmed, role, sendEmail: shouldSendEmail },
       {
-        onSuccess: () => {
-          toast.success(`Invitation sent to ${trimmed}`);
-          setOpen(false);
-          reset();
+        onSuccess: (invitation) => {
+          setCreatedLink(invitationUrl(invitation.id, window.location.origin));
         },
         onError: (err) => toast.error(err.message),
       },
@@ -60,57 +68,92 @@ export function InviteMemberDialog() {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button size="sm" />}>Invite member</DialogTrigger>
       <DialogContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <DialogHeader>
-            <DialogTitle>Invite member</DialogTitle>
-            <DialogDescription>
-              Send an email invitation to add a new member to your organization.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="invite-email">Email</Label>
-              <Input
-                id="invite-email"
-                type="email"
-                placeholder="colleague@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
+        {createdLink ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Invitation created</DialogTitle>
+              <DialogDescription>
+                Share this link with {email.trim()}.
+                {shouldSendEmail && " Email delivery has also been requested."}
+              </DialogDescription>
+            </DialogHeader>
+            <InvitationLink url={createdLink} />
+            <DialogFooter>
+              <Button onClick={() => handleOpenChange(false)}>Done</Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Invite member</DialogTitle>
+              <DialogDescription>
+                Create an invitation to share by link or email.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="invite-email">Email</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  placeholder="colleague@company.com"
+                  value={email}
+                  disabled={invite.isPending}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="invite-role">Role</Label>
+                <Select
+                  value={role}
+                  disabled={invite.isPending}
+                  onValueChange={(v) => setRole(v as OrgRole)}
+                >
+                  <SelectTrigger id="invite-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="owner">Owner</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                id="invite-send-email"
+                checked={shouldSendEmail}
+                disabled={!emailEnabled || invite.isPending}
+                onCheckedChange={setSendEmail}
               />
+              <Label htmlFor="invite-send-email">Send invitation email</Label>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="invite-role">Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as OrgRole)}>
-                <SelectTrigger id="invite-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="owner">Owner</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleOpenChange(false)}
-              disabled={invite.isPending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={invite.isPending}>
-              {invite.isPending && (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              )}
-              Send invite
-            </Button>
-          </DialogFooter>
-        </form>
+            {!emailEnabled && (
+              <p className="text-sm text-muted-foreground">
+                Email is not configured. Share the invitation link directly.
+              </p>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleOpenChange(false)}
+                disabled={invite.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={invite.isPending}>
+                {invite.isPending && (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                )}
+                Create invitation
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
