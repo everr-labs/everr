@@ -115,7 +115,7 @@ everr cloud query "EXPLAIN ESTIMATE SELECT ... WHERE Timestamp >= now() - INTERV
 To cut the read, filter on the leading sort-key columns. Get them with:
 
 ```sh
-everr cloud query "SELECT name, sorting_key FROM system.tables WHERE database = currentDatabase()"
+everr cloud query "SELECT name, sorting_key FROM system.tables"
 ```
 
 `traces` and `logs` sort by `ServiceName, Timestamp`. The `metrics_*` tables sort by `ServiceName, MetricName, ..., TimeUnix`. So:
