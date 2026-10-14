@@ -41,6 +41,7 @@ By the time a regression shows up in a production graph, it's already too late. 
 
 ## Getting started
 
+- **For self-hosting**: follow the [Docker Compose installation guide](deploy/README.md) to run Everr on your own infrastructure.
 - **For CI**: install the GitHub App on your repositories, no YAML changes, no config files, no modifications to your workflows.
 - **For local**: install the CLI and run `everr local start` to bring up the collector alongside your dev server, tests, or agent terminal.
 

@@ -1,0 +1,112 @@
+name: everr
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: packages/app/Dockerfile
+      args:
+        EVERR_BUILD_TARGET: self-hosted
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-3000}:3000"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: everr
+      DATABASE_USER: everr
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Run ./configure.sh first}
+      DATABASE_SSL: "false"
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_DATABASE: app
+      CLICKHOUSE_USERNAME: app_ro
+      CLICKHOUSE_PASSWORD: ${APP_RO_PASSWORD:?Run ./configure.sh first}
+      CLICKHOUSE_ADMIN_USERNAME: web_app_admin
+      CLICKHOUSE_ADMIN_PASSWORD: ${WEB_APP_ADMIN_PASSWORD:?Run ./configure.sh first}
+      CLICKHOUSE_SQL_API_MASTER_KEY: ${CLICKHOUSE_SQL_API_MASTER_KEY:?Run ./configure.sh first}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Run ./configure.sh first}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      EVERR_SETUP_TOKEN: ${EVERR_SETUP_TOKEN:-}
+      EVERR_PUBLIC_INGEST_URL: ${EVERR_PUBLIC_INGEST_URL:-http://localhost:4318}
+      EVERR_RETENTION_DAYS: ${EVERR_RETENTION_DAYS:-30}
+      INGEST_VERIFY_SHARED_SECRET: ${INGEST_VERIFY_SHARED_SECRET:?Run ./configure.sh first}
+      EMAIL_DSN: ${EMAIL_DSN:?Set your SMTP URL in .env}
+      EMAIL_FROM: ${EMAIL_FROM:?Set your sender address in .env}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      EVERR_GITHUB_ENABLED: "false"
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 12
+
+  postgres:
+    image: postgres:17.11-alpine3.23
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: everr
+      POSTGRES_USER: everr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run ./configure.sh first}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U everr -d everr"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  clickhouse:
+    build: ../clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Run ./configure.sh first}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      COLLECTOR_RW_PASSWORD: ${COLLECTOR_RW_PASSWORD:?Run ./configure.sh first}
+      APP_RO_PASSWORD: ${APP_RO_PASSWORD:?Run ./configure.sh first}
+      WEB_APP_ADMIN_PASSWORD: ${WEB_APP_ADMIN_PASSWORD:?Run ./configure.sh first}
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --host clickhouse --user default --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1 FROM app.alert_events LIMIT 0'"]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 30
+
+  collector:
+    build: ../collector
+    restart: unless-stopped
+    stop_grace_period: 60s
+    depends_on:
+      app:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment:
+      INGEST_VERIFY_SHARED_SECRET: ${INGEST_VERIFY_SHARED_SECRET:?Run ./configure.sh first}
+      COLLECTOR_RW_PASSWORD: ${COLLECTOR_RW_PASSWORD:?Run ./configure.sh first}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${OTLP_HTTP_PORT:-4318}:4318"
+      - "${BIND_ADDRESS:-127.0.0.1}:${OTLP_GRPC_PORT:-4317}:4317"
+    volumes:
+      - ./collector.yaml:/etc/everr-collector/config.yaml:ro
+      - collector-queue:/var/lib/everr/queue
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:13133/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  postgres-data:
+  clickhouse-data:
+  collector-queue:
