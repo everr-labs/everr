@@ -112,10 +112,10 @@ everr cloud query "EXPLAIN ESTIMATE SELECT ... WHERE Timestamp >= now() - INTERV
 - `EXPLAIN indexes = 1` prints `Parts: x/y` and `Granules: x/y` for each index. The `PrimaryKey` block shows how much of the table the sort key lets the query skip. When its selected granules stay close to the total, the query is scanning the range rather than seeking.
 - `EXPLAIN ESTIMATE` prints the estimated `rows` and `marks` to read. Compare it across the short and the long range: it should grow with the range, not stay at the table size.
 
-To cut the read, filter on the leading sort-key columns. Get them with:
+To cut the read, filter on the leading sort-key columns. The `PrimaryKey` block lists them under `Keys:`, or read the `ORDER BY` of the table:
 
 ```sh
-everr cloud query "SELECT name, sorting_key FROM system.tables"
+everr cloud query "SHOW CREATE TABLE traces"
 ```
 
 `traces` and `logs` sort by `ServiceName, Timestamp`. The `metrics_*` tables sort by `ServiceName, MetricName, ..., TimeUnix`.
