@@ -120,6 +120,7 @@ describe("internal UI telemetry", () => {
                   attributes: [
                     attribute("url.full"),
                     attribute("everr.referrer.url"),
+                    attribute("everr.element.href"),
                   ],
                 },
               ],
@@ -132,5 +133,105 @@ describe("internal UI telemetry", () => {
     const sent = fetch.mock.calls[0][1].body as string;
     expect(sent).not.toContain("customer-sentinel");
     expect(sent).toContain("http://127.0.0.1/logs");
+  });
+
+  it.each([
+    "logs",
+    "traces",
+  ] as const)("removes customer-backed selectors from release %s while preserving interaction metadata", async (signal) => {
+    initializeTelemetry({
+      serviceVersion: "test",
+      telemetryEnabled: true,
+      deploymentEnvironment: "production",
+    });
+    const options = mocks.sdk.mock.calls[0][0] as WebSDKOptions;
+    const fetch = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetch);
+    const attributes = [
+      {
+        key: "everr.element.selector",
+        value: {
+          stringValue: 'button[aria-label="Select customer-span-sentinel"]',
+        },
+      },
+      {
+        key: "everr.browser.web_vital.lcp.target",
+        value: { stringValue: 'div[title="customer-span-sentinel"]' },
+      },
+      {
+        key: "everr.browser.web_vital.cls.largest_shift_target",
+        value: { stringValue: "#customer-span-sentinel" },
+      },
+      {
+        key: "everr.element.href",
+        value: {
+          stringValue:
+            "/traces/trace-id?q=customer-filter-sentinel#customer-filter-sentinel",
+        },
+      },
+      { key: "everr.element.tag", value: { stringValue: "button" } },
+      { key: "everr.browser.click.x", value: { intValue: "42" } },
+    ];
+    const record = { attributes };
+    const body = JSON.stringify(
+      signal === "logs"
+        ? { resourceLogs: [{ scopeLogs: [{ logRecords: [record] }] }] }
+        : { resourceSpans: [{ scopeSpans: [{ spans: [record] }] }] },
+    );
+    await options.send?.(signal, body);
+    const sent = fetch.mock.calls[0][1].body as string;
+    expect(sent).not.toContain("customer-span-sentinel");
+    expect(sent).not.toContain("customer-filter-sentinel");
+    const parsed = JSON.parse(sent);
+    const exportedRecord =
+      signal === "logs"
+        ? parsed.resourceLogs[0].scopeLogs[0].logRecords[0]
+        : parsed.resourceSpans[0].scopeSpans[0].spans[0];
+    expect(exportedRecord.attributes).toEqual([
+      { key: "everr.element.href", value: { stringValue: "/traces/trace-id" } },
+      { key: "everr.element.tag", value: { stringValue: "button" } },
+      { key: "everr.browser.click.x", value: { intValue: "42" } },
+    ]);
+  });
+
+  it("retains local interaction diagnostics in development builds", async () => {
+    initializeTelemetry({
+      serviceVersion: "test",
+      telemetryEnabled: true,
+      deploymentEnvironment: "development",
+    });
+    const options = mocks.sdk.mock.calls[0][0] as WebSDKOptions;
+    const fetch = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetch);
+    const body = JSON.stringify({
+      resourceLogs: [
+        {
+          scopeLogs: [
+            {
+              logRecords: [
+                {
+                  attributes: [
+                    {
+                      key: "everr.element.selector",
+                      value: {
+                        stringValue: 'button[aria-label="Select debug-span"]',
+                      },
+                    },
+                    {
+                      key: "everr.element.href",
+                      value: {
+                        stringValue: "/traces?q=debug-filter#debug-span",
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    await options.send?.("logs", body);
+    expect(fetch.mock.calls[0][1].body).toBe(body);
   });
 });
