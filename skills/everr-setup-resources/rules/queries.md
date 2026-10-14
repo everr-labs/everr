@@ -118,11 +118,7 @@ To cut the read, filter on the leading sort-key columns. Get them with:
 everr cloud query "SELECT name, sorting_key FROM system.tables"
 ```
 
-`traces` and `logs` sort by `ServiceName, Timestamp`. The `metrics_*` tables sort by `ServiceName, MetricName, ..., TimeUnix`. So:
-
-- Always filter `MetricName = '...'` on metrics tables, and `ServiceName` (or `ServiceName IN $service`) whenever the panel is about known services. These filters prune granules. A filter on `SpanAttributes[...]`, `LogAttributes[...]`, or `SpanName` alone does not, so pair it with a sort-key filter where you can.
-- Keep the time filter on the raw column (`Timestamp >= {from:String}`). Wrapping the column in a function (`toDate(Timestamp) = ...`, `toUnixTimestamp(Timestamp) > ...`) can stop the index from being used.
-- Select only the columns you need, never `SELECT *`. Each extra column (above all, `Map` columns such as `SpanAttributes`) adds to the read.
+`traces` and `logs` sort by `ServiceName, Timestamp`. The `metrics_*` tables sort by `ServiceName, MetricName, ..., TimeUnix`.
 
 Re-run `EXPLAIN` after each change and keep the version that reads fewer granules for the same result.
 
