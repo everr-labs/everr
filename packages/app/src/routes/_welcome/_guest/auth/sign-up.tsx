@@ -46,6 +46,7 @@ function SignupEntry() {
 }
 
 function SignUp() {
+  const { googleSignInEnabled } = Route.useRouteContext();
   const navigate = useNavigate();
   const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
@@ -98,16 +99,18 @@ function SignUp() {
         subtitle="Get started with Everr"
       />
 
-      <div className="flex flex-col gap-4">
-        <GoogleAuthButton
-          label="Sign up with Google"
-          callbackURL={callbackURL}
-          errorCallbackURL={errorCallbackURL}
-          disabled={isSubmitting}
-          onError={setError}
-        />
-        <AuthProviderSeparator />
-      </div>
+      {googleSignInEnabled && (
+        <div className="flex flex-col gap-4">
+          <GoogleAuthButton
+            label="Sign up with Google"
+            callbackURL={callbackURL}
+            errorCallbackURL={errorCallbackURL}
+            disabled={isSubmitting}
+            onError={setError}
+          />
+          <AuthProviderSeparator />
+        </div>
+      )}
 
       <form
         className="space-y-5"

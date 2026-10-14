@@ -29,6 +29,7 @@ vi.mock("@/data/api-keys", () => ({
 vi.mock("@/lib/auth-client", () => ({ authClient: { apiKey: {} } }));
 
 const initial = (): HomeStatus => ({
+  ingestEndpoint: "https://ingest.everr.dev/",
   canCreateKeys: true,
   onboardingCompleted: false,
 });
@@ -607,4 +608,23 @@ it("keeps verification explicit and offers recovery without marking onboarding c
   expect(
     screen.getByRole("button", { name: "Set up manually" }),
   ).toHaveAttribute("aria-pressed", "true");
+});
+
+it("shows the installation's ingestion endpoint instead of a Cloud fallback", () => {
+  persisted.ingestEndpoint = "https://telemetry.example.test/otlp";
+  seedProgress("production");
+  mount();
+  expect(screen.getByText(persisted.ingestEndpoint)).toBeVisible();
+  expect(screen.queryByText("https://ingest.everr.dev/")).toBeNull();
+});
+
+it("asks for administrator configuration when no ingestion endpoint is available", () => {
+  delete persisted.ingestEndpoint;
+  seedProgress("production");
+  mount();
+  expect(screen.getByText(/Ask your administrator to configure/)).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Copy production endpoint" }),
+  ).toBeNull();
+  expect(screen.queryByText("https://ingest.everr.dev/")).toBeNull();
 });

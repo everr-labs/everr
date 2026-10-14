@@ -35,7 +35,6 @@ import {
 
 const LOCAL_GUIDE = "https://everr.dev/docs/learn/instrument-your-app";
 const PRODUCTION_GUIDE = "https://everr.dev/docs/guides/production-telemetry";
-const PRODUCTION_ENDPOINT = "https://ingest.everr.dev/";
 const SETUP_COMMAND = "/everr-setup-telemetry";
 
 function CopyBlock({ text, label }: { text: string; label: string }) {
@@ -211,7 +210,7 @@ function HomeContent({
             >
               Everr CLI
             </a>{" "}
-            is the fundamental tool to query local and cloud telemetry, and
+            is the fundamental tool to query local and production telemetry, and
             manage resources such as dashboards, alerts, runbooks, and bundled
             skills.
           </p>
@@ -234,7 +233,7 @@ function HomeContent({
             Instrumentation is the process of adding telemetry to your app.
             <br />
             Collected data is stored and queried locally for faster development
-            feedback, and sent to Everr Cloud when you deploy your app.
+            feedback, and sent to this workspace when you deploy your app.
           </p>
           <fieldset
             className="grid gap-3 sm:grid-cols-2"
@@ -342,7 +341,7 @@ function HomeContent({
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Follow the guide for your language or framework. Reuse any
                 existing OpenTelemetry setup and point its exporter at your
-                local collector. No agent skills or Cloud key needed.
+                local collector. No agent skills or ingestion key needed.
               </p>
               <GuideLink href={LOCAL_GUIDE}>
                 Open the instrumentation guide
@@ -446,14 +445,14 @@ function HomeContent({
         <>
           <p className="text-sm leading-relaxed text-muted-foreground">
             While local telemetry is sent to Everr Local, production telemetry
-            must be sent to Everr Cloud.
+            should be sent to this workspace.
           </p>
           <div className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Configure your production app's OpenTelemetry exporter with Everr
-              Cloud's endpoint and the appropriate ingestion key, then rebuild
-              or restart your deployment. Use the app and check for fresh traces
-              or logs in Everr Cloud.
+              Configure your production app's OpenTelemetry exporter with the
+              endpoint below and the appropriate ingestion key, then rebuild or
+              restart your deployment. Use the app and check for fresh traces or
+              logs in this workspace.
             </p>
           </div>
           {status.canCreateKeys ? (
@@ -496,10 +495,17 @@ function HomeContent({
           )}
           <div className="space-y-2">
             <p className="text-sm font-medium">Production OTLP/HTTP endpoint</p>
-            <CopyBlock
-              text={PRODUCTION_ENDPOINT}
-              label="Copy production endpoint"
-            />
+            {status.ingestEndpoint ? (
+              <CopyBlock
+                text={status.ingestEndpoint}
+                label="Copy production endpoint"
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Ask your administrator to configure this installation's public
+                ingestion endpoint before connecting your app.
+              </p>
+            )}
           </div>
           <div className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">

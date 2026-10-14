@@ -9,6 +9,19 @@ const days = z
 export const appEnv = createEnv({
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
   server: {
+    EVERR_PUBLIC_INGEST_URL: z
+      .url()
+      .refine((value) => {
+        const url = new URL(value);
+        return (
+          ["http:", "https:"].includes(url.protocol) &&
+          !url.username &&
+          !url.password &&
+          !url.search &&
+          !url.hash
+        );
+      }, "Must be a public HTTP(S) base URL without credentials, query, or fragment")
+      .optional(),
     EVERR_SETUP_TOKEN: z.string().min(32).max(1024).optional(),
     EVERR_RETENTION_DAYS: days.default(30),
     EVERR_RETENTION_TRACES_DAYS: days.optional(),
@@ -18,6 +31,7 @@ export const appEnv = createEnv({
     EVERR_RETENTION_ALERT_LIFECYCLE_DAYS: days.optional(),
   },
   runtimeEnv: {
+    EVERR_PUBLIC_INGEST_URL: process.env.EVERR_PUBLIC_INGEST_URL,
     EVERR_SETUP_TOKEN: process.env.EVERR_SETUP_TOKEN,
     EVERR_RETENTION_DAYS: process.env.EVERR_RETENTION_DAYS,
     EVERR_RETENTION_TRACES_DAYS: process.env.EVERR_RETENTION_TRACES_DAYS,

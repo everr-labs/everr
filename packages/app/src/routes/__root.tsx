@@ -1,4 +1,5 @@
 import { getAppEntry } from "@app/entry";
+import { getSession } from "@/lib/session.server";
 // This import has an effect at load. It starts the error capture of the browser
 // when the client build loads. It does nothing during the SSR and when the app
 // has no configuration. Refer to telemetry/client.
@@ -21,7 +22,6 @@ import {
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { createIsomorphicFn, createServerFn } from "@tanstack/react-start";
 import { getCookie, getRequestHeaders } from "@tanstack/react-start/server";
-import { auth } from "@/lib/auth.server";
 import {
   ORGANIZATION_CREATION_COOKIE,
   readCreatedOrganizationId,
@@ -33,7 +33,7 @@ import type { RouterContext } from "../router";
 
 // Load session and consent together so auth guards see the same session.
 const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
-  const session = await auth.api.getSession({
+  const session = await getSession({
     headers: getRequestHeaders(),
   });
   const consentValue = getCookie(CONSENT_COOKIE);

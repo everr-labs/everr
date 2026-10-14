@@ -32,7 +32,9 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 async function loadContext() {
-  return (Route.options.beforeLoad as () => unknown)();
+  return (Route.options.beforeLoad as (options: unknown) => unknown)({
+    location: { pathname: "/" },
+  });
 }
 
 it("resolves the session and consent for live requests before auth guards run", async () => {
@@ -44,6 +46,7 @@ it("resolves the session and consent for live requests before auth guards run", 
     session,
     consent: "granted",
     createdOrganizationId: null,
+    setupRequired: false,
   });
   expect(mocks.getSession).toHaveBeenCalledWith({ headers: mocks.headers });
 });
@@ -54,6 +57,7 @@ it("keeps signed-out live requests signed out", async () => {
 
   expect(await loadContext()).toEqual({
     createdOrganizationId: null,
+    setupRequired: false,
     session: null,
     consent: undefined,
   });
@@ -67,6 +71,7 @@ it("generates the prerendered shell without looking up runtime session data", as
     session: null,
     consent: undefined,
     createdOrganizationId: null,
+    setupRequired: false,
   });
   expect(mocks.getSession).not.toHaveBeenCalled();
   expect(mocks.getCookie).not.toHaveBeenCalled();

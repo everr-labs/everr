@@ -5,10 +5,11 @@ import { db } from "@/db/client";
 import { member, organization as organizationTable } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import { isOrganizationAdmin } from "@/lib/organization-role";
+import { getSession } from "@/lib/session.server";
 import { createClickhouseQuery } from "./clickhouse";
 
 const authMiddleware = createMiddleware().server(async ({ request, next }) => {
-  const session = await auth.api.getSession({
+  const session = await getSession({
     headers: request.headers,
   });
 

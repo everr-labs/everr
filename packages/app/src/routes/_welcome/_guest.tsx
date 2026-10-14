@@ -1,10 +1,12 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { getAuthProviders } from "@/data/auth-providers";
 
 export const Route = createFileRoute("/_welcome/_guest")({
-  beforeLoad: ({ context: { session } }) => {
+  beforeLoad: async ({ context: { session } }) => {
     if (session?.user) {
       throw redirect({ to: "/" });
     }
+    return getAuthProviders();
   },
   component: GuestLayout,
 });

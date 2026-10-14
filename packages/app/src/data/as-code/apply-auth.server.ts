@@ -8,6 +8,7 @@ import { organization } from "@/db/schema";
 import { hasApiKeyScope } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
 import { createClickhouseQuery } from "@/lib/clickhouse";
+import { getSession } from "@/lib/session.server";
 import { mergeTelemetryIdentity } from "@/telemetry/identity";
 
 export interface ApplyAuth {
@@ -101,7 +102,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
     };
   }
 
-  const session = await auth.api.getSession({ headers });
+  const session = await getSession({ headers });
   if (!session?.session || !session?.user) {
     throw new Error("Unauthenticated");
   }

@@ -37,3 +37,17 @@ it("rejects injected identity, secrets and flag values", async () => {
   }
   expect(store.complete).not.toHaveBeenCalled();
 });
+
+it("includes the hosted ingestion endpoint in Cloud onboarding", async () => {
+  store.getStatus.mockResolvedValue({
+    canCreateKeys: true,
+    onboardingCompleted: false,
+  });
+  expect(await getHomeStatus({ data: { organizationId: "test_org" } })).toEqual(
+    {
+      canCreateKeys: true,
+      onboardingCompleted: false,
+      ingestEndpoint: "https://ingest.everr.dev/",
+    },
+  );
+});

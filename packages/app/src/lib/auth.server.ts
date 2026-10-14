@@ -35,6 +35,7 @@ import { parseOrganizationMetadata } from "@/common/organization-provisioning";
 import { db } from "@/db/client";
 import { member, session as sessionTable } from "@/db/schema";
 import { env } from "@/env";
+import { socialProviders } from "@/lib/auth-providers.server";
 import { selectSoleOrganization } from "@/lib/auto-org";
 import {
   cliDeviceOrganizationPlugin,
@@ -140,16 +141,6 @@ const orgRoles = {
   }),
 };
 
-const googleSocialProviders =
-  env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-    ? {
-        google: {
-          clientId: env.GOOGLE_CLIENT_ID,
-          clientSecret: env.GOOGLE_CLIENT_SECRET,
-        },
-      }
-    : undefined;
-
 // The selected organization id, or undefined if none is active yet. Shared by
 // the MCP postLogin hooks so "is an org selected?" is decided one way (treating
 // an empty string as unselected).
@@ -174,7 +165,7 @@ export const auth = betterAuth({
     ]),
   ),
   database: identityAdapter(organizationLifecycleAdapter()),
-  ...(googleSocialProviders ? { socialProviders: googleSocialProviders } : {}),
+  ...(socialProviders ? { socialProviders: socialProviders } : {}),
   user: {
     deleteUser: {
       enabled: true,

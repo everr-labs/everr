@@ -1,12 +1,13 @@
 import { createInstallState } from "@/integrations/github/install-state";
 import { auth } from "@/lib/auth.server";
 import { isOrganizationAdmin } from "@/lib/organization-role";
+import { getSession } from "@/lib/session.server";
 import { getGithubConfiguration } from "./configuration";
 
 export async function handleInstallStart(request: Request): Promise<Response> {
   const configuration = getGithubConfiguration();
   if (!configuration) return new Response("Not found", { status: 404 });
-  const session = await auth.api.getSession({
+  const session = await getSession({
     headers: request.headers,
   });
   if (!session?.user) {

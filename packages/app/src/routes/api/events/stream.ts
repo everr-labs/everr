@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import { z } from "zod";
 import { subscribe, subscribeAuthor, subscribeTenant } from "@/db/hub";
-import { auth } from "@/lib/auth.server";
+import { getSession } from "@/lib/session.server";
 import { createSSEStream } from "@/lib/sse";
 
 const StreamQuerySchema = z.discriminatedUnion("scope", [
@@ -14,7 +14,7 @@ const StreamQuerySchema = z.discriminatedUnion("scope", [
 
 const authMiddleware = createMiddleware({ type: "request" }).server(
   async ({ next, request }) => {
-    const session = await auth.api.getSession({
+    const session = await getSession({
       headers: request.headers,
     });
 

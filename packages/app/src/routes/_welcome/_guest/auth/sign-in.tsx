@@ -27,6 +27,7 @@ export const Route = createFileRoute("/_welcome/_guest/auth/sign-in")({
 });
 
 function SignIn() {
+  const { googleSignInEnabled } = Route.useRouteContext();
   const navigate = useNavigate();
   const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
@@ -73,16 +74,18 @@ function SignIn() {
         subtitle="Enter your credentials to continue"
       />
 
-      <div className="flex flex-col gap-4">
-        <GoogleAuthButton
-          label="Sign in with Google"
-          callbackURL={callbackURL}
-          errorCallbackURL={errorCallbackURL}
-          disabled={isSubmitting}
-          onError={setError}
-        />
-        <AuthProviderSeparator />
-      </div>
+      {googleSignInEnabled && (
+        <div className="flex flex-col gap-4">
+          <GoogleAuthButton
+            label="Sign in with Google"
+            callbackURL={callbackURL}
+            errorCallbackURL={errorCallbackURL}
+            disabled={isSubmitting}
+            onError={setError}
+          />
+          <AuthProviderSeparator />
+        </div>
+      )}
 
       <form
         className="space-y-5"

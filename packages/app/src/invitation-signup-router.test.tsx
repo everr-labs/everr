@@ -1,3 +1,6 @@
+vi.mock("@/data/auth-providers", () => ({
+  getAuthProviders: async () => ({ googleSignInEnabled: mocks.googleEnabled }),
+}));
 vi.mock("@/data/organization-access", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
@@ -16,6 +19,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  googleEnabled: true,
   session: null as {
     user: { id: string; name: string; email: string };
     session: { activeOrganizationId: null };
@@ -81,6 +85,7 @@ function signUpInvitedUser() {
 }
 
 beforeEach(() => {
+  mocks.googleEnabled = true;
   mocks.session = null;
   mocks.signup.mockReset().mockImplementation(async () => signUpInvitedUser());
   mocks.social.mockReset();
@@ -199,3 +204,18 @@ vi.mock("@/data/organization-provisioning", () => ({
   getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
   retryOrganizationProvisioning: vi.fn(),
 }));
+
+it("keeps invited email signup available without advertising an unconfigured provider", async () => {
+  mocks.googleEnabled = false;
+  const router = invitationSignupRouter();
+  render(<RouterProvider router={router} />);
+  await userEvent
+    .setup()
+    .click(await screen.findByRole("button", { name: "Create account" }));
+  await screen.findByRole("heading", { name: "Create your account" });
+  expect(
+    screen.queryByRole("button", { name: "Sign up with Google" }),
+  ).toBeNull();
+  expect(screen.queryByText("or")).toBeNull();
+  expect(screen.getByRole("button", { name: "Sign up" })).toBeVisible();
+});

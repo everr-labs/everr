@@ -2,8 +2,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { githubInstallationOrganizations, member } from "@/db/schema";
 import { parseInstallState } from "@/integrations/github/install-state";
-import { auth } from "@/lib/auth.server";
 import { isOrganizationAdmin } from "@/lib/organization-role";
+import { getSession } from "@/lib/session.server";
 import { getGithubConfiguration } from "./configuration";
 
 function redirectToGithub(
@@ -40,7 +40,7 @@ export async function handleInstallCallback(
     );
   }
 
-  const session = await auth.api.getSession({
+  const session = await getSession({
     headers: request.headers,
   });
   if (!session?.user) {

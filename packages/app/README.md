@@ -463,6 +463,30 @@ pnpm --filter @everr/app test:cloud
 The normal test suite uses the cloud implementation. The self-hosted suite selects
 its implementation through the same alias as the production build.
 
+### Session workspace recovery
+
+Shared application authentication reads sessions through `getSession` in
+`src/lib/session.server.ts`. It validates the selected workspace's membership.
+When the selection is missing or no longer valid, it selects and persists the
+user's sole membership. With no memberships or multiple memberships, it leaves
+the session unselected. Recovery never creates a workspace or grants membership.
+
+The default app retains its single-workspace invariant and access page; Cloud
+retains its organization chooser. Ingestion keys and worker jobs continue using
+their explicit workspace IDs independently of browser sessions.
+
+### Public connection settings
+
+Set `EVERR_PUBLIC_INGEST_URL` to the public OTLP/HTTP base URL of your collector.
+The default app displays this URL during onboarding. It does not fall back to
+Everr Cloud when unset; users are asked to contact their administrator. Cloud
+keeps its hosted ingestion endpoint. This setting describes the destination for
+users' applications, not the web app's own telemetry exporter.
+
+Google sign-in is shown only when both `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` are configured. The browser receives only the provider's
+availability, never its credentials. Both settings are read at server startup.
+
 ### Single-workspace setup
 
 The default app supports exactly one workspace per installation. On a fresh

@@ -207,3 +207,11 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
 afterEach(() => {
   cleanup();
 });
+
+// Consumer tests use the configured auth double. Session recovery has database-backed tests.
+vi.mock("@/lib/session.server", async () => {
+  const { auth } = await import("@/lib/auth.server");
+  return {
+    getSession: (options: { headers: Headers }) => auth.api.getSession(options),
+  };
+});
