@@ -6,12 +6,12 @@ use serde::Serialize;
 use tokio::sync::Mutex;
 
 use crate::{
-    api::{ApiClient, MeResponse},
+    api::MeResponse,
+    auth::LoginContext,
     device_auth::{
-        AuthConfig, DeviceAuthorization, DevicePollStatus, poll_device_authorization,
+        DeviceAuthorization, DevicePollStatus, poll_device_authorization,
         session_from_device_token, start_device_authorization,
     },
-    state::SessionStore,
 };
 
 #[derive(Debug, Serialize)]
@@ -43,7 +43,7 @@ impl PendingAuth {
     fn response(&self) -> AuthResponse {
         AuthResponse::Pending {
             user_code: self.authorization.user_code.clone(),
-            verification_url: self.authorization.verification_url.clone(),
+            verification_url: self.authorization.verification_url.to_string(),
             expires_at: self.expires_at.to_rfc3339(),
             poll_interval_seconds: self.authorization.interval,
         }
@@ -57,34 +57,32 @@ struct AuthState {
 }
 
 pub(super) struct LocalAuth {
-    store: SessionStore,
-    config: AuthConfig,
+    login: LoginContext,
     http: reqwest::Client,
     state: Mutex<AuthState>,
 }
 
 impl LocalAuth {
-    pub fn new(store: SessionStore, config: AuthConfig, http: reqwest::Client) -> Self {
+    pub fn new(login: LoginContext, http: reqwest::Client) -> Self {
         Self {
-            store,
-            config,
+            login,
             http,
             state: Mutex::new(AuthState::default()),
         }
     }
 
-    pub fn status(&self) -> Result<AuthResponse> {
-        let session_path = self.store.session_file_path()?.display().to_string();
-        Ok(
-            if self
-                .store
-                .has_active_session_for_api_base_url(&self.config.api_base_url)?
-            {
-                AuthResponse::SignedIn { session_path }
-            } else {
-                AuthResponse::SignedOut { session_path }
-            },
-        )
+    pub async fn status(&self) -> Result<AuthResponse> {
+        if let Err(error) = self.login.store.migrate_legacy().await {
+            if !crate::api::is_reauthentication_required(&error) {
+                return Err(error);
+            }
+        }
+        let session_path = self.login.store.credentials_path().display().to_string();
+        Ok(if self.login.session()?.is_some() {
+            AuthResponse::SignedIn { session_path }
+        } else {
+            AuthResponse::SignedOut { session_path }
+        })
     }
 
     pub async fn pending_sign_in(&self) -> Option<AuthResponse> {
@@ -102,13 +100,15 @@ impl LocalAuth {
     pub async fn start_sign_in(&self) -> Result<AuthResponse> {
         let generation = {
             let state = self.state.lock().await;
-            let status = self.status()?;
-            if matches!(status, AuthResponse::SignedIn { .. }) {
-                return Ok(status);
-            }
             state.generation
         };
-        let authorization = start_device_authorization(&self.http, &self.config).await?;
+        let status = self.status().await?;
+        if matches!(status, AuthResponse::SignedIn { .. }) {
+            return Ok(status);
+        }
+        let mut authorization = start_device_authorization(&self.http, &self.login.config).await?;
+        authorization.verification_url =
+            self.login.verification_url(authorization.verification_url);
         let mut state = self.state.lock().await;
         // Sign-out invalidates requests that were started before cancellation.
         if state.generation != generation {
@@ -137,14 +137,15 @@ impl LocalAuth {
             return Ok(pending.response());
         }
         let status =
-            poll_device_authorization(&self.http, &self.config, &pending.authorization).await?;
+            poll_device_authorization(&self.http, &self.login.config, &pending.authorization)
+                .await?;
         pending.next_poll_at = Instant::now() + Duration::from_secs(pending.authorization.interval);
         match status {
             DevicePollStatus::Authorized(token) => {
-                let session = session_from_device_token(&self.config, token)?;
-                self.store.save_session(&session)?;
+                let session = session_from_device_token(&self.login.config, token)?;
+                self.login.save(session).await?;
                 guard.pending = None;
-                self.status()
+                self.status().await
             }
             DevicePollStatus::Pending => Ok(pending.response()),
             DevicePollStatus::SlowDown => {
@@ -170,34 +171,26 @@ impl LocalAuth {
             .as_ref()
             .filter(|p| p.expires_at > Utc::now())
             .context("sign-in expired")?;
-        webbrowser::open(&pending.authorization.verification_url)?;
+        webbrowser::open(pending.authorization.verification_url.as_str())?;
         Ok(())
     }
 
     pub async fn sign_out(&self) -> Result<AuthResponse> {
         let mut state = self.state.lock().await;
-        self.store.clear_session()?;
+        if let Some((name, profile, session)) = self.login.session()? {
+            profile.target.client(&session)?.logout().await?;
+            self.login.store.clear_session(&name, &session)?;
+        }
         state.generation = state.generation.wrapping_add(1);
         state.pending = None;
-        self.status()
+        self.status().await
     }
 
     pub async fn user_profile(&self) -> Result<Option<MeResponse>> {
-        if !self
-            .store
-            .has_active_session_for_api_base_url(&self.config.api_base_url)?
-        {
+        let Some((_, profile, session)) = self.login.session()? else {
             return Ok(None);
-        }
-        Ok(Some(self.api()?.get_me().await?))
-    }
-
-    fn api(&self) -> Result<ApiClient> {
-        ApiClient::from_session(
-            &self
-                .store
-                .load_session_for_api_base_url(&self.config.api_base_url)?,
-        )
+        };
+        Ok(Some(profile.target.client(&session)?.get_me().await?))
     }
 }
 
@@ -206,14 +199,21 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn test_auth(url: String) -> (tempfile::TempDir, LocalAuth, SessionStore) {
+    fn test_auth(url: String) -> (tempfile::TempDir, LocalAuth, crate::profiles::ProfileStore) {
         let dir = tempfile::tempdir().unwrap();
-        let store = SessionStore::for_namespace(dir.path().to_string_lossy());
-        let auth = LocalAuth::new(
+        let store = crate::profiles::ProfileStore::at(dir.path());
+        let login = LoginContext::new(
             store.clone(),
-            AuthConfig { api_base_url: url },
-            reqwest::Client::new(),
-        );
+            crate::profiles::Project {
+                root: None,
+                file: None,
+                target: None,
+            },
+            None,
+            Some(url),
+        )
+        .unwrap();
+        let auth = LocalAuth::new(login, reqwest::Client::new());
         (dir, auth, store)
     }
 
@@ -226,7 +226,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn pending_and_slow_down_preserve_the_wire_contract_and_session() {
+    async fn device_flow_preserves_wire_contract_and_shares_profile_credentials_with_the_cli() {
         let mut server = mockito::Server::new_async().await;
         let code = code(&mut server, 60).await;
         let mut pending_requests = Vec::new();
@@ -254,24 +254,49 @@ mod tests {
             .match_header("authorization", "Bearer test-token")
             .with_header("content-type", "application/json")
             .with_body(
-                r#"{"email":"user@example.test","name":"Test User","organizationName":"Test Org"}"#,
+                r#"{"email":"user@example.test","name":"Test User","organizationName":"Test Org","userId":"user-test","organizationId":"org-test"}"#,
             )
             .expect(1)
             .create_async()
             .await;
+        let refreshed = server.mock("GET", "/api/cli/me")
+            .match_header("authorization", "Bearer cli-refreshed-token")
+            .with_body(r#"{"email":"user@example.test","name":"Test User","organizationName":"Test Org","userId":"user-test","organizationId":"org-test"}"#)
+            .create_async().await;
+        let revoked = server
+            .mock("POST", "/api/auth/sign-out")
+            .match_header("authorization", "Bearer cli-refreshed-token")
+            .with_body("{}")
+            .create_async()
+            .await;
         let (_dir, auth, store) = test_auth(server.url());
+        let other_identity = MeResponse {
+            user_id: "other-user".into(),
+            email: "other@example.test".into(),
+            name: "Other".into(),
+            organization_id: "other-org".into(),
+            organization_name: "Other Org".into(),
+        };
         store
-            .save_session(&crate::state::Session {
-                api_base_url: "http://other.test".into(),
-                token: "other-token".into(),
-            })
+            .save(
+                "other",
+                crate::profiles::Profile::from_identity("http://other.test", &other_identity)
+                    .unwrap(),
+                crate::state::Session {
+                    api_base_url: "http://other.test".into(),
+                    token: "other-token".into(),
+                },
+            )
             .unwrap();
         assert!(matches!(
-            auth.status().unwrap(),
+            auth.status().await.unwrap(),
             AuthResponse::SignedOut { .. }
         ));
         assert!(auth.user_profile().await.unwrap().is_none());
-        assert_eq!(store.load_session().unwrap().token, "other-token");
+        assert_eq!(
+            store.session("other").unwrap().unwrap().token,
+            "other-token"
+        );
 
         let started = serde_json::to_value(auth.start_sign_in().await.unwrap()).unwrap();
         assert_eq!(started["status"], "pending");
@@ -297,7 +322,7 @@ mod tests {
         assert!(!authorized.matched_async().await);
         tokio::time::sleep(Duration::from_secs(5)).await;
 
-        let signed_in = json!({"status":"signed_in", "session_path":store.session_file_path().unwrap().display().to_string()});
+        let signed_in = json!({"status":"signed_in", "session_path":store.credentials_path().display().to_string()});
         assert_eq!(
             serde_json::to_value(auth.poll_sign_in().await.unwrap()).unwrap(),
             signed_in
@@ -307,15 +332,11 @@ mod tests {
             signed_in
         );
         assert!(auth.pending_sign_in().await.is_none());
-        assert_eq!(
-            store
-                .load_session_for_api_base_url(&server.url())
-                .unwrap()
-                .token,
-            "test-token"
-        );
-        let user =
-            json!({"email":"user@example.test", "name":"Test User", "organizationName":"Test Org"});
+        assert_eq!(auth.login.session().unwrap().unwrap().2.token, "test-token");
+        let (name, saved_profile, mut session) = auth.login.session().unwrap().unwrap();
+        session.token = "cli-refreshed-token".into();
+        store.save(&name, saved_profile, session).unwrap();
+        let user = json!({"email":"user@example.test", "name":"Test User", "organizationName":"Test Org", "userId":"user-test", "organizationId":"org-test"});
         assert_eq!(
             serde_json::to_value(auth.user_profile().await.unwrap()).unwrap(),
             user
@@ -325,10 +346,16 @@ mod tests {
             "signed_out"
         );
         assert!(auth.user_profile().await.unwrap().is_none());
-        assert!(!store.session_file_path().unwrap().exists());
+        assert!(auth.login.session().unwrap().is_none());
+        assert_eq!(
+            store.session("other").unwrap().unwrap().token,
+            "other-token"
+        );
         code.assert_async().await;
         authorized.assert_async().await;
         profile.assert_async().await;
+        refreshed.assert_async().await;
+        revoked.assert_async().await;
         for request in pending_requests {
             request.assert_async().await;
         }
@@ -369,6 +396,14 @@ mod tests {
                     .create_async()
                     .await;
             }
+            server.mock("GET", "/api/cli/me")
+                .with_body(r#"{"email":"user@example.test","name":"User","userId":"user-test","organizationId":"org-test","organizationName":"Test"}"#)
+                .create_async().await;
+            server
+                .mock("POST", "/api/auth/sign-out")
+                .with_body("{}")
+                .create_async()
+                .await;
             let (_dir, auth, _) = test_auth(server.url());
             if !delayed_code {
                 auth.start_sign_in().await.unwrap();
@@ -401,7 +436,7 @@ mod tests {
                 AuthResponse::Expired
             ));
             assert!(matches!(
-                auth.status().unwrap(),
+                auth.status().await.unwrap(),
                 AuthResponse::SignedOut { .. }
             ));
         }
@@ -427,7 +462,7 @@ mod tests {
                 json!({"status":status})
             );
             assert!(auth.pending_sign_in().await.is_none());
-            assert!(!store.session_file_path().unwrap().exists());
+            assert!(!store.credentials_path().exists());
             assert!(matches!(
                 auth.poll_sign_in().await.unwrap(),
                 AuthResponse::Expired
@@ -444,6 +479,14 @@ mod tests {
             let token = server
                 .mock("POST", "/api/auth/device/token")
                 .expect(0)
+                .create_async()
+                .await;
+            server.mock("GET", "/api/cli/me")
+                .with_body(r#"{"email":"user@example.test","name":"User","userId":"user-test","organizationId":"org-test","organizationName":"Test"}"#)
+                .create_async().await;
+            server
+                .mock("POST", "/api/auth/sign-out")
+                .with_body("{}")
                 .create_async()
                 .await;
             let (_dir, auth, _) = test_auth(server.url());

@@ -54,7 +54,7 @@ pub(super) fn lock(telemetry_dir: &Path) -> Result<File> {
     Ok(file)
 }
 
-pub(super) async fn start_detached() -> Result<()> {
+pub(super) async fn start_detached(profile: Option<&str>) -> Result<()> {
     let log_path = local_log::path()?;
     let instance_id = new_instance_id()?;
     let mut command = Command::new(std::env::current_exe()?);
@@ -64,6 +64,9 @@ pub(super) async fn start_detached() -> Result<()> {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
+    if let Some(profile) = profile {
+        command.args(["--profile", profile]);
+    }
     // The child must leave the terminal's session before running the supervisor.
     // setsid is async-signal-safe; no allocation or runtime work belongs here.
     unsafe {

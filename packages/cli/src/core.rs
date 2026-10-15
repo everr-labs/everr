@@ -10,7 +10,6 @@ use futures_util::StreamExt;
 use crate::api::{
     ApiClient, NotifyPayload, ShowJob, ShowRunDetails, StepLogEntry, WatchRun, WatchState,
 };
-use crate::auth;
 use crate::cli::{
     GetLogsArgs, ListRunsArgs, LogPagingArgs, ShowRunArgs, StatusArgs, TelemetryFormat,
     TelemetryQueryArgs, WatchArgs,
@@ -40,9 +39,7 @@ fn looks_like_full_sha(input: &str) -> bool {
     input.len() >= 40 && input.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-pub async fn status(args: StatusArgs) -> Result<()> {
-    let session = auth::require_session()?;
-    let client = ApiClient::from_session(&session)?;
+pub async fn status(args: StatusArgs, client: ApiClient) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
     let run_id_filter = args.run_id;
@@ -80,9 +77,7 @@ pub async fn status(args: StatusArgs) -> Result<()> {
     Ok(())
 }
 
-pub async fn cloud_query(args: TelemetryQueryArgs) -> Result<()> {
-    let session = auth::require_session()?;
-    let client = ApiClient::from_session(&session)?;
+pub async fn cloud_query(args: TelemetryQueryArgs, client: ApiClient) -> Result<()> {
     let body = client.post_sql(&args.sql).await?;
     let rows = telemetry::client::parse_ndjson(&body)?;
     let format = args.format.unwrap_or_else(|| {
@@ -96,9 +91,7 @@ pub async fn cloud_query(args: TelemetryQueryArgs) -> Result<()> {
     Ok(())
 }
 
-pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
-    let session = auth::require_session()?;
-    let client = ApiClient::from_session(&session)?;
+pub async fn runs_list(args: ListRunsArgs, client: ApiClient) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
     let repo = args.repo.or(git.repo);
@@ -123,9 +116,7 @@ pub async fn runs_list(args: ListRunsArgs) -> Result<()> {
     Ok(())
 }
 
-pub async fn runs_show(args: ShowRunArgs) -> Result<()> {
-    let session = auth::require_session()?;
-    let client = ApiClient::from_session(&session)?;
+pub async fn runs_show(args: ShowRunArgs, client: ApiClient) -> Result<()> {
     let mut query = vec![];
     if args.failed {
         query.push(("failed", "true".to_string()));
@@ -135,9 +126,7 @@ pub async fn runs_show(args: ShowRunArgs) -> Result<()> {
     Ok(())
 }
 
-pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
-    let session = auth::require_session()?;
-    let client = ApiClient::from_session(&session)?;
+pub async fn runs_logs(args: GetLogsArgs, client: ApiClient) -> Result<()> {
     let paging = args.paging();
     let (job_filter, step_number) = resolve_logs_job(&client, &args).await?;
     let mut query: Vec<(&str, String)> = vec![("stepNumber", step_number)];
@@ -173,11 +162,9 @@ pub async fn runs_logs(args: GetLogsArgs) -> Result<()> {
     Ok(())
 }
 
-pub async fn watch(args: WatchArgs) -> Result<()> {
+pub async fn watch(args: WatchArgs, client: ApiClient) -> Result<()> {
     use std::collections::{HashMap, HashSet};
 
-    let session = auth::require_session()?;
-    let client = ApiClient::from_session(&session)?;
     let cwd = std::env::current_dir()?;
     let git = resolve_git_context(&cwd);
     let explicit_commit = args.commit.is_some();
@@ -624,46 +611,14 @@ impl cliclack::Theme for WarnTheme {
     }
 }
 
-/// Build an API client using the same credential precedence as apply: an
-/// `EVERR_API_KEY` (or deprecated `EVERR_API_TOKEN`) in the environment wins
-/// (CI); otherwise fall back to the logged-in session (`cloud login`).
-fn build_api_client() -> anyhow::Result<crate::api::ApiClient> {
-    let token_env = std::env::var("EVERR_API_KEY")
-        .ok()
-        .filter(|t| !t.is_empty())
-        .map(|t| ("EVERR_API_KEY", t))
-        .or_else(|| {
-            std::env::var("EVERR_API_TOKEN")
-                .ok()
-                .filter(|t| !t.is_empty())
-                .map(|t| ("EVERR_API_TOKEN", t))
-        });
-    match token_env {
-        Some((var_name, token)) => {
-            let base_url = std::env::var("EVERR_API_URL")
-                .ok()
-                .filter(|u| !u.is_empty())
-                .or_else(persisted_api_base_url)
-                .ok_or_else(|| {
-                    anyhow::anyhow!("{var_name} is set but no base URL; set EVERR_API_URL")
-                })?;
-            crate::api::ApiClient::from_token(&base_url, &token)
-        }
-        None => {
-            let session = crate::auth::require_session()?;
-            crate::api::ApiClient::from_session(&session)
-        }
-    }
-}
-
-pub async fn run_resources(cmd: crate::cli::ResourcesSubcommand) -> anyhow::Result<()> {
+pub async fn run_resources(
+    cmd: crate::cli::ResourcesSubcommand,
+    client: ApiClient,
+) -> anyhow::Result<()> {
     use crate::cli::ResourcesSubcommand as R;
-    // `everr resources` targets the session-authenticated /api/cli routes, so it
-    // uses the logged-in session only. Unlike `apply`, it does NOT accept
-    // EVERR_API_KEY (those routes have no API-key path), so authenticate with the
-    // session directly rather than via apply's token-first `build_api_client`.
-    let session = crate::auth::require_session()?;
-    let client = crate::api::ApiClient::from_session(&session)?;
+    if matches!(cmd, R::Delete(_) | R::Adopt(_)) {
+        client.print_target();
+    }
     match cmd {
         R::List(args) => resources_list(&client, args).await,
         R::Show(args) => resources_show(&client, args).await,
@@ -812,7 +767,7 @@ fn confirm_action(
     Ok(proceed?)
 }
 
-pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
+pub async fn run_apply(args: crate::cli::ApplyArgs, client: ApiClient) -> anyhow::Result<()> {
     use crate::apply::{
         ApplyRequest, classify_documents, detect_git_source, load_apply_manifest,
         load_resource_documents, resolve_preview_name, resolve_repoid,
@@ -849,8 +804,7 @@ pub async fn run_apply(args: crate::cli::ApplyArgs) -> anyhow::Result<()> {
         None => None,
     };
 
-    let client = build_api_client()?;
-
+    client.print_target();
     // Plan first (dry run) to learn the destination org and the change set.
     let plan = client
         .apply(&ApplyRequest {
@@ -981,16 +935,6 @@ fn print_apply_summary(summary: &crate::apply::ApplySummary, plan: bool) {
             println!("  note: {note}");
         }
     }
-}
-
-fn persisted_api_base_url() -> Option<String> {
-    let store = crate::auth::session_store();
-    // We load whatever session is persisted and return its base URL.
-    // `load_session` (without a filter) loads the most-recently saved session.
-    store
-        .load_session()
-        .ok()
-        .map(|session| session.api_base_url)
 }
 
 #[cfg(test)]

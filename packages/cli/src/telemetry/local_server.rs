@@ -1,7 +1,9 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use super::local_auth::LocalAuth;
-use crate::{build, device_auth::build_auth_http_client};
+use crate::build;
+#[cfg(everr_embedded_local_ui)]
+use crate::device_auth::build_auth_http_client;
 use anyhow::{Context, Result, anyhow, bail};
 #[cfg(everr_embedded_local_ui)]
 use axum::body::Body;
@@ -92,6 +94,7 @@ impl LocalServer {
     pub(super) async fn bind(
         _supervisor: mpsc::Sender<SupervisorRequest>,
         _instance_id: String,
+        _profile: Option<&str>,
     ) -> Result<Self> {
         #[cfg(not(everr_embedded_local_ui))]
         bail!(
@@ -109,8 +112,7 @@ impl LocalServer {
                     origin: build::local_ui_origin(),
                     identity: super::local_instance::Identity::ui(_instance_id),
                     auth: Arc::new(LocalAuth::new(
-                        crate::auth::session_store(),
-                        crate::auth::resolve_auth_config()?,
+                        crate::auth::LoginContext::user(_profile, None)?,
                         build_auth_http_client()?,
                     )),
                     supervisor: _supervisor,
@@ -264,7 +266,7 @@ fn json_response(value: impl Serialize) -> Response {
 
 async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Response> {
     Ok(match command {
-        "get_auth_status" => json_response(state.auth.status()?),
+        "get_auth_status" => json_response(state.auth.status().await?),
         "get_pending_sign_in" => json_response(state.auth.pending_sign_in().await),
         "start_sign_in" => json_response(state.auth.start_sign_in().await?),
         "poll_sign_in" => json_response(state.auth.poll_sign_in().await?),
@@ -375,10 +377,17 @@ mod tests {
             origin: origin.clone(),
             identity: crate::telemetry::local_instance::Identity::ui("test-instance".into()),
             auth: Arc::new(LocalAuth::new(
-                crate::state::SessionStore::for_namespace(auth_dir.path().to_string_lossy()),
-                crate::device_auth::AuthConfig {
-                    api_base_url: "http://example.test".into(),
-                },
+                crate::auth::LoginContext::new(
+                    crate::profiles::ProfileStore::at(auth_dir.path()),
+                    crate::profiles::Project {
+                        root: None,
+                        file: None,
+                        target: None,
+                    },
+                    None,
+                    Some("http://example.test".into()),
+                )
+                .unwrap(),
                 reqwest::Client::new(),
             )),
             supervisor,
@@ -428,7 +437,7 @@ mod tests {
             response["session_path"]
                 .as_str()
                 .unwrap()
-                .ends_with("session-dev.json")
+                .ends_with("credentials-dev.json")
         );
         assert_eq!(response.as_object().unwrap().len(), 2);
         task.abort();

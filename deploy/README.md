@@ -78,6 +78,25 @@ set `EVERR_RETENTION_DAYS` to a supported window in `.env` to change it.
 
 ## Operations
 
+### Connect the CLI
+
+From your application's Git repository, run:
+
+```sh
+everr login --profile self-hosted --url http://localhost:3000
+```
+
+Use the installation's reachable app URL for remote access. After device approval,
+login saves the URL and workspace ID to `.everr/config.yaml` at the repository
+root if the file is absent. Commit that file to share the target with teammates;
+each person authenticates separately, and credentials stay in their global CLI
+configuration. Subsequent `everr login`, `everr query`, `everr resources`, and
+`everr apply` commands use the project target. `--profile` overrides it for one
+command. See [CLI profiles](../packages/cli/README.md#installations-organizations-and-profiles)
+for managing multiple installations, organizations, and accounts.
+
+### Manage the stack
+
 ```sh
 docker compose ps
 docker compose logs --tail=100 app collector

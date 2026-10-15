@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use tokio::time::sleep;
 
-use crate::state::{Session, SessionStore};
+use crate::state::Session;
 
 #[derive(Debug, Clone)]
 pub struct AuthConfig {
@@ -35,7 +35,7 @@ struct DeviceErrorResponse {
 pub struct DeviceAuthorization {
     pub device_code: String,
     pub user_code: String,
-    pub verification_url: String,
+    pub verification_url: reqwest::Url,
     pub expires_in: u64,
     pub interval: u64,
 }
@@ -49,31 +49,20 @@ pub enum DevicePollStatus {
     Expired,
 }
 
-pub async fn login_with_prompt<F, Fut>(
-    config: &AuthConfig,
-    store: &SessionStore,
-    show_prompt: F,
-) -> Result<Session>
+pub async fn authorize_with_prompt<F, Fut>(config: &AuthConfig, show_prompt: F) -> Result<Session>
 where
-    F: FnOnce(String, String) -> Fut,
+    F: FnOnce(reqwest::Url, String) -> Fut,
     Fut: std::future::Future<Output = ()>,
 {
     let client = build_auth_http_client()?;
     let authorization = start_device_authorization(&client, config).await?;
-
-    // Run the prompt to completion before polling so we never have a
-    // concurrent stdin reader fighting later prompts for keystrokes.
     show_prompt(
         authorization.verification_url.clone(),
         authorization.user_code.clone(),
     )
     .await;
-
     let token = complete_device_authorization(&client, config, authorization).await?;
-
-    let session = session_from_device_token(config, token)?;
-    store.save_session(&session)?;
-    Ok(session)
+    session_from_device_token(config, token)
 }
 
 pub async fn start_device_authorization(
@@ -101,7 +90,7 @@ pub async fn start_device_authorization(
         .await
         .context("failed to parse device authorization response")?;
 
-    Ok(map_device_authorization(authorization_body))
+    map_device_authorization(authorization_body)
 }
 
 pub async fn poll_device_authorization(
@@ -160,13 +149,14 @@ pub fn session_from_device_token(
 
 pub fn build_auth_http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .context("failed to build HTTP client")
 }
 
 fn map_device_authorization(
     authorization_body: DeviceAuthorizationResponse,
-) -> DeviceAuthorization {
+) -> Result<DeviceAuthorization> {
     let DeviceAuthorizationResponse {
         device_code,
         user_code,
@@ -176,13 +166,19 @@ fn map_device_authorization(
         interval,
     } = authorization_body;
 
-    DeviceAuthorization {
+    let verification_url =
+        reqwest::Url::parse(&verification_uri_complete.unwrap_or(verification_uri))
+            .context("Invalid device verification URL")?;
+    if !matches!(verification_url.scheme(), "http" | "https") {
+        bail!("Device verification URL must use HTTP(S)");
+    }
+    Ok(DeviceAuthorization {
         device_code,
         user_code,
-        verification_url: verification_uri_complete.unwrap_or(verification_uri),
+        verification_url,
         expires_in,
         interval: interval.unwrap_or(5),
-    }
+    })
 }
 
 async fn complete_device_authorization(
@@ -210,8 +206,9 @@ async fn complete_device_authorization(
 
 #[cfg(test)]
 mod tests {
-    use super::{AuthConfig, DeviceTokenResponse, login_with_prompt, session_from_device_token};
-    use crate::state::SessionStore;
+    use super::{
+        AuthConfig, DeviceTokenResponse, authorize_with_prompt, session_from_device_token,
+    };
 
     #[tokio::test]
     async fn terminal_login_preserves_device_token_outcomes() {
@@ -264,13 +261,11 @@ mod tests {
                 .expect(1)
                 .create_async()
                 .await;
-            let dir = tempfile::tempdir().expect("tempdir");
-            let store = SessionStore::for_namespace(dir.path().to_string_lossy());
             let config = AuthConfig {
                 api_base_url: server.url(),
             };
-            let result = login_with_prompt(&config, &store, |url, code| async move {
-                assert_eq!(url, "http://example.test/verify");
+            let result = authorize_with_prompt(&config, |url, code| async move {
+                assert_eq!(url.as_str(), "http://example.test/verify");
                 assert_eq!(code, "USER-CODE");
             })
             .await;
@@ -281,17 +276,10 @@ mod tests {
             match error {
                 Some(message) => {
                     assert_eq!(result.expect_err("login must fail").to_string(), message);
-                    assert!(!store.session_file_path().expect("session path").exists());
                 }
                 None => {
                     let session = result.expect("login must succeed");
                     assert_eq!(session.token, "test-token");
-                    assert_eq!(
-                        store
-                            .load_session_for_api_base_url(&config.api_base_url)
-                            .expect("saved session"),
-                        session
-                    );
                 }
             }
         }

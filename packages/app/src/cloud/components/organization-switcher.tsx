@@ -12,8 +12,12 @@ import { authClient } from "@/lib/auth-client";
 
 export function OrganizationSwitcher({
   activeOrganizationId,
+  disabled = false,
+  onSwitchingChange,
 }: {
   activeOrganizationId?: string | null;
+  disabled?: boolean;
+  onSwitchingChange?: (switching: boolean) => void;
 }) {
   const activateOrganization = useOrganizationActivation();
   const { data: organizations } = authClient.useListOrganizations();
@@ -21,7 +25,9 @@ export function OrganizationSwitcher({
   const [error, setError] = useState<string | null>(null);
 
   async function switchOrganization(organizationId: string) {
+    if (disabled || switching) return;
     setSwitching(true);
+    onSwitchingChange?.(true);
     setError(null);
     try {
       await activateOrganization(organizationId);
@@ -33,6 +39,7 @@ export function OrganizationSwitcher({
       );
     } finally {
       setSwitching(false);
+      onSwitchingChange?.(false);
     }
   }
 
@@ -46,7 +53,7 @@ export function OrganizationSwitcher({
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label="Switch organization"
-          disabled={switching}
+          disabled={switching || disabled}
           render={
             <Button
               variant="ghost"
@@ -64,7 +71,9 @@ export function OrganizationSwitcher({
           {organizations.map((org) => (
             <DropdownMenuItem
               key={org.id}
-              disabled={org.id === activeOrganizationId}
+              disabled={
+                disabled || switching || org.id === activeOrganizationId
+              }
               onClick={() => void switchOrganization(org.id)}
             >
               {org.id === activeOrganizationId ? (

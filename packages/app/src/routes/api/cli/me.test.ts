@@ -4,8 +4,8 @@ import { Route } from "./me";
 
 type GetHandler = (args: {
   context: {
-    session: { user: { email: string; name: string | null } };
-    organization: { name: string };
+    session: { user: { id: string; email: string; name: string | null } };
+    organization: { id: string; name: string };
   };
 }) => Response;
 
@@ -23,13 +23,17 @@ describe("/api/cli/me", () => {
       "/api/cli/me",
     )({
       context: {
-        session: { user: { email: "alice@example.com", name } },
-        organization: { name: "Active Organization" },
+        session: {
+          user: { id: "user-alice", email: "alice@example.com", name },
+        },
+        organization: { id: "org-active", name: "Active Organization" },
       },
     });
 
     expect(response.status).toBe(200);
     return expect(response.json()).resolves.toEqual({
+      userId: "user-alice",
+      organizationId: "org-active",
       email: "alice@example.com",
       name: displayName,
       organizationName: "Active Organization",

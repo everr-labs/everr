@@ -4,6 +4,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { member, organization as organizationTable } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
+import {
+  assertOrganizationTarget,
+  organizationTargetErrorResponse,
+} from "@/lib/cli-target";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { getSession } from "@/lib/session.server";
 import { createClickhouseQuery } from "./clickhouse";
@@ -26,10 +30,15 @@ const authMiddleware = createMiddleware().server(async ({ request, next }) => {
 
 export const requireOrgMiddleware = createMiddleware()
   .middleware([authMiddleware])
-  .server(async ({ next, context: { session } }) => {
+  .server(async ({ request, next, context: { session } }) => {
     const activeOrgId = session.session.activeOrganizationId;
     if (!activeOrgId) {
       throw new Error("No active organization");
+    }
+    try {
+      assertOrganizationTarget(request.headers, activeOrgId);
+    } catch (error) {
+      throw organizationTargetErrorResponse(error) ?? error;
     }
 
     const [organization] = await db

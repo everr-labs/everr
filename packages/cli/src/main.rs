@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
     let result = async move {
         command_telemetry::record_invocation(&cli, argv);
         update_notice::maybe_print(&cli).await;
-        let result = run_command(cli.command, lifetime).await;
+        let result = run_command(cli, lifetime).await;
         command_telemetry::record_result(command, subcommand, &result);
         result
     }

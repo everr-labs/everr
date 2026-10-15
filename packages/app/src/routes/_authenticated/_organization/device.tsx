@@ -1,4 +1,5 @@
 import { DEVICE_LOGIN_RESTART_INSTRUCTION } from "@app/device-login-copy";
+import { OrganizationSwitcher } from "@app/navigation";
 import { Button } from "@everr/ui/components/button";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -10,6 +11,7 @@ export const Route = createFileRoute("/_authenticated/_organization/device")({
   staticData: { authEntry: "/auth/sign-up" },
   validateSearch: z.object({
     user_code: z.string().min(1, "Missing device code"),
+    organization_id: z.string().optional(),
   }),
   loaderDeps: ({ search }) => ({
     code: search.user_code,
@@ -26,6 +28,7 @@ export const Route = createFileRoute("/_authenticated/_organization/device")({
       deviceCode: deps.code.toUpperCase(),
       userName: firstName,
       orgName,
+      activeOrganizationId: session.session.activeOrganizationId,
     };
   },
   component: CliDeviceApprovalPage,
@@ -37,14 +40,23 @@ function formatCodeForDisplay(code: string): string {
 }
 
 function CliDeviceApprovalPage() {
-  const { deviceCode, userName, orgName } = Route.useLoaderData();
+  const { deviceCode, userName, orgName, activeOrganizationId } =
+    Route.useLoaderData();
+  const { organization_id: expectedOrganizationId } = Route.useSearch();
+  const targetMismatch = Boolean(
+    expectedOrganizationId && expectedOrganizationId !== activeOrganizationId,
+  );
   const [status, setStatus] = useState<
     "idle" | "approved" | "denied" | "error"
   >("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [switchingOrganization, setSwitchingOrganization] = useState(false);
 
   async function submit(action: "approve" | "deny") {
-    if (!deviceCode) {
+    if (
+      !deviceCode ||
+      (action === "approve" && (targetMismatch || switchingOrganization))
+    ) {
       setStatus("error");
       return;
     }
@@ -77,6 +89,21 @@ function CliDeviceApprovalPage() {
         <p className="text-muted-foreground mt-3 text-center text-base">
           {orgName ? `${userName} · ${orgName}` : userName}
         </p>
+        {status !== "approved" && status !== "denied" && (
+          <div className="relative mt-3 flex justify-center">
+            <OrganizationSwitcher
+              activeOrganizationId={activeOrganizationId}
+              disabled={isSubmitting}
+              onSwitchingChange={setSwitchingOrganization}
+            />
+          </div>
+        )}
+        {targetMismatch && (
+          <p role="alert" className="mt-3 text-center text-sm text-destructive">
+            Select organization {expectedOrganizationId} to authorize this
+            profile.
+          </p>
+        )}
 
         <section className="bg-background mt-10 rounded-2xl border px-6 py-10 sm:px-12">
           {status === "idle" || status === "error" ? (
@@ -97,7 +124,9 @@ function CliDeviceApprovalPage() {
                   Deny
                 </Button>
                 <Button
-                  disabled={isSubmitting}
+                  disabled={
+                    isSubmitting || targetMismatch || switchingOrganization
+                  }
                   onClick={() => void submit("approve")}
                 >
                   Confirm

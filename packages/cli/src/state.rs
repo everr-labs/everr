@@ -15,25 +15,50 @@ pub struct Session {
     pub token: String,
 }
 
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Default, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 struct SessionFile {
     session: Option<Session>,
 }
 
+/// Reads and removes the pre-profile session file during migration.
 #[derive(Debug, Clone)]
-pub struct SessionStore {
+pub struct LegacySessionStore {
     namespace: String,
+    directory: Option<PathBuf>,
 }
 
-impl SessionStore {
+impl LegacySessionStore {
     pub fn for_namespace(namespace: impl Into<String>) -> Self {
         Self {
             namespace: namespace.into(),
+            directory: None,
         }
     }
 
+    pub fn at(directory: impl Into<PathBuf>) -> Self {
+        Self {
+            namespace: String::new(),
+            directory: Some(directory.into()),
+        }
+    }
+
+    pub fn user() -> Self {
+        Self::for_namespace(build::session_namespace())
+    }
+
     pub fn session_file_path(&self) -> Result<PathBuf> {
+        if let Some(directory) = &self.directory {
+            return Ok(directory.join(build::default_session_file_name()));
+        }
+
+        if let Some(directory) = std::env::var_os("EVERR_CONFIG_DIR") {
+            let directory = PathBuf::from(directory);
+            if !directory.is_absolute() {
+                bail!("EVERR_CONFIG_DIR must be an absolute path");
+            }
+            return Ok(directory.join(build::default_session_file_name()));
+        }
         let config_dir = dirs::config_dir().context("failed to resolve user config dir")?;
         Ok(config_dir
             .join(&self.namespace)
@@ -67,43 +92,10 @@ impl SessionStore {
         }
     }
 
-    fn save_file(&self, file: &SessionFile) -> Result<()> {
-        let path = self.session_file_path()?;
-        if file.session.is_none() {
-            if path.exists() {
-                fs::remove_file(&path)
-                    .with_context(|| format!("failed to remove {}", path.display()))?;
-            }
-            return Ok(());
-        }
-
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
-
-        let serialized =
-            serde_json::to_string_pretty(file).context("failed to serialize session file")?;
-        let tmp = path.with_extension("tmp");
-        fs::write(&tmp, serialized)
-            .with_context(|| format!("failed to write {}", tmp.display()))?;
-        fs::rename(&tmp, &path)
-            .with_context(|| format!("failed to rename {} to {}", tmp.display(), path.display()))?;
-        Ok(())
-    }
-
     pub fn load_session(&self) -> Result<Session> {
         self.load_file()?
             .session
             .ok_or_else(|| anyhow!(NO_ACTIVE_SESSION))
-    }
-
-    pub fn save_session(&self, session: &Session) -> Result<()> {
-        let _lock = self.acquire_lock()?;
-        self.save_file(&SessionFile {
-            session: Some(session.clone()),
-        })?;
-        Ok(())
     }
 
     pub fn clear_session(&self) -> Result<bool> {
@@ -113,17 +105,8 @@ impl SessionStore {
             return Ok(false);
         }
 
-        self.save_file(&SessionFile::default())?;
+        fs::remove_file(self.session_file_path()?)?;
         Ok(true)
-    }
-
-    pub fn load_session_for_api_base_url(&self, expected_api_base_url: &str) -> Result<Session> {
-        let session = self.load_session()?;
-        if session_matches_api_base_url(&session.api_base_url, expected_api_base_url) {
-            return Ok(session);
-        }
-
-        bail!(NO_ACTIVE_SESSION);
     }
 
     /// Deletes the session file entirely, including malformed files.
@@ -134,14 +117,6 @@ impl SessionStore {
                 .with_context(|| format!("failed to remove {}", path.display()))?;
         }
         Ok(())
-    }
-
-    pub fn has_active_session_for_api_base_url(&self, expected_api_base_url: &str) -> Result<bool> {
-        match self.load_session_for_api_base_url(expected_api_base_url) {
-            Ok(_) => Ok(true),
-            Err(error) if is_no_active_session_error(&error) => Ok(false),
-            Err(error) => Err(error),
-        }
     }
 
     fn acquire_lock(&self) -> Result<fs::File> {
@@ -163,13 +138,9 @@ pub fn is_no_active_session_error(error: &anyhow::Error) -> bool {
     error.to_string() == NO_ACTIVE_SESSION
 }
 
-fn session_matches_api_base_url(actual: &str, expected: &str) -> bool {
-    actual.trim_end_matches('/') == expected.trim_end_matches('/')
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{Session, SessionStore, is_no_active_session_error};
+    use super::{LegacySessionStore, Session, is_no_active_session_error};
     use crate::test_support::ENV_LOCK;
     use serde_json::json;
     use tempfile::tempdir;
@@ -181,30 +152,14 @@ mod tests {
         }
     }
 
-    fn write_fixture(store: &SessionStore, value: serde_json::Value) {
+    fn write_fixture(store: &LegacySessionStore, value: serde_json::Value) {
         let path = store.session_file_path().unwrap();
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, value.to_string()).unwrap();
     }
 
     #[test]
-    fn session_round_trips_atomically_and_uses_a_lock() {
-        with_temp_config_home(|store| {
-            store.save_session(&session()).unwrap();
-            assert_eq!(store.load_session().unwrap(), session());
-            let path = store.session_file_path().unwrap();
-            assert!(path.with_extension("lock").is_file());
-            assert!(!path.with_extension("tmp").exists());
-            assert_eq!(
-                path.file_name().unwrap(),
-                crate::build::default_session_file_name(),
-            );
-            assert_eq!(path.parent().unwrap().file_name().unwrap(), "everr");
-        });
-    }
-
-    #[test]
-    fn desktop_session_files_remain_readable_and_save_without_unused_settings() {
+    fn desktop_session_files_remain_readable_for_migration() {
         with_temp_config_home(|store| {
             write_fixture(
                 &store,
@@ -214,12 +169,6 @@ mod tests {
                 }}),
             );
             assert_eq!(store.load_session().unwrap(), session());
-            store.save_session(&session()).unwrap();
-            let saved: serde_json::Value = serde_json::from_str(
-                &std::fs::read_to_string(store.session_file_path().unwrap()).unwrap(),
-            )
-            .unwrap();
-            assert_eq!(saved, json!({"session": session()}));
         });
     }
 
@@ -242,34 +191,16 @@ mod tests {
     }
 
     #[test]
-    fn mismatched_base_url_preserves_the_saved_session() {
-        with_temp_config_home(|store| {
-            store.save_session(&session()).unwrap();
-            assert!(
-                store
-                    .load_session_for_api_base_url("http://localhost:5173")
-                    .is_err()
-            );
-            assert_eq!(store.load_session().unwrap(), session());
-            assert!(
-                store
-                    .load_session_for_api_base_url("https://app.everr.dev/")
-                    .is_ok()
-            );
-        });
-    }
-
-    #[test]
     fn logout_removes_the_session_file_and_is_repeatable() {
         with_temp_config_home(|store| {
-            store.save_session(&session()).unwrap();
+            write_fixture(&store, json!({"session": session()}));
             assert!(store.clear_session().unwrap());
             assert!(!store.session_file_path().unwrap().exists());
             assert!(!store.clear_session().unwrap());
         });
     }
 
-    fn with_temp_config_home(test: impl FnOnce(SessionStore)) {
+    fn with_temp_config_home(test: impl FnOnce(LegacySessionStore)) {
         let _guard = ENV_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -284,7 +215,7 @@ mod tests {
             std::env::set_var("XDG_CONFIG_HOME", &config_home);
         }
 
-        let store = SessionStore::for_namespace("everr");
+        let store = LegacySessionStore::for_namespace("everr");
         test(store);
 
         match original_home {
