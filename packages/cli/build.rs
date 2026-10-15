@@ -19,7 +19,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=EVERR_REQUIRE_EMBEDDED_COLLECTOR");
     println!("cargo:rerun-if-env-changed=EVERR_RELEASE_SHA");
     println!("cargo:rerun-if-env-changed=EVERR_RELEASE_SHORT_SHA");
-    println!("cargo:rerun-if-env-changed=EVERR_INGEST_KEY");
+    println!("cargo:rerun-if-env-changed=EVERR_INTERNAL_TELEMETRY_INGEST_KEY");
     println!("cargo:rustc-check-cfg=cfg(everr_embedded_collector_assets)");
 
     let content = std::fs::read_to_string(&package_json).expect("failed to read package.json");

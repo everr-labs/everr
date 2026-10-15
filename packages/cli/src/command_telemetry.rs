@@ -1,12 +1,10 @@
-use std::collections::{BTreeSet, HashMap};
-use std::env;
+use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use opentelemetry::global;
 use opentelemetry::trace::TracerProvider as _;
-use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::logs::{BatchConfigBuilder, BatchLogProcessor, SdkLoggerProvider};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
@@ -14,6 +12,8 @@ use opentelemetry_sdk::trace::SdkTracerProvider;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+
+use crate::internal_telemetry::{self, Config, Exporter};
 
 use crate::cli::{
     CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, ResourcesSubcommand,
@@ -27,7 +27,6 @@ const EVENT_TARGET: &str = "everr_cli_command";
 // Tracing target of the spans the CLI API client emits around its HTTP calls. Must match
 // the literal used in `crate::api` so this filter captures them.
 const API_TARGET: &str = "everr_api";
-const EXPORT_TIMEOUT: Duration = Duration::from_millis(750);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(750);
 
 static LOGGER_PROVIDER: OnceLock<Mutex<Option<SdkLoggerProvider>>> = OnceLock::new();
@@ -80,9 +79,9 @@ pub fn command_names(cli: &Cli) -> (&'static str, Option<&'static str>) {
     (metadata.command, metadata.subcommand)
 }
 
-/// Records how the command ended. On failure the full anyhow context chain
-/// is attached, which names the step that broke (each fallible step in the
-/// command implementations carries its own context label).
+/// Records how the command ended. Debug builds attach the full anyhow context
+/// chain on failure, naming the step that broke. Release builds use a fixed
+/// error message to keep customer data out of internal telemetry.
 pub fn record_result(
     command: &'static str,
     subcommand: Option<&'static str>,
@@ -108,7 +107,7 @@ pub fn record_result(
             // Mark the active command span (see command_span) as failed so
             // failed invocations are distinguishable in traces, not just logs.
             tracing::Span::current().record("otel.status_code", "ERROR");
-            let error = format!("{err:#}");
+            let error = internal_telemetry::command_error(err);
             tracing::event!(
                 target: EVENT_TARGET,
                 tracing::Level::ERROR,
@@ -171,16 +170,12 @@ pub fn exit(code: i32) -> ! {
 }
 
 fn init_inner() -> Result<TelemetryGuard, Box<dyn std::error::Error + Send + Sync>> {
-    let config = TelemetryConfig::from_env();
+    let Some(config) = Config::from_env(internal_telemetry::Source::Cli) else {
+        return Ok(TelemetryGuard::disabled());
+    };
     let resource = resource();
 
-    let span_exporter = opentelemetry_otlp::SpanExporter::builder()
-        .with_http()
-        .with_protocol(Protocol::HttpBinary)
-        .with_endpoint(signal_endpoint(&config.endpoint, "traces"))
-        .with_timeout(EXPORT_TIMEOUT)
-        .with_headers(config.headers.clone())
-        .build()?;
+    let span_exporter = Exporter::new(config.clone())?;
     let tracer_provider = SdkTracerProvider::builder()
         .with_resource(resource.clone())
         .with_batch_exporter(span_exporter)
@@ -191,13 +186,7 @@ fn init_inner() -> Result<TelemetryGuard, Box<dyn std::error::Error + Send + Syn
     let trace_layer =
         tracing_opentelemetry::layer().with_tracer(tracer_provider.tracer(SERVICE_NAME));
 
-    let log_exporter = opentelemetry_otlp::LogExporter::builder()
-        .with_http()
-        .with_protocol(Protocol::HttpBinary)
-        .with_endpoint(signal_endpoint(&config.endpoint, "logs"))
-        .with_timeout(EXPORT_TIMEOUT)
-        .with_headers(config.headers)
-        .build()?;
+    let log_exporter = Exporter::new(config)?;
     let batch_processor = BatchLogProcessor::builder(log_exporter)
         .with_batch_config(
             BatchConfigBuilder::default()
@@ -365,59 +354,11 @@ fn option_names(argv: impl IntoIterator<Item = OsString>) -> Vec<String> {
     names.into_iter().collect()
 }
 
-struct TelemetryConfig {
-    endpoint: String,
-    headers: HashMap<String, String>,
-}
-
-impl TelemetryConfig {
-    fn from_env() -> Self {
-        let ingest_key = ingest_key();
-        let endpoint = env_value("OTEL_EXPORTER_OTLP_ENDPOINT").unwrap_or_else(|| {
-            if ingest_key.is_some() {
-                "https://ingest.everr.dev".into()
-            } else {
-                crate::build::otlp_http_origin()
-            }
-        });
-        let headers = ingest_key
-            .map(|key| HashMap::from([("Authorization".to_string(), format!("Bearer {key}"))]))
-            .unwrap_or_default();
-
-        Self {
-            endpoint: endpoint.trim_end_matches('/').to_string(),
-            headers,
-        }
-    }
-}
-
-fn env_value(name: &str) -> Option<String> {
-    env::var(name)
-        .ok()
-        .and_then(|value| non_empty_value(&value))
-}
-
-fn ingest_key() -> Option<String> {
-    env_value("EVERR_INGEST_KEY").or_else(|| {
-        if cfg!(debug_assertions) {
-            None
-        } else {
-            option_env!("EVERR_INGEST_KEY").and_then(non_empty_value)
-        }
-    })
-}
-
-fn non_empty_value(value: &str) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
 fn resource() -> Resource {
-    Resource::builder()
+    Resource::builder_empty()
+        .with_detector(Box::new(
+            opentelemetry_sdk::resource::TelemetryResourceDetector,
+        ))
         .with_service_name(SERVICE_NAME)
         .with_attribute(opentelemetry::KeyValue::new(
             "service.version",
@@ -425,30 +366,13 @@ fn resource() -> Resource {
         ))
         .with_attribute(opentelemetry::KeyValue::new(
             "deployment.environment.name",
-            deployment_environment(),
+            internal_telemetry::deployment_environment(),
         ))
         .build()
 }
 
-fn deployment_environment() -> &'static str {
-    if cfg!(debug_assertions) {
-        "development"
-    } else {
-        "production"
-    }
-}
-
 fn operating_system() -> &'static str {
     std::env::consts::OS
-}
-
-fn signal_endpoint(base_endpoint: &str, signal: &str) -> String {
-    let endpoint = base_endpoint.trim_end_matches('/');
-    if endpoint.ends_with(&format!("/v1/{signal}")) {
-        endpoint.to_string()
-    } else {
-        format!("{endpoint}/v1/{signal}")
-    }
 }
 
 #[cfg(test)]
@@ -456,8 +380,47 @@ mod tests {
     use clap::Parser;
     use std::ffi::OsString;
 
-    use super::{CommandTelemetry, option_names, signal_endpoint};
+    use super::{CommandTelemetry, option_names};
     use crate::cli::Cli;
+    use crate::internal_telemetry::signal_endpoint;
+
+    #[test]
+    fn internal_resource_does_not_inherit_customer_resource_attributes() {
+        let _guard = crate::test_support::ENV_LOCK.lock().unwrap();
+        let previous = std::env::var_os("OTEL_RESOURCE_ATTRIBUTES");
+        unsafe {
+            std::env::set_var(
+                "OTEL_RESOURCE_ATTRIBUTES",
+                "service.name=customer-app,everr.customer.data=customer-sentinel",
+            );
+        }
+        let resource = super::resource();
+        unsafe {
+            match previous {
+                Some(value) => std::env::set_var("OTEL_RESOURCE_ATTRIBUTES", value),
+                None => std::env::remove_var("OTEL_RESOURCE_ATTRIBUTES"),
+            }
+        }
+        assert_eq!(
+            resource
+                .get(&opentelemetry::Key::new("service.name"))
+                .unwrap()
+                .as_str(),
+            "everr-cli"
+        );
+        assert!(
+            resource
+                .get(&opentelemetry::Key::new("everr.customer.data"))
+                .is_none()
+        );
+        assert_eq!(
+            resource
+                .get(&opentelemetry::Key::new("telemetry.sdk.language"))
+                .unwrap()
+                .as_str(),
+            "rust"
+        );
+    }
 
     #[test]
     fn records_local_ui_command_name() {

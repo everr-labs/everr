@@ -22,7 +22,8 @@ flate2 = "1.1"
 futures-util = "0.3"
 opentelemetry = { version = "0.32", features = ["logs", "trace"] }
 opentelemetry-appender-tracing = "0.32"
-opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "logs", "trace", "reqwest-blocking-client", "reqwest-rustls"] }
+opentelemetry-proto = { version = "0.32", default-features = false, features = ["gen-tonic-messages", "logs", "trace"] }
+prost = "0.14"
 opentelemetry_sdk = { version = "0.32", features = ["logs", "trace", "rt-tokio"] }
 tracing-opentelemetry = "0.33"
 reqwest = { version = "0.12.15", default-features = false, features = ["blocking", "json", "rustls-tls", "stream"] }

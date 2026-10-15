@@ -1,5 +1,5 @@
-import { captureError } from "@everr/otel-web";
 import type { SqlClient } from "@everr/telemetry-explorer/logs";
+import { captureLocalSqlError } from "@/lib/internal-telemetry";
 import { invokeCommand } from "@/lib/local-api";
 
 /**
@@ -15,7 +15,7 @@ export const localSqlClient: SqlClient = {
     try {
       return await invokeCommand<Row[]>("telemetry_sql_query", { sql, params });
     } catch (error) {
-      captureError(error, { "everr.error.source": "local-ui.local_sql" });
+      captureLocalSqlError(error);
       throw error;
     }
   },
