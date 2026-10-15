@@ -237,7 +237,7 @@ condition: { operator: gt, threshold: 100 }
 
 ## Verification
 
-1. Test the query using `everr cloud query` and confirm the result set stays far below 1,000 rows. Check both healthy and breaching values against the configured condition.
+1. Test the query using `everr query` and confirm the result set stays far below 1,000 rows. Check both healthy and breaching values against the configured condition.
 2. Run `everr apply ./everr --preview` and confirm the summary shows the expected creates/updates, then open the printed `Preview:` link and check the alert's firing/ok state (preview alerts evaluate but never notify).
 
 ## Common Mistakes

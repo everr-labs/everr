@@ -9,6 +9,10 @@ For a self-hosted installation, supply its app URL:
 everr login --profile acme --url https://observability.acme.com
 ```
 
+The onboarding page copies a login command with both `--url` and
+`--organization-id`. The organization flag pins device approval to that workspace,
+including before a project file exists. It must agree with an existing target.
+
 Approve the device in your browser and choose the organization to use. An existing
 profile must be authorized with the same account and organization. Use
 `--no-open` to print the authorization URL without opening a browser.
@@ -51,6 +55,18 @@ Missing, logged-out, or expired credentials produce an error for that target.
 continue to query the local collector. The local UI shares profile credentials
 with terminal commands; `everr local start --profile acme` selects its remote
 connection, including when started with `--detach`.
+
+During exporter setup or connection troubleshooting, run `everr whoami --json`.
+It returns the effective `profile`, `selectionSource`, `url`, account and
+organization identity, and the server's `ingestEndpoint`, without credentials.
+Cloud advertises its hosted ingest endpoint; self-hosted installations advertise
+`EVERR_PUBLIC_INGEST_URL`. A null endpoint means it is unconfigured or the server
+needs an update before it can advertise one. App and ingestion URLs can differ.
+
+Save the discovered endpoint in your application's exporter configuration and
+document the settings under Telemetry. Query commands reuse the saved project
+target and credentials across terminal and agent sessions. Discovery is needed
+for setup, endpoint changes, or troubleshooting, rather than before every query.
 
 The first saved profile becomes the global default. `profiles use` changes that
 default. Logout revokes only the selected session and retains the profile's

@@ -1,6 +1,6 @@
 use crate::api::ApiClient;
 use crate::build;
-use crate::cli::LoginArgs;
+use crate::cli::{LoginArgs, WhoamiArgs};
 use crate::device_auth::{AuthConfig, authorize_with_prompt};
 use crate::profiles::{Profile, ProfileStore, Project, Target, explicit_profile, normalize_url};
 use crate::state::{LegacySessionStore, Session};
@@ -192,7 +192,26 @@ impl LoginContext {
 }
 
 pub async fn login(args: LoginArgs, profile: Option<&str>) -> Result<()> {
-    let login = LoginContext::user(profile, args.url)?;
+    let mut login = LoginContext::user(profile, args.url)?;
+    if let Some(organization_id) = args.organization_id {
+        let organization_id = organization_id.trim();
+        if organization_id.is_empty() {
+            bail!("Organization ID must not be empty.");
+        }
+        if login
+            .expected
+            .as_ref()
+            .is_some_and(|target| target.organization_id != organization_id)
+        {
+            bail!(
+                "The requested organization differs from the configured target. Choose a new profile with --profile."
+            );
+        }
+        login.expected = Some(Target {
+            url: login.config.api_base_url.clone(),
+            organization_id: organization_id.to_owned(),
+        });
+    }
     println!("Authenticating with {}", login.config.api_base_url);
     if let Some(target) = &login.expected {
         println!("Expected organization: {}", target.organization_id);
@@ -216,9 +235,30 @@ pub async fn login(args: LoginArgs, profile: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-pub async fn whoami(profile: Option<&str>) -> Result<()> {
+pub async fn whoami(args: WhoamiArgs, profile: Option<&str>) -> Result<()> {
     let client = crate::profiles::client(profile, false).await?;
     let identity = client.get_me().await?;
+    if args.json {
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct ConnectionInfo<'a> {
+            profile: Option<&'a str>,
+            selection_source: Option<&'a str>,
+            url: &'a str,
+            #[serde(flatten)]
+            identity: crate::api::MeResponse,
+        }
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&ConnectionInfo {
+                profile: client.profile(),
+                selection_source: client.selection_source(),
+                url: client.base_url(),
+                identity,
+            })?
+        );
+        return Ok(());
+    }
     if let Some(name) = client.profile() {
         println!(
             "Profile: {name} ({})",
@@ -230,6 +270,13 @@ pub async fn whoami(profile: Option<&str>) -> Result<()> {
     println!(
         "Organization: {} ({})",
         identity.organization_name, identity.organization_id
+    );
+    println!(
+        "Ingestion endpoint: {}",
+        identity
+            .ingest_endpoint
+            .as_deref()
+            .unwrap_or("not configured or unavailable on this server")
     );
     Ok(())
 }

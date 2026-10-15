@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { getRouteHandler } from "./-test-utils";
 import { Route } from "./me";
+
+const configuration = vi.hoisted(() => ({
+  endpoint: undefined as string | undefined,
+}));
+vi.mock("@app/ingest", () => ({
+  getIngestEndpoint: () => configuration.endpoint,
+}));
 
 type GetHandler = (args: {
   context: {
@@ -11,12 +18,18 @@ type GetHandler = (args: {
 
 describe("/api/cli/me", () => {
   it.each([
-    { name: "Alice Smith", displayName: "Alice Smith" },
-    { name: null, displayName: "alice@example.com" },
+    {
+      name: "Alice Smith",
+      displayName: "Alice Smith",
+      endpoint: "https://telemetry.example.test/otlp",
+    },
+    { name: null, displayName: "alice@example.com", endpoint: undefined },
   ])("returns the account identity with display name $displayName", ({
     name,
     displayName,
+    endpoint,
   }) => {
+    configuration.endpoint = endpoint;
     const response = getRouteHandler<GetHandler>(
       Route,
       "GET",
@@ -37,6 +50,7 @@ describe("/api/cli/me", () => {
       email: "alice@example.com",
       name: displayName,
       organizationName: "Active Organization",
+      ingestEndpoint: endpoint ?? null,
     });
   });
 });

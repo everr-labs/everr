@@ -144,6 +144,7 @@ describe("dashboard layout", () => {
       },
     ];
     const status: HomeStatus = {
+      appUrl: "https://app.example.test",
       canCreateKeys: false,
       onboardingCompleted: ["dashboard", "reopened"].includes(view),
     };

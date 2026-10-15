@@ -31,7 +31,7 @@ pub enum Commands {
     /// Sign out of the selected profile
     Logout,
     /// Show the effective installation, account, and organization
-    Whoami,
+    Whoami(WhoamiArgs),
     /// Run read-only SQL against the selected installation
     Query(TelemetryQueryArgs),
     /// Manage saved connection profiles
@@ -66,9 +66,8 @@ impl Cli {
 impl Commands {
     fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
         match self {
-            Commands::Login(_) | Commands::Logout | Commands::Whoami | Commands::Profiles(_) => {
-                true
-            }
+            Commands::Login(_) | Commands::Logout | Commands::Profiles(_) => true,
+            Commands::Whoami(args) => !args.json,
             Commands::Query(args) => telemetry_query_prints_human_stdout(args, stdout_is_terminal),
             Commands::Uninstall => true,
             Commands::Upgrade => true,
@@ -332,9 +331,19 @@ pub struct LoginArgs {
     /// Installation URL (defaults to the project target or Everr Cloud)
     #[arg(long)]
     pub url: Option<String>,
+    /// Require approval for this organization (must agree with existing configuration)
+    #[arg(long)]
+    pub organization_id: Option<String>,
     /// Print the authorization URL without opening a browser
     #[arg(long)]
     pub no_open: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct WhoamiArgs {
+    /// Print connection metadata as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args, Debug)]
@@ -1083,6 +1092,8 @@ mod tests {
 
     #[test]
     fn update_notice_is_skipped_for_stream_and_json_commands() {
+        let cli = Cli::try_parse_from(["everr", "whoami", "--json"]).expect("whoami JSON command");
+        assert!(!cli.prints_human_stdout(true));
         let cli =
             Cli::try_parse_from(["everr", "wrap", "--", "echo", "hello"]).expect("wrap command");
         assert!(!cli.prints_human_stdout(true));

@@ -26,6 +26,8 @@ export default defineConfig(({ mode }) => ({
       "src/routes/-authenticated-guard.test.ts",
       "src/routes/_authenticated/_organization/device.test.tsx",
       "src/routes/_authenticated/_dashboard/_padded/-account.test.tsx",
+      "src/routes/api/cli/me.test.ts",
+      "src/components/home/home-experience.test.tsx",
       "src/routes/api/internal/verify-key.test.ts",
     ] : configDefaults.include,
     exclude: [...configDefaults.exclude, ...(mode === "self-hosted" ? [] : ["src/self-hosted/**"])],

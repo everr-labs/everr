@@ -176,6 +176,8 @@ function HomeContent({
 
   const view = homeView(status, setupRequested);
   const busy = complete.isPending;
+  const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  const loginCommand = `everr login --url ${shellQuote(status.appUrl)} --organization-id ${shellQuote(organizationId)}`;
 
   async function finish() {
     try {
@@ -447,6 +449,19 @@ function HomeContent({
             While local telemetry is sent to Everr Local, production telemetry
             should be sent to this workspace.
           </p>
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Connect your repository</h3>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Run this from your project root and approve the login in your
+              browser. The CLI saves this workspace as the repository's target
+              for future queries and agent sessions. Exporters use a separate
+              ingestion key.
+            </p>
+            <CopyBlock
+              text={loginCommand}
+              label="Copy workspace login command"
+            />
+          </div>
           <div className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
               Configure your production app's OpenTelemetry exporter with the

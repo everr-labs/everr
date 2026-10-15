@@ -95,6 +95,13 @@ configuration. Subsequent `everr login`, `everr query`, `everr resources`, and
 command. See [CLI profiles](../packages/cli/README.md#installations-organizations-and-profiles)
 for managing multiple installations, organizations, and accounts.
 
+Onboarding can copy a command that also includes `--organization-id` to pin the
+workspace during approval. For instrumentation setup, `everr whoami --json`
+advertises the configured `EVERR_PUBLIC_INGEST_URL` as `ingestEndpoint`. Save that
+endpoint in the application's exporter configuration, with an ingestion key for
+the same workspace. The repository target and credentials persist across agent
+sessions; ordinary queries do not require endpoint discovery.
+
 ### Manage the stack
 
 ```sh

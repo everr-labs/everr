@@ -73,11 +73,14 @@ fn login_from_subdirectory_creates_project_target_and_global_profile_after_authe
             "acme",
             "--url",
             &server.url(),
+            "--organization-id",
+            "org-acme",
             "--no-open",
         ])
         .assert()
         .success()
-        .stdout(contains("Profile: acme"));
+        .stdout(contains("Profile: acme"))
+        .stdout(contains("organization_id=org-acme"));
     for request in requests {
         request.assert();
     }
@@ -95,6 +98,31 @@ fn login_from_subdirectory_creates_project_target_and_global_profile_after_authe
         env.profile_store().session("acme").unwrap().unwrap().token,
         "new-token"
     );
+    let identity = server.mock("GET", "/api/cli/me")
+        .match_header("authorization", "Bearer new-token")
+        .match_header("x-everr-organization-id", "org-acme")
+        .with_body(r#"{"userId":"alice","email":"alice@example.test","name":"Alice","organizationId":"org-acme","organizationName":"Acme","ingestEndpoint":"https://telemetry.example.test"}"#)
+        .create();
+    let output = env
+        .command()
+        .current_dir(&nested)
+        .args(["whoami", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let connection: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(connection["profile"], "acme");
+    assert_eq!(connection["selectionSource"], "project configuration");
+    assert_eq!(connection["url"], server.url());
+    assert_eq!(connection["organizationId"], "org-acme");
+    assert_eq!(
+        connection["ingestEndpoint"],
+        "https://telemetry.example.test"
+    );
+    assert!(!String::from_utf8(output).unwrap().contains("new-token"));
+    identity.assert();
     let resources = server
         .mock("GET", "/api/cli/resources")
         .match_query(Matcher::Any)
@@ -138,29 +166,50 @@ fn denied_login_leaves_no_project_configuration_or_credentials() {
 }
 
 #[test]
-fn login_uses_existing_project_target_and_rejects_wrong_organization_without_changing_it() {
-    let env = CliTestEnv::new();
-    let mut server = Server::new();
-    let root = project(&env, &server.url(), "org-expected");
-    let requests = login_server(&mut server, "org-wrong", "alice", 200);
-    env.command()
-        .current_dir(&root)
-        .args(["login", "--no-open"])
-        .assert()
-        .failure()
-        .stderr(contains("approved organization differs"));
-    for request in requests {
-        request.assert();
+fn login_rejects_wrong_organizations_pinned_by_project_or_flag_without_changing_configuration() {
+    for existing_project in [true, false] {
+        let env = CliTestEnv::new();
+        let mut server = Server::new();
+        let root = if existing_project {
+            project(&env, &server.url(), "org-expected")
+        } else {
+            let root = env.home_dir.join("project");
+            std::fs::create_dir_all(root.join(".git")).unwrap();
+            root
+        };
+        let requests = login_server(&mut server, "org-wrong", "alice", 200);
+        let revoke = server
+            .mock("POST", "/api/auth/sign-out")
+            .match_header("authorization", "Bearer new-token")
+            .with_body("{}")
+            .create();
+        let mut command = env.command();
+        command.current_dir(&root).args(["login", "--no-open"]);
+        if !existing_project {
+            command.args(["--url", &server.url(), "--organization-id", "org-expected"]);
+        }
+        command
+            .assert()
+            .failure()
+            .stderr(contains("approved organization differs"));
+        for request in requests {
+            request.assert();
+        }
+        revoke.assert();
+        let discovered = Project::discover(&root).unwrap().target;
+        if existing_project {
+            assert_eq!(discovered.unwrap().organization_id, "org-expected");
+            env.command()
+                .current_dir(&root)
+                .args(["login", "--organization-id", "org-other", "--no-open"])
+                .assert()
+                .failure()
+                .stderr(contains("requested organization differs"));
+        } else {
+            assert!(discovered.is_none());
+        }
+        assert!(env.profile_store().load().unwrap().profiles.is_empty());
     }
-    assert_eq!(
-        Project::discover(&root)
-            .unwrap()
-            .target
-            .unwrap()
-            .organization_id,
-        "org-expected"
-    );
-    assert!(env.profile_store().load().unwrap().profiles.is_empty());
 }
 
 #[test]
@@ -406,7 +455,7 @@ fn legacy_session_is_migrated_using_authenticated_server_identity() {
     let mut server = Server::new();
     env.write_legacy_session(&server.url(), "legacy-token");
     let me = server.mock("GET", "/api/cli/me").match_header("authorization", "Bearer legacy-token")
-        .with_body(r#"{"email":"alice@example.test","name":"Alice","userId":"alice","organizationId":"org-work","organizationName":"Work"}"#).create();
+        .with_body(r#"{"email":"alice@example.test","name":"Alice","userId":"alice","organizationId":"org-work","organizationName":"Work"}"#).expect(2).create();
     let resources = server
         .mock("GET", "/api/cli/resources")
         .match_query(Matcher::Any)
@@ -415,7 +464,6 @@ fn legacy_session_is_migrated_using_authenticated_server_identity() {
         .with_body("[]")
         .create();
     env.command().args(["resources", "list"]).assert().success();
-    me.assert();
     resources.assert();
     assert_eq!(
         env.profile_store().load().unwrap().profiles["default"]
@@ -424,6 +472,24 @@ fn legacy_session_is_migrated_using_authenticated_server_identity() {
         "org-work"
     );
     assert!(!env.session_path().exists());
+    let output = env
+        .command()
+        .args(["whoami", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let connection: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(connection["profile"], "default");
+    assert!(connection["ingestEndpoint"].is_null());
+    assert!(
+        connection
+            .as_object()
+            .unwrap()
+            .contains_key("ingestEndpoint")
+    );
+    me.assert();
 }
 
 #[test]

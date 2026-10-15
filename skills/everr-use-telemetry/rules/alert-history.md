@@ -1,6 +1,6 @@
 # Alert History (`alert_events`)
 
-Alert history is cloud only. `everr cloud query` reads it; `everr local query`
+Alert history is available on remote installations. `everr query` reads it; `everr local query`
 has no such table, because alerting does not run locally.
 
 One row per thing that happened to an alert: an evaluation, a state
@@ -15,7 +15,7 @@ incident in timestamp order with no join.
    is about a preview, or on a point lookup by `notification_event_id`: the
    id already pins one chain, live or preview, and the filter would hide a
    preview chain you asked for by id.
-2. **Always carry a `LIMIT`.** The cloud result cap throws rather than
+2. **Always carry a `LIMIT`.** The remote result cap throws rather than
    truncates, so a large query without a limit fails.
 3. **Never filter `tenant_id`.** A row policy already scopes every read to
    your organization. Adding the predicate cannot widen a result, and getting

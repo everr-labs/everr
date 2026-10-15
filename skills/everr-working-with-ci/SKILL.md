@@ -5,15 +5,11 @@ description: Use when a task mentions CI, GitHub Actions, workflow runs, checks,
 
 ## Startup Access
 
-Before using the everr CLI, request for the smallest sandbox access that lets Everr commands work:
-
-- Filesystem read: `~/Library/Application Support/everr/session.json`, `~/Library/Application Support/everr/session-dev.json`, and their parent directory.
-- Local network: `127.0.0.1`, `localhost`, and the ports 54318, 54320, 54418, 54420.
-- Production network: `https://app.everr.dev`
-
-If the current tool cannot ask for a blanket permission grant, request scoped command approvals before the first Everr command instead of trying a sandboxed command that is expected to fail.
+Use the CLI's saved project target and global profiles. Run commands with the access already available; request scoped access if the sandbox blocks the selected installation, local collector, or CLI configuration directory. The CLI manages credentials. Keep credential contents out of tool output and project files.
 
 # Working With CI Using Everr
+
+The CLI uses the repository's `.everr/config.yaml` target and matching global credentials, with `--profile` and `EVERR_PROFILE` overrides. Reuse this connection across agent sessions. Use `everr whoami --json` for target troubleshooting or the effective UI URL, and follow profile-specific login hints if authentication expires.
 
 From the repository root, run `everr ci status` to check the current commit's pipeline state. Use Everr's structured GitHub Actions data for workflow logs, test output in step logs, and pipeline timing before `gh`, the GitHub UI, memory, or pasted logs.
 
@@ -24,7 +20,7 @@ If Everr fails, capture the exact command and error, then investigate wrong repo
 1. Identify the target: current branch/commit, PR branch, run id, workflow, job, or time range.
 2. Check status or runs before logs: current commit with `everr ci status`, known commit with `everr ci status --commit <sha>`, known run with `everr ci status --run-id <id>`, or branch with `everr ci runs --current-branch`.
 3. Drill down: run -> `everr ci show <trace_id> --failed` -> `everr ci logs <trace_id> --job-name <job> --log-failed`.
-4. For flaky, slow, or repeated failures, compare history with `everr ci runs` and `everr cloud query`; one run or log is not proof.
+4. For flaky, slow, or repeated failures, compare history with `everr ci runs` and `everr query`; one run or log is not proof.
 5. If Everr errors, diagnose that failure before using `gh`.
 6. Explain the signal, make or recommend the smallest fix, then watch: `everr ci watch --fail-fast` or `everr ci watch --run-id <id> --fail-fast`.
 
@@ -39,19 +35,19 @@ If Everr fails, capture the exact command and error, then investigate wrong repo
 | Only failed jobs and steps | `everr ci show <trace_id> --failed` |
 | Logs for a step | `everr ci logs <trace_id> --job-name <job> --step-number <n>` |
 | First failed step logs | `everr ci logs <trace_id> --job-name <job> --log-failed` |
-| Historical CI and test-log analysis | `everr cloud query "<SQL>"` |
+| Historical CI and test-log analysis | `everr query "<SQL>"` |
 
 Useful flags: `--branch`, `--current-branch`, `--conclusion`, `--workflow-name`, and `--run-id` narrow runs; `--job-id` is safer than `--job-name`; `--egrep` filters logs; `--tail`, `--limit`, and `--offset` page large logs.
 
 ## Historical Queries
 
-Use `everr cloud query "<SQL>"` when the answer needs history, comparison, or aggregation: recurring test failures in step logs, slow jobs, retries, failure rates, or "real regression?" questions. Start with `traces` for runs, jobs, and steps; `logs` for step and test output; and metrics tables for resource signals.
+Use `everr query "<SQL>"` when the answer needs history, comparison, or aggregation: recurring test failures in step logs, slow jobs, retries, failure rates, or "real regression?" questions. Start with `traces` for runs, jobs, and steps; `logs` for step and test output; and metrics tables for resource signals.
 
 Always include a time filter, scoped repo/branch/run/workflow/job filters when known, and a `LIMIT` under 1000. Filter test names or failure text in `logs`, not `traces`. For CI trace queries, include `ServiceName = 'github-actions'`. Do not add tenant filters or `PREWHERE`.
 
 ## Querying The Everr DB
 
-Run read-only ClickHouse SQL with `everr cloud query "<SQL>"`. Use `SHOW TABLES`, `DESCRIBE TABLE traces`, or `DESCRIBE TABLE logs` when unsure about columns. Cloud CI data usually starts in `traces`; step log lines are in `logs`; metrics are in `metrics_gauge` and `metrics_sum`.
+Run read-only ClickHouse SQL with `everr query "<SQL>"`. Use `SHOW TABLES`, `DESCRIBE TABLE traces`, or `DESCRIBE TABLE logs` when unsure about columns. CI data usually starts in `traces`; step log lines are in `logs`; metrics are in `metrics_gauge` and `metrics_sum`.
 
 Everr CI follows OpenTelemetry semantic conventions where they exist. The conventions used in CI data include:
 - `service.name` as `ServiceName` (`github-actions`)

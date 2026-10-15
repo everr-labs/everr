@@ -562,6 +562,8 @@ pub struct MeResponse {
     pub organization_id: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub user_id: String,
+    #[serde(default)]
+    pub ingest_endpoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -666,6 +668,7 @@ mod api_client_tests {
         assert_eq!(identity.email, "user@example.test");
         assert_eq!(identity.name, "Test User");
         assert_eq!(identity.organization_name, "Test Org");
+        assert_eq!(identity.ingest_endpoint, None);
         mock.assert_async().await;
     }
 

@@ -2,6 +2,7 @@ import { getIngestEndpoint } from "@app/ingest";
 import { z } from "zod";
 import type { HomeStatus } from "@/common/onboarding";
 import { db } from "@/db/client";
+import { env } from "@/env";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { createOnboardingStore } from "./store";
 
@@ -32,6 +33,7 @@ export const getHomeStatus = createAuthenticatedServerFn({ method: "GET" })
         ),
       )),
       ingestEndpoint: getIngestEndpoint(),
+      appUrl: env.BETTER_AUTH_URL,
     }),
   );
 

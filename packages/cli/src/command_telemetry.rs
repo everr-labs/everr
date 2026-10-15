@@ -270,7 +270,7 @@ impl CommandTelemetry {
         let (command, subcommand) = match &cli.command {
             Commands::Login(_) => ("login", None),
             Commands::Logout => ("logout", None),
-            Commands::Whoami => ("whoami", None),
+            Commands::Whoami(_) => ("whoami", None),
             Commands::Query(_) => ("query", None),
             Commands::Profiles(args) => (
                 "profiles",

@@ -271,6 +271,7 @@ mod tests {
             .await;
         let (_dir, auth, store) = test_auth(server.url());
         let other_identity = MeResponse {
+            ingest_endpoint: None,
             user_id: "other-user".into(),
             email: "other@example.test".into(),
             name: "Other".into(),
@@ -336,7 +337,7 @@ mod tests {
         let (name, saved_profile, mut session) = auth.login.session().unwrap().unwrap();
         session.token = "cli-refreshed-token".into();
         store.save(&name, saved_profile, session).unwrap();
-        let user = json!({"email":"user@example.test", "name":"Test User", "organizationName":"Test Org", "userId":"user-test", "organizationId":"org-test"});
+        let user = json!({"email":"user@example.test", "name":"Test User", "organizationName":"Test Org", "userId":"user-test", "organizationId":"org-test", "ingestEndpoint":null});
         assert_eq!(
             serde_json::to_value(auth.user_profile().await.unwrap()).unwrap(),
             user
