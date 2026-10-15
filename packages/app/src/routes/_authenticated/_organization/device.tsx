@@ -1,8 +1,16 @@
 import { Button } from "@everr/ui/components/button";
+import { Label } from "@everr/ui/components/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@everr/ui/components/select";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
-import { getActiveOrganization } from "@/data/auth";
+import { getOrganizations } from "@/data/auth";
 import { approveDevice, denyDevice } from "@/lib/device-auth";
 
 export const Route = createFileRoute("/_authenticated/_organization/device")({
@@ -14,9 +22,7 @@ export const Route = createFileRoute("/_authenticated/_organization/device")({
     code: search.user_code,
   }),
   loader: async ({ deps, context: { session } }) => {
-    const orgName = await getActiveOrganization()
-      .then((org) => org?.name ?? null)
-      .catch(() => null);
+    const organizations = await getOrganizations();
 
     const firstName =
       session.user.name?.split(" ")[0] ?? session.user.email.split("@")[0];
@@ -24,7 +30,8 @@ export const Route = createFileRoute("/_authenticated/_organization/device")({
     return {
       deviceCode: deps.code.toUpperCase(),
       userName: firstName,
-      orgName,
+      organizations,
+      activeOrganizationId: session.session.activeOrganizationId,
     };
   },
   component: CliDeviceApprovalPage,
@@ -36,32 +43,49 @@ function formatCodeForDisplay(code: string): string {
 }
 
 function CliDeviceApprovalPage() {
-  const { deviceCode, userName, orgName } = Route.useLoaderData();
+  const { deviceCode, userName, organizations, activeOrganizationId } =
+    Route.useLoaderData();
+  const [selection, setSelection] = useState<string | null>(null);
+  const selectedOrganization =
+    organizations.find(
+      (org) => org.id === (selection ?? activeOrganizationId),
+    ) ?? organizations[0];
   const [status, setStatus] = useState<
     "idle" | "approved" | "denied" | "error"
   >("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function submit(action: "approve" | "deny") {
-    if (!deviceCode) {
+    if (!deviceCode || (action === "approve" && !selectedOrganization)) {
+      setErrorMessage("Select an organization before authorizing this device.");
       setStatus("error");
       return;
     }
 
     setIsSubmitting(true);
+    setErrorMessage(null);
 
     try {
       const result =
         action === "approve"
-          ? await approveDevice(deviceCode)
+          ? await approveDevice(deviceCode, selectedOrganization.id)
           : await denyDevice(deviceCode);
 
       if (!result.ok) {
+        setErrorMessage(result.message);
         setStatus("error");
         return;
       }
 
       setStatus(action === "approve" ? "approved" : "denied");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not authorize the device.",
+      );
+      setStatus("error");
     } finally {
       setIsSubmitting(false);
     }
@@ -74,7 +98,9 @@ function CliDeviceApprovalPage() {
           Authenticate Device
         </h1>
         <p className="text-muted-foreground mt-3 text-center text-base">
-          {orgName ? `${userName} · ${orgName}` : userName}
+          {selectedOrganization
+            ? `${userName} · ${selectedOrganization.name}`
+            : userName}
         </p>
 
         <section className="bg-background mt-10 rounded-2xl border px-6 py-10 sm:px-12">
@@ -87,6 +113,35 @@ function CliDeviceApprovalPage() {
                 Confirm this code is shown on your device
               </p>
 
+              {organizations.length > 1 ? (
+                <div className="mt-8 space-y-2">
+                  <Label htmlFor="device-organization">Organization</Label>
+                  <Select
+                    items={organizations.map((org) => ({
+                      value: org.id,
+                      label: org.name,
+                    }))}
+                    value={selectedOrganization.id}
+                    onValueChange={setSelection}
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger id="device-organization" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {organizations.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground text-sm">
+                    Your device will access this organization's data.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="mt-10 grid grid-cols-2 gap-4">
                 <Button
                   variant="outline"
@@ -96,7 +151,7 @@ function CliDeviceApprovalPage() {
                   Deny
                 </Button>
                 <Button
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !selectedOrganization}
                   onClick={() => void submit("approve")}
                 >
                   Confirm
@@ -104,10 +159,11 @@ function CliDeviceApprovalPage() {
               </div>
 
               {status === "error" ? (
-                <p className="mt-4 text-center text-sm text-red-400">
-                  Invalid or expired code. Restart{" "}
-                  <code className="font-mono">everr cloud login</code> from your
-                  terminal.
+                <p
+                  role="alert"
+                  className="text-destructive mt-4 text-center text-sm"
+                >
+                  {errorMessage}
                 </p>
               ) : null}
             </>
