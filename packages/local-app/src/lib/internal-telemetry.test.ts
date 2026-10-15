@@ -194,6 +194,71 @@ describe("internal UI telemetry", () => {
     ]);
   });
 
+  it.each([
+    "logs",
+    "traces",
+  ] as const)("drops UTM attribution from release %s at every attribute level and retains it in debug", async (signal) => {
+    const safeAttributes = [
+      { key: "service.name", value: { stringValue: "everr-local-ui" } },
+    ];
+    const attributes = [
+      ...safeAttributes,
+      ...["source", "medium", "campaign", "term", "content", "future"].map(
+        (name) => ({
+          key: `everr.utm.${name}`,
+          value: { stringValue: `customer-sentinel-${name}` },
+        }),
+      ),
+    ];
+    const payload = (attrs: typeof attributes) => {
+      const resource = { attributes: attrs };
+      if (signal === "logs") {
+        return {
+          resourceLogs: [
+            { resource, scopeLogs: [{ logRecords: [{ attributes: attrs }] }] },
+          ],
+        };
+      }
+      return {
+        resourceSpans: [
+          {
+            resource,
+            scopeSpans: [
+              {
+                spans: [
+                  {
+                    attributes: attrs,
+                    events: [{ name: "test", attributes: attrs }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+    };
+    for (const deploymentEnvironment of [
+      "production",
+      "development",
+    ] as const) {
+      mocks.sdk.mockClear();
+      initializeTelemetry({
+        serviceVersion: "test",
+        telemetryEnabled: true,
+        deploymentEnvironment,
+      });
+      const options = mocks.sdk.mock.calls[0][0] as WebSDKOptions;
+      const fetch = vi.fn().mockResolvedValue({ ok: true });
+      vi.stubGlobal("fetch", fetch);
+      await options.send?.(signal, JSON.stringify(payload(attributes)));
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(
+        payload(
+          deploymentEnvironment === "production" ? safeAttributes : attributes,
+        ),
+      );
+    }
+  });
+
   it("retains local interaction diagnostics in development builds", async () => {
     initializeTelemetry({
       serviceVersion: "test",

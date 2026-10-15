@@ -79,9 +79,9 @@ pub fn command_names(cli: &Cli) -> (&'static str, Option<&'static str>) {
     (metadata.command, metadata.subcommand)
 }
 
-/// Records how the command ended. On failure the full anyhow context chain
-/// is attached, which names the step that broke (each fallible step in the
-/// command implementations carries its own context label).
+/// Records how the command ended. Debug builds attach the full anyhow context
+/// chain on failure, naming the step that broke. Release builds use a fixed
+/// error message to keep customer data out of internal telemetry.
 pub fn record_result(
     command: &'static str,
     subcommand: Option<&'static str>,
