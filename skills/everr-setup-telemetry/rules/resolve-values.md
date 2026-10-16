@@ -49,7 +49,7 @@ Check in order:
 2. Monorepo grouping directory, such as `apps/web/checkout`.
 3. Product or organization prefix if the repository naming makes it obvious.
 
-Omit `service.namespace` if the project has no real grouping concept.
+Ask explicitly for `service.namespace` if the project has no real grouping concept. In any case, show the final value to the user in the implementation plan.
 
 ## `service.instance.id`
 

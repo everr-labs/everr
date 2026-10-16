@@ -22,6 +22,19 @@ document:
     variables:
       - kind: ListVariable
         spec:
+          name: namespace
+          display:
+            name: Namespace
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') AS namespace FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY namespace
+      - kind: ListVariable
+        spec:
           name: service
           display:
             name: Service
@@ -53,7 +66,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS calls
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
                       GROUP BY ts
                       ORDER BY ts
       error-rate:
@@ -85,7 +98,7 @@ document:
                     query: |-
                       SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
       p95-latency:
         kind: Panel
         spec:
@@ -107,7 +120,7 @@ document:
                     query: |-
                       SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
       p99-latency:
         kind: Panel
         spec:
@@ -129,7 +142,7 @@ document:
                     query: |-
                       SELECT round(quantile(0.99)(Duration) / 1000000, 1) AS p99
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
       by-status:
         kind: Panel
         spec:
@@ -152,9 +165,9 @@ document:
                              toString(SpanAttributes.`rpc.response.status_code`) AS status_code,
                              count() AS calls
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server' AND toString(SpanAttributes.`rpc.response.status_code`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server' AND toString(SpanAttributes.`rpc.response.status_code`) != ''
                         AND toString(SpanAttributes.`rpc.response.status_code`) IN (
-                        SELECT toString(SpanAttributes.`rpc.response.status_code`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server' AND toString(SpanAttributes.`rpc.response.status_code`) != ''
+                        SELECT toString(SpanAttributes.`rpc.response.status_code`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server' AND toString(SpanAttributes.`rpc.response.status_code`) != ''
                         GROUP BY toString(SpanAttributes.`rpc.response.status_code`) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, status_code
@@ -181,9 +194,9 @@ document:
                              coalesce(nullIf(toString(SpanAttributes.`rpc.method`), ''), SpanName) AS method,
                              count() AS calls
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
                         AND coalesce(nullIf(toString(SpanAttributes.`rpc.method`), ''), SpanName) IN (
-                        SELECT coalesce(nullIf(toString(SpanAttributes.`rpc.method`), ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                        SELECT coalesce(nullIf(toString(SpanAttributes.`rpc.method`), ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
                         GROUP BY coalesce(nullIf(toString(SpanAttributes.`rpc.method`), ''), SpanName) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, method
@@ -210,9 +223,9 @@ document:
                              coalesce(nullIf(toString(SpanAttributes.`rpc.method`), ''), SpanName) AS method,
                              round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
                         AND coalesce(nullIf(toString(SpanAttributes.`rpc.method`), ''), SpanName) IN (
-                        SELECT coalesce(nullIf(toString(SpanAttributes.`rpc.method`), ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                        SELECT coalesce(nullIf(toString(SpanAttributes.`rpc.method`), ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
                         GROUP BY coalesce(nullIf(toString(SpanAttributes.`rpc.method`), ''), SpanName) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, method
@@ -239,9 +252,9 @@ document:
                              toString(SpanAttributes.`rpc.system.name`) AS rpc_system,
                              count() AS calls
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
                         AND toString(SpanAttributes.`rpc.system.name`) IN (
-                        SELECT toString(SpanAttributes.`rpc.system.name`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                        SELECT toString(SpanAttributes.`rpc.system.name`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
                         GROUP BY toString(SpanAttributes.`rpc.system.name`) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, rpc_system
@@ -270,7 +283,7 @@ document:
                              round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
                              round(quantile(0.99)(Duration) / 1000000, 1) AS p99_ms
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
                       GROUP BY method, rpc_system
                       ORDER BY p95_ms DESC
                       LIMIT 30
@@ -295,9 +308,9 @@ document:
                              toString(SpanAttributes.`rpc.system.name`) AS rpc_system,
                              count() AS calls,
                              round(sum(Duration) / 1000000000, 2) AS total_seconds,
-                             round(sum(Duration) / (SELECT sum(Duration) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server') * 100, 1) AS share_pct
+                             round(sum(Duration) / (SELECT sum(Duration) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server') * 100, 1) AS share_pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
                       GROUP BY method, rpc_system
                       ORDER BY total_seconds DESC
                       LIMIT 30
@@ -324,7 +337,7 @@ document:
                              anyIf(toString(SpanAttributes.`rpc.response.status_code`), StatusCode = 'Error' AND toString(SpanAttributes.`rpc.response.status_code`) != '') AS sample_status,
                              anyIf(toString(SpanAttributes.`error.type`), toString(SpanAttributes.`error.type`) != '') AS sample_error
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Server'
                       GROUP BY method
                       HAVING errors > 0
                       ORDER BY errors DESC
@@ -348,7 +361,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS calls
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
                       GROUP BY ts
                       ORDER BY ts
       outbound-errors:
@@ -380,7 +393,7 @@ document:
                     query: |-
                       SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
       outbound-p95:
         kind: Panel
         spec:
@@ -402,7 +415,7 @@ document:
                     query: |-
                       SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
       outbound-by-peer:
         kind: Panel
         spec:
@@ -424,9 +437,9 @@ document:
                              coalesce(nullIf(toString(SpanAttributes.`server.address`), ''), SpanName) AS peer,
                              count() AS calls
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
                         AND coalesce(nullIf(toString(SpanAttributes.`server.address`), ''), SpanName) IN (
-                        SELECT coalesce(nullIf(toString(SpanAttributes.`server.address`), ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
+                        SELECT coalesce(nullIf(toString(SpanAttributes.`server.address`), ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
                         GROUP BY coalesce(nullIf(toString(SpanAttributes.`server.address`), ''), SpanName) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, peer
@@ -452,9 +465,9 @@ document:
                              toString(SpanAttributes.`rpc.response.status_code`) AS status_code,
                              count() AS calls
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client' AND toString(SpanAttributes.`rpc.response.status_code`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client' AND toString(SpanAttributes.`rpc.response.status_code`) != ''
                         AND toString(SpanAttributes.`rpc.response.status_code`) IN (
-                        SELECT toString(SpanAttributes.`rpc.response.status_code`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client' AND toString(SpanAttributes.`rpc.response.status_code`) != ''
+                        SELECT toString(SpanAttributes.`rpc.response.status_code`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client' AND toString(SpanAttributes.`rpc.response.status_code`) != ''
                         GROUP BY toString(SpanAttributes.`rpc.response.status_code`) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, status_code
@@ -483,7 +496,7 @@ document:
                              round(avg(Duration) / 1000000, 1) AS avg_ms,
                              round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`rpc.system.name`) != '' AND SpanKind = 'Client'
                       GROUP BY peer, method
                       ORDER BY calls DESC
                       LIMIT 30
