@@ -1,6 +1,7 @@
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { completeSetup } from "@/app/setup";
@@ -12,9 +13,20 @@ export const Route = createFileRoute("/_welcome/setup")({
 });
 
 function SetupPage() {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState(false);
+  const setup = useMutation({
+    mutationFn: async (data: Parameters<typeof completeSetup>[0]["data"]) => {
+      await completeSetup({ data });
+      setCreated(true);
+      const result = await authClient.signIn.email({
+        email: data.email,
+        password: data.password,
+      });
+      if (result.error)
+        throw new Error("Workspace created. Please sign in to continue.");
+      window.location.assign("/");
+    },
+  });
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-10 lg:py-16">
       <div className="w-full max-w-sm space-y-6">
@@ -36,39 +48,16 @@ function SetupPage() {
         ) : (
           <form
             className="space-y-4"
-            onSubmit={async (event) => {
+            onSubmit={(event) => {
               event.preventDefault();
-              if (pending) return;
+              if (setup.isPending) return;
               const fields = new FormData(event.currentTarget);
-              const data = {
+              setup.mutate({
                 workspaceName: String(fields.get("workspaceName") ?? ""),
                 name: String(fields.get("name") ?? ""),
                 email: String(fields.get("email") ?? ""),
                 password: String(fields.get("password") ?? ""),
-              };
-              setPending(true);
-              setError(null);
-              try {
-                await completeSetup({ data });
-                setCreated(true);
-                const result = await authClient.signIn.email({
-                  email: data.email,
-                  password: data.password,
-                });
-                if (result.error)
-                  throw new Error(
-                    "Workspace created. Please sign in to continue.",
-                  );
-                window.location.assign("/");
-              } catch (cause) {
-                setError(
-                  cause instanceof Error
-                    ? cause.message
-                    : "Setup failed. Please try again.",
-                );
-              } finally {
-                setPending(false);
-              }
+              });
             }}
           >
             <div className="space-y-2">
@@ -117,15 +106,17 @@ function SetupPage() {
                 At least 8 characters.
               </p>
             </div>
-            <Button type="submit" className="w-full" disabled={pending}>
-              {pending ? "Setting up..." : "Create workspace"}
+            <Button type="submit" className="w-full" disabled={setup.isPending}>
+              {setup.isPending ? "Setting up..." : "Create workspace"}
             </Button>
           </form>
         )}
-        {error && (
+        {setup.error && (
           <div className="space-y-3">
             <p role="alert" className="text-sm text-destructive">
-              {error}
+              {setup.error instanceof Error
+                ? setup.error.message
+                : "Setup failed. Please try again."}
             </p>
             {!created && (
               <p className="text-sm text-muted-foreground">

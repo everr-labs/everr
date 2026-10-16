@@ -1,13 +1,12 @@
 import { assertStorageReady } from "@app/storage-readiness";
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
-import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { member, organization as organizationTable } from "@/db/schema";
 import { auth } from "@/lib/auth.server";
 import {
   assertOrganizationTarget,
   organizationTargetErrorResponse,
 } from "@/lib/cli-target";
+import { findOrganizationForMember } from "@/lib/organization-membership.server";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { getSession } from "@/lib/session.server";
 import { createClickhouseQuery } from "./clickhouse";
@@ -41,21 +40,11 @@ export const requireOrgMiddleware = createMiddleware()
       throw organizationTargetErrorResponse(error) ?? error;
     }
 
-    const [organization] = await db
-      .select({
-        id: organizationTable.id,
-        name: organizationTable.name,
-        metadata: organizationTable.metadata,
-      })
-      .from(organizationTable)
-      .innerJoin(member, eq(member.organizationId, organizationTable.id))
-      .where(
-        and(
-          eq(organizationTable.id, activeOrgId),
-          eq(member.userId, session.user.id),
-        ),
-      )
-      .limit(1);
+    const organization = await findOrganizationForMember(
+      db,
+      session.user.id,
+      activeOrgId,
+    );
     if (!organization)
       throw new Error("Not a member of the active organization");
 

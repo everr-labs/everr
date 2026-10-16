@@ -1,6 +1,5 @@
-import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { member, organization as organizationTable } from "@/db/schema";
+import { findOrganizationForMember } from "@/lib/organization-membership.server";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
 
 export const getActiveOrganizationAccess = createPartiallyAuthenticatedServerFn(
@@ -10,18 +9,15 @@ export const getActiveOrganizationAccess = createPartiallyAuthenticatedServerFn(
 ).handler(async ({ context: { session } }) => {
   const activeOrgId = session.session.activeOrganizationId;
   if (!activeOrgId) return { status: "missing" as const };
-  const [organization] = await db
-    .select({ id: organizationTable.id, metadata: organizationTable.metadata })
-    .from(organizationTable)
-    .innerJoin(member, eq(member.organizationId, organizationTable.id))
-    .where(
-      and(
-        eq(organizationTable.id, activeOrgId),
-        eq(member.userId, session.user.id),
-      ),
-    )
-    .limit(1);
+  const organization = await findOrganizationForMember(
+    db,
+    session.user.id,
+    activeOrgId,
+  );
   return organization
-    ? { status: "available" as const, organization }
+    ? {
+        status: "available" as const,
+        organization: { id: organization.id, metadata: organization.metadata },
+      }
     : { status: "missing" as const };
 });

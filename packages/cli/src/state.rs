@@ -22,49 +22,39 @@ struct SessionFile {
 /// Reads and removes the pre-profile session file during migration.
 #[derive(Debug, Clone)]
 pub struct LegacySessionStore {
-    namespace: String,
-    directory: Option<PathBuf>,
+    directory: PathBuf,
+}
+
+pub(crate) fn user_config_directory() -> Result<PathBuf> {
+    if let Some(directory) = std::env::var_os("EVERR_CONFIG_DIR") {
+        let directory = PathBuf::from(directory);
+        if !directory.is_absolute() {
+            bail!("EVERR_CONFIG_DIR must be an absolute path");
+        }
+        return Ok(directory);
+    }
+    Ok(dirs::config_dir()
+        .context("failed to resolve user config dir")?
+        .join(build::session_namespace()))
 }
 
 impl LegacySessionStore {
-    pub fn for_namespace(namespace: impl Into<String>) -> Self {
-        Self {
-            namespace: namespace.into(),
-            directory: None,
-        }
-    }
-
     pub fn at(directory: impl Into<PathBuf>) -> Self {
         Self {
-            namespace: String::new(),
-            directory: Some(directory.into()),
+            directory: directory.into(),
         }
     }
 
-    pub fn user() -> Self {
-        Self::for_namespace(build::session_namespace())
+    pub fn user() -> Result<Self> {
+        Ok(Self::at(user_config_directory()?))
     }
 
-    pub fn session_file_path(&self) -> Result<PathBuf> {
-        if let Some(directory) = &self.directory {
-            return Ok(directory.join(build::default_session_file_name()));
-        }
-
-        if let Some(directory) = std::env::var_os("EVERR_CONFIG_DIR") {
-            let directory = PathBuf::from(directory);
-            if !directory.is_absolute() {
-                bail!("EVERR_CONFIG_DIR must be an absolute path");
-            }
-            return Ok(directory.join(build::default_session_file_name()));
-        }
-        let config_dir = dirs::config_dir().context("failed to resolve user config dir")?;
-        Ok(config_dir
-            .join(&self.namespace)
-            .join(build::default_session_file_name()))
+    pub fn session_file_path(&self) -> PathBuf {
+        self.directory.join(build::default_session_file_name())
     }
 
     fn load_file(&self) -> Result<SessionFile> {
-        let path = self.session_file_path()?;
+        let path = self.session_file_path();
         if !path.exists() {
             return Ok(SessionFile::default());
         }
@@ -101,13 +91,13 @@ impl LegacySessionStore {
             return Ok(false);
         }
 
-        fs::remove_file(self.session_file_path()?)?;
+        fs::remove_file(self.session_file_path())?;
         Ok(true)
     }
 
     /// Deletes the session file entirely, including malformed files.
     pub fn wipe(&self) -> Result<()> {
-        let path = self.session_file_path()?;
+        let path = self.session_file_path();
         if path.exists() {
             fs::remove_file(&path)
                 .with_context(|| format!("failed to remove {}", path.display()))?;
@@ -116,7 +106,7 @@ impl LegacySessionStore {
     }
 
     fn acquire_lock(&self) -> Result<fs::File> {
-        let lock_path = self.session_file_path()?.with_extension("lock");
+        let lock_path = self.session_file_path().with_extension("lock");
         if let Some(parent) = lock_path.parent() {
             fs::create_dir_all(parent)
                 .with_context(|| format!("failed to create {}", parent.display()))?;
@@ -145,7 +135,7 @@ mod tests {
     }
 
     fn write_fixture(store: &LegacySessionStore, value: serde_json::Value) {
-        let path = store.session_file_path().unwrap();
+        let path = store.session_file_path();
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, value.to_string()).unwrap();
     }
@@ -185,7 +175,7 @@ mod tests {
         with_temp_config_home(|store| {
             write_fixture(&store, json!({"session": session()}));
             assert!(store.clear_session().unwrap());
-            assert!(!store.session_file_path().unwrap().exists());
+            assert!(!store.session_file_path().exists());
             assert!(!store.clear_session().unwrap());
         });
     }
@@ -205,7 +195,7 @@ mod tests {
             std::env::set_var("XDG_CONFIG_HOME", &config_home);
         }
 
-        let store = LegacySessionStore::for_namespace("everr");
+        let store = LegacySessionStore::user().unwrap();
         test(store);
 
         match original_home {

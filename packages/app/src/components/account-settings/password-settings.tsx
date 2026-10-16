@@ -8,16 +8,23 @@ import {
 } from "@everr/ui/components/card";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
+const defaultValues = {
+  currentPassword: "",
+  newPassword: "",
+  confirmation: "",
+};
+
 export function PasswordSettings({ hasPassword }: { hasPassword: boolean }) {
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
   const change = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({
+      currentPassword,
+      newPassword,
+      confirmation,
+    }: typeof defaultValues) => {
       if (newPassword !== confirmation) {
         throw new Error("New passwords do not match.");
       }
@@ -31,11 +38,11 @@ export function PasswordSettings({ hasPassword }: { hasPassword: boolean }) {
           result.error.message ?? "Could not change your password.",
         );
     },
-    onSuccess: () => {
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmation("");
-    },
+  });
+  const form = useForm({
+    defaultValues,
+    onSubmit: ({ value, formApi }) =>
+      change.mutate(value, { onSuccess: () => formApi.reset() }),
   });
 
   return (
@@ -55,53 +62,71 @@ export function PasswordSettings({ hasPassword }: { hasPassword: boolean }) {
             onSubmit={(event) => {
               event.preventDefault();
               if (change.isPending) return;
-              change.mutate();
+              void form.handleSubmit();
             }}
             onChange={() => change.reset()}
           >
-            <div className="space-y-2">
-              <Label htmlFor="current-password">Current password</Label>
-              <Input
-                id="current-password"
-                type="password"
-                autoComplete="current-password"
-                required
-                disabled={change.isPending}
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-password">New password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                minLength={8}
-                maxLength={128}
-                required
-                disabled={change.isPending}
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Use 8 to 128 characters.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm new password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                autoComplete="new-password"
-                minLength={8}
-                maxLength={128}
-                required
-                disabled={change.isPending}
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-              />
-            </div>
+            <form.Field name="currentPassword">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor="current-password">Current password</Label>
+                  <Input
+                    id="current-password"
+                    name={field.name}
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    disabled={change.isPending}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                  />
+                </div>
+              )}
+            </form.Field>
+            <form.Field name="newPassword">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New password</Label>
+                  <Input
+                    id="new-password"
+                    name={field.name}
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    maxLength={128}
+                    required
+                    disabled={change.isPending}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use 8 to 128 characters.
+                  </p>
+                </div>
+              )}
+            </form.Field>
+            <form.Field name="confirmation">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm new password</Label>
+                  <Input
+                    id="confirm-password"
+                    name={field.name}
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    maxLength={128}
+                    required
+                    disabled={change.isPending}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                  />
+                </div>
+              )}
+            </form.Field>
             {change.error && (
               <p role="alert" className="text-sm text-destructive">
                 {change.error.message}

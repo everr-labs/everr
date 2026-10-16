@@ -364,7 +364,7 @@ pub async fn logout(profile: Option<&str>) -> Result<()> {
     let Some((name, selected)) = config.select(explicit.as_deref(), &project)? else {
         // Preserve logout support for the session format used before profiles.
         let removed = if project.target.is_none() && config.profiles.is_empty() {
-            LegacySessionStore::user().clear_session()?
+            LegacySessionStore::user()?.clear_session()?
         } else {
             false
         };

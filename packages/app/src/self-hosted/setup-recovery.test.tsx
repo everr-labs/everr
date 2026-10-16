@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -19,7 +20,11 @@ beforeEach(() => {
 
 function show() {
   const Page = Route.options.component as ComponentType;
-  render(<Page />);
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <Page />
+    </QueryClientProvider>,
+  );
   for (const [label, value] of [
     ["Workspace name", "Recovery workspace"],
     ["Your name", "Owner"],

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     api::ApiClient,
-    state::{LegacySessionStore, Session},
+    state::{LegacySessionStore, Session, user_config_directory},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -203,12 +203,7 @@ pub struct ProfileStore {
 
 impl ProfileStore {
     pub fn user() -> Result<Self> {
-        Ok(Self::at(
-            LegacySessionStore::user()
-                .session_file_path()?
-                .parent()
-                .unwrap(),
-        ))
+        Ok(Self::at(user_config_directory()?))
     }
 
     pub fn at(directory: impl Into<PathBuf>) -> Self {

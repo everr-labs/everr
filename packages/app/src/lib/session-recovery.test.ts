@@ -20,7 +20,7 @@ const client = new PGlite();
 const database = drizzle(client) as unknown as Database;
 state.database = database;
 await client.exec(`
-CREATE TABLE organization (id text PRIMARY KEY);
+CREATE TABLE organization (id text PRIMARY KEY, name text NOT NULL DEFAULT '', metadata text);
 CREATE TABLE member (id text PRIMARY KEY, organization_id text REFERENCES organization(id), user_id text);
 CREATE TABLE session (id text PRIMARY KEY, user_id text, active_organization_id text, expires_at timestamp NOT NULL, updated_at timestamp NOT NULL DEFAULT now());
 `);
@@ -29,7 +29,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   await client.exec(`
     TRUNCATE member, organization, session CASCADE;
-    INSERT INTO organization VALUES ('one'), ('two'), ('three');
+    INSERT INTO organization(id) VALUES ('one'), ('two'), ('three');
     INSERT INTO session(id, user_id, active_organization_id, expires_at)
       VALUES ('session', 'user', NULL, now() + interval '1 hour');
   `);
