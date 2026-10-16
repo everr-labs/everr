@@ -25,13 +25,7 @@
 
 import type { Link, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
-import {
-  type AttrValue,
-  cleanAttribute,
-  type EmitSpan,
-  type SpanLink,
-  type SpanStatus,
-} from "./emitter.js";
+import type { AttrValue, EmitSpan, SpanLink, SpanStatus } from "./emitter.js";
 
 const ZERO_TRACE = "0".repeat(32);
 const ZERO_SPAN = "0".repeat(16);
@@ -68,16 +62,18 @@ function cleanLink(link: Link): SpanLink | undefined {
   if (!hexId(context?.traceId, 32, ZERO_TRACE)) return undefined;
   if (!hexId(context.spanId, 16, ZERO_SPAN)) return undefined;
   const flags = context.traceFlags;
-  const attributes: Record<string, AttrValue> = {};
-  for (const [key, value] of Object.entries(link.attributes ?? {})) {
-    const cleaned = cleanAttribute(value);
-    if (cleaned !== undefined) attributes[key] = cleaned;
-  }
   return {
     traceId: context.traceId,
     spanId: context.spanId,
     traceFlags: typeof flags === "number" && Number.isFinite(flags) ? flags : 0,
-    ...(Object.keys(attributes).length ? { attributes } : {}),
+    ...(link.attributes
+      ? {
+          attributes: link.attributes as Record<
+            string,
+            AttrValue | null | undefined
+          >,
+        }
+      : {}),
   };
 }
 
@@ -109,21 +105,17 @@ export function createTracer(emitSpan?: EmitSpan): Tracer {
     // UNSET until setStatus records OK or ERROR. OK sticks.
     let status: SpanStatus | undefined;
 
-    const write = (key: string, value: unknown) => {
-      const cleaned = cleanAttribute(value);
-      if (cleaned === undefined) delete attributes[key];
-      else attributes[key] = cleaned;
-    };
-
     const span: Span = {
       spanContext: () => spanContext,
       setAttribute: (key, value) => {
-        if (!ended) write(key, value);
+        if (!ended) attributes[key] = value as AttrValue;
         return span;
       },
       setAttributes: (attrs) => {
         if (!ended) {
-          for (const [key, value] of Object.entries(attrs)) write(key, value);
+          for (const [key, value] of Object.entries(attrs)) {
+            attributes[key] = value as AttrValue;
+          }
         }
         return span;
       },

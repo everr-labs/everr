@@ -12,39 +12,35 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK }",
     gzip: true,
-    // Includes span status, links, and array attributes on the shared pipeline.
-    limit: "4.4 KB",
+    limit: "4.2 KB",
   },
   {
     name: "core + public tracer",
     path: "dist/index.js",
     import: "{ WebSDK, tracer }",
     gzip: true,
-    limit: "4.5 KB",
+    limit: "4.25 KB",
   },
   {
-    // Raised with the shared span pipeline (status, links, array attributes).
     name: "core + errors",
     path: "dist/index.js",
     import: "{ WebSDK, errors }",
     gzip: true,
-    limit: "5.1 KB",
+    limit: "4.9 KB",
   },
   {
-    // Raised with the shared span pipeline (status, links, array attributes).
     name: "core + pageviews",
     path: "dist/index.js",
     import: "{ WebSDK, pageviews }",
     gzip: true,
-    limit: "4.6 KB",
+    limit: "4.35 KB",
   },
   {
-    // Raised with the shared span pipeline (status, links, array attributes).
     name: "core + interactions",
     path: "dist/index.js",
     import: "{ WebSDK, interactions }",
     gzip: true,
-    limit: "5 KB",
+    limit: "4.75 KB",
   },
   {
     // The heaviest instrumentation: the in-house web vitals (LCP/CLS/TTFB/INP)
@@ -53,7 +49,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, performance }",
     gzip: true,
-    limit: "8.35 KB",
+    limit: "8.1 KB",
   },
   {
     name: "core + network",
@@ -61,7 +57,7 @@ module.exports = [
     import: "{ WebSDK, network }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "5.65 KB",
+    limit: "5.4 KB",
   },
   {
     // All instrumentation factories composed: verifies the sampled runtime is
@@ -73,6 +69,6 @@ module.exports = [
       "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "10.6 KB",
+    limit: "10.35 KB",
   },
 ];

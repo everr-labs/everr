@@ -226,81 +226,29 @@ const EXIT_BUDGET = 64_000;
 
 export const noop = () => Promise.resolve();
 
-/**
- * Keeps a scalar or a homogeneous array. Null and undefined entries leave an
- * array. An empty array stays. A mixed array, a nested array, or any other
- * value is dropped.
- */
-export function cleanAttribute(value: unknown): AttrValue | undefined {
-  if (typeof value === "string" || typeof value === "boolean") return value;
-  if (typeof value === "number")
-    return Number.isFinite(value) ? value : undefined;
-  if (!Array.isArray(value)) return undefined;
-  const kept: Array<string | number | boolean> = [];
-  let kind: "string" | "number" | "boolean" | undefined;
-  for (const entry of value) {
-    if (entry == null) continue;
-    if (typeof entry === "string" || typeof entry === "boolean") {
-      if (kind && kind !== typeof entry) return undefined;
-      kind = typeof entry === "string" ? "string" : "boolean";
-      kept.push(entry);
-      continue;
-    }
-    if (typeof entry !== "number" || !Number.isFinite(entry)) return undefined;
-    if (kind && kind !== "number") return undefined;
-    kind = "number";
-    kept.push(entry);
-  }
-  return kept as AttrValue;
-}
-
-function toAnyValue(value: AttrValue): AnyValue | undefined {
+function toAnyValue(value: AttrValue): AnyValue {
   if (typeof value === "string") return { stringValue: value };
   if (typeof value === "boolean") return { boolValue: value };
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) return undefined;
+  if (!Array.isArray(value)) {
     return Number.isInteger(value)
       ? { intValue: String(value) }
       : { doubleValue: value };
   }
-  const values: AnyValue[] = [];
-  for (const entry of value) {
-    const encoded = toAnyValue(entry);
-    if (!encoded || "arrayValue" in encoded) return undefined;
-    values.push(encoded);
-  }
-  return { arrayValue: { values } };
+  return {
+    arrayValue: {
+      values: value.flatMap((entry) =>
+        entry == null ? [] : [toAnyValue(entry)],
+      ),
+    },
+  };
 }
 
 function toKeyValues(
   attributes: Record<string, AttrValue | null | undefined>,
 ): KeyValue[] {
-  // The code ignores a value of null and a value of undefined. Thus a caller
-  // can write an optional attribute as a usual property, and it can send a DOM
-  // getter that returns null. An array that is not homogeneous is dropped.
-  return Object.entries(attributes).flatMap(([key, value]) => {
-    const cleaned = cleanAttribute(value);
-    if (cleaned === undefined) return [];
-    const encoded = toAnyValue(cleaned);
-    return encoded ? [{ key, value: encoded }] : [];
-  });
-}
-
-function prepareAttributes(
-  attributes: Record<string, AttrValue | null | undefined> | undefined,
-): Record<string, AttrValue | null | undefined> {
-  if (!attributes) return {};
-  const prepared: Record<string, AttrValue | null | undefined> = {};
-  for (const [key, value] of Object.entries(attributes)) {
-    // Null and undefined stay, so a caller can still mask an envelope key.
-    if (value == null) {
-      prepared[key] = value;
-      continue;
-    }
-    const cleaned = cleanAttribute(value);
-    if (cleaned !== undefined) prepared[key] = cleaned;
-  }
-  return prepared;
+  return Object.entries(attributes).flatMap(([key, value]) =>
+    value == null ? [] : [{ key, value: toAnyValue(value) }],
+  );
 }
 
 /** OTLP status. Code 0 and any other code are UNSET, so the field is absent. */
@@ -508,7 +456,7 @@ export function createEmitter(
     const item = applyBeforeSend({
       kind: "log",
       eventName,
-      attributes: { ...envelope(), ...prepareAttributes(attributes) },
+      attributes: { ...envelope(), ...attributes },
       severityNumber,
       body,
     });
@@ -520,7 +468,7 @@ export function createEmitter(
       timeUnixNano: timestamp,
       severityNumber: item.severityNumber,
       eventName: item.eventName,
-      body: toAnyValue(item.body) ?? { stringValue: item.body },
+      body: toAnyValue(item.body),
       attributes: toKeyValues(item.attributes),
     });
     schedule();

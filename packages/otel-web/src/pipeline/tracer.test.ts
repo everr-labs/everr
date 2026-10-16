@@ -292,7 +292,7 @@ describe("instrumentation tracer", () => {
     expect(by("child").traceId).toBe(by("active-root").traceId);
   });
 
-  it("keeps a homogeneous array and drops a mixed one", async () => {
+  it("records array attributes", async () => {
     start();
     const span = tracer.startSpan("arrays", {
       attributes: {
@@ -313,7 +313,9 @@ describe("instrumentation tracer", () => {
       arrayValue: { values: [{ boolValue: true }, { boolValue: false }] },
     });
     expect(value("everr.empty")).toEqual({ arrayValue: { values: [] } });
-    expect(value("everr.mixed")).toBeUndefined();
+    expect(value("everr.mixed")).toEqual({
+      arrayValue: { values: [{ stringValue: "a" }, { intValue: "1" }] },
+    });
   });
 
   it("ignores name, status, and link changes after end", async () => {

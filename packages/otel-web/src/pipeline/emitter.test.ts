@@ -341,7 +341,7 @@ describe("span pipeline", () => {
     });
   });
 
-  it("ships OK, links, and a homogeneous array, and drops a mixed array", async () => {
+  it("ships OK, links, and array attributes", async () => {
     emitSpan(
       "a".repeat(32),
       "b".repeat(16),
@@ -384,9 +384,11 @@ describe("span pipeline", () => {
     expect(span.attributes.find((a) => a.key === "everr.tags")?.value).toEqual({
       arrayValue: { values: [{ stringValue: "a" }, { stringValue: "b" }] },
     });
-    expect(
-      span.attributes.find((a) => a.key === "everr.mixed"),
-    ).toBeUndefined();
+    expect(span.attributes.find((a) => a.key === "everr.mixed")?.value).toEqual(
+      {
+        arrayValue: { values: [{ stringValue: "a" }, { intValue: "1" }] },
+      },
+    );
   });
 
   it("beforeSend can change the name and the attributes of a span", async () => {
