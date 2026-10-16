@@ -48,6 +48,9 @@ type OtlpLogRecord = {
   eventName: string;
   body: AnyValue;
   attributes: KeyValue[];
+  traceId?: string;
+  spanId?: string;
+  flags?: number;
 };
 
 type OtlpLink = {
@@ -276,6 +279,10 @@ export function createEmitter(
   envelope: () => Record<string, AttrValue | null | undefined>,
   /** The hook of the host on each item. Refer to {@link BeforeSend}. */
   beforeSend?: BeforeSend,
+  /** The span active at emit time, when there is one. */
+  activeSpan?: () =>
+    | { traceId: string; spanId: string; traceFlags: number }
+    | undefined,
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
   let queue: OtlpLogRecord[] = [];
@@ -450,9 +457,11 @@ export function createEmitter(
     severityNumber = 9, // INFO
     body = eventName,
   ) => {
-    // Read this before the hook. The default is the instant emit was called,
-    // even when a host hook does synchronous work before the item is queued.
+    // Read both before the hook. The default time is the instant emit was
+    // called, even when a host hook does synchronous work before the item is
+    // queued. The span is the one active at that same instant.
     const timestamp = `${time ?? Date.now()}000000`;
+    const span = activeSpan?.();
     const item = applyBeforeSend({
       kind: "log",
       eventName,
@@ -470,6 +479,9 @@ export function createEmitter(
       eventName: item.eventName,
       body: toAnyValue(item.body),
       attributes: toKeyValues(item.attributes),
+      ...(span
+        ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags }
+        : {}),
     });
     schedule();
   };

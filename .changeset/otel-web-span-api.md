@@ -9,3 +9,5 @@ Record span status, links, array attributes, and standard timestamps on browser 
 `startTime` and `end()` accept an HrTime, a Date, or epoch milliseconds. `root: true` starts a new trace. `startSpan` without a kind is INTERNAL. `network()` still emits CLIENT spans.
 
 `addEvent` and `recordException` record nothing.
+
+A browser log emitted while a span is active carries that span's trace id, span id, and trace flags.

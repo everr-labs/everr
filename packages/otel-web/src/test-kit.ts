@@ -29,6 +29,9 @@ export type OtlpRecord = {
   eventName: string;
   body?: unknown;
   attributes: Array<{ key: string; value: Record<string, unknown> }>;
+  traceId?: string;
+  spanId?: string;
+  flags?: number;
 };
 
 export type OtlpSpan = {

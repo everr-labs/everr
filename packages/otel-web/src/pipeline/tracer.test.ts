@@ -1,6 +1,7 @@
 import type { Tracer } from "@opentelemetry/api";
 import { afterEach, describe, expect, it } from "vitest";
 import type { WebSDK } from "../client.js";
+import { logger } from "../logger.js";
 import {
   attrs,
   type OtlpBatch,
@@ -61,6 +62,47 @@ describe("instrumentation tracer", () => {
     expect(childWire.parentSpanId).toBe(parentWire.spanId);
     expect(afterWire.parentSpanId).toBeUndefined();
     expect(afterWire.traceId).not.toBe(parentWire.traceId);
+  });
+
+  it("stamps a log with the active span, and with none after that span ends", async () => {
+    start();
+    logger.info("outside");
+    const parent = tracer.startActiveSpan("parent", (span) => span);
+    logger.info("in parent");
+    const child = tracer.startActiveSpan("child", (span) => span);
+    logger.info("in child");
+    tracer.startSpan("idle").end();
+    logger.info("still child");
+    child.end();
+    logger.info("back in parent");
+    parent.end();
+    logger.info("after");
+    await client?.flush();
+    const wire = batches.flatMap((batch) => batch.spans);
+    const logs = batches.flatMap((batch) => batch.records);
+    const span = (name: string) => wire.find((item) => item.name === name);
+    const log = (body: string) =>
+      logs.find(
+        (record) =>
+          (record.body as { stringValue?: string } | undefined)?.stringValue ===
+          body,
+      );
+    const parentSpan = span("parent");
+    const childSpan = span("child");
+    expect(log("outside")?.traceId).toBeUndefined();
+    expect(log("in parent")).toMatchObject({
+      traceId: parentSpan?.traceId,
+      spanId: parentSpan?.spanId,
+      flags: 1,
+    });
+    expect(log("in child")).toMatchObject({
+      traceId: childSpan?.traceId,
+      spanId: childSpan?.spanId,
+      flags: 1,
+    });
+    expect(log("still child")?.spanId).toBe(childSpan?.spanId);
+    expect(log("back in parent")?.spanId).toBe(parentSpan?.spanId);
+    expect(log("after")?.traceId).toBeUndefined();
   });
 
   it("stacks the active spans", async () => {

@@ -21,7 +21,8 @@
 // recent is the parent of a new span. The end() of a span removes it from the
 // stack, in any sequence. The tracer ignores the context argument of the two
 // functions. options.root starts a new trace, and a startActiveSpan with that
-// option still becomes the active parent until its end().
+// option still becomes the active parent until its end(). A log emitted in
+// that interval carries that span's trace id and span id.
 
 import type { Link, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
@@ -77,7 +78,11 @@ function cleanLink(link: Link): SpanLink | undefined {
   };
 }
 
-export function createTracer(emitSpan?: EmitSpan): Tracer {
+export function createTracer(emitSpan?: EmitSpan): Tracer & {
+  activeSpanContext():
+    | { traceId: string; spanId: string; traceFlags: number }
+    | undefined;
+} {
   // The active spans, the most recent last.
   const active: Span[] = [];
 
@@ -173,6 +178,7 @@ export function createTracer(emitSpan?: EmitSpan): Tracer {
   };
 
   return {
+    activeSpanContext: () => active[active.length - 1]?.spanContext(),
     startSpan: (name, options) => make(name, options),
     // This function accepts all the argument sequences. The function to call is
     // always the last argument, and the options are the first argument when
