@@ -10,4 +10,4 @@ Record span status, links, array attributes, and standard timestamps on browser 
 
 `addEvent` and `recordException` record nothing.
 
-A browser log emitted during `startActiveSpan`, until `end()`, carries that span's trace id, span id, and trace flags when the log has no timestamp of its own.
+A browser log emitted during `startActiveSpan`, until `end()`, carries that span's trace id, span id, and trace flags. A log with its own timestamp joins only a span that was already active at that timestamp.

@@ -1,5 +1,5 @@
 import type { Tracer } from "@opentelemetry/api";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WebSDK } from "../client.js";
 import { logger } from "../logger.js";
 import {
@@ -109,6 +109,35 @@ describe("instrumentation tracer", () => {
     const late = logs.find((record) => record.eventName === "everr.test.late");
     expect(late?.timeUnixNano).toBe("1700000000000000000");
     expect(late?.traceId).toBeUndefined();
+  });
+
+  it("stamps a timestamped log with the span that was active at its time", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      start();
+      vi.setSystemTime(1_000);
+      const parent = tracer.startActiveSpan("parent", (span) => span);
+      vi.setSystemTime(2_000);
+      const child = tracer.startActiveSpan("child", (span) => span);
+      vi.setSystemTime(3_000);
+      emit("everr.test.before", undefined, 500);
+      emit("everr.test.in-parent", undefined, 1_500);
+      emit("everr.test.in-child", undefined, 2_000);
+      child.end();
+      parent.end();
+      await client?.flush();
+      const wire = batches.flatMap((batch) => batch.spans);
+      const logs = batches.flatMap((batch) => batch.records);
+      const spanId = (name: string) =>
+        wire.find((item) => item.name === name)?.spanId;
+      const log = (name: string) =>
+        logs.find((record) => record.eventName === name);
+      expect(log("everr.test.before")?.traceId).toBeUndefined();
+      expect(log("everr.test.in-parent")?.spanId).toBe(spanId("parent"));
+      expect(log("everr.test.in-child")?.spanId).toBe(spanId("child"));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("stacks the active spans", async () => {

@@ -282,8 +282,8 @@ export function createEmitter(
   envelope: () => Record<string, AttrValue | null | undefined>,
   /** The hook of the host on each item. Refer to {@link BeforeSend}. */
   beforeSend?: BeforeSend,
-  /** The span active at emit time, when there is one. */
-  activeSpan?: () => SpanContext | undefined,
+  /** The span active at the time of the log, when there is one. */
+  activeSpan?: (time?: number) => SpanContext | undefined,
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
   let queue: OtlpLogRecord[] = [];
@@ -460,10 +460,10 @@ export function createEmitter(
   ) => {
     // Read the time before the hook. The default is the instant emit was
     // called, even when a host hook does synchronous work before the item is
-    // queued. A log that already has a timestamp keeps no span: the span
-    // active at this call is not the span active when the event happened.
+    // queued. A log with an earlier timestamp takes the span that was already
+    // active at that time, and not a span that became active after it.
     const timestamp = unixNano(time ?? Date.now());
-    const span = time == null ? activeSpan?.() : undefined;
+    const span = activeSpan?.(time);
     const item = applyBeforeSend({
       kind: "log",
       eventName,

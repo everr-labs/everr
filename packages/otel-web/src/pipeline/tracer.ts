@@ -21,9 +21,9 @@
 // recent is the parent of a new span. The end() of a span removes it from the
 // stack, in any sequence. The tracer ignores the context argument of the two
 // functions. options.root starts a new trace, and a startActiveSpan with that
-// option still becomes the active parent until its end(). A log emitted in
-// that interval, with no timestamp of its own, carries that span's trace id,
-// span id, and trace flags.
+// option still becomes the active parent until its end(). A log carries the
+// trace id, span id, and trace flags of the most recent span that is active
+// now and was already active at the time of the log.
 
 import type {
   Link,
@@ -91,10 +91,10 @@ function cleanLink(link: Link): SpanLink | undefined {
 }
 
 export function createTracer(emitSpan?: EmitSpan): Tracer & {
-  activeSpanContext(): SpanContext | undefined;
+  activeSpanContext(time?: number): SpanContext | undefined;
 } {
-  // The active spans, the most recent last.
-  const active: Span[] = [];
+  // The active spans with the instant each became active, the most recent last.
+  const active: [Span, number][] = [];
 
   // Makes a span. The most recent active span, when there is one, is the
   // parent. options.root starts a new trace.
@@ -104,7 +104,7 @@ export function createTracer(emitSpan?: EmitSpan): Tracer & {
     // the bytes of its span id.
     const parent = options?.root
       ? undefined
-      : active[active.length - 1]?.spanContext();
+      : active[active.length - 1]?.[0].spanContext();
     const ids = emitSpan ? randomHex(parent ? 8 : 24) : "0".repeat(48);
     const spanContext = {
       traceId: parent?.traceId ?? ids.slice(0, 32),
@@ -162,7 +162,7 @@ export function createTracer(emitSpan?: EmitSpan): Tracer & {
       end: (endTime) => {
         if (ended) return;
         ended = true;
-        const index = active.indexOf(span);
+        const index = active.findIndex(([item]) => item === span);
         if (index >= 0) active.splice(index, 1);
         emitSpan?.(
           spanContext.traceId,
@@ -184,7 +184,14 @@ export function createTracer(emitSpan?: EmitSpan): Tracer & {
   };
 
   return {
-    activeSpanContext: () => active[active.length - 1]?.spanContext(),
+    // A log with an earlier timestamp skips the spans that became active after
+    // it. The stack is in activation sequence, so the first match from the end
+    // is the most recent span that was active at that time.
+    activeSpanContext: (time = Date.now()) => {
+      for (let i = active.length; i--; ) {
+        if (active[i][1] <= time) return active[i][0].spanContext();
+      }
+    },
     startSpan: (name, options) => make(name, options),
     // This function accepts all the argument sequences. The function to call is
     // always the last argument, and the options are the first argument when
@@ -193,7 +200,7 @@ export function createTracer(emitSpan?: EmitSpan): Tracer & {
     startActiveSpan: ((name: string, ...rest: unknown[]) => {
       const fn = rest.pop() as (span: Span) => unknown;
       const span = make(name, rest[0] as SpanOptions | undefined);
-      if (emitSpan) active.push(span);
+      if (emitSpan) active.push([span, Date.now()]);
       return fn(span);
     }) as Tracer["startActiveSpan"],
   };

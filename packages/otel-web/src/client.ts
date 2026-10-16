@@ -64,7 +64,8 @@ export class WebSDK {
       document.referrer,
     );
 
-    let activeSpan: () => SpanContext | undefined = () => undefined;
+    let activeSpan: (time?: number) => SpanContext | undefined = () =>
+      undefined;
     const [emit, flush, exitFlush, emitSpan] = createEmitter(
       ...transport,
       // The resource does not contain the viewport, and this is correct. The
@@ -96,14 +97,14 @@ export class WebSDK {
       { name: SDK_NAME, version: SDK_VERSION },
       createEnvelope(current),
       options.beforeSend,
-      () => activeSpan(),
+      (time) => activeSpan(time),
     );
     // This is the only connection of the package functions, logger and
     // captureError, to this pipeline. Each call reads the pipeline from
     // current.ts.
     const unbindEmit = bindEmit(emit);
     const sdkTracer = createTracer(emitSpan);
-    activeSpan = () => sdkTracer.activeSpanContext();
+    activeSpan = (time) => sdkTracer.activeSpanContext(time);
     const unbindTracer = bindTracer(sdkTracer);
 
     // The instrumentations are the only sources of the capture. The SDK starts
