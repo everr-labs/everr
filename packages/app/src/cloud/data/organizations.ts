@@ -1,13 +1,11 @@
 import { billing } from "@/cloud/billing/server";
-import {
-  lockHobbyOrganizationOwnership,
-  userOwnsHobbyOrganization,
-} from "@/cloud/billing-data.server";
+import { userOwnsHobbyOrganization } from "@/cloud/billing-data.server";
 import { CreateOrganizationInputSchema } from "@/cloud/common/organization-name";
 import { db } from "@/db/client";
 import { auth } from "@/lib/auth.server";
 import { generateOrgSlug } from "@/lib/auto-org";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
+import { lockOrganizationOwnership } from "@/product/organization-lock.server";
 
 class OrganizationCreationError extends Error {
   name = "OrganizationCreationError";
@@ -40,7 +38,7 @@ export const createOrganization = createPartiallyAuthenticatedServerFn({
     if (!data.plan) throw new OrganizationCreationError("Choose a cloud plan.");
     if (data.plan === "hobby") {
       return db.transaction(async (tx) => {
-        await lockHobbyOrganizationOwnership(tx, session.user.id);
+        await lockOrganizationOwnership(tx, session.user.id);
         if (await userOwnsHobbyOrganization(session.user.id)) {
           throw new HobbyOrganizationLimitError();
         }

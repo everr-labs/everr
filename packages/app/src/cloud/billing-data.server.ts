@@ -4,8 +4,9 @@ import {
   planForPolarProductId,
 } from "@/cloud/billing/catalog.server";
 import { organizationBilling, orgSubscription } from "@/cloud/db/schema";
-import { db, type Transaction } from "@/db/client";
+import { db } from "@/db/client";
 import { member } from "@/db/schema";
+import { isOrganizationOwner } from "@/lib/organization-role";
 
 export type OrganizationPlan = "hobby" | "pro";
 export type OrganizationAppState = "hobby" | "pro" | "suspended";
@@ -16,10 +17,6 @@ type SubscriptionPlanInput = {
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean | null;
 };
-
-function hasRole(role: string, expected: string) {
-  return role.split(",").includes(expected);
-}
 
 function appStateForPlan(
   plan: OrganizationPlan,
@@ -95,12 +92,5 @@ export async function userOwnsHobbyOrganization(
         excludingOrgId ? ne(member.organizationId, excludingOrgId) : undefined,
       ),
     );
-  return memberships.some(({ role }) => hasRole(role, "owner"));
-}
-
-export async function lockHobbyOrganizationOwnership(
-  tx: Transaction,
-  userId: string,
-) {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+  return memberships.some(({ role }) => isOrganizationOwner(role));
 }

@@ -4,7 +4,6 @@ import { and, eq, ne } from "drizzle-orm";
 import * as z from "zod";
 import { billing } from "@/cloud/billing/server";
 import {
-  lockHobbyOrganizationOwnership,
   readOrgEntitlement,
   userOwnsHobbyOrganization,
 } from "@/cloud/billing-data.server";
@@ -16,6 +15,7 @@ import {
   createOrganizationAdminServerFn,
   requireOrgMiddleware,
 } from "@/lib/serverFn";
+import { lockOrganizationOwnership } from "@/product/organization-lock.server";
 
 class HobbyDowngradeUnavailableError extends Error {
   name = "HobbyDowngradeUnavailableError";
@@ -99,7 +99,7 @@ export const downgradeSuspendedOrganization = createServerFn({ method: "POST" })
         db.transaction(async (tx) => {
           // Serialize the application-level one-Hobby-per-Owner check before
           // revoking a subscription that may not be convertible to Hobby.
-          await lockHobbyOrganizationOwnership(tx, session.user.id);
+          await lockOrganizationOwnership(tx, session.user.id);
           // Billing holds the organization lock and has rechecked ownership.
           // Re-read suspension after both locks: a subscription may have
           // recovered since this request started.

@@ -86,8 +86,6 @@ function RepositoryImport() {
   const reposQuery = useQuery(githubReposOptions);
   const importMutation = useMutation({
     mutationFn: async () => {
-      let totalJobs = 0;
-      let totalErrors = 0;
       const stream = await importRepos({
         data: { repos: Array.from(selectedRepos) },
       });
@@ -97,20 +95,13 @@ function RepositoryImport() {
           setImportingRepo(event.repoFullName);
         } else if (event.type === "progress") {
           setRunsProcessed(event.progress.runsProcessed);
-        } else if (event.type === "done") {
-          totalJobs = event.totalJobs;
-          totalErrors = event.totalErrors;
         }
       }
-
-      return { totalJobs, totalErrors };
     },
     onSuccess: () => {
       setSelectedRepos(new Set());
-      setImportingRepo(null);
-      setRunsProcessed(0);
     },
-    onError: () => {
+    onSettled: () => {
       setImportingRepo(null);
       setRunsProcessed(0);
     },

@@ -43,9 +43,11 @@ vi.mock("@/db/client", () => ({
   },
 }));
 vi.mock("@/cloud/billing-data.server", () => ({
-  lockHobbyOrganizationOwnership: mocks.lockOwnership,
   readOrgEntitlement: mocks.entitlement,
   userOwnsHobbyOrganization: mocks.ownsHobby,
+}));
+vi.mock("@/product/organization-lock.server", () => ({
+  lockOrganizationOwnership: mocks.lockOwnership,
 }));
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeaders: () => new Headers(),
