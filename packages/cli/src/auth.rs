@@ -392,6 +392,17 @@ pub async fn logout(profile: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+pub async fn status(profile: Option<&str>) -> Result<()> {
+    let client = crate::profiles::client(profile, false).await?;
+    let me = client.get_me().await?;
+
+    println!("Name: {}", me.name);
+    println!("Email: {}", me.email);
+    println!("Organization: {}", me.organization_name);
+    println!("Cloud: {}", client.base_url());
+    Ok(())
+}
+
 fn current_api_base_url() -> Result<String> {
     if let Ok(value) = std::env::var(API_BASE_URL_OVERRIDE_ENV) {
         let trimmed = trimmed_non_empty(&value)

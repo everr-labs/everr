@@ -1,50 +1,66 @@
 ---
 title: Instrument your app
-description: Set up and verify application telemetry locally with your coding agent or by hand.
+description: Set up OpenTelemetry and verify data from your app locally, with your coding agent or by hand.
 ---
 
-After [installing Everr](/docs/learn/install), set up OpenTelemetry in your project, send to the local collector, and exercise a real application path. Confirm that the data appears in the local UI before preparing production. Follow the agent path or configure it by hand.
+Instrumentation gives you a view of what your app does while it runs: which requests are slow, where errors happen, and what led up to them. Start with one path you can exercise, such as opening a page, making an API request, or running a job.
 
-## Set up OpenTelemetry
+After [installing Everr](/docs/learn/install), choose the agent or manual path below. Both end with fresh telemetry you can query and explore locally.
 
-**With your Agent**: the fastest path is to let it run the `everr-setup-telemetry` skill.
+## Use your coding agent
 
-```text
-/everr-setup-telemetry Set up a basic telemetry baseline for this project in development using my local Everr collector. Reuse existing instrumentation, verify ingestion by exercising a real application path, run the build or typecheck, and open the local UI on the verified data.
-```
-
-Run the prompt from your project with its Everr skills installed (`everr skills install --all --project`). The skill inspects existing instrumentation, fills in the basic signals your app needs, starts the local collector if necessary, and checks real ingestion. It also validates the build or typecheck and opens the local UI on the verified data. Its final response and your project's README include the instructions to activate production telemetry later.
-
-**By hand**: install the OpenTelemetry SDK for your language and point its exporter at the local Collector's endpoint. If your app already emits OpenTelemetry, that's the only change. Keep this to development and test environments.
-
-## Add a log
-
-**With your Agent**: ask it to add one and check it lands.
+Open your coding agent in the project where you installed the Everr skills and run:
 
 ```text
-Add a log line to a code path I can trigger, send it to my local Everr Collector, and confirm it shows up.
+/everr-setup-telemetry
 ```
 
-**By hand**: emit a log from a path you can trigger. Most apps already log; make sure your logger sends to OpenTelemetry (the setup above wires this up), or add a single line. Then run your app and trigger that path.
+The skill inspects your project to find services that need instrumentation. For each service, it helps you decide what to measure and proposes a plan to configure OpenTelemetry for the selected service or paths. Using the Everr CLI, the agent can verify and debug the instrumentation locally, then provide a final configuration ready for use both locally and in production.
 
-## Verify it
+## Set up manually
 
-**With your Agent**: ask it to check.
-
-```text
-Look in my local Everr Collector for logs from this app and show me the most recent ones.
-```
-
-**By hand**: query the local store.
+Start the local collector:
 
 ```sh
-everr local query "SELECT Timestamp, ServiceName, SeverityText, Body FROM logs ORDER BY Timestamp DESC LIMIT 20"
+everr local start
 ```
 
-You should see your log line with its `ServiceName`. That's your first signal in Everr. Open the `ui:` URL printed by `everr local start` to browse local logs, traces, and errors.
+Keep that terminal running. For background operation, use `everr local start -d --no-open`; stop it later with `everr local stop`.
 
-If no rows appear, make sure `everr local start` is running and your app restarted after setup, then trigger the path again.
+Read the endpoints from:
 
-After verifying the local UI, select **I can see my local telemetry** in the Cloud Home to continue to production setup. The Cloud app cannot detect your local telemetry automatically.
+```sh
+everr local status
+```
 
-**Next:** [Send production telemetry](/docs/learn/production-telemetry).
+Use the returned `otlp:` URL as your SDK's OTLP/HTTP base endpoint and the `ui:` URL to open the local UI. Endpoint ports can vary, so use the values from your own status output.
+
+If your app already emits OpenTelemetry, point its development exporter at that endpoint. Otherwise, configure the [OpenTelemetry SDK and instrumentation for your language](https://opentelemetry.io/docs/languages/). Set `service.name` to a stable name for each service and `deployment.environment.name` to `development`. Enable the signals you need, such as request spans and structured logs. An existing logger needs an OpenTelemetry integration to export its output.
+
+Keep local export in development and test configuration. Restart the app after changing its telemetry setup, then exercise the path you chose.
+
+## Verify locally
+
+Use the local collector UI to explore the data sent. You can find the UI URL using `everr local status`
+
+You can also ask your agent:
+
+```text
+/everr-use-telemetry Check my local telemetry for the action I just performed. Show the fresh traces or logs and explain what they tell us.
+```
+
+To check traces yourself, replace `my-service` with your app's `service.name`:
+
+```sh
+everr local query "SELECT Timestamp, ServiceName, SpanName, Duration / 1e6 AS duration_ms, TraceId FROM traces WHERE ServiceName = 'my-service' AND Timestamp >= now() - INTERVAL 15 MINUTE ORDER BY Timestamp DESC LIMIT 20"
+```
+
+For a path instrumented with logs instead:
+
+```sh
+everr local query "SELECT Timestamp, ServiceName, SeverityText, Body FROM logs WHERE ServiceName = 'my-service' AND Timestamp >= now() - INTERVAL 15 MINUTE ORDER BY Timestamp DESC LIMIT 20"
+```
+
+Check the timestamps and the request or log content against the action you triggered. Old rows alone don't verify the new setup.
+
+If data is missing, check that the collector is running, the exporter uses the `otlp:` URL from status, and the app has restarted. Trigger the path again and allow the SDK's export batch to flush. With an agent, use `everr-setup-telemetry` to investigate the missing signal.

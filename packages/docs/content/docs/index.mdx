@@ -1,34 +1,24 @@
 ---
 title: What Everr is
-description: Observability with the DX of web development
+description: Observability made simple
 ---
 
 Most observability tools are complex, built for organizations that can afford dedicated telemetry engineers and the time to wire everything up.
 
-As web developers we are used to work with great dev tools, but observability tooling hasn't catched up yet.
+At Everr, our mission is to make observability a baseline for software at every level and deliver value from day one. Explore how your software works at runtime and gain insights into your system—without spending days on setup or building a team to manage it.
 
-Everr is an observability platform for teams that need to ship fast: deep insight into your systems without losing days to setup or standing up a team to run it.
+We’re pursuing our vision of an opinionated yet versatile observability platform that guides you from your first steps in instrumentation through issue investigations, connecting metrics, signals, and logs.
 
-- **Local-first.** The CLI runs a local collector and browser UI on your machine, with no Cloud account needed.
+## Our pillars
+
+
+- **Open**: We love open standards and avoid vendor lock-in. We push [OpenTelemetry](/docs/concepts/whats-opentelemetry) to its limits, releasing additional open-source features when needed.
+- **AI-native era**: our skills are specialized capabilities that help AI agents handle observability tasks, such as instrumenting code, querying metrics, and investigating bugs.
+- **Local telemetry**: Everr can run a local collector and browser UI, allowing you and your coding assistant to validate ongoing development using telemetry before pushing to production.
 - **Configured as code.** Dashboards, alerts, and runbooks are files in your repo, queried in SQL. See [Observability as code](/docs/concepts/observability-as-code).
-- **Open.** It is all OpenTelemetry underneath, so nothing you set up is locked to Everr. See [What's OpenTelemetry](/docs/concepts/whats-opentelemetry).
-- **For agents too.** Your coding agent uses the same telemetry you do. See the [MCP server](/docs/reference/mcp).
-
-## Two places telemetry lives
-
-Your code emits OpenTelemetry over OTLP, and it lands in one of two places that share the same query model:
-
-- **Your laptop**, using a local collector the CLI runs on your machine. It holds your local telemetry for a fast feedback loop while you write and debug code.
-- **The Cloud** is Everr's hosted backend. It holds CI and production telemetry in a shared, per-organization workspace.
-
-A query you write against local traces reads the same against production ones.
-
-## Where telemetry comes from
-
-- **Local.** Your app, tests, and wrapped commands send OTLP to the Collector on your machine. See [Instrument your app](/docs/learn/instrument-your-app).
-- **Production.** Your services send OTLP to the Cloud, authenticated with an API key. See [Send production telemetry](/docs/learn/production-telemetry).
-- **CI.** The Everr GitHub App ingests your GitHub Actions runs. A run becomes a trace, its steps become spans, and verbose test output becomes a span per test. See [CI insights](/docs/guides/setup-new-repo).
 
 ## Get started
+
+We strongly believe observability should be a first-class citizen in every project. It can be, with the best observability platform everr.
 
 Follow [Install Everr](/docs/learn/install) and go from your first trace to your first alert.

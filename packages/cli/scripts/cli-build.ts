@@ -11,8 +11,12 @@ export const embeddedAssets = {
   chdbGz: path.join(assetsDir, "libchdb.so.gz"),
 };
 
-export function resolveCliBuild(mode: string) {
+export function resolveCliBuild(mode: string, env: NodeJS.ProcessEnv = process.env) {
   if (mode !== "debug" && mode !== "release") throw new Error(`Unsupported mode: ${mode}`);
+  if (mode === "release" && env.EVERR_REQUIRE_INTERNAL_TELEMETRY === "1" &&
+    !env.EVERR_INTERNAL_TELEMETRY_INGEST_KEY?.trim()) {
+    throw new Error("Official CLI releases require EVERR_INTERNAL_TELEMETRY_INGEST_KEY");
+  }
   const builtBin = path.join(repoDir, "target", mode, "everr");
   return {
     buildArgs: [...(mode === "release" ? ["--release"] : []), "--manifest-path", path.join(cliDir, "Cargo.toml")],
@@ -22,8 +26,12 @@ export function resolveCliBuild(mode: string) {
 }
 
 export function embeddedBuildEnv(assets = embeddedAssets): NodeJS.ProcessEnv {
+  // Build-script telemetry retains the generic key in the parent process;
+  // only the dedicated product key is passed to the Rust compiler.
+  const { EVERR_INGEST_KEY: _buildTelemetryKey, ...env } = process.env;
   return {
-    ...process.env,
+    ...env,
+    EVERR_INTERNAL_TELEMETRY_INGEST_KEY: process.env.EVERR_INTERNAL_TELEMETRY_INGEST_KEY,
     EVERR_EMBEDDED_COLLECTOR_GZ: assets.collectorGz,
     EVERR_EMBEDDED_CHDB_GZ: assets.chdbGz,
     EVERR_REQUIRE_EMBEDDED_COLLECTOR: "1",

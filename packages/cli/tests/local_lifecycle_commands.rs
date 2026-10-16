@@ -35,7 +35,7 @@ impl Instance {
             .env("EVERR_LOCAL_UI_ORIGIN", &self.origins[2])
             .env("EVERR_TELEMETRY_DIR", self.data.path())
             .env("EVERR_LOCAL_LOG_DIR", self.data.path().join("logs"))
-            .env("OTEL_EXPORTER_OTLP_ENDPOINT", &self.origins[1]);
+            .env("EVERR_INTERNAL_TELEMETRY_ENDPOINT", &self.origins[1]);
         command
     }
 
@@ -239,7 +239,7 @@ fn stop_waits_for_slow_supervisor_telemetry_before_immediate_restart() {
         .create();
     let mut start = assert_cmd::Command::from_std(instance.command());
     start
-        .env("OTEL_EXPORTER_OTLP_ENDPOINT", exporter.url())
+        .env("EVERR_INTERNAL_TELEMETRY_ENDPOINT", exporter.url())
         .args(["local", "start", "-d", "--no-open"])
         .timeout(Duration::from_secs(30))
         .assert()

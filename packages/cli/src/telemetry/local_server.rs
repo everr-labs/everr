@@ -1,9 +1,9 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use super::local_auth::LocalAuth;
-use crate::build;
 #[cfg(everr_embedded_local_ui)]
 use crate::device_auth::build_auth_http_client;
+use crate::{build, internal_telemetry};
 use anyhow::{Context, Result, anyhow, bail};
 #[cfg(everr_embedded_local_ui)]
 use axum::body::Body;
@@ -48,6 +48,7 @@ struct ServerState {
     supervisor: mpsc::Sender<SupervisorRequest>,
     http: reqwest::Client,
     sql: super::client::QueryClient,
+    telemetry: Option<internal_telemetry::Config>,
 }
 
 #[derive(Deserialize)]
@@ -78,6 +79,8 @@ struct CollectorStatus {
 #[serde(rename_all = "camelCase")]
 struct TelemetryContext {
     service_version: &'static str,
+    telemetry_enabled: bool,
+    deployment_environment: &'static str,
 }
 
 #[derive(Serialize)]
@@ -117,8 +120,10 @@ impl LocalServer {
                     )),
                     supervisor: _supervisor,
                     sql: crate::telemetry::client::QueryClient::new(build::sql_http_origin()),
+                    telemetry: internal_telemetry::Config::from_env(internal_telemetry::Source::Ui),
                     http: reqwest::Client::builder()
-                        .timeout(Duration::from_secs(15))
+                        .timeout(internal_telemetry::EXPORT_TIMEOUT)
+                        .redirect(reqwest::redirect::Policy::none())
                         .build()?,
                 },
             })
@@ -247,9 +252,13 @@ async fn export_telemetry(
     if !matches!(signal.as_str(), "logs" | "traces" | "metrics") {
         return StatusCode::NOT_FOUND.into_response();
     }
+    let Some(config) = &state.telemetry else {
+        return StatusCode::NO_CONTENT.into_response();
+    };
     let result = state
         .http
-        .post(format!("{}/v1/{signal}", build::otlp_http_origin()))
+        .post(config.signal_endpoint(&signal))
+        .headers(config.headers.clone())
         .header("content-type", "application/json")
         .body(body)
         .send()
@@ -311,6 +320,8 @@ async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Res
         }
         "get_telemetry_context" => json_response(TelemetryContext {
             service_version: env!("EVERR_VERSION"),
+            telemetry_enabled: state.telemetry.is_some(),
+            deployment_environment: internal_telemetry::deployment_environment(),
         }),
         _ => bail!("unknown local command: {command}"),
     })
@@ -369,6 +380,12 @@ mod tests {
     }
 
     async fn test_server() -> (String, tokio::task::JoinHandle<()>) {
+        test_server_with_telemetry(None).await
+    }
+
+    async fn test_server_with_telemetry(
+        telemetry: Option<internal_telemetry::Config>,
+    ) -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let origin = format!("http://{}", listener.local_addr().unwrap());
         let (supervisor, _) = mpsc::channel(1);
@@ -391,14 +408,139 @@ mod tests {
                 reqwest::Client::new(),
             )),
             supervisor,
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .timeout(internal_telemetry::EXPORT_TIMEOUT)
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap(),
             sql: crate::telemetry::client::QueryClient::new(build::sql_http_origin()),
+            telemetry,
         };
         let task = tokio::spawn(async move {
             let _auth_dir = auth_dir;
             axum::serve(listener, router(state)).await.unwrap();
         });
         (origin, task)
+    }
+
+    #[tokio::test]
+    async fn telemetry_proxy_uses_only_internal_destination_and_credentials() {
+        let mut exporter = mockito::Server::new_async().await;
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            "Bearer internal-key".parse().unwrap(),
+        );
+        headers.insert(
+            header::ORIGIN,
+            internal_telemetry::UI_PUBLIC_ORIGIN.parse().unwrap(),
+        );
+        let (origin, task) = test_server_with_telemetry(Some(internal_telemetry::Config {
+            endpoint: exporter.url(),
+            headers,
+        }))
+        .await;
+        let client = reqwest::Client::new();
+        for signal in ["logs", "traces", "metrics"] {
+            let export = exporter
+                .mock("POST", format!("/v1/{signal}").as_str())
+                .match_header("authorization", "Bearer internal-key")
+                .match_header("origin", internal_telemetry::UI_PUBLIC_ORIGIN)
+                .match_header("x-everr-local", mockito::Matcher::Missing)
+                .match_header("content-type", "application/json")
+                .match_body("otlp-test-body")
+                .with_status(200)
+                .expect(1)
+                .create_async()
+                .await;
+            let response = client
+                .post(format!("{origin}/api/telemetry/{signal}"))
+                .header("origin", &origin)
+                .header("x-everr-local", "1")
+                .header("authorization", "Bearer customer-key")
+                .body("otlp-test-body")
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NO_CONTENT);
+            export.assert_async().await;
+        }
+        let context = client
+            .post(format!("{origin}/api/commands/get_telemetry_context"))
+            .header("origin", &origin)
+            .header("x-everr-local", "1")
+            .json(&json!({}))
+            .send()
+            .await
+            .unwrap()
+            .json::<Value>()
+            .await
+            .unwrap();
+        assert_eq!(context["telemetryEnabled"], true);
+        assert_eq!(
+            context["deploymentEnvironment"],
+            internal_telemetry::deployment_environment()
+        );
+        assert!(!context.to_string().contains("internal-key"));
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn disabled_telemetry_proxy_discards_events_and_invalid_signals() {
+        let (origin, task) = test_server().await;
+        for (signal, expected) in [
+            ("logs", StatusCode::NO_CONTENT),
+            ("invalid", StatusCode::NOT_FOUND),
+        ] {
+            let response = reqwest::Client::new()
+                .post(format!("{origin}/api/telemetry/{signal}"))
+                .header("origin", &origin)
+                .header("x-everr-local", "1")
+                .body("otlp-body")
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected);
+        }
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn telemetry_proxy_does_not_follow_redirects_or_retry_failed_exports() {
+        let mut exporter = mockito::Server::new_async().await;
+        let mut fallback = mockito::Server::new_async().await;
+        let unexpected = fallback
+            .mock("POST", mockito::Matcher::Any)
+            .expect(0)
+            .create_async()
+            .await;
+        let (origin, task) = test_server_with_telemetry(Some(internal_telemetry::Config {
+            endpoint: exporter.url(),
+            headers: reqwest::header::HeaderMap::new(),
+        }))
+        .await;
+        for status in [302, 503] {
+            let failed = exporter
+                .mock("POST", "/v1/logs")
+                .with_status(status)
+                .with_header("location", &format!("{}/v1/logs", fallback.url()))
+                .expect(1)
+                .create_async()
+                .await;
+            let response = reqwest::Client::new()
+                .post(format!("{origin}/api/telemetry/logs"))
+                .header("origin", &origin)
+                .header("x-everr-local", "1")
+                .body("otlp-body")
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+            failed.assert_async().await;
+            failed.remove_async().await;
+        }
+        unexpected.assert_async().await;
+        task.abort();
     }
 
     #[tokio::test]
@@ -527,8 +669,12 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
         assert_eq!(
-            response.json::<Value>().await.unwrap()["serviceVersion"],
-            env!("EVERR_VERSION")
+            response.json::<Value>().await.unwrap(),
+            json!({
+                "serviceVersion": env!("EVERR_VERSION"),
+                "telemetryEnabled": false,
+                "deploymentEnvironment": internal_telemetry::deployment_environment(),
+            })
         );
         task.abort();
     }

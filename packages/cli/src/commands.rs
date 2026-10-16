@@ -17,6 +17,7 @@ pub async fn run_command(cli: Cli, lifetime: &mut telemetry::SupervisorLifetime)
         Commands::Cloud(args) => match args.command {
             CloudSubcommand::Login(login) => auth::login(login, profile).await?,
             CloudSubcommand::Logout => auth::logout(profile).await?,
+            CloudSubcommand::Status => auth::status(profile).await?,
             CloudSubcommand::Query(args) => {
                 core::cloud_query(args, client(profile, false).await?).await?
             }

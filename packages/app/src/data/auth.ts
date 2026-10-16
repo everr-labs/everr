@@ -2,6 +2,15 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { auth } from "@/lib/auth.server";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
 
+export const getOrganizations = createPartiallyAuthenticatedServerFn({
+  method: "GET",
+}).handler(async () => {
+  const organizations = await auth.api.listOrganizations({
+    headers: getRequestHeaders(),
+  });
+  return organizations.map(({ id, name }) => ({ id, name }));
+});
+
 export const getActiveOrganization = createPartiallyAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
