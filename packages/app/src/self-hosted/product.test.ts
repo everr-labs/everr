@@ -19,10 +19,10 @@ it("permits collaboration independently of subscription state", async () => {
 });
 
 it("rejects organization creation and deletion through authentication hooks", async () => {
-  const { beforeCreateOrganization, identityLifecycle } = await import(
-    "@app/auth"
+  const { organizationHooks, identityLifecycle } = await import("@app/auth");
+  await expect(organizationHooks().beforeCreateOrganization()).rejects.toThrow(
+    "one workspace",
   );
-  await expect(beforeCreateOrganization()).rejects.toThrow("one workspace");
   await expect(identityLifecycle.assertDeletable("test_org")).rejects.toThrow(
     "cannot be deleted",
   );

@@ -30,38 +30,39 @@ export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
   .inputValidator(DeleteCurrentUserAccountInputSchema)
   .handler(async ({ data, context: { session } }) => {
     const headers = getRequestHeaders();
-    const organizations = await getFullOrganizations(headers);
-    await assertAccountDeletionAllowed(
-      organizations.filter((organization) => {
-        const currentMember = organization?.members.find(
+    const organizations = (await getFullOrganizations(headers))
+      .filter((organization) => organization !== null)
+      .map((organization) => {
+        const currentMember = organization.members.find(
           (member) => member.userId === session.user.id,
         );
-        return isOrganizationOwner(currentMember?.role);
-      }),
+        return {
+          organization,
+          isOwner: isOrganizationOwner(currentMember?.role),
+          ownerCount: organization.members.filter((member) =>
+            isOrganizationOwner(member.role),
+          ).length,
+        };
+      });
+    await assertAccountDeletionAllowed(
+      organizations
+        .filter(({ isOwner }) => isOwner)
+        .map(({ organization }) => organization),
     );
 
-    const soleOwnedOrganizations = organizations.filter((organization) => {
-      if (!organization) return false;
-      if (
-        data.deleteOrganization &&
-        organization.id === session.session.activeOrganizationId
-      ) {
-        return false;
-      }
-
-      const currentMember = organization.members.find(
-        (member) => member.userId === session.user.id,
-      );
-      const ownerCount = organization.members.filter((member) =>
-        isOrganizationOwner(member.role),
-      ).length;
-
-      return isOrganizationOwner(currentMember?.role) && ownerCount === 1;
-    });
+    const soleOwnedOrganizations = organizations.filter(
+      ({ organization, isOwner, ownerCount }) =>
+        isOwner &&
+        ownerCount === 1 &&
+        !(
+          data.deleteOrganization &&
+          organization.id === session.session.activeOrganizationId
+        ),
+    );
 
     if (soleOwnedOrganizations.length > 0) {
       const organizationNames = soleOwnedOrganizations
-        .map((organization) => organization?.name)
+        .map(({ organization }) => organization.name)
         .filter((name): name is string => Boolean(name))
         .join(", ");
       throw new Error(
@@ -78,13 +79,10 @@ export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
       }
 
       const org = organizations.find(
-        (organization) => organization?.id === activeOrganizationId,
-      );
-      const currentMember = org?.members.find(
-        (member) => member.userId === session.user.id,
+        ({ organization }) => organization.id === activeOrganizationId,
       );
 
-      if (!isOrganizationOwner(currentMember?.role)) {
+      if (!org?.isOwner) {
         throw new Error(
           "Only organization owners can delete the organization while deleting their account.",
         );

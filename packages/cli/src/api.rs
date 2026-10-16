@@ -262,29 +262,15 @@ impl ApiClient {
             params.push(("key", k));
         }
 
-        let response = self
+        let request = self
             .request(
                 reqwest::Method::GET,
                 format!("{}/api/events/stream", self.base_url),
             )
-            .query(&params)
-            .send()
-            .await
-            .context("SSE connection failed")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(
-                status,
-                text,
-                "SSE connection",
-                self.profile.as_deref(),
-            ));
-        }
+            .query(&params);
+        let response = self
+            .send_checked(request, "SSE connection failed", "SSE connection")
+            .await?;
 
         let stream = response
             .bytes_stream()

@@ -363,21 +363,15 @@ impl ProfileStore {
     }
 
     pub fn legacy_session(&self) -> Result<Option<Session>> {
-        match LegacySessionStore::at(&self.directory).load_session() {
-            Ok(session) => Ok(Some(session)),
-            Err(error) if crate::state::is_no_active_session_error(&error) => Ok(None),
-            Err(error) => Err(error),
-        }
+        LegacySessionStore::at(&self.directory).load_session()
     }
 
     pub async fn migrate_legacy(&self) -> Result<()> {
         if self.path("config", "yaml").try_exists()? {
             return Ok(());
         }
-        let session = match LegacySessionStore::at(&self.directory).load_session() {
-            Ok(session) => session,
-            Err(error) if crate::state::is_no_active_session_error(&error) => return Ok(()),
-            Err(error) => return Err(error),
+        let Some(session) = self.legacy_session()? else {
+            return Ok(());
         };
         let me = ApiClient::from_session(&session)?.get_me().await?;
         self.save(

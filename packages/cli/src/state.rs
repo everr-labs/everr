@@ -1,13 +1,11 @@
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 
 use crate::build;
-
-const NO_ACTIVE_SESSION: &str = "no active session";
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Session {
@@ -92,10 +90,8 @@ impl LegacySessionStore {
         }
     }
 
-    pub fn load_session(&self) -> Result<Session> {
-        self.load_file()?
-            .session
-            .ok_or_else(|| anyhow!(NO_ACTIVE_SESSION))
+    pub fn load_session(&self) -> Result<Option<Session>> {
+        Ok(self.load_file()?.session)
     }
 
     pub fn clear_session(&self) -> Result<bool> {
@@ -134,13 +130,9 @@ impl LegacySessionStore {
     }
 }
 
-pub fn is_no_active_session_error(error: &anyhow::Error) -> bool {
-    error.to_string() == NO_ACTIVE_SESSION
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{LegacySessionStore, Session, is_no_active_session_error};
+    use super::{LegacySessionStore, Session};
     use crate::test_support::ENV_LOCK;
     use serde_json::json;
     use tempfile::tempdir;
@@ -168,7 +160,7 @@ mod tests {
                     "notification_emails": ["old@example.test"], "user_profile": {"name": "Old profile"}
                 }}),
             );
-            assert_eq!(store.load_session().unwrap(), session());
+            assert_eq!(store.load_session().unwrap(), Some(session()));
         });
     }
 
@@ -183,9 +175,7 @@ mod tests {
                 json!({"session":{"token":42}}),
             ] {
                 write_fixture(&store, value);
-                assert!(is_no_active_session_error(
-                    &store.load_session().unwrap_err()
-                ));
+                assert_eq!(store.load_session().unwrap(), None);
             }
         });
     }

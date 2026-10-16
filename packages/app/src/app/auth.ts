@@ -6,16 +6,14 @@ import { assertWorkspaceOwnershipTransferred } from "./installation.server";
 import { lockWorkspaceMembership } from "./request";
 
 export const identityAdapter = () => drizzleAdapter(db, { provider: "pg" });
-export async function afterCreateOrganization(_data: {
-  organization: { id: string; metadata?: unknown };
-}) {}
-export const organizationHooks = () => ({});
-export const beforeCreateOrganization = async () => {
-  throw new APIError("FORBIDDEN", {
-    message:
-      "This installation supports one workspace. Use initial setup to create it.",
-  });
-};
+export const organizationHooks = () => ({
+  async beforeCreateOrganization() {
+    throw new APIError("FORBIDDEN", {
+      message:
+        "This installation supports one workspace. Use initial setup to create it.",
+    });
+  },
+});
 
 export const identityLifecycle = {
   async beforeUserDelete(userId: string) {

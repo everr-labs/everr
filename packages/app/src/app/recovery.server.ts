@@ -16,14 +16,18 @@ export async function recoverAccount(
   action: RecoveryAction,
 ) {
   const address = z.email().parse(email.trim().toLowerCase());
-  let password: string | undefined;
-  let url: URL | undefined;
+  let prepared:
+    | { kind: "password"; passwordHash: string }
+    | { kind: "link"; url: URL };
   if (action.kind === "password") {
-    password = await hashPassword(
-      z.string().min(8).max(128).parse(action.password),
-    );
+    prepared = {
+      kind: "password",
+      passwordHash: await hashPassword(
+        z.string().min(8).max(128).parse(action.password),
+      ),
+    };
   } else {
-    url = new URL("/auth/reset-password", action.baseUrl);
+    const url = new URL("/auth/reset-password", action.baseUrl);
     if (
       !["http:", "https:"].includes(url.protocol) ||
       url.username ||
@@ -33,6 +37,7 @@ export async function recoverAccount(
         "BETTER_AUTH_URL must be an HTTP(S) URL without credentials.",
       );
     }
+    prepared = { kind: "link", url };
   }
 
   return database.transaction(async (tx) => {
@@ -65,15 +70,14 @@ export async function recoverAccount(
         ),
       );
     await tx.delete(session).where(eq(session.userId, target.id));
-    if (password) {
+    if (prepared.kind === "password") {
       await tx
         .update(account)
-        .set({ password })
+        .set({ password: prepared.passwordHash })
         .where(eq(account.id, credential.id));
       return { kind: "password" as const };
     }
 
-    if (!url) throw new Error("Missing recovery URL.");
     const token = randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await tx.insert(verification).values({
@@ -82,7 +86,7 @@ export async function recoverAccount(
       value: target.id,
       expiresAt,
     });
-    url.searchParams.set("token", token);
-    return { kind: "link" as const, url: url.toString(), expiresAt };
+    prepared.url.searchParams.set("token", token);
+    return { kind: "link" as const, url: prepared.url.toString(), expiresAt };
   });
 }

@@ -18,10 +18,10 @@ it("validates production configuration and registers no integration jobs without
   vi.stubEnv("EMAIL_FROM", undefined);
 
   const { env } = await import("@/env");
-  const { integrationTasks } = await import("@app/integrations");
+  const { githubTasks } = await import("@/integrations/github/registration");
   const { mailer } = await import("@/lib/mailer.server");
   expect(mailer).toBeNull();
   expect(env.NODE_ENV).toBe("production");
   expect(Object.keys(env).some((key) => key.startsWith("POLAR_"))).toBe(false);
-  expect(await integrationTasks()).toEqual({});
+  expect(await githubTasks()).toEqual({});
 });

@@ -1,7 +1,5 @@
 import {
-  afterCreateOrganization,
   authPlugins,
-  beforeCreateOrganization,
   identityAdapter,
   identityLifecycle,
   membershipPlugins,
@@ -281,9 +279,7 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
-        beforeCreateOrganization,
         ...organizationHooks(),
-        afterCreateOrganization,
         beforeAddMember: async ({ member: newMember }) => {
           const existingMembers = await db
             .select({ id: member.id })

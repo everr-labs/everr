@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
-import { integrationTasks } from "@app/integrations";
 import { startAppWorkers, stopAppWorkers } from "@app/workers";
 import { run, type WorkerEvents } from "graphile-worker";
 import { pool } from "@/db/client";
+import { githubTasks } from "@/integrations/github/registration";
 import { alertCronItems, alertTaskList } from "@/server/alerting/runtime";
 import {
   previewsCronItems,
@@ -26,7 +26,7 @@ const general = managedWorker({
       pgPool: pool,
       taskList: {
         ...alertTaskList,
-        ...(await integrationTasks()),
+        ...(await githubTasks()),
         ...previewsTaskList,
       },
     });
