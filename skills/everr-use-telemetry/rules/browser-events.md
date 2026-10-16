@@ -4,7 +4,7 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 
 ## Where Browser Data Lands
 
-- Everything except requests is a **log record** in `logs` with the event name in the `EventName` column. A log emitted while a browser span is active carries that span's `TraceId` and `SpanId`.
+- Everything except requests is a **log record** in `logs` with the event name in the `EventName` column. A log emitted during `startActiveSpan`, until `end()`, carries that span's `TraceId`, `SpanId`, and trace flags.
 - Browser `fetch` and XHR requests are **CLIENT spans** in `traces`. Slow interactions and custom segments from the exported `tracer` are **INTERNAL spans**.
 - Every record (logs and spans) carries the context envelope in its attributes map, so any signal can slice by page and join by session.
 

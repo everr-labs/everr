@@ -283,8 +283,13 @@ describe("instrumentation tracer", () => {
       startTime: [1_724_976_000, 123_000_000],
     });
     fromHr.end([1_725_004_801, 456_000_000]);
+    const fromFraction = tracer.startSpan("from-fraction", {
+      startTime: [1_724_976_000, 123_456_789],
+    });
+    fromFraction.end(1_725_004_801_456.6);
     const wire = await spans();
     expect(wire.map((span) => span.startTimeUnixNano)).toEqual([
+      "1724976000123000000",
       "1724976000123000000",
       "1724976000123000000",
       "1724976000123000000",
@@ -293,6 +298,7 @@ describe("instrumentation tracer", () => {
       "1725004801456000000",
       "1725004801456000000",
       "1725004801456000000",
+      "1725004801457000000",
     ]);
   });
 

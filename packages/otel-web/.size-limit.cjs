@@ -12,6 +12,8 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK }",
     gzip: true,
+    // Includes the shared tracer binding and span-kind support.
+    // Raised for span status, links, timestamps, and log correlation.
     limit: "4.2 KB",
   },
   {
@@ -22,6 +24,8 @@ module.exports = [
     limit: "4.25 KB",
   },
   {
+    // Raised for the parent span support in the tracer.
+    // Raised again for span status, links, timestamps, and log correlation.
     name: "core + errors",
     path: "dist/index.js",
     import: "{ WebSDK, errors }",
@@ -29,6 +33,9 @@ module.exports = [
     limit: "4.9 KB",
   },
   {
+    // Raised for the exit-flush budget code (refer to pipeline/emitter.ts)
+    // and for the parent span support in the tracer.
+    // Raised again for span status, links, timestamps, and log correlation.
     name: "core + pageviews",
     path: "dist/index.js",
     import: "{ WebSDK, pageviews }",
@@ -36,6 +43,8 @@ module.exports = [
     limit: "4.35 KB",
   },
   {
+    // Raised for the naming attributes in the element selector.
+    // Raised again for span status, links, timestamps, and log correlation.
     name: "core + interactions",
     path: "dist/index.js",
     import: "{ WebSDK, interactions }",

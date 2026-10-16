@@ -95,11 +95,15 @@ export type SpanStatus = {
   message?: string;
 };
 
-/** One link to another span. `traceFlags` is the W3C trace-flags byte. */
-export type SpanLink = {
+/** The three ids the W3C trace context carries. */
+export type SpanContext = {
   traceId: string;
   spanId: string;
   traceFlags: number;
+};
+
+/** One link to another span. `traceFlags` is the W3C trace-flags byte. */
+export type SpanLink = SpanContext & {
   attributes?: Record<string, AttrValue | null | undefined>;
 };
 
@@ -229,6 +233,10 @@ const EXIT_BUDGET = 64_000;
 
 export const noop = () => Promise.resolve();
 
+function unixNano(ms: number): string {
+  return `${Math.round(ms)}000000`;
+}
+
 function toAnyValue(value: AttrValue): AnyValue {
   if (typeof value === "string") return { stringValue: value };
   if (typeof value === "boolean") return { boolValue: value };
@@ -280,9 +288,7 @@ export function createEmitter(
   /** The hook of the host on each item. Refer to {@link BeforeSend}. */
   beforeSend?: BeforeSend,
   /** The span active at emit time, when there is one. */
-  activeSpan?: () =>
-    | { traceId: string; spanId: string; traceFlags: number }
-    | undefined,
+  activeSpan?: () => SpanContext | undefined,
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
   let queue: OtlpLogRecord[] = [];
@@ -460,7 +466,7 @@ export function createEmitter(
     // Read both before the hook. The default time is the instant emit was
     // called, even when a host hook does synchronous work before the item is
     // queued. The span is the one active at that same instant.
-    const timestamp = `${time ?? Date.now()}000000`;
+    const timestamp = unixNano(time ?? Date.now());
     const span = activeSpan?.();
     const item = applyBeforeSend({
       kind: "log",
@@ -511,16 +517,14 @@ export function createEmitter(
       links,
     });
     if (item?.kind !== "span") return;
-    const wireLinks = item.links?.flatMap((link) => {
+    const wireLinks = item.links?.map((link) => {
       const attributes = toKeyValues(link.attributes ?? {});
-      return [
-        {
-          traceId: link.traceId,
-          spanId: link.spanId,
-          flags: link.traceFlags,
-          ...(attributes.length ? { attributes } : {}),
-        },
-      ];
+      return {
+        traceId: link.traceId,
+        spanId: link.spanId,
+        flags: link.traceFlags,
+        ...(attributes.length ? { attributes } : {}),
+      };
     });
     spanQueue.push({
       traceId,
@@ -528,8 +532,8 @@ export function createEmitter(
       parentSpanId,
       name: item.name,
       kind,
-      startTimeUnixNano: `${startTime}000000`,
-      endTimeUnixNano: `${endTime}000000`,
+      startTimeUnixNano: unixNano(startTime),
+      endTimeUnixNano: unixNano(endTime),
       attributes: toKeyValues(item.attributes),
       // UNSET is absent. JSON also removes a value of undefined.
       status: otlpStatus(item.status),

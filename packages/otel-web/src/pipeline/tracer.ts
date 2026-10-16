@@ -26,17 +26,28 @@
 
 import type { Link, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
-import type { AttrValue, EmitSpan, SpanLink, SpanStatus } from "./emitter.js";
+import type {
+  AttrValue,
+  EmitSpan,
+  SpanContext,
+  SpanLink,
+  SpanStatus,
+} from "./emitter.js";
 
 const ZERO_TRACE = "0".repeat(32);
 const ZERO_SPAN = "0".repeat(16);
 
 function epochMs(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Math.round(value) : Date.now();
+  }
   if (value instanceof Date) {
     const time = value.getTime();
-    if (Number.isFinite(time)) return time;
+    return Number.isFinite(time) ? time : Date.now();
   }
+  // Round the nanoseconds on their own. Adding them to the seconds as a
+  // fraction makes a non-integer millisecond, and the encoder then writes an
+  // invalid timestamp.
   if (
     Array.isArray(value) &&
     typeof value[0] === "number" &&
@@ -44,7 +55,7 @@ function epochMs(value: unknown): number {
     Number.isFinite(value[0]) &&
     Number.isFinite(value[1])
   ) {
-    return value[0] * 1000 + value[1] / 1e6;
+    return Math.trunc(value[0]) * 1000 + Math.round(Math.trunc(value[1]) / 1e6);
   }
   return Date.now();
 }
@@ -79,9 +90,7 @@ function cleanLink(link: Link): SpanLink | undefined {
 }
 
 export function createTracer(emitSpan?: EmitSpan): Tracer & {
-  activeSpanContext():
-    | { traceId: string; spanId: string; traceFlags: number }
-    | undefined;
+  activeSpanContext(): SpanContext | undefined;
 } {
   // The active spans, the most recent last.
   const active: Span[] = [];
@@ -117,11 +126,7 @@ export function createTracer(emitSpan?: EmitSpan): Tracer & {
         return span;
       },
       setAttributes: (attrs) => {
-        if (!ended) {
-          for (const [key, value] of Object.entries(attrs)) {
-            attributes[key] = value as AttrValue;
-          }
-        }
+        if (!ended) Object.assign(attributes, attrs);
         return span;
       },
       addEvent: () => span,

@@ -1,7 +1,7 @@
 import { attributionAttributes } from "./attribution.js";
 import type { InstrumentationContext } from "./instrumentations/runtime.js";
 import { type NavigationListener, watchNavigation } from "./navigation.js";
-import { createEmitter, noop } from "./pipeline/emitter.js";
+import { createEmitter, noop, type SpanContext } from "./pipeline/emitter.js";
 import { createEnvelope } from "./pipeline/envelope.js";
 import { createTracer } from "./pipeline/tracer.js";
 import { resolveTransport } from "./pipeline/transport.js";
@@ -63,9 +63,7 @@ export class WebSDK {
       document.referrer,
     );
 
-    let activeSpan: () =>
-      | { traceId: string; spanId: string; traceFlags: number }
-      | undefined = () => undefined;
+    let activeSpan: () => SpanContext | undefined = () => undefined;
     const [emit, flush, exitFlush, emitSpan] = createEmitter(
       ...transport,
       // The resource does not contain the viewport, and this is correct. The
