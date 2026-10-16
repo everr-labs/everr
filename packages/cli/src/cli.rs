@@ -17,12 +17,25 @@ pub const MAX_LOG_PAGE_SIZE: u32 = 5000;
     about = "Query telemetry, inspect CI, and manage resources as code in Everr"
 )]
 pub struct Cli {
+    /// Select a saved installation, organization, and account
+    #[arg(long, global = true)]
+    pub profile: Option<String>,
     #[command(subcommand)]
     pub command: Commands,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Authenticate with an installation and configure this project
+    Login(LoginArgs),
+    /// Sign out of the selected profile
+    Logout,
+    /// Show the effective installation, account, and organization
+    Whoami(WhoamiArgs),
+    /// Run read-only SQL against the selected installation
+    Query(TelemetryQueryArgs),
+    /// Manage saved connection profiles
+    Profiles(ProfilesArgs),
     /// Remove local Everr state and globally installed skills
     Uninstall,
     /// Upgrade the Everr CLI and bundled local UI to the latest version
@@ -53,6 +66,9 @@ impl Cli {
 impl Commands {
     fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
         match self {
+            Commands::Login(_) | Commands::Logout | Commands::Profiles(_) => true,
+            Commands::Whoami(args) => !args.json,
+            Commands::Query(args) => telemetry_query_prints_human_stdout(args, stdout_is_terminal),
             Commands::Uninstall => true,
             Commands::Upgrade => true,
             Commands::Cloud(args) => args.command.prints_human_stdout(stdout_is_terminal),
@@ -318,7 +334,42 @@ fn telemetry_query_prints_human_stdout(
 }
 
 #[derive(Args, Debug, Default)]
-pub struct LoginArgs {}
+pub struct LoginArgs {
+    /// Installation URL (defaults to the project target or Everr Cloud)
+    #[arg(long)]
+    pub url: Option<String>,
+    /// Require approval for this organization (must agree with existing configuration)
+    #[arg(long)]
+    pub organization_id: Option<String>,
+    /// Print the authorization URL without opening a browser
+    #[arg(long)]
+    pub no_open: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct WhoamiArgs {
+    /// Print connection metadata as JSON
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct ProfilesArgs {
+    #[command(subcommand)]
+    pub command: ProfilesSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ProfilesSubcommand {
+    /// List profiles without revealing credentials
+    List,
+    /// Show a profile without revealing credentials
+    Show { name: String },
+    /// Set the default profile used outside configured projects
+    Use { name: String },
+    /// Remove a profile and its saved credentials
+    Remove { name: String },
+}
 
 #[derive(Args, Debug, Default)]
 pub struct StatusArgs {
@@ -587,6 +638,39 @@ mod tests {
     use super::{
         CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, StatusArgs, WatchArgs,
     };
+
+    #[test]
+    fn removed_commands_are_rejected() {
+        for command in [
+            vec!["cloud", "logs", "--help"],
+            vec!["ci", "grep", "--help"],
+            vec!["setup-assistant"],
+            vec!["ai-instructions"],
+            vec!["wait-pipeline"],
+            vec!["status"],
+            vec!["grep"],
+            vec!["watch"],
+            vec!["runs"],
+            vec!["show"],
+            vec!["logs"],
+            vec!["telemetry"],
+            vec!["test-history"],
+            vec!["slowest-tests"],
+            vec!["slowest-jobs"],
+            vec!["workflows"],
+            vec!["setup"],
+            vec!["init"],
+        ] {
+            let error =
+                Cli::try_parse_from(std::iter::once("everr").chain(command.iter().copied()))
+                    .expect_err(&format!("removed command should be rejected: {command:?}"));
+            assert_eq!(
+                error.kind(),
+                clap::error::ErrorKind::InvalidSubcommand,
+                "{command:?}: {error}"
+            );
+        }
+    }
 
     #[test]
     fn parses_top_level_commands() {
@@ -873,34 +957,7 @@ mod tests {
     }
 
     #[test]
-    fn cloud_logs_is_no_longer_accepted() {
-        let err = Cli::try_parse_from(["everr", "cloud", "logs", "--help"])
-            .expect_err("cloud logs should be moved to ci logs");
-
-        assert!(err.to_string().contains("logs"));
-    }
-
-    #[test]
-    fn ci_grep_is_no_longer_accepted() {
-        let err = Cli::try_parse_from(["everr", "ci", "grep", "--help"])
-            .expect_err("ci grep should be removed");
-
-        assert!(err.to_string().contains("grep"));
-    }
-
-    #[test]
-    fn old_assistant_commands_are_rejected() {
-        let setup_err = Cli::try_parse_from(["everr", "setup-assistant"])
-            .expect_err("setup-assistant should be removed");
-        assert!(setup_err.to_string().contains("setup-assistant"));
-
-        let instructions_err = Cli::try_parse_from(["everr", "ai-instructions"])
-            .expect_err("ai-instructions should be removed");
-        assert!(instructions_err.to_string().contains("ai-instructions"));
-    }
-
-    #[test]
-    fn runs_logs_defaults_to_no_paging() {
+    fn runs_logs_default_to_no_paging_or_filter() {
         let cli = Cli::try_parse_from([
             "everr",
             "ci",
@@ -920,6 +977,7 @@ mod tests {
             panic!("expected ci logs command");
         };
         assert_eq!(args.paging(), None);
+        assert!(args.egrep.is_none());
     }
 
     #[test]
@@ -1045,7 +1103,7 @@ mod tests {
             commit,
             attempt: _,
             run_id,
-            fail_fast: _,
+            fail_fast,
         }) = ci.command
         else {
             panic!("expected ci watch command");
@@ -1055,6 +1113,7 @@ mod tests {
         assert_eq!(branch, None);
         assert_eq!(commit, None);
         assert_eq!(run_id, None);
+        assert!(!fail_fast);
     }
 
     #[test]
@@ -1072,6 +1131,8 @@ mod tests {
 
     #[test]
     fn update_notice_is_skipped_for_stream_and_json_commands() {
+        let cli = Cli::try_parse_from(["everr", "whoami", "--json"]).expect("whoami JSON command");
+        assert!(!cli.prints_human_stdout(true));
         let cli =
             Cli::try_parse_from(["everr", "wrap", "--", "echo", "hello"]).expect("wrap command");
         assert!(!cli.prints_human_stdout(true));
@@ -1095,42 +1156,6 @@ mod tests {
         ])
         .expect("ci logs command");
         assert!(!cli.prints_human_stdout(true));
-    }
-
-    #[test]
-    fn wait_pipeline_is_no_longer_accepted() {
-        let err =
-            Cli::try_parse_from(["everr", "wait-pipeline"]).expect_err("legacy command rejected");
-
-        assert!(err.to_string().contains("wait-pipeline"));
-    }
-
-    #[test]
-    fn moved_top_level_commands_are_rejected() {
-        for command in [
-            "login",
-            "logout",
-            "status",
-            "grep",
-            "watch",
-            "runs",
-            "show",
-            "logs",
-            "telemetry",
-        ] {
-            let err = Cli::try_parse_from(["everr", command])
-                .expect_err("moved top-level command should be rejected");
-            assert!(err.to_string().contains(command));
-        }
-    }
-
-    #[test]
-    fn retired_commands_are_rejected() {
-        for command in ["test-history", "slowest-tests", "slowest-jobs", "workflows"] {
-            let err = Cli::try_parse_from(["everr", command])
-                .expect_err("retired command should be rejected");
-            assert!(err.to_string().contains(command));
-        }
     }
 
     #[test]
@@ -1165,16 +1190,6 @@ mod tests {
     }
 
     #[test]
-    fn setup_is_no_longer_accepted() {
-        assert!(Cli::try_parse_from(["everr", "setup"]).is_err());
-    }
-
-    #[test]
-    fn init_is_no_longer_accepted() {
-        assert!(Cli::try_parse_from(["everr", "init"]).is_err());
-    }
-
-    #[test]
     fn watch_parses_fail_fast_flag() {
         let cli =
             Cli::try_parse_from(["everr", "ci", "watch", "--fail-fast"]).expect("watch command");
@@ -1202,20 +1217,6 @@ mod tests {
         };
 
         assert_eq!(run_id, Some("42".to_string()));
-    }
-
-    #[test]
-    fn watch_fail_fast_defaults_to_false() {
-        let cli = Cli::try_parse_from(["everr", "ci", "watch"]).expect("watch command");
-
-        let Commands::Ci(ci) = cli.command else {
-            panic!("expected ci command");
-        };
-        let CiSubcommand::Watch(WatchArgs { fail_fast, .. }) = ci.command else {
-            panic!("expected ci watch command");
-        };
-
-        assert!(!fail_fast);
     }
 
     #[test]
@@ -1249,29 +1250,5 @@ mod tests {
         let cli = Cli::try_parse_from(["everr", "upgrade"]).expect("upgrade command");
         assert!(matches!(cli.command, Commands::Upgrade));
         assert!(cli.prints_human_stdout(false));
-    }
-
-    #[test]
-    fn runs_logs_egrep_defaults_to_none() {
-        let cli = Cli::try_parse_from([
-            "everr",
-            "ci",
-            "logs",
-            "trace-1",
-            "--job-name",
-            "build",
-            "--step-number",
-            "2",
-        ])
-        .expect("valid logs command");
-
-        let Commands::Ci(ci) = cli.command else {
-            panic!("expected ci command");
-        };
-        let CiSubcommand::Logs(args) = ci.command else {
-            panic!("expected ci logs command");
-        };
-
-        assert!(args.egrep.is_none());
     }
 }

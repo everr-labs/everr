@@ -1,3 +1,4 @@
+import { DEVICE_LOGIN_RESTART_INSTRUCTION } from "@app/device-login-copy";
 import { Button } from "@everr/ui/components/button";
 import { Label } from "@everr/ui/components/label";
 import {
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/_organization/device")({
   staticData: { authEntry: "/auth/sign-up" },
   validateSearch: z.object({
     user_code: z.string().min(1, "Missing device code"),
+    organization_id: z.string().optional(),
   }),
   loaderDeps: ({ search }) => ({
     code: search.user_code,
@@ -45,11 +47,16 @@ function formatCodeForDisplay(code: string): string {
 function CliDeviceApprovalPage() {
   const { deviceCode, userName, organizations, activeOrganizationId } =
     Route.useLoaderData();
+  const { organization_id: expectedOrganizationId } = Route.useSearch();
   const [selection, setSelection] = useState<string | null>(null);
   const selectedOrganization =
     organizations.find(
       (org) => org.id === (selection ?? activeOrganizationId),
     ) ?? organizations[0];
+  const targetMismatch = Boolean(
+    expectedOrganizationId &&
+      expectedOrganizationId !== selectedOrganization?.id,
+  );
   const [status, setStatus] = useState<
     "idle" | "approved" | "denied" | "error"
   >("idle");
@@ -57,7 +64,10 @@ function CliDeviceApprovalPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function submit(action: "approve" | "deny") {
-    if (!deviceCode || (action === "approve" && !selectedOrganization)) {
+    if (
+      !deviceCode ||
+      (action === "approve" && (!selectedOrganization || targetMismatch))
+    ) {
       setErrorMessage("Select an organization before authorizing this device.");
       setStatus("error");
       return;
@@ -102,6 +112,13 @@ function CliDeviceApprovalPage() {
             ? `${userName} · ${selectedOrganization.name}`
             : userName}
         </p>
+
+        {targetMismatch && (
+          <p role="alert" className="mt-3 text-center text-sm text-destructive">
+            Select organization {expectedOrganizationId} to authorize this
+            profile.
+          </p>
+        )}
 
         <section className="bg-background mt-10 rounded-2xl border px-6 py-10 sm:px-12">
           {status === "idle" || status === "error" ? (
@@ -151,7 +168,9 @@ function CliDeviceApprovalPage() {
                   Deny
                 </Button>
                 <Button
-                  disabled={isSubmitting || !selectedOrganization}
+                  disabled={
+                    isSubmitting || !selectedOrganization || targetMismatch
+                  }
                   onClick={() => void submit("approve")}
                 >
                   Confirm
@@ -163,7 +182,7 @@ function CliDeviceApprovalPage() {
                   role="alert"
                   className="text-destructive mt-4 text-center text-sm"
                 >
-                  {errorMessage}
+                  {errorMessage} {DEVICE_LOGIN_RESTART_INSTRUCTION}
                 </p>
               ) : null}
             </>

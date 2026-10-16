@@ -11,10 +11,7 @@ CREATE DATABASE IF NOT EXISTS app;
 
 CREATE USER IF NOT EXISTS collector_rw IDENTIFIED WITH sha256_password BY '${COLLECTOR_RW_PASSWORD}';
 CREATE USER IF NOT EXISTS app_ro IDENTIFIED WITH sha256_password BY '${APP_RO_PASSWORD}';
--- web_app_admin holds every privilege the web-app process needs that goes
--- beyond app_ro's read-only data access: writing alert history, and
--- provisioning per-org access entities (users + row policies) for the /sql
--- API. See the GRANT block below for the exact split.
+-- The app writer only needs alert-history writes in the base product.
 CREATE USER IF NOT EXISTS web_app_admin IDENTIFIED WITH sha256_password BY '${WEB_APP_ADMIN_PASSWORD}';
 
 -- Collector writes raw telemetry into otel schema.
@@ -23,15 +20,5 @@ GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;
 -- App reads only curated read-model tables.
 GRANT SELECT ON app.* TO app_ro;
 
--- Access-management grants for /sql API per-org provisioning:
---   CREATE/ALTER/DROP USER: needed to make per-org users \`sql_api_org_<id>\`.
---     CH does not allow scoping user creation by name pattern.
---   CREATE/DROP ROW POLICY ON app.*: scoped to the app database. Means a
---     compromised web app could drop tenant filters — but not an escalation
---     beyond what app_ro already gives a compromised app process, since app_ro
---     can override SQL_everr_tenant_id (no readonly profile).
--- The ADMIN OPTION on sql_api_role is granted in 15-create-sql-api-role.sql
--- once the role exists, so web_app_admin can grant it to per-org users.
-GRANT CREATE USER, ALTER USER, DROP USER ON *.* TO web_app_admin;
-GRANT CREATE ROW POLICY, DROP ROW POLICY ON app.* TO web_app_admin;
+
 SQL

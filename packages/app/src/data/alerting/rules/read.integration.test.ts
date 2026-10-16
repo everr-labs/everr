@@ -10,6 +10,7 @@
  * then formats perfectly.
  */
 import { describe, expect, it, vi } from "vitest";
+import { useAlertingHarness } from "@/cloud/testing/alerting-harness";
 import { ANN_DISPLAY_NAME } from "@/data/alerting/resource-annotations";
 import { alertInstances } from "@/db/schema";
 import {
@@ -17,7 +18,6 @@ import {
   insertRule,
   TEST_ORG,
 } from "@/server/alerting/testing/fixtures";
-import { useAlertingHarness } from "@/server/alerting/testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import(

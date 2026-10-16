@@ -13,6 +13,7 @@ export const returnToSchema = z
       !value.startsWith("/organization-pending") &&
       !value.startsWith("/organization-setup") &&
       !value.startsWith("/create-organization") &&
-      !value.startsWith("/choose-organization"),
+      !value.startsWith("/choose-organization") &&
+      !value.startsWith("/access-required"),
   )
   .catch("/");

@@ -34,7 +34,9 @@
       "packages/datemath/**/src/**/*",
       "packages/datemath/vite.config.ts",
 
-      "!packages/**/src/routeTree.gen.ts"
+      "!packages/**/src/**/routeTree.gen.ts",
+      "!packages/app/src/cloud/drizzle",
+      "!packages/app/src/cloud/drizzle-legacy"
     ]
   },
   "formatter": {

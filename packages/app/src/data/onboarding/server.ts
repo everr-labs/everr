@@ -1,5 +1,8 @@
+import { getIngestEndpoint } from "@app/ingest";
 import { z } from "zod";
+import type { HomeStatus } from "@/common/onboarding";
 import { db } from "@/db/client";
+import { env } from "@/env";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { createOnboardingStore } from "./store";
 
@@ -20,14 +23,18 @@ function onboardingScope(
 
 export const getHomeStatus = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(identityInput)
-  .handler(({ data, context: { session } }) =>
-    store.getStatus(
-      onboardingScope(
-        data.organizationId,
-        session.session.activeOrganizationId,
-        session.user.id,
-      ),
-    ),
+  .handler(
+    async ({ data, context: { session } }): Promise<HomeStatus> => ({
+      ...(await store.getStatus(
+        onboardingScope(
+          data.organizationId,
+          session.session.activeOrganizationId,
+          session.user.id,
+        ),
+      )),
+      ingestEndpoint: getIngestEndpoint(),
+      appUrl: env.BETTER_AUTH_URL,
+    }),
   );
 
 export const completeOnboarding = createAuthenticatedServerFn({

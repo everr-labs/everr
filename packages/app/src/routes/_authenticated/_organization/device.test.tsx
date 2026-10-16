@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  expectedOrganizationId: undefined as string | undefined,
   loaderData: {
     deviceCode: "ABCD1234",
     userName: "CLI",
@@ -21,6 +22,7 @@ vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
     options,
     useLoaderData: () => mocks.loaderData,
+    useSearch: () => ({ organization_id: mocks.expectedOrganizationId }),
   }),
 }));
 vi.mock("@/data/auth", () => ({
@@ -36,6 +38,7 @@ import { Route } from "./device";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.expectedOrganizationId = undefined;
   mocks.loaderData.organizations = [
     { id: "org-a", name: "Org A" },
     { id: "org-b", name: "Org B" },
@@ -98,4 +101,26 @@ it("denies the request without activating the selected organization", async () =
   expect(mocks.denyDevice).toHaveBeenCalledWith("ABCD1234");
   expect(mocks.approveDevice).not.toHaveBeenCalled();
   expect(await screen.findByText("Request denied")).toBeVisible();
+});
+
+it("blocks approval for a different profile organization while allowing denial", async () => {
+  mocks.expectedOrganizationId = "org-b";
+  const user = userEvent.setup();
+  renderPage();
+  expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Deny" }));
+  expect(mocks.approveDevice).not.toHaveBeenCalled();
+  expect(mocks.denyDevice).toHaveBeenCalledWith("ABCD1234");
+});
+
+it("allows approval after selecting the profile's expected organization", async () => {
+  mocks.expectedOrganizationId = "org-b";
+  const user = userEvent.setup();
+  renderPage();
+  expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
+  await user.click(screen.getByRole("combobox", { name: "Organization" }));
+  await user.click(await screen.findByRole("option", { name: "Org B" }));
+  expect(screen.getByRole("button", { name: "Confirm" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Confirm" }));
+  expect(mocks.approveDevice).toHaveBeenCalledWith("ABCD1234", "org-b");
 });

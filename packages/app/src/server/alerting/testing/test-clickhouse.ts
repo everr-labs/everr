@@ -136,7 +136,7 @@ export async function query<T>(
   return activeClickHouse.read<T>(statement, query_params).rows;
 }
 
-export async function insertAdminRows(
+export async function insertRows(
   _table: string,
   rows: object[],
   clickhouse_settings?: ClickHouseWriteSettings,

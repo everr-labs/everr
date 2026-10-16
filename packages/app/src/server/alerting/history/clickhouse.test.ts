@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  insertAdminRows: vi.fn(),
+  insertRows: vi.fn(),
   error: vi.fn(),
 }));
 
-vi.mock("@/lib/clickhouse", () => ({
-  insertAdminRows: mocks.insertAdminRows,
+vi.mock("@/lib/clickhouse-writer", () => ({
+  insertRows: mocks.insertRows,
 }));
 
 vi.mock("@/telemetry/logger", () => ({
@@ -16,16 +16,25 @@ vi.mock("@/telemetry/logger", () => ({
 
 // Cuts the import chain to the Postgres client. The tier is fixed to pro so
 // the stamped retention_days is a known value below.
-vi.mock("@/lib/retention.server", async () => {
-  const { resolveRetention } = await import("@/lib/retention");
+vi.mock("@/product/retention.server", async () => {
+  const { retentionForDays } = await import(
+    "@/product/retention.test-fixtures"
+  );
   return {
-    retentionForOrg: vi.fn(async () => resolveRetention("pro")),
+    retentionForOrg: vi.fn(async () => retentionForDays(365, 30)),
   };
 });
 
 import { uuidv7Time } from "@/data/alerting/history/ids";
-import { resolveRetention } from "@/lib/retention";
-import { retentionForOrg } from "@/lib/retention.server";
+
+const cloudStorage = import.meta.env.MODE === "cloud";
+const expectedRow = <T extends object>(organizationId: string, row: T) => ({
+  ...row,
+  ...(cloudStorage ? { tenant_id: organizationId } : {}),
+});
+
+import { retentionForOrg } from "@/product/retention.server";
+import { retentionForDays } from "@/product/retention.test-fixtures";
 import {
   deliveryHistoryRow,
   evaluationFailureHistoryRow,
@@ -39,10 +48,13 @@ import {
 } from "./clickhouse";
 
 // Expected Pro retention at the write boundary; row builders own no retention.
-const stamped = <T extends { tenant_id: string }>(row: T, days = 365) => ({
-  ...row,
-  retention_days: days,
-});
+const stamped = <T extends { organizationId: string }>(row: T, days = 365) => {
+  const { organizationId, ...storedRow } = row;
+  return expectedRow(organizationId, {
+    ...storedRow,
+    retention_days: days,
+  });
+};
 
 const def = {
   id: "019c3ab6-54d6-7e26-bc76-8cadd67542fb",
@@ -78,9 +90,9 @@ const EPOCH_ISO = "1970-01-01T00:00:00.000Z";
 
 describe("ClickHouse alert history", () => {
   beforeEach(() => {
-    mocks.insertAdminRows.mockReset().mockResolvedValue(undefined);
+    mocks.insertRows.mockReset().mockResolvedValue(undefined);
     vi.mocked(retentionForOrg).mockImplementation(async () =>
-      resolveRetention("pro"),
+      retentionForDays(365, 30),
     );
     mocks.error.mockReset();
   });
@@ -122,7 +134,7 @@ describe("ClickHouse alert history", () => {
     // No deduplication token: an evaluation mints fresh uuidv7 ids on every
     // attempt, so the token could never match a previous insert, and a token
     // that differs every time gives each insert its own async-insert buffer.
-    expect(mocks.insertAdminRows).toHaveBeenCalledWith(
+    expect(mocks.insertRows).toHaveBeenCalledWith(
       "app.alert_events",
       [stamped(evaluation, 30), stamped(transition)],
       {
@@ -153,7 +165,7 @@ describe("ClickHouse alert history", () => {
 
   it("stamps mixed tenants and event classes with their alert entitlements", async () => {
     vi.mocked(retentionForOrg).mockImplementation(async (orgId) =>
-      resolveRetention(orgId === "org-2" ? "hobby" : "pro"),
+      orgId === "org-2" ? retentionForDays(14) : retentionForDays(365, 30),
     );
     const rowFor = (organizationId: string) =>
       evaluationHistoryRow({
@@ -192,34 +204,40 @@ describe("ClickHouse alert history", () => {
       },
     );
 
-    expect(mocks.insertAdminRows).toHaveBeenCalledWith(
+    expect(mocks.insertRows).toHaveBeenCalledWith(
       "app.alert_events",
       [
         expect.objectContaining({
-          tenant_id: "org-1",
-          retention_days: 30,
+          ...expectedRow("org-1", { retention_days: 30 }),
         }),
         expect.objectContaining({
-          tenant_id: "org-2",
-          retention_days: 14,
+          ...expectedRow("org-2", { retention_days: 14 }),
         }),
         expect.objectContaining({
+          ...expectedRow("org-1", {}),
           event_type: "evaluation_failed",
           retention_days: 30,
         }),
         expect.objectContaining({
-          tenant_id: "org-1",
+          ...expectedRow("org-1", {}),
           event_type: "notification_suppressed",
           retention_days: 365,
         }),
         expect.objectContaining({
-          tenant_id: "org-2",
+          ...expectedRow("org-2", {}),
           event_type: "notification_suppressed",
           retention_days: 14,
         }),
       ],
       expect.anything(),
     );
+    const insertedRows = mocks.insertRows.mock.calls[0]?.[1] as Array<
+      Record<string, unknown>
+    >;
+    expect(insertedRows.every((row) => !("organizationId" in row))).toBe(true);
+    expect(
+      insertedRows.every((row) => "tenant_id" in row === cloudStorage),
+    ).toBe(true);
   });
 
   it("mints time-decodable v7 ids for rows without a caller-supplied id", () => {
@@ -462,7 +480,7 @@ describe("ClickHouse alert history", () => {
   });
 
   it("does not fail alert evaluation when history storage is unavailable", async () => {
-    mocks.insertAdminRows.mockRejectedValue(new Error("unavailable"));
+    mocks.insertRows.mockRejectedValue(new Error("unavailable"));
 
     await expect(
       recordAlertHistory(
@@ -515,7 +533,7 @@ describe("ClickHouse alert history", () => {
       // Passed in reverse-sorted order: the token must not depend on it.
       await recordAlertHistoryStrict([first, second]);
 
-      expect(mocks.insertAdminRows).toHaveBeenCalledWith(
+      expect(mocks.insertRows).toHaveBeenCalledWith(
         "app.alert_events",
         [stamped(first), stamped(second)],
         {
@@ -533,11 +551,11 @@ describe("ClickHouse alert history", () => {
 
     it("does not insert for an empty batch", async () => {
       await recordAlertHistoryStrict([]);
-      expect(mocks.insertAdminRows).not.toHaveBeenCalled();
+      expect(mocks.insertRows).not.toHaveBeenCalled();
     });
 
     it("throws rather than swallowing a failed insert", async () => {
-      mocks.insertAdminRows.mockRejectedValue(new Error("unavailable"));
+      mocks.insertRows.mockRejectedValue(new Error("unavailable"));
       const row = instanceHistoryRow({
         def,
         eventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",

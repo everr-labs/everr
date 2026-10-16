@@ -15,6 +15,8 @@
     "stale-suppressions": "error"
   },
   "entry": [
+    // Invoked by the ClickHouse Docker build and local schema harness.
+    "clickhouse/render.mjs",
     // CI scripts invoked directly by GitHub Actions workflows.
     ".github/actions/everr-action/scripts/build-readme.mjs",
     ".github/actions/everr-action/scripts/sampler-macos.mjs",
@@ -24,6 +26,8 @@
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
+    // Cloud composition selected by the explicit cloud Vite build alias.
+    "packages/app/src/cloud/app/**",
     // size-limit's own config file, resolved by its CLI at runtime; nothing
     // in the package imports it.
     "packages/otel-web/.size-limit.cjs",
@@ -135,6 +139,15 @@
   },
   "ignoreExports": [
     {
+      // TanStack generated route types and convention-based cloud route exports.
+      "file": "packages/app/src/cloud/routeTree.gen.ts",
+      "exports": ["FileRouteTypes", "RootRouteChildren"]
+    },
+    {
+      "file": "packages/app/src/{app,cloud}/routes/**",
+      "exports": ["Route"]
+    },
+    {
       // Intentional namespace-barrel API: the app exposes a zero-prop
       // `<RefreshPicker />` / `<TimeRangePicker />` bound to app hooks; @everr/ui
       // exports the parameterized primitive of the same name. Same export name
@@ -169,7 +182,7 @@
         "querySqlApiWithMeta",
         "querySqlApi",
         "query",
-        "insertAdminRows",
+        "insertRows",
         "createClickhouseQuery",
         "SqlApiResult"
       ]

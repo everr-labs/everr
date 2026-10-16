@@ -19,7 +19,7 @@ layout live in `src/lib/email-layout.tsx`. Dedicated copies of the logo and
 social icons live in `public/email` and are available to the preview through
 `src/emails/static`.
 
-# Organization data access setup
+# Cloud organization data access setup
 
 The organization adapter atomically records provisioning intent alongside creation.
 Deletion atomically records cleanup intent alongside the organization and
@@ -405,3 +405,315 @@ Files prefixed with `demo` can be safely deleted. They are there to provide a st
 # Learn More
 
 You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
+
+# Cloud and self-hosted builds
+
+The deployment is selected at compilation time. There is no runtime deployment
+switch. Both builds use the same product, authentication, organization permissions,
+and database schema.
+
+```bash
+pnpm --filter @everr/app dev        # Everr
+pnpm --filter @everr/app build
+pnpm --filter @everr/app dev:cloud  # Everr Cloud
+pnpm --filter @everr/app build:cloud
+```
+
+`packages/app` is the default Everr product. `dev` and `build` select its
+self-hostable composition; Cloud is selected explicitly with `dev:cloud` and
+`build:cloud`. The `*:self-hosted` commands remain available as aliases for the
+product composition. Start either compiled artifact with the usual `start` command.
+Each build replaces `packages/app/.output`, so build separate artifacts when
+shipping both variants.
+
+For Docker, pass `--build-arg EVERR_BUILD_TARGET=self-hosted` to the app Dockerfile.
+The build argument defaults to `cloud`; it is not a runtime environment variable.
+
+`vite.app.ts` resolves `@app/*` to one implementation:
+
+- `src/cloud/app`: selects subscription policy, Polar configuration, billing
+  auth extensions, navigation, and access redirects. Billing server functions, checkout completion,
+  screens, and their tests live under `src/cloud`.
+- `src/app`: one installation workspace, invitation-only onboarding, collaboration
+  without subscriptions, and no billing auth extensions.
+- `src/product`: shared policy contracts and membership enforcement. Membership
+  roles still determine which users may invite, administer, or delete resources.
+
+A self-hosted build neither validates Polar credentials nor imports the Polar SDK
+or cloud implementation. The build checks its module graph and fails if those
+imports cross the seam. Other runtime configuration, including Postgres,
+ClickHouse and authentication, is still required. GitHub and SMTP are optional.
+Without SMTP, email verification and password recovery cannot deliver messages.
+Cloud requires both `EMAIL_DSN` and `EMAIL_FROM` at runtime.
+
+For local development alongside Cloud, create a separate PostgreSQL database
+and set `DATABASE_NAME=everr_self_hosted` in `packages/app/.env.self-hosted.local`.
+Restart `pnpm dev:self-hosted` after changing environment files. The app applies
+migrations, but the database must already exist. Self-hosted mode rejects a
+database containing multiple organizations.
+
+Self-hosted retention defaults to 30 days for all signals and alert
+history. Cloud retention remains defined by the existing plans. Organizations have no plan or billing-provider columns in the shared schema.
+Cloud stores plans and customer references in `organization_billing`, alongside
+its subscription and checkout tables in `src/cloud/db/schema`.
+
+The schema split uses separate migration histories. `drizzle/core` contains the
+shared baseline used by both products. Cloud adds `src/cloud/drizzle` for its
+billing schema and keeps the previous migration chain in
+`src/cloud/drizzle-legacy` for existing Cloud databases. The self-hosted image
+ships only the core history; the Cloud image also ships the Cloud and legacy
+histories. Self-hosted runs core migrations; Cloud runs core followed by Cloud
+migrations. Each history has its own tracking table in the `drizzle` schema
+(`__everr_core_migrations` and `__everr_cloud_migrations`). A PostgreSQL advisory
+lock serializes startup migrations across app instances.
+
+Existing Cloud databases first finish the legacy history, moving organization
+plans and Polar customer IDs into `organization_billing`, then adopt the two
+baselines. Subsequent migrations run normally. The legacy transition drops the
+old billing columns, so deploy it with the updated Cloud app rather than leaving
+old app instances running. Pre-release self-hosted databases using the mixed
+history need a fresh database.
+
+Startup applies migrations automatically. To run them explicitly from
+`packages/app`, use `pnpm db:migrate` for self-hosted or
+`pnpm db:migrate:cloud` for Cloud. These commands load the matching Vite mode's
+environment files; shell environment variables take precedence.
+
+Validate both variants:
+
+```bash
+pnpm --filter @everr/app typecheck
+pnpm --filter @everr/app typecheck:cloud
+pnpm --filter @everr/app test:self-hosted
+pnpm --filter @everr/app test:cloud
+```
+
+The normal test suite uses the cloud implementation. The self-hosted suite selects
+its implementation through the same alias as the production build.
+
+### Session workspace recovery
+
+Shared application authentication reads sessions through `getSession` in
+`src/lib/session.server.ts`. It validates the selected workspace's membership.
+When the selection is missing or no longer valid, it selects and persists the
+user's sole membership. With no memberships or multiple memberships, it leaves
+the session unselected. Recovery never creates a workspace or grants membership.
+
+The default app retains its single-workspace invariant and access page; Cloud
+retains its organization chooser. Ingestion keys and worker jobs continue using
+their explicit workspace IDs independently of browser sessions.
+
+### Public connection settings
+
+Set `EVERR_PUBLIC_INGEST_URL` to the public OTLP/HTTP base URL of your collector.
+The default app displays this URL during onboarding. It does not fall back to
+Everr Cloud when unset; users are asked to contact their administrator. Cloud
+keeps its hosted ingestion endpoint. This setting describes the destination for
+users' applications, not the web app's own telemetry exporter.
+
+Google sign-in is shown only when both `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` are configured. The browser receives only the provider's
+availability, never its credentials. Both settings are read at server startup.
+
+### Single-workspace setup
+
+The default app supports exactly one workspace per installation. On a fresh
+installation, browser visits open `/setup`. The first person to complete setup
+becomes the workspace owner. Enter a workspace name and the owner's name, email,
+and password (at least 8 characters).
+
+Setup atomically creates the owner, password credentials, workspace, and owner
+membership. Concurrent requests cannot create a second
+workspace. After setup, the owner signs in and continues through telemetry
+configuration. Setup remains closed while the workspace exists.
+
+If setup fails before committing, no owner or workspace is
+left behind; submit the form again after resolving the error. If the connection
+is lost after committing, or automatic sign-in fails, sign in with the owner
+credentials entered during setup. Repeating setup cannot create another workspace.
+
+Later users need an invitation. Public signup and automatic personal workspace
+creation are disabled. Invited users can accept a valid invitation without
+verifying their email. Acceptance does not mark the address as verified. Existing
+members sign in directly; users without membership see access instructions. The product has no organization switcher or creation action.
+Direct organization creation and deletion are rejected server-side. The last owner
+must transfer ownership before deleting their account.
+
+An existing database containing one organization uses that workspace. Databases
+with multiple organizations are rejected with an operator-facing error; this
+change does not merge, select, or delete existing organizations. Keep such an
+installation on the previous build until its data has been migrated deliberately.
+No schema change or generated migration is needed. Cloud retains its existing
+organization creation, selection, and signup flows.
+
+### Optional product integrations
+
+GitHub is shared product functionality, available in both cloud and self-hosted
+builds. Its implementation lives in `src/integrations/github`: configuration,
+installation handlers, authenticated data functions, setup UI, and event jobs.
+The files under `routes/` only connect those handlers and screens to the router.
+
+Both `cloud/app/integrations.ts` and
+`app/integrations.ts` register the integration's worker tasks.
+The general worker consumes `@app/integrations`, without importing GitHub
+jobs directly. Disabled integrations contribute no tasks. Existing queued GitHub
+jobs remain in the database and can resume when the integration is enabled again.
+
+GitHub configuration is independent of the global product environment:
+
+- With none of its settings present, GitHub is disabled.
+- Existing complete configuration enables it automatically in either edition.
+- `EVERR_GITHUB_ENABLED=false` explicitly disables it, even with credentials present.
+- `EVERR_GITHUB_ENABLED=true` requires a complete configuration. Partial
+  configuration also fails validation rather than silently disabling the integration.
+
+Required integration settings are `GITHUB_APP_INSTALL_URL`,
+`GITHUB_APP_STATE_SECRET`, `GITHUB_APP_WEBHOOK_SECRET`, `GITHUB_APP_ID`,
+`GITHUB_APP_PRIVATE_KEY`, and `INGRESS_COLLECTOR_URL`. `INGRESS_SOURCE` is no
+longer required by the app. Restart the app after changing these settings.
+
+The UI receives only availability, never integration credentials. When disabled,
+the GitHub navigation entry is hidden and its page, installation endpoints,
+webhook, and data operations are unavailable. Existing organization authorization
+and webhook signature checks still apply when enabled.
+
+The deployment choice is compiled into the artifact; optional integration
+configuration is supplied at runtime. GitHub remains included in both artifacts.
+Database tables and organization-data cleanup remain shared, so disabling an
+integration does not abandon its stored data or prevent organization deletion.
+
+
+### Retention policy composition
+
+`product/retention.ts` defines the plan-free retention contract.
+`product/retention.server.ts` obtains the selected app policy and caches
+it per organization for 30 seconds. The ingestion-key verifier, GitHub collector
+forwarder, and alert-history writer all use this lookup.
+
+Cloud plan mappings live exclusively in `cloud/retention.ts`. Existing windows
+are unchanged: Hobby uses 14 days throughout; Pro uses 365 days for telemetry
+and alert lifecycle history, and 30 days for alert evaluations.
+
+Self-hosted policy reads operator settings from its app environment:
+
+```sh
+EVERR_RETENTION_DAYS=30
+# Optional overrides; otherwise each inherits EVERR_RETENTION_DAYS.
+EVERR_RETENTION_TRACES_DAYS=14
+EVERR_RETENTION_LOGS_DAYS=7
+EVERR_RETENTION_METRICS_DAYS=90
+EVERR_RETENTION_ALERT_EVALUATIONS_DAYS=7
+EVERR_RETENTION_ALERT_LIFECYCLE_DAYS=180
+```
+
+Supported windows are 1, 7, 14, 30, 90, 180, and 365 days. The finite set keeps
+retention partition variants bounded (ClickHouse guidance:
+`schema-partition-low-cardinality`). Zero, fractional values, and unlimited
+retention are not supported. Settings apply to every organization on the
+self-hosted instance and do not affect cloud builds.
+
+Restart after changing settings. The existing collector cache can briefly retain
+the previous values. Retention is stamped into rows at ingestion; changing policy
+affects new writes and does not rewrite the TTL of existing rows. The existing
+TTL enforcement stays unchanged (`schema-partition-lifecycle`); this change
+requires no database migration.
+
+
+### Source independence
+
+The default production runtime needs Postgres, ClickHouse, authentication and
+ingest-verification secrets, and optional SMTP configuration. Polar and Google credentials
+are not required. GitHub jobs are registered only when its optional integration
+is configured. The core workers run alerts and preview retention independently of those integrations. Cloud additionally runs organization provisioning.
+
+
+Self-hosted source can typecheck, run its tests, and build with `src/cloud` absent. Billing server functions are not part of the
+shared data interface and have no self-hosted stubs. Billing, checkout, and organization creation and selection routes
+live entirely under `src/cloud/routes`; the product router does not register them.
+
+`appRoutes()` in `vite.app.ts` composes TanStack physical route
+directories at build time. The product uses `src/routes` plus `src/app/routes` (setup and workspace access), and generates
+`src/routeTree.gen.ts`. Cloud combines the shared `src/routes` with `src/cloud/routes` and generates its own
+`src/cloud/routeTree.gen.ts`. Its leaves inherit product authentication and
+organization layouts. `@app/route-tree` selects the matching tree for the
+single shared router factory. Builds do not overwrite each other's route types.
+
+The organization menu renders `@app/navigation`; only Cloud contributes
+the billing item. The app access guard calls `@app/app-access`; only Cloud
+redirects suspended subscriptions to its recovery route. `@app/client` selects
+the missing-workspace destination: `/access-required` for the product and
+`/choose-organization` for Cloud. Creation, selection, and switching screens live
+in `src/cloud/components`. Shared guards and provisioning do not depend on Cloud URLs.
+
+`typecheck:self-hosted` checks production sources using the `@app/*` alias.
+It excludes test roots and cloud roots, then examines the complete TypeScript
+source graph, including imported types. Any cloud or Polar dependency fails the
+check, even if TypeScript would otherwise follow it into an excluded directory.
+`typecheck:cloud` covers Cloud and shared test sources; `test:self-hosted` executes the
+self-hosted behavior tests with the matching alias. The existing Vite guard
+independently checks the production build graph.
+
+Cloud owns its Polar dependencies in the nested `src/cloud` workspace package.
+The shared app does not depend on that package; Cloud source resolves its own
+dependencies when selected by the build. Self-hosted builds select only the app
+and its workspace dependencies.
+
+`drizzle.config.ts` describes the core schema; `drizzle.cloud.config.ts` adds
+Cloud billing tables. Cloud organization creation writes its billing row
+and provisioning job in the same transaction; only the verified checkout
+context selects Pro. Better Auth no longer accepts or exposes commercial fields.
+
+### Telemetry
+
+The app's server telemetry uses `EVERR_INGEST_KEY` for authenticated Everr
+ingest. Cloud builds default to `https://ingest.everr.dev`; self-hosted builds
+have no hosted destination unless `EVERR_INGEST_ENDPOINT` is set. Set
+`OTEL_EXPORTER_OTLP_ENDPOINT` to override server telemetry with an unauthenticated
+OTLP collector. In development and tests, the server defaults to the local
+collector at `http://127.0.0.1:54318`. Production self-hosted telemetry stays
+disabled when no endpoint is configured.
+
+Browser telemetry uses the origin-bound public key in
+`VITE_EVERR_PUBLIC_INGEST_KEY`. Cloud builds default to Everr ingest when the key
+is present. Self-hosted builds send only when `VITE_EVERR_INGEST_ENDPOINT` is
+configured; without a destination, production browser telemetry stays disabled.
+In development, the browser SDK uses its local collector default. Set
+`VITE_EVERR_INGEST_ENDPOINT` for a custom browser OTLP destination. Never put a
+server ingest key in a `VITE_` variable.
+
+### ClickHouse storage builds
+
+`clickhouse/render.mjs` combines the shared `clickhouse/schema` templates with
+Cloud fragments in `clickhouse/cloud`. Both Docker images use the same raw OTel
+schema, read models, retention partitions, indexes, and restricted SQL profile.
+Self-hosted storage has no tenant column or row policies. Cloud supplies tenant
+projections, sorting/grouping prefixes, row policies, per-organization SQL users,
+and usage metering. `@app/clickhouse`, `@app/ingestion`, and
+`@app/telemetry-storage` select the matching query and write behavior at build time.
+
+For local self-hosted development, run these isolated storage and collector services
+from the repository root. The collector reads the same ingest-verification secret
+as the app:
+
+```sh
+docker compose --env-file packages/app/.env --profile self-hosted up -d --build clickhouse-self-hosted collector-self-hosted postgres mailpit
+```
+
+Add these to `packages/app/.env.self-hosted.local`, alongside its separate
+`DATABASE_NAME`:
+
+```dotenv
+CLICKHOUSE_URL=http://localhost:18123
+CLICKHOUSE_USERNAME=app_ro
+CLICKHOUSE_PASSWORD=app-dev
+CLICKHOUSE_ADMIN_USERNAME=web_app_admin
+CLICKHOUSE_ADMIN_PASSWORD=web-app-admin-dev
+CLICKHOUSE_SQL_API_USERNAME=sql_api
+CLICKHOUSE_SQL_API_PASSWORD=sql-api-dev
+EVERR_PUBLIC_INGEST_URL=http://localhost:14318
+```
+
+Then run `pnpm --filter @everr/app dev:self-hosted`. Keep the original Cloud
+ClickHouse data separate: the two schemas are different fresh-install targets,
+not an in-place migration. The deployment Compose already selects matching
+self-hosted app, schema, and collector builds.

@@ -11,7 +11,7 @@ The sort key of `traces` and `logs` is `ServiceName, Timestamp`. Filter on both 
 - `metrics_gauge`, `metrics_sum`: `TimeUnix`, `ServiceName`, `MetricName`, `MetricUnit`, `Attributes`, `Value`. `metrics_sum` adds `IsMonotonic` and `AggregationTemporality`.
 - `metrics_histogram`: `TimeUnix`, `ServiceName`, `MetricName`, `MetricUnit`, `Attributes`, `Count`, `Sum`, `Min`, `Max`, `BucketCounts`, `ExplicitBounds`. `metrics_exponential_histogram` and `metrics_summary` are similar: run `DESCRIBE TABLE` on them.
 - `traces_trace_id_ts`: `TraceId`, `Start`, `End`. The time window of each trace in whole seconds, one row per trace per ingested batch. Aggregate with `min(Start)` and `max(End)`.
-- `alert_events`: alert history, cloud only. One row per evaluation, state transition, withheld notification, or delivery attempt, told apart by `event_type`. Run `DESCRIBE TABLE alert_events` before you query it, bound `event_time`, and filter `is_live` (preview alerts write to the same table).
+- `alert_events`: alert history on server installations (not the local CLI store). One row per evaluation, state transition, withheld notification, or delivery attempt, told apart by `event_type`. Run `DESCRIBE TABLE alert_events` before you query it, bound `event_time`, and filter `is_live` (preview alerts write to the same table).
 
 ## Units And Values
 

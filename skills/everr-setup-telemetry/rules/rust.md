@@ -14,7 +14,7 @@ Use this rule for Rust services, CLIs, workers, schedulers, and Tauri backends t
 - Use a `telemetry_setup.rs` module and call it at the start of `main` before starting servers, workers, queues, database pools, or Tauri builders.
 - Prefer `tracing` as the application instrumentation API, `tracing-subscriber` as the subscriber stack, `tracing-opentelemetry` for spans, and `opentelemetry-appender-tracing` for logs.
 - Configure OTLP exporters in code so the environment stays small and production auth is attached server-side.
-- Export to OTLP HTTP/protobuf for Everr local and hosted ingest unless the project already standardizes on gRPC.
+- Export to OTLP HTTP/protobuf for Everr local and remote ingest unless the project already standardizes on gRPC.
 - Keep provider handles alive until shutdown; dropping providers early can stop exports.
 - Flush and shut down providers on normal termination, then preserve the process's normal failure behavior.
 
@@ -48,9 +48,10 @@ Local development or test:
 OTEL_EXPORTER_OTLP_ENDPOINT=<otlp-url-from-status>
 ```
 
-Cloud ingest, only for environments selected for cloud export:
+Remote ingest, only for environments selected for remote export:
 
 ```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-whoami>
 EVERR_INGEST_KEY=<secret-manager-reference>
 ```
 
@@ -193,7 +194,6 @@ impl TelemetryConfig {
     fn from_env() -> Result<Option<Self>, Box<dyn std::error::Error + Send + Sync>> {
         let endpoint = match env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
             Ok(endpoint) => endpoint,
-            Err(_) if env::var("EVERR_INGEST_KEY").is_ok() => "https://ingest.everr.dev".into(),
             Err(_) => return Ok(None),
         };
 
@@ -256,7 +256,7 @@ For long-running servers, use the app's existing graceful shutdown path and call
 
 For the Rust OTLP HTTP builder, pass the base endpoint and let the exporter append signal paths. Do not pass `/v1/traces`, `/v1/metrics`, or `/v1/logs` unless the specific SDK call expects a signal endpoint.
 
-Local export uses the base endpoint from `everr local status`. Cloud export uses `https://ingest.everr.dev` with the bearer header built from `EVERR_INGEST_KEY`. Select the destination independently of the app's environment and preserve configuration outside the task.
+Local export uses the base endpoint from `everr local status`. Remote export uses `ingestEndpoint` from [Remote setup](../references/remote-setup.md), saved explicitly in `OTEL_EXPORTER_OTLP_ENDPOINT`, with the bearer header built from `EVERR_INGEST_KEY`. Select the destination independently of the app's environment and preserve configuration outside the task.
 
 ## Traces
 
@@ -338,4 +338,4 @@ Prefer explicit safe fields and source-level redaction.
 | Duplicate logs | Both app logger and bridge emit the same event more than once |
 | Missing shutdown data | Provider handles dropped early or graceful shutdown path does not call `shutdown()` |
 
-After changes, run the instrumented path and follow [Validation](validation.md) using `everr local query` or `everr cloud query` for the selected destination. Filter by `ServiceName`, the expected environment, a recent time window, and a run/request/test marker when practical.
+After changes, run the instrumented path and follow [Validation](validation.md) using `everr local query` or `everr query` for the selected destination. Filter by `ServiceName`, the expected environment, a recent time window, and a run/request/test marker when practical.

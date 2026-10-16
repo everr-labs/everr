@@ -1,7 +1,8 @@
+import { assertAccountDeletionAllowed } from "@app/account";
+import { withIdentityRequest } from "@app/request";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth.server";
-import { withBillingRequest } from "@/lib/billing/lock.server";
 import { isOrganizationOwner } from "@/lib/organization-role";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
 
@@ -29,48 +30,39 @@ export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
   .inputValidator(DeleteCurrentUserAccountInputSchema)
   .handler(async ({ data, context: { session } }) => {
     const headers = getRequestHeaders();
-    const organizations = await getFullOrganizations(headers);
-    const ownedProOrganizations = organizations.filter((organization) => {
-      if (!organization || organization.plan === "hobby") return false;
+    const organizations = (await getFullOrganizations(headers))
+      .filter((organization) => organization !== null)
+      .map((organization) => {
+        const currentMember = organization.members.find(
+          (member) => member.userId === session.user.id,
+        );
+        return {
+          organization,
+          isOwner: isOrganizationOwner(currentMember?.role),
+          ownerCount: organization.members.filter((member) =>
+            isOrganizationOwner(member.role),
+          ).length,
+        };
+      });
+    await assertAccountDeletionAllowed(
+      organizations
+        .filter(({ isOwner }) => isOwner)
+        .map(({ organization }) => organization),
+    );
 
-      const currentMember = organization.members.find(
-        (member) => member.userId === session.user.id,
-      );
-      return isOrganizationOwner(currentMember?.role);
-    });
-
-    if (ownedProOrganizations.length > 0) {
-      const organizationNames = ownedProOrganizations
-        .map((organization) => organization?.name)
-        .filter((name): name is string => Boolean(name))
-        .join(", ");
-      throw new Error(
-        `You can't delete your account while you are an owner of one or more Pro organizations. Transfer ownership of: ${organizationNames}.`,
-      );
-    }
-
-    const soleOwnedOrganizations = organizations.filter((organization) => {
-      if (!organization) return false;
-      if (
-        data.deleteOrganization &&
-        organization.id === session.session.activeOrganizationId
-      ) {
-        return false;
-      }
-
-      const currentMember = organization.members.find(
-        (member) => member.userId === session.user.id,
-      );
-      const ownerCount = organization.members.filter((member) =>
-        isOrganizationOwner(member.role),
-      ).length;
-
-      return isOrganizationOwner(currentMember?.role) && ownerCount === 1;
-    });
+    const soleOwnedOrganizations = organizations.filter(
+      ({ organization, isOwner, ownerCount }) =>
+        isOwner &&
+        ownerCount === 1 &&
+        !(
+          data.deleteOrganization &&
+          organization.id === session.session.activeOrganizationId
+        ),
+    );
 
     if (soleOwnedOrganizations.length > 0) {
       const organizationNames = soleOwnedOrganizations
-        .map((organization) => organization?.name)
+        .map(({ organization }) => organization.name)
         .filter((name): name is string => Boolean(name))
         .join(", ");
       throw new Error(
@@ -87,13 +79,10 @@ export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
       }
 
       const org = organizations.find(
-        (organization) => organization?.id === activeOrganizationId,
-      );
-      const currentMember = org?.members.find(
-        (member) => member.userId === session.user.id,
+        ({ organization }) => organization.id === activeOrganizationId,
       );
 
-      if (!isOrganizationOwner(currentMember?.role)) {
+      if (!org?.isOwner) {
         throw new Error(
           "Only organization owners can delete the organization while deleting their account.",
         );
@@ -105,7 +94,7 @@ export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
       });
     }
 
-    await withBillingRequest(() =>
+    await withIdentityRequest(() =>
       auth.api.deleteUser({
         headers,
         body: {},

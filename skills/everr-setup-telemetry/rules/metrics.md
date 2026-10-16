@@ -51,7 +51,7 @@ Follow this order before creating a metric:
 
 1. List installed instrumentation libraries and startup hooks.
 2. Check which metrics those libraries emit.
-3. Check what we already have by querying both the local collector and the cloud.
+3. Check existing metrics in the selected destination before adding instruments.
 4. Check OpenTelemetry semantic conventions for the same domain.
 5. If the measurement already exists, use that metric and only add attributes allowed by the semantic convention.
 6. If the measurement is domain-specific or not covered, create a custom metric following the naming, unit, and cardinality rules below.

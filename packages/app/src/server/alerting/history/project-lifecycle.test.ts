@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   history: vi.fn(),
 }));
 
+vi.mock("@/lib/clickhouse-writer", () => ({ insertRows: vi.fn() }));
+
 vi.mock("@/db/client", () => ({
   db: {
     select: () => ({

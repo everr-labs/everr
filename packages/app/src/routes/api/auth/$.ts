@@ -1,6 +1,6 @@
+import { withIdentityRequest } from "@app/request";
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "@/lib/auth.server";
-import { withBillingRequest } from "@/lib/billing/lock.server";
 import { runWithDeviceOrgCapture } from "@/lib/cli-device-organization";
 
 // runWithDeviceOrgCapture opens the request-scoped store that carries the
@@ -11,11 +11,11 @@ export const Route = createFileRoute("/api/auth/$")({
     handlers: {
       GET: ({ request }) =>
         redirectAuthErrorPage(request) ??
-        withBillingRequest(() =>
+        withIdentityRequest(() =>
           runWithDeviceOrgCapture(() => auth.handler(request)),
         ),
       POST: ({ request }) =>
-        withBillingRequest(() =>
+        withIdentityRequest(() =>
           runWithDeviceOrgCapture(() => auth.handler(request)),
         ),
     },

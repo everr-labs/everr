@@ -15,10 +15,10 @@ fn root_help_lists_main_commands() {
         .stdout(contains(
             "Query telemetry, inspect CI, and manage resources as code in Everr",
         ))
-        .stdout(contains("Usage: everr <COMMAND>"))
+        .stdout(contains("Usage: everr [OPTIONS] <COMMAND>"))
         .stdout(predicates::str::contains("\n  install").not())
-        .stdout(predicates::str::contains("\n  login").not())
-        .stdout(predicates::str::contains("\n  logout").not())
+        .stdout(contains("\n  login"))
+        .stdout(contains("\n  logout"))
         .stdout(predicates::str::contains("setup-assistant").not())
         .stdout(predicates::str::contains("\n  setup").not())
         .stdout(predicates::str::contains("\n  init").not())
@@ -72,22 +72,12 @@ fn cloud_help_lists_cloud_subcommands() {
         .success()
         .stdout(contains("login"))
         .stdout(contains("logout"))
+        .stdout(contains("query"))
         .stdout(contains(
             "Show the current Everr Cloud user, organization, and session URL",
         ))
         .stdout(predicates::str::contains("\n  grep").not())
         .stdout(predicates::str::contains("\n  logs").not());
-}
-
-#[test]
-fn cloud_help_lists_query_subcommand() {
-    let env = CliTestEnv::new();
-
-    env.command()
-        .args(["cloud", "--help"])
-        .assert()
-        .success()
-        .stdout(contains("query"));
 }
 
 #[test]

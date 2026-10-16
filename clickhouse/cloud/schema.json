@@ -1,0 +1,9 @@
+{
+  "keyPrefix": "tenant_id, ",
+  "jsonProjection": "toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,",
+  "mapSchemaProjection": "toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,",
+  "mapProjection": "toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,",
+  "lookupColumn": "tenant_id LowCardinality(String) CODEC(ZSTD(1)),",
+  "tenantCodec": ",\n  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1))",
+  "alertColumn": "tenant_id LowCardinality(String),"
+}

@@ -20,14 +20,12 @@ it("lists the authenticated user's organizations for device approval", async () 
       name: "Org A",
       slug: "org-a",
       createdAt: new Date(),
-      plan: "hobby",
     },
     {
       id: "org-b",
       name: "Org B",
       slug: "org-b",
       createdAt: new Date(),
-      plan: "pro",
     },
   ]);
 

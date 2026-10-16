@@ -6,13 +6,13 @@
  * the read gives the names back by tier.
  */
 import { describe, expect, it, vi } from "vitest";
+import { useAlertingHarness } from "@/cloud/testing/alerting-harness";
 import {
   insertChannel,
   insertDefaultChannels,
   TEST_ACTOR,
   TEST_ORG,
 } from "@/server/alerting/testing/fixtures";
-import { useAlertingHarness } from "@/server/alerting/testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import(

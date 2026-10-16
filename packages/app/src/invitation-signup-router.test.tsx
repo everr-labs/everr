@@ -16,6 +16,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  googleEnabled: true,
   session: null as {
     user: { id: string; name: string; email: string };
     session: { activeOrganizationId: null };
@@ -41,7 +42,7 @@ vi.mock("@/lib/auth-client", () => ({
   },
 }));
 vi.mock("@/data/auth", () => ({ getActiveOrganization: () => null }));
-vi.mock("@/data/organizations", () => ({
+vi.mock("@/cloud/data/organizations", () => ({
   getOrganizationCreationOptions: async () => ({ canCreateHobby: true }),
 }));
 vi.mock("@/data/invite", async () => {
@@ -60,12 +61,12 @@ vi.mock("@/data/invite", async () => {
   };
 });
 
+import { Route as setupRoute } from "@/cloud/routes/_welcome/_signedIn/_organization/organization-setup";
+import { Route as chooseRoute } from "@/cloud/routes/_welcome/_signedIn/choose-organization";
 import { Route as authRoute } from "@/routes/_welcome";
 import { Route as guestRoute } from "@/routes/_welcome/_guest";
 import { Route as signupRoute } from "@/routes/_welcome/_guest/auth/sign-up";
 import { Route as onboardingRoute } from "@/routes/_welcome/_signedIn";
-import { Route as setupRoute } from "@/routes/_welcome/_signedIn/_organization/organization-setup";
-import { Route as chooseRoute } from "@/routes/_welcome/_signedIn/choose-organization";
 import { Route as invitationRoute } from "@/routes/_welcome/invite.$invitationId";
 
 function signUpInvitedUser() {
@@ -81,6 +82,7 @@ function signUpInvitedUser() {
 }
 
 beforeEach(() => {
+  mocks.googleEnabled = true;
   mocks.session = null;
   mocks.signup.mockReset().mockImplementation(async () => signUpInvitedUser());
   mocks.social.mockReset();
@@ -90,7 +92,10 @@ beforeEach(() => {
 function invitationSignupRouter() {
   const queryClient = new QueryClient();
   const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-    beforeLoad: () => ({ session: mocks.session }),
+    beforeLoad: () => ({
+      session: mocks.session,
+      googleSignInEnabled: mocks.googleEnabled,
+    }),
     component: () => (
       <QueryClientProvider client={queryClient}>
         <Outlet />
@@ -112,6 +117,7 @@ function invitationSignupRouter() {
     getParentRoute: () => guest,
     path: "/auth/sign-up",
     validateSearch: signupRoute.options.validateSearch,
+    beforeLoad: (options) => signupRoute.options.beforeLoad?.(options as never),
     component: signupRoute.options.component,
   });
   const onboarding = createRoute({
@@ -193,8 +199,23 @@ it.each([
   expect(screen.queryByLabelText("Organization name")).toBeNull();
 });
 
-vi.mock("@/data/organization-provisioning", () => ({
+vi.mock("@/cloud/organization-provisioning/actions", () => ({
   completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
   getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
   retryOrganizationProvisioning: vi.fn(),
 }));
+
+it("keeps invited email signup available without advertising an unconfigured provider", async () => {
+  mocks.googleEnabled = false;
+  const router = invitationSignupRouter();
+  render(<RouterProvider router={router} />);
+  await userEvent
+    .setup()
+    .click(await screen.findByRole("button", { name: "Create account" }));
+  await screen.findByRole("heading", { name: "Create your account" });
+  expect(
+    screen.queryByRole("button", { name: "Sign up with Google" }),
+  ).toBeNull();
+  expect(screen.queryByText("or")).toBeNull();
+  expect(screen.getByRole("button", { name: "Sign up" })).toBeVisible();
+});

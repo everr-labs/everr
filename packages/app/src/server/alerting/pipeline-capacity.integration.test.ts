@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { eq, isNull } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
+import {
+  type AlertingHarness,
+  useAlertingHarness,
+} from "@/cloud/testing/alerting-harness";
 import { ALERTING_DEFAULT_GROUP_INTERVAL_SECS } from "@/data/alerting/delivery/defaults";
 import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
 import {
@@ -30,7 +34,6 @@ import {
   insertRule,
   insertRulesInBulk,
 } from "./testing/fixtures";
-import { type AlertingHarness, useAlertingHarness } from "./testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import("./testing/db-proxy");
@@ -38,6 +41,10 @@ vi.mock("@/db/client", async () => {
 });
 
 vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
+vi.mock(
+  "@/lib/clickhouse-writer",
+  async () => import("./testing/test-clickhouse"),
+);
 
 const harness = useAlertingHarness();
 

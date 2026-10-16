@@ -1,3 +1,11 @@
+import {
+  authPlugins,
+  identityAdapter,
+  identityLifecycle,
+  membershipPlugins,
+  organizationHooks,
+} from "@app/auth";
+import { beforeUserCreate, createSessionOnboardingHook } from "@app/onboarding";
 import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
@@ -17,22 +25,12 @@ import {
 } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
-import { organizationBillingFields } from "@/common/organization-billing-fields";
-import { parseOrganizationMetadata } from "@/common/organization-provisioning";
+import { INVITATION_EMAIL_HEADER, invitationUrl } from "@/common/invitation";
 import { db } from "@/db/client";
 import { member, session as sessionTable } from "@/db/schema";
 import { env } from "@/env";
+import { socialProviders } from "@/lib/auth-providers.server";
 import { selectSoleOrganization } from "@/lib/auto-org";
-import { createAutomaticOrganizationSessionHook } from "@/lib/auto-org.server";
-import { billingIdentityAdapter } from "@/lib/billing/auth-adapter.server";
-import { billingAuthPlugin } from "@/lib/billing/auth-plugin.server";
-import {
-  billingMembershipPlugin,
-  billingOrganizationHooks,
-} from "@/lib/billing/membership-plugin.server";
-import { beforeCreateCheckoutOrganization } from "@/lib/billing/organization-context.server";
-import { billing } from "@/lib/billing/server";
-import { readOrgEntitlement } from "@/lib/billing-data.server";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -42,10 +40,9 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "@/lib/email.server";
+import { mailer } from "@/lib/mailer.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
-import { markOrganizationCreated } from "@/lib/organization-creation-continuation.server";
-import { organizationLifecycleAdapter } from "@/lib/organization-lifecycle-adapter.server";
-import { waitForOrganizationProvisioning } from "@/server/organization-provisioning/fast-path";
+import { assertCanInviteMembers } from "@/product/membership.server";
 import {
   createIdentityAuthHooks,
   type ResolvedSession,
@@ -136,16 +133,6 @@ const orgRoles = {
   }),
 };
 
-const googleSocialProviders =
-  env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-    ? {
-        google: {
-          clientId: env.GOOGLE_CLIENT_ID,
-          clientSecret: env.GOOGLE_CLIENT_SECRET,
-        },
-      }
-    : undefined;
-
 // The selected organization id, or undefined if none is active yet. Shared by
 // the MCP postLogin hooks so "is an org selected?" is decided one way (treating
 // an empty string as unselected).
@@ -169,8 +156,8 @@ export const auth = betterAuth({
       env.BETTER_AUTH_URL.replace("127.0.0.1", "localhost"),
     ]),
   ),
-  database: billingIdentityAdapter(organizationLifecycleAdapter()),
-  ...(googleSocialProviders ? { socialProviders: googleSocialProviders } : {}),
+  database: identityAdapter(),
+  ...(socialProviders ? { socialProviders: socialProviders } : {}),
   user: {
     deleteUser: {
       enabled: true,
@@ -181,9 +168,12 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    sendResetPassword: async ({ user, url }) => {
-      sendPasswordResetEmail({ to: user.email, url });
-    },
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: mailer
+      ? async ({ user, url }) => {
+          sendPasswordResetEmail({ to: user.email, url });
+        }
+      : undefined,
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url }) => {
@@ -202,9 +192,10 @@ export const auth = betterAuth({
   },
   databaseHooks: {
     user: {
+      create: { before: beforeUserCreate },
       delete: {
         before: async (user) => {
-          await billing.beforeUserDelete(user.id);
+          await identityLifecycle.beforeUserDelete(user.id);
         },
       },
     },
@@ -246,11 +237,9 @@ export const auth = betterAuth({
             },
           };
         },
-        after: createAutomaticOrganizationSessionHook(
+        after: createSessionOnboardingHook(
           async (body): Promise<{ id: string } | null> =>
             auth.api.createOrganization({ body }),
-          db,
-          markOrganizationCreated,
         ),
       },
     },
@@ -262,7 +251,7 @@ export const auth = betterAuth({
       auth.api.getSession({ headers, returnHeaders: true }),
   ),
   plugins: [
-    billingMembershipPlugin(),
+    ...membershipPlugins,
     cliDeviceOrganizationPlugin({
       onError: (stage, error) => {
         serverLogger.error(
@@ -274,54 +263,23 @@ export const auth = betterAuth({
     organizationPlugin({
       ac: orgAc,
       roles: orgRoles,
-      schema: {
-        organization: {
-          additionalFields: {
-            ...organizationBillingFields,
-            plan: {
-              type: ["hobby", "pro"],
-              required: true,
-            },
-          },
-        },
-      },
-      // Organization creation is orchestrated by server-owned flows so a
-      // billable Organization cannot bypass a confirmed Polar payment.
+      // Organization creation is controlled by server-owned flows.
       allowUserToCreateOrganization: false,
       creatorRole: "owner",
-      // Preserve pre-1.6.11 behavior: don't require the recipient's email to be
-      // verified to view/accept an invitation. 1.6.11 flipped this default to true.
+      // Invitation acceptance still requires the signed-in account to match the recipient.
       requireEmailVerificationOnInvitation: false,
-      sendInvitationEmail: async (data) => {
+      sendInvitationEmail: async (data, request) => {
+        if (request?.headers.get(INVITATION_EMAIL_HEADER) === "false") return;
         sendInvitationEmail({
           to: data.email,
           inviterName: data.inviter.user.name,
           organizationName: data.organization.name,
           role: data.role,
-          inviteUrl: `${env.BETTER_AUTH_URL}/invite/${data.id}`,
+          inviteUrl: invitationUrl(data.id, env.BETTER_AUTH_URL),
         });
       },
       organizationHooks: {
-        beforeCreateOrganization: beforeCreateCheckoutOrganization,
-        ...billingOrganizationHooks(),
-        afterCreateOrganization: async ({ organization }) => {
-          if (await waitForOrganizationProvisioning(organization.id)) {
-            // Better Auth returns this object after running its after-hook.
-            Object.assign(organization, {
-              metadata: {
-                ...parseOrganizationMetadata(organization.metadata),
-                clickhouseReady: true,
-              },
-            });
-          }
-        },
-        beforeUpdateOrganization: async ({ organization }) => {
-          if ("plan" in organization) {
-            throw new APIError("FORBIDDEN", {
-              message: "Organization plan cannot be changed here.",
-            });
-          }
-        },
+        ...organizationHooks(),
         beforeAddMember: async ({ member: newMember }) => {
           const existingMembers = await db
             .select({ id: member.id })
@@ -330,51 +288,29 @@ export const auth = betterAuth({
             .limit(1);
           if (existingMembers.length === 0) return;
 
-          const entitlement = await readOrgEntitlement(
-            newMember.organizationId,
-          );
-          if (entitlement.appState !== "pro") {
-            throw new APIError("FORBIDDEN", {
-              message: "An active Pro plan is required to add members.",
-            });
-          }
-          await billing.beforeMembershipChange(
+          await assertCanInviteMembers(newMember.organizationId);
+          await identityLifecycle.beforeMembershipChange(
             newMember.organizationId,
             newMember.userId,
             newMember.role,
           );
         },
         beforeCreateInvitation: async ({ invitation: newInvitation }) => {
-          const entitlement = await readOrgEntitlement(
-            newInvitation.organizationId,
-          );
-          if (entitlement.appState !== "pro") {
-            throw new APIError("FORBIDDEN", {
-              message: "An active Pro plan is required to invite members.",
-            });
-          }
+          await assertCanInviteMembers(newInvitation.organizationId);
         },
         beforeAcceptInvitation: async ({
           invitation: acceptedInvitation,
           user,
         }) => {
-          const entitlement = await readOrgEntitlement(
-            acceptedInvitation.organizationId,
-          );
-          if (entitlement.appState !== "pro") {
-            throw new APIError("FORBIDDEN", {
-              message:
-                "This organization needs an active Pro plan before the invitation can be accepted.",
-            });
-          }
-          await billing.beforeMembershipChange(
+          await assertCanInviteMembers(acceptedInvitation.organizationId);
+          await identityLifecycle.beforeMembershipChange(
             acceptedInvitation.organizationId,
             user.id,
             acceptedInvitation.role,
           );
         },
         beforeDeleteOrganization: async ({ organization }) => {
-          await billing.assertDeletable(organization.id);
+          await identityLifecycle.assertDeletable(organization.id);
         },
       },
     }),
@@ -400,12 +336,14 @@ export const auth = betterAuth({
         // key with no capabilities. The API keys UI always sends an explicit,
         // least-privilege scope set (at least one capability). Keys minted
         // before scopes existed are backfilled with the full set by
-        // drizzle/0006_backfill_api_key_capabilities.sql.
+        // the API-key capabilities backfill migration.
       },
     ]),
     bearer(),
-    billingAuthPlugin(
-      async (input): Promise<unknown> => auth.api.createOrganization(input),
+    ...authPlugins(
+      async (input: {
+        body: { name: string; slug: string; userId: string };
+      }): Promise<unknown> => auth.api.createOrganization(input),
     ),
     jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),
     oauthProvider({

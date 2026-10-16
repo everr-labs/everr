@@ -34,8 +34,8 @@ vi.mock("@/data/organization-access", () => ({
       : { status: "missing" },
   ),
 }));
-vi.mock("@/data/billing", () => ({
-  getActiveOrgAppAccess: vi.fn(async () => ({
+vi.mock("@/data/product", () => ({
+  getActiveOrgPolicy: vi.fn(async () => ({
     appState: state.suspended ? "suspended" : "hobby",
   })),
 }));
@@ -48,7 +48,9 @@ const guards = new Set([
   "./routes/_welcome/_signedIn.tsx",
   "./routes/_welcome/_signedIn/_organization.tsx",
 ]);
-for (const path of Object.keys(import.meta.glob("./routes/**/*.{ts,tsx}"))) {
+for (const path of Object.keys(
+  import.meta.glob(["./routes/**/*.{ts,tsx}", "./cloud/routes/**/*.{ts,tsx}"]),
+)) {
   if (guards.has(path)) continue;
   vi.doMock(path, () => ({
     Route:
@@ -67,7 +69,7 @@ for (const path of Object.keys(import.meta.glob("./routes/**/*.{ts,tsx}"))) {
           }),
   }));
 }
-const { routeTree } = await import("./routeTree.gen");
+const { routeTree } = await import("@app/route-tree");
 
 beforeEach(() => {
   state.session = {

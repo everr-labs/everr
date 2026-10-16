@@ -1,5 +1,9 @@
 import { createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  deprovisionSqlApiOrgUser,
+  provisionSqlApiOrgUser,
+} from "@/cloud/clickhouse/provisioning";
 
 const {
   mockQuery,
@@ -27,6 +31,10 @@ vi.mock("@clickhouse/client", () => ({
   })),
 }));
 
+vi.mock("@/cloud/app/env", () => ({
+  appEnv: { CLICKHOUSE_SQL_API_MASTER_KEY: MASTER_KEY },
+}));
+
 vi.mock("@/env", () => ({
   env: {
     CLICKHOUSE_URL: "http://localhost:8123",
@@ -45,14 +53,8 @@ vi.mock("@/telemetry/clickhouse", () => ({
 
 vi.unmock("@/lib/clickhouse");
 
-import {
-  deprovisionSqlApiOrgUser,
-  insertAdminRows,
-  provisionSqlApiOrgUser,
-  query,
-  querySqlApi,
-  querySqlApiWithMeta,
-} from "./clickhouse";
+import { query, querySqlApi, querySqlApiWithMeta } from "./clickhouse";
+import { insertRows } from "./clickhouse-writer";
 
 const ORG = "org42";
 const ORG_USER = `sql_api_org_${ORG}`;
@@ -145,7 +147,7 @@ describe("querySqlApi", () => {
 
   it("rejects when tenant id is missing", async () => {
     await expect(querySqlApi("SELECT 1", "")).rejects.toThrow(
-      /tenant context/i,
+      /workspace context/i,
     );
     expect(mockQuery).not.toHaveBeenCalled();
   });
@@ -177,9 +179,9 @@ describe("querySqlApiWithMeta", () => {
   });
 });
 
-describe("insertAdminRows", () => {
+describe("insertRows", () => {
   it("writes rows through the admin client with the given settings", async () => {
-    await insertAdminRows(
+    await insertRows(
       "app.logs",
       [
         {
@@ -209,7 +211,7 @@ describe("insertAdminRows", () => {
   });
 
   it("does not issue an insert for an empty batch", async () => {
-    await insertAdminRows("app.logs", []);
+    await insertRows("app.logs", []);
 
     expect(mockInsert).not.toHaveBeenCalled();
   });

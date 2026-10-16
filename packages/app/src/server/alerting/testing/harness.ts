@@ -1,3 +1,4 @@
+import type { MigrationConfig } from "drizzle-orm/migrator";
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
 import { organization } from "@/db/schema";
@@ -32,14 +33,16 @@ export interface AlertingHarness {
   close(): Promise<void>;
 }
 
-export async function createAlertingHarness(): Promise<AlertingHarness> {
+export async function createAlertingHarness(
+  additionalMigrations: MigrationConfig[] = [],
+): Promise<AlertingHarness> {
   // Fake Date only, not the whole timer set: PGlite boots a WebAssembly
   // runtime and awaits real timers while doing so, so a fully faked clock
   // (setTimeout, setInterval, queueMicrotask, ...) stops that boot from ever
   // completing. Date is all setNow/advance below need, and PostgreSQL reads
   // it too: installFakeClock shadows the database's now() with this clock.
   vi.useFakeTimers({ toFake: ["Date"] });
-  const database = await createTestDatabase();
+  const database = await createTestDatabase(additionalMigrations);
   setTestDatabase(database.db);
   const seedOrganization = () =>
     database.db.insert(organization).values({
@@ -126,11 +129,13 @@ const TEST_CLOCK_START = new Date("2026-01-01T00:00:00Z");
  * Keep the `vi.mock` calls in the test file. Vitest hoists them to the top of
  * the file that holds them, so a mock moved in here does not apply.
  */
-export function useAlertingHarness(): () => AlertingHarness {
+export function useAlertingHarness(
+  additionalMigrations: MigrationConfig[] = [],
+): () => AlertingHarness {
   let harness: AlertingHarness | undefined;
 
   beforeAll(async () => {
-    harness = await createAlertingHarness();
+    harness = await createAlertingHarness(additionalMigrations);
   }, 60_000);
 
   beforeEach(() => {

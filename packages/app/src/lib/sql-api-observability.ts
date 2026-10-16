@@ -1,16 +1,16 @@
 import { ClickHouseError } from "@clickhouse/client";
-import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
+import { StorageNotReadyError } from "@/common/storage-readiness";
 
-// How a cloud-query request ended, from the alerting point of view:
+// How a SQL query request ended, from the alerting point of view:
 //   - user_error   the caller's SQL is at fault (typo, blocked function, probing
 //                  a table they can't read), or setup is still pending.
-//                  Expected; never pages as a cloud query failure.
+//                  Expected; never pages as a SQL query failure.
 //   - system_error our infrastructure is at fault (ClickHouse timed out, ran out
 //                  of memory/quota, was unreachable, or an unexpected exception).
 //                  Marks the span as an error and drives the pager.
-export type CloudQueryOutcome = "ok" | "user_error" | "system_error";
+export type SqlQueryOutcome = "ok" | "user_error" | "system_error";
 
-export type CloudQueryErrorKind =
+export type SqlQueryErrorKind =
   | "empty"
   | "account_setup"
   | "guard_blocked"
@@ -22,9 +22,9 @@ export type CloudQueryErrorKind =
   | "network"
   | "internal";
 
-export type CloudQueryClassification = {
-  outcome: Exclude<CloudQueryOutcome, "ok">;
-  kind: CloudQueryErrorKind;
+export type SqlQueryClassification = {
+  outcome: Exclude<SqlQueryOutcome, "ok">;
+  kind: SqlQueryErrorKind;
 };
 
 // ClickHouse spells out table/column names in these; sanitizeSqlApiError already
@@ -42,7 +42,7 @@ const SCHEMA_PROBE_TYPES = new Set([
 // (user_error) — the common case for a read-only SQL surface. Keeping the
 // system set explicit means a new, unclassified code fails safe as a user error
 // (no false page) rather than a system error (false page).
-const SYSTEM_ERROR_CODES: Record<string, CloudQueryErrorKind> = {
+const SYSTEM_ERROR_CODES: Record<string, SqlQueryErrorKind> = {
   "159": "timeout", // TIMEOUT_EXCEEDED
   "160": "timeout", // TOO_SLOW
   "201": "quota", // QUOTA_EXCEEDED
@@ -54,15 +54,13 @@ const SYSTEM_ERROR_CODES: Record<string, CloudQueryErrorKind> = {
   "279": "network", // ALL_CONNECTION_TRIES_FAILED
 };
 
-// Classify a thrown cloud-query error into an alertable outcome + a finer kind.
+// Classify a thrown SQL query error into an alertable outcome + a finer kind.
 // The order matters: the guard runs before ClickHouse, schema probes are a
 // specific ClickHouse sub-case, then known system codes, then everything else
 // from ClickHouse is a bad query. A non-ClickHouse, non-guard throw is an
 // unexpected bug in our code path — a system error.
-export function classifyCloudQueryError(
-  error: unknown,
-): CloudQueryClassification {
-  if (error instanceof ClickhouseProvisioningPendingError)
+export function classifySqlQueryError(error: unknown): SqlQueryClassification {
+  if (error instanceof StorageNotReadyError)
     return { outcome: "user_error", kind: "account_setup" };
   // The SQL-API introspection guard rejects a blocked query with an Error named
   // "SqlApiGuardError". Match on the name so this carries no compile dependency

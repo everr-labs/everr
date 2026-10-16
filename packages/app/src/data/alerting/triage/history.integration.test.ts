@@ -22,6 +22,7 @@
  * aggregate counts, and what order rows come back in.
  */
 import { describe, expect, it, vi } from "vitest";
+import { useAlertingHarness } from "@/cloud/testing/alerting-harness";
 import { uuidv7 } from "@/data/alerting/history/ids";
 import type { AlertingMatcher } from "@/data/alerting/types";
 import {
@@ -35,7 +36,6 @@ import {
   ZERO_UUID,
 } from "@/server/alerting/history/clickhouse";
 import { TEST_ORG } from "@/server/alerting/testing/fixtures";
-import { useAlertingHarness } from "@/server/alerting/testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import(

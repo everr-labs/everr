@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
+import { useAlertingHarness } from "@/cloud/testing/alerting-harness";
 import { alertDeliveries, alertNotificationGroups } from "@/db/schema";
 import {
   insertChannel,
@@ -7,7 +8,6 @@ import {
   insertDirectRule,
   insertRule,
 } from "./testing/fixtures";
-import { useAlertingHarness } from "./testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import("./testing/db-proxy");
@@ -15,6 +15,10 @@ vi.mock("@/db/client", async () => {
 });
 
 vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
+vi.mock(
+  "@/lib/clickhouse-writer",
+  async () => import("./testing/test-clickhouse"),
+);
 
 const harness = useAlertingHarness();
 

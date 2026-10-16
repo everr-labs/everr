@@ -16,8 +16,10 @@ const mocks = vi.hoisted(() => ({
   retry: vi.fn(),
   router: { invalidate: vi.fn(), navigate: vi.fn() },
 }));
-vi.mock("@/data/organizations", () => ({ createOrganization: mocks.create }));
-vi.mock("@/data/organization-provisioning", () => ({
+vi.mock("@/cloud/data/organizations", () => ({
+  createOrganization: mocks.create,
+}));
+vi.mock("@/cloud/organization-provisioning/actions", () => ({
   completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
   getOrganizationProvisioningStatus: mocks.read,
   retryOrganizationProvisioning: mocks.retry,
@@ -32,7 +34,7 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-import { OrganizationCreation } from "./organization-creation";
+import { OrganizationCreation } from "@/cloud/components/organization-creation";
 
 beforeEach(() => {
   vi.useFakeTimers();

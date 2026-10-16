@@ -47,11 +47,12 @@ beforeEach(() => {
   mocked.createServerFnMiddleware.mockReturnValue(mocked.createServerFnResult);
   mocked.getRequest.mockReset();
   mocked.getActiveMemberRole.mockReset();
-  mocked.getActiveMemberRole.mockResolvedValue({ role: "owner" });
   mocked.getSession.mockReset();
   mocked.getOrganization
     .mockReset()
-    .mockResolvedValue([{ id: "org_123", metadata: null }]);
+    .mockResolvedValue([
+      { id: "org_123", metadata: null, memberRole: "owner" },
+    ]);
 });
 
 async function loadModule() {
@@ -142,7 +143,7 @@ describe("createOrganizationAdminServerFn", () => {
     ]);
   });
 
-  it.each(["admin", "owner"])("allows an %s", async (role) => {
+  it.each(["admin", "owner", "member, admin"])("allows an %s", async (role) => {
     await loadModule();
     const request = new Request("http://localhost/_server");
     const nextResult = new Response(null, { status: 204 });
@@ -151,14 +152,15 @@ describe("createOrganizationAdminServerFn", () => {
       user: { id: "user_123" },
       session: { id: "session_123", activeOrganizationId: "org_123" },
     });
-    mocked.getActiveMemberRole.mockResolvedValue({ role });
+    mocked.getOrganization.mockResolvedValue([
+      { id: "org_123", metadata: null, memberRole: role },
+    ]);
 
     const response = await getHandler()({ request, next });
 
     expect(response).toBe(nextResult);
-    expect(mocked.getActiveMemberRole).toHaveBeenCalledWith({
-      headers: request.headers,
-    });
+    expect(mocked.getOrganization).toHaveBeenCalledOnce();
+    expect(mocked.getActiveMemberRole).not.toHaveBeenCalled();
   });
 
   it("rejects an ordinary member", async () => {
@@ -169,19 +171,30 @@ describe("createOrganizationAdminServerFn", () => {
       user: { id: "user_123" },
       session: { id: "session_123", activeOrganizationId: "org_123" },
     });
-    mocked.getActiveMemberRole.mockResolvedValue({ role: "member" });
+    mocked.getOrganization.mockResolvedValue([
+      { id: "org_123", metadata: null, memberRole: "member" },
+    ]);
 
     await expect(getHandler()({ request, next })).rejects.toBeInstanceOf(
       NotOrganizationAdminError,
     );
     expect(next).not.toHaveBeenCalled();
+    expect(mocked.getOrganization).toHaveBeenCalledOnce();
+    expect(mocked.getActiveMemberRole).not.toHaveBeenCalled();
   });
 });
 
 describe("authMiddleware", () => {
-  it("authenticates via better-auth session and populates context", async () => {
+  it.each([
+    undefined,
+    "org_123",
+  ])("authenticates and populates context with expected organization %s", async (expectedOrganization) => {
     await loadModule();
-    const request = new Request("http://localhost/_server");
+    const request = new Request("http://localhost/_server", {
+      headers: expectedOrganization
+        ? { "x-everr-organization-id": expectedOrganization }
+        : undefined,
+    });
     const nextResult = new Response(null, { status: 204 });
     const next = vi.fn().mockResolvedValue(nextResult);
     mocked.getRequest.mockReturnValue(request);
@@ -196,6 +209,7 @@ describe("authMiddleware", () => {
     expect(next).toHaveBeenCalledWith({
       context: {
         organization: { id: "org_123", metadata: null },
+        memberRole: "owner",
         session: {
           user: { id: "user_123" },
           session: {
@@ -208,6 +222,23 @@ describe("authMiddleware", () => {
         },
       },
     });
+  });
+
+  it("rejects a profile organization mismatch before querying or invoking the handler", async () => {
+    await loadModule();
+    const next = vi.fn();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "user_123" },
+      session: { id: "session_123", activeOrganizationId: "org_123" },
+    });
+    const request = new Request("http://localhost/api/cli/resources", {
+      headers: { "x-everr-organization-id": "org_other" },
+    });
+    await expect(
+      getRequireOrgHandler()({ request, next }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(next).not.toHaveBeenCalled();
+    expect(mocked.getOrganization).not.toHaveBeenCalled();
   });
 
   it("throws when session is not available", async () => {
@@ -252,7 +283,9 @@ describe("organization readiness boundary", () => {
       user: { id: "u" },
       session: { activeOrganizationId: "org" },
     });
-    mocked.getOrganization.mockResolvedValue([{ id: "org", metadata }]);
+    mocked.getOrganization.mockResolvedValue([
+      { id: "org", metadata, memberRole: "owner" },
+    ]);
     const next = vi.fn().mockResolvedValue("ok");
     await mocked.allDefinitions[2]?.__handler({
       request: new Request("http://localhost/_server"),
@@ -271,6 +304,7 @@ describe("organization readiness boundary", () => {
       {
         id: "org",
         metadata: { clickhouseReady: false },
+        memberRole: "owner",
       },
     ]);
     const args = {
@@ -279,7 +313,7 @@ describe("organization readiness boundary", () => {
     };
     await expect(
       mocked.allDefinitions[2]?.__handler(args),
-    ).rejects.toMatchObject({ name: "ClickhouseProvisioningPendingError" });
+    ).rejects.toMatchObject({ name: "StorageNotReadyError" });
     expect(args.next).not.toHaveBeenCalled();
     await getRequireOrgHandler()(args);
     expect(args.next).toHaveBeenCalledOnce();

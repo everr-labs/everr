@@ -1,50 +1,331 @@
 use crate::api::ApiClient;
 use crate::build;
-use crate::device_auth::{AuthConfig, login_with_prompt};
-use crate::state::{Session, SessionStore, is_no_active_session_error};
-use anyhow::{Result, anyhow};
-
-use crate::cli::LoginArgs;
+use crate::cli::{LoginArgs, WhoamiArgs};
+use crate::device_auth::{AuthConfig, authorize_with_prompt};
+use crate::profiles::{Profile, ProfileStore, Project, Target, explicit_profile, normalize_url};
+use crate::state::{LegacySessionStore, Session};
+use anyhow::{Context, Result, anyhow, bail};
 
 const API_BASE_URL_OVERRIDE_ENV: &str = "EVERR_API_BASE_URL_FOR_TESTS";
 
-pub async fn login(_args: LoginArgs) -> Result<()> {
-    let config = resolve_auth_config()?;
-    let store = session_store();
-    let session = login_with_prompt(&config, &store, open_browser_immediately).await?;
-    print_session_identity(&session).await?;
+// Both terminal and local UI device flows use this target and credential store.
+// Creating a project file remains an explicit part of the terminal login command.
+pub(crate) struct LoginContext {
+    pub store: ProfileStore,
+    pub project: Project,
+    pub config: AuthConfig,
+    name: Option<String>,
+    expected: Option<Target>,
+    user_id: Option<String>,
+}
+
+impl LoginContext {
+    pub fn user(profile: Option<&str>, url: Option<String>) -> Result<Self> {
+        Self::new(
+            ProfileStore::user()?,
+            Project::discover(&std::env::current_dir()?)?,
+            explicit_profile(profile),
+            url,
+        )
+    }
+
+    pub fn new(
+        store: ProfileStore,
+        project: Project,
+        explicit: Option<String>,
+        url: Option<String>,
+    ) -> Result<Self> {
+        if let Some(name) = &explicit {
+            crate::profiles::validate_name(name)?;
+        }
+        let config = store.load()?;
+        let selected = if let Some(name) = &explicit {
+            config
+                .profiles
+                .get(name)
+                .cloned()
+                .map(|profile| (name.clone(), profile))
+        } else if url.is_none() {
+            config.select(None, &project)?
+        } else {
+            None
+        };
+        let expected = selected
+            .as_ref()
+            .map(|(_, p)| p.target.clone())
+            .or_else(|| {
+                if explicit.is_none() || url.is_none() {
+                    project.target.clone()
+                } else {
+                    None
+                }
+            });
+        let url = normalize_url(
+            &match url.or_else(|| expected.as_ref().map(|t| t.url.clone())) {
+                Some(url) => url,
+                None => store
+                    .legacy_session()?
+                    .map(|s| s.api_base_url)
+                    .unwrap_or(current_api_base_url()?),
+            },
+        )?;
+        if expected.as_ref().is_some_and(|target| target.url != url) {
+            bail!(
+                "The login URL differs from the configured target. Choose a new profile with --profile."
+            );
+        }
+        Ok(Self {
+            name: explicit.or_else(|| selected.as_ref().map(|(name, _)| name.clone())),
+            user_id: selected.map(|(_, p)| p.user_id),
+            store,
+            project,
+            config: AuthConfig { api_base_url: url },
+            expected,
+        })
+    }
+
+    pub fn verification_url(&self, mut url: reqwest::Url) -> reqwest::Url {
+        if let Some(target) = &self.expected {
+            url.query_pairs_mut()
+                .append_pair("organization_id", &target.organization_id);
+        }
+        url
+    }
+
+    pub fn session(&self) -> Result<Option<(String, Profile, Session)>> {
+        let config = self.store.load()?;
+        let selected = if let Some(name) = &self.name {
+            config
+                .profiles
+                .get(name)
+                .map(|profile| (name.clone(), profile.clone()))
+        } else {
+            let selected = config.select(None, &self.project)?;
+            if selected
+                .as_ref()
+                .is_some_and(|(_, p)| p.target.url == self.config.api_base_url)
+            {
+                selected
+            } else {
+                let mut matching = config
+                    .profiles
+                    .into_iter()
+                    .filter(|(_, p)| p.target.url == self.config.api_base_url);
+                let first = matching.next();
+                if matching.next().is_some() {
+                    bail!(
+                        "Multiple profiles match this installation. Select one with EVERR_PROFILE and restart Everr Local."
+                    );
+                }
+                first
+            }
+        };
+        let Some((name, profile)) = selected else {
+            return Ok(None);
+        };
+        if profile.target.url != self.config.api_base_url {
+            return Ok(None);
+        }
+        if self
+            .expected
+            .as_ref()
+            .is_some_and(|target| target != &profile.target)
+            || self
+                .user_id
+                .as_ref()
+                .is_some_and(|user| user != &profile.user_id)
+        {
+            bail!("The selected profile changed its organization or account. Restart the login.");
+        }
+        Ok(self
+            .store
+            .session(&name)?
+            .map(|session| (name, profile, session)))
+    }
+
+    pub async fn save(&self, session: Session) -> Result<(String, Profile)> {
+        let client = ApiClient::from_session(&session)?;
+        let identity = Profile::from_identity(&self.config.api_base_url, &client.get_me().await?)?;
+        if self
+            .expected
+            .as_ref()
+            .is_some_and(|target| target != &identity.target)
+        {
+            let _ = client.logout().await;
+            bail!(
+                "The approved organization differs from the configured target. Select organization '{}' in the browser and retry. Existing configuration was preserved.",
+                self.expected.as_ref().unwrap().organization_id
+            );
+        }
+        if self
+            .user_id
+            .as_ref()
+            .is_some_and(|user| user != &identity.user_id)
+        {
+            let _ = client.logout().await;
+            bail!("The approved account differs from this profile. Choose another profile name.");
+        }
+        let config = self.store.load()?;
+        let name = self.name.clone().unwrap_or_else(|| {
+            if !config.profiles.contains_key("default") {
+                "default".to_owned()
+            } else {
+                let url = reqwest::Url::parse(&identity.target.url).unwrap();
+                let host: String = url
+                    .host_str()
+                    .unwrap()
+                    .chars()
+                    .map(|c| {
+                        if c.is_ascii_alphanumeric() || c == '.' {
+                            c
+                        } else {
+                            '-'
+                        }
+                    })
+                    .collect();
+                format!("{host}-{}", identity.target.organization_id)
+            }
+        });
+        self.store.save(&name, identity.clone(), session)?;
+        Ok((name, identity))
+    }
+}
+
+pub async fn login(args: LoginArgs, profile: Option<&str>) -> Result<()> {
+    let mut login = LoginContext::user(profile, args.url)?;
+    if let Some(organization_id) = args.organization_id {
+        let organization_id = organization_id.trim();
+        if organization_id.is_empty() {
+            bail!("Organization ID must not be empty.");
+        }
+        if login
+            .expected
+            .as_ref()
+            .is_some_and(|target| target.organization_id != organization_id)
+        {
+            bail!(
+                "The requested organization differs from the configured target. Choose a new profile with --profile."
+            );
+        }
+        login.expected = Some(Target {
+            url: login.config.api_base_url.clone(),
+            organization_id: organization_id.to_owned(),
+        });
+    }
+    println!("Authenticating with {}", login.config.api_base_url);
+    if let Some(target) = &login.expected {
+        println!("Expected organization: {}", target.organization_id);
+    }
+    let session = authorize_with_prompt(&login.config, |url, code| {
+        let url = login.verification_url(url);
+        async move {
+            if args.no_open {
+                println!("Open {url} and confirm code {code}");
+            } else {
+                open_browser_immediately(url.to_string(), code).await;
+            }
+        }
+    })
+    .await?;
+    let (name, identity) = login.save(session).await?;
+    login.project.save_if_absent(&identity.target)?;
+    println!("Logged in as {}", identity.email);
+    println!("Using organization: {}", identity.organization_name);
+    println!("Logged in. Profile: {name}");
+    Ok(())
+}
+
+pub async fn whoami(args: WhoamiArgs, profile: Option<&str>) -> Result<()> {
+    let client = crate::profiles::client(profile, false).await?;
+    let identity = client.get_me().await?;
+    if args.json {
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct ConnectionInfo<'a> {
+            profile: Option<&'a str>,
+            selection_source: Option<&'a str>,
+            url: &'a str,
+            #[serde(flatten)]
+            identity: crate::api::MeResponse,
+        }
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&ConnectionInfo {
+                profile: client.profile(),
+                selection_source: client.selection_source(),
+                url: client.base_url(),
+                identity,
+            })?
+        );
+        return Ok(());
+    }
+    if let Some(name) = client.profile() {
+        println!(
+            "Profile: {name} ({})",
+            client.selection_source().unwrap_or("selected")
+        );
+    }
+    println!("Installation: {}", client.base_url());
+    println!("Account: {} ({})", identity.email, identity.user_id);
     println!(
-        "Logged in. Session saved at {}",
-        store.session_file_path()?.display()
+        "Organization: {} ({})",
+        identity.organization_name, identity.organization_id
+    );
+    println!(
+        "Ingestion endpoint: {}",
+        identity
+            .ingest_endpoint
+            .as_deref()
+            .unwrap_or("not configured or unavailable on this server")
     );
     Ok(())
 }
 
-pub(crate) async fn print_session_identity(session: &Session) -> Result<()> {
-    let Ok(client) = ApiClient::from_session(session) else {
-        return Ok(());
-    };
-
-    let me = client.get_me().await.ok();
-    for line in identity_summary_lines(
-        me.as_ref().map(|me| me.email.as_str()),
-        me.as_ref().map(|me| me.organization_name.as_str()),
-    ) {
-        cliclack::log::success(line)?;
+pub fn profiles(command: crate::cli::ProfilesSubcommand) -> Result<()> {
+    use crate::cli::ProfilesSubcommand as P;
+    let store = ProfileStore::user()?;
+    match command {
+        P::List => {
+            let config = store.load()?;
+            let credentials = store.credentials()?;
+            for (name, profile) in &config.profiles {
+                let current = if config.current_profile.as_deref() == Some(name) {
+                    "*"
+                } else {
+                    " "
+                };
+                let state = if credentials.contains_key(name) {
+                    "authenticated"
+                } else {
+                    "logged out"
+                };
+                println!(
+                    "{current} {name}  {}  {} ({})  {}  {state}",
+                    profile.target.url,
+                    profile.organization_name,
+                    profile.target.organization_id,
+                    profile.email
+                );
+            }
+        }
+        P::Show { name } => {
+            let config = store.load()?;
+            let profile = config
+                .profiles
+                .get(&name)
+                .with_context(|| format!("Unknown profile '{name}'"))?;
+            print!("{}", serde_yaml::to_string(profile)?);
+        }
+        P::Use { name } => {
+            store.use_profile(&name)?;
+            println!("Default profile: {name}");
+        }
+        P::Remove { name } => {
+            store.remove(&name)?;
+            println!("Removed profile '{name}'");
+        }
     }
-
     Ok(())
-}
-
-pub(crate) fn identity_summary_lines(email: Option<&str>, org_name: Option<&str>) -> Vec<String> {
-    let mut lines = Vec::new();
-    if let Some(email) = email {
-        lines.push(format!("Logged in as {email}"));
-    }
-    if let Some(org_name) = org_name {
-        lines.push(format!("Using organization: {org_name}"));
-    }
-    lines
 }
 
 pub async fn open_browser_immediately(verification_url: String, user_code: String) {
@@ -75,51 +356,52 @@ fn trimmed_non_empty(value: &str) -> Option<&str> {
     }
 }
 
-pub fn logout() -> Result<()> {
-    let store = session_store();
-    let had_session = store.clear_session()?;
-    if had_session {
-        println!("Logged out.");
+pub async fn logout(profile: Option<&str>) -> Result<()> {
+    let store = ProfileStore::user()?;
+    let project = Project::discover(&std::env::current_dir()?)?;
+    let explicit = explicit_profile(profile);
+    let config = store.load()?;
+    let Some((name, selected)) = config.select(explicit.as_deref(), &project)? else {
+        // Preserve logout support for the session format used before profiles.
+        let removed = if project.target.is_none() && config.profiles.is_empty() {
+            LegacySessionStore::user()?.clear_session()?
+        } else {
+            false
+        };
+        println!(
+            "{}",
+            if removed {
+                "Logged out."
+            } else {
+                "No active session."
+            }
+        );
+        return Ok(());
+    };
+    if let Some(session) = store.session(&name)? {
+        selected.target.client(&session)?.logout().await?;
+        if store.clear_session(&name, &session)? {
+            println!("Logged out. Profile: {name}");
+        } else {
+            println!(
+                "Revoked the previous session. A newer login for profile '{name}' was preserved."
+            );
+        }
     } else {
-        println!("No active session.");
+        println!("No active session. Profile: {name}");
     }
-
     Ok(())
 }
 
-pub async fn status() -> Result<()> {
-    let session = require_session()?;
-    let client = ApiClient::from_session(&session)?;
+pub async fn status(profile: Option<&str>) -> Result<()> {
+    let client = crate::profiles::client(profile, false).await?;
     let me = client.get_me().await?;
 
     println!("Name: {}", me.name);
     println!("Email: {}", me.email);
     println!("Organization: {}", me.organization_name);
-    println!("Cloud: {}", session.api_base_url);
+    println!("Cloud: {}", client.base_url());
     Ok(())
-}
-
-pub fn require_session() -> Result<Session> {
-    let store = session_store();
-    let api_base_url = current_api_base_url()?;
-    match store.load_session_for_api_base_url(&api_base_url) {
-        Ok(session) => Ok(session),
-        Err(error) if is_no_active_session_error(&error) => Err(anyhow!(
-            "no active session; run `{} cloud login`",
-            build::command_name()
-        )),
-        Err(error) => Err(error),
-    }
-}
-
-pub fn resolve_auth_config() -> Result<AuthConfig> {
-    Ok(AuthConfig {
-        api_base_url: current_api_base_url()?,
-    })
-}
-
-pub fn session_store() -> SessionStore {
-    SessionStore::for_namespace(build::session_namespace())
 }
 
 fn current_api_base_url() -> Result<String> {
@@ -130,42 +412,4 @@ fn current_api_base_url() -> Result<String> {
     }
 
     Ok(build::default_api_base_url().to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::build;
-
-    use super::session_store;
-
-    #[test]
-    fn session_namespace_is_fixed() {
-        let store = session_store();
-        let path = store.session_file_path().unwrap();
-        assert_eq!(
-            path.parent().unwrap().file_name().unwrap(),
-            build::session_namespace()
-        );
-        assert_eq!(
-            path.file_name().unwrap(),
-            build::default_session_file_name()
-        );
-    }
-
-    #[test]
-    fn auth_config_uses_current_build_default_base_url() {
-        let config = super::resolve_auth_config().expect("auth config");
-        assert_eq!(config.api_base_url, build::default_api_base_url());
-    }
-
-    #[test]
-    fn identity_summary_lines_include_email_and_org() {
-        assert_eq!(
-            super::identity_summary_lines(Some("user@example.com"), Some("Acme")),
-            vec![
-                "Logged in as user@example.com".to_string(),
-                "Using organization: Acme".to_string(),
-            ]
-        );
-    }
 }

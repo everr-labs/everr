@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveRetention } from "@/lib/retention";
+import { retentionForDays } from "@/product/retention.test-fixtures";
 import { Route } from "./verify-key";
 
 vi.mock("@/env", () => ({
@@ -17,7 +17,7 @@ vi.mock("@/lib/auth.server", () => ({
   },
 }));
 
-vi.mock("@/lib/retention.server", () => ({
+vi.mock("@/product/retention.server", () => ({
   retentionForOrg: vi.fn(),
 }));
 
@@ -51,8 +51,8 @@ async function mockVerify(result: unknown) {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  const { retentionForOrg } = await import("@/lib/retention.server");
-  vi.mocked(retentionForOrg).mockResolvedValue(resolveRetention("pro"));
+  const { retentionForOrg } = await import("@/product/retention.server");
+  vi.mocked(retentionForOrg).mockResolvedValue(retentionForDays(365, 30));
 });
 
 describe("/api/internal/verify-key", () => {
@@ -100,7 +100,13 @@ describe("/api/internal/verify-key", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 200 with tenantId for a valid ingest key", async () => {
+  it("returns the verified tenant and forwards each signal's retention", async () => {
+    const { retentionForOrg } = await import("@/product/retention.server");
+    vi.mocked(retentionForOrg).mockResolvedValueOnce({
+      ...retentionForDays(90),
+      tracesDays: 14,
+      logsDays: 7,
+    });
     await mockVerify({
       valid: true,
       error: null,
@@ -115,13 +121,12 @@ describe("/api/internal/verify-key", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      tenantId: "org_42",
+      ...(import.meta.env.MODE === "cloud" ? { tenantId: "org_42" } : {}),
       keyId: "ak_3",
-      tracesDays: 365,
-      logsDays: 365,
-      metricsDays: 365,
+      tracesDays: 14,
+      logsDays: 7,
+      metricsDays: 90,
     });
-    const { retentionForOrg } = await import("@/lib/retention.server");
     expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 
     // The configId pin is the sole guarantee that a CLI/user-scoped key
@@ -194,7 +199,7 @@ describe("/api/internal/verify-key browser origin policy", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      tenantId: "org_42",
+      ...(import.meta.env.MODE === "cloud" ? { tenantId: "org_42" } : {}),
       keyId: "ak_public",
       tracesDays: 365,
       logsDays: 365,
@@ -262,7 +267,7 @@ describe("/api/internal/verify-key browser origin policy", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      tenantId: "org_42",
+      ...(import.meta.env.MODE === "cloud" ? { tenantId: "org_42" } : {}),
       keyId: "ak_secret",
       tracesDays: 365,
       logsDays: 365,

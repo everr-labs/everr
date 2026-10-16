@@ -3,14 +3,19 @@ import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("@/data/organization-access", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
-vi.mock("@/data/billing", () => ({ getActiveOrgAppAccess: vi.fn() }));
+vi.mock("@/data/product", () => ({ getActiveOrgPolicy: vi.fn() }));
 
-import { getActiveOrgAppAccess } from "@/data/billing";
 import { getActiveOrganizationAccess } from "@/data/organization-access";
+import { getActiveOrgPolicy } from "@/data/product";
 import { Route as sessionRoute } from "./_authenticated";
 import { Route as organizationRoute } from "./_authenticated/_organization";
 import { Route as accessRoute } from "./_authenticated/_organization/_dashboard/_appAccess";
 import { Route as provisionedRoute } from "./_authenticated/_organization/_dashboard/_appAccess/_provisioned";
+
+const selfHosted = import.meta.env.MODE === "self-hosted";
+const missingWorkspaceRoute = selfHosted
+  ? "/access-required"
+  : "/choose-organization";
 
 function open(
   route: { options: unknown },
@@ -42,8 +47,8 @@ beforeEach(() => {
     status: "available",
     organization: { id: "test_org", metadata: '{"clickhouseReady":true}' },
   });
-  vi.mocked(getActiveOrgAppAccess).mockResolvedValue({
-    appState: "hobby",
+  vi.mocked(getActiveOrgPolicy).mockResolvedValue({
+    access: "enabled",
   } as never);
 });
 
@@ -62,7 +67,7 @@ it("verifies membership before passing organization context to descendants", asy
 it("preserves the original destination when organization selection is missing", async () => {
   await expect(open(organizationRoute, null)).rejects.toMatchObject({
     options: {
-      to: "/choose-organization",
+      to: missingWorkspaceRoute,
       search: { returnTo: "/logs?service=api#results" },
       replace: true,
     },
@@ -74,10 +79,16 @@ it("redirects revoked membership using the structured result", async () => {
     status: "missing",
   });
   await expect(open(organizationRoute, "test_org")).rejects.toMatchObject({
-    options: { to: "/choose-organization" },
+    options: { to: missingWorkspaceRoute },
   });
 });
 it("shows creation setup even when the new organization is already ready", async () => {
+  if (selfHosted) {
+    await expect(
+      open(organizationRoute, "test_org", "test_org"),
+    ).resolves.toMatchObject({ organization: { id: "test_org" } });
+    return;
+  }
   await expect(
     open(organizationRoute, "test_org", "test_org"),
   ).rejects.toMatchObject({
@@ -93,6 +104,10 @@ it("does not apply a different organization's creation continuation", async () =
   ).resolves.toMatchObject({ organization: { id: "test_org" } });
 });
 it("uses recovery instead of creation onboarding for an existing pending organization", async () => {
+  if (selfHosted) {
+    await expect(open(provisionedRoute, "test_org")).resolves.toBeUndefined();
+    return;
+  }
   await expect(open(provisionedRoute, "test_org")).rejects.toMatchObject({
     options: {
       to: "/organization-pending",
@@ -101,14 +116,17 @@ it("uses recovery instead of creation onboarding for an existing pending organiz
     },
   });
 });
-it("routes suspended app access to billing recovery", async () => {
-  vi.mocked(getActiveOrgAppAccess).mockResolvedValue({
-    appState: "suspended",
-  } as never);
-  await expect(open(accessRoute, "test_org")).rejects.toMatchObject({
-    options: { to: "/billing/suspended" },
-  });
-});
+it.skipIf(selfHosted)(
+  "routes suspended app access to billing recovery",
+  async () => {
+    vi.mocked(getActiveOrgPolicy).mockResolvedValue({
+      access: "suspended",
+    } as never);
+    await expect(open(accessRoute, "test_org")).rejects.toMatchObject({
+      options: { to: "/billing/suspended" },
+    });
+  },
+);
 it("keeps infrastructure errors visible", async () => {
   vi.mocked(getActiveOrganizationAccess).mockRejectedValue(
     new Error("Organization database unavailable"),

@@ -29,6 +29,8 @@ vi.mock("@/data/api-keys", () => ({
 vi.mock("@/lib/auth-client", () => ({ authClient: { apiKey: {} } }));
 
 const initial = (): HomeStatus => ({
+  appUrl: "https://app.example.test",
+  ingestEndpoint: "https://ingest.everr.dev/",
   canCreateKeys: true,
   onboardingCompleted: false,
 });
@@ -607,4 +609,31 @@ it("keeps verification explicit and offers recovery without marking onboarding c
   expect(
     screen.getByRole("button", { name: "Set up manually" }),
   ).toHaveAttribute("aria-pressed", "true");
+});
+
+it("copies the installation and workspace login command and shows its ingestion endpoint", async () => {
+  persisted.appUrl = "https://observability.example.test";
+  persisted.ingestEndpoint = "https://telemetry.example.test/otlp";
+  seedProgress("production");
+  const { user } = mount();
+  const command =
+    "everr login --url 'https://observability.example.test' --organization-id 'one'";
+  expect(screen.getByText(command)).toBeVisible();
+  await user.click(
+    screen.getByRole("button", { name: "Copy workspace login command" }),
+  );
+  expect(await navigator.clipboard.readText()).toBe(command);
+  expect(screen.getByText(persisted.ingestEndpoint)).toBeVisible();
+  expect(screen.queryByText("https://ingest.everr.dev/")).toBeNull();
+});
+
+it("asks for administrator configuration when no ingestion endpoint is available", () => {
+  delete persisted.ingestEndpoint;
+  seedProgress("production");
+  mount();
+  expect(screen.getByText(/Ask your administrator to configure/)).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Copy production endpoint" }),
+  ).toBeNull();
+  expect(screen.queryByText("https://ingest.everr.dev/")).toBeNull();
 });

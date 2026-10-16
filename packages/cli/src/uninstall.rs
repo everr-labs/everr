@@ -4,15 +4,14 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use crate::auth;
-
 pub fn run_uninstall() -> Result<()> {
     let cli_path = env::current_exe().context("failed to resolve current executable path")?;
 
     print_uninstall_effects(&cli_path);
     wait_for_enter()?;
 
-    auth::session_store().wipe()?;
+    crate::state::LegacySessionStore::user()?.wipe()?;
+    crate::profiles::ProfileStore::user()?.wipe()?;
 
     // Best-effort: removing skills must not block wiping the rest of the state.
     if let Err(err) = crate::skills::uninstall_all_global() {

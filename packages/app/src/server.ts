@@ -1,10 +1,10 @@
+import { migrateDatabase } from "@app/migrations";
 import {
   createStartHandler,
   defaultStreamHandler,
   defineHandlerCallback,
 } from "@tanstack/react-start/server";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { db } from "@/db/client";
+import { withMigrationLock } from "@/db/migrations";
 import { startWorkerRuntime } from "@/server/worker/runtime";
 import { captureError, getTelemetryTracer, SpanKind } from "@/telemetry/node";
 
@@ -16,7 +16,7 @@ if (process.env.TSS_PRERENDERING !== "true") {
     { kind: SpanKind.INTERNAL },
     async (span) => {
       try {
-        await migrate(db, { migrationsFolder: "./drizzle" });
+        await withMigrationLock(migrateDatabase);
       } catch (error) {
         captureError(error, {
           "everr.error.source": "startup.database_migration",

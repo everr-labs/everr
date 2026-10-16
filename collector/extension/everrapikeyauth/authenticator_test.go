@@ -106,6 +106,26 @@ func TestAuthenticate_Success_StampsAuthData(t *testing.T) {
 	}
 }
 
+func TestAuthenticate_SuccessWithoutTenant(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(okVerify(""))
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	ctx, err := e.Authenticate(context.Background(), authHeaders("good"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth := client.FromContext(ctx).Auth
+	if auth.GetAttribute("tenant_id") != nil {
+		t.Errorf("tenant_id should be absent, got %v", auth.GetAttribute("tenant_id"))
+	}
+	if auth.GetAttribute("retention_metrics_days") != "14" {
+		t.Errorf("retention_metrics_days: got %v", auth.GetAttribute("retention_metrics_days"))
+	}
+}
+
 func TestAuthenticate_CacheHit_AvoidsSecondCall(t *testing.T) {
 	var calls int32
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {

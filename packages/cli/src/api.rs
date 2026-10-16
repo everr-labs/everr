@@ -17,15 +17,17 @@ use crate::build;
 use crate::state::Session;
 
 #[derive(Debug)]
-struct ReauthenticationRequired;
+struct ReauthenticationRequired {
+    profile: Option<String>,
+}
 
 impl fmt::Display for ReauthenticationRequired {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Session expired. Run `{} cloud login` to re-authenticate.",
-            build::command_name()
-        )
+        write!(f, "Session expired. Run `{} login", build::command_name())?;
+        if let Some(profile) = &self.profile {
+            write!(f, " --profile {profile}")?;
+        }
+        write!(f, "` to re-authenticate.")
     }
 }
 
@@ -49,6 +51,9 @@ pub struct ApiClient {
     base_url: String,
     base_endpoint: String,
     auth_kind: AuthKind,
+    profile: Option<String>,
+    selection_source: Option<String>,
+    organization_id: Option<String>,
 }
 
 impl ApiClient {
@@ -75,6 +80,7 @@ impl ApiClient {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         let http = reqwest::Client::builder()
             .default_headers(headers)
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .context("failed to build HTTP client")?;
         let base_url = api_base_url.trim_end_matches('/').to_string();
@@ -84,7 +90,62 @@ impl ApiClient {
             base_url,
             base_endpoint,
             auth_kind,
+            profile: None,
+            selection_source: None,
+            organization_id: None,
         })
+    }
+
+    pub fn for_organization(mut self, organization_id: &str) -> Result<Self> {
+        HeaderValue::from_str(organization_id).context("Invalid organization ID")?;
+        self.organization_id = Some(organization_id.to_owned());
+        Ok(self)
+    }
+
+    pub fn with_profile(mut self, name: &str, source: &str) -> Self {
+        self.profile = Some(name.to_owned());
+        self.selection_source = Some(source.to_owned());
+        self
+    }
+
+    pub fn profile(&self) -> Option<&str> {
+        self.profile.as_deref()
+    }
+    pub fn selection_source(&self) -> Option<&str> {
+        self.selection_source.as_deref()
+    }
+    pub fn print_target(&self) {
+        eprintln!(
+            "Target: {}{}",
+            self.base_url,
+            self.organization_id
+                .as_ref()
+                .map(|org| format!(" (organization {org})"))
+                .unwrap_or_default()
+        );
+    }
+
+    fn request(&self, method: reqwest::Method, url: String) -> reqwest::RequestBuilder {
+        let request = self.http.request(method, url);
+        match &self.organization_id {
+            Some(organization) => request.header("x-everr-organization-id", organization),
+            None => request,
+        }
+    }
+
+    pub async fn logout(&self) -> Result<()> {
+        let response = self
+            .request(
+                reqwest::Method::POST,
+                format!("{}/api/auth/sign-out", self.base_url),
+            )
+            .json(&serde_json::json!({}))
+            .send()
+            .await?;
+        if response.status().is_success() || response.status() == StatusCode::UNAUTHORIZED {
+            return Ok(());
+        }
+        anyhow::bail!("Could not revoke session: {}", response.status());
     }
 
     pub async fn apply(
@@ -92,8 +153,10 @@ impl ApiClient {
         request: &crate::apply::ApplyRequest,
     ) -> Result<crate::apply::ApplySummary> {
         let response = self
-            .http
-            .post(format!("{}/api/apply", self.base_url))
+            .request(
+                reqwest::Method::POST,
+                format!("{}/api/apply", self.base_url),
+            )
             .json(request)
             .send()
             .await
@@ -115,10 +178,17 @@ impl ApiClient {
                          or the deprecated EVERR_API_TOKEN) is missing, invalid, or not \
                          authorized to apply resources in this organization."
                     ),
-                    AuthKind::Session => anyhow::Error::new(ReauthenticationRequired),
+                    AuthKind::Session => anyhow::Error::new(ReauthenticationRequired {
+                        profile: self.profile.clone(),
+                    }),
                 });
             }
-            return Err(http_status_error(status, text, "apply"));
+            return Err(http_status_error(
+                status,
+                text,
+                "apply",
+                self.profile.as_deref(),
+            ));
         }
 
         response
@@ -156,8 +226,7 @@ impl ApiClient {
         );
         async move {
             let request = self
-                .http
-                .post(format!("{}/sql", self.base_endpoint))
+                .request(reqwest::Method::POST, format!("{}/sql", self.base_endpoint))
                 .header(CONTENT_TYPE, "text/plain")
                 .headers(current_trace_headers())
                 .body(sql.to_string());
@@ -193,22 +262,15 @@ impl ApiClient {
             params.push(("key", k));
         }
 
+        let request = self
+            .request(
+                reqwest::Method::GET,
+                format!("{}/api/events/stream", self.base_url),
+            )
+            .query(&params);
         let response = self
-            .http
-            .get(format!("{}/api/events/stream", self.base_url))
-            .query(&params)
-            .send()
-            .await
-            .context("SSE connection failed")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "SSE connection"));
-        }
+            .send_checked(request, "SSE connection failed", "SSE connection")
+            .await?;
 
         let stream = response
             .bytes_stream()
@@ -282,17 +344,25 @@ impl ApiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, status_context));
+            return Err(http_status_error(
+                status,
+                text,
+                status_context,
+                self.profile.as_deref(),
+            ));
         }
         Ok(response)
     }
 
     pub async fn delete_resource(&self, kind: &str, project: &str, slug: &str) -> Result<()> {
-        let request = self.http.delete(format!(
-            "{}{}",
-            self.base_endpoint,
-            resource_path(kind, project, slug)
-        ));
+        let request = self.request(
+            reqwest::Method::DELETE,
+            format!(
+                "{}{}",
+                self.base_endpoint,
+                resource_path(kind, project, slug)
+            ),
+        );
         self.send_checked(request, "delete resource request failed", "delete resource")
             .await?;
         Ok(())
@@ -306,12 +376,14 @@ impl ApiClient {
         repoid: &str,
     ) -> Result<AdoptOutcome> {
         let request = self
-            .http
-            .post(format!(
-                "{}{}/adopt",
-                self.base_endpoint,
-                resource_path(kind, project, slug)
-            ))
+            .request(
+                reqwest::Method::POST,
+                format!(
+                    "{}{}/adopt",
+                    self.base_endpoint,
+                    resource_path(kind, project, slug)
+                ),
+            )
             .json(&serde_json::json!({ "repoid": repoid }));
         let response = self
             .send_checked(request, "adopt resource request failed", "adopt resource")
@@ -324,8 +396,10 @@ impl ApiClient {
 
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
         let request = self
-            .http
-            .get(format!("{}{}", self.base_endpoint, path))
+            .request(
+                reqwest::Method::GET,
+                format!("{}{}", self.base_endpoint, path),
+            )
             .query(query);
         let response = self
             .send_checked(request, "CLI API request failed", "CLI API request")
@@ -370,9 +444,16 @@ fn current_trace_headers() -> HeaderMap {
     headers
 }
 
-fn http_status_error(status: StatusCode, text: String, context: &str) -> anyhow::Error {
+fn http_status_error(
+    status: StatusCode,
+    text: String,
+    context: &str,
+    profile: Option<&str>,
+) -> anyhow::Error {
     if status == StatusCode::UNAUTHORIZED {
-        return anyhow::Error::new(ReauthenticationRequired);
+        return anyhow::Error::new(ReauthenticationRequired {
+            profile: profile.map(str::to_owned),
+        });
     }
 
     anyhow::anyhow!("{context} failed with {status}: {text}")
@@ -463,6 +544,12 @@ pub struct MeResponse {
     pub email: String,
     pub name: String,
     pub organization_name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub organization_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub user_id: String,
+    #[serde(default)]
+    pub ingest_endpoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -567,6 +654,7 @@ mod api_client_tests {
         assert_eq!(identity.email, "user@example.test");
         assert_eq!(identity.name, "Test User");
         assert_eq!(identity.organization_name, "Test Org");
+        assert_eq!(identity.ingest_endpoint, None);
         mock.assert_async().await;
     }
 
@@ -586,7 +674,7 @@ mod api_client_tests {
         assert!(is_reauthentication_required(&error));
         assert_eq!(
             error.to_string(),
-            "Session expired. Run `everr cloud login` to re-authenticate."
+            "Session expired. Run `everr login` to re-authenticate."
         );
         mock.assert_async().await;
     }
@@ -632,7 +720,7 @@ mod api_client_tests {
         // Session path: a 401 directs the user to `cloud login`.
         assert!(is_reauthentication_required(&error));
         let message = error.to_string();
-        assert!(message.contains("cloud login"), "got: {message}");
+        assert!(message.contains("everr login"), "got: {message}");
         assert!(!message.contains("EVERR_API_KEY"), "got: {message}");
         mock.assert_async().await;
     }
@@ -681,7 +769,7 @@ mod api_client_tests {
         assert!(is_reauthentication_required(&error));
         assert_eq!(
             error.to_string(),
-            "Session expired. Run `everr cloud login` to re-authenticate."
+            "Session expired. Run `everr login` to re-authenticate."
         );
         mock.assert_async().await;
     }

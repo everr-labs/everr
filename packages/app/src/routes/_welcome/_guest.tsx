@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_welcome/_guest")({
-  beforeLoad: ({ context: { session } }) => {
+  beforeLoad: async ({ context: { session } }) => {
     if (session?.user) {
       throw redirect({ to: "/" });
     }

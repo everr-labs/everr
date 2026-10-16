@@ -3,6 +3,9 @@ import { beforeEach, expect, it, vi } from "vitest";
 const store = vi.hoisted(() => ({ getStatus: vi.fn(), complete: vi.fn() }));
 vi.mock("@/db/client", () => ({ db: {} }));
 vi.mock("./store", () => ({ createOnboardingStore: () => store }));
+vi.mock("@/env", () => ({
+  env: { BETTER_AUTH_URL: "https://app.example.test" },
+}));
 
 import { completeOnboarding, getHomeStatus } from "./server";
 
@@ -36,4 +39,19 @@ it("rejects injected identity, secrets and flag values", async () => {
     ).rejects.toThrow();
   }
   expect(store.complete).not.toHaveBeenCalled();
+});
+
+it("includes the hosted ingestion endpoint in Cloud onboarding", async () => {
+  store.getStatus.mockResolvedValue({
+    canCreateKeys: true,
+    onboardingCompleted: false,
+  });
+  expect(await getHomeStatus({ data: { organizationId: "test_org" } })).toEqual(
+    {
+      canCreateKeys: true,
+      onboardingCompleted: false,
+      ingestEndpoint: "https://ingest.everr.dev/",
+      appUrl: "https://app.example.test",
+    },
+  );
 });

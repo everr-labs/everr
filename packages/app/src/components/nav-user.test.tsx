@@ -8,9 +8,10 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { forwardRef, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
+import { StorageNotReadyError } from "@/common/storage-readiness";
 
 const mocks = vi.hoisted(() => ({
+  githubEnabled: false,
   invalidate: vi.fn(),
   openConsentSettings: vi.fn(),
   role: "owner",
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
+  useRouteContext: () => ({ githubEnabled: mocks.githubEnabled }),
   Link: forwardRef<
     HTMLAnchorElement,
     { children?: ReactNode; className?: string; to: string }
@@ -34,7 +36,7 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 
-vi.mock("@/data/organizations", () => ({
+vi.mock("@/cloud/data/organizations", () => ({
   createOrganization: vi.fn(),
   getOrganizationCreationOptions: vi
     .fn()
@@ -77,6 +79,7 @@ import { NavUser } from "./nav-user";
 describe("NavUser", () => {
   beforeEach(() => {
     mocks.role = "owner";
+    mocks.githubEnabled = false;
     mocks.organizations = [{ id: "org_1", name: "Acme" }];
     mocks.invalidate.mockReset();
     mocks.setActive.mockReset().mockResolvedValue({ error: null });
@@ -103,7 +106,7 @@ describe("NavUser", () => {
       staleTime: Number.POSITIVE_INFINITY,
       queryFn: async () => {
         if (pending && readiness === "pending")
-          throw new ClickhouseProvisioningPendingError();
+          throw new StorageNotReadyError();
         return [{ value: pending ? 2 : 1 }];
       },
     });
@@ -140,6 +143,7 @@ describe("NavUser", () => {
   });
 
   it("opens the flat menu without losing the menu group context", async () => {
+    mocks.githubEnabled = true;
     const user = userEvent.setup();
     const queryClient = new QueryClient();
 
@@ -154,6 +158,9 @@ describe("NavUser", () => {
     await user.click(screen.getByRole("button", { name: /Test User/ }));
 
     expect(await screen.findByText("Organization settings")).toBeVisible();
+    expect(
+      await screen.findByRole("menuitem", { name: "GitHub" }),
+    ).toHaveAttribute("href", "/github");
     expect(screen.getByText("Account & privacy")).toBeVisible();
     expect(
       screen.queryByRole("menuitem", { name: "Download App" }),
@@ -162,6 +169,24 @@ describe("NavUser", () => {
     expect(
       screen.getByRole("menuitem", { name: "Plan & Billing" }),
     ).toHaveAttribute("href", "/billing");
+  });
+
+  it("hides GitHub when the integration is disabled", async () => {
+    mocks.githubEnabled = false;
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SidebarProvider>
+          <NavUser />
+        </SidebarProvider>
+      </QueryClientProvider>,
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /Test User/ }));
+    expect(
+      screen.queryByRole("menuitem", { name: "GitHub" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides organization settings from ordinary members", async () => {

@@ -1,3 +1,4 @@
+import { canDeleteWorkspace } from "@app/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,28 +10,28 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@everr/ui/components/alert-dialog";
-import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
 import { Input } from "@everr/ui/components/input";
+import { RetryError } from "@everr/ui/components/retry-error";
+import { Skeleton } from "@everr/ui/components/skeleton";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { siGoogle } from "simple-icons";
+import { useState } from "react";
+import { GoogleConnection } from "@/components/account-settings/google-connection";
+import { PasswordSettings } from "@/components/account-settings/password-settings";
+import { ProfileSettings } from "@/components/account-settings/profile-settings";
+import { linkedAccountsQueryOptions } from "@/components/account-settings/queries";
+import { SessionsSettings } from "@/components/account-settings/sessions-settings";
 import { PageHeader } from "@/components/page-header";
 import { deleteCurrentUserAccount } from "@/data/account-settings";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationOwner } from "@/lib/organization-role";
-
-type LinkedAccount = NonNullable<
-  Awaited<ReturnType<typeof authClient.listAccounts>>["data"]
->[number];
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_padded/account",
@@ -46,24 +47,20 @@ function AccountSettingsPage() {
   const navigate = useNavigate();
   const { data: session } = authClient.useSession();
   const { data: activeOrganization } = authClient.useActiveOrganization();
-  const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
-  const [isLoadingLinkedAccounts, setIsLoadingLinkedAccounts] = useState(true);
-  const [googleLinkError, setGoogleLinkError] = useState<string | null>(null);
-  const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
+  const { googleSignInEnabled } = Route.useRouteContext();
+  const accounts = useQuery(linkedAccountsQueryOptions(session?.user.id ?? ""));
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteOrganization, setDeleteOrganization] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
-  const isGoogleLinked = linkedAccounts.some(
-    (account) => account.providerId === "google",
-  );
   const isDeleteConfirmationValid = deleteConfirmation === "DELETE";
   const activeOrganizationMembers = activeOrganization?.members ?? [];
   const currentMemberRole = activeOrganizationMembers.find(
     (member) => member.userId === session?.user?.id,
   )?.role;
-  const canDeleteActiveOrganization = isOrganizationOwner(currentMemberRole);
+  const canDeleteActiveOrganization =
+    canDeleteWorkspace && isOrganizationOwner(currentMemberRole);
   const isOnlyActiveOrganizationOwner =
     canDeleteActiveOrganization &&
     activeOrganizationMembers.filter((member) =>
@@ -71,84 +68,6 @@ function AccountSettingsPage() {
     ).length === 1;
   const activeOrganizationName =
     activeOrganization?.name ?? "current organization";
-  const googleButtonLabel = isLoadingLinkedAccounts
-    ? "Checking..."
-    : isLinkingGoogle
-      ? "Connecting..."
-      : isGoogleLinked
-        ? "Linked"
-        : "Connect Google";
-
-  useEffect(() => {
-    let isCurrent = true;
-
-    async function loadLinkedAccounts() {
-      setIsLoadingLinkedAccounts(true);
-
-      try {
-        const result = await authClient.listAccounts();
-        if (!isCurrent) {
-          return;
-        }
-
-        if (result.error) {
-          setGoogleLinkError(
-            result.error.message ??
-              "We couldn't load your connected accounts right now.",
-          );
-          return;
-        }
-
-        setLinkedAccounts(result.data ?? []);
-      } catch (error) {
-        if (!isCurrent) {
-          return;
-        }
-
-        setGoogleLinkError(
-          error instanceof Error
-            ? error.message
-            : "We couldn't load your connected accounts right now.",
-        );
-      } finally {
-        if (isCurrent) {
-          setIsLoadingLinkedAccounts(false);
-        }
-      }
-    }
-
-    void loadLinkedAccounts();
-
-    return () => {
-      isCurrent = false;
-    };
-  }, []);
-
-  async function handleLinkGoogle() {
-    if (isLoadingLinkedAccounts || isLinkingGoogle || isGoogleLinked) {
-      return;
-    }
-
-    setGoogleLinkError(null);
-    setIsLinkingGoogle(true);
-
-    try {
-      const result = await authClient.linkSocial({
-        callbackURL: "/account",
-        provider: "google",
-      });
-
-      if (result.error) {
-        setGoogleLinkError(result.error.message ?? "Google linking failed.");
-        setIsLinkingGoogle(false);
-      }
-    } catch (error) {
-      setGoogleLinkError(
-        error instanceof Error ? error.message : "Google linking failed.",
-      );
-      setIsLinkingGoogle(false);
-    }
-  }
 
   async function handleDeleteAccount() {
     if (isDeletingAccount || !isDeleteConfirmationValid) {
@@ -186,59 +105,44 @@ function AccountSettingsPage() {
         lede="Manage your profile and account lifecycle."
       />
 
-      {/* TODO: Replace WorkOS UserProfile/UserSecurity widgets with better-auth equivalents */}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Google Connection</CardTitle>
-          <CardDescription>
-            Link Google to sign in to this account with Google.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
-                <GoogleIcon className="size-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium">Google</p>
-                <p className="text-xs text-muted-foreground">
-                  {isGoogleLinked
-                    ? "Google is linked as a sign-in method for this account."
-                    : "Use Google as an additional sign-in method for this account."}
-                </p>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {isGoogleLinked ? (
-                <Badge variant="secondary">Connected</Badge>
-              ) : null}
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={
-                  isLoadingLinkedAccounts || isLinkingGoogle || isGoogleLinked
-                }
-                onClick={() => void handleLinkGoogle()}
-              >
-                {isLinkingGoogle ? (
-                  <Loader2 data-icon="inline-start" className="animate-spin" />
-                ) : (
-                  <GoogleIcon dataIcon="inline-start" />
+      {session?.user && (
+        <>
+          <ProfileSettings key={session.user.id} user={session.user} />
+          {accounts.isPending && (
+            <Skeleton className="h-40" aria-label="Loading sign-in methods" />
+          )}
+          {accounts.isError && (
+            <RetryError
+              variant="inline"
+              title="Could not load sign-in methods"
+              message={accounts.error.message}
+              onRetry={() => void accounts.refetch()}
+            />
+          )}
+          {accounts.data && (
+            <>
+              <PasswordSettings
+                key={session.user.id}
+                hasPassword={accounts.data.some(
+                  (account) => account.providerId === "credential",
                 )}
-                {googleButtonLabel}
-              </Button>
-            </div>
-          </div>
-          {googleLinkError ? (
-            <p className="text-xs text-destructive" role="alert">
-              {googleLinkError}
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
+              />
+              {googleSignInEnabled && (
+                <GoogleConnection
+                  linked={accounts.data.some(
+                    (account) => account.providerId === "google",
+                  )}
+                />
+              )}
+            </>
+          )}
+          <SessionsSettings
+            key={session.session.id}
+            userId={session.user.id}
+            currentSessionId={session.session.id}
+          />
+        </>
+      )}
 
       <Card className="border-destructive/40">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -332,25 +236,5 @@ function AccountSettingsPage() {
         </CardHeader>
       </Card>
     </div>
-  );
-}
-
-function GoogleIcon({
-  className,
-  dataIcon,
-}: {
-  className?: string;
-  dataIcon?: "inline-start";
-}) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      data-icon={dataIcon}
-    >
-      <path d={siGoogle.path} />
-    </svg>
   );
 }

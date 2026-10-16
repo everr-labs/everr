@@ -1,3 +1,4 @@
+import { getIngestEndpoint } from "@app/ingest";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/api/cli/me")({
@@ -5,9 +6,12 @@ export const Route = createFileRoute("/api/cli/me")({
     handlers: {
       GET: ({ context: { session, organization } }) => {
         return Response.json({
+          userId: session.user.id,
+          organizationId: organization.id,
           email: session.user.email,
           name: session.user.name || session.user.email,
           organizationName: organization.name,
+          ingestEndpoint: getIngestEndpoint() ?? null,
         });
       },
     },

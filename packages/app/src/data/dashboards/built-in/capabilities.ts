@@ -10,7 +10,7 @@ import { type BuiltinDashboard, SIGNALS, type Signal } from "./types";
  * which inverts the one promise the probe makes. The `awscloudwatch` receiver
  * emits Summary by default, so this is reachable, not hypothetical.
  *
- * Written out rather than filtered from `SQL_API_TENANT_TABLES`: this module is
+ * Written out rather than filtered from `SQL_API_TABLES`: this module is
  * imported by the dashboards list component, and `lib/clickhouse` would drag
  * the server env and `node:crypto` into the client bundle. That makes this a
  * hand-synced copy, so a table added to the real list has to be added here too;

@@ -61,11 +61,9 @@ processors:
     error_mode: propagate
     metric_conditions:
       - 'IsMatch(metric.name, "^everr[.]")'
-  # Internal pipeline (github webhook): tenant comes from a trusted header the
-  # app sets when it forwards the webhook
-  # (packages/app/src/server/github-events/collector.ts). Never convert it to
-  # an int: it is a better-auth organization id, a string like "org_abc123",
-  # and app.* stores tenant_id as String.
+  # Internal pipeline (app GitHub event replay): Cloud tenant identity comes
+  # from a trusted header. Never convert it to an int: it is a better-auth
+  # organization id such as "org_abc123", and app.* stores tenant_id as String.
   resource:
     attributes:
       - action: upsert
@@ -201,6 +199,15 @@ service:
       receivers: [githubactions]
       processors: [resource, resource/retention_traces, everr_usage]
       exporters: [clickhouse, everr_usage_connector]
+
+    # Self-hosted override for optional app GitHub event replay:
+    # The self-hosted app sends the retention headers but no tenant header.
+    # Use traces: [resource/retention_traces], metrics:
+    # [filter/reserved_everr, resource/retention_metrics], and logs:
+    # [resource/retention_logs] as the processor lists. With the self-hosted
+    # collector manifest, omit `everr_usage` and `everr_usage_connector`, and
+    # set exporters to [clickhouse]. This keeps retention from trusted request
+    # metadata without stamping a tenant.
     metrics:
       receivers: [githubactions]
       processors: [filter/reserved_everr, resource, resource/retention_metrics, everr_usage]

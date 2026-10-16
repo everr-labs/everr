@@ -5,6 +5,7 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
 import svgr from "vite-plugin-svgr";
+import { appAliases, appIsolation, appRoutes } from "./vite.app";
 import { smeeWebhookPlugin } from "./vite.smee";
 
 const config = defineConfig(({ mode }) => {
@@ -19,6 +20,7 @@ const config = defineConfig(({ mode }) => {
     resolve: {
       tsconfigPaths: true,
       alias: [
+        ...appAliases(mode),
         // tslib gets pulled in by Radix UI on SSR. Nitro/Rollup wraps tslib's
         // CJS as `__toESM(tslib).default` and destructures helpers off `.default`,
         // which is undefined — crashing route loaders with "Cannot destructure
@@ -49,6 +51,7 @@ const config = defineConfig(({ mode }) => {
       ],
     },
     plugins: [
+      appIsolation(mode),
       smeeWebhookPlugin({
         channel: env.SMEE_CHANNEL,
       }),
@@ -58,12 +61,28 @@ const config = defineConfig(({ mode }) => {
         spa: {
           enabled: true,
         },
-        router: {
-          routeFileIgnorePattern: "\\.test\\.",
-        },
+        router: appRoutes(mode),
       }),
       nitro({
         traceDeps: ["tslib*"],
+        hooks: {
+          "rollup:before": (nitro, config) => {
+            if (mode === "cloud" || nitro.options.dev) return;
+            config.input = {
+              index: nitro.options.entry,
+              recovery: new URL(
+                "./src/app/commands/recovery.ts",
+                import.meta.url,
+              ).pathname,
+            };
+            const outputs = Array.isArray(config.output)
+              ? config.output
+              : [config.output];
+            for (const output of outputs) {
+              if (output) output.entryFileNames = "[name].mjs";
+            }
+          },
+        },
       }),
       viteReact(),
       // dimensions: false drops the svg's fixed width/height, so the icon

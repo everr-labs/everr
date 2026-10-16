@@ -1,13 +1,18 @@
+import { assertStorageReady } from "@app/storage-readiness";
 import { createMiddleware } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
-import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
-import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
+import { StorageNotReadyError } from "@/common/storage-readiness";
 import { parseAlertingPrincipal } from "@/data/alerting/session";
 import { db } from "@/db/client";
 import { organization } from "@/db/schema";
 import { hasApiKeyScope } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
+import {
+  assertOrganizationTarget,
+  organizationTargetErrorResponse,
+} from "@/lib/cli-target";
 import { createClickhouseQuery } from "@/lib/clickhouse";
+import { getSession } from "@/lib/session.server";
 import { mergeTelemetryIdentity } from "@/telemetry/identity";
 
 export interface ApplyAuth {
@@ -64,7 +69,7 @@ async function organizationName(organizationId: string): Promise<string> {
     .where(eq(organization.id, organizationId))
     .limit(1);
   if (!row) throw new Error("Organization not found");
-  assertOrganizationProvisioned(row.metadata);
+  assertStorageReady(row.metadata);
   return row.name;
 }
 
@@ -92,6 +97,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
       throw new Error("API key is not authorized to apply resources");
     }
     const organizationId = result.key.referenceId;
+    assertOrganizationTarget(headers, organizationId);
     mergeTelemetryIdentity({ organizationId });
     return {
       organizationId,
@@ -101,7 +107,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
     };
   }
 
-  const session = await auth.api.getSession({ headers });
+  const session = await getSession({ headers });
   if (!session?.session || !session?.user) {
     throw new Error("Unauthenticated");
   }
@@ -109,6 +115,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
   if (!organizationId) {
     throw new Error("No active organization");
   }
+  assertOrganizationTarget(headers, organizationId);
   return {
     organizationId,
     organizationName: await organizationName(organizationId),
@@ -162,7 +169,9 @@ const AUTH_ERROR_STATUS: Record<string, number> = {
 };
 
 export function applyAuthErrorResponse(error: unknown): Response | null {
-  if (error instanceof ClickhouseProvisioningPendingError)
+  const targetErrorResponse = organizationTargetErrorResponse(error);
+  if (targetErrorResponse) return targetErrorResponse;
+  if (error instanceof StorageNotReadyError)
     return Response.json(
       { error: error.message },
       { status: 503, headers: { "Retry-After": "5" } },

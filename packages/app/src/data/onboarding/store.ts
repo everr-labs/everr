@@ -23,7 +23,9 @@ export function createOnboardingStore(
     );
 
   return {
-    async getStatus(scope: OnboardingScope): Promise<HomeStatus> {
+    async getStatus(
+      scope: OnboardingScope,
+    ): Promise<Pick<HomeStatus, "canCreateKeys" | "onboardingCompleted">> {
       const [row] = await database
         .select({
           role: member.role,

@@ -64,4 +64,3 @@ everr local query "SELECT Timestamp, ServiceName, SeverityText, Body FROM logs W
 Check the timestamps and the request or log content against the action you triggered. Old rows alone don't verify the new setup.
 
 If data is missing, check that the collector is running, the exporter uses the `otlp:` URL from status, and the app has restarted. Trigger the path again and allow the SDK's export batch to flush. With an agent, use `everr-setup-telemetry` to investigate the missing signal.
-

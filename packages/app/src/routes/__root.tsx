@@ -1,3 +1,8 @@
+import { getAppEntry } from "@app/entry";
+import { getGithubConfiguration } from "@/integrations/github/configuration";
+import { socialProviders } from "@/lib/auth-providers.server";
+import { mailer } from "@/lib/mailer.server";
+import { getSession } from "@/lib/session.server";
 // This import has an effect at load. It starts the error capture of the browser
 // when the client build loads. It does nothing during the SSR and when the app
 // has no configuration. Refer to telemetry/client.
@@ -13,13 +18,13 @@ import {
   createRootRouteWithContext,
   HeadContent,
   Outlet,
+  redirect,
   Scripts,
   useRouter,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { createIsomorphicFn, createServerFn } from "@tanstack/react-start";
 import { getCookie, getRequestHeaders } from "@tanstack/react-start/server";
-import { auth } from "@/lib/auth.server";
 import {
   ORGANIZATION_CREATION_COOKIE,
   readCreatedOrganizationId,
@@ -31,12 +36,17 @@ import type { RouterContext } from "../router";
 
 // Load session and consent together so auth guards see the same session.
 const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
-  const session = await auth.api.getSession({
+  const session = await getSession({
     headers: getRequestHeaders(),
   });
   const consentValue = getCookie(CONSENT_COOKIE);
+  const appEntry = await getAppEntry();
 
   return {
+    ...appEntry,
+    emailEnabled: mailer !== null,
+    googleSignInEnabled: Boolean(socialProviders?.google),
+    githubEnabled: Boolean(getGithubConfiguration()),
     createdOrganizationId: await readCreatedOrganizationId(
       getCookie(ORGANIZATION_CREATION_COOKIE),
       session?.session,
@@ -49,14 +59,33 @@ const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
   };
 });
 
+async function loadAppContext(pathname: string) {
+  const context = await getRootContext();
+  if (context.setupRequired && pathname !== "/setup")
+    throw redirect({ href: "/setup", replace: true });
+  if (!context.setupRequired && pathname === "/setup")
+    throw redirect({ to: "/", replace: true });
+  return context;
+}
+
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: createIsomorphicFn()
-    .server(() =>
-      process.env.TSS_PRERENDERING === "true"
-        ? { session: null, consent: undefined, createdOrganizationId: null }
-        : getRootContext(),
-    )
-    .client(() => getRootContext()),
+    .server(async ({ location }: { location: { pathname: string } }) => {
+      if (process.env.TSS_PRERENDERING === "true")
+        return {
+          session: null,
+          consent: undefined,
+          createdOrganizationId: null,
+          setupRequired: false,
+          emailEnabled: false,
+          googleSignInEnabled: false,
+          githubEnabled: false,
+        };
+      return loadAppContext(location.pathname);
+    })
+    .client(({ location }: { location: { pathname: string } }) =>
+      loadAppContext(location.pathname),
+    ),
   head: () => ({
     meta: [
       {

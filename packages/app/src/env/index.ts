@@ -1,20 +1,12 @@
+import { appEnv } from "@app/env";
 import { createEnv } from "@t3-oss/env-core";
 import * as z from "zod";
 import { authEnv } from "./auth";
 import { clickhouseEnv } from "./clickhouse";
 import { dbEnv } from "./db";
-import { githubEnv } from "./github";
-import { githubEventsEnv } from "./github-events";
 import { ingestEnv } from "./ingest";
 
-const presets = [
-  dbEnv,
-  clickhouseEnv,
-  githubEnv,
-  authEnv,
-  githubEventsEnv,
-  ingestEnv,
-] as const;
+const presets = [appEnv, dbEnv, clickhouseEnv, authEnv, ingestEnv] as const;
 
 export const env = createEnv({
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
@@ -30,16 +22,18 @@ export const env = createEnv({
         },
       )
       .optional(),
-    EMAIL_FROM: z.union([
-      z.email(),
-      z
-        .string()
-        .trim()
-        .refine((value) => {
-          const match = value.match(/^[^<>\r\n]+ <([^<>]+)>$/);
-          return match !== null && z.email().safeParse(match[1]).success;
-        }, "Must be an email address or a named email address"),
-    ]),
+    EMAIL_FROM: z
+      .union([
+        z.email(),
+        z
+          .string()
+          .trim()
+          .refine((value) => {
+            const match = value.match(/^[^<>\r\n]+ <([^<>]+)>$/);
+            return match !== null && z.email().safeParse(match[1]).success;
+          }, "Must be an email address or a named email address"),
+      ])
+      .optional(),
     EMAIL_REPLY_TO: z.email().optional(),
     // Preview apply controls: the alert-evaluation kill-switch ("off" stops
     // scheduling preview alert rows) and the hard-delete retention window.

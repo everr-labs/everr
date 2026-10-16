@@ -257,6 +257,19 @@ struct CommandTelemetry {
 impl CommandTelemetry {
     fn from_cli_and_argv(cli: &Cli, argv: impl IntoIterator<Item = OsString>) -> Self {
         let (command, subcommand) = match &cli.command {
+            Commands::Login(_) => ("login", None),
+            Commands::Logout => ("logout", None),
+            Commands::Whoami(_) => ("whoami", None),
+            Commands::Query(_) => ("query", None),
+            Commands::Profiles(args) => (
+                "profiles",
+                Some(match &args.command {
+                    crate::cli::ProfilesSubcommand::List => "list",
+                    crate::cli::ProfilesSubcommand::Show { .. } => "show",
+                    crate::cli::ProfilesSubcommand::Use { .. } => "use",
+                    crate::cli::ProfilesSubcommand::Remove { .. } => "remove",
+                }),
+            ),
             Commands::Uninstall => ("uninstall", None),
             Commands::Upgrade => ("upgrade", None),
             Commands::Cloud(args) => (
