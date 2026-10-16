@@ -78,6 +78,6 @@ module.exports = [
       "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "10.35 KB",
+    limit: "10 KB",
   },
 ];
