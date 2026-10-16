@@ -125,7 +125,6 @@ function AccountSettingsPage() {
             <>
               <PasswordSettings
                 key={session.user.id}
-                userId={session.user.id}
                 hasPassword={accounts.data.some(
                   (account) => account.providerId === "credential",
                 )}

@@ -145,7 +145,7 @@ describe("/account route", () => {
     expect(mocks.updateUser).toHaveBeenLastCalledWith({ name: "New Name" });
   });
 
-  it("validates password confirmation, preserves failed inputs, and clears them after changing the password", async () => {
+  it("validates password confirmation and keeps sessions signed in after changing the password", async () => {
     const user = userEvent.setup();
     mocks.changePassword.mockResolvedValueOnce({
       error: { message: "Current password is incorrect" },
@@ -170,21 +170,16 @@ describe("/account route", () => {
     ).toBeVisible();
     expect(current).toHaveValue("old-password");
     await user.click(screen.getByRole("button", { name: "Change password" }));
-    expect(
-      await screen.findByText(
-        "Password changed. Your other sessions have been signed out.",
-      ),
-    ).toBeVisible();
+    expect(await screen.findByText("Password changed.")).toBeVisible();
     expect(mocks.changePassword).toHaveBeenLastCalledWith({
       currentPassword: "old-password",
       newPassword: "new-password",
-      revokeOtherSessions: true,
+      revokeOtherSessions: false,
     });
     for (const input of [current, password, confirmation])
       expect(input).toHaveValue("");
-    await waitFor(() =>
-      expect(mocks.listSessions.mock.calls.length).toBeGreaterThan(1),
-    );
+    expect(mocks.revokeSession).not.toHaveBeenCalled();
+    expect(mocks.revokeOtherSessions).not.toHaveBeenCalled();
   });
 
   it("revokes individual and remaining sessions, refreshes the list, and preserves the current session", async () => {

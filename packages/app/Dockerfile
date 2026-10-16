@@ -38,6 +38,7 @@ COPY packages/telemetry-explorer ./packages/telemetry-explorer
 COPY packages/app ./packages/app
 # Stage only the runtime migration inputs before self-hosted builds remove Cloud source.
 # Snapshots are generation metadata and are not needed by the runtime migrator.
+# Keep the Cloud workspace manifest so pnpm reuses the frozen installation.
 RUN set -eu; \
     stage_migrations() { \
       source_dir="$1"; target_dir="$2"; \
@@ -50,7 +51,9 @@ RUN set -eu; \
       stage_migrations packages/app/src/cloud/drizzle cloud; \
       stage_migrations packages/app/src/cloud/drizzle-legacy legacy; \
     fi; \
-    if [ "$EVERR_BUILD_TARGET" = "self-hosted" ]; then rm -rf packages/app/src/cloud; fi
+    if [ "$EVERR_BUILD_TARGET" = "self-hosted" ]; then \
+      find packages/app/src/cloud -mindepth 1 -maxdepth 1 ! -name package.json -exec rm -rf {} +; \
+    fi
 # The MCP query tool description inlines the telemetry skill's schema at build time.
 COPY skills/everr-use-telemetry/rules/schema.md ./skills/everr-use-telemetry/rules/schema.md
 # SPA prerender initializes auth and mailer configuration without using them.

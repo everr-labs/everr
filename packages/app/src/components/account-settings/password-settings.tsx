@@ -8,19 +8,11 @@ import {
 } from "@everr/ui/components/card";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
-import { accountSessionsQueryOptions } from "./queries";
 
-export function PasswordSettings({
-  userId,
-  hasPassword,
-}: {
-  userId: string;
-  hasPassword: boolean;
-}) {
-  const queryClient = useQueryClient();
+export function PasswordSettings({ hasPassword }: { hasPassword: boolean }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -32,7 +24,7 @@ export function PasswordSettings({
       const result = await authClient.changePassword({
         currentPassword,
         newPassword,
-        revokeOtherSessions: true,
+        revokeOtherSessions: false,
       });
       if (result.error)
         throw new Error(
@@ -43,9 +35,6 @@ export function PasswordSettings({
       setCurrentPassword("");
       setNewPassword("");
       setConfirmation("");
-      void queryClient.invalidateQueries({
-        queryKey: accountSessionsQueryOptions(userId).queryKey,
-      });
     },
   });
 
@@ -55,7 +44,7 @@ export function PasswordSettings({
         <CardTitle>Password</CardTitle>
         <CardDescription>
           {hasPassword
-            ? "Changing your password signs out your other browser and CLI sessions."
+            ? "Your browser and CLI sessions stay signed in when you change your password."
             : "Your password is managed by your sign-in provider."}
         </CardDescription>
       </CardHeader>
@@ -120,7 +109,7 @@ export function PasswordSettings({
             )}
             {change.isSuccess && (
               <p role="status" className="text-sm text-muted-foreground">
-                Password changed. Your other sessions have been signed out.
+                Password changed.
               </p>
             )}
             <Button type="submit" disabled={change.isPending}>
