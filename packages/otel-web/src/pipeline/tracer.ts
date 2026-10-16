@@ -26,68 +26,22 @@
 // now and was already active at the time of the log.
 
 import type {
-  Link,
   Span,
   SpanContext,
   SpanOptions,
+  TimeInput,
   Tracer,
 } from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
 import type { AttrValue, EmitSpan, SpanLink, SpanStatus } from "./emitter.js";
 
-const ZERO_TRACE = "0".repeat(32);
-const ZERO_SPAN = "0".repeat(16);
-
-function epochMs(value: unknown): number {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? Math.round(value) : Date.now();
-  }
-  if (value instanceof Date) {
-    const time = value.getTime();
-    return Number.isFinite(time) ? time : Date.now();
-  }
-  // Round the nanoseconds on their own. Adding them to the seconds as a
-  // fraction makes a non-integer millisecond, and the encoder then writes an
-  // invalid timestamp.
-  if (
-    Array.isArray(value) &&
-    typeof value[0] === "number" &&
-    typeof value[1] === "number" &&
-    Number.isFinite(value[0]) &&
-    Number.isFinite(value[1])
-  ) {
-    return Math.trunc(value[0]) * 1000 + Math.round(Math.trunc(value[1]) / 1e6);
-  }
-  return Date.now();
-}
-
-function hexId(value: unknown, length: number, zero: string): value is string {
-  return (
-    typeof value === "string" &&
-    value.length === length &&
-    value !== zero &&
-    /^[0-9a-f]+$/i.test(value)
-  );
-}
-
-function cleanLink(link: Link): SpanLink | undefined {
-  const context = link.context;
-  if (!hexId(context?.traceId, 32, ZERO_TRACE)) return undefined;
-  if (!hexId(context.spanId, 16, ZERO_SPAN)) return undefined;
-  const flags = context.traceFlags;
-  return {
-    traceId: context.traceId,
-    spanId: context.spanId,
-    traceFlags: typeof flags === "number" && Number.isFinite(flags) ? flags : 0,
-    ...(link.attributes
-      ? {
-          attributes: link.attributes as Record<
-            string,
-            AttrValue | null | undefined
-          >,
-        }
-      : {}),
-  };
+// An HrTime rounds its nanoseconds on their own. Adding them to the seconds as
+// a fraction makes a non-integer millisecond, and the encoder then writes an
+// invalid timestamp.
+function epochMs(value: TimeInput): number {
+  return Array.isArray(value)
+    ? value[0] * 1000 + Math.round(value[1] / 1e6)
+    : Math.round(+value);
 }
 
 export function createTracer(emitSpan?: EmitSpan): Tracer & {
@@ -133,8 +87,10 @@ export function createTracer(emitSpan?: EmitSpan): Tracer & {
       addEvent: () => span,
       addLink: (link) => {
         if (ended) return span;
-        const cleaned = cleanLink(link);
-        if (cleaned) links.push(cleaned);
+        links.push({
+          ...link.context,
+          attributes: link.attributes as SpanLink["attributes"],
+        });
         return span;
       },
       addLinks: (next) => {

@@ -349,7 +349,7 @@ describe("span pipeline", () => {
       1,
       2,
       { "everr.tags": ["a", "b"], "everr.mixed": ["a", 1] as never },
-      { code: 1, message: "ignored" },
+      { code: 1 },
       undefined,
       1,
       [

@@ -230,7 +230,7 @@ describe("instrumentation tracer", () => {
     span.end();
   });
 
-  it("records links and ignores an invalid span context", async () => {
+  it("records links", async () => {
     start();
     const other = tracer.startSpan("other");
     const span = tracer.startSpan("chained", {
@@ -242,15 +242,6 @@ describe("instrumentation tracer", () => {
       ],
     });
     expect(span.addEvent("ignored")).toBe(span);
-    expect(
-      span.addLink({
-        context: {
-          traceId: "0".repeat(32),
-          spanId: "0".repeat(16),
-          traceFlags: 1,
-        },
-      }),
-    ).toBe(span);
     span.end();
     other.end();
     const wire = await spans();
@@ -335,22 +326,6 @@ describe("instrumentation tracer", () => {
       "1725004801456000000",
       "1725004801457000000",
     ]);
-  });
-
-  it("uses the current time when the timestamp is not one of the three forms", async () => {
-    start();
-    const now = 1_700_000_000_000;
-    const dateNow = Date.now;
-    Date.now = () => now;
-    try {
-      const span = tracer.startSpan("now", { startTime: "nope" as never });
-      span.end("later" as never);
-    } finally {
-      Date.now = dateNow;
-    }
-    const [wire] = await spans();
-    expect(wire.startTimeUnixNano).toBe("1700000000000000000");
-    expect(wire.endTimeUnixNano).toBe("1700000000000000000");
   });
 
   it("root: true starts a new trace and still parents later spans", async () => {

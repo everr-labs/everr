@@ -91,10 +91,7 @@ export type Emit = (
 ) => void;
 
 /** OTLP status. `UNSET` is omitted. The message is present only for `ERROR`. */
-export type SpanStatus = {
-  code: number;
-  message?: string;
-};
+export type SpanStatus = { code: 1 } | { code: 2; message?: string };
 
 /** One link to another span. `traceFlags` is the W3C trace-flags byte. */
 export type SpanLink = SpanContext & {
@@ -255,17 +252,6 @@ function toKeyValues(
   return Object.entries(attributes).flatMap(([key, value]) =>
     value == null ? [] : [{ key, value: toAnyValue(value) }],
   );
-}
-
-/** OTLP status. Code 0 and any other code are UNSET, so the field is absent. */
-function otlpStatus(
-  status: SpanStatus | undefined,
-): { code: number; message?: string } | undefined {
-  if (status?.code !== 1 && status?.code !== 2) return undefined;
-  if (status.code === 2 && status.message) {
-    return { code: 2, message: status.message };
-  }
-  return { code: status.code };
 }
 
 export function createEmitter(
@@ -532,7 +518,7 @@ export function createEmitter(
       endTimeUnixNano: unixNano(endTime),
       attributes: toKeyValues(item.attributes),
       // UNSET is absent. JSON also removes a value of undefined.
-      status: otlpStatus(item.status),
+      status: item.status,
       ...(wireLinks?.length ? { links: wireLinks } : {}),
     });
     schedule();
