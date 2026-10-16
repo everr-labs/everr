@@ -2,7 +2,6 @@ import {
   errors,
   interactions,
   network,
-  pageLoad,
   pageviews,
   performance,
   WebSDK,
@@ -11,7 +10,7 @@ import { env } from "@/env";
 
 // The browser telemetry of the docs site. It writes nothing to a store: it uses
 // the memory store, it sets no cookie, and its ids end with the page. The page
-// views, the frustration clicks, and the web vitals go to Everr as OTel log
+// views, the clicks, and the web vitals go to Everr as OTel log
 // records. This code operates with PostHog while the two systems operate
 // together.
 //
@@ -42,7 +41,6 @@ new WebSDK({
     pageviews(),
     interactions(),
     performance(),
-    pageLoad(),
     network(),
   ],
 });

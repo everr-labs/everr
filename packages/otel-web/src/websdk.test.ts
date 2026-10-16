@@ -84,8 +84,7 @@ describe("init (persistence: memory)", () => {
     expect(spaAttrs["session.id"]).toBe(initialAttrs["session.id"]);
 
     // The leave record of the previous page is between the two view records. It
-    // refers to the first page view, and it carries the time on the page and the
-    // scroll depth.
+    // refers to the first page view, and it carries the time on the page.
     expect(leave.eventName).toBe("everr.browser.page_leave");
     const leaveAttrs = attrs(leave);
     expect(leaveAttrs["everr.page_view.id"]).toBe(
@@ -93,7 +92,7 @@ describe("init (persistence: memory)", () => {
     );
     expect(leaveAttrs["url.path"]).toBe("/");
     expect(String(leaveAttrs["everr.page_view.duration"])).toMatch(/^\d+$/);
-    expect(leaveAttrs["everr.scroll.depth"]).toBe("0");
+    expect(leaveAttrs).not.toHaveProperty("everr.scroll.depth");
   });
 
   it("emits the pending page_leave and exit-flushes with keepalive on pagehide", async () => {
@@ -218,13 +217,10 @@ describe("init (persistence: memory)", () => {
     expect(await records()).toHaveLength(0);
   });
 
-  it("autocaptures change and submit through the pipeline with the envelope", async () => {
+  it("autocaptures a submit through the pipeline with the envelope", async () => {
     start();
     document.body.innerHTML =
       '<form id="f"><input type="email" id="e"><button type="submit" id="go">Sign up</button></form>';
-    document
-      .getElementById("e")
-      ?.dispatchEvent(new Event("change", { bubbles: true }));
     const submitEv = new Event("submit", { bubbles: true, cancelable: true });
     Object.defineProperty(submitEv, "submitter", {
       value: document.getElementById("go"),
@@ -232,49 +228,44 @@ describe("init (persistence: memory)", () => {
     (document.getElementById("f") as HTMLFormElement).dispatchEvent(submitEv);
 
     const all = await records();
-    const change = all.find(
-      (r) => r.eventName === "everr.browser.interaction.change",
-    );
     const submit = all.find(
       (r) => r.eventName === "everr.browser.interaction.submit",
     );
-    expect(change).toBeDefined();
     expect(submit).toBeDefined();
-    const ca = attrs(change as OtlpRecord);
+    expect(
+      all.some((r) => r.eventName === "everr.browser.interaction.change"),
+    ).toBe(false);
     const sa = attrs(submit as OtlpRecord);
-    expect(ca["everr.element.tag"]).toBe("input");
-    expect(ca["everr.element.selector"]).toBe("#e");
     expect(sa["everr.element.tag"]).toBe("button");
     expect(sa["everr.element.selector"]).toBe("#go");
     // The shared analytics envelope connects the events of the automatic
     // capture to the session.
-    expect(ca["session.id"]).toMatch(UNIQUE_ID);
-    expect(ca["everr.page_view.id"]).toMatch(UNIQUE_ID);
     expect(sa["session.id"]).toMatch(UNIQUE_ID);
-    // The records carry no content of the DOM: no value of a field and no text
-    // of an element. The submit record identifies the button that caused the
-    // submit by its selector.
-    expect(ca).not.toHaveProperty("everr.element.text");
+    expect(sa["everr.page_view.id"]).toMatch(UNIQUE_ID);
+    // The record carries no content of the DOM. The submit record identifies
+    // the button that caused the submit by its selector.
     expect(sa).not.toHaveProperty("everr.element.text");
-    expect(sa["everr.element.selector"]).toBeTypeOf("string");
     document.body.innerHTML = "";
   });
 
-  it("captures frustration clicks through the pipeline with the envelope", async () => {
+  it("autocaptures a click through the pipeline with the envelope", async () => {
     start();
     document.body.innerHTML = "<button>Try Everr</button>";
-    for (let i = 0; i < 3; i++) {
-      (document.querySelector("button") as HTMLElement).dispatchEvent(
-        new MouseEvent("click", { bubbles: true, clientX: 5, clientY: 6 }),
-      );
-    }
-    const all = await records();
-    const rageRecord = all.find(
-      (r) => r.eventName === "everr.browser.interaction.rage_click",
+    (document.querySelector("button") as HTMLElement).dispatchEvent(
+      new MouseEvent("click", { bubbles: true, clientX: 5, clientY: 6 }),
     );
-    expect(rageRecord).toBeDefined();
-    const a = attrs(rageRecord as OtlpRecord);
+    const all = await records();
+    const click = all.find(
+      (r) => r.eventName === "everr.browser.interaction.click",
+    );
+    expect(click).toBeDefined();
+    expect(
+      all.some((r) => r.eventName === "everr.browser.interaction.rage_click"),
+    ).toBe(false);
+    const a = attrs(click as OtlpRecord);
     expect(a).not.toHaveProperty("everr.element.text");
+    expect(a).not.toHaveProperty("everr.browser.click.x");
+    expect(a).not.toHaveProperty("everr.browser.click.y");
     expect(a["everr.element.selector"]).toBeTypeOf("string");
     expect(a["session.id"]).toMatch(UNIQUE_ID);
     document.body.innerHTML = "";

@@ -12,7 +12,6 @@ import type { WebSDKOptions } from "../types.js";
 import { errors } from "./errors/index.js";
 import { interactions } from "./interactions/index.js";
 import { network } from "./network/index.js";
-import { pageLoad } from "./pageload/index.js";
 import { pageviews } from "./pageviews/index.js";
 import { performance as performanceInstrumentation } from "./performance/index.js";
 
@@ -204,68 +203,6 @@ describe("slow interactions ownership", () => {
   });
 });
 
-describe("performance({ pageLoad })", () => {
-  it("emits a span per resource entry and stops after runtime teardown", async () => {
-    let fire: ((entries: unknown[]) => void) | undefined;
-    class PO {
-      cb: (list: { getEntries: () => unknown[] }) => void;
-      constructor(cb: (list: { getEntries: () => unknown[] }) => void) {
-        this.cb = cb;
-      }
-      observe(opts: { type: string }) {
-        if (opts.type === "resource") {
-          fire = (entries) => this.cb({ getEntries: () => entries });
-        }
-      }
-      takeRecords() {
-        return [];
-      }
-      disconnect() {
-        fire = undefined;
-      }
-    }
-    vi.stubGlobal("PerformanceObserver", PO);
-    start({
-      instrumentations: [pageLoad()],
-    });
-    fire?.([
-      {
-        entryType: "resource",
-        name: "https://cdn.example.com/app.js?v=1",
-        initiatorType: "script",
-        startTime: 10,
-        duration: 120,
-        domainLookupStart: 0,
-        domainLookupEnd: 0,
-        connectStart: 0,
-        connectEnd: 0,
-        secureConnectionStart: 0,
-        requestStart: 0,
-        responseStart: 0,
-        responseEnd: 130,
-        transferSize: 5000,
-        encodedBodySize: 4800,
-        decodedBodySize: 12000,
-      },
-    ]);
-    await client?.flush();
-    const wire = () => batches.flatMap((b) => b.spans);
-    const [span] = wire().filter((s) => s.name === "pageLoad.asset.script");
-    expect(attrs(span)["url.full"]).toBe("https://cdn.example.com/app.js");
-    // The envelope also writes the shared session context on the resource
-    // spans.
-    expect(attrs(span)["session.id"]).toBeDefined();
-    await client?.shutdown();
-    client = undefined;
-    expect(fire).toBeUndefined();
-    // The teardown stops the window, and the PageLoad root goes out with the
-    // trace of its children.
-    const [root] = wire().filter((s) => s.name === "pageLoad");
-    expect(root.traceId).toBe(span.traceId);
-    expect(span.parentSpanId).toBe(root.spanId);
-  });
-});
-
 describe("network()", () => {
   it("patches fetch, records request spans, and unpatches on shutdown", async () => {
     start({ instrumentations: [network()] });
@@ -431,24 +368,8 @@ describe("capture guards and page context", () => {
     expect(await names()).not.toContain("everr.browser.interaction.click");
   });
 
-  it("pageviews() reports the deepest scroll against the real page height", async () => {
+  it("pageviews() emits a leave with the time on the page", async () => {
     start({ instrumentations: [pageviews()] });
-    Object.defineProperty(document.documentElement, "scrollHeight", {
-      value: 2_000,
-      configurable: true,
-    });
-    Object.defineProperty(window, "innerHeight", {
-      value: 500,
-      configurable: true,
-    });
-    Object.defineProperty(window, "scrollY", {
-      value: 500,
-      configurable: true,
-    });
-    dispatchEvent(new Event("scroll"));
-    // A scroll to the top of the page must not decrease the recorded depth.
-    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
-    dispatchEvent(new Event("scroll"));
     // A visibilitychange event where the page stays visible is not a leave.
     Object.defineProperty(document, "visibilityState", {
       value: "visible",
@@ -460,7 +381,9 @@ describe("capture guards and page context", () => {
     const leave = (await records()).find(
       (r) => r.eventName === "everr.browser.page_leave",
     );
-    expect(attrs(leave as OtlpRecord)["everr.scroll.depth"]).toBe(0.5);
+    const leaveAttrs = attrs(leave as OtlpRecord);
+    expect(leaveAttrs["everr.page_view.duration"]).toBeDefined();
+    expect(leaveAttrs).not.toHaveProperty("everr.scroll.depth");
   });
 });
 

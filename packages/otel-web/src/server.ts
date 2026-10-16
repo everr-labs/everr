@@ -47,7 +47,6 @@ import {
 import type { ErrorContext } from "./errors.js";
 import type { ErrorsOptions } from "./instrumentations/errors/index.js";
 import type { NetworkOptions } from "./instrumentations/network/index.js";
-import type { PageLoadOptions } from "./instrumentations/pageload/index.js";
 import type { PerformanceOptions } from "./instrumentations/performance/index.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
 import { logger } from "./logger.js";
@@ -171,7 +170,6 @@ export type {
   ErrorsOptions,
 } from "./instrumentations/errors/index.js";
 export type { NetworkOptions } from "./instrumentations/network/index.js";
-export type { PageLoadOptions } from "./instrumentations/pageload/index.js";
 export type {
   PerformanceOptions,
   WebVitalName,
@@ -190,8 +188,6 @@ export const interactions = (): Instrumentation => inert;
 /** Does nothing on the server. The performance capture belongs to the browser. */
 export const performance = (_options?: PerformanceOptions): Instrumentation =>
   inert;
-/** Does nothing on the server. The load window belongs to the browser. */
-export const pageLoad = (_options?: PageLoadOptions): Instrumentation => inert;
 /** Does nothing on the server. Network instrumentation belongs to the browser. */
 export const network = (_options?: NetworkOptions): Instrumentation => inert;
 

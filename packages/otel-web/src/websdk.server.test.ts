@@ -227,7 +227,6 @@ describe("inert shared-code surface", () => {
       errors,
       interactions,
       network,
-      pageLoad: pageLoadInstrumentation,
       pageviews,
       performance: performanceInstrumentation,
       setPersistence,
@@ -239,7 +238,6 @@ describe("inert shared-code surface", () => {
       pageviews(),
       interactions(),
       performanceInstrumentation(),
-      pageLoadInstrumentation(),
       network({ propagateTo: [] } as never),
     ]) {
       expect(instrumentation(noopContext)).toBeUndefined();

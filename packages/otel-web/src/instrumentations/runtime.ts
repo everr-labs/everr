@@ -43,9 +43,7 @@ export interface InstrumentationContext {
    * The SDK has no context manager, and thus its rule for the active span is
    * the time: a span from `startActiveSpan` is active from that call until its
    * `end()`, and a span from `startSpan` in that interval is its child. The
-   * tracer ignores a context argument. During the first load, `pageLoad()`
-   * keeps its root active, and thus a span of a custom instrumentation joins
-   * the trace of the load.
+   * tracer ignores a context argument.
    */
   tracer: Tracer;
   /** The current visitor id and session id. The code reads them at each call. */

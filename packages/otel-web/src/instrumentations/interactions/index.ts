@@ -3,7 +3,7 @@ import { startInteractions } from "./interactions.js";
 
 /**
  * The interactions instrumentation. It captures the behavior of the user
- * automatically: a click, a change of a form field, a submit, and a rage click.
+ * automatically: a click and a submit.
  * The performance instrumentation captures the slow interactions, which use the
  * latency from Event Timing.
  */

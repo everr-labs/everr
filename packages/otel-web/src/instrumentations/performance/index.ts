@@ -19,8 +19,7 @@ export type PerformanceOptions = {
  *
  * You can configure each output. The `webVitals` option selects the vitals. The
  * `slowInteractions` option controls the slow spans, and the shared observer
- * operates only when the INP or the slow interactions need it. The capture of
- * the load window is the separate pageLoad instrumentation.
+ * operates only when the INP or the slow interactions need it.
  */
 export function performance(options?: PerformanceOptions): Instrumentation {
   const vitals = options?.webVitals ?? ["lcp", "cls", "ttfb", "inp"];
