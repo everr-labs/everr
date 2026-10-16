@@ -74,7 +74,7 @@ const checkoutTiming: Instrumentation = ({ emit, tracer }) => {
 };
 ```
 
-The tracer uses the same epoch-millisecond contract through `startTime` and `span.end(endTime)`. Timestamp normalization belongs at the capture site; the pipeline does not guess the source or unit of a value. Built-in instrumentations normalize their browser performance entries and DOM events when they capture them, even when the SDK reports them later. Each logs payload is ordered by event timestamp, and each traces payload is ordered by span start time. Records with the same timestamp keep their capture order.
+`startTime` and `span.end(endTime)` accept epoch milliseconds, a `Date`, or an `HrTime` tuple of `[seconds, nanoseconds]`. Any other value uses the current time. Log timestamps stay epoch milliseconds. Built-in instrumentations still convert browser performance entries and DOM events with `epoch()` at the capture site. Each logs payload is ordered by event timestamp, and each traces payload is ordered by span start time. Records with the same timestamp keep their capture order.
 
 ## Manual capture
 
@@ -122,7 +122,7 @@ await tracer.startActiveSpan("checkout", async (interaction) => {
 
 `startSpan()` measures one segment without making it active. In the browser, `startActiveSpan()` makes a span active until `span.end()`, including across `await`. Both share the active stack with built-in instrumentation, so network requests made while an interaction is active become its children. Always end spans in `finally`; returning or throwing from the callback does not end them automatically.
 
-Browser parenting follows time, not async execution context: overlapping work joins the most recently active span, even when it comes from another interaction. Explicit OTel context arguments are ignored. The browser tracer accepts epoch-millisecond timestamps, ignores span events and links, and records exceptions as span attributes. `recordException()` does not set error status automatically; use `setStatus({ code: 2 })` for failed segments.
+Browser parenting follows time: overlapping work joins the most recently active span, including work from another interaction. The context argument is ignored. `root: true` starts a new trace, and `startActiveSpan` with that option still stays active until `end()`. Attributes may be scalars or homogeneous arrays. Links record `traceId`, `spanId`, `traceFlags`, and attributes. `setStatus` records `OK` and `ERROR`; `OK` sticks, and the message is kept only for `ERROR`. `addEvent` and `recordException` record nothing. Use `setStatus({ code: 2 })` for a failed segment.
 
 Before initialization, after shutdown, or with only a keyless production SDK, the browser tracer returns non-recording spans and still runs callbacks. An imported tracer follows SDK replacement. On the server, it uses the application's registered OpenTelemetry provider and context manager, without requiring a `WebSDK`; the provider controls export and async context propagation there.
 

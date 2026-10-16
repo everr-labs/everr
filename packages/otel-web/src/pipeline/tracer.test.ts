@@ -122,7 +122,7 @@ describe("instrumentation tracer", () => {
     expect(await spans()).toHaveLength(1);
   });
 
-  it("ships an ended span with its own sampled trace, CLIENT kind, and attributes", async () => {
+  it("ships an ended span with its own sampled trace, INTERNAL kind, and attributes", async () => {
     start();
     const span = tracer.startSpan("work", {
       attributes: { "everr.step": "one" },
@@ -132,7 +132,7 @@ describe("instrumentation tracer", () => {
     span.end();
     const [wire] = await spans();
     expect(wire.name).toBe("work");
-    expect(wire.kind).toBe(3); // CLIENT
+    expect(wire.kind).toBe(1); // INTERNAL
     expect(wire.traceId).toMatch(/^[0-9a-f]{32}$/);
     expect(wire.spanId).toMatch(/^[0-9a-f]{16}$/);
     expect(wire.parentSpanId).toBeUndefined();
@@ -153,31 +153,57 @@ describe("instrumentation tracer", () => {
     span.end();
   });
 
-  it("accepts and drops events and links, chaining like the API", async () => {
+  it("records links and ignores an invalid span context", async () => {
     start();
-    const span = tracer.startSpan("chained");
+    const other = tracer.startSpan("other");
+    const span = tracer.startSpan("chained", {
+      links: [
+        {
+          context: other.spanContext(),
+          attributes: { "everr.link": "cause" },
+        },
+      ],
+    });
     expect(span.addEvent("ignored")).toBe(span);
-    expect(span.addLink({ context: span.spanContext() })).toBe(span);
-    expect(span.addLinks([{ context: span.spanContext() }])).toBe(span);
+    expect(
+      span.addLink({
+        context: {
+          traceId: "0".repeat(32),
+          spanId: "0".repeat(16),
+          traceFlags: 1,
+        },
+      }),
+    ).toBe(span);
     span.end();
-    const [wire] = await spans();
-    expect(wire.name).toBe("chained");
+    other.end();
+    const wire = await spans();
+    const chained = wire.find((item) => item.name === "chained") as OtlpSpan;
+    expect(chained.links).toEqual([
+      {
+        traceId: other.spanContext().traceId,
+        spanId: other.spanContext().spanId,
+        flags: 1,
+        attributes: [{ key: "everr.link", value: { stringValue: "cause" } }],
+      },
+    ]);
   });
 
-  it("updateName renames, setStatus ERROR marks, and a later OK clears", async () => {
+  it("updateName renames, OK sticks over ERROR, and the message stays on ERROR", async () => {
     start();
     const errored = tracer.startSpan("old-name");
     errored.updateName("new-name");
-    errored.setStatus({ code: 2 });
+    errored.setStatus({ code: 2, message: "failed" });
+    errored.setStatus({ code: 0, message: "unset" });
     errored.end();
     const cleared = tracer.startSpan("cleared");
-    cleared.setStatus({ code: 2 });
-    cleared.setStatus({ code: 1 }); // OK overrides the earlier ERROR
+    cleared.setStatus({ code: 2, message: "first" });
+    cleared.setStatus({ code: 1 });
+    cleared.setStatus({ code: 2, message: "later" });
     cleared.end();
     const wire = await spans();
     expect(wire[0].name).toBe("new-name");
-    expect(wire[0].status.code).toBe(2);
-    expect(wire[1].status).toBeUndefined();
+    expect(wire[0].status).toEqual({ code: 2, message: "failed" });
+    expect(wire[1].status).toEqual({ code: 1 });
   });
 
   it("records only while un-ended, and a second end ships nothing", async () => {
@@ -190,35 +216,120 @@ describe("instrumentation tracer", () => {
     expect(await spans()).toHaveLength(1);
   });
 
-  it("flattens recordException onto exception.* attributes per shape", async () => {
+  it("records nothing from recordException", async () => {
     start();
-    const fromError = tracer.startSpan("from-error");
-    fromError.recordException(new RangeError("out of range"));
-    fromError.end();
-    const fromString = tracer.startSpan("from-string");
-    fromString.recordException("plain failure");
-    fromString.end();
-    const fromBare = tracer.startSpan("from-bare");
-    fromBare.recordException({} as Error); // no name, no message
-    fromBare.end();
-    const wire = await spans();
-    expect(attrs(wire[0])["exception.type"]).toBe("RangeError");
-    expect(attrs(wire[0])["exception.message"]).toBe("out of range");
-    expect(attrs(wire[1])["exception.type"]).toBe("Error");
-    expect(attrs(wire[1])["exception.message"]).toBe("plain failure");
-    expect(attrs(wire[2])["exception.type"]).toBe("Error");
-    expect(attrs(wire[2])["exception.message"]).toBeUndefined();
+    const span = tracer.startSpan("from-error");
+    span.recordException(new RangeError("out of range"));
+    span.recordException("plain failure");
+    span.end();
+    const [wire] = await spans();
+    expect(attrs(wire)["exception.type"]).toBeUndefined();
+    expect(attrs(wire)["exception.message"]).toBeUndefined();
   });
 
-  it("honors normalized epoch-millisecond times", async () => {
+  it("honors epoch milliseconds, a Date, and an HrTime", async () => {
     start();
     const explicit = tracer.startSpan("explicit", {
       startTime: 1_724_976_000_123,
     });
     explicit.end(1_725_004_801_456);
+    const fromDate = tracer.startSpan("from-date", {
+      startTime: new Date(1_724_976_000_123),
+    });
+    fromDate.end(new Date(1_725_004_801_456));
+    const fromHr = tracer.startSpan("from-hr", {
+      startTime: [1_724_976_000, 123_000_000],
+    });
+    fromHr.end([1_725_004_801, 456_000_000]);
     const wire = await spans();
-    expect(wire[0].startTimeUnixNano).toBe("1724976000123000000");
-    expect(wire[0].endTimeUnixNano).toBe("1725004801456000000");
+    expect(wire.map((span) => span.startTimeUnixNano)).toEqual([
+      "1724976000123000000",
+      "1724976000123000000",
+      "1724976000123000000",
+    ]);
+    expect(wire.map((span) => span.endTimeUnixNano)).toEqual([
+      "1725004801456000000",
+      "1725004801456000000",
+      "1725004801456000000",
+    ]);
+  });
+
+  it("uses the current time when the timestamp is not one of the three forms", async () => {
+    start();
+    const now = 1_700_000_000_000;
+    const dateNow = Date.now;
+    Date.now = () => now;
+    try {
+      const span = tracer.startSpan("now", { startTime: "nope" as never });
+      span.end("later" as never);
+    } finally {
+      Date.now = dateNow;
+    }
+    const [wire] = await spans();
+    expect(wire.startTimeUnixNano).toBe("1700000000000000000");
+    expect(wire.endTimeUnixNano).toBe("1700000000000000000");
+  });
+
+  it("root: true starts a new trace and still parents later spans", async () => {
+    start();
+    const parent = tracer.startActiveSpan("parent", (span) => span);
+    const rooted = tracer.startSpan("rooted", { root: true });
+    rooted.end();
+    parent.end();
+    const activeRoot = tracer.startActiveSpan(
+      "active-root",
+      { root: true },
+      (span) => span,
+    );
+    tracer.startSpan("child").end();
+    activeRoot.end();
+    const wire = await spans();
+    const by = (name: string) =>
+      wire.find((span) => span.name === name) as OtlpSpan;
+    expect(by("rooted").parentSpanId).toBeUndefined();
+    expect(by("rooted").traceId).not.toBe(by("parent").traceId);
+    expect(by("child").parentSpanId).toBe(by("active-root").spanId);
+    expect(by("child").traceId).toBe(by("active-root").traceId);
+  });
+
+  it("keeps a homogeneous array and drops a mixed one", async () => {
+    start();
+    const span = tracer.startSpan("arrays", {
+      attributes: {
+        "everr.tags": ["a", null, "b"] as never,
+        "everr.mixed": ["a", 1] as never,
+        "everr.empty": [],
+      },
+    });
+    span.setAttribute("everr.flags", [true, false]);
+    span.end();
+    const [wire] = await spans();
+    const value = (key: string) =>
+      wire.attributes.find((attribute) => attribute.key === key)?.value;
+    expect(value("everr.tags")).toEqual({
+      arrayValue: { values: [{ stringValue: "a" }, { stringValue: "b" }] },
+    });
+    expect(value("everr.flags")).toEqual({
+      arrayValue: { values: [{ boolValue: true }, { boolValue: false }] },
+    });
+    expect(value("everr.empty")).toEqual({ arrayValue: { values: [] } });
+    expect(value("everr.mixed")).toBeUndefined();
+  });
+
+  it("ignores name, status, and link changes after end", async () => {
+    start();
+    const span = tracer.startSpan("frozen");
+    const other = tracer.startSpan("other");
+    span.end();
+    span.updateName("renamed");
+    span.setStatus({ code: 2, message: "late" });
+    span.addLink({ context: other.spanContext() });
+    other.end();
+    const wire = await spans();
+    const frozen = wire.find((item) => item.name === "frozen") as OtlpSpan;
+    expect(wire.map((item) => item.name)).toEqual(["frozen", "other"]);
+    expect(frozen.status).toBeUndefined();
+    expect(frozen.links).toBeUndefined();
   });
 
   it("startActiveSpan runs the callback with the span, options collapsed", async () => {

@@ -80,14 +80,14 @@ let stop = () => {};
 const tracer = () => createTracer(emit);
 const spans = () =>
   emit.mock.calls.map(
-    ([traceId, spanId, name, start, end, attrs, error, parent, kind]) => ({
+    ([traceId, spanId, name, start, end, attrs, status, parent, kind]) => ({
       traceId,
       spanId,
       name,
       start,
       end,
       attrs,
-      error,
+      error: status?.code === 2,
       parent,
       kind,
     }),

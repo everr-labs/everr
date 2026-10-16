@@ -16,7 +16,9 @@ export function shouldPropagate(url: URL, targets?: PropagationTarget[]) {
 /** Both transports use the request URL, never the page's route or query. */
 export function startRequest(tracer: Tracer, method: string, url: URL) {
   const template = requestTemplate(url);
-  const span = tracer.startSpan(`${method} ${template ?? url.pathname}`);
+  const span = tracer.startSpan(`${method} ${template ?? url.pathname}`, {
+    kind: 2, // SpanKind.CLIENT. The tracer default is INTERNAL.
+  });
   const { traceId, spanId } = span.spanContext();
   return {
     traceparent: `00-${traceId}-${spanId}-01`,

@@ -12,40 +12,39 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK }",
     gzip: true,
-    // Includes the shared tracer binding and span-kind support.
-    limit: "3.6 KB",
+    // Includes span status, links, and array attributes on the shared pipeline.
+    limit: "4.4 KB",
   },
   {
     name: "core + public tracer",
     path: "dist/index.js",
     import: "{ WebSDK, tracer }",
     gzip: true,
-    limit: "3.8 KB",
+    limit: "4.5 KB",
   },
   {
-    // Raised for the parent span support in the tracer.
+    // Raised with the shared span pipeline (status, links, array attributes).
     name: "core + errors",
     path: "dist/index.js",
     import: "{ WebSDK, errors }",
     gzip: true,
-    limit: "4.2 KB",
+    limit: "5.1 KB",
   },
   {
-    // Raised for the exit-flush budget code (refer to pipeline/emitter.ts)
-    // and for the parent span support in the tracer.
+    // Raised with the shared span pipeline (status, links, array attributes).
     name: "core + pageviews",
     path: "dist/index.js",
     import: "{ WebSDK, pageviews }",
     gzip: true,
-    limit: "3.8 KB",
+    limit: "4.6 KB",
   },
   {
-    // Raised for the naming attributes in the element selector.
+    // Raised with the shared span pipeline (status, links, array attributes).
     name: "core + interactions",
     path: "dist/index.js",
     import: "{ WebSDK, interactions }",
     gzip: true,
-    limit: "4.3 KB",
+    limit: "5 KB",
   },
   {
     // The heaviest instrumentation: the in-house web vitals (LCP/CLS/TTFB/INP)
@@ -54,7 +53,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, performance }",
     gzip: true,
-    limit: "7.35 KB",
+    limit: "8.35 KB",
   },
   {
     name: "core + network",
@@ -62,7 +61,7 @@ module.exports = [
     import: "{ WebSDK, network }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "4.9 KB",
+    limit: "5.65 KB",
   },
   {
     // All instrumentation factories composed: verifies the sampled runtime is
@@ -74,6 +73,6 @@ module.exports = [
       "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "9.9 KB",
+    limit: "10.6 KB",
   },
 ];

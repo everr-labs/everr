@@ -277,7 +277,7 @@ describe("span pipeline", () => {
     };
     const span = payload.resourceSpans[0].scopeSpans[0].spans[0];
     expect(span.name).toBe("GET /api");
-    expect(span.kind).toBe(3);
+    expect(span.kind).toBe(1);
     expect(span.startTimeUnixNano).toBe("1000000000");
     expect(span.endTimeUnixNano).toBe("1400000000");
     expect(span.status).toBeUndefined();
@@ -317,17 +317,76 @@ describe("span pipeline", () => {
     ]);
   });
 
-  it("marks error spans with OTLP status ERROR", async () => {
-    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1, 2, {}, true);
+  it("marks error spans with OTLP status ERROR and keeps the message", async () => {
+    emitSpan(
+      "a".repeat(32),
+      "b".repeat(16),
+      "GET /api",
+      1,
+      2,
+      {},
+      { code: 2, message: "missing" },
+    );
     await flush();
     const payload = sent[0].payload as unknown as {
       resourceSpans: Array<{
-        scopeSpans: Array<{ spans: Array<{ status: { code?: number } }> }>;
+        scopeSpans: Array<{
+          spans: Array<{ status: { code?: number; message?: string } }>;
+        }>;
       }>;
     };
     expect(payload.resourceSpans[0].scopeSpans[0].spans[0].status).toEqual({
       code: 2,
+      message: "missing",
     });
+  });
+
+  it("ships OK, links, and a homogeneous array, and drops a mixed array", async () => {
+    emitSpan(
+      "a".repeat(32),
+      "b".repeat(16),
+      "work",
+      1,
+      2,
+      { "everr.tags": ["a", "b"], "everr.mixed": ["a", 1] as never },
+      { code: 1, message: "ignored" },
+      undefined,
+      1,
+      [
+        {
+          traceId: "c".repeat(32),
+          spanId: "d".repeat(16),
+          traceFlags: 1,
+          attributes: { "everr.link": "cause" },
+        },
+      ],
+    );
+    await flush();
+    const span = wireSpans()[0] as unknown as {
+      status?: { code: number; message?: string };
+      links: Array<{
+        traceId: string;
+        spanId: string;
+        flags: number;
+        attributes: Array<{ key: string; value: { stringValue: string } }>;
+      }>;
+      attributes: Array<{ key: string; value: Record<string, unknown> }>;
+    };
+    expect(span.status).toEqual({ code: 1 });
+    expect(span.links).toEqual([
+      {
+        traceId: "c".repeat(32),
+        spanId: "d".repeat(16),
+        flags: 1,
+        attributes: [{ key: "everr.link", value: { stringValue: "cause" } }],
+      },
+    ]);
+    expect(span.attributes.find((a) => a.key === "everr.tags")?.value).toEqual({
+      arrayValue: { values: [{ stringValue: "a" }, { stringValue: "b" }] },
+    });
+    expect(
+      span.attributes.find((a) => a.key === "everr.mixed"),
+    ).toBeUndefined();
   });
 
   it("beforeSend can change the name and the attributes of a span", async () => {

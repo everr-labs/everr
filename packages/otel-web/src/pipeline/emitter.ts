@@ -11,7 +11,13 @@
 // indexes.
 import type { Send, Signal } from "./transport.js";
 
-export type AttrValue = string | number | boolean;
+export type AttrValue =
+  | string
+  | number
+  | boolean
+  | string[]
+  | number[]
+  | boolean[];
 
 // All the event names in one type. The names that semconv registers have no
 // prefix. All the other names have the everr prefix. This is a type only, and
@@ -31,7 +37,8 @@ type AnyValue =
   | { stringValue: string }
   | { intValue: string }
   | { doubleValue: number }
-  | { boolValue: boolean };
+  | { boolValue: boolean }
+  | { arrayValue: { values: AnyValue[] } };
 
 type KeyValue = { key: string; value: AnyValue };
 
@@ -43,6 +50,13 @@ type OtlpLogRecord = {
   attributes: KeyValue[];
 };
 
+type OtlpLink = {
+  traceId: string;
+  spanId: string;
+  flags: number;
+  attributes?: KeyValue[];
+};
+
 type OtlpSpan = {
   traceId: string;
   spanId: string;
@@ -52,7 +66,8 @@ type OtlpSpan = {
   startTimeUnixNano: string;
   endTimeUnixNano: string;
   attributes: KeyValue[];
-  status?: { code: number };
+  status?: { code: number; message?: string };
+  links?: OtlpLink[];
 };
 
 /**
@@ -71,11 +86,25 @@ export type Emit = (
   body?: string,
 ) => void;
 
+/** OTLP status. `UNSET` is omitted. The message is present only for `ERROR`. */
+export type SpanStatus = {
+  code: number;
+  message?: string;
+};
+
+/** One link to another span. `traceFlags` is the W3C trace-flags byte. */
+export type SpanLink = {
+  traceId: string;
+  spanId: string;
+  traceFlags: number;
+  attributes?: Record<string, AttrValue | null | undefined>;
+};
+
 /**
  * Puts one completed span into the traces queue. The span carries the
- * envelope, the same as each log record. The `error` value becomes the OTLP
- * status ERROR. A span with a `parentSpanId` is a child in the trace of
- * `traceId`; without it, the span is the root of that trace.
+ * envelope, the same as each log record. A span with a `parentSpanId` is a
+ * child in the trace of `traceId`; without it, the span is the root of that
+ * trace. The kind defaults to INTERNAL (OTLP 1).
  */
 export type EmitSpan = (
   traceId: string,
@@ -84,9 +113,10 @@ export type EmitSpan = (
   startTime: number,
   endTime: number,
   attributes: Record<string, AttrValue | null | undefined>,
-  error?: boolean,
+  status?: SpanStatus,
   parentSpanId?: string,
   kind?: number,
+  links?: SpanLink[],
 ) => void;
 
 /**
@@ -106,7 +136,8 @@ export type SpanEvent = {
   kind: "span";
   name: string;
   attributes: Record<string, AttrValue | null | undefined>;
-  error?: boolean;
+  status?: SpanStatus;
+  links?: SpanLink[];
 };
 
 /**
@@ -195,12 +226,50 @@ const EXIT_BUDGET = 64_000;
 
 export const noop = () => Promise.resolve();
 
-function toAnyValue(value: AttrValue): AnyValue {
+/**
+ * Keeps a scalar or a homogeneous array. Null and undefined entries leave an
+ * array. An empty array stays. A mixed array, a nested array, or any other
+ * value is dropped.
+ */
+export function cleanAttribute(value: unknown): AttrValue | undefined {
+  if (typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number")
+    return Number.isFinite(value) ? value : undefined;
+  if (!Array.isArray(value)) return undefined;
+  const kept: Array<string | number | boolean> = [];
+  let kind: "string" | "number" | "boolean" | undefined;
+  for (const entry of value) {
+    if (entry == null) continue;
+    if (typeof entry === "string" || typeof entry === "boolean") {
+      if (kind && kind !== typeof entry) return undefined;
+      kind = typeof entry === "string" ? "string" : "boolean";
+      kept.push(entry);
+      continue;
+    }
+    if (typeof entry !== "number" || !Number.isFinite(entry)) return undefined;
+    if (kind && kind !== "number") return undefined;
+    kind = "number";
+    kept.push(entry);
+  }
+  return kept as AttrValue;
+}
+
+function toAnyValue(value: AttrValue): AnyValue | undefined {
   if (typeof value === "string") return { stringValue: value };
   if (typeof value === "boolean") return { boolValue: value };
-  return Number.isInteger(value)
-    ? { intValue: String(value) }
-    : { doubleValue: value };
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return undefined;
+    return Number.isInteger(value)
+      ? { intValue: String(value) }
+      : { doubleValue: value };
+  }
+  const values: AnyValue[] = [];
+  for (const entry of value) {
+    const encoded = toAnyValue(entry);
+    if (!encoded || "arrayValue" in encoded) return undefined;
+    values.push(encoded);
+  }
+  return { arrayValue: { values } };
 }
 
 function toKeyValues(
@@ -208,10 +277,41 @@ function toKeyValues(
 ): KeyValue[] {
   // The code ignores a value of null and a value of undefined. Thus a caller
   // can write an optional attribute as a usual property, and it can send a DOM
-  // getter that returns null.
-  return Object.entries(attributes).flatMap(([key, value]) =>
-    value == null ? [] : [{ key, value: toAnyValue(value) }],
-  );
+  // getter that returns null. An array that is not homogeneous is dropped.
+  return Object.entries(attributes).flatMap(([key, value]) => {
+    const cleaned = cleanAttribute(value);
+    if (cleaned === undefined) return [];
+    const encoded = toAnyValue(cleaned);
+    return encoded ? [{ key, value: encoded }] : [];
+  });
+}
+
+function prepareAttributes(
+  attributes: Record<string, AttrValue | null | undefined> | undefined,
+): Record<string, AttrValue | null | undefined> {
+  if (!attributes) return {};
+  const prepared: Record<string, AttrValue | null | undefined> = {};
+  for (const [key, value] of Object.entries(attributes)) {
+    // Null and undefined stay, so a caller can still mask an envelope key.
+    if (value == null) {
+      prepared[key] = value;
+      continue;
+    }
+    const cleaned = cleanAttribute(value);
+    if (cleaned !== undefined) prepared[key] = cleaned;
+  }
+  return prepared;
+}
+
+/** OTLP status. Code 0 and any other code are UNSET, so the field is absent. */
+function otlpStatus(
+  status: SpanStatus | undefined,
+): { code: number; message?: string } | undefined {
+  if (status?.code !== 1 && status?.code !== 2) return undefined;
+  if (status.code === 2 && status.message) {
+    return { code: 2, message: status.message };
+  }
+  return { code: status.code };
 }
 
 export function createEmitter(
@@ -408,7 +508,7 @@ export function createEmitter(
     const item = applyBeforeSend({
       kind: "log",
       eventName,
-      attributes: { ...envelope(), ...attributes },
+      attributes: { ...envelope(), ...prepareAttributes(attributes) },
       severityNumber,
       body,
     });
@@ -420,7 +520,7 @@ export function createEmitter(
       timeUnixNano: timestamp,
       severityNumber: item.severityNumber,
       eventName: item.eventName,
-      body: toAnyValue(item.body),
+      body: toAnyValue(item.body) ?? { stringValue: item.body },
       attributes: toKeyValues(item.attributes),
     });
     schedule();
@@ -433,9 +533,10 @@ export function createEmitter(
     startTime,
     endTime,
     attributes,
-    error,
+    status,
     parentSpanId,
-    kind = 3,
+    kind = 1, // INTERNAL. Callers pass CLIENT for a request span.
+    links,
   ) => {
     // The hook sees the envelope also, and not only the attributes of the
     // instrumentation. The envelope carries `url.full`. Thus a host that
@@ -446,9 +547,21 @@ export function createEmitter(
       kind: "span",
       name,
       attributes: { ...envelope(), ...attributes },
-      error,
+      status,
+      links,
     });
     if (item?.kind !== "span") return;
+    const wireLinks = item.links?.flatMap((link) => {
+      const attributes = toKeyValues(link.attributes ?? {});
+      return [
+        {
+          traceId: link.traceId,
+          spanId: link.spanId,
+          flags: link.traceFlags,
+          ...(attributes.length ? { attributes } : {}),
+        },
+      ];
+    });
     spanQueue.push({
       traceId,
       spanId,
@@ -458,9 +571,9 @@ export function createEmitter(
       startTimeUnixNano: `${startTime}000000`,
       endTimeUnixNano: `${endTime}000000`,
       attributes: toKeyValues(item.attributes),
-      // This is STATUS_CODE_ERROR. If not, the field is absent and thus Unset,
-      // because JSON removes a value of undefined.
-      status: item.error ? { code: 2 } : undefined,
+      // UNSET is absent. JSON also removes a value of undefined.
+      status: otlpStatus(item.status),
+      ...(wireLinks?.length ? { links: wireLinks } : {}),
     });
     schedule();
   };

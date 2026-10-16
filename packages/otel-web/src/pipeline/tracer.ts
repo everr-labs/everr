@@ -6,38 +6,94 @@
 // module imports @opentelemetry/api for the types only. Thus there is no
 // dependency at run time, and the code uses no global provider.
 //
-// The implementation has these limits. The SDK always samples a span. The code
-// makes the ids locally and gives them with spanContext(), and thus an
-// instrumentation can send them to a server. The kind is CLIENT, the same as
-// each built-in span, unless options.kind overrides it. The tracer accepts
-// events and links but discards them, because the payload carries neither.
+// The SDK always samples a span. The code makes the ids locally and gives them
+// with spanContext(), and thus an instrumentation can send them to a server.
+// The kind is INTERNAL unless options.kind overrides it. A request span passes
+// CLIENT itself. addEvent and recordException record nothing. Links, status,
+// attribute arrays, and the accepted timestamp forms go on the span.
 //
 // There is no context manager, and the active span has a rule of its own. In
 // OTel, a span is active for the synchronous duration of the function of
 // startActiveSpan, and a context manager carries it into the callbacks. This
 // SDK has no such manager: a span from startActiveSpan is active from that
 // call until its end(). A span from startSpan is a child of the active span,
-// when there is one, or a root. Thus the rule is the time, and not the cause:
-// each span that starts while the page load root is active joins its trace.
-// The active spans are a stack, and the most recent is the parent of a new
-// span. The end() of a span removes it from the stack, in any sequence. The
-// tracer ignores the context argument of the two functions.
+// when there is one, or a root. The active spans are a stack, and the most
+// recent is the parent of a new span. The end() of a span removes it from the
+// stack, in any sequence. The tracer ignores the context argument of the two
+// functions. options.root starts a new trace, and a startActiveSpan with that
+// option still becomes the active parent until its end().
 
-import type { Exception, Span, SpanOptions, Tracer } from "@opentelemetry/api";
+import type { Link, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
-import type { AttrValue, EmitSpan } from "./emitter.js";
+import {
+  type AttrValue,
+  cleanAttribute,
+  type EmitSpan,
+  type SpanLink,
+  type SpanStatus,
+} from "./emitter.js";
+
+const ZERO_TRACE = "0".repeat(32);
+const ZERO_SPAN = "0".repeat(16);
+
+function epochMs(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value instanceof Date) {
+    const time = value.getTime();
+    if (Number.isFinite(time)) return time;
+  }
+  if (
+    Array.isArray(value) &&
+    typeof value[0] === "number" &&
+    typeof value[1] === "number" &&
+    Number.isFinite(value[0]) &&
+    Number.isFinite(value[1])
+  ) {
+    return value[0] * 1000 + value[1] / 1e6;
+  }
+  return Date.now();
+}
+
+function hexId(value: unknown, length: number, zero: string): value is string {
+  return (
+    typeof value === "string" &&
+    value.length === length &&
+    value !== zero &&
+    /^[0-9a-f]+$/i.test(value)
+  );
+}
+
+function cleanLink(link: Link): SpanLink | undefined {
+  const context = link.context;
+  if (!hexId(context?.traceId, 32, ZERO_TRACE)) return undefined;
+  if (!hexId(context.spanId, 16, ZERO_SPAN)) return undefined;
+  const flags = context.traceFlags;
+  const attributes: Record<string, AttrValue> = {};
+  for (const [key, value] of Object.entries(link.attributes ?? {})) {
+    const cleaned = cleanAttribute(value);
+    if (cleaned !== undefined) attributes[key] = cleaned;
+  }
+  return {
+    traceId: context.traceId,
+    spanId: context.spanId,
+    traceFlags: typeof flags === "number" && Number.isFinite(flags) ? flags : 0,
+    ...(Object.keys(attributes).length ? { attributes } : {}),
+  };
+}
 
 export function createTracer(emitSpan?: EmitSpan): Tracer {
   // The active spans, the most recent last.
   const active: Span[] = [];
 
   // Makes a span. The most recent active span, when there is one, is the
-  // parent.
+  // parent. options.root starts a new trace.
   const make = (name: string, options?: SpanOptions): Span => {
     // One read of the CSPRNG gives the ids, the same as in the network
     // signal. A child keeps the trace id of its parent, and thus it reads only
     // the bytes of its span id.
-    const parent = active[active.length - 1]?.spanContext();
+    const parent = options?.root
+      ? undefined
+      : active[active.length - 1]?.spanContext();
     const ids = emitSpan ? randomHex(parent ? 8 : 24) : "0".repeat(48);
     const spanContext = {
       traceId: parent?.traceId ?? ids.slice(0, 32),
@@ -45,50 +101,61 @@ export function createTracer(emitSpan?: EmitSpan): Tracer {
       traceFlags: emitSpan ? 1 : 0,
     };
     const attributes: Record<string, AttrValue> = {};
-    const start = (options?.startTime as number | undefined) ?? Date.now();
+    const links: SpanLink[] = [];
+    const start =
+      options?.startTime == null ? Date.now() : epochMs(options.startTime);
     let spanName = name;
     let ended = false;
-    let errored = false;
+    // UNSET until setStatus records OK or ERROR. OK sticks.
+    let status: SpanStatus | undefined;
+
+    const write = (key: string, value: unknown) => {
+      const cleaned = cleanAttribute(value);
+      if (cleaned === undefined) delete attributes[key];
+      else attributes[key] = cleaned;
+    };
 
     const span: Span = {
       spanContext: () => spanContext,
-      // The code copies the attributes without a change. The AttrValue types of
-      // the emitter give the rules. The caller is responsible for an array
-      // value. An ended span accepts no attribute, the same as in OTel.
       setAttribute: (key, value) => {
-        if (!ended) attributes[key] = value as AttrValue;
+        if (!ended) write(key, value);
         return span;
       },
       setAttributes: (attrs) => {
-        if (!ended) Object.assign(attributes, attrs);
+        if (!ended) {
+          for (const [key, value] of Object.entries(attrs)) write(key, value);
+        }
         return span;
       },
       addEvent: () => span,
-      addLink: () => span,
-      addLinks: () => span,
-      setStatus: (status) => {
-        errored = status.code === 2; // SpanStatusCode.ERROR
+      addLink: (link) => {
+        if (ended) return span;
+        const cleaned = cleanLink(link);
+        if (cleaned) links.push(cleaned);
+        return span;
+      },
+      addLinks: (next) => {
+        for (const link of next) span.addLink(link);
+        return span;
+      },
+      setStatus: (next) => {
+        // UNSET is ignored. OK sticks, and a later status does not replace it.
+        // The message is kept only for ERROR.
+        if (ended || next.code === 0 || status?.code === 1) return span;
+        if (next.code === 1) status = { code: 1 };
+        else if (next.code === 2) {
+          status = next.message
+            ? { code: 2, message: next.message }
+            : { code: 2 };
+        }
         return span;
       },
       updateName: (next) => {
-        spanName = next;
+        if (!ended) spanName = next;
         return span;
       },
       isRecording: () => !!emitSpan && !ended,
-      recordException: (exception: Exception) => {
-        const error = exception as { name?: string; message?: string };
-        // The exception event of semconv. The code puts it in the span
-        // attributes, because the payload carries no events.
-        span.setAttribute(
-          "exception.type",
-          (typeof exception === "object" && error.name) || "Error",
-        );
-        if (typeof exception === "string") {
-          span.setAttribute("exception.message", exception);
-        } else if (error.message) {
-          span.setAttribute("exception.message", error.message);
-        }
-      },
+      recordException: () => {},
       end: (endTime) => {
         if (ended) return;
         ended = true;
@@ -99,15 +166,17 @@ export function createTracer(emitSpan?: EmitSpan): Tracer {
           spanContext.spanId,
           spanName,
           start,
-          (endTime as number | undefined) ?? Date.now(),
+          endTime == null ? Date.now() : epochMs(endTime),
           attributes,
-          errored,
+          status,
           parent?.spanId,
-          (options?.kind ?? 2) + 1, // OTel API kinds are zero-based; OTLP is one-based.
+          (options?.kind ?? 0) + 1, // OTel API kinds are zero-based; OTLP is one-based.
+          links.length ? links : undefined,
         );
       },
     };
     if (options?.attributes) span.setAttributes(options.attributes);
+    if (options?.links) span.addLinks(options.links);
     return span;
   };
 
