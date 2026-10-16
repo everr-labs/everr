@@ -9,6 +9,7 @@
 // an intValue is a decimal string. The other internal structures use tuples,
 // because minification keeps the property names but it does not keep the tuple
 // indexes.
+import type { SpanContext } from "@opentelemetry/api";
 import type { Send, Signal } from "./transport.js";
 
 export type AttrValue =
@@ -95,13 +96,6 @@ export type SpanStatus = {
   message?: string;
 };
 
-/** The three ids the W3C trace context carries. */
-export type SpanContext = {
-  traceId: string;
-  spanId: string;
-  traceFlags: number;
-};
-
 /** One link to another span. `traceFlags` is the W3C trace-flags byte. */
 export type SpanLink = SpanContext & {
   attributes?: Record<string, AttrValue | null | undefined>;
@@ -156,7 +150,8 @@ export type SpanEvent = {
  * attribute to all the signals.
  *
  * The ids and the times are absent, because a hook does not change the identity
- * of a record or the time of a record.
+ * of a record or the time of a record. Log correlation is written after the
+ * hook, so the hook cannot see or change the trace id, span id, or trace flags.
  */
 export type SendEvent = LogEvent | SpanEvent;
 
@@ -463,11 +458,12 @@ export function createEmitter(
     severityNumber = 9, // INFO
     body = eventName,
   ) => {
-    // Read both before the hook. The default time is the instant emit was
+    // Read the time before the hook. The default is the instant emit was
     // called, even when a host hook does synchronous work before the item is
-    // queued. The span is the one active at that same instant.
+    // queued. A log that already has a timestamp keeps no span: the span
+    // active at this call is not the span active when the event happened.
     const timestamp = unixNano(time ?? Date.now());
-    const span = activeSpan?.();
+    const span = time == null ? activeSpan?.() : undefined;
     const item = applyBeforeSend({
       kind: "log",
       eventName,

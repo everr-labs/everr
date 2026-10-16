@@ -22,17 +22,18 @@
 // stack, in any sequence. The tracer ignores the context argument of the two
 // functions. options.root starts a new trace, and a startActiveSpan with that
 // option still becomes the active parent until its end(). A log emitted in
-// that interval carries that span's trace id and span id.
+// that interval, with no timestamp of its own, carries that span's trace id,
+// span id, and trace flags.
 
-import type { Link, Span, SpanOptions, Tracer } from "@opentelemetry/api";
-import { randomHex } from "../state/session.js";
 import type {
-  AttrValue,
-  EmitSpan,
+  Link,
+  Span,
   SpanContext,
-  SpanLink,
-  SpanStatus,
-} from "./emitter.js";
+  SpanOptions,
+  Tracer,
+} from "@opentelemetry/api";
+import { randomHex } from "../state/session.js";
+import type { AttrValue, EmitSpan, SpanLink, SpanStatus } from "./emitter.js";
 
 const ZERO_TRACE = "0".repeat(32);
 const ZERO_SPAN = "0".repeat(16);

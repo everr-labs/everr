@@ -43,7 +43,8 @@ export interface InstrumentationContext {
    * The SDK has no context manager, and thus its rule for the active span is
    * the time: a span from `startActiveSpan` is active from that call until its
    * `end()`, and a span from `startSpan` in that interval is its child. A log
-   * emitted in that interval carries that span's trace id and span id. The
+   * emitted in that interval, with no timestamp of its own, carries that
+   * span's trace id, span id, and trace flags. The
    * tracer ignores a context argument. `root: true` starts a new trace.
    */
   tracer: Tracer;

@@ -17,12 +17,14 @@ import {
 let client: WebSDK | undefined;
 let batches: OtlpBatch[];
 let tracer: Tracer;
+let emit: (name: string, attributes?: undefined, timestamp?: number) => void;
 
 function start(): void {
   [client, batches] = startClient({
     instrumentations: [
       (ctx) => {
         tracer = ctx.tracer;
+        emit = ctx.emit;
       },
     ],
   });
@@ -75,6 +77,7 @@ describe("instrumentation tracer", () => {
     logger.info("still child");
     child.end();
     logger.info("back in parent");
+    emit("everr.test.late", undefined, 1_700_000_000_000);
     parent.end();
     logger.info("after");
     await client?.flush();
@@ -103,6 +106,9 @@ describe("instrumentation tracer", () => {
     expect(log("still child")?.spanId).toBe(childSpan?.spanId);
     expect(log("back in parent")?.spanId).toBe(parentSpan?.spanId);
     expect(log("after")?.traceId).toBeUndefined();
+    const late = logs.find((record) => record.eventName === "everr.test.late");
+    expect(late?.timeUnixNano).toBe("1700000000000000000");
+    expect(late?.traceId).toBeUndefined();
   });
 
   it("stacks the active spans", async () => {
