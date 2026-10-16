@@ -206,7 +206,6 @@ mod tests {
             store.clone(),
             crate::profiles::Project {
                 root: None,
-                file: None,
                 target: None,
             },
             None,

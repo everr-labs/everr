@@ -33,14 +33,13 @@ export function InviteMemberDialog() {
   const [role, setRole] = useState<OrgRole>("member");
   const [sendEmail, setSendEmail] = useState(true);
   const shouldSendEmail = emailEnabled && sendEmail;
-  const [createdLink, setCreatedLink] = useState<string | null>(null);
   const invite = useInviteMember();
 
   const reset = () => {
     setEmail("");
     setRole("member");
     setSendEmail(true);
-    setCreatedLink(null);
+    invite.reset();
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -56,9 +55,6 @@ export function InviteMemberDialog() {
     invite.mutate(
       { email: trimmed, role, sendEmail: shouldSendEmail },
       {
-        onSuccess: (invitation) => {
-          setCreatedLink(invitationUrl(invitation.id, window.location.origin));
-        },
         onError: (err) => toast.error(err.message),
       },
     );
@@ -68,7 +64,7 @@ export function InviteMemberDialog() {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button size="sm" />}>Invite member</DialogTrigger>
       <DialogContent>
-        {createdLink ? (
+        {invite.data ? (
           <>
             <DialogHeader>
               <DialogTitle>Invitation created</DialogTitle>
@@ -77,7 +73,9 @@ export function InviteMemberDialog() {
                 {shouldSendEmail && " Email delivery has also been requested."}
               </DialogDescription>
             </DialogHeader>
-            <InvitationLink url={createdLink} />
+            <InvitationLink
+              url={invitationUrl(invite.data.id, window.location.origin)}
+            />
             <DialogFooter>
               <Button onClick={() => handleOpenChange(false)}>Done</Button>
             </DialogFooter>

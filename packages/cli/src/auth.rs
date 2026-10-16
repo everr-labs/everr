@@ -46,7 +46,7 @@ impl LoginContext {
                 .cloned()
                 .map(|profile| (name.clone(), profile))
         } else if url.is_none() {
-            store.select(None, &project)?
+            config.select(None, &project)?
         } else {
             None
         };
@@ -100,7 +100,7 @@ impl LoginContext {
                 .get(name)
                 .map(|profile| (name.clone(), profile.clone()))
         } else {
-            let selected = self.store.select(None, &self.project)?;
+            let selected = config.select(None, &self.project)?;
             if selected
                 .as_ref()
                 .is_some_and(|(_, p)| p.target.url == self.config.api_base_url)
@@ -360,9 +360,10 @@ pub async fn logout(profile: Option<&str>) -> Result<()> {
     let store = ProfileStore::user()?;
     let project = Project::discover(&std::env::current_dir()?)?;
     let explicit = explicit_profile(profile);
-    let Some((name, selected)) = store.select(explicit.as_deref(), &project)? else {
+    let config = store.load()?;
+    let Some((name, selected)) = config.select(explicit.as_deref(), &project)? else {
         // Preserve logout support for the session format used before profiles.
-        let removed = if project.target.is_none() && store.load()?.profiles.is_empty() {
+        let removed = if project.target.is_none() && config.profiles.is_empty() {
             LegacySessionStore::user().clear_session()?
         } else {
             false

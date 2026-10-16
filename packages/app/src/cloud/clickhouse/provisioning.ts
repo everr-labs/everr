@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { runSqlApiQuery } from "@/lib/clickhouse";
+import {
+  type AdminCommandOptions,
+  adminCommand,
+} from "@/lib/clickhouse-writer";
 import { SQL_API_TABLES } from "@/lib/sql-api-tables";
-import { type AdminCommandOptions, adminCommand } from "./admin";
 import { sqlApiOrgPassword, sqlApiOrgUserName } from "./credentials";
 
 // Every provisioning statement interpolates the organization id into DDL: the

@@ -10,8 +10,8 @@ it.each([
   vi.resetModules();
   vi.stubEnv("GOOGLE_CLIENT_ID", id);
   vi.stubEnv("GOOGLE_CLIENT_SECRET", secret);
-  const { getAuthProviders } = await import("@/data/auth-providers");
-  expect(await getAuthProviders()).toEqual({ googleSignInEnabled: enabled });
+  const { socialProviders } = await import("@/lib/auth-providers.server");
+  expect(Boolean(socialProviders?.google)).toBe(enabled);
 });
 
 it("does not substitute a Cloud endpoint when the operator has configured none", async () => {

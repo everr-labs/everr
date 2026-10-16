@@ -44,7 +44,6 @@ import {
 } from "@/lib/email.server";
 import { mailer } from "@/lib/mailer.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
-import { markOrganizationCreated } from "@/lib/organization-creation-continuation.server";
 import { assertCanInviteMembers } from "@/product/membership.server";
 import {
   createIdentityAuthHooks,
@@ -243,8 +242,6 @@ export const auth = betterAuth({
         after: createSessionOnboardingHook(
           async (body): Promise<{ id: string } | null> =>
             auth.api.createOrganization({ body }),
-          db,
-          markOrganizationCreated,
         ),
       },
     },

@@ -133,7 +133,3 @@ export const importRepos = createOrganizationAdminServerFn({ method: "POST" })
 
     yield { type: "done" as const, totalJobs, totalErrors };
   });
-
-export const getGithubAvailability = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(() => ({ enabled: Boolean(getGithubConfiguration()) }));

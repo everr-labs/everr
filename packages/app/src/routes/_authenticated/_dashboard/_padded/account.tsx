@@ -30,7 +30,6 @@ import { linkedAccountsQueryOptions } from "@/components/account-settings/querie
 import { SessionsSettings } from "@/components/account-settings/sessions-settings";
 import { PageHeader } from "@/components/page-header";
 import { deleteCurrentUserAccount } from "@/data/account-settings";
-import { getAuthProviders } from "@/data/auth-providers";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationOwner } from "@/lib/organization-role";
 
@@ -41,7 +40,6 @@ export const Route = createFileRoute(
   head: () => ({
     meta: [{ title: "Everr - Account Settings" }],
   }),
-  beforeLoad: () => getAuthProviders(),
   component: AccountSettingsPage,
 });
 

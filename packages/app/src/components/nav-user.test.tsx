@@ -19,11 +19,8 @@ const mocks = vi.hoisted(() => ({
   organizations: [{ id: "org_1", name: "Acme" }],
 }));
 
-vi.mock("@/integrations/github/data", () => ({
-  getGithubAvailability: async () => ({ enabled: mocks.githubEnabled }),
-}));
-
 vi.mock("@tanstack/react-router", () => ({
+  useRouteContext: () => ({ githubEnabled: mocks.githubEnabled }),
   Link: forwardRef<
     HTMLAnchorElement,
     { children?: ReactNode; className?: string; to: string }

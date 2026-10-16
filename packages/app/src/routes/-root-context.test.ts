@@ -8,6 +8,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/telemetry/client", () => ({}));
+vi.mock("@/lib/auth-providers.server", () => ({
+  socialProviders: { google: {} },
+}));
+vi.mock("@/integrations/github/configuration", () => ({
+  getGithubConfiguration: () => ({}),
+}));
 vi.mock("@/lib/auth.server", () => ({
   auth: { api: { getSession: mocks.getSession } },
 }));
@@ -48,6 +54,8 @@ it("resolves the session and consent for live requests before auth guards run", 
     createdOrganizationId: null,
     setupRequired: false,
     emailEnabled: true,
+    googleSignInEnabled: true,
+    githubEnabled: true,
   });
   expect(mocks.getSession).toHaveBeenCalledWith({ headers: mocks.headers });
 });
@@ -60,6 +68,8 @@ it("keeps signed-out live requests signed out", async () => {
     createdOrganizationId: null,
     setupRequired: false,
     emailEnabled: true,
+    googleSignInEnabled: true,
+    githubEnabled: true,
     session: null,
     consent: undefined,
   });
@@ -75,6 +85,8 @@ it("generates the prerendered shell without looking up runtime session data", as
     createdOrganizationId: null,
     setupRequired: false,
     emailEnabled: false,
+    googleSignInEnabled: false,
+    githubEnabled: false,
   });
   expect(mocks.getSession).not.toHaveBeenCalled();
   expect(mocks.getCookie).not.toHaveBeenCalled();

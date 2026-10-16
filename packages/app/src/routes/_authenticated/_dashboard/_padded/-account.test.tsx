@@ -32,10 +32,6 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-vi.mock("@/data/auth-providers", () => ({
-  getAuthProviders: async () => ({ googleSignInEnabled: mocks.googleEnabled }),
-}));
-
 vi.mock("@/data/account-settings", () => ({
   deleteCurrentUserAccount: mocks.deleteCurrentUserAccount,
 }));

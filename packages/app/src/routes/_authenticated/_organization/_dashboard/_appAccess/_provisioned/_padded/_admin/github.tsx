@@ -1,5 +1,4 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { getGithubAvailability } from "@/integrations/github/data";
 import {
   GithubPage,
   githubInstallStatusOptions,
@@ -10,8 +9,8 @@ export const Route = createFileRoute(
 )({
   staticData: { breadcrumb: "GitHub", hideTimeRangePicker: true },
   head: () => ({ meta: [{ title: "Everr - GitHub" }] }),
-  beforeLoad: async () => {
-    if (!(await getGithubAvailability()).enabled) throw notFound();
+  beforeLoad: ({ context: { githubEnabled } }) => {
+    if (!githubEnabled) throw notFound();
   },
   loader: async ({ context: { queryClient } }) => {
     await queryClient.prefetchQuery(githubInstallStatusOptions);

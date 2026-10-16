@@ -1,4 +1,5 @@
 vi.mock("@/lib/mailer.server", () => ({ mailer: null }));
+vi.mock("@/lib/auth-providers.server", () => ({ socialProviders: undefined }));
 vi.mock("@/cloud/organization-provisioning/actions", () => ({
   completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
 }));

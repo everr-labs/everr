@@ -3,7 +3,12 @@ import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
@@ -24,26 +29,13 @@ const SignUpSearchSchema = z.object({
 
 export const Route = createFileRoute("/_welcome/_guest/auth/sign-up")({
   validateSearch: SignUpSearchSchema,
-  beforeLoad: async ({ search }) => ({
-    signupAllowed: await canOpenSignup({ data: { redirect: search.redirect } }),
-  }),
-  component: SignupEntry,
+  beforeLoad: async ({ search }) => {
+    if (!(await canOpenSignup({ data: { redirect: search.redirect } }))) {
+      throw redirect({ to: "/auth/sign-in", search, replace: true });
+    }
+  },
+  component: SignUp,
 });
-
-function SignupEntry() {
-  const { signupAllowed } = Route.useRouteContext();
-  return signupAllowed ? (
-    <SignUp />
-  ) : (
-    <>
-      <AuthPageHeader
-        title="Invitation required"
-        subtitle="Contact your administrator for an invitation."
-      />
-      <Link to="/auth/sign-in">Back to sign in</Link>
-    </>
-  );
-}
 
 function SignUp() {
   const { googleSignInEnabled } = Route.useRouteContext();

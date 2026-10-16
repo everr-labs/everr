@@ -398,7 +398,6 @@ mod tests {
                     crate::profiles::ProfileStore::at(auth_dir.path()),
                     crate::profiles::Project {
                         root: None,
-                        file: None,
                         target: None,
                     },
                     None,

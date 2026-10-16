@@ -80,6 +80,50 @@ impl Default for Config {
     }
 }
 
+impl Config {
+    pub fn select(
+        &self,
+        explicit: Option<&str>,
+        project: &Project,
+    ) -> Result<Option<(String, Profile)>> {
+        if let Some(name) = explicit {
+            return Ok(Some((
+                name.to_owned(),
+                self.profiles
+                    .get(name)
+                    .with_context(|| {
+                        format!("Unknown profile '{name}'. Run `everr login --profile {name}`.")
+                    })?
+                    .clone(),
+            )));
+        }
+        if let Some(target) = &project.target {
+            let matching: Vec<_> = self
+                .profiles
+                .iter()
+                .filter(|(_, profile)| &profile.target == target)
+                .collect();
+            return match matching.as_slice() {
+                [(name, profile)] => Ok(Some(((*name).clone(), (*profile).clone()))),
+                [] => Ok(None),
+                _ => bail!(
+                    "Multiple profiles match this project. Select an account with --profile or EVERR_PROFILE."
+                ),
+            };
+        }
+        match &self.current_profile {
+            Some(name) => Ok(Some((
+                name.clone(),
+                self.profiles
+                    .get(name)
+                    .with_context(|| format!("Unknown current profile '{name}'"))?
+                    .clone(),
+            ))),
+            None => Ok(None),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProjectConfig {
@@ -90,7 +134,6 @@ struct ProjectConfig {
 
 pub struct Project {
     pub root: Option<PathBuf>,
-    pub file: Option<PathBuf>,
     pub target: Option<Target>,
 }
 
@@ -101,11 +144,7 @@ impl Project {
             .ancestors()
             .find(|dir| dir.join(".git").exists())
             .map(Path::to_path_buf);
-        let mut project = Self {
-            root,
-            file: None,
-            target: None,
-        };
+        let mut project = Self { root, target: None };
         if let Some(root) = &project.root {
             for dir in cwd.ancestors() {
                 let path = dir.join(".everr/config.yaml");
@@ -118,7 +157,6 @@ impl Project {
                     }
                     let mut target = config.target;
                     target.validate()?;
-                    project.file = Some(path);
                     project.target = Some(target);
                     break;
                 }
@@ -131,7 +169,7 @@ impl Project {
     }
 
     pub fn save_if_absent(&self, target: &Target) -> Result<()> {
-        if self.file.is_some() {
+        if self.target.is_some() {
             return Ok(());
         }
         let Some(root) = &self.root else {
@@ -324,51 +362,6 @@ impl ProfileStore {
         Ok(())
     }
 
-    pub fn select(
-        &self,
-        explicit: Option<&str>,
-        project: &Project,
-    ) -> Result<Option<(String, Profile)>> {
-        let config = self.load()?;
-        if let Some(name) = explicit {
-            return Ok(Some((
-                name.to_owned(),
-                config
-                    .profiles
-                    .get(name)
-                    .with_context(|| {
-                        format!("Unknown profile '{name}'. Run `everr login --profile {name}`.")
-                    })?
-                    .clone(),
-            )));
-        }
-        if let Some(target) = &project.target {
-            let matching: Vec<_> = config
-                .profiles
-                .iter()
-                .filter(|(_, profile)| &profile.target == target)
-                .collect();
-            return match matching.as_slice() {
-                [(name, profile)] => Ok(Some(((*name).clone(), (*profile).clone()))),
-                [] => Ok(None),
-                _ => bail!(
-                    "Multiple profiles match this project. Select an account with --profile or EVERR_PROFILE."
-                ),
-            };
-        }
-        match config.current_profile {
-            Some(name) => Ok(Some((
-                name.clone(),
-                config
-                    .profiles
-                    .get(&name)
-                    .with_context(|| format!("Unknown current profile '{name}'"))?
-                    .clone(),
-            ))),
-            None => Ok(None),
-        }
-    }
-
     pub fn legacy_session(&self) -> Result<Option<Session>> {
         match LegacySessionStore::at(&self.directory).load_session() {
             Ok(session) => Ok(Some(session)),
@@ -443,7 +436,7 @@ pub async fn client(profile: Option<&str>, allow_api_key: bool) -> Result<ApiCli
             let selected = if url.is_some() && explicit.is_none() && project.target.is_none() {
                 None
             } else {
-                store.select(explicit.as_deref(), &project)?
+                store.load()?.select(explicit.as_deref(), &project)?
             };
             let target = selected
                 .as_ref()
@@ -464,6 +457,7 @@ pub async fn client(profile: Option<&str>, allow_api_key: bool) -> Result<ApiCli
     }
     store.migrate_legacy().await?;
     let (name, selected) = store
+        .load()?
         .select(explicit.as_deref(), &project)?
         .context("No authenticated profile for this target. Run `everr login`.")?;
     let session = store.session(&name)?.with_context(|| {

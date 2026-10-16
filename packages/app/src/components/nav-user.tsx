@@ -14,8 +14,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@everr/ui/components/sidebar";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouteContext } from "@tanstack/react-router";
 import {
   ChevronsUpDown,
   CookieIcon,
@@ -25,7 +24,6 @@ import {
   Settings,
   Users,
 } from "lucide-react";
-import { githubAvailabilityOptions } from "@/integrations/github/options";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { useOpenConsentSettings } from "@/telemetry/consent-gate";
@@ -37,10 +35,7 @@ export function NavUser() {
   const userRole = activeOrg?.members?.find(
     (m) => m.userId === session?.user?.id,
   )?.role;
-  const github = useQuery({
-    ...githubAvailabilityOptions,
-    enabled: Boolean(session?.user),
-  });
+  const { githubEnabled } = useRouteContext({ from: "__root__" });
   const isAdmin = isOrganizationAdmin(userRole);
   const { isMobile } = useSidebar();
 
@@ -128,7 +123,7 @@ export function NavUser() {
                     <KeyRound />
                     API keys
                   </DropdownMenuItem>
-                  {github.data?.enabled ? (
+                  {githubEnabled ? (
                     <DropdownMenuItem
                       render={<Link to="/github" />}
                       nativeButton={false}

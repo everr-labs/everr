@@ -1,6 +1,3 @@
-vi.mock("@/data/auth-providers", () => ({
-  getAuthProviders: async () => ({ googleSignInEnabled: mocks.googleEnabled }),
-}));
 vi.mock("@/data/organization-access", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
@@ -95,7 +92,10 @@ beforeEach(() => {
 function invitationSignupRouter() {
   const queryClient = new QueryClient();
   const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-    beforeLoad: () => ({ session: mocks.session }),
+    beforeLoad: () => ({
+      session: mocks.session,
+      googleSignInEnabled: mocks.googleEnabled,
+    }),
     component: () => (
       <QueryClientProvider client={queryClient}>
         <Outlet />

@@ -1,4 +1,6 @@
 import { getAppEntry } from "@app/entry";
+import { getGithubConfiguration } from "@/integrations/github/configuration";
+import { socialProviders } from "@/lib/auth-providers.server";
 import { mailer } from "@/lib/mailer.server";
 import { getSession } from "@/lib/session.server";
 // This import has an effect at load. It starts the error capture of the browser
@@ -43,6 +45,8 @@ const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
   return {
     ...appEntry,
     emailEnabled: mailer !== null,
+    googleSignInEnabled: Boolean(socialProviders?.google),
+    githubEnabled: Boolean(getGithubConfiguration()),
     createdOrganizationId: await readCreatedOrganizationId(
       getCookie(ORGANIZATION_CREATION_COOKIE),
       session?.session,
@@ -74,6 +78,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           createdOrganizationId: null,
           setupRequired: false,
           emailEnabled: false,
+          googleSignInEnabled: false,
+          githubEnabled: false,
         };
       return loadAppContext(location.pathname);
     })
