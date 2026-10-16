@@ -19,6 +19,19 @@ document:
     variables:
       - kind: ListVariable
         spec:
+          name: namespace
+          display:
+            name: Namespace
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') AS namespace FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY namespace
+      - kind: ListVariable
+        spec:
           name: service
           display:
             name: Service
@@ -50,7 +63,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS spans
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace
                       GROUP BY ts
                       ORDER BY ts
       service-count:
@@ -68,7 +81,7 @@ document:
                 plugin:
                   kind: ClickHouseSQL
                   spec:
-                    query: SELECT uniqExact(ServiceName) AS services FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                    query: SELECT uniqExact(ServiceName) AS services FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace
       error-rate:
         kind: Panel
         spec:
@@ -98,7 +111,7 @@ document:
                     query: |-
                       SELECT countIf(StatusCode = 'Error') / count() * 100 AS pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace
       by-kind:
         kind: Panel
         spec:
@@ -120,7 +133,7 @@ document:
                              SpanKind AS kind,
                              count() AS spans
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace
                       GROUP BY ts, kind
                       ORDER BY ts
       errors-over-time:
@@ -144,7 +157,7 @@ document:
                              ServiceName AS service,
                              count() AS errors
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND StatusCode = 'Error'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND StatusCode = 'Error'
                       GROUP BY ts, service
                       ORDER BY ts
       catalog:
@@ -170,7 +183,7 @@ document:
                              round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
                              countIf(StatusCode = 'Error') AS errors
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace
                       GROUP BY service, span
                       ORDER BY spans DESC
                       LIMIT 100

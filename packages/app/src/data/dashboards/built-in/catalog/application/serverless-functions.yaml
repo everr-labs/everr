@@ -22,6 +22,19 @@ document:
     variables:
       - kind: ListVariable
         spec:
+          name: namespace
+          display:
+            name: Namespace
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') AS namespace FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY namespace
+      - kind: ListVariable
+        spec:
           name: service
           display:
             name: Service
@@ -53,7 +66,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS invocations
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                       GROUP BY ts
                       ORDER BY ts
       error-rate:
@@ -85,7 +98,7 @@ document:
                     query: |-
                       SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
       p95-duration:
         kind: Panel
         spec:
@@ -107,7 +120,7 @@ document:
                     query: |-
                       SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
       cold-start-rate:
         kind: Panel
         spec:
@@ -137,7 +150,7 @@ document:
                     query: |-
                       SELECT countIf(toString(SpanAttributes.`faas.coldstart`) = 'true') / count() * 100 AS pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
       invocations-by-function:
         kind: Panel
         spec:
@@ -157,9 +170,9 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) AS function, count() AS invocations
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                         AND coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) IN (
-                        SELECT coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                        SELECT coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                         GROUP BY coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, function
@@ -184,9 +197,9 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) AS function, count() AS errors
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != '' AND StatusCode = 'Error'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != '' AND StatusCode = 'Error'
                         AND coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) IN (
-                        SELECT coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != '' AND StatusCode = 'Error'
+                        SELECT coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != '' AND StatusCode = 'Error'
                         GROUP BY coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, function
@@ -217,7 +230,7 @@ document:
                                round(quantile(0.95)(Duration) / 1000000, 1) AS p95,
                                round(quantile(0.99)(Duration) / 1000000, 1) AS p99
                         FROM traces
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                         GROUP BY ts
                       )
                       ARRAY JOIN [('P50', p50), ('P95', p95), ('P99', p99)] AS q
@@ -244,9 +257,9 @@ document:
                              coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) AS function,
                              round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                         AND coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) IN (
-                        SELECT coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                        SELECT coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                         GROUP BY coalesce(nullIf(toString(ResourceAttributes.`faas.name`), ''), ServiceName) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, function
@@ -275,7 +288,7 @@ document:
                                countIf(toString(SpanAttributes.`faas.coldstart`) = 'true') AS cold,
                                countIf(NOT toString(SpanAttributes.`faas.coldstart`) = 'true') AS warm
                         FROM traces
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                         GROUP BY ts
                       )
                       ARRAY JOIN [('Cold', cold), ('Warm', warm)] AS counted
@@ -305,7 +318,7 @@ document:
                                round(quantileIf(0.95)(Duration, toString(SpanAttributes.`faas.coldstart`) = 'true') / 1000000, 1) AS cold,
                                round(quantileIf(0.95)(Duration, NOT toString(SpanAttributes.`faas.coldstart`) = 'true') / 1000000, 1) AS warm
                         FROM traces
-                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                         GROUP BY ts
                       )
                       ARRAY JOIN [('Cold', cold), ('Warm', warm)] AS q
@@ -330,9 +343,9 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, toString(SpanAttributes.`faas.trigger`) AS trigger, count() AS invocations
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                         AND toString(SpanAttributes.`faas.trigger`) IN (
-                        SELECT toString(SpanAttributes.`faas.trigger`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                        SELECT toString(SpanAttributes.`faas.trigger`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                         GROUP BY toString(SpanAttributes.`faas.trigger`) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, trigger
@@ -360,7 +373,7 @@ document:
                              round(countIf(StatusCode = 'Error') / count() * 100, 2) AS error_pct,
                              round(countIf(toString(SpanAttributes.`faas.coldstart`) = 'true') / count() * 100, 1) AS cold_pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != ''
                       GROUP BY function
                       ORDER BY invocations DESC
                       LIMIT 40
@@ -388,7 +401,7 @@ document:
                              round(Duration / 1000000, 1) AS duration_ms,
                              StatusMessage AS status
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`faas.trigger`) != '' AND StatusCode = 'Error'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`faas.trigger`) != '' AND StatusCode = 'Error'
                       ORDER BY ts DESC
                       LIMIT 50
     layouts:

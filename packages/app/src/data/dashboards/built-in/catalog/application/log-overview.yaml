@@ -19,6 +19,19 @@ document:
     variables:
       - kind: ListVariable
         spec:
+          name: namespace
+          display:
+            name: Namespace
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') AS namespace FROM logs WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY namespace
+      - kind: ListVariable
+        spec:
           name: service
           display:
             name: Service
@@ -50,7 +63,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS records
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace
                       GROUP BY ts
                       ORDER BY ts
       error-share:
@@ -82,7 +95,7 @@ document:
                     query: |-
                       SELECT countIf(upper(SeverityText) IN ('ERROR', 'FATAL')) / count() * 100 AS error_pct
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace
       error-logs:
         kind: Panel
         spec:
@@ -102,7 +115,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS errors
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND upper(SeverityText) IN ('ERROR', 'FATAL')
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND upper(SeverityText) IN ('ERROR', 'FATAL')
                       GROUP BY ts
                       ORDER BY ts
       by-severity:
@@ -126,7 +139,7 @@ document:
                              upper(SeverityText) AS severity,
                              count() AS records
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SeverityText != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND SeverityText != ''
                       GROUP BY ts, severity
                       ORDER BY ts
       noisiest-messages:
@@ -151,7 +164,7 @@ document:
                              upper(any(SeverityText)) AS severity,
                              count() AS occurrences
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace
                       GROUP BY service, message
                       ORDER BY occurrences DESC
                       LIMIT 40
@@ -176,7 +189,7 @@ document:
                              substring(Body, 1, 140) AS message,
                              TraceId AS trace_id
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND upper(SeverityText) IN ('ERROR', 'FATAL')
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND upper(SeverityText) IN ('ERROR', 'FATAL')
                       ORDER BY Timestamp DESC
                       LIMIT 50
     layouts:
