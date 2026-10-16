@@ -1,7 +1,6 @@
 import { assertStorageReady } from "@app/storage-readiness";
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { db } from "@/db/client";
-import { auth } from "@/lib/auth.server";
 import {
   assertOrganizationTarget,
   organizationTargetErrorResponse,
@@ -40,17 +39,18 @@ export const requireOrgMiddleware = createMiddleware()
       throw organizationTargetErrorResponse(error) ?? error;
     }
 
-    const organization = await findOrganizationForMember(
+    const membership = await findOrganizationForMember(
       db,
       session.user.id,
       activeOrgId,
     );
-    if (!organization)
-      throw new Error("Not a member of the active organization");
+    if (!membership) throw new Error("Not a member of the active organization");
+    const { memberRole, ...organization } = membership;
 
     return next({
       context: {
         organization,
+        memberRole,
         session: {
           session: {
             ...session.session,
@@ -86,11 +86,8 @@ export class NotOrganizationAdminError extends Error {
 
 const requireOrganizationAdminMiddleware = createMiddleware()
   .middleware([requireOrgMiddleware])
-  .server(async ({ request, next, context: { session } }) => {
-    const { role } = await auth.api.getActiveMemberRole({
-      headers: request.headers,
-    });
-    if (!isOrganizationAdmin(role)) {
+  .server(({ next, context: { session, memberRole } }) => {
+    if (!isOrganizationAdmin(memberRole)) {
       throw new NotOrganizationAdminError();
     }
 

@@ -21,7 +21,7 @@ const database = drizzle(client) as unknown as Database;
 state.database = database;
 await client.exec(`
 CREATE TABLE organization (id text PRIMARY KEY, name text NOT NULL DEFAULT '', metadata text);
-CREATE TABLE member (id text PRIMARY KEY, organization_id text REFERENCES organization(id), user_id text);
+CREATE TABLE member (id text PRIMARY KEY, organization_id text REFERENCES organization(id), user_id text, role text NOT NULL DEFAULT 'member');
 CREATE TABLE session (id text PRIMARY KEY, user_id text, active_organization_id text, expires_at timestamp NOT NULL, updated_at timestamp NOT NULL DEFAULT now());
 `);
 afterAll(() => client.close());
@@ -41,7 +41,10 @@ const identity = {
 };
 async function memberships(...ids: string[]) {
   for (const id of ids)
-    await client.query("INSERT INTO member VALUES ($1, $2, 'user')", [id, id]);
+    await client.query(
+      "INSERT INTO member(id, organization_id, user_id) VALUES ($1, $2, 'user')",
+      [id, id],
+    );
 }
 async function selected() {
   return (
