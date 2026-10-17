@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { AccountDeletion } from "../components/account-deletion";
-import type { ProductUI } from "@everr/app/product/ui";
+import type { ProductUI } from "@everr/app/composition";
 import {
   OrganizationMenuItems,
   WorkspaceMenu,

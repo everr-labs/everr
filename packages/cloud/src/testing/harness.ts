@@ -1,7 +1,7 @@
 import type { MigrationConfig } from "drizzle-orm/migrator";
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@everr/app/data/alerting/delivery/defaults";
-import { organization } from "@everr/app/db/schema/index";
+import { organization } from "@everr/app/db/schema";
 import { setTestDatabase } from "@everr/app/server/alerting/testing/db-proxy";
 import { TEST_ORG } from "@everr/app/server/alerting/testing/fixtures";
 import { failedJobs, pendingJobs, runDueJobs } from "@everr/app/server/alerting/testing/job-driver";

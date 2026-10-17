@@ -15,8 +15,6 @@ import {
   appAliases,
   appDirectory,
   appRoutes,
-  installationComposition,
-  prepareComposition,
   type AppComposition,
 } from "../vite.app";
 
@@ -26,6 +24,37 @@ async function generateRoutes(composition: AppComposition) {
 }
 
 const roots: string[] = [];
+function writeConfig(
+  directory: string,
+  overrides: Record<string, string[]> = {},
+) {
+  writeFileSync(
+    resolve(directory, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        paths: {
+          "@/*": ["./src/*"],
+          ...Object.fromEntries(
+            [
+              "server",
+              "client",
+              "product",
+              "navigation",
+              "dashboards",
+              "ui",
+              "pages",
+            ].map((name) => [
+              `@composition/${name}`,
+              ["./src/arbitrary-name.tsx"],
+            ]),
+          ),
+          "@composition/routes": ["./src/routeTree.gen.ts"],
+          ...overrides,
+        },
+      },
+    }),
+  );
+}
 function fixture(): AppComposition {
   const directory = mkdtempSync(resolve(tmpdir(), "application-composition-"));
   roots.push(directory);
@@ -34,16 +63,9 @@ function fixture(): AppComposition {
     resolve(directory, "src/arbitrary-name.tsx"),
     "import { createFileRoute } from '@tanstack/react-router'; export const Route = createFileRoute('/example')({});",
   );
+  writeConfig(directory);
   return {
-    ...installationComposition,
     directory,
-    modules: {
-      server: resolve(directory, "src/arbitrary-name.tsx"),
-      client: resolve(directory, "src/arbitrary-name.tsx"),
-      product: resolve(directory, "src/arbitrary-name.tsx"),
-      navigation: resolve(directory, "src/arbitrary-name.tsx"),
-      dashboards: resolve(directory, "src/arbitrary-name.tsx"),
-    },
     serverEntries: undefined,
     routes: {
       signedIn: [
@@ -54,7 +76,6 @@ function fixture(): AppComposition {
         },
       ],
     },
-    routeTree: resolve(directory, "src/routeTree.gen.ts"),
   };
 }
 afterEach(() =>
@@ -66,37 +87,85 @@ afterEach(() =>
 it("keeps URLs and parent guards when a registered source file moves", async () => {
   const composition = fixture();
   await generateRoutes(composition);
-  let tree = readFileSync(composition.routeTree, "utf8");
+  let tree = readFileSync(
+    resolve(composition.directory, "src/routeTree.gen.ts"),
+    "utf8",
+  );
   expect(tree).toContain("fullPath: '/example'");
   expect(tree).toContain("parentRoute: typeof routesWelcome_signedInRoute");
   const moved = resolve(composition.directory, "src/renamed.tsx");
   renameSync(composition.routes.signedIn![0].file, moved);
   composition.routes.signedIn![0].file = moved;
-  for (const name of Object.keys(
-    composition.modules,
-  ) as (keyof typeof composition.modules)[])
-    composition.modules[name] = moved;
+  writeConfig(
+    composition.directory,
+    Object.fromEntries(
+      [
+        "server",
+        "client",
+        "product",
+        "navigation",
+        "dashboards",
+        "ui",
+        "pages",
+      ].map((name) => [`@composition/${name}`, ["./src/renamed.tsx"]]),
+    ),
+  );
   await generateRoutes(composition);
-  tree = readFileSync(composition.routeTree, "utf8");
+  tree = readFileSync(
+    resolve(composition.directory, "src/routeTree.gen.ts"),
+    "utf8",
+  );
   expect(tree).toContain("fullPath: '/example'");
   expect(tree).toContain("./renamed");
   expect(tree).not.toContain("./arbitrary-name");
 });
-it("derives compiler module selection from the same entries as the bundler", () => {
+it("reads module selection from tsconfig without writing files", () => {
   const composition = fixture();
-  prepareComposition(composition);
-  const generated = JSON.parse(
-    readFileSync(
-      resolve(composition.directory, "tsconfig.composition.json"),
-      "utf8",
-    ),
+  const file = resolve(composition.directory, "tsconfig.json");
+  const before = readFileSync(file, "utf8");
+  expect(appAliases(composition)).toContainEqual({
+    find: "@composition/server",
+    replacement: resolve(composition.directory, "src/arbitrary-name.tsx"),
+  });
+  expect(appRoutes(composition).generatedRouteTree).toBe(
+    resolve(composition.directory, "src/routeTree.gen.ts"),
   );
-  expect(Object.keys(generated.compilerOptions.paths).sort()).toEqual(
-    ["@/*", ...appAliases(composition).map((alias) => alias.find)].sort(),
+  expect(readFileSync(file, "utf8")).toBe(before);
+});
+it("uses TypeScript's inherited baseUrl and accepts JSONC", () => {
+  const composition = fixture();
+  const configFile = resolve(composition.directory, "tsconfig.json");
+  const config = JSON.parse(readFileSync(configFile, "utf8"));
+  config.extends = "./base.json";
+  for (const targets of Object.values(
+    config.compilerOptions.paths,
+  ) as string[][])
+    targets[0] = targets[0].replace("./src/", "./");
+  writeFileSync(
+    resolve(composition.directory, "base.json"),
+    JSON.stringify({
+      compilerOptions: { baseUrl: "./src" },
+    }),
   );
-  expect(generated.compilerOptions.paths["@composition/routes"]).toEqual([
-    "./src/routeTree.gen.ts",
-  ]);
+  writeFileSync(
+    configFile,
+    `// Application-owned module mappings\n${JSON.stringify(config)}`,
+  );
+  expect(appAliases(composition)).toContainEqual({
+    find: "@composition/server",
+    replacement: resolve(composition.directory, "src/arbitrary-name.tsx"),
+  });
+});
+
+it.each([
+  { "@composition/server": [] },
+  { "@composition/server": ["./src/arbitrary-name.tsx", "./src/fallback.tsx"] },
+  { "@composition/server": ["./src/*"] },
+  { "@composition/unknown": ["./src/arbitrary-name.tsx"] },
+])("rejects ambiguous or unsupported composition mappings: %j", (overrides) => {
+  const composition = fixture();
+  writeConfig(composition.directory, overrides);
+  expect(() => appAliases(composition)).toThrow();
 });
 it("rejects duplicate route registration", () => {
   const composition = fixture();
@@ -106,8 +175,9 @@ it("rejects duplicate route registration", () => {
 
 it("rejects registered files from another package", () => {
   const composition = fixture();
-  composition.routes.signedIn![0].file = installationComposition.modules.server;
+  const foreign = resolve(appDirectory, "src/product/client.ts");
+  composition.routes.signedIn![0].file = foreign;
   expect(() => appRoutes(composition)).toThrow(/must belong/);
-  composition.modules.server = installationComposition.modules.server;
-  expect(() => prepareComposition(composition)).toThrow(/must belong/);
+  writeConfig(composition.directory, { "@composition/server": [foreign] });
+  expect(() => appAliases(composition)).toThrow(/must belong/);
 });

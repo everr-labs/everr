@@ -1,4 +1,4 @@
-import type { ApplicationNavigation } from "@everr/app/product/navigation";
+import type { ApplicationNavigation } from "@everr/app/composition";
 import { redirect } from "@tanstack/react-router";
 import {
   afterOrganizationSelected,

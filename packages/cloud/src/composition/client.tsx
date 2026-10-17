@@ -1,7 +1,5 @@
-import {
-  defaultProductClient,
-  type ProductClient,
-} from "@everr/app/product/client";
+import type { ProductClient } from "@everr/app/composition";
+import { defaultProductClient } from "@everr/app/product/client";
 
 export const productClient = {
   ...defaultProductClient,

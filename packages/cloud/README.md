@@ -113,19 +113,27 @@ pnpm --filter @everr/app-cloud test
 pnpm --filter @everr/app-cloud db:migrate
 ```
 
-`composition.ts` is the single declaration of selected modules and added routes.
-Routes attach to named shared layouts and specify their URL and source file;
-they do not need to mirror shared source directories. TanStack generates this
-package's route tree and splits registered route components normally.
-`tsconfig.composition.json` is generated from the same module declaration for
-TypeScript and editors. `src/routeTree.gen.ts` is checked in, just as it is in the
-shared application. TanStack Start regenerates it during development and builds;
-tests and typechecks consume the checked-in file. Commit generated changes
-alongside changes to routes or composition entries.
+`tsconfig.json` selects the implementation modules through named
+`@composition/*` paths. TypeScript, Vite, and Vitest use those same mappings;
+there is no generated compiler configuration. The private `@/*` mapping points
+to the shared application's source because that source retains internal alias
+imports. Cloud source uses public `@everr/app` exports instead.
+
+`composition.ts` registers added routes. Routes attach to named shared layouts
+and specify their URL and source file; they do not need to mirror shared source
+directories. TanStack generates this package's route tree and splits registered
+route components normally. `src/routeTree.gen.ts` is checked in, just as it is in
+the shared application. TanStack Start regenerates it during development and
+builds; tests and typechecks consume the checked-in file. Commit generated
+changes alongside route changes. Restart development after changing module
+mappings.
 
 `src/composition/pages.tsx` owns the members entitlement decision.
 `src/composition/ui.tsx` registers workspace switching, billing navigation,
 welcome actions, signup links, account-deletion UI, and CLI recovery copy.
+Adapter types come from the type-only `@everr/app/composition` entry. Shared
+features use `@everr/app/members`, `@everr/app/account-settings/dialog`,
+`@everr/app/account-settings/actions`, and `@everr/app/page-layout`.
 Shared modules are imported through explicit `@everr/app` exports. Import checks
 run through `pnpm check:boundaries` at the repository root, in the pre-commit
 hook, and in CI. They reject relative imports into other

@@ -1,9 +1,9 @@
-import { OrganizationMembersPage } from "@everr/app/components/users-management/members-page";
+import { OrganizationMembersPage } from "@everr/app/members";
 import { getActiveOrgPolicy } from "@everr/app/data/product";
 import type {
   ApplicationPages,
   OrganizationPageProps,
-} from "@everr/app/product/pages";
+} from "@everr/app/composition";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { MembersUnavailable } from "../components/members-unavailable";
 

@@ -13,7 +13,7 @@ vi.mock("@everr/app/lib/auth-client", () => ({
     useActiveOrganization: mocks.useActiveOrganization,
   },
 }));
-vi.mock("@everr/app/data/account-settings", () => ({
+vi.mock("@everr/app/account-settings/actions", () => ({
   deleteCurrentUserAccount: mocks.deleteCurrentUserAccount,
 }));
 vi.mock("@tanstack/react-router", () => ({

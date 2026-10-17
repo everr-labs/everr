@@ -1,5 +1,7 @@
-import type { BuiltinDashboard } from "@everr/app/data/dashboards/built-in/types";
-import type { ApplicationDashboards } from "@everr/app/product/dashboards";
+import type {
+  ApplicationDashboards,
+  BuiltinDashboard,
+} from "@everr/app/composition";
 import { parse } from "yaml";
 import source from "./data/dashboards/telemetry-usage.yaml?raw";
 

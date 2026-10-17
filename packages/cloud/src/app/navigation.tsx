@@ -19,7 +19,7 @@ export function OrganizationMenuItems() {
 }
 
 import { OrganizationSwitcher } from "../components/organization-switcher";
-import type { WelcomeActionProps } from "@everr/app/product/ui";
+import type { WelcomeActionProps } from "@everr/app/composition";
 
 export function WelcomeActions(props: WelcomeActionProps) {
   const pathname = useLocation({ select: (location) => location.pathname });

@@ -29,7 +29,7 @@ Cloud lives in `packages/cloud`; the default application and shared functionalit
 live in `packages/app`. There is no dependency from app to cloud.
 
 `packages/app/vite.app.ts` defines the typed build composition.
-`packages/cloud/composition.ts` supplies the selected entry modules and registers
+`packages/cloud/composition.ts` registers
 additional routes under `welcome`, `signedIn`, and `organizationDashboard`.
 These are named attachment points, not matching source-directory conventions.
 Route registrations use native TanStack virtual routes, preserving route
@@ -38,21 +38,32 @@ layout files have a `-` prefix to exclude them from physical discovery because
 they are registered explicitly. The rest of the shared route tree stays in its
 existing directories.
 
-`tsconfig.composition.json` in each package is generated from that same
-composition. It is tracked for editors and refreshed by Vite during development
-and builds. Do not maintain a second list of selected modules in `tsconfig.json`.
+Each application's ordinary `tsconfig.json` declares its complete selection of
+named `@composition/*` modules. Vite and Vitest read those mappings, including
+`@/*`, using TypeScript's config parser. Named entries remain subject to package
+ownership checks and implementations retain explicit interfaces. The generated
+compiler configs and their writer have been removed. Builds, tests, and
+typechecks no longer write compiler configuration. Restart development after
+changing module mappings.
+
+Cloud's `@/*` mapping resolves internal imports in shared source. Cloud source
+itself uses public package exports. The mapping currently exposes the installed
+package's source layout; tightening the public API remains separate follow-up
+work. All named composition aliases have shared consumers even when they have
+no direct cloud consumer.
+
 Both applications now check in `src/routeTree.gen.ts`. TanStack Start owns
 generation during development and builds, including its type-registration
 footer. Typechecking and the cloud route integration tests consume the
 checked-in files without generation. Most routing unit tests construct smaller
 trees or mock the application tree.
 The standalone generator and both preparation scripts have been removed.
-After changing routes or composition entries, run development or a build and
-commit the generated changes with the source changes. This generation
-simplification is included in this checkpoint. Both production builds, both plain
-TypeScript checks, 26 route integration tests, four composition tests, Oxlint,
-and Fallow passed. Hash checks confirmed that tests and typechecks leave both
-route trees and compiler path configurations unchanged.
+After changing routes, run development or a build and commit the generated
+changes with the source changes. Route-generation simplification was committed
+as `86f56bfc5`. The compiler-configuration simplification is included in this checkpoint.
+Both production builds, both TypeScript checks, nine composition tests, 37
+focused cloud tests, Oxlint boundary checks and its 122 fixtures, and Fallow
+passed for this batch. Both checked-in route trees remain unchanged.
 
 Oxlint checks source-package boundaries through `pnpm check:boundaries`, the
 pre-commit hook, and CI. Build configuration no longer scans source imports. Relative imports must stay in the owning package; shared internals
@@ -64,6 +75,32 @@ shared filenames. Generated route trees and `.md?raw` documentation assets have
 explicit exceptions. This prevents accidental coupling, not deliberate changes
 to the enforcement itself. The public export surface is still broad and must
 be treated as an API when packages are versioned separately.
+
+### Public package interface
+
+This checkpoint reduces app exports from 131 to 117 without moving
+implementation files. `@everr/app/composition` explicitly re-exports adapter
+types only; it does not load default implementations. Members, account-settings
+dialog/actions, and page-layout have capability entry points. Runtime factories
+and client defaults remain separate. Removed paths have no compatibility aliases;
+cloud consumers and mocks use the new interface. Duplicate schema/environment
+paths and unused dashboard/root-route exports have also been removed. Boundary
+fixtures reject the former page-contract and member-component paths across all
+ten checked import syntaxes (142 fixtures total).
+
+Verification for this export pass: both typechecks and production builds,
+52 focused cloud UI/routing/data tests, boundary lint and fixtures, and Fallow
+passed. Browser checks confirmed both member pages and the cloud account
+settings dialog; no deletion was submitted. Generated route trees did not
+change. This pass and the preceding compiler-config simplification are included in
+this checkpoint.
+
+The public interface is still wider than desired. Many remaining exports serve
+cloud tests of shared internals, especially alerting and route guards. Address
+test ownership and reusable test harnesses before removing those exports. Merely
+renaming them under a testing prefix would leave the coupling intact. Shared
+runtime helpers also need selective capability interfaces; do not combine
+browser and server dependencies into one runtime barrel.
 
 ### UI ownership
 
@@ -98,17 +135,12 @@ The implementation improves ownership and makes contracts explicit, but still
 has tooling debt. Passing verification establishes compatibility, not simplicity.
 The following improvements are proposed, not implemented, in priority order:
 
-1. Remove TypeScript-config generation. Route generation is now owned by
-   TanStack Start, with both route trees checked in and no copied Start footer.
-   The proposed next step is to declare module selection in each application's
-   ordinary `tsconfig.json` and derive Vite/Vitest aliases from those same paths.
-   This would remove `tsconfig.composition.json` and its writer while preserving
-   explicit module contracts and ownership checks.
-2. Narrow the shared package's public API. Prefer a few deliberate entry points
-   for meaningful capabilities, such as members management and account settings,
-   over a growing catalogue of exported internal files. This limits accidental
-   coupling and makes separate package versioning and repository extraction easier.
-3. Keep UI assembly close to each application's entry points. Cloud should
+1. Continue narrowing the shared package's public interface. The first pass
+   consolidates adapter types and gives members, account settings, and layout
+   stable entry points. Next address test-only exports through test ownership and
+   shared harnesses, then group runtime helpers where a capability can hide
+   meaningful implementation details. Preserve useful behavior coverage.
+2. Keep UI assembly close to each application's entry points. Cloud should
    assemble its menus, account page, and welcome experience from shared
    components; the default application should assemble its ordinary experience.
    Reduce the responsibilities of `ProductUI`, which currently mixes contribution
@@ -118,8 +150,7 @@ The following improvements are proposed, not implemented, in priority order:
 
 Keep the explicit native route registrations. They make ownership visible and
 preserve TanStack routing and code splitting without matching-file overrides.
-Address generation first, then tighten the public API and make
-targeted UI assembly changes. Do not replace this work with a general plugin
+Next, tighten the public API and make targeted UI assembly changes. Do not replace this work with a general plugin
 framework or move the whole source tree.
 
 ### Oxlint package-boundary enforcement
@@ -207,6 +238,9 @@ Signed-in browser checks used a disposable PostgreSQL database and the local
 `.auth` credentials. They verified ordinary member management in app, the Hobby
 upgrade screen in cloud, both menus, and the different account-deletion dialogs.
 No deletion was submitted. Setup, authentication redirects, and the different sign-in footers were also checked.
+The compiler-configuration batch repeated signed-in member-page and menu checks
+for both production builds using a disposable database. Both selected the
+expected implementations.
 These checks do not constitute a complete release rehearsal.
 
 Before release, exercise a complete fresh Compose lifecycle: real ingestion and

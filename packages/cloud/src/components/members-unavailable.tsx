@@ -1,4 +1,4 @@
-import { PageHeader } from "@everr/app/components/page-header";
+import { PageHeader } from "@everr/app/page-layout";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,

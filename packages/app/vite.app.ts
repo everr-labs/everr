@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 export const appDirectory = `${import.meta.dirname}/`;
 
@@ -19,12 +20,7 @@ export type RegisteredRoute = (
 /** Build-time inputs supplied by the application that composes the product. */
 export interface AppComposition {
   directory: string;
-  modules: Record<
-    "server" | "client" | "product" | "navigation" | "dashboards",
-    string
-  > & { ui?: string; pages?: string };
   routes: Partial<Record<keyof typeof routeMounts, RegisteredRoute[]>>;
-  routeTree: string;
   cssSources?: string[];
   serverEntries?: Record<string, string>;
 }
@@ -34,23 +30,6 @@ export const installationComposition: AppComposition = {
   serverEntries: {
     recovery: fileURLToPath(
       new URL("./src/app/commands/recovery.ts", import.meta.url),
-    ),
-  },
-  modules: {
-    server: fileURLToPath(
-      new URL("./src/app/composition/server.ts", import.meta.url),
-    ),
-    client: fileURLToPath(
-      new URL("./src/app/composition/client.tsx", import.meta.url),
-    ),
-    product: fileURLToPath(
-      new URL("./src/app/composition/product.ts", import.meta.url),
-    ),
-    navigation: fileURLToPath(
-      new URL("./src/app/composition/navigation.ts", import.meta.url),
-    ),
-    dashboards: fileURLToPath(
-      new URL("./src/app/composition/dashboards.ts", import.meta.url),
     ),
   },
   routes: {
@@ -72,33 +51,100 @@ export const installationComposition: AppComposition = {
       },
     ],
   },
-  routeTree: fileURLToPath(new URL("./src/routeTree.gen.ts", import.meta.url)),
 };
 
-export function compositionModules(composition: AppComposition) {
-  return {
-    pages: fileURLToPath(new URL("./src/product/pages.ts", import.meta.url)),
-    ui: fileURLToPath(new URL("./src/product/ui.tsx", import.meta.url)),
-    ...composition.modules,
-    routes: composition.routeTree,
-  };
+const compositionNames = [
+  "server",
+  "client",
+  "product",
+  "navigation",
+  "dashboards",
+  "ui",
+  "pages",
+  "routes",
+] as const;
+
+/** Each application declares its own complete module selection in tsconfig. */
+function compositionPaths(composition: AppComposition) {
+  const file = resolve(composition.directory, "tsconfig.json");
+  const { config, error } = ts.readConfigFile(file, ts.sys.readFile);
+  if (error)
+    throw new Error(ts.flattenDiagnosticMessageText(error.messageText, "\n"));
+  const parsed = ts.parseJsonConfigFileContent(
+    config,
+    ts.sys,
+    composition.directory,
+    undefined,
+    file,
+  );
+  if (parsed.errors.length)
+    throw new Error(
+      parsed.errors
+        .map((error) =>
+          ts.flattenDiagnosticMessageText(error.messageText, "\n"),
+        )
+        .join("\n"),
+    );
+  const paths = config.compilerOptions?.paths;
+  const names = [
+    "@/*",
+    ...compositionNames.map((name) => `@composition/${name}`),
+  ];
+  for (const name of Object.keys(paths ?? {})) {
+    if (name.startsWith("@composition/") && !names.includes(name))
+      throw new Error(`Unknown composition module: ${name}`);
+  }
+  const entries = Object.fromEntries(
+    names.map((name) => {
+      const targets = paths?.[name];
+      if (
+        !Array.isArray(targets) ||
+        targets.length !== 1 ||
+        typeof targets[0] !== "string"
+      )
+        throw new Error(`${file}: ${name} must map to exactly one path`);
+      const target = targets[0];
+      if (
+        name === "@/*"
+          ? !target.endsWith("/*") || target.slice(0, -1).includes("*")
+          : target.includes("*")
+      )
+        throw new Error(`${file}: invalid path for ${name}`);
+      const entry = resolve(
+        composition.directory,
+        parsed.options.baseUrl ?? ".",
+        target,
+      );
+      if (name !== "@/*")
+        assertOwnedFile(composition, entry, name === "@composition/routes");
+      return [name, entry];
+    }),
+  );
+  for (const entry of Object.values(composition.serverEntries ?? {}))
+    assertOwnedFile(composition, entry);
+  return entries;
 }
 
 export function appAliases(composition = installationComposition) {
-  return Object.entries(compositionModules(composition)).map(
-    ([name, entry]) => ({
-      find: `@composition/${name}`,
-      replacement: entry,
-    }),
+  return Object.entries(compositionPaths(composition)).map(([name, entry]) =>
+    name === "@/*"
+      ? { find: /^@\/(.*)$/, replacement: `${entry.slice(0, -1)}$1` }
+      : { find: name, replacement: entry },
   );
 }
 
-function assertOwnedFile(composition: AppComposition, file: string) {
-  if (!existsSync(file))
+function assertOwnedFile(
+  composition: AppComposition,
+  file: string,
+  generated = false,
+) {
+  if (!generated && !existsSync(file))
     throw new Error(`Composition entry does not exist: ${file}`);
   const path = relative(
     realpathSync(composition.directory),
-    realpathSync(file),
+    existsSync(file)
+      ? realpathSync(file)
+      : resolve(realpathSync(dirname(file)), basename(file)),
   );
   if (
     isAbsolute(path) ||
@@ -111,37 +157,6 @@ function assertOwnedFile(composition: AppComposition, file: string) {
       `Composition entry must belong to its application package: ${file}`,
     );
   }
-}
-
-/** Generated config is committed for editors and refreshed before builds/checks. */
-export function prepareComposition(composition: AppComposition) {
-  for (const file of Object.values(composition.modules))
-    assertOwnedFile(composition, file);
-  for (const file of Object.values(composition.serverEntries ?? {}))
-    assertOwnedFile(composition, file);
-  const ownApp = resolve(composition.directory) === resolve(appDirectory);
-  const modulePath = (file: string) => {
-    const appRelative = relative(appDirectory, file);
-    return !ownApp && !appRelative.startsWith("..")
-      ? `./node_modules/@everr/app/${appRelative}`
-      : `./${relative(composition.directory, file)}`;
-  };
-  const config = {
-    compilerOptions: {
-      paths: {
-        "@/*": [ownApp ? "./src/*" : "./node_modules/@everr/app/src/*"],
-        ...Object.fromEntries(
-          Object.entries(compositionModules(composition)).map(
-            ([name, file]) => [`@composition/${name}`, [modulePath(file)]],
-          ),
-        ),
-      },
-    },
-  };
-  const file = resolve(composition.directory, "tsconfig.composition.json");
-  const content = `${JSON.stringify(config, null, 2)}\n`;
-  if (!existsSync(file) || readFileSync(file, "utf8") !== content)
-    writeFileSync(file, content);
 }
 
 export function appRoutes(composition: AppComposition) {
@@ -177,7 +192,7 @@ export function appRoutes(composition: AppComposition) {
   }
   return {
     routesDirectory: resolve(appDirectory, "src"),
-    generatedRouteTree: composition.routeTree,
+    generatedRouteTree: compositionPaths(composition)["@composition/routes"],
     routeFileIgnorePattern: "\\.test\\.",
     virtualRouteConfig: {
       type: "root" as const,

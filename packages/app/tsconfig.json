@@ -1,26 +1,12 @@
 {
-  "include": [
-    "**/*.ts",
-    "**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules",
-    "**/*.test.ts",
-    "**/*.test.tsx"
-  ],
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
     "module": "ESNext",
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "types": [
-      "vite/client",
-      "vite-plugin-svgr/client"
-    ],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "vite-plugin-svgr/client"],
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": false,
@@ -30,7 +16,17 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
-  },
-  "extends": "./tsconfig.composition.json"
+    "noUncheckedSideEffectImports": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@composition/pages": ["./src/product/pages.ts"],
+      "@composition/ui": ["./src/product/ui.tsx"],
+      "@composition/server": ["./src/app/composition/server.ts"],
+      "@composition/client": ["./src/app/composition/client.tsx"],
+      "@composition/product": ["./src/app/composition/product.ts"],
+      "@composition/navigation": ["./src/app/composition/navigation.ts"],
+      "@composition/dashboards": ["./src/app/composition/dashboards.ts"],
+      "@composition/routes": ["./src/routeTree.gen.ts"]
+    }
+  }
 }

@@ -34,6 +34,8 @@ test("Oxlint enforces package boundaries across import syntaxes without general 
       "../../app/src/product/client",
       "../../app/src/does-not-exist",
       "@everr/app/src/product/client",
+      "@everr/app/product/pages",
+      "@everr/app/components/users-management/members-page",
       "@/product/client",
       "@composition/ui/private",
       "@composition/ui/../../private",

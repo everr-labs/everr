@@ -1,15 +1,19 @@
 {
-  "extends": [
-    "@everr/app/tsconfig",
-    "./tsconfig.composition.json"
-  ],
-  "include": [
-    "src",
-    "*.ts",
-    "scripts",
-    "node_modules/@everr/app/src"
-  ],
-  "compilerOptions": {},
+  "extends": "@everr/app/tsconfig",
+  "include": ["src", "*.ts", "scripts", "node_modules/@everr/app/src"],
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./node_modules/@everr/app/src/*"],
+      "@composition/pages": ["./src/composition/pages.tsx"],
+      "@composition/ui": ["./src/composition/ui.tsx"],
+      "@composition/server": ["./src/runtime.ts"],
+      "@composition/client": ["./src/composition/client.tsx"],
+      "@composition/product": ["./src/composition/product.ts"],
+      "@composition/navigation": ["./src/navigation.ts"],
+      "@composition/dashboards": ["./src/dashboards.ts"],
+      "@composition/routes": ["./src/routeTree.gen.ts"]
+    }
+  },
   "exclude": [
     "node_modules/@everr/app/src/app",
     "node_modules/@everr/app/src/routeTree.gen.ts"

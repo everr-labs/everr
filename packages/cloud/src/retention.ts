@@ -1,6 +1,6 @@
 export type Plan = "hobby" | "pro";
 
-import type { TenantRetention } from "@everr/app/product/retention";
+import type { TenantRetention } from "@everr/app/composition";
 
 // Daily partitions are keyed by retention_days. Keep the distinct windows
 // bounded; their sum determines the approximate live partition count per table.

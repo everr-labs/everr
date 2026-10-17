@@ -1,4 +1,4 @@
-import type { ApplicationServer } from "@everr/app/product/server";
+import type { ApplicationServer } from "@everr/app/composition";
 import * as clickhouse from "./app/clickhouse";
 import * as storageReadiness from "./app/storage-readiness";
 

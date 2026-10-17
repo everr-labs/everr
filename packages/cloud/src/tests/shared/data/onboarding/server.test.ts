@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 const store = vi.hoisted(() => ({ getStatus: vi.fn(), complete: vi.fn() }));
 vi.mock("@everr/app/db/client", () => ({ db: {} }));
 vi.mock("@everr/app/data/onboarding/store", () => ({ createOnboardingStore: () => store }));
-vi.mock("@everr/app/env/index", () => ({
+vi.mock("@everr/app/env", () => ({
   env: { BETTER_AUTH_URL: "https://app.example.test" },
 }));
 

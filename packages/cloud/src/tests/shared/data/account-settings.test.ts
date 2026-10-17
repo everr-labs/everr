@@ -2,7 +2,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readOrgEntitlement } from "../../../billing-data.server";
 import { auth } from "@everr/app/lib/auth.server";
-import { deleteCurrentUserAccount } from "@everr/app/data/account-settings";
+import { deleteCurrentUserAccount } from "@everr/app/account-settings/actions";
 
 vi.mock("../../../billing-data.server", () => ({ readOrgEntitlement: vi.fn() }));
 

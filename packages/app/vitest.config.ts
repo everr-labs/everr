@@ -26,10 +26,7 @@ export function createAppTestConfig(
         "@tanstack/react-router",
         "@tanstack/react-query",
       ],
-      alias: [
-        ...appAliases(composition),
-        { find: /^@\/(.*)$/, replacement: `${appDirectory}src/$1` },
-      ],
+      alias: [...appAliases(composition)],
     },
     plugins: [viteReact(), svgr({ svgrOptions: { dimensions: false } })],
     test: {

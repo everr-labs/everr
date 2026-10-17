@@ -4,7 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 
 const policy = vi.hoisted(() => vi.fn());
 vi.mock("@everr/app/data/product", () => ({ getActiveOrgPolicy: policy }));
-vi.mock("@everr/app/components/users-management/members-page", () => ({
+vi.mock("@everr/app/members", () => ({
   OrganizationMembersPage: () => <div>Member management</div>,
 }));
 vi.mock("../components/members-unavailable", () => ({
