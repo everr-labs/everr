@@ -12,7 +12,7 @@
     "test": "vitest run --coverage",
     "test:ci": "vitest run",
     "test:watch": "vitest --watch --coverage",
-    "typecheck": "node --import tsx scripts/prepare-composition.ts && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "tsx --tsconfig tsconfig.json scripts/migrate.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts"
@@ -236,7 +236,6 @@
     "./product/dashboards": "./src/product/dashboards.ts",
     "./product/pages": "./src/product/pages.ts",
     "./components/users-management/members-page": "./src/components/users-management/members-page.tsx",
-    "./components/account-settings/delete-account-dialog": "./src/components/account-settings/delete-account-dialog.tsx",
-    "./build/generate": "./build/generate.ts"
+    "./components/account-settings/delete-account-dialog": "./src/components/account-settings/delete-account-dialog.tsx"
   }
 }

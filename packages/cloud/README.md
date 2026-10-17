@@ -118,7 +118,10 @@ Routes attach to named shared layouts and specify their URL and source file;
 they do not need to mirror shared source directories. TanStack generates this
 package's route tree and splits registered route components normally.
 `tsconfig.composition.json` is generated from the same module declaration for
-TypeScript and editors. Tests and typechecks generate routes automatically.
+TypeScript and editors. `src/routeTree.gen.ts` is checked in, just as it is in the
+shared application. TanStack Start regenerates it during development and builds;
+tests and typechecks consume the checked-in file. Commit generated changes
+alongside changes to routes or composition entries.
 
 `src/composition/pages.tsx` owns the members entitlement decision.
 `src/composition/ui.tsx` registers workspace switching, billing navigation,

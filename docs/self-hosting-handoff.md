@@ -39,10 +39,20 @@ they are registered explicitly. The rest of the shared route tree stays in its
 existing directories.
 
 `tsconfig.composition.json` in each package is generated from that same
-composition. It is tracked for editors and refreshed by builds, tests, and
-typechecks. Do not maintain a second list of selected modules in `tsconfig.json`.
-Tests and typechecks invoke TanStack's generator so they work before a Vite
-build, including when cloud's generated route tree does not exist yet.
+composition. It is tracked for editors and refreshed by Vite during development
+and builds. Do not maintain a second list of selected modules in `tsconfig.json`.
+Both applications now check in `src/routeTree.gen.ts`. TanStack Start owns
+generation during development and builds, including its type-registration
+footer. Typechecking and the cloud route integration tests consume the
+checked-in files without generation. Most routing unit tests construct smaller
+trees or mock the application tree.
+The standalone generator and both preparation scripts have been removed.
+After changing routes or composition entries, run development or a build and
+commit the generated changes with the source changes. This generation
+simplification is included in this checkpoint. Both production builds, both plain
+TypeScript checks, 26 route integration tests, four composition tests, Oxlint,
+and Fallow passed. Hash checks confirmed that tests and typechecks leave both
+route trees and compiler path configurations unchanged.
 
 Oxlint checks source-package boundaries through `pnpm check:boundaries`, the
 pre-commit hook, and CI. Build configuration no longer scans source imports. Relative imports must stay in the owning package; shared internals
@@ -88,12 +98,12 @@ The implementation improves ownership and makes contracts explicit, but still
 has tooling debt. Passing verification establishes compatibility, not simplicity.
 The following improvements are proposed, not implemented, in priority order:
 
-1. Simplify route and type generation. Let TanStack own route generation and
-   generated types while composition supplies explicit route configuration.
-   Investigate removing the manually reproduced TanStack Start registration
-   footer in `packages/app/build/generate.ts`. Also reconsider refreshing tracked
-   TypeScript configuration during validation, which currently makes checks
-   write files. Preserve typechecking from a fresh checkout without a prior build.
+1. Remove TypeScript-config generation. Route generation is now owned by
+   TanStack Start, with both route trees checked in and no copied Start footer.
+   The proposed next step is to declare module selection in each application's
+   ordinary `tsconfig.json` and derive Vite/Vitest aliases from those same paths.
+   This would remove `tsconfig.composition.json` and its writer while preserving
+   explicit module contracts and ownership checks.
 2. Narrow the shared package's public API. Prefer a few deliberate entry points
    for meaningful capabilities, such as members management and account settings,
    over a growing catalogue of exported internal files. This limits accidental
@@ -187,8 +197,9 @@ interface. The default and cloud applications have passed typechecking,
 production builds, full test suites, and Fallow. A route-registration test moves
 a registered source file and checks that its URL and authenticated parent stay
 unchanged. Import tests cover forbidden relative, alias, export, type, dynamic,
-and mock access. Cloud typechecking was also exercised after removing its
-generated route tree.
+and mock access. The previous generation implementation also exercised cloud typechecking
+without its generated tree. The current workflow instead supplies both trees
+in the checkout.
 
 Previous composition verification, before replacing the import scanner: 1,912 app tests and 2,340 cloud tests passed; the external Polar sandbox test was skipped. The Oxlint verification above covers the subsequent tooling change.
 

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { generateComposition } from "./generate";
+import { Generator, getConfig } from "@tanstack/router-generator";
 import {
   renameSync,
   mkdirSync,
@@ -13,11 +13,17 @@ import { resolve } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import {
   appAliases,
+  appDirectory,
   appRoutes,
   installationComposition,
   prepareComposition,
   type AppComposition,
 } from "../vite.app";
+
+async function generateRoutes(composition: AppComposition) {
+  const config = getConfig(appRoutes(composition), appDirectory);
+  await new Generator({ config, root: appDirectory }).run();
+}
 
 const roots: string[] = [];
 function fixture(): AppComposition {
@@ -59,7 +65,7 @@ afterEach(() =>
 
 it("keeps URLs and parent guards when a registered source file moves", async () => {
   const composition = fixture();
-  await generateComposition(composition);
+  await generateRoutes(composition);
   let tree = readFileSync(composition.routeTree, "utf8");
   expect(tree).toContain("fullPath: '/example'");
   expect(tree).toContain("parentRoute: typeof routesWelcome_signedInRoute");
@@ -70,7 +76,7 @@ it("keeps URLs and parent guards when a registered source file moves", async () 
     composition.modules,
   ) as (keyof typeof composition.modules)[])
     composition.modules[name] = moved;
-  await generateComposition(composition);
+  await generateRoutes(composition);
   tree = readFileSync(composition.routeTree, "utf8");
   expect(tree).toContain("fullPath: '/example'");
   expect(tree).toContain("./renamed");

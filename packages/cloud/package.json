@@ -47,7 +47,7 @@
     "dev": "vite --mode cloud",
     "build": "vite build --mode cloud",
     "start": "node .output/server/index.mjs",
-    "typecheck": "node --import tsx scripts/prepare-composition.ts && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run --mode cloud",
     "db:migrate": "tsx --tsconfig tsconfig.json scripts/migrate.ts cloud",
     "db:generate": "drizzle-kit generate",

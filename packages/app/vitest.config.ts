@@ -1,4 +1,3 @@
-import { generateComposition } from "./build/generate.ts";
 import {
   appAliases,
   appDirectory,
@@ -12,11 +11,10 @@ import svgr from "vite-plugin-svgr";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export async function createAppTestConfig(
+export function createAppTestConfig(
   composition: AppComposition = installationComposition,
   root = appDirectory,
 ) {
-  await generateComposition(composition);
   return defineConfig({
     root,
     resolve: {

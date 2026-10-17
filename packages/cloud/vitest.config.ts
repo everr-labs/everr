@@ -4,7 +4,7 @@ import { createAppTestConfig } from "@everr/app/testing/config";
 import { appDirectory } from "@everr/app/build/composition";
 import { cloudComposition } from "./composition";
 
-const config = await createAppTestConfig(
+const config = createAppTestConfig(
   cloudComposition,
   resolve(import.meta.dirname, "./"),
 );

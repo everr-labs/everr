@@ -3,4 +3,3 @@ node_modules/
 .tanstack/
 .env*
 !.env.example
-src/routeTree.gen.ts
