@@ -1,4 +1,5 @@
-import { assertStorageReady } from "@app/storage-readiness";
+import { server } from "@composition/server";
+
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { db } from "@/db/client";
 import {
@@ -9,6 +10,8 @@ import { findOrganizationForMember } from "@/lib/organization-membership.server"
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { getSession } from "@/lib/session.server";
 import { createClickhouseQuery } from "./clickhouse";
+
+const { assertStorageReady } = server;
 
 const authMiddleware = createMiddleware().server(async ({ request, next }) => {
   const session = await getSession({

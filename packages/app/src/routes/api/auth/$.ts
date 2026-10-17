@@ -1,7 +1,10 @@
-import { withIdentityRequest } from "@app/request";
+import { server } from "@composition/server";
+
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "@/lib/auth.server";
 import { runWithDeviceOrgCapture } from "@/lib/cli-device-organization";
+
+const { withIdentityRequest } = server;
 
 // runWithDeviceOrgCapture opens the request-scoped store that carries the
 // device-login org from the /device/token hook into session creation (see

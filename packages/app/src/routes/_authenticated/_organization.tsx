@@ -1,6 +1,9 @@
-import { afterOrganizationSelected } from "@app/storage-readiness";
+import { navigation } from "@composition/navigation";
+
 import { createFileRoute } from "@tanstack/react-router";
 import { requireOrganization } from "@/lib/route-access";
+
+const { afterOrganizationSelected } = navigation;
 
 export const Route = createFileRoute("/_authenticated/_organization")({
   beforeLoad: async (options) => {

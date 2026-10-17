@@ -1,4 +1,3 @@
-import { canOpenSignup } from "@app/signup";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -13,6 +12,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { returnToSchema } from "@/common/return-to";
+import { canOpenSignup } from "@/data/signup";
 import { authClient } from "@/lib/auth-client";
 import {
   AuthPageHeader,

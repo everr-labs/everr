@@ -1,5 +1,5 @@
-import { assertStorageReady } from "@app/storage-readiness";
 import { ClickHouseError } from "@clickhouse/client";
+import { server } from "@composition/server";
 import {
   MCP_MAX_CELL_CHARS,
   MCP_MAX_OUTPUT_CHARS,
@@ -9,6 +9,8 @@ import { previewSqlApi } from "@/lib/clickhouse";
 import { sanitizeSqlApiError } from "@/lib/sql-api-error";
 import { classifySqlQueryError } from "@/lib/sql-api-observability";
 import { truncateWithEllipsis } from "@/lib/truncate";
+
+const { assertStorageReady } = server;
 
 export interface RunSqlResult {
   isError: boolean;

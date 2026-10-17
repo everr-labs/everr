@@ -105,14 +105,10 @@ export function createAppConfig(
           traceDeps: ["tslib*"],
           hooks: {
             "rollup:before": (nitro, config) => {
-              if (composition !== installationComposition || nitro.options.dev)
-                return;
+              if (!composition.serverEntries || nitro.options.dev) return;
               config.input = {
                 index: nitro.options.entry,
-                recovery: new URL(
-                  "./src/app/commands/recovery.ts",
-                  import.meta.url,
-                ).pathname,
+                ...composition.serverEntries,
               };
               const outputs = Array.isArray(config.output)
                 ? config.output

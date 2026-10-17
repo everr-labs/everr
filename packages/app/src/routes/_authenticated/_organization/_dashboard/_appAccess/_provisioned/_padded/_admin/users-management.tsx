@@ -1,4 +1,5 @@
-import { MembersUnavailable } from "@app/pages/members-unavailable";
+import { productUI } from "@composition/ui";
+
 import {
   Card,
   CardAction,
@@ -19,6 +20,8 @@ import {
 } from "@/components/users-management/queries";
 import { getActiveOrgPolicy } from "@/data/product";
 import { authClient } from "@/lib/auth-client";
+
+const { MembersUnavailable } = productUI;
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/users-management",
@@ -46,7 +49,8 @@ function MembersSkeleton() {
 
 function MembersPage() {
   const { canInviteMembers } = Route.useRouteContext();
-  if (!canInviteMembers) return <MembersUnavailable />;
+  if (!canInviteMembers)
+    return MembersUnavailable ? <MembersUnavailable /> : null;
   return <OrganizationMembersPage />;
 }
 

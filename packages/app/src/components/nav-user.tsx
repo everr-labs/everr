@@ -25,11 +25,11 @@ import {
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationAdmin } from "@/lib/organization-role";
-import { useProductUI } from "@/product/ui";
+import type { ProductUI } from "@/product/ui";
 import { useOpenConsentSettings } from "@/telemetry/consent-gate";
 
-export function NavUser() {
-  const { OrganizationMenuItems, WorkspaceMenu } = useProductUI();
+export function NavUser({ ui = {} }: { ui?: ProductUI }) {
+  const { OrganizationMenuItems, WorkspaceMenu } = ui;
   const openConsentSettings = useOpenConsentSettings();
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
@@ -104,7 +104,7 @@ export function NavUser() {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <WorkspaceMenu />
+            {WorkspaceMenu && <WorkspaceMenu />}
             {activeOrg && isAdmin ? (
               <>
                 <DropdownMenuSeparator />
@@ -133,7 +133,7 @@ export function NavUser() {
                       GitHub
                     </DropdownMenuItem>
                   ) : null}
-                  <OrganizationMenuItems />
+                  {OrganizationMenuItems && <OrganizationMenuItems />}
                 </DropdownMenuGroup>
               </>
             ) : null}

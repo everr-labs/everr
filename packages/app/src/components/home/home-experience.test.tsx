@@ -30,7 +30,7 @@ vi.mock("@/lib/auth-client", () => ({ authClient: { apiKey: {} } }));
 
 const initial = (): HomeStatus => ({
   appUrl: "https://app.example.test",
-  ingestEndpoint: "https://ingest.everr.dev/",
+  ingestEndpoint: "https://ingest.example.com/",
   canCreateKeys: true,
   onboardingCompleted: false,
 });
@@ -163,7 +163,7 @@ it("walks the agent path through local verification and finishes onboarding", as
     screen.getByRole("button", { name: "Copy production endpoint" }),
   );
   expect(await navigator.clipboard.readText()).toBe(
-    "https://ingest.everr.dev/",
+    "https://ingest.example.com/",
   );
   expect(screen.queryByText("Telemetry Usage dashboard")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Finish onboarding" }));
@@ -624,7 +624,7 @@ it("copies the installation and workspace login command and shows its ingestion 
   );
   expect(await navigator.clipboard.readText()).toBe(command);
   expect(screen.getByText(persisted.ingestEndpoint)).toBeVisible();
-  expect(screen.queryByText("https://ingest.everr.dev/")).toBeNull();
+  expect(screen.queryByText("https://ingest.example.com/")).toBeNull();
 });
 
 it("asks for administrator configuration when no ingestion endpoint is available", () => {
@@ -635,5 +635,5 @@ it("asks for administrator configuration when no ingestion endpoint is available
   expect(
     screen.queryByRole("button", { name: "Copy production endpoint" }),
   ).toBeNull();
-  expect(screen.queryByText("https://ingest.everr.dev/")).toBeNull();
+  expect(screen.queryByText("https://ingest.example.com/")).toBeNull();
 });

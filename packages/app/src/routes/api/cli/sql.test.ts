@@ -1,19 +1,20 @@
-import { assertStorageReady } from "@app/storage-readiness";
-import { StorageNotReadyError } from "@/common/storage-readiness";
-
-vi.mock("@app/storage-readiness", () => ({ assertStorageReady: vi.fn() }));
-
 import { ClickHouseError } from "@clickhouse/client";
+import { server } from "@composition/server";
 import { trace } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("@/lib/clickhouse", () => ({
-  querySqlApi: vi.fn(),
-}));
+import { StorageNotReadyError } from "@/common/storage-readiness";
 
 import { querySqlApi } from "@/lib/clickhouse";
 import { SCHEMA_PROBE_MESSAGE } from "@/lib/sql-api-error";
 import { Route } from "./sql";
+
+const { assertStorageReady } = server;
+vi.mock("@composition/server", () => ({
+  server: { assertStorageReady: vi.fn() },
+}));
+vi.mock("@/lib/clickhouse", () => ({
+  querySqlApi: vi.fn(),
+}));
 
 const mockedQuerySqlApi = vi.mocked(querySqlApi);
 

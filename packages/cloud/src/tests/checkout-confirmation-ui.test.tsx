@@ -1,13 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentType, ReactNode } from "react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ confirm: vi.fn(), search: vi.fn() }));
 vi.mock("../data/billing", () => ({ confirmOrgCheckout: mocks.confirm }));
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
-  getRouteApi: () => ({ useSearch: mocks.search }),
   Link: ({ children, to, ...props }: { children?: ReactNode; to: string }) => (
     <a href={to} {...props}>
       {children}
@@ -18,6 +17,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 import { Route } from "../routes/_authenticated/_organization/_dashboard/_padded/checkout.success";
 
 const Page = Route.options.component as ComponentType;
+beforeEach(() => {
+  vi.spyOn(Route, "useSearch").mockImplementation(mocks.search);
+});
 afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();

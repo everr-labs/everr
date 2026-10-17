@@ -37,7 +37,7 @@ vi.mock("@everr/app/data/organization-access", () => ({
 }));
 vi.mock("@everr/app/data/product", () => ({
   getActiveOrgPolicy: vi.fn(async () => ({
-    appState: state.suspended ? "suspended" : "hobby",
+    access: state.suspended ? "suspended" : "enabled",
   })),
 }));
 
@@ -49,26 +49,30 @@ const guards = new Set([
   "./routes/_welcome/_signedIn.tsx",
   "./routes/_welcome/_signedIn/_organization.tsx",
 ]);
-for (const path of [...productRouteFiles, ...Object.keys(import.meta.glob("../../routes/**/*.{ts,tsx}")).map((path) => new URL(path, import.meta.url).pathname)]) {
+for (const path of [
+  ...productRouteFiles,
+  ...Object.keys(import.meta.glob("../../routes/**/*.{ts,tsx}")).map(
+    (path) => new URL(path, import.meta.url).pathname,
+  ),
+]) {
   if ([...guards].some((guard) => path.endsWith(guard.slice(1)))) continue;
   vi.doMock(path, () => ({
-    Route:
-      path.endsWith("/routes/__root.tsx")
-        ? createRootRoute({
-            beforeLoad: () => ({
-              session: state.session,
-              createdOrganizationId: state.createdOrganizationId,
-            }),
-          })
-        : createFileRoute()({
-            staticData: path.endsWith("/device.tsx")
-              ? { authEntry: "/auth/sign-up" }
-              : {},
-            loader: () => state.load(path),
+    Route: path.endsWith("/routes/__root.tsx")
+      ? createRootRoute({
+          beforeLoad: () => ({
+            session: state.session,
+            createdOrganizationId: state.createdOrganizationId,
           }),
+        })
+      : createFileRoute()({
+          staticData: path.endsWith("/device.tsx")
+            ? { authEntry: "/auth/sign-up" }
+            : {},
+          loader: () => state.load(path),
+        }),
   }));
 }
-const { routeTree } = await import("@app/route-tree");
+const { routeTree } = await import("@composition/routes");
 
 beforeEach(() => {
   state.session = {
@@ -98,6 +102,14 @@ it("blocks data loaders and preserves the entire destination for pending organiz
   expect(router.state.location.search.returnTo).toBe(
     "/logs?service=api#results",
   );
+  expect(
+    state.load.mock.calls.some(([path]) => path.endsWith("/_explore/logs.tsx")),
+  ).toBe(false);
+});
+it("redirects suspended organizations before loading telemetry", async () => {
+  state.suspended = true;
+  const router = await open("/logs?service=api");
+  expect(router.state.location.pathname).toBe("/billing/suspended");
   expect(
     state.load.mock.calls.some(([path]) => path.endsWith("/_explore/logs.tsx")),
   ).toBe(false);

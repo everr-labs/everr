@@ -75,7 +75,6 @@ vi.mock("@everr/app/telemetry/consent-gate", () => ({
 }));
 
 import { productUI } from "../../../composition/ui";
-import { ProductUIProvider } from "@everr/app/product/ui";
 import { NavUser } from "@everr/app/components/nav-user";
 
 describe("NavUser", () => {
@@ -117,9 +116,7 @@ describe("NavUser", () => {
       render(
         <QueryClientProvider client={queryClient}>
           <SidebarProvider>
-            <ProductUIProvider value={productUI}>
-              <NavUser />
-            </ProductUIProvider>
+            <NavUser ui={productUI} />
           </SidebarProvider>
         </QueryClientProvider>,
       );
@@ -154,9 +151,7 @@ describe("NavUser", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <SidebarProvider>
-          <ProductUIProvider value={productUI}>
-            <NavUser />
-          </ProductUIProvider>
+          <NavUser ui={productUI} />
         </SidebarProvider>
       </QueryClientProvider>,
     );
@@ -183,9 +178,7 @@ describe("NavUser", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <SidebarProvider>
-          <ProductUIProvider value={productUI}>
-            <NavUser />
-          </ProductUIProvider>
+          <NavUser ui={productUI} />
         </SidebarProvider>
       </QueryClientProvider>,
     );
@@ -205,9 +198,7 @@ describe("NavUser", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <SidebarProvider>
-          <ProductUIProvider value={productUI}>
-            <NavUser />
-          </ProductUIProvider>
+          <NavUser ui={productUI} />
         </SidebarProvider>
       </QueryClientProvider>,
     );

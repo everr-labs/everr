@@ -1,8 +1,10 @@
-import { appQuerySettings, sqlApiAccess } from "@app/clickhouse";
 import type { DataFormat } from "@clickhouse/client";
+import { server } from "@composition/server";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
 import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
+
+const { appQuerySettings, sqlApiAccess } = server;
 
 // The client default of 2500ms forces a fresh TLS handshake on most queries
 // against servers with a ~10s keep-alive. Set just under the server

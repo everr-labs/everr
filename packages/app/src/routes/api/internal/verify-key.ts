@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { ingestIdentity } from "@app/ingestion";
+import { server } from "@composition/server";
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "@/env";
 import { hasApiKeyScope } from "@/lib/api-key-scopes";
@@ -8,6 +8,8 @@ import { originPolicyAllows } from "@/lib/public-ingest-keys";
 import { retentionForOrg } from "@/lib/retention.server";
 import type { TenantRetention } from "@/product/retention";
 import { mergeTelemetryIdentity } from "@/telemetry/identity";
+
+const { ingestIdentity } = server;
 
 const INGEST_CONFIG_ID = "ingest";
 

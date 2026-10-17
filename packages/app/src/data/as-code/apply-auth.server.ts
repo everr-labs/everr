@@ -1,4 +1,5 @@
-import { assertStorageReady } from "@app/storage-readiness";
+import { server } from "@composition/server";
+
 import { createMiddleware } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { StorageNotReadyError } from "@/common/storage-readiness";
@@ -14,6 +15,8 @@ import {
 import { createClickhouseQuery } from "@/lib/clickhouse";
 import { getSession } from "@/lib/session.server";
 import { mergeTelemetryIdentity } from "@/telemetry/identity";
+
+const { assertStorageReady } = server;
 
 export interface ApplyAuth {
   organizationId: string;

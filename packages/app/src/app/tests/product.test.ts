@@ -15,7 +15,8 @@ it("permits workspace collaboration", async () => {
 });
 
 it("rejects organization creation and deletion through authentication hooks", async () => {
-  const { organizationHooks, identityLifecycle } = await import("@app/auth");
+  const { server } = await import("@composition/server");
+  const { organizationHooks, identityLifecycle } = await server.loadIdentity();
   await expect(organizationHooks().beforeCreateOrganization()).rejects.toThrow(
     "one workspace",
   );

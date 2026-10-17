@@ -1,4 +1,3 @@
-import { appEnv } from "@app/env";
 import { createEnv } from "@t3-oss/env-core";
 import * as z from "zod";
 import { authEnv } from "./auth";
@@ -6,7 +5,7 @@ import { clickhouseEnv } from "./clickhouse";
 import { dbEnv } from "./db";
 import { ingestEnv } from "./ingest";
 
-const presets = [appEnv, dbEnv, clickhouseEnv, authEnv, ingestEnv] as const;
+const presets = [dbEnv, clickhouseEnv, authEnv, ingestEnv] as const;
 
 export const env = createEnv({
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",

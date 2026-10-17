@@ -1,10 +1,13 @@
-import { additionalBuiltinDashboards } from "@app/dashboard-catalog";
+import { dashboards } from "@composition/dashboards";
+
 import { parse } from "yaml";
 import type { BuiltinDashboard } from "../types";
 
+const { additionalBuiltinDashboards } = dashboards;
+
 /**
  * Shared dashboards are plain YAML files under category directories. The
- * active app can add dashboards through @app/dashboard-catalog. All files
+ * active app can add dashboards through the dashboard composition. All files
  * use the shape `everr apply` reads, plus catalog fields, and are parsed once
  * at module init. Built-ins render live from this catalog under the reserved
  * `built-in` pseudo-project (ADR 0004).

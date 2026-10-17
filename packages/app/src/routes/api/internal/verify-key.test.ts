@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { retentionForDays } from "@/product/retention.test-fixtures";
 import { Route } from "./verify-key";
 
-vi.mock("@app/ingestion", () => ({ ingestIdentity: () => ({}) }));
+vi.mock("@composition/server", () => ({
+  server: { ingestIdentity: () => ({}) },
+}));
 
 vi.mock("@/env", () => ({
   env: {

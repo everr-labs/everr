@@ -1,4 +1,6 @@
-import { additionalBuiltinManifest } from "@app/dashboard-manifest";
+import { productClient } from "@composition/client";
+
+const { additionalBuiltinManifest } = productClient;
 
 /**
  * The catalog's identity strip — id and name only — for surfaces that list

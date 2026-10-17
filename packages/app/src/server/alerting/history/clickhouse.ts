@@ -1,4 +1,5 @@
-import { decorateTelemetryRow } from "@app/telemetry-storage";
+import { server } from "@composition/server";
+
 import type { AlertHistoryEventType } from "@/data/alerting/history/event-types";
 import {
   deterministicDeliveryEventId,
@@ -22,6 +23,8 @@ import {
   resolveAlertServiceName,
   sanitizeAlertError,
 } from "./content";
+
+const { decorateTelemetryRow } = server;
 
 export const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 

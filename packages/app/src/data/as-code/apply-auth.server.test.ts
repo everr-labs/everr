@@ -1,10 +1,23 @@
-import { assertStorageReady } from "@app/storage-readiness";
+import { server } from "@composition/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StorageNotReadyError } from "@/common/storage-readiness";
 
-vi.mock("@app/storage-readiness", () => ({ assertStorageReady: vi.fn() }));
+// Org-name lookup goes through a direct DB select; control its result via orgRows.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { parseAlertingPrincipal } from "@/data/alerting/session";
+import {
+  applyAuthErrorResponse,
+  buildApplyContext,
+  canApplyMutate,
+  extractBearerKey,
+  requireOrgOrApiKeyMiddleware,
+  resolveApplyAuth,
+} from "./apply-auth.server";
 
+const { assertStorageReady } = server;
+vi.mock("@composition/server", () => ({
+  server: { assertStorageReady: vi.fn() },
+}));
 const verifyApiKey = vi.fn();
 const getSession = vi.fn();
 vi.mock("@/lib/auth.server", () => ({
@@ -18,8 +31,6 @@ vi.mock("@/lib/auth.server", () => ({
 vi.mock("@/lib/clickhouse", () => ({
   createClickhouseQuery: () => () => Promise.resolve([]),
 }));
-
-// Org-name lookup goes through a direct DB select; control its result via orgRows.
 let orgRows: unknown[] = [];
 vi.mock("@/db/client", () => ({
   db: {
@@ -35,16 +46,6 @@ vi.mock("@/db/client", () => ({
 vi.mock("@/db/schema", () => ({
   organization: { id: "id", name: "name" },
 }));
-
-import { parseAlertingPrincipal } from "@/data/alerting/session";
-import {
-  applyAuthErrorResponse,
-  buildApplyContext,
-  canApplyMutate,
-  extractBearerKey,
-  requireOrgOrApiKeyMiddleware,
-  resolveApplyAuth,
-} from "./apply-auth.server";
 
 function headers(map: Record<string, string>): Headers {
   return new Headers(map);

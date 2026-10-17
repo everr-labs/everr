@@ -1,9 +1,12 @@
-import { assertStorageReady } from "@app/storage-readiness";
+import { server } from "@composition/server";
+
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { createFileRoute } from "@tanstack/react-router";
 import { querySqlApi } from "@/lib/clickhouse";
 import { sanitizeSqlApiError } from "@/lib/sql-api-error";
 import { classifySqlQueryError } from "@/lib/sql-api-observability";
+
+const { assertStorageReady } = server;
 
 function toNdjson(rows: Array<Record<string, unknown>>): string {
   if (rows.length === 0) {

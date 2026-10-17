@@ -1,5 +1,8 @@
-import { getIngestEndpoint } from "@app/ingest";
+import { server } from "@composition/server";
+
 import { createFileRoute } from "@tanstack/react-router";
+
+const { getIngestEndpoint } = server;
 
 export const Route = createFileRoute("/api/cli/me")({
   server: {

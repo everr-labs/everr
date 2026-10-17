@@ -1,42 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  insertRows: vi.fn(),
-  error: vi.fn(),
-}));
-
-vi.mock("@/lib/clickhouse-writer", () => ({
-  insertRows: mocks.insertRows,
-}));
-
-vi.mock("@/telemetry/logger", () => ({
-  exceptionAttributes: vi.fn(() => ({})),
-  serverLogger: { error: mocks.error },
-}));
-
 // Cuts the import chain to the Postgres client. Retention is fixed so
 // the stamped retention_days is a known value below.
-vi.mock("@/lib/retention.server", async () => {
-  const { retentionForDays } = await import(
-    "@/product/retention.test-fixtures"
-  );
-  return {
-    retentionForOrg: vi.fn(async () => retentionForDays(365, 30)),
-  };
-});
 
 import { uuidv7Time } from "@/data/alerting/history/ids";
-
-vi.mock("@app/telemetry-storage", () => ({
-  decorateTelemetryRow: (scope: string, row: object) => ({
-    ...row,
-    testScope: scope,
-  }),
-}));
-const expectedRow = <T extends object>(organizationId: string, row: T) => ({
-  ...row,
-  testScope: organizationId,
-});
 
 import { retentionForOrg } from "@/lib/retention.server";
 import { retentionForDays } from "@/product/retention.test-fixtures";
@@ -51,6 +18,38 @@ import {
   recordAlertHistoryStrict,
   ZERO_UUID,
 } from "./clickhouse";
+
+const mocks = vi.hoisted(() => ({
+  insertRows: vi.fn(),
+  error: vi.fn(),
+}));
+vi.mock("@/lib/clickhouse-writer", () => ({
+  insertRows: mocks.insertRows,
+}));
+vi.mock("@/telemetry/logger", () => ({
+  exceptionAttributes: vi.fn(() => ({})),
+  serverLogger: { error: mocks.error },
+}));
+vi.mock("@/lib/retention.server", async () => {
+  const { retentionForDays } = await import(
+    "@/product/retention.test-fixtures"
+  );
+  return {
+    retentionForOrg: vi.fn(async () => retentionForDays(365, 30)),
+  };
+});
+vi.mock("@composition/server", () => ({
+  server: {
+    decorateTelemetryRow: (scope: string, row: object) => ({
+      ...row,
+      testScope: scope,
+    }),
+  },
+}));
+const expectedRow = <T extends object>(organizationId: string, row: T) => ({
+  ...row,
+  testScope: organizationId,
+});
 
 // Expected configured retention at the write boundary; row builders own no retention.
 const stamped = <T extends { organizationId: string }>(row: T, days = 365) => {

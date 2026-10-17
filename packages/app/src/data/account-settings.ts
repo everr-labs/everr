@@ -1,10 +1,12 @@
-import { assertAccountDeletionAllowed } from "@app/account";
-import { withIdentityRequest } from "@app/request";
+import { server } from "@composition/server";
+
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth.server";
 import { isOrganizationOwner } from "@/lib/organization-role";
 import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
+
+const { assertAccountDeletionAllowed, withIdentityRequest } = server;
 
 const DeleteCurrentUserAccountInputSchema = z.object({
   confirmation: z.literal("DELETE"),

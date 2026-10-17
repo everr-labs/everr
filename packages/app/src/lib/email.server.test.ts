@@ -1,6 +1,12 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 
+import {
+  sendInvitationEmail,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from "./email.server";
+
 const mocks = vi.hoisted(() => ({
   send: vi.fn(
     async (_message: {
@@ -13,25 +19,18 @@ const mocks = vi.hoisted(() => ({
   logError: vi.fn(),
   enabled: true,
 }));
-
 vi.mock("@/lib/mailer.server", () => ({
   get mailer() {
     return mocks.enabled ? { send: mocks.send } : null;
   },
 }));
 vi.mock("@/env", () => ({
-  env: { BETTER_AUTH_URL: "https://app.everr.dev" },
+  env: { BETTER_AUTH_URL: "https://app.example.com" },
 }));
 vi.mock("@/telemetry/logger", () => ({
   serverLogger: { error: mocks.logError },
   exceptionAttributes: (error: unknown) => ({ error }),
 }));
-
-import {
-  sendInvitationEmail,
-  sendPasswordResetEmail,
-  sendVerificationEmail,
-} from "./email.server";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -89,7 +88,7 @@ it.each([
   expect(message?.html).toContain(email.url);
   expect(message?.html).toContain("Everr");
   expect(message?.html).toContain(
-    'src="https://app.everr.dev/email/everr-mark.png"',
+    'src="https://app.example.com/email/everr-mark.png"',
   );
 });
 

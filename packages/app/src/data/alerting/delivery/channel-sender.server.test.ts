@@ -12,7 +12,7 @@ const HOOK_URL = "https://8.8.8.8/hook";
 const oversized = {
   title: "Everr alert: 300 firing",
   body: "x".repeat(10_000),
-  url: "https://app.everr.dev/alerts/default/high-5xx",
+  url: "https://app.example.com/alerts/default/high-5xx",
 };
 
 const fetchMock = vi.fn(

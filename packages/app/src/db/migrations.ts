@@ -18,7 +18,7 @@ export async function migrateDatabase(database: MigrationDatabase) {
   await migrate(database, migrationConfig);
 }
 
-// Keep one connection locked across all histories. Each Drizzle migration batch
+// Keep one connection locked throughout migration startup. Each Drizzle batch
 // commits independently; a retry resumes from the last completed batch.
 export async function withMigrationLock(
   run: (database: MigrationDatabase) => Promise<void>,

@@ -1,10 +1,13 @@
-import { internalIngestHeaders } from "@app/ingestion";
+import { server } from "@composition/server";
+
 import { requireGithubConfiguration } from "@/integrations/github/configuration";
 import { retentionForOrg } from "@/lib/retention.server";
 import { GH_EVENTS_CONFIG } from "./config";
 import { recordToHeaders, stripHopByHopHeaders } from "./headers";
 import type { WebhookHeaders } from "./types";
 import { TerminalEventError } from "./types";
+
+const { internalIngestHeaders } = server;
 
 // The collector's internal pipeline copies these into resource attributes
 // (collector/config.example.yml, processor `resource`); the views stamp

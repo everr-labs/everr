@@ -9,8 +9,13 @@ for (const [key, value] of Object.entries(loadEnv(mode, process.cwd(), ""))) {
 
 const { pool } = await import("@/db/client");
 try {
-  const [{ migrateDatabase }, { withMigrationLock }] = await Promise.all([
-    import("@app/migrations"),
+  const [
+    {
+      server: { migrateDatabase },
+    },
+    { withMigrationLock },
+  ] = await Promise.all([
+    import("@composition/server"),
     import("@/db/migrations"),
   ]);
   await withMigrationLock(migrateDatabase);

@@ -1,4 +1,5 @@
-import { getAppEntry } from "@app/entry";
+import { server } from "@composition/server";
+
 import { getGithubConfiguration } from "@/integrations/github/configuration";
 import { socialProviders } from "@/lib/auth-providers.server";
 import { mailer } from "@/lib/mailer.server";
@@ -33,6 +34,8 @@ import appCss from "@/styles/app.css?url";
 import { CONSENT_COOKIE, isConsentDecision } from "@/telemetry/consent";
 import { ConsentGate } from "@/telemetry/consent-gate";
 import type { RouterContext } from "../router";
+
+const { getAppEntry } = server;
 
 // Load session and consent together so auth guards see the same session.
 const getRootContext = createServerFn({ method: "GET" }).handler(async () => {

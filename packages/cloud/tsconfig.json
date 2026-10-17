@@ -8,18 +8,29 @@
   ],
   "compilerOptions": {
     "paths": {
-      "@composition/client": ["./src/composition/client.tsx"],
+      "@composition/client": [
+        "./src/composition/client.tsx"
+      ],
       "@/*": [
         "./node_modules/@everr/app/src/*"
-      ],
-      "@app/*": [
-        "./src/app/*"
       ],
       "@composition/product": [
         "./src/composition/product.ts"
       ],
       "@composition/ui": [
         "./src/composition/ui.ts"
+      ],
+      "@composition/server": [
+        "./src/runtime.ts"
+      ],
+      "@composition/navigation": [
+        "./src/navigation.ts"
+      ],
+      "@composition/dashboards": [
+        "./src/dashboards.ts"
+      ],
+      "@composition/routes": [
+        "./src/routeTree.gen.ts"
       ]
     }
   },

@@ -1,15 +1,9 @@
-import { assertStorageReady } from "@app/storage-readiness";
+import { ClickHouseError } from "@clickhouse/client";
+import { server } from "@composition/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StorageNotReadyError } from "@/common/storage-readiness";
 
-vi.mock("@app/storage-readiness", () => ({ assertStorageReady: vi.fn() }));
-
-import { ClickHouseError } from "@clickhouse/client";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
 // vi.hoisted so the hoisted vi.mock factory can reference this safely.
-const { previewSqlApi } = vi.hoisted(() => ({ previewSqlApi: vi.fn() }));
-
-vi.mock("@/lib/clickhouse", () => ({ previewSqlApi }));
 
 import {
   MCP_MAX_CELL_CHARS,
@@ -17,6 +11,13 @@ import {
   MCP_MAX_ROWS,
 } from "./query-tool-description";
 import { runSqlForConnection } from "./run-sql";
+
+const { assertStorageReady } = server;
+vi.mock("@composition/server", () => ({
+  server: { assertStorageReady: vi.fn() },
+}));
+const { previewSqlApi } = vi.hoisted(() => ({ previewSqlApi: vi.fn() }));
+vi.mock("@/lib/clickhouse", () => ({ previewSqlApi }));
 
 beforeEach(() => previewSqlApi.mockReset());
 

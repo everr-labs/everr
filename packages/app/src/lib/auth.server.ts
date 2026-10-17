@@ -1,13 +1,6 @@
-import {
-  authPlugins,
-  identityAdapter,
-  identityLifecycle,
-  membershipPlugins,
-  organizationHooks,
-} from "@app/auth";
-import { beforeUserCreate, createSessionOnboardingHook } from "@app/onboarding";
 import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
+import { server } from "@composition/server";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import {
@@ -48,6 +41,16 @@ import {
   type ResolvedSession,
 } from "@/telemetry/auth-identity";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+
+const {
+  authPlugins,
+  identityAdapter,
+  identityLifecycle,
+  membershipPlugin,
+  organizationHooks,
+  beforeUserCreate,
+  createSessionOnboardingHook,
+} = await server.loadIdentity();
 
 async function getMarkedDeviceOrganizationId(session: { userId: string }) {
   // Captured by the /device/token before-hook (see cli-device-organization).
@@ -251,7 +254,7 @@ export const auth = betterAuth({
       auth.api.getSession({ headers, returnHeaders: true }),
   ),
   plugins: [
-    ...membershipPlugins,
+    membershipPlugin,
     cliDeviceOrganizationPlugin({
       onError: (stage, error) => {
         serverLogger.error(

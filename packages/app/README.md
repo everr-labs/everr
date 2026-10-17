@@ -411,3 +411,29 @@ requires an explicit endpoint. Configure `OTEL_EXPORTER_OTLP_ENDPOINT` for a
 standard receiver, or `EVERR_INGEST_ENDPOINT` and `EVERR_INGEST_KEY` for an
 authenticated Everr receiver. Browser telemetry uses `VITE_EVERR_INGEST_ENDPOINT`
 and optionally `VITE_EVERR_PUBLIC_INGEST_KEY`.
+
+## Application composition
+
+Application behavior is supplied as typed values. The contracts live in
+`src/product`: `ApplicationServer`, `ApplicationIdentity`,
+`ApplicationNavigation`, `ApplicationDashboards`, `Product`, `ProductClient`,
+and `ProductUI`. Implementations use `satisfies` or an explicit type annotation
+so missing methods and incompatible signatures fail typechecking.
+
+The build selects explicit server, client, policy, navigation, and dashboard
+entry modules through `AppComposition.modules`. UI contributions are optional;
+the default UI has no additional components and needs no composition module. Each entry module assembles its
+implementation with ordinary imports. Adapter filenames and directory layouts
+are private to that implementation; no wildcard alias selects individual
+adapters. Keep the corresponding TypeScript entry mappings aligned with the
+build configuration.
+
+Server identity and background work load on demand, so importing storage or
+public endpoint settings does not initialize authentication or workers. Browser
+navigation stays separate from server behavior. Dashboard documents also have
+their own entry to keep the small dashboard menu manifest lightweight.
+
+TanStack still discovers route files normally. The build explicitly supplies
+the route directory and generated route tree; routes call the typed application
+behavior rather than locating adapter files. Shared server functions own RPC
+validation and delegate to ordinary adapter functions.

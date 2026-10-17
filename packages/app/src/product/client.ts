@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
 export interface ProductClient {
+  homeDashboardId: string;
+  additionalBuiltinManifest: Array<{ id: string; name: string }>;
   publicSignup: boolean;
   canDeleteWorkspace: boolean;
   missingWorkspaceRoute: string;
@@ -10,6 +12,8 @@ export interface ProductClient {
 }
 
 export const defaultProductClient = {
+  homeDashboardId: "traces-overview",
+  additionalBuiltinManifest: [] as Array<{ id: string; name: string }>,
   publicSignup: false,
   canDeleteWorkspace: false,
   missingWorkspaceRoute: "/access-required" as const,

@@ -1,4 +1,5 @@
-import { assertStorageReady } from "@app/storage-readiness";
+import { server } from "@composition/server";
+
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
@@ -60,6 +61,8 @@ import {
   type PresentAlertInstance,
   type StoredAlertInstance,
 } from "./state-machine";
+
+const { assertStorageReady } = server;
 
 // How far a failing rule's retry may back off when the spec sets no
 // `max_interval_secs` of its own: this many times its evaluation interval.

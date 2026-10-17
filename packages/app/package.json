@@ -229,6 +229,9 @@
     "./data/onboarding/store": "./src/data/onboarding/store.ts",
     "./env/index": "./src/env/index.ts",
     "./data/onboarding/server": "./src/data/onboarding/server.ts",
-    "./telemetry/config": "./src/telemetry/config.ts"
+    "./telemetry/config": "./src/telemetry/config.ts",
+    "./product/server": "./src/product/server.ts",
+    "./product/navigation": "./src/product/navigation.ts",
+    "./product/dashboards": "./src/product/dashboards.ts"
   }
 }

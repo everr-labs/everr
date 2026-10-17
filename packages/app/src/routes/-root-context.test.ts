@@ -1,14 +1,17 @@
 // @vitest-environment node
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+import { Route } from "./__root";
+
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   getCookie: vi.fn(),
   headers: new Headers(),
 }));
-
-vi.mock("@app/entry", () => ({
-  getAppEntry: async () => ({ setupRequired: false }),
+vi.mock("@composition/server", () => ({
+  server: {
+    getAppEntry: async () => ({ setupRequired: false }),
+  },
 }));
 vi.mock("@/telemetry/client", () => ({}));
 vi.mock("@/lib/auth-providers.server", () => ({
@@ -30,8 +33,6 @@ vi.mock("@tanstack/react-start", () => ({
     server: (fn: () => unknown) => ({ client: () => fn }),
   }),
 }));
-
-import { Route } from "./__root";
 
 beforeEach(() => {
   vi.clearAllMocks();

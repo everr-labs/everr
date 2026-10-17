@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@app/ingestion", () => ({
-  internalIngestHeaders: (organizationId: string) => ({
-    "x-test-workspace": organizationId,
-  }),
+import { retentionForOrg } from "@/lib/retention.server";
+import { retentionForDays } from "@/product/retention.test-fixtures";
+import { replayWebhookToCollector } from "./collector";
+
+vi.mock("@composition/server", () => ({
+  server: {
+    internalIngestHeaders: (organizationId: string) => ({
+      "x-test-workspace": organizationId,
+    }),
+  },
 }));
 vi.mock("@/integrations/github/configuration", () => ({
   requireGithubConfiguration: () => ({
@@ -13,10 +19,6 @@ vi.mock("@/integrations/github/configuration", () => ({
 vi.mock("@/lib/retention.server", () => ({
   retentionForOrg: vi.fn(),
 }));
-
-import { retentionForOrg } from "@/lib/retention.server";
-import { retentionForDays } from "@/product/retention.test-fixtures";
-import { replayWebhookToCollector } from "./collector";
 
 describe("replayWebhookToCollector", () => {
   afterEach(() => vi.restoreAllMocks());

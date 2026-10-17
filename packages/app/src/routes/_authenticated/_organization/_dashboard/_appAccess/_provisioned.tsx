@@ -1,5 +1,8 @@
-import { ensureStorageReady } from "@app/storage-readiness";
+import { navigation } from "@composition/navigation";
+
 import { createFileRoute } from "@tanstack/react-router";
+
+const { ensureStorageReady } = navigation;
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned",

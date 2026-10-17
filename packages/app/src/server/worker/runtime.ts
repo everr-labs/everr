@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { startAppWorkers, stopAppWorkers } from "@app/workers";
+import { server } from "@composition/server";
 import { run, type WorkerEvents } from "graphile-worker";
 import { pool } from "@/db/client";
 import { githubTasks } from "@/integrations/github/registration";
@@ -11,6 +11,8 @@ import {
 import { registerShutdownHook } from "@/server/shutdown";
 import { attachGraphileWorkerEventLogging } from "./events";
 import { managedWorker } from "./managed-worker";
+
+const { startAppWorkers, stopAppWorkers } = server;
 
 const general = managedWorker({
   name: "everrGeneralWorker",

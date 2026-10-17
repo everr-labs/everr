@@ -1,4 +1,5 @@
-import { migrateDatabase } from "@app/migrations";
+import { server } from "@composition/server";
+
 import {
   createStartHandler,
   defaultStreamHandler,
@@ -7,6 +8,8 @@ import {
 import { withMigrationLock } from "@/db/migrations";
 import { startWorkerRuntime } from "@/server/worker/runtime";
 import { captureError, getTelemetryTracer, SpanKind } from "@/telemetry/node";
+
+const { migrateDatabase } = server;
 
 const startupTracer = getTelemetryTracer("everr-app.startup");
 

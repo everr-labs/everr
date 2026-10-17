@@ -1,13 +1,15 @@
-import { assertStorageReady } from "@app/storage-readiness";
-import { StorageNotReadyError } from "@/common/storage-readiness";
-
-vi.mock("@app/storage-readiness", () => ({ assertStorageReady: vi.fn() }));
-
+import { server } from "@composition/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StorageNotReadyError } from "@/common/storage-readiness";
 import {
   composeMiddleware,
   type FunctionMiddlewareHandler,
 } from "./test-middleware";
+
+const { assertStorageReady } = server;
+vi.mock("@composition/server", () => ({
+  server: { assertStorageReady: vi.fn() },
+}));
 
 const mocked = vi.hoisted(() => ({
   handler: null as FunctionMiddlewareHandler | null,

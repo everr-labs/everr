@@ -14,7 +14,6 @@ import { Link } from "@tanstack/react-router";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import { navGroups } from "@/lib/navigation";
-import { ProductUIProvider } from "@/product/ui";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
@@ -40,9 +39,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain groups={navGroups} />
       </SidebarContent>
       <SidebarFooter>
-        <ProductUIProvider value={productUI}>
-          <NavUser />
-        </ProductUIProvider>
+        <NavUser ui={productUI} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

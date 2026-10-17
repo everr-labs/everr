@@ -1,10 +1,20 @@
-import { assertStorageReady } from "@app/storage-readiness";
+import { server } from "@composition/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StorageNotReadyError } from "@/common/storage-readiness";
 
-vi.mock("@app/storage-readiness", () => ({ assertStorageReady: vi.fn() }));
+import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
+import {
+  evaluateAlert,
+  isNoopInactiveTransition,
+  shouldEnqueueProcessEvent,
+  transitionEventRows,
+} from "./rule";
+import type { AlertInstanceTransition } from "./state-machine";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
+const { assertStorageReady } = server;
+vi.mock("@composition/server", () => ({
+  server: { assertStorageReady: vi.fn() },
+}));
 const mocks = vi.hoisted(() => ({
   definition: null as unknown,
   metadata: null as unknown,
@@ -22,7 +32,6 @@ const mocks = vi.hoisted(() => ({
   history: vi.fn(),
   previewAlerts: "on" as "on" | "off",
 }));
-
 vi.mock("@/env", () => ({
   env: {
     get EVERR_PREVIEW_ALERTS() {
@@ -30,7 +39,6 @@ vi.mock("@/env", () => ({
     },
   },
 }));
-
 vi.mock("@/db/client", () => ({
   db: {
     select: () => ({
@@ -57,29 +65,17 @@ vi.mock("@/db/client", () => ({
   },
   pool: {},
 }));
-
 vi.mock("@/lib/clickhouse", () => ({ querySqlApiWithMeta: mocks.query }));
-
 vi.mock("@/server/worker/jobs", () => ({
   addWorkerJobInTransaction: (_tx: unknown, task: string, payload: unknown) => {
     mocks.scheduledJobs.push({ task, payload });
     return Promise.resolve();
   },
 }));
-
 vi.mock("../history/clickhouse", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   recordAlertHistory: mocks.history,
 }));
-
-import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import {
-  evaluateAlert,
-  isNoopInactiveTransition,
-  shouldEnqueueProcessEvent,
-  transitionEventRows,
-} from "./rule";
-import type { AlertInstanceTransition } from "./state-machine";
 
 /** Records what the failure path writes, without a database behind it. */
 function recordingTx() {

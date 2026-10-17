@@ -46,7 +46,7 @@ for (const path of [...productRouteFiles, ...Object.keys(import.meta.glob("../ro
   }));
 }
 
-const { routeTree } = await import("@app/route-tree");
+const { routeTree } = await import("@composition/routes");
 
 afterEach(() => {
   cleanup();

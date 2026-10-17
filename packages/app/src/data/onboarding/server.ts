@@ -1,10 +1,13 @@
-import { getIngestEndpoint } from "@app/ingest";
+import { server } from "@composition/server";
+
 import { z } from "zod";
 import type { HomeStatus } from "@/common/onboarding";
 import { db } from "@/db/client";
 import { env } from "@/env";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { createOnboardingStore } from "./store";
+
+const { getIngestEndpoint } = server;
 
 const store = createOnboardingStore(db);
 const identityInput = z.object({ organizationId: z.string().min(1) }).strict();

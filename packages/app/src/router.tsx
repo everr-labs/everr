@@ -1,4 +1,4 @@
-import { routeTree } from "@app/route-tree";
+import { routeTree } from "@composition/routes";
 import { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
