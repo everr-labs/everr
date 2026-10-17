@@ -420,20 +420,48 @@ Application behavior is supplied as typed values. The contracts live in
 and `ProductUI`. Implementations use `satisfies` or an explicit type annotation
 so missing methods and incompatible signatures fail typechecking.
 
-The build selects explicit server, client, policy, navigation, and dashboard
-entry modules through `AppComposition.modules`. UI contributions are optional;
-the default UI has no additional components and needs no composition module. Each entry module assembles its
-implementation with ordinary imports. Adapter filenames and directory layouts
-are private to that implementation; no wildcard alias selects individual
-adapters. Keep the corresponding TypeScript entry mappings aligned with the
-build configuration.
+The build selects explicit server, client, policy, navigation, dashboard, page,
+and UI entry modules through `AppComposition.modules`. Implementations need not
+have matching filenames or directories. The same declaration generates
+`tsconfig.composition.json`; do not edit its paths manually. Builds, tests, and
+typechecks prepare the composition, and typechecks generate the route tree
+without requiring a prior production build.
+
+`AppComposition.routes` registers extra routes under named attachment points:
+`welcome`, `signedIn`, and `organizationDashboard`. Each registration provides a
+URL path or layout ID and its source file. TanStack virtual routes preserve
+loading, type generation, and route code splitting. Six explicitly registered
+shared layout files use the normal `-` ignore prefix so physical discovery does
+not register them twice. Other shared routes retain file-based discovery.
+
+For example, an application can register a page without reproducing internal
+route directories:
+
+```ts
+routes: {
+  signedIn: [
+    { type: "route", path: "settings", file: resolve(directory, "src/settings.tsx") },
+  ],
+}
+```
+
+`ApplicationPages.members` replaces page loading and rendering while preserving
+the route's existing authentication and admin guards. `ProductUI` declares menu
+and welcome-action contributions, a sign-in footer, account-deletion UI, and
+device-login recovery content. Defaults describe an ordinary installation.
+Shared feature components own reusable behavior; application compositions own
+their additional actions and policy decisions. Server authorization remains
+independent of these UI decisions.
+
+The build, test, and typecheck entry points enforce source-package imports:
+relative imports stay in their package, `@/` stays private to its owning package,
+and cross-package imports use declared exports. Re-exports, type imports,
+literal dynamic imports, and test mocks are checked too. Generated route trees
+are exempt because TanStack owns their cross-package imports. Documentation
+assets imported with `.md?raw` are allowed. These checks prevent accidental
+private-source coupling; they are not a security sandbox.
 
 Server identity and background work load on demand, so importing storage or
 public endpoint settings does not initialize authentication or workers. Browser
 navigation stays separate from server behavior. Dashboard documents also have
 their own entry to keep the small dashboard menu manifest lightweight.
-
-TanStack still discovers route files normally. The build explicitly supplies
-the route directory and generated route tree; routes call the typed application
-behavior rather than locating adapter files. Shared server functions own RPC
-validation and delegate to ordinary adapter functions.

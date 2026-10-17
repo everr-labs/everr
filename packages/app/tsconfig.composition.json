@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@composition/pages": [
+        "./src/product/pages.ts"
+      ],
+      "@composition/ui": [
+        "./src/product/ui.tsx"
+      ],
+      "@composition/server": [
+        "./src/app/composition/server.ts"
+      ],
+      "@composition/client": [
+        "./src/app/composition/client.tsx"
+      ],
+      "@composition/product": [
+        "./src/app/composition/product.ts"
+      ],
+      "@composition/navigation": [
+        "./src/app/composition/navigation.ts"
+      ],
+      "@composition/dashboards": [
+        "./src/app/composition/dashboards.ts"
+      ],
+      "@composition/routes": [
+        "./src/routeTree.gen.ts"
+      ]
+    }
+  }
+}

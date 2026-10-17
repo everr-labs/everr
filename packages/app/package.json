@@ -12,7 +12,7 @@
     "test": "vitest run --coverage",
     "test:ci": "vitest run",
     "test:watch": "vitest --watch --coverage",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node --import tsx scripts/prepare-composition.ts && tsc --noEmit",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "tsx --tsconfig tsconfig.json scripts/migrate.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts"
@@ -80,6 +80,7 @@
     "@tanstack/react-form-devtools": "^0.2.26",
     "@tanstack/react-query-devtools": "^5.100.9",
     "@tanstack/react-router-devtools": "1.167.1",
+    "@tanstack/router-generator": "1.167.40",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -180,11 +181,11 @@
     "./router": "./src/router.tsx",
     "./routes": "./src/routes/__root.tsx",
     "./routes/__root": "./src/routes/__root.tsx",
-    "./routes/_welcome": "./src/routes/_welcome.tsx",
+    "./routes/_welcome": "./src/routes/-_welcome.tsx",
     "./routes/_welcome/-components/ascii-logo": "./src/routes/_welcome/-components/ascii-logo.tsx",
     "./routes/_welcome/_guest": "./src/routes/_welcome/_guest.tsx",
     "./routes/_welcome/_guest/auth/sign-up": "./src/routes/_welcome/_guest/auth/sign-up.tsx",
-    "./routes/_welcome/_signedIn": "./src/routes/_welcome/_signedIn.tsx",
+    "./routes/_welcome/_signedIn": "./src/routes/_welcome/-_signedIn.tsx",
     "./routes/_welcome/invite.$invitationId": "./src/routes/_welcome/invite.$invitationId.tsx",
     "./routes/api/auth/$": "./src/routes/api/auth/$.ts",
     "./server": "./src/server.ts",
@@ -222,8 +223,8 @@
     "./server/github-events/tasks": "./src/server/github-events/tasks.ts",
     "./db/schema/index": "./src/db/schema/index.ts",
     "./server/alerting/testing/job-driver": "./src/server/alerting/testing/job-driver.ts",
-    "./routes/_authenticated": "./src/routes/_authenticated.tsx",
-    "./routes/_authenticated/_organization": "./src/routes/_authenticated/_organization.tsx",
+    "./routes/_authenticated": "./src/routes/-_authenticated.tsx",
+    "./routes/_authenticated/_organization": "./src/routes/_authenticated/-_organization.tsx",
     "./routes/_authenticated/_organization/_dashboard/_appAccess": "./src/routes/_authenticated/_organization/_dashboard/_appAccess.tsx",
     "./routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned": "./src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned.tsx",
     "./data/onboarding/store": "./src/data/onboarding/store.ts",
@@ -232,6 +233,10 @@
     "./telemetry/config": "./src/telemetry/config.ts",
     "./product/server": "./src/product/server.ts",
     "./product/navigation": "./src/product/navigation.ts",
-    "./product/dashboards": "./src/product/dashboards.ts"
+    "./product/dashboards": "./src/product/dashboards.ts",
+    "./product/pages": "./src/product/pages.ts",
+    "./components/users-management/members-page": "./src/components/users-management/members-page.tsx",
+    "./components/account-settings/delete-account-dialog": "./src/components/account-settings/delete-account-dialog.tsx",
+    "./build/generate": "./build/generate.ts"
   }
 }

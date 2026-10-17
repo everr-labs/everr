@@ -116,7 +116,7 @@ describe("NavUser", () => {
       render(
         <QueryClientProvider client={queryClient}>
           <SidebarProvider>
-            <NavUser ui={productUI} />
+            <NavUser items={productUI.userMenu ?? []} />
           </SidebarProvider>
         </QueryClientProvider>,
       );
@@ -151,7 +151,7 @@ describe("NavUser", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <SidebarProvider>
-          <NavUser ui={productUI} />
+          <NavUser items={productUI.userMenu ?? []} />
         </SidebarProvider>
       </QueryClientProvider>,
     );
@@ -178,7 +178,7 @@ describe("NavUser", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <SidebarProvider>
-          <NavUser ui={productUI} />
+          <NavUser items={productUI.userMenu ?? []} />
         </SidebarProvider>
       </QueryClientProvider>,
     );
@@ -198,7 +198,7 @@ describe("NavUser", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <SidebarProvider>
-          <NavUser ui={productUI} />
+          <NavUser items={productUI.userMenu ?? []} />
         </SidebarProvider>
       </QueryClientProvider>,
     );

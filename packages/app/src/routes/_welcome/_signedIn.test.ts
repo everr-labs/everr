@@ -3,7 +3,7 @@ vi.mock("@/data/organization-access", () => ({
 }));
 
 import { expect, it, vi } from "vitest";
-import { Route } from "./_signedIn";
+import { Route } from "./-_signedIn";
 
 const beforeLoad = Route.options.beforeLoad as unknown as (args: {
   context: {

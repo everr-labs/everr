@@ -85,7 +85,7 @@ vi.mock("@/components/preview-indicator", () => ({
   PreviewIndicator: () => <div>Preview indicator</div>,
 }));
 
-import { Route } from "./_dashboard";
+import { Route } from "./-_dashboard";
 
 beforeEach(() => {
   mocks.activeOrganizationId = "test_org";

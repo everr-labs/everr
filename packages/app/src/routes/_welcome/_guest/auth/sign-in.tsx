@@ -1,4 +1,4 @@
-import { productClient } from "@composition/client";
+import { productUI } from "@composition/ui";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -157,22 +157,7 @@ function SignIn() {
         </Button>
       </form>
 
-      {productClient.publicSignup ? (
-        <p className="text-center text-sm text-muted-foreground">
-          Don't have an account?{" "}
-          <Link
-            to="/auth/sign-up"
-            search={{ redirect: redirectTo, email: prefillEmail }}
-            className="font-medium text-foreground hover:underline"
-          >
-            Sign up
-          </Link>
-        </p>
-      ) : (
-        <p className="text-center text-sm text-muted-foreground">
-          Contact your administrator for an invitation.
-        </p>
-      )}
+      <productUI.SignInFooter redirect={redirectTo} email={prefillEmail} />
     </>
   );
 }

@@ -1,4 +1,7 @@
-import { productRouteFiles } from "@everr/app/testing/routes";
+import {
+  productRouteFiles,
+  sharedRouteModules,
+} from "@everr/app/testing/routes";
 import { QueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -41,13 +44,14 @@ vi.mock("@everr/app/data/product", () => ({
   })),
 }));
 
+const sourceModule = (path: string) => new URL(path, import.meta.url).pathname;
 const guards = new Set([
-  "./routes/_authenticated.tsx",
-  "./routes/_authenticated/_organization.tsx",
-  "./routes/_authenticated/_organization/_dashboard/_appAccess.tsx",
-  "./routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned.tsx",
-  "./routes/_welcome/_signedIn.tsx",
-  "./routes/_welcome/_signedIn/_organization.tsx",
+  sharedRouteModules.authenticated,
+  sharedRouteModules.organization,
+  sharedRouteModules.access,
+  sharedRouteModules.provisioned,
+  sharedRouteModules.signedIn,
+  sourceModule("../../routes/_welcome/_signedIn/_organization.tsx"),
 ]);
 for (const path of [
   ...productRouteFiles,
@@ -55,21 +59,23 @@ for (const path of [
     (path) => new URL(path, import.meta.url).pathname,
   ),
 ]) {
-  if ([...guards].some((guard) => path.endsWith(guard.slice(1)))) continue;
+  if (guards.has(path)) continue;
   vi.doMock(path, () => ({
-    Route: path.endsWith("/routes/__root.tsx")
-      ? createRootRoute({
-          beforeLoad: () => ({
-            session: state.session,
-            createdOrganizationId: state.createdOrganizationId,
+    Route:
+      path === sharedRouteModules.root
+        ? createRootRoute({
+            beforeLoad: () => ({
+              session: state.session,
+              createdOrganizationId: state.createdOrganizationId,
+            }),
+          })
+        : createFileRoute()({
+            staticData:
+              path === sharedRouteModules.device
+                ? { authEntry: "/auth/sign-up" }
+                : {},
+            loader: () => state.load(path),
           }),
-        })
-      : createFileRoute()({
-          staticData: path.endsWith("/device.tsx")
-            ? { authEntry: "/auth/sign-up" }
-            : {},
-          loader: () => state.load(path),
-        }),
   }));
 }
 const { routeTree } = await import("@composition/routes");

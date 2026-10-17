@@ -12,6 +12,7 @@ import {
   appDirectory,
   appRoutes,
   installationComposition,
+  prepareComposition,
 } from "./vite.app.ts";
 import { smeeWebhookPlugin } from "./vite.smee.ts";
 
@@ -19,6 +20,7 @@ export function createAppConfig(
   composition: AppComposition = installationComposition,
   outputDirectory = resolve(appDirectory, ".output"),
 ) {
+  prepareComposition(composition);
   return defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), "");
 

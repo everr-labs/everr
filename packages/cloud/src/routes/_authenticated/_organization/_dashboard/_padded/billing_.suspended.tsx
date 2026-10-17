@@ -28,7 +28,7 @@ import {
 } from "../../../../../data/billing";
 
 export const Route = createFileRoute(
-  "/_authenticated/_organization/_dashboard/_padded/billing_/suspended",
+  "/_authenticated/_organization/_dashboard/_padded/billing/suspended",
 )({
   staticData: {
     breadcrumb: "Subscription suspended",

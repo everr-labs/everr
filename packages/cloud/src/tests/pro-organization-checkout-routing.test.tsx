@@ -1,4 +1,7 @@
-import { productRouteFiles } from "@everr/app/testing/routes";
+import {
+  productRouteFiles,
+  sharedRouteModules,
+} from "@everr/app/testing/routes";
 vi.mock("@everr/app/data/organization-access", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
@@ -28,15 +31,20 @@ vi.mock("@everr/app/lib/auth-client", () => ({
 }));
 
 let authenticated = false;
-for (const path of [...productRouteFiles, ...Object.keys(import.meta.glob("../routes/**/*.{ts,tsx}")).map((path) => new URL(path, import.meta.url).pathname)]) {
+for (const path of [
+  ...productRouteFiles,
+  ...Object.keys(import.meta.glob("../routes/**/*.{ts,tsx}")).map(
+    (path) => new URL(path, import.meta.url).pathname,
+  ),
+]) {
   if (
     path.endsWith("/organizations.checkout.success.tsx") ||
-    path.endsWith("/_welcome/_signedIn.tsx")
+    path === sharedRouteModules.signedIn
   )
     continue;
   vi.doMock(path, () => ({
     Route:
-      path.endsWith("/routes/__root.tsx")
+      path === sharedRouteModules.root
         ? createRootRoute({
             beforeLoad: () => ({
               session: authenticated ? { user: { id: "owner" } } : null,

@@ -30,35 +30,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true,
-    "paths": {
-      "@composition/client": [
-        "./src/app/composition/client.tsx"
-      ],
-      "@composition/product": [
-        "./src/app/composition/product.ts"
-      ],
-      "@composition/ui": [
-        "./src/product/ui.tsx"
-      ],
-      "@/*": [
-        "./src/*"
-      ],
-      "@everr/ui/*": [
-        "../ui/src/*"
-      ],
-      "@composition/server": [
-        "./src/app/composition/server.ts"
-      ],
-      "@composition/navigation": [
-        "./src/app/composition/navigation.ts"
-      ],
-      "@composition/dashboards": [
-        "./src/app/composition/dashboards.ts"
-      ],
-      "@composition/routes": [
-        "./src/routeTree.gen.ts"
-      ]
-    }
-  }
+    "noUncheckedSideEffectImports": true
+  },
+  "extends": "./tsconfig.composition.json"
 }

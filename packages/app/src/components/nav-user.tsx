@@ -25,11 +25,10 @@ import {
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationAdmin } from "@/lib/organization-role";
-import type { ProductUI } from "@/product/ui";
+import type { UserMenuContribution } from "@/product/ui";
 import { useOpenConsentSettings } from "@/telemetry/consent-gate";
 
-export function NavUser({ ui = {} }: { ui?: ProductUI }) {
-  const { OrganizationMenuItems, WorkspaceMenu } = ui;
+export function NavUser({ items }: { items: readonly UserMenuContribution[] }) {
   const openConsentSettings = useOpenConsentSettings();
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
@@ -104,7 +103,11 @@ export function NavUser({ ui = {} }: { ui?: ProductUI }) {
               </div>
             </div>
             <DropdownMenuSeparator />
-            {WorkspaceMenu && <WorkspaceMenu />}
+            {items
+              .filter((item) => item.placement === "before-organization")
+              .map(({ id, component: Component }) => (
+                <Component key={id} />
+              ))}
             {activeOrg && isAdmin ? (
               <>
                 <DropdownMenuSeparator />
@@ -133,7 +136,11 @@ export function NavUser({ ui = {} }: { ui?: ProductUI }) {
                       GitHub
                     </DropdownMenuItem>
                   ) : null}
-                  {OrganizationMenuItems && <OrganizationMenuItems />}
+                  {items
+                    .filter((item) => item.placement === "organization")
+                    .map(({ id, component: Component }) => (
+                      <Component key={id} />
+                    ))}
                 </DropdownMenuGroup>
               </>
             ) : null}

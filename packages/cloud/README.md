@@ -113,13 +113,23 @@ pnpm --filter @everr/app-cloud test
 pnpm --filter @everr/app-cloud db:migrate
 ```
 
-`composition.ts` supplies paths to the shared build factory. TanStack combines
-the shared physical route directory with `src/routes` and generates this
-package's route tree. `src/composition/client.tsx` defines entry routes and
-telemetry defaults; `src/composition/ui.ts` supplies navigation and welcome
-page actions. Shared modules are imported through explicit `@everr/app`
-exports. The export surface and remaining adapter aliases can be narrowed
-independently of package extraction.
+`composition.ts` is the single declaration of selected modules and added routes.
+Routes attach to named shared layouts and specify their URL and source file;
+they do not need to mirror shared source directories. TanStack generates this
+package's route tree and splits registered route components normally.
+`tsconfig.composition.json` is generated from the same module declaration for
+TypeScript and editors. Tests and typechecks generate routes automatically.
+
+`src/composition/pages.tsx` owns the members entitlement decision.
+`src/composition/ui.tsx` registers workspace switching, billing navigation,
+welcome actions, signup links, account-deletion UI, and CLI recovery copy.
+Shared modules are imported through explicit `@everr/app` exports. Import checks
+run during builds, tests, and typechecks and reject relative imports into other
+packages, the app's private `@/` alias, and non-exported package paths.
+
+Client configuration retains ordinary settings: home dashboard, additional
+manifest entries, entry destinations, and telemetry endpoint. It no longer
+contains signup/deletion switches or CLI-specific JSX.
 
 The build outputs `.output`; use `packages/cloud/Dockerfile` for the container.
 This package's environment files use Vite's `cloud` mode. Email delivery

@@ -1,4 +1,4 @@
-import { productClient } from "@composition/client";
+import { productUI } from "@composition/ui";
 import { Button } from "@everr/ui/components/button";
 import { Label } from "@everr/ui/components/label";
 import {
@@ -182,7 +182,7 @@ function CliDeviceApprovalPage() {
                   role="alert"
                   className="text-destructive mt-4 text-center text-sm"
                 >
-                  {errorMessage} {productClient.deviceLoginRestartInstruction}
+                  {errorMessage} <productUI.DeviceLoginRecovery />
                 </p>
               ) : null}
             </>

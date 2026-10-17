@@ -143,6 +143,11 @@
   },
   "ignoreExports": [
     {
+      // Explicitly registered TanStack layouts still require the named Route export.
+      "file": "packages/app/src/routes/**/-_*.tsx",
+      "exports": ["Route"]
+    },
+    {
       // TanStack generated route types and convention-based cloud route exports.
       "file": "packages/cloud/src/routeTree.gen.ts",
       "exports": ["FileRouteTypes", "RootRouteChildren"]

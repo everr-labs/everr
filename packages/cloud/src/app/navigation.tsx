@@ -19,11 +19,13 @@ export function OrganizationMenuItems() {
 }
 
 import { OrganizationSwitcher } from "../components/organization-switcher";
-import type { WelcomeActionsProps } from "@everr/app/product/ui";
+import type { WelcomeActionProps } from "@everr/app/product/ui";
 
-export function WelcomeActions(props: WelcomeActionsProps) {
+export function WelcomeActions(props: WelcomeActionProps) {
   const pathname = useLocation({ select: (location) => location.pathname });
-  return pathname === "/organization-setup" ? <OrganizationSwitcher {...props} /> : null;
+  return pathname === "/organization-setup" ? (
+    <OrganizationSwitcher {...props} />
+  ) : null;
 }
 export function WorkspaceMenu() {
   const activateOrganization = useOrganizationActivation();

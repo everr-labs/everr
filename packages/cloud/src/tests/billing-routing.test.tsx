@@ -1,4 +1,7 @@
-import { productRouteFiles } from "@everr/app/testing/routes";
+import {
+  productRouteFiles,
+  sharedRouteModules,
+} from "@everr/app/testing/routes";
 import {
   createFileRoute,
   createMemoryHistory,
@@ -35,12 +38,17 @@ vi.mock("@everr/app/lib/auth-client", () => ({
 // Keep the generated topology, the organization guard, and the suspended
 // billing route. Other pages are irrelevant here and would pull in unrelated
 // server dependencies.
-for (const path of [...productRouteFiles, ...Object.keys(import.meta.glob("../routes/**/*.{ts,tsx}")).map((path) => new URL(path, import.meta.url).pathname)]) {
+for (const path of [
+  ...productRouteFiles,
+  ...Object.keys(import.meta.glob("../routes/**/*.{ts,tsx}")).map(
+    (path) => new URL(path, import.meta.url).pathname,
+  ),
+]) {
   if (path.endsWith("/_admin.tsx") || /\/billing_\.suspended\.tsx$/.test(path))
     continue;
   vi.doMock(path, () => ({
     Route:
-      path.endsWith("/routes/__root.tsx")
+      path === sharedRouteModules.root
         ? createRootRoute()
         : createFileRoute()({}),
   }));

@@ -39,7 +39,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain groups={navGroups} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser ui={productUI} />
+        <NavUser items={productUI.userMenu ?? []} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

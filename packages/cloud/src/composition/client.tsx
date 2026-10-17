@@ -9,8 +9,6 @@ export const productClient = {
   additionalBuiltinManifest: [
     { id: "telemetry-usage", name: "Telemetry Usage" },
   ],
-  publicSignup: true,
-  canDeleteWorkspace: true,
   missingWorkspaceRoute: "/choose-organization" as const,
   entryRoutes: [
     ...defaultProductClient.entryRoutes,
@@ -20,10 +18,4 @@ export const productClient = {
     "/choose-organization",
   ],
   telemetryEndpoint: "https://ingest.everr.dev",
-  deviceLoginRestartInstruction: (
-    <>
-      Restart <code className="font-mono">everr cloud login</code> from your
-      terminal.
-    </>
-  ),
 } satisfies ProductClient;

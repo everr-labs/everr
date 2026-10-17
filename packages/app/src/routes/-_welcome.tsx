@@ -11,18 +11,18 @@ export const Route = createFileRoute("/_welcome")({
 });
 
 function RouteComponent() {
-  const { WelcomeActions } = productUI;
   const { session } = Route.useRouteContext();
 
   return (
     <div className="relative flex min-h-screen flex-col bg-background text-foreground lg:grid lg:grid-cols-[1.15fr_1fr]">
       {session?.user && (
         <div className="absolute top-6 right-6 z-30 flex max-w-[calc(100%_-_8rem)] items-center gap-2 lg:top-10 lg:right-10">
-          {WelcomeActions && (
-            <WelcomeActions
+          {productUI.welcomeActions?.map(({ id, component: Action }) => (
+            <Action
+              key={id}
               activeOrganizationId={session.session.activeOrganizationId}
             />
-          )}
+          ))}
           <Button
             variant="ghost"
             size="sm"

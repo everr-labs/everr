@@ -1,13 +1,13 @@
 # Self-hosting and Cloud separation handoff
 
-Updated 2026-10-17. Branch: `self-host`. The initial package extraction is in `fb528ab02` (`Extract cloud application and preserve shared migration history`). This handoff accompanies the subsequent adapter simplification and routing fix. Local verification passes; the remaining product-boundary review and release checks are listed below.
+Updated 2026-10-18. Branch: `self-host`. The initial package extraction is in `fb528ab02` (`Extract cloud application and preserve shared migration history`). This handoff accompanies the subsequent adapter simplification and routing fix. Local verification passes; the remaining release checks are listed below.
 
 ## Start here
 
 1. Read `AGENTS.md` and inspect `git status`. Preserve the existing uncommitted work.
 2. Read `packages/app/README.md` and `deploy/README.md` for operation, and `DATABASE-MIGRATIONS.md` for database ownership, local switching, and upgrade verification.
 3. Read the verification status below before continuing the current refactor.
-4. Finalize the existing split before broadening the architecture. The UI direction below remains a proposal. The subsequent building-block and Backstage-style platform discussion was exploratory, not an implementation request.
+4. Review the uncommitted composition implementation and the simplification priorities below. The broader building-block and Backstage-style platform discussion remains exploratory.
 
 ## Intent and constraints
 
@@ -21,48 +21,103 @@ Self-hosted is a complete application. Its implementation, UI, and tests should 
 - GitHub remains available to both applications. Self-hosted retention defaults to 30 days; Cloud has plan-based policy.
 - Preserve useful behavior tests. Do not add tests whose only purpose is asserting that physically separate cloud source or dependencies are absent, or tests that inspect YAML text.
 - Do not generate schema migrations unless explicitly requested. Use disposable databases for exercises, never an existing developer or production database without authorization.
-- Leave changes uncommitted unless requested. The user authorized committing the current checkpoint.
+- Leave changes uncommitted unless requested. The current composition pass must remain uncommitted.
 
 ## Current architecture
 
-Cloud has already moved out of the app source tree into `packages/cloud`. Both packages have their own configuration and cloud-specific routes live in the cloud package. Shared routes and internals are still reused through the existing build composition; the desired independent UI composition described below is not yet in place.
+Cloud lives in `packages/cloud`; the default application and shared functionality
+live in `packages/app`. There is no dependency from app to cloud.
 
-The adapter refactor replaces the `@app/*` filename convention with explicitly selected `@composition/server`, `client`, `product`, `navigation`, `dashboards`, `ui`, and `routes` modules. Selection is configured in `packages/app/vite.app.ts`, `packages/cloud/composition.ts`, and the TypeScript configs. Implementations need not have matching filenames. Build entry paths and aliases still exist; this is not yet a fully package-API-based boundary.
+`packages/app/vite.app.ts` defines the typed build composition.
+`packages/cloud/composition.ts` supplies the selected entry modules and registers
+additional routes under `welcome`, `signedIn`, and `organizationDashboard`.
+These are named attachment points, not matching source-directory conventions.
+Route registrations use native TanStack virtual routes, preserving route
+splitting, loaders, search validation, and inferred types. Six small shared
+layout files have a `-` prefix to exclude them from physical discovery because
+they are registered explicitly. The rest of the shared route tree stays in its
+existing directories.
 
-Relevant contracts live in `packages/app/src/product`. The app server implementation is `src/app/composition/server.ts`; cloud's is `packages/cloud/src/runtime.ts`. Several forwarding files and no-op modules were removed. Server implementations load identity dependencies lazily to avoid initializing authentication infrastructure for unrelated operations.
+`tsconfig.composition.json` in each package is generated from that same
+composition. It is tracked for editors and refreshed by builds, tests, and
+typechecks. Do not maintain a second list of selected modules in `tsconfig.json`.
+Tests and typechecks invoke TanStack's generator so they work before a Vite
+build, including when cloud's generated route tree does not exist yet.
 
-Cloud billing, checkout, organization checkout, and suspended-page implementations now live directly in their route files. The remaining cloud members-unavailable component lives in `packages/cloud/src/components`. Its unused self-hosted counterpart was deleted.
+The build, test, and typecheck entry points check imports across source-package
+boundaries. Relative imports must stay in the owning package; shared internals
+cannot be reached using its private `@/` alias. Cross-package code uses declared
+package exports. Literal dynamic imports, type imports, re-exports, and test
+mocks are checked. Route and adapter entry files must belong to the composing
+package. Router tests use named shared module references rather than matching
+shared filenames. Generated route trees and `.md?raw` documentation assets have
+explicit exceptions. This prevents accidental coupling, not deliberate changes
+to the enforcement itself. The public export surface is still broad and must
+be treated as an API when packages are versioned separately.
 
-### UI customization that still needs reconsideration
+### UI ownership
 
-`packages/app/src/app/composition/ui.ts` and the UI context/provider were removed, but customization remains:
+- `ApplicationPages.members` supplies loading and rendering inside the existing
+  authentication, organization, provisioning, and admin guards. App renders the
+  shared members feature. Cloud loads policy and chooses that feature or its
+  upgrade screen. No invitation-entitlement fallback remains in the shared route.
+- `ProductUI` declares typed menu and welcome-action contributions, sign-in
+  footer, account-deletion component, and device-login recovery component.
+  Default implementations contain ordinary installation behavior. Cloud owns
+  workspace switching, billing links, signup links, organization-deletion
+  choices, and CLI-specific instructions.
+- `DeleteAccountDialog` owns confirmation, loading, and errors. Cloud composes
+  its organization-deletion choices around that reusable behavior. Those tests
+  live in cloud and are no longer conditional tests in the shared application.
+- `ProductClient` retains ordinary configuration: home dashboard, additional
+  manifest entries, entry destinations, and telemetry endpoint. It has no
+  signup/deletion flags or CLI-specific JSX.
 
-- `NavUser` receives an optional `ProductUI` object containing workspace and organization menu components.
-- The welcome layout renders optional `WelcomeActions`.
-- The members route renders optional `MembersUnavailable` when invitations are disabled.
-- `ProductClient` controls public signup, workspace deletion, device-login instructions, the home dashboard, and other client configuration.
+Server authorization continues to enforce policy independently of rendering.
+The remaining contracts are explicit public interfaces. Removing a contribution
+consumer is a behavioral API break even if the types still compile; tests cover
+menu placement/admin visibility, page selection, welcome actions, and account
+lifecycle behavior.
 
-These contracts are typed, but self-hosted still carries behavior whose consumer is cloud. Removing a prop or stopping rendering an optional slot can break cloud. Type checking catches some API changes, but cannot guarantee that a slot continues to render or behave correctly.
+This completes the requested composition pass, not a platform/plugin system or
+a physical repository split. All changes in this pass remain uncommitted.
 
-## Proposed UI direction
+## Remaining simplification work
 
-Treat self-hosted and cloud as two applications consuming shared feature components, rather than treating the self-hosted application itself as a customizable library.
+The implementation improves ownership and makes contracts explicit, but still
+has tooling debt. Passing verification establishes compatibility, not simplicity.
+The following improvements are proposed, not implemented, in priority order:
 
-Each application owns its route files, loading, access decisions, navigation, and layout composition. Share substantial reusable features such as a profile form, members table, dashboard view, and user-menu presentation. Shared feature components receive data and callbacks rather than depending on specific route IDs or parent route context.
+1. Replace the custom import checker in
+   `packages/app/build/import-boundaries.ts` with established boundary tooling,
+   such as ESLint import restrictions or a dependency-boundary tool. Package
+   exports and TypeScript should handle public API resolution. Preserve the
+   useful ownership checks without maintaining a custom interpretation of
+   TypeScript imports. The rest of `packages/app/build` handles composition
+   generation and tests; it is not all import-checking machinery.
+2. Simplify route and type generation. Let TanStack own route generation and
+   generated types while composition supplies explicit route configuration.
+   Investigate removing the manually reproduced TanStack Start registration
+   footer in `packages/app/build/generate.ts`. Also reconsider refreshing tracked
+   TypeScript configuration during validation, which currently makes checks
+   write files. Preserve typechecking from a fresh checkout without a prior build.
+3. Narrow the shared package's public API. Prefer a few deliberate entry points
+   for meaningful capabilities, such as members management and account settings,
+   over a growing catalogue of exported internal files. This limits accidental
+   coupling and makes separate package versioning and repository extraction easier.
+4. Keep UI assembly close to each application's entry points. Cloud should
+   assemble its menus, account page, and welcome experience from shared
+   components; the default application should assemble its ordinary experience.
+   Reduce the responsibilities of `ProductUI`, which currently mixes contribution
+   lists with component replacements and risks becoming a catchall. Keep
+   substantial feature behavior shared and make these changes selectively to
+   avoid another large reorganization.
 
-For example, a shared `UserMenu` can own its trigger, popup, accessibility, and presentation while accepting ordinary children. Self-hosted assembles account and logout actions. Cloud assembles workspace switching, billing, account, and logout actions. The shared menu knows nothing about Cloud or `ProductUI`.
-
-For members management, the self-hosted route loads members and renders the shared feature. Cloud's route checks entitlement and chooses between that feature and a cloud-owned upgrade screen. Server-side authorization remains responsible for enforcing restrictions.
-
-This does not eliminate contracts. Shared component props remain a public API and require compatibility management. The intended improvement is that those APIs describe reusable behavior used by both applications, rather than special accommodations embedded in self-hosted. After a repository split, versioned package dependencies allow cloud to adopt breaking changes deliberately.
-
-Tradeoffs and guardrails:
-
-- Accept a small amount of duplicated route and layout assembly. Keep substantial feature behavior shared to avoid divergent implementations.
-- Do not replace UI slots with imports into private self-hosted components, filenames, or route internals.
-- Do not introduce a plugin registry or move the entire source tree for this change.
-- Evaluate generic settings separately. A configurable home dashboard can remain useful without representing an edition.
-- Start with the user menu and members page. Inspect the resulting boundary before applying it to welcome, signup, account deletion, and device login.
+Keep the explicit native route registrations. They make ownership visible and
+preserve TanStack routing and code splitting without matching-file overrides.
+Address the checker and generation first, then tighten the public API and make
+targeted UI assembly changes. Do not replace this work with a general plugin
+framework or move the whole source tree.
 
 ## Database context to preserve
 
@@ -90,18 +145,35 @@ The authenticated and signed-in welcome routes now call the guard through a wrap
 
 Diagnostic router and guard annotations were removed. Client configurations use `satisfies ProductClient` to preserve literal route destinations, and cloud's original shared-source typecheck coverage was restored. A stale routing fixture now uses the actual `access` policy field, with a behavior test that suspended organizations are redirected before telemetry loads.
 
-## Remaining work
+## Verification and next steps
 
-1. Finish reviewing and validating the current split. Keep the scope on the existing implementation; a platform redesign is deferred.
-2. Revisit the proposed UI boundary with the user after finalizing the current work. A user-menu and members-page prototype was suggested, but has not been implemented.
-3. Revisit the remaining `ProductUI` and `ProductClient` UI accommodations. Move cloud-specific composition and access screens into cloud-owned routes/components where appropriate. Keep ordinary reusable settings only when justified.
-4. Verify that shared UI exports and adapters have explicit contracts and do not require matching internal file layouts. The current build aliases and shared-route consumption still need scrutiny before claiming independent packages.
-5. Run both typechecks to completion, relevant behavior tests, production builds sequentially, formatting, `fallow check`, and `git diff --check` after the final edits. Manually verify affected UI with credentials from the main worktree's `.auth`, when available.
-6. Before release, exercise a complete fresh Compose lifecycle: setup, real ingestion/querying, invitation acceptance without SMTP, and operator recovery. Verify CI using the required skill. Before a deployed cloud upgrade, rehearse against a representative disposable copy and coordinate replacement of old instances around column removal.
+Review the uncommitted composition implementation before expanding its public
+interface. The default and cloud applications have passed typechecking,
+production builds, full test suites, and Fallow. A route-registration test moves
+a registered source file and checks that its URL and authenticated parent stay
+unchanged. Import tests cover forbidden relative, alias, export, type, dynamic,
+and mock access. Cloud typechecking was also exercised after removing its
+generated route tree.
 
-Both typechecks and Fallow pass after the routing fix. Full suites pass: self-hosted has 1,894 passing tests and two skipped; cloud has 2,333 passing tests and one skipped. An initial concurrent app/cloud test and build run caused self-hosted timeouts; running the app suite alone passed without test changes or increased timeouts. Both production builds pass, including their prerendered shells. Browser checks against a disposable PostgreSQL database verified self-hosted setup redirection and cloud sign-in redirection from protected routes. These were anonymous-route smoke checks, not a complete signed-in product walkthrough. Remote CI could not be checked because `everr-dev ci status` reported no active session. Main-history database adoption was exercised locally, not against production.
+Local verification: 1,912 app tests and 2,340 cloud tests pass; the external Polar sandbox test remains skipped.
 
-For cloud build verification, supply required email configuration; a previous successful build used `EMAIL_DSN=smtp://localhost:1025 EMAIL_FROM=review@example.com`. Check prerender output as well as process exit. Run app and cloud builds sequentially because they share build inputs. Full cloud tests previously needed `NODE_OPTIONS=--no-experimental-webstorage` on the local Node version.
+Signed-in browser checks used a disposable PostgreSQL database and the local
+`.auth` credentials. They verified ordinary member management in app, the Hobby
+upgrade screen in cloud, both menus, and the different account-deletion dialogs.
+No deletion was submitted. Setup, authentication redirects, and the different sign-in footers were also checked.
+These checks do not constitute a complete release rehearsal.
+
+Before release, exercise a complete fresh Compose lifecycle: real ingestion and
+querying, invitation acceptance without SMTP, and operator recovery. Verify CI
+using the required skill. Before a deployed cloud upgrade, rehearse against a
+representative disposable database copy and coordinate replacement of old
+instances around column removal. Previous main-history adoption exercises were
+local, not production.
+
+Run production builds sequentially because both use shared build inputs. The
+cloud build requires email configuration; local verification used
+`EMAIL_DSN=smtp://localhost:1025 EMAIL_FROM=review@example.com`. The local Node
+version requires `NODE_OPTIONS=--no-experimental-webstorage` for tests.
 
 ## Local state and deferred scope
 

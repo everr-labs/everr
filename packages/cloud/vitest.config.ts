@@ -4,7 +4,10 @@ import { createAppTestConfig } from "@everr/app/testing/config";
 import { appDirectory } from "@everr/app/build/composition";
 import { cloudComposition } from "./composition";
 
-const config = createAppTestConfig(cloudComposition, resolve(import.meta.dirname, "./"));
+const config = await createAppTestConfig(
+  cloudComposition,
+  resolve(import.meta.dirname, "./"),
+);
 config.test = {
   ...config.test,
   include: [...configDefaults.include, `${appDirectory}src/**/*.test.{ts,tsx}`],
