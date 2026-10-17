@@ -1,5 +1,15 @@
 # @everr/cli
 
+## 0.10.1
+
+### Patch Changes
+
+- 85e4c55: Fix trace span selection scrolling. Direct clicks keep the clicked view in place while revealing the span in the other view, and URL updates preserve the viewer's scroll position.
+- 6d99746: CLI and local UI usage telemetry to Everr cloud, sanitizing customer data. Application telemetry and `everr wrap` output remain local.
+- 1b919aa: Add `everr local ui` to open the running local UI in the default browser.
+  Add `everr cloud status` to validate the current session and display the current user.
+- 40fe053: The `everr-setup-resources` skill now checks each panel and alert query with `EXPLAIN indexes = 1` and `EXPLAIN ESTIMATE` over the long range, and filters on the table's leading sort-key columns until it reads fewer granules.
+
 ## 0.10.0
 
 ### Minor Changes

@@ -1,5 +1,27 @@
 # @everr/otel-web
 
+## 0.4.0
+
+### Minor Changes
+
+- f92ee50: Remove `pageLoad()`, rage clicks, form change events, click coordinates, and scroll depth.
+
+  `pageLoad()` no longer emits a load root, asset spans, or long-animation-frame spans. A browser request span is its own trace. LCP and TTFB attribution still describe why a load was slow.
+
+  `interactions()` no longer emits `everr.browser.interaction.rage_click` or `everr.browser.interaction.change`. Clicks no longer carry `everr.browser.click.x` or `everr.browser.click.y`.
+
+  `everr.browser.page_leave` no longer carries `everr.scroll.depth`. It still carries `everr.page_view.duration`.
+
+- 1c44039: Record span status, links, array attributes, and standard timestamps on browser spans.
+
+  `setStatus` follows OK over ERROR over UNSET, and the status message is kept only for ERROR. `beforeSend` spans carry `status` and `links` in place of `error`. Attribute values may be arrays on logs and spans.
+
+  `startTime` and `end()` accept an HrTime, a Date, or epoch milliseconds. A fractional millisecond rounds to the nearest millisecond. `root: true` starts a new trace. `startSpan` without a kind is INTERNAL. `network()` still emits CLIENT spans.
+
+  `addEvent` and `recordException` record nothing.
+
+  A browser log emitted during `startActiveSpan`, until `end()`, carries that span's trace id, span id, and trace flags. A log with its own timestamp joins only a span that was already active at that timestamp.
+
 ## 0.3.3
 
 ### Patch Changes
