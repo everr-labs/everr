@@ -40,7 +40,7 @@ afterEach(async () => {
 describe("instrumentation tracer", () => {
   it("parents a span to the active span, from startActiveSpan until its end", async () => {
     start();
-    const parent = tracer.startActiveSpan("pageLoad", (span) => span);
+    const parent = tracer.startActiveSpan("parent", (span) => span);
     // The function returned. In OTel the span is then not active. In this
     // SDK, it is active until its end.
     const child = tracer.startSpan("work");
@@ -52,9 +52,9 @@ describe("instrumentation tracer", () => {
     const by = (name: string) =>
       wire.find((span) => span.name === name) as OtlpSpan;
     const childWire = by("work");
-    const parentWire = by("pageLoad");
+    const parentWire = by("parent");
     const afterWire = by("later");
-    expect(parentWire.name).toBe("pageLoad");
+    expect(parentWire.name).toBe("parent");
     expect(parentWire.parentSpanId).toBeUndefined();
     expect(childWire.traceId).toBe(parentWire.traceId);
     expect(childWire.spanId).not.toBe(parentWire.spanId);

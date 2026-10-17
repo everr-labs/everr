@@ -49,23 +49,12 @@ module.exports = [
   },
   {
     // The heaviest instrumentation: the in-house web vitals (LCP/CLS/TTFB/INP)
-    // and slow-interaction records with their LoAF attribution. The pageLoad
-    // capture is its own instrumentation with its own line below.
+    // and slow-interaction records with their LoAF attribution.
     name: "core + performance",
     path: "dist/index.js",
     import: "{ WebSDK, performance }",
     gzip: true,
     limit: "7.35 KB",
-  },
-  {
-    // The load window: the PageLoad root that ends at LCP, the asset
-    // waterfall, and the long-animation-frame spans. Raised for the root span
-    // and its LCP observer.
-    name: "core + pageLoad",
-    path: "dist/index.js",
-    import: "{ WebSDK, pageLoad }",
-    gzip: true,
-    limit: "4.7 KB",
   },
   {
     name: "core + network",
@@ -82,9 +71,9 @@ module.exports = [
     name: "core + all instrumentations",
     path: "dist/index.js",
     import:
-      "{ WebSDK, errors, pageviews, interactions, performance, pageLoad, network, sampled }",
+      "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "11 KB",
+    limit: "9.9 KB",
   },
 ];

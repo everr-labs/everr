@@ -222,7 +222,7 @@ document:
         spec:
           display:
             name: Top paths
-            description: "Bounce here is per page view, not per session: a view with no interaction that ended inside 10 seconds. Duration and scroll depth only count views that reported a page_leave."
+            description: "Bounce here is per page view, not per session: a view with no interaction that ended inside 10 seconds. Duration only counts views that reported a page_leave."
           plugin:
             kind: Table
             spec:
@@ -238,15 +238,13 @@ document:
                              count() AS views,
                              uniqExact(visitor) AS visitors,
                              round(countIf(autocaptures = 0 AND seconds < 10) / count() * 100, 1) AS bounce_pct,
-                             round(avgIf(seconds, left), 1) AS avg_seconds,
-                             round(avgIf(scroll, left) * 100) AS avg_scroll_pct
+                             round(avgIf(seconds, left), 1) AS avg_seconds
                       FROM (
                         SELECT coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) AS route,
                                toString(LogAttributes.`everr.visitor.id`) AS visitor,
                                countIf(EventName = 'everr.browser.page_leave') > 0 AS left,
                                countIf(startsWith(EventName, 'everr.browser.interaction.')) AS autocaptures,
-                               maxIf(toFloat64OrZero(toString(LogAttributes.`everr.page_view.duration`)), EventName = 'everr.browser.page_leave') / 1000 AS seconds,
-                               maxIf(toFloat64OrZero(toString(LogAttributes.`everr.scroll.depth`)), EventName = 'everr.browser.page_leave') AS scroll
+                               maxIf(toFloat64OrZero(toString(LogAttributes.`everr.page_view.duration`)), EventName = 'everr.browser.page_leave') / 1000 AS seconds
                         FROM logs
                         WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND toString(LogAttributes.`everr.page_view.id`) != ''
                         GROUP BY toString(LogAttributes.`everr.page_view.id`), route, visitor
@@ -333,12 +331,12 @@ document:
                       GROUP BY event
                       ORDER BY occurrences DESC
                       LIMIT 20
-      rage-targets:
+      click-targets:
         kind: Panel
         spec:
           display:
-            name: Rage-click targets
-            description: Three clicks inside 30px in under a second each. The selector is shown tail-first, because the stable part of a DOM path is its end.
+            name: Click targets
+            description: The selector is shown tail-first, because the stable part of a DOM path is its end.
           plugin:
             kind: Table
             spec:
@@ -352,12 +350,12 @@ document:
                     query: |-
                       SELECT coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) AS route,
                              toString(LogAttributes.`everr.element.tag`) AS tag,
-                             count() AS rage_clicks,
+                             count() AS clicks,
                              substring(toString(LogAttributes.`everr.element.selector`), -40) AS selector_tail
                       FROM logs
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.interaction.rage_click'
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.interaction.click'
                       GROUP BY route, tag, selector_tail
-                      ORDER BY rage_clicks DESC
+                      ORDER BY clicks DESC
                       LIMIT 30
     layouts:
       - kind: Grid
@@ -434,4 +432,4 @@ document:
               width: 24
               height: 9
               content:
-                $ref: "#/spec/panels/rage-targets"
+                $ref: "#/spec/panels/click-targets"

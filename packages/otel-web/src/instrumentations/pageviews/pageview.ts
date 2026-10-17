@@ -7,7 +7,7 @@ import type { CurrentPage } from "../../state/session.js";
 // full navigation that loaded the page, and one record for each SPA navigation.
 // It also sends one `everr.browser.page_leave` record for each page view, when
 // the user goes to a different page or when the page becomes hidden. That
-// record carries the time on the page and the maximum scroll depth.
+// record carries the time on the page.
 //
 // The navigation watcher makes the new page context before the listeners
 // operate. Thus the leave record replaces the envelope with the context of the
@@ -18,25 +18,12 @@ type Pageviews = [
   /** Sends the leave record of the current page view. It sends a maximum of one
    * record for each page view. */
   onHide: () => void,
-  stop: () => void,
 ];
 
 export function startPageviews(emit: Emit, current: CurrentPage): Pageviews {
   let page = current();
   let startedAt = Date.now();
-  let maxBottom = 0;
   let left = false;
-
-  // This code reads only the values that are quick to read. A read of
-  // scrollHeight causes a new layout, and thus the code reads it at the leave.
-  const onScroll = () => {
-    const bottom = scrollY + innerHeight;
-    if (bottom > maxBottom) maxBottom = bottom;
-  };
-  addEventListener("scroll", onScroll, { passive: true });
-  // The first measurement. A page that the user sees fully counts, also when
-  // the user does not scroll it.
-  onScroll();
 
   const emitView = (navigationType: "initial" | "history_change") =>
     emit("everr.browser.page_view", {
@@ -46,14 +33,11 @@ export function startPageviews(emit: Emit, current: CurrentPage): Pageviews {
   const onHide = () => {
     if (left) return;
     left = true;
-    const height = document.documentElement.scrollHeight;
     emit("everr.browser.page_leave", {
       // The leave record belongs to the page that the user leaves. Thus the
       // code replaces the envelope.
       ...pageAttrs(page),
       "everr.page_view.duration": Date.now() - startedAt,
-      "everr.scroll.depth":
-        Math.round(Math.min(height ? maxBottom / height : 0, 1) * 100) / 100,
     });
   };
 
@@ -64,12 +48,9 @@ export function startPageviews(emit: Emit, current: CurrentPage): Pageviews {
       onHide();
       page = current();
       startedAt = Date.now();
-      maxBottom = 0;
       left = false;
-      onScroll();
       emitView("history_change");
     },
     onHide,
-    () => removeEventListener("scroll", onScroll),
   ];
 }

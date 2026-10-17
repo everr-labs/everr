@@ -51,10 +51,8 @@ export function emitVital(
 
 /**
  * The one method to write the `<prefix>.script.*` attributes for the longest
- * script in a LoAF. The attribution of an interaction in inp.ts uses it, and the
- * LoAF spans of the page load in pageload.ts use it also. The caller selects the
- * duration: for an interaction it is the part that is in the interaction, and
- * for a LoAF span it is the full duration of the script.
+ * script in a LoAF. The attribution of an interaction in inp.ts uses it. The
+ * duration is the part of the script that is inside the interaction.
  */
 export function scriptAttrs(
   prefix: string,

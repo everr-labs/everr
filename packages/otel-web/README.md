@@ -15,7 +15,7 @@ pnpm add @everr/otel-web
 ## Use
 
 ```ts
-import { errors, interactions, network, pageLoad, pageviews, performance, WebSDK } from "@everr/otel-web";
+import { errors, interactions, network, pageviews, performance, WebSDK } from "@everr/otel-web";
 
 new WebSDK({
   serviceName: "acme-web",
@@ -27,7 +27,6 @@ new WebSDK({
     pageviews(),
     interactions(),
     performance(),
-    pageLoad(),
     network(),
   ],
 });
@@ -41,12 +40,11 @@ Without a key or an endpoint, a production build resolves to an inert client tha
 | --- | --- |
 | `errors()` | `window` errors and unhandled rejections, with `ignore` and `denyUrls` filters |
 | `pageviews()` | Page views and page leaves, across SPA navigations |
-| `interactions()` | Clicks, changes, submits, and rage clicks (3 clicks, 30px, 1s) |
+| `interactions()` | Clicks and submits |
 | `performance()` | Web vitals and slow-interaction spans |
-| `pageLoad()` | The first load: the asset waterfall and long animation frames |
 | `network()` | `fetch` and XHR as client spans |
 
-Wrap any instrumentation in `sampled(instrumentation, rate)` to capture a fraction of sessions, for example `sampled(pageLoad(), 0.1)`.
+Wrap any instrumentation in `sampled(instrumentation, rate)` to capture a fraction of sessions, for example `sampled(performance(), 0.1)`.
 
 ### Network requests
 

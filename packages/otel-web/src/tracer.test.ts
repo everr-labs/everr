@@ -35,10 +35,7 @@ describe("public tracer", () => {
       },
     });
     clients.push(client);
-    const load = instrumentationTracer.startActiveSpan(
-      "pageLoad",
-      (span) => span,
-    );
+    const load = instrumentationTracer.startActiveSpan("visit", (span) => span);
     const value = await tracer.startActiveSpan("checkout", async (parent) => {
       try {
         await Promise.resolve();
@@ -65,7 +62,7 @@ describe("public tracer", () => {
     expect(child.kind).toBe(1);
     expect(value).toBe("done");
     expect(parent.kind).toBe(1); // OTLP INTERNAL
-    expect(parent.parentSpanId).toBe(byName("pageLoad").spanId);
+    expect(parent.parentSpanId).toBe(byName("visit").spanId);
     expect(child.parentSpanId).toBe(parent.spanId);
     expect(child.traceId).toBe(parent.traceId);
     expect(child.endTimeUnixNano).toBe("1789568000020000000");
