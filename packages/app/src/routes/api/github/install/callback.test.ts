@@ -4,7 +4,7 @@ vi.mock("@/integrations/github/configuration", () => ({
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/integrations/github/install-state", () => ({
+vi.mock("@/lib/github-install-state", () => ({
   parseInstallState: vi.fn(),
 }));
 
@@ -44,7 +44,7 @@ vi.mock("@/db/schema", () => ({
 }));
 
 import { db } from "@/db/client";
-import { parseInstallState } from "@/integrations/github/install-state";
+import { parseInstallState } from "@/lib/github-install-state";
 import { Route } from "./callback";
 
 const mockedParseInstallState = vi.mocked(parseInstallState);

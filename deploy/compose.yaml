@@ -5,8 +5,6 @@ services:
     build:
       context: ..
       dockerfile: packages/app/Dockerfile
-      args:
-        EVERR_BUILD_TARGET: self-hosted
     restart: unless-stopped
     depends_on:
       postgres:

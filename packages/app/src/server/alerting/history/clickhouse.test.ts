@@ -14,9 +14,9 @@ vi.mock("@/telemetry/logger", () => ({
   serverLogger: { error: mocks.error },
 }));
 
-// Cuts the import chain to the Postgres client. The tier is fixed to pro so
+// Cuts the import chain to the Postgres client. Retention is fixed so
 // the stamped retention_days is a known value below.
-vi.mock("@/product/retention.server", async () => {
+vi.mock("@/lib/retention.server", async () => {
   const { retentionForDays } = await import(
     "@/product/retention.test-fixtures"
   );
@@ -27,13 +27,18 @@ vi.mock("@/product/retention.server", async () => {
 
 import { uuidv7Time } from "@/data/alerting/history/ids";
 
-const cloudStorage = import.meta.env.MODE === "cloud";
+vi.mock("@app/telemetry-storage", () => ({
+  decorateTelemetryRow: (scope: string, row: object) => ({
+    ...row,
+    testScope: scope,
+  }),
+}));
 const expectedRow = <T extends object>(organizationId: string, row: T) => ({
   ...row,
-  ...(cloudStorage ? { tenant_id: organizationId } : {}),
+  testScope: organizationId,
 });
 
-import { retentionForOrg } from "@/product/retention.server";
+import { retentionForOrg } from "@/lib/retention.server";
 import { retentionForDays } from "@/product/retention.test-fixtures";
 import {
   deliveryHistoryRow,
@@ -47,7 +52,7 @@ import {
   ZERO_UUID,
 } from "./clickhouse";
 
-// Expected Pro retention at the write boundary; row builders own no retention.
+// Expected configured retention at the write boundary; row builders own no retention.
 const stamped = <T extends { organizationId: string }>(row: T, days = 365) => {
   const { organizationId, ...storedRow } = row;
   return expectedRow(organizationId, {
@@ -235,9 +240,7 @@ describe("ClickHouse alert history", () => {
       Record<string, unknown>
     >;
     expect(insertedRows.every((row) => !("organizationId" in row))).toBe(true);
-    expect(
-      insertedRows.every((row) => "tenant_id" in row === cloudStorage),
-    ).toBe(true);
+    expect(insertedRows.every((row) => "testScope" in row)).toBe(true);
   });
 
   it("mints time-decodable v7 ids for rows without a caller-supplied id", () => {

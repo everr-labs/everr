@@ -102,7 +102,7 @@ it.each([
 it("makes completion idempotent and preserves other metadata including changes since Home was loaded", async () => {
   const initialMetadata = {
     onboardingCompleted: false,
-    billing: { customer: "existing", flags: ["one", "two"] },
+    integration: { connection: "existing", flags: ["one", "two"] },
     featureEnabled: true,
   };
   await database

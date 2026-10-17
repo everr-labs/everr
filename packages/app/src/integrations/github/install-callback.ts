@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { githubInstallationOrganizations, member } from "@/db/schema";
-import { parseInstallState } from "@/integrations/github/install-state";
+import { parseInstallState } from "@/lib/github-install-state";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { getSession } from "@/lib/session.server";
 import { getGithubConfiguration } from "./configuration";

@@ -1,3 +1,8 @@
+import { assertStorageReady } from "@app/storage-readiness";
+import { StorageNotReadyError } from "@/common/storage-readiness";
+
+vi.mock("@app/storage-readiness", () => ({ assertStorageReady: vi.fn() }));
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -157,6 +162,9 @@ describe("evaluateAlert scheduling state", () => {
   });
 
   it("defers evaluation for pending organizations without issuing SQL", async () => {
+    vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+      throw new StorageNotReadyError();
+    });
     mocks.metadata = { clickhouseReady: false };
     mocks.transaction.mockImplementation(
       (cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()),

@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   headers: new Headers(),
 }));
 
+vi.mock("@app/entry", () => ({
+  getAppEntry: async () => ({ setupRequired: false }),
+}));
 vi.mock("@/telemetry/client", () => ({}));
 vi.mock("@/lib/auth-providers.server", () => ({
   socialProviders: { google: {} },

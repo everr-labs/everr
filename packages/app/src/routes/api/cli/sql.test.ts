@@ -1,3 +1,8 @@
+import { assertStorageReady } from "@app/storage-readiness";
+import { StorageNotReadyError } from "@/common/storage-readiness";
+
+vi.mock("@app/storage-readiness", () => ({ assertStorageReady: vi.fn() }));
+
 import { ClickHouseError } from "@clickhouse/client";
 import { trace } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -42,6 +47,9 @@ beforeEach(() => {
 
 describe("/api/cli/sql", () => {
   it("returns a friendly retryable response while organization setup is pending", async () => {
+    vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+      throw new StorageNotReadyError();
+    });
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/sql", {
         method: "POST",
@@ -56,8 +64,7 @@ describe("/api/cli/sql", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBe("5");
     expect(await response.json()).toEqual({
-      error:
-        "We're setting up your organization's data access. This is taking a little longer than usual. We'll keep trying automatically. Please try again shortly.",
+      error: "Storage is not ready.",
     });
     expect(span.setAttribute).toHaveBeenCalledWith(
       "everr.sql_query.outcome",

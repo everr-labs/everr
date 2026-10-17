@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import type { MigrationConfig } from "drizzle-orm/migrator";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
@@ -6,14 +8,14 @@ import * as schema from "./schema";
 
 export type MigrationDatabase = NodePgDatabase<typeof schema>;
 
-export const coreMigrationConfig: MigrationConfig = {
-  migrationsFolder: "./drizzle/core",
-  migrationsSchema: "drizzle",
-  migrationsTable: "__everr_core_migrations",
+export const migrationConfig: MigrationConfig = {
+  migrationsFolder: existsSync("./drizzle/meta/_journal.json")
+    ? "./drizzle"
+    : resolve(import.meta.dirname, "../../drizzle"),
 };
 
-export async function migrateCoreDatabase(database: MigrationDatabase) {
-  await migrate(database, coreMigrationConfig);
+export async function migrateDatabase(database: MigrationDatabase) {
+  await migrate(database, migrationConfig);
 }
 
 // Keep one connection locked across all histories. Each Drizzle migration batch

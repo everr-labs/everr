@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { retentionForDays } from "@/product/retention.test-fixtures";
 import { Route } from "./verify-key";
 
+vi.mock("@app/ingestion", () => ({ ingestIdentity: () => ({}) }));
+
 vi.mock("@/env", () => ({
   env: {
     INGEST_VERIFY_SHARED_SECRET:
@@ -17,7 +19,7 @@ vi.mock("@/lib/auth.server", () => ({
   },
 }));
 
-vi.mock("@/product/retention.server", () => ({
+vi.mock("@/lib/retention.server", () => ({
   retentionForOrg: vi.fn(),
 }));
 
@@ -51,7 +53,7 @@ async function mockVerify(result: unknown) {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  const { retentionForOrg } = await import("@/product/retention.server");
+  const { retentionForOrg } = await import("@/lib/retention.server");
   vi.mocked(retentionForOrg).mockResolvedValue(retentionForDays(365, 30));
 });
 
@@ -101,7 +103,7 @@ describe("/api/internal/verify-key", () => {
   });
 
   it("returns the verified tenant and forwards each signal's retention", async () => {
-    const { retentionForOrg } = await import("@/product/retention.server");
+    const { retentionForOrg } = await import("@/lib/retention.server");
     vi.mocked(retentionForOrg).mockResolvedValueOnce({
       ...retentionForDays(90),
       tracesDays: 14,
@@ -121,7 +123,6 @@ describe("/api/internal/verify-key", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      ...(import.meta.env.MODE === "cloud" ? { tenantId: "org_42" } : {}),
       keyId: "ak_3",
       tracesDays: 14,
       logsDays: 7,
@@ -199,7 +200,6 @@ describe("/api/internal/verify-key browser origin policy", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      ...(import.meta.env.MODE === "cloud" ? { tenantId: "org_42" } : {}),
       keyId: "ak_public",
       tracesDays: 365,
       logsDays: 365,
@@ -267,7 +267,6 @@ describe("/api/internal/verify-key browser origin policy", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      ...(import.meta.env.MODE === "cloud" ? { tenantId: "org_42" } : {}),
       keyId: "ak_secret",
       tracesDays: 365,
       logsDays: 365,

@@ -4,10 +4,8 @@ WORKDIR /app
 
 # Stage 1: install dependencies
 FROM base AS deps
-ARG EVERR_BUILD_TARGET=cloud
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/app/package.json ./packages/app/
-COPY packages/app/src/cloud/package.json ./packages/app/src/cloud/
 COPY packages/otel-errors/package.json ./packages/otel-errors/
 COPY packages/otel-web/package.json ./packages/otel-web/
 COPY packages/tanstack-start-otel/package.json ./packages/tanstack-start-otel/
@@ -15,16 +13,10 @@ COPY packages/datemath/package.json ./packages/datemath/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/telemetry-explorer/package.json ./packages/telemetry-explorer/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    if [ "$EVERR_BUILD_TARGET" = "self-hosted" ]; then \
-      pnpm install --filter @everr/app... --frozen-lockfile --ignore-scripts; \
-    else \
-      pnpm install --frozen-lockfile --ignore-scripts; \
-    fi
+    pnpm install --filter @everr/app... --frozen-lockfile --ignore-scripts
 
 # Stage 2: build
 FROM deps AS build
-# Cloud remains the default for existing deployments.
-ARG EVERR_BUILD_TARGET=cloud
 # Public (origin-bound, ingest-only) browser key baked into the client bundle by
 # Vite at build time. Optional: when unset, browser error tracking stays off.
 ARG VITE_EVERR_PUBLIC_INGEST_KEY
@@ -36,24 +28,10 @@ COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui
 COPY packages/telemetry-explorer ./packages/telemetry-explorer
 COPY packages/app ./packages/app
-# Stage only the runtime migration inputs before self-hosted builds remove Cloud source.
-# Snapshots are generation metadata and are not needed by the runtime migrator.
-# Keep the Cloud workspace manifest so pnpm reuses the frozen installation.
-RUN set -eu; \
-    stage_migrations() { \
-      source_dir="$1"; target_dir="$2"; \
-      mkdir -p "/app/runtime-drizzle/$target_dir/meta"; \
-      cp "$source_dir"/*.sql "/app/runtime-drizzle/$target_dir/"; \
-      cp "$source_dir/meta/_journal.json" "/app/runtime-drizzle/$target_dir/meta/_journal.json"; \
-    }; \
-    stage_migrations packages/app/drizzle/core core; \
-    if [ "$EVERR_BUILD_TARGET" != "self-hosted" ]; then \
-      stage_migrations packages/app/src/cloud/drizzle cloud; \
-      stage_migrations packages/app/src/cloud/drizzle-legacy legacy; \
-    fi; \
-    if [ "$EVERR_BUILD_TARGET" = "self-hosted" ]; then \
-      find packages/app/src/cloud -mindepth 1 -maxdepth 1 ! -name package.json -exec rm -rf {} +; \
-    fi
+# Stage runtime migrations without generation snapshots.
+RUN mkdir -p /app/runtime-drizzle/meta && \
+    cp packages/app/drizzle/*.sql /app/runtime-drizzle/ && \
+    cp packages/app/drizzle/meta/_journal.json /app/runtime-drizzle/meta/
 # The MCP query tool description inlines the telemetry skill's schema at build time.
 COPY skills/everr-use-telemetry/rules/schema.md ./skills/everr-use-telemetry/rules/schema.md
 # SPA prerender initializes auth and mailer configuration without using them.
@@ -61,7 +39,7 @@ COPY skills/everr-use-telemetry/rules/schema.md ./skills/everr-use-telemetry/rul
 RUN SKIP_ENV_VALIDATION=true \
     BETTER_AUTH_URL=http://localhost:3000 \
     BETTER_AUTH_SECRET=prerender-only-not-a-runtime-secret \
-    pnpm --filter @everr/app build:${EVERR_BUILD_TARGET} && \
+    pnpm --filter @everr/app build && \
     test -s packages/app/.output/public/_shell.html
 
 # Stage 3: production

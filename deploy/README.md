@@ -37,7 +37,7 @@ Open <http://localhost:3000> and create the workspace and its owner. The first
 person to complete setup becomes the owner. Setup closes once the workspace
 exists, and concurrent attempts cannot create another workspace.
 
-The self-hosted app applies the shared core PostgreSQL migration history during
+The self-hosted app applies the application PostgreSQL migration history during
 startup. The image contains only that history. ClickHouse initializes
 its schema and access roles on the first start with an empty data volume.
 Workers run inside the app; no separate worker service is needed.
@@ -167,6 +167,6 @@ link was issued. Accounts that only use an external identity provider must
 be recovered through that provider.
 
 The command is built alongside the self-hosted server by
-`pnpm build:self-hosted`. Direct password recovery needs only database
+`pnpm build`. Direct password recovery needs only database
 configuration; link generation also needs `BETTER_AUTH_URL`. It does not start
 the web server or workers, and requires neither SMTP nor ClickHouse.

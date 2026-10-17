@@ -1,8 +1,8 @@
-import { productPolicy } from "@app/policy";
+import { product } from "@composition/product";
 import { APIError } from "better-auth/api";
 
 export async function assertCanInviteMembers(orgId: string) {
-  if (!(await productPolicy.forOrganization(orgId)).canInviteMembers) {
+  if (!(await product.canInviteMembers(orgId))) {
     throw new APIError("FORBIDDEN", {
       message: "Invitations are unavailable for this organization.",
     });

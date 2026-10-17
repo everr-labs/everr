@@ -1,4 +1,4 @@
-/** Self-host telemetry rows share a table without a tenant discriminator. */
+/** Telemetry rows share a table without a tenant discriminator. */
 export function decorateTelemetryRow<T extends object>(
   _organizationId: string,
   row: T,

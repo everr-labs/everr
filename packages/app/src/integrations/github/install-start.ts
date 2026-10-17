@@ -1,5 +1,5 @@
-import { createInstallState } from "@/integrations/github/install-state";
 import { auth } from "@/lib/auth.server";
+import { createInstallState } from "@/lib/github-install-state";
 import { isOrganizationAdmin } from "@/lib/organization-role";
 import { getSession } from "@/lib/session.server";
 import { getGithubConfiguration } from "./configuration";

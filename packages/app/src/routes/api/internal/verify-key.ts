@@ -5,8 +5,8 @@ import { env } from "@/env";
 import { hasApiKeyScope } from "@/lib/api-key-scopes";
 import { auth } from "@/lib/auth.server";
 import { originPolicyAllows } from "@/lib/public-ingest-keys";
+import { retentionForOrg } from "@/lib/retention.server";
 import type { TenantRetention } from "@/product/retention";
-import { retentionForOrg } from "@/product/retention.server";
 import { mergeTelemetryIdentity } from "@/telemetry/identity";
 
 const INGEST_CONFIG_ID = "ingest";

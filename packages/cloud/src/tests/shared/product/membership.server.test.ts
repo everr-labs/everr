@@ -1,0 +1,34 @@
+// @vitest-environment node
+import { expect, it, vi } from "vitest";
+
+vi.mock("../../../billing-data.server", () => ({ readOrgEntitlement: vi.fn() }));
+
+import { readOrgEntitlement } from "../../../billing-data.server";
+import { assertCanInviteMembers } from "@everr/app/product/membership.server";
+
+it.each([
+  "hobby",
+  "suspended",
+] as const)("preserves Cloud's collaboration restriction for %s organizations", async (appState) => {
+  vi.mocked(readOrgEntitlement).mockResolvedValue({
+    plan: appState === "hobby" ? "hobby" : "pro",
+    appState,
+    status: null,
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+  });
+  await expect(assertCanInviteMembers("org")).rejects.toMatchObject({
+    status: "FORBIDDEN",
+  });
+});
+
+it("allows members for an active Cloud subscription", async () => {
+  vi.mocked(readOrgEntitlement).mockResolvedValue({
+    plan: "pro",
+    appState: "pro",
+    status: "active",
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+  });
+  await expect(assertCanInviteMembers("org")).resolves.toBeUndefined();
+});

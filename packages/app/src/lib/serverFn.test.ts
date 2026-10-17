@@ -1,3 +1,8 @@
+import { assertStorageReady } from "@app/storage-readiness";
+import { StorageNotReadyError } from "@/common/storage-readiness";
+
+vi.mock("@app/storage-readiness", () => ({ assertStorageReady: vi.fn() }));
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   composeMiddleware,
@@ -294,7 +299,10 @@ describe("organization readiness boundary", () => {
     expect(next).toHaveBeenCalledOnce();
     expect(mocked.getOrganization).toHaveBeenCalledOnce();
   });
-  it("blocks pending data functions while allowing organization and billing access", async () => {
+  it("blocks pending data functions while allowing organization access", async () => {
+    vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+      throw new StorageNotReadyError();
+    });
     await loadModule();
     mocked.getSession.mockResolvedValue({
       user: { id: "u" },

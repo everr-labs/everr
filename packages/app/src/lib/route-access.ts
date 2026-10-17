@@ -1,4 +1,4 @@
-import { missingWorkspaceRoute } from "@app/client";
+import { productClient } from "@composition/client";
 import { redirect } from "@tanstack/react-router";
 import { getActiveOrganizationAccess } from "@/data/organization-access";
 import type { auth } from "@/lib/auth.server";
@@ -37,7 +37,7 @@ export async function requireOrganization({
 }) {
   const missingWorkspace = () =>
     redirect({
-      to: missingWorkspaceRoute,
+      to: productClient.missingWorkspaceRoute,
       search: { returnTo: search.returnTo ?? location.href },
       replace: true,
     });

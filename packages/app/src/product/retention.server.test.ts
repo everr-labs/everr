@@ -1,12 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createProduct } from "./module";
 import { retentionForDays } from "./retention.test-fixtures";
 
-const lookup = vi.hoisted(() => vi.fn());
-vi.mock("@app/policy", () => ({
-  productPolicy: { forOrganization: lookup },
-}));
-
-import { retentionForOrg } from "./retention.server";
+const lookup = vi.fn();
+const { retentionForOrg } = createProduct({ forOrganization: lookup });
 
 afterEach(() => {
   vi.useRealTimers();
@@ -42,4 +39,29 @@ describe("organization retention", () => {
       retentionForDays(90),
     );
   });
+});
+
+it("does not share policy or cached retention across compositions", async () => {
+  const installation = createProduct({
+    forOrganization: async () => ({
+      access: "enabled",
+      canInviteMembers: true,
+      retention: retentionForDays(30),
+    }),
+  });
+  const restricted = createProduct({
+    forOrganization: async () => ({
+      access: "enabled",
+      canInviteMembers: false,
+      retention: retentionForDays(7),
+    }),
+  });
+  expect(await installation.retentionForOrg("same-id")).toEqual(
+    retentionForDays(30),
+  );
+  expect(await restricted.retentionForOrg("same-id")).toEqual(
+    retentionForDays(7),
+  );
+  expect(await installation.canInviteMembers("same-id")).toBe(true);
+  expect(await restricted.canInviteMembers("same-id")).toBe(false);
 });

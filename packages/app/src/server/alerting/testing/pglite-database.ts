@@ -110,9 +110,9 @@ export async function applyTestSchema(
 ): Promise<void> {
   const db = drizzle(client);
   await migrate(db, {
-    migrationsFolder: resolve(import.meta.dirname, "../../../../drizzle/core"),
+    migrationsFolder: resolve(import.meta.dirname, "../../../../drizzle"),
     migrationsSchema: "drizzle",
-    migrationsTable: "__everr_core_migrations",
+    migrationsTable: "__drizzle_migrations",
   });
   for (const migrations of additionalMigrations) await migrate(db, migrations);
 }

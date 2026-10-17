@@ -1,7 +1,7 @@
-import { OrganizationSwitcher } from "@app/navigation";
+import { productUI } from "@composition/ui";
 import { Button } from "@everr/ui/components/button";
 import { EverrLogo } from "@everr/ui/components/everr-logo";
-import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { AsciiLogo } from "./_welcome/-components/ascii-logo";
@@ -11,18 +11,16 @@ export const Route = createFileRoute("/_welcome")({
 });
 
 function RouteComponent() {
+  const { WelcomeActions } = productUI;
   const { session } = Route.useRouteContext();
-  const pathname = useLocation({ select: (location) => location.pathname });
 
   return (
     <div className="relative flex min-h-screen flex-col bg-background text-foreground lg:grid lg:grid-cols-[1.15fr_1fr]">
       {session?.user && (
         <div className="absolute top-6 right-6 z-30 flex max-w-[calc(100%_-_8rem)] items-center gap-2 lg:top-10 lg:right-10">
-          {pathname === "/organization-setup" && (
-            <OrganizationSwitcher
-              activeOrganizationId={session.session.activeOrganizationId}
-            />
-          )}
+          <WelcomeActions
+            activeOrganizationId={session.session.activeOrganizationId}
+          />
           <Button
             variant="ghost"
             size="sm"

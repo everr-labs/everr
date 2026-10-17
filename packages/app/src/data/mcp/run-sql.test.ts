@@ -1,3 +1,8 @@
+import { assertStorageReady } from "@app/storage-readiness";
+import { StorageNotReadyError } from "@/common/storage-readiness";
+
+vi.mock("@app/storage-readiness", () => ({ assertStorageReady: vi.fn() }));
+
 import { ClickHouseError } from "@clickhouse/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,6 +37,9 @@ describe("runSqlForConnection", () => {
   });
 
   it("rejects pending setup before issuing SQL", async () => {
+    vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+      throw new StorageNotReadyError();
+    });
     const result = await runSqlForConnection({
       orgId: "org-1",
       metadata: { clickhouseReady: false },

@@ -1,0 +1,1 @@
+import "@everr/app/migrate";

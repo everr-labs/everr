@@ -1,3 +1,8 @@
+import { assertStorageReady } from "@app/storage-readiness";
+import { StorageNotReadyError } from "@/common/storage-readiness";
+
+vi.mock("@app/storage-readiness", () => ({ assertStorageReady: vi.fn() }));
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const verifyApiKey = vi.fn();
@@ -424,6 +429,9 @@ describe("requireOrgOrApiKeyMiddleware", () => {
 });
 
 it("returns a retryable setup response for a pending API-key organization", async () => {
+  vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+    throw new StorageNotReadyError();
+  });
   verifyApiKey.mockResolvedValueOnce({
     valid: true,
     key: { id: "key", referenceId: "org", permissions: { apply: ["*"] } },

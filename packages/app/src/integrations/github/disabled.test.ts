@@ -2,12 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db/client", () => ({ db: {} }));
 vi.mock("./configuration", () => ({ getGithubConfiguration: () => undefined }));
-vi.mock("./events/enqueue", () => ({ enqueueWebhookEvent: vi.fn() }));
+vi.mock("../../server/github-events/enqueue", () => ({
+  enqueueWebhookEvent: vi.fn(),
+}));
 
 import { auth } from "@/lib/auth.server";
-import { getGithubAppInstallStatus, getInstallationRepos } from "./data";
-import { enqueueWebhookEvent } from "./events/enqueue";
-import { handleGitHubWebhookRequest } from "./events/webhook";
+import {
+  getGithubAppInstallStatus,
+  getInstallationRepos,
+} from "../../data/github";
+import { enqueueWebhookEvent } from "../../server/github-events/enqueue";
+import { handleGitHubWebhookRequest } from "../../server/github-events/webhook";
 import { handleInstallCallback } from "./install-callback";
 import { handleInstallStart } from "./install-start";
 

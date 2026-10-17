@@ -1,4 +1,4 @@
-import { publicSignup } from "@app/client";
+import { productClient } from "@composition/client";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -157,7 +157,7 @@ function SignIn() {
         </Button>
       </form>
 
-      {publicSignup ? (
+      {productClient.publicSignup ? (
         <p className="text-center text-sm text-muted-foreground">
           Don't have an account?{" "}
           <Link

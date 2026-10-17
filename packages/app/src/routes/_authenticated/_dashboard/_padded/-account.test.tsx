@@ -1,4 +1,4 @@
-import { canDeleteWorkspace } from "@app/client";
+import { productClient } from "@composition/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -294,7 +294,10 @@ describe("/account route", () => {
         id: "test_org",
         name: "Test Org",
         members: [
-          { userId: "test_user", role: canDeleteWorkspace ? "admin" : "owner" },
+          {
+            userId: "test_user",
+            role: productClient.canDeleteWorkspace ? "admin" : "owner",
+          },
         ],
       },
     });
@@ -307,7 +310,7 @@ describe("/account route", () => {
     ).not.toBeInTheDocument();
   });
 
-  it.runIf(canDeleteWorkspace)(
+  it.runIf(productClient.canDeleteWorkspace)(
     "passes the organization deletion choice when confirmed",
     async () => {
       const user = userEvent.setup();
@@ -338,7 +341,7 @@ describe("/account route", () => {
     },
   );
 
-  it.runIf(canDeleteWorkspace)(
+  it.runIf(productClient.canDeleteWorkspace)(
     "passes organization deletion without an extra checkbox click for the only owner",
     async () => {
       const user = userEvent.setup();
@@ -395,11 +398,11 @@ describe("/account route", () => {
     });
   });
 
-  it("shows the Pro organization ownership block from the server", async () => {
+  it("shows the workspace ownership block from the server", async () => {
     const user = userEvent.setup();
     mocks.deleteCurrentUserAccount.mockRejectedValueOnce(
       new Error(
-        "You can't delete your account while you are an owner of one or more Pro organizations. Transfer ownership of: Acme.",
+        "You can't delete your account while you are an owner of a workspace. Transfer ownership of: Acme.",
       ),
     );
     renderPage();
@@ -415,7 +418,7 @@ describe("/account route", () => {
         name: "",
       }),
     ).toHaveTextContent(
-      "You can't delete your account while you are an owner of one or more Pro organizations. Transfer ownership of: Acme.",
+      "You can't delete your account while you are an owner of a workspace. Transfer ownership of: Acme.",
     );
     expect(mocks.navigate).not.toHaveBeenCalled();
   });

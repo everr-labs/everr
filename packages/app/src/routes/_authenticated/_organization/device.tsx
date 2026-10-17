@@ -1,4 +1,4 @@
-import { DEVICE_LOGIN_RESTART_INSTRUCTION } from "@app/device-login-copy";
+import { productClient } from "@composition/client";
 import { Button } from "@everr/ui/components/button";
 import { Label } from "@everr/ui/components/label";
 import {
@@ -182,7 +182,7 @@ function CliDeviceApprovalPage() {
                   role="alert"
                   className="text-destructive mt-4 text-center text-sm"
                 >
-                  {errorMessage} {DEVICE_LOGIN_RESTART_INSTRUCTION}
+                  {errorMessage} {productClient.deviceLoginRestartInstruction}
                 </p>
               ) : null}
             </>

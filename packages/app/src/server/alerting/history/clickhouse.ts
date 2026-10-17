@@ -15,7 +15,7 @@ import type {
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import { formatResourceName } from "@/data/as-code/identity";
 import { insertRows } from "@/lib/clickhouse-writer";
-import { retentionForOrg } from "@/product/retention.server";
+import { retentionForOrg } from "@/lib/retention.server";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import {
   capAlertLabels,
@@ -489,11 +489,9 @@ async function insertAlertHistoryRows(
   rows: AlertHistoryRow[],
   { sync, convergesOnRetry }: { sync: boolean; convergesOnRetry: boolean },
 ): Promise<void> {
-  // Free keeps evaluation and lifecycle history for 14 days; Pro keeps
-  // evaluations for 30 days and lifecycle history for 365 days. Each row gets
-  // its event-class entitlement here as a write-time snapshot. A batch
-  // can hold rows of several tenants; retentionForOrg caches per tenant, so
-  // the lookup runs once per tenant in the batch.
+  // Resolve the configured retention windows before writing history.
+  // Each row captures its event-class retention at write time. Lookups
+  // are cached per organization for batches spanning multiple organizations.
   const stamped = await Promise.all(
     rows.map(async (row) => {
       const retention = await retentionForOrg(row.organizationId);

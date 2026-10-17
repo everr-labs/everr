@@ -1,4 +1,3 @@
-import { OrganizationMenuItems, WorkspaceMenu } from "@app/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,9 +25,11 @@ import {
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { isOrganizationAdmin } from "@/lib/organization-role";
+import { useProductUI } from "@/product/ui";
 import { useOpenConsentSettings } from "@/telemetry/consent-gate";
 
 export function NavUser() {
+  const { OrganizationMenuItems, WorkspaceMenu } = useProductUI();
   const openConsentSettings = useOpenConsentSettings();
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();

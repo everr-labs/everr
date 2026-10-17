@@ -8,7 +8,7 @@ interface ImportMetaEnv {
    */
   readonly VITE_EVERR_PUBLIC_INGEST_KEY?: string;
   /**
-   * OTLP endpoint for browser telemetry. Required in self-hosted production;
+   * OTLP endpoint for browser telemetry. Required in production;
    * development can use the local collector.
    */
   readonly VITE_EVERR_INGEST_ENDPOINT?: string;

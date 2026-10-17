@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
@@ -5,91 +6,130 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
 import svgr from "vite-plugin-svgr";
-import { appAliases, appIsolation, appRoutes } from "./vite.app";
-import { smeeWebhookPlugin } from "./vite.smee";
+import {
+  type AppComposition,
+  appAliases,
+  appDirectory,
+  appRoutes,
+  installationComposition,
+} from "./vite.app.ts";
+import { smeeWebhookPlugin } from "./vite.smee.ts";
 
-const config = defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+export function createAppConfig(
+  composition: AppComposition = installationComposition,
+  outputDirectory = resolve(appDirectory, ".output"),
+) {
+  return defineConfig(({ mode }) => {
+    const env = loadEnv(mode, process.cwd(), "");
 
-  return {
-    server: {
-      allowedHosts: ["host.docker.internal"],
-      host: "0.0.0.0",
-      port: 5173,
-    },
-    resolve: {
-      tsconfigPaths: true,
-      alias: [
-        ...appAliases(mode),
-        // tslib gets pulled in by Radix UI on SSR. Nitro/Rollup wraps tslib's
-        // CJS as `__toESM(tslib).default` and destructures helpers off `.default`,
-        // which is undefined — crashing route loaders with "Cannot destructure
-        // property '__extends'". Pin to the ESM file directly to bypass the
-        // CJS interop path entirely.
+    return {
+      root: appDirectory,
+      envDir: process.cwd(),
+      publicDir: resolve(appDirectory, "public"),
+      server: {
+        allowedHosts: ["host.docker.internal"],
+        host: "0.0.0.0",
+        port: 5173,
+      },
+      resolve: {
+        tsconfigPaths: true,
+        dedupe: [
+          "react",
+          "react-dom",
+          "@tanstack/react-start",
+          "@tanstack/react-router",
+          "@tanstack/react-query",
+        ],
+        alias: [
+          ...appAliases(composition),
+          // tslib gets pulled in by Radix UI on SSR. Nitro/Rollup wraps tslib's
+          // CJS as `__toESM(tslib).default` and destructures helpers off `.default`,
+          // which is undefined — crashing route loaders with "Cannot destructure
+          // property '__extends'". Pin to the ESM file directly to bypass the
+          // CJS interop path entirely.
+          {
+            find: /^tslib$/,
+            replacement: "tslib/tslib.es6.mjs",
+          },
+          // use-sync-external-store is a CJS shim that does require("react") which
+          // Rollup can't inline for SSR, causing "Cannot find module 'react'" in
+          // production. React 19 exports useSyncExternalStore natively, so we
+          // redirect to our thin ESM wrappers that import from react directly.
+          {
+            find: "use-sync-external-store/shim/with-selector",
+            replacement: new URL(
+              "src/ssr-shims/use-sync-external-store-with-selector.ts",
+              import.meta.url,
+            ).pathname,
+          },
+          {
+            find: "use-sync-external-store/shim",
+            replacement: new URL(
+              "src/ssr-shims/use-sync-external-store-shim.ts",
+              import.meta.url,
+            ).pathname,
+          },
+        ],
+      },
+      plugins: [
         {
-          find: /^tslib$/,
-          replacement: "tslib/tslib.es6.mjs",
-        },
-        // use-sync-external-store is a CJS shim that does require("react") which
-        // Rollup can't inline for SSR, causing "Cannot find module 'react'" in
-        // production. React 19 exports useSyncExternalStore natively, so we
-        // redirect to our thin ESM wrappers that import from react directly.
-        {
-          find: "use-sync-external-store/shim/with-selector",
-          replacement: new URL(
-            "src/ssr-shims/use-sync-external-store-with-selector.ts",
-            import.meta.url,
-          ).pathname,
-        },
-        {
-          find: "use-sync-external-store/shim",
-          replacement: new URL(
-            "src/ssr-shims/use-sync-external-store-shim.ts",
-            import.meta.url,
-          ).pathname,
-        },
-      ],
-    },
-    plugins: [
-      appIsolation(mode),
-      smeeWebhookPlugin({
-        channel: env.SMEE_CHANNEL,
-      }),
-      devtools(),
-      tailwindcss(),
-      tanstackStart({
-        spa: {
-          enabled: true,
-        },
-        router: appRoutes(mode),
-      }),
-      nitro({
-        traceDeps: ["tslib*"],
-        hooks: {
-          "rollup:before": (nitro, config) => {
-            if (mode === "cloud" || nitro.options.dev) return;
-            config.input = {
-              index: nitro.options.entry,
-              recovery: new URL(
-                "./src/app/commands/recovery.ts",
-                import.meta.url,
-              ).pathname,
-            };
-            const outputs = Array.isArray(config.output)
-              ? config.output
-              : [config.output];
-            for (const output of outputs) {
-              if (output) output.entryFileNames = "[name].mjs";
-            }
+          name: "app-composition-css",
+          enforce: "pre",
+          transform(code, id) {
+            if (
+              id.includes("?url") ||
+              id.split("?")[0] !== resolve(appDirectory, "src/styles/app.css")
+            )
+              return;
+            return (
+              code +
+              (composition.cssSources ?? [])
+                .map((source) => `\n@source "${source}";`)
+                .join("")
+            );
           },
         },
-      }),
-      viteReact(),
-      // dimensions: false drops the svg's fixed width/height, so the icon
-      // scales from its viewBox and CSS classes own the size everywhere.
-      svgr({ svgrOptions: { dimensions: false } }),
-    ],
-  };
-});
+        smeeWebhookPlugin({
+          channel: env.SMEE_CHANNEL,
+        }),
+        devtools(),
+        tailwindcss(),
+        tanstackStart({
+          spa: {
+            enabled: true,
+          },
+          router: appRoutes(composition),
+        }),
+        nitro({
+          output: { dir: outputDirectory },
+          traceDeps: ["tslib*"],
+          hooks: {
+            "rollup:before": (nitro, config) => {
+              if (composition !== installationComposition || nitro.options.dev)
+                return;
+              config.input = {
+                index: nitro.options.entry,
+                recovery: new URL(
+                  "./src/app/commands/recovery.ts",
+                  import.meta.url,
+                ).pathname,
+              };
+              const outputs = Array.isArray(config.output)
+                ? config.output
+                : [config.output];
+              for (const output of outputs) {
+                if (output) output.entryFileNames = "[name].mjs";
+              }
+            },
+          },
+        }),
+        viteReact(),
+        // dimensions: false drops the svg's fixed width/height, so the icon
+        // scales from its viewBox and CSS classes own the size everywhere.
+        svgr({ svgrOptions: { dimensions: false } }),
+      ],
+    };
+  });
+}
 
-export default config;
+export default createAppConfig();

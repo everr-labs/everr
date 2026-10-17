@@ -17,13 +17,13 @@ import {
 import { Link } from "@tanstack/react-router";
 import { Check, GitBranch, Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { GithubInstall } from "@/components/github-install";
 import { PageHeader } from "@/components/page-header";
 import {
   getGithubAppInstallStatus,
   getInstallationRepos,
   importRepos,
-} from "@/integrations/github/data";
-import { GithubInstall } from "@/integrations/github/install";
+} from "@/data/github";
 
 export const githubInstallStatusOptions = queryOptions({
   queryKey: ["github", "install-status"],

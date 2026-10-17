@@ -1,6 +1,6 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "src/cloud", "**/*.test.ts", "**/*.test.tsx"],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
@@ -22,6 +22,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
+      "@composition/client": ["./src/app/composition/client.tsx"],
+      "@composition/product": ["./src/app/composition/product.ts"],
+      "@composition/ui": ["./src/app/composition/ui.ts"],
       "@/*": ["./src/*"],
       "@app/*": ["./src/app/*"],
       "@everr/ui/*": ["../ui/src/*"]

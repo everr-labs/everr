@@ -26,13 +26,9 @@ databaseURL.username = databaseUser;
 databaseURL.password = databasePassword;
 
 export default defineConfig({
-	out: "./drizzle/core",
+	out: "./drizzle",
 	schema: "./src/db/schema/index.ts",
 	dialect: "postgresql",
-	migrations: {
-		table: "__everr_core_migrations",
-		schema: "drizzle",
-	},
 	dbCredentials: {
 		url: databaseURL.toString(),
 	},

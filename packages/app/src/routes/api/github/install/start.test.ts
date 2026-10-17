@@ -6,12 +6,12 @@ vi.mock("@/integrations/github/configuration", () => ({
   }),
 }));
 
-vi.mock("@/integrations/github/install-state", () => ({
+vi.mock("@/lib/github-install-state", () => ({
   createInstallState: vi.fn(() => "signed-state"),
 }));
 
-import { createInstallState } from "@/integrations/github/install-state";
 import { auth } from "@/lib/auth.server";
+import { createInstallState } from "@/lib/github-install-state";
 import { Route } from "./start";
 
 function getHandler() {

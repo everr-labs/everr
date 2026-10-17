@@ -1,4 +1,4 @@
-import { getDefaultTelemetryEndpoint } from "@app/telemetry";
+import { productClient } from "@composition/client";
 
 const TELEMETRY_SERVICE_NAME = "everr-dev-app";
 const TELEMETRY_SERVICE_NAMESPACE = "everr";
@@ -30,7 +30,9 @@ export function resolveBrowserTelemetryConfig(env: {
 }) {
   const endpoint =
     cleanEnvValue(env.endpoint) ??
-    (cleanEnvValue(env.publicKey) ? getDefaultTelemetryEndpoint() : undefined);
+    (cleanEnvValue(env.publicKey)
+      ? productClient.telemetryEndpoint
+      : undefined);
   return {
     endpoint,
     ingestKey: endpoint ? cleanEnvValue(env.publicKey) : undefined,
@@ -46,7 +48,7 @@ export function resolveTelemetryConfig(
   const ingestKey = cleanEnvValue(env.EVERR_INGEST_KEY);
 
   const everrIngestEndpoint = ingestKey
-    ? (everrEndpoint ?? getDefaultTelemetryEndpoint())
+    ? (everrEndpoint ?? productClient.telemetryEndpoint)
     : undefined;
   const localDevelopmentEndpoint = isLocalDevelopment(env)
     ? DEFAULT_LOCAL_OTLP_ENDPOINT
