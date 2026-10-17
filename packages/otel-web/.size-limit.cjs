@@ -13,39 +13,43 @@ module.exports = [
     import: "{ WebSDK }",
     gzip: true,
     // Includes the shared tracer binding and span-kind support.
-    limit: "3.6 KB",
+    // Raised for span status, links, timestamps, and log correlation.
+    limit: "4.2 KB",
   },
   {
     name: "core + public tracer",
     path: "dist/index.js",
     import: "{ WebSDK, tracer }",
     gzip: true,
-    limit: "3.8 KB",
+    limit: "4.25 KB",
   },
   {
     // Raised for the parent span support in the tracer.
+    // Raised again for span status, links, timestamps, and log correlation.
     name: "core + errors",
     path: "dist/index.js",
     import: "{ WebSDK, errors }",
     gzip: true,
-    limit: "4.2 KB",
+    limit: "4.9 KB",
   },
   {
     // Raised for the exit-flush budget code (refer to pipeline/emitter.ts)
     // and for the parent span support in the tracer.
+    // Raised again for span status, links, timestamps, and log correlation.
     name: "core + pageviews",
     path: "dist/index.js",
     import: "{ WebSDK, pageviews }",
     gzip: true,
-    limit: "3.8 KB",
+    limit: "4.35 KB",
   },
   {
     // Raised for the naming attributes in the element selector.
+    // Raised again for span status, links, timestamps, and log correlation.
     name: "core + interactions",
     path: "dist/index.js",
     import: "{ WebSDK, interactions }",
     gzip: true,
-    limit: "4.3 KB",
+    limit: "4.75 KB",
   },
   {
     // The heaviest instrumentation: the in-house web vitals (LCP/CLS/TTFB/INP)
@@ -54,7 +58,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, performance }",
     gzip: true,
-    limit: "7.35 KB",
+    limit: "8.1 KB",
   },
   {
     name: "core + network",
@@ -62,7 +66,7 @@ module.exports = [
     import: "{ WebSDK, network }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "4.9 KB",
+    limit: "5.4 KB",
   },
   {
     // All instrumentation factories composed: verifies the sampled runtime is
@@ -74,6 +78,6 @@ module.exports = [
       "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "9.9 KB",
+    limit: "10 KB",
   },
 ];

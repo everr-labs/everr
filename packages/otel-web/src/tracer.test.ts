@@ -72,7 +72,7 @@ describe("public tracer", () => {
       "session.id": expect.any(String),
     });
     expect(byName("GET /checkout").parentSpanId).toBe(parent.spanId);
-    expect(byName("GET /checkout").kind).toBe(3);
+    expect(byName("GET /checkout").kind).toBe(1);
     expect(byName("later").parentSpanId).toBeUndefined();
   });
 
@@ -98,7 +98,7 @@ describe("public tracer", () => {
     const [failed, after] = batches.flatMap((batch) => batch.spans);
     expect(failed.kind).toBe(3);
     expect(failed.status).toEqual({ code: 2 });
-    expect(attrs(failed)["exception.message"]).toBe("checkout failed");
+    expect(attrs(failed)["exception.message"]).toBeUndefined();
     expect(after.parentSpanId).toBeUndefined();
   });
 

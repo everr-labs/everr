@@ -40,6 +40,8 @@ export type {
   LogEvent,
   SendEvent,
   SpanEvent,
+  SpanLink,
+  SpanStatus,
 } from "./pipeline/emitter.js";
 export { setAttributes } from "./state/attributes.js";
 export {

@@ -4,8 +4,8 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 
 ## Where Browser Data Lands
 
-- Everything except requests is a **log record** in `logs` with the event name in the `EventName` column.
-- Browser `fetch` and XHR requests and slow interactions are **CLIENT spans** in `traces`. Custom segments from the exported `tracer` default to **INTERNAL spans**.
+- Everything except requests is a **log record** in `logs` with the event name in the `EventName` column. A log emitted during `startActiveSpan`, until `end()`, carries that span's `TraceId`, `SpanId`, and `TraceFlags`. Clicks, submits, and web vitals use the time of the event, so they join only a span that was already active then. Any log joins whichever span is active, including a span from another interaction.
+- Browser `fetch` and XHR requests are **CLIENT spans** in `traces`. Slow interactions and custom segments from the exported `tracer` are **INTERNAL spans**.
 - Every record (logs and spans) carries the context envelope in its attributes map, so any signal can slice by page and join by session.
 
 ## The Context Envelope (on every record)
@@ -60,7 +60,7 @@ The INP vital does not use that prefix. It carries the same attribution as the `
 
 | SpanName | Meaning | Key attributes |
 | --- | --- | --- |
-| Application-defined name (e.g. `prepare checkout`) | Manual segment from `tracer.startSpan()` or `tracer.startActiveSpan()`. The latter stays active until `end()` in the browser; custom and built-in spans started during that time join the most recently active span's trace. Overlapping interactions share this stack, not isolated async contexts | Context envelope plus caller-supplied attributes. Prefer bounded names and `everr.*` for custom attributes. `recordException()` adds `exception.type` and `exception.message`; `setStatus({ code: 2 })` marks failure |
+| Application-defined name (e.g. `prepare checkout`) | Manual segment from `tracer.startSpan()` or `tracer.startActiveSpan()`. The latter stays active until `end()` in the browser; custom and built-in spans started during that time join the most recently active span's trace. Overlapping interactions share this stack, not isolated async contexts. `root: true` starts a new trace | Context envelope plus caller-supplied attributes (a scalar or an array). Prefer bounded names and `everr.*` for custom attributes. `setStatus({ code: 2 })` marks failure (`StatusCode = 'Error'`, message kept). `setStatus({ code: 1 })` marks OK and sticks. Links carry the linked span's trace id, span id, and trace flags |
 | `<METHOD> <route>` (e.g. `GET /api/posts/{id}`) | One per browser `fetch` or XHR; the server spans parent to it, so `TraceId` joins frontend to backend. Each request is its own trace root | HTTP client semconv: `http.request.method`, `http.response.status_code`, `url.full` (query-stripped request URL), `url.template`, `server.address`; 4xx/5xx set `StatusCode = 'Error'` with `error.type` |
 | `slow_interaction` | Event Timing entry over threshold, from the same observer as INP | `everr.browser.interaction.*`: `id`, `name` (event name, e.g. `click`), `type` (`pointer` or `keyboard`), `input_delay`, `processing_duration`, `presentation_delay`, `total_script_duration`, `total_style_and_layout_duration`, `total_paint_duration`, `total_unattributed_duration`, `script.source_url`, `script.function_name`, `script.invoker_type`, `script.duration` (the longest script; script and total attrs need Chrome 123+ LoAF); plus element attrs |
 
