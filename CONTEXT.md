@@ -149,6 +149,14 @@ _Avoid_: anonymous mode, bannerless mode
 The browser SDK mode entered after explicit consent: persistent Visitor id, durable Sessions, and identify() stamping `user.*` attributes on subsequent events. Upgrading from Cookieless is a one-way door; revoking consent deletes the stored ids.
 _Avoid_: identified mode, cookie mode
 
+**Recording**:
+The captured screen history of one Session: what the page showed and how the person interacted with it. A Session has zero or one Recording; in Cookieless mode a reload starts a new Session, so it starts a new Recording too.
+_Avoid_: session replay (for the data), video, capture
+
+**Replay**:
+Watching a Recording, with that Session's Traces, Logs, and errors on the same timeline.
+_Avoid_: playback, session replay (for the data)
+
 ### CI
 
 **CI run**:
