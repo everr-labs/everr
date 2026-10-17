@@ -266,8 +266,10 @@ export const auth = betterAuth({
       // Organization creation is controlled by server-owned flows.
       allowUserToCreateOrganization: false,
       creatorRole: "owner",
-      // Invitation acceptance still requires the signed-in account to match the recipient.
-      requireEmailVerificationOnInvitation: false,
+      // Without SMTP, the invitation link authorizes signup for its recipient.
+      // With SMTP, Better Auth also requires proof of email ownership.
+      requireEmailVerificationOnInvitation: mailer !== null,
+      cancelPendingInvitationsOnReInvite: true,
       sendInvitationEmail: async (data, request) => {
         if (request?.headers.get(INVITATION_EMAIL_HEADER) === "false") return;
         sendInvitationEmail({

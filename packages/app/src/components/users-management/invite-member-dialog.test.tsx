@@ -57,11 +57,12 @@ it.each([
     role: "member",
     fetchOptions: { headers: { [INVITATION_EMAIL_HEADER]: String(sendEmail) } },
   });
-  await user.click(screen.getByRole("button", { name: "Copy invite link" }));
+  await user.click(screen.getByRole("button", { name: "Copy link" }));
   expect(await screen.findByRole("button", { name: "Copied" })).toBeVisible();
   expect(copy).toHaveBeenCalledWith(url);
   await user.click(screen.getByRole("button", { name: "Done" }));
   await user.click(screen.getByRole("button", { name: "Invite member" }));
+  expect(screen.queryByText(url)).not.toBeInTheDocument();
   expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue("");
   expect(
     screen.getByRole("switch", { name: "Send invitation email" }),

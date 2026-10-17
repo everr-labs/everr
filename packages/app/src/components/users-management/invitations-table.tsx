@@ -12,18 +12,8 @@ import {
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@everr/ui/components/dialog";
-import { useState } from "react";
 import { toast } from "sonner";
-import { invitationUrl } from "@/common/invitation";
 import { formatDate } from "./format-date";
-import { InvitationLink } from "./invitation-link";
 import { type Invitation, useRevokeInvitation } from "./queries";
 
 interface InvitationsTableProps {
@@ -32,7 +22,6 @@ interface InvitationsTableProps {
 
 export function InvitationsTable({ invitations }: InvitationsTableProps) {
   const revoke = useRevokeInvitation();
-  const [link, setLink] = useState<{ url: string; email: string } | null>(null);
 
   const handleRevoke = (invitationId: string, email: string) => {
     revoke.mutate(invitationId, {
@@ -59,19 +48,6 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
       header: <span className="sr-only">Actions</span>,
       cell: (row) => (
         <div className="flex justify-end gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={new Date(row.expiresAt).getTime() <= Date.now()}
-            onClick={() =>
-              setLink({
-                url: invitationUrl(row.id, window.location.origin),
-                email: row.email,
-              })
-            }
-          >
-            View link
-          </Button>
           <AlertDialog>
             <AlertDialogTrigger render={<Button variant="ghost" size="sm" />}>
               Revoke
@@ -102,28 +78,6 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
   ];
 
   return (
-    <>
-      <DataTable
-        data={invitations}
-        columns={columns}
-        rowKey={(row) => row.id}
-      />
-      <Dialog
-        open={link !== null}
-        onOpenChange={(open) => {
-          if (!open) setLink(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Invitation link</DialogTitle>
-            <DialogDescription>
-              Share this link with {link?.email}.
-            </DialogDescription>
-          </DialogHeader>
-          {link && <InvitationLink key={link.url} url={link.url} />}
-        </DialogContent>
-      </Dialog>
-    </>
+    <DataTable data={invitations} columns={columns} rowKey={(row) => row.id} />
   );
 }

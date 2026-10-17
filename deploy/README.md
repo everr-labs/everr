@@ -16,6 +16,11 @@ and `EMAIL_FROM` (an address your relay permits). Email is used for invitations,
 verification, and password recovery. URL-encode special characters in SMTP
 credentials; single-quote `.env` values containing `$`.
 
+Invitation links are shown once after creation. Copy the link before closing
+the dialog. Inviting the same email again creates a new link and cancels the
+previous invitation. With SMTP configured, recipients must verify their email
+before accepting; they can request a verification email from the invitation page.
+
 Without SMTP, invitations can be shared by link and accepted without a separate
 email verification step. Accepting an invitation does not mark the email address
 as verified. Password recovery directs users to their installation administrator;

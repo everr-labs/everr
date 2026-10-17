@@ -17,12 +17,14 @@ import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   googleEnabled: true,
+  emailEnabled: false,
   session: null as {
-    user: { id: string; name: string; email: string };
+    user: { id: string; name: string; email: string; emailVerified: boolean };
     session: { activeOrganizationId: null };
   } | null,
   signup: vi.fn(),
   social: vi.fn(),
+  verification: vi.fn(),
   refetch: () => Promise.resolve(),
 }));
 vi.mock("@/routes/_welcome/-components/ascii-logo", () => ({
@@ -32,6 +34,7 @@ vi.mock("@/lib/auth-client", () => ({
   authClient: {
     signUp: { email: mocks.signup },
     signIn: { social: mocks.social },
+    sendVerificationEmail: mocks.verification,
     useListOrganizations: () => ({
       data: [],
       isPending: false,
@@ -75,6 +78,7 @@ function signUpInvitedUser() {
       id: "invited-user",
       name: "Invited User",
       email: "invited@example.com",
+      emailVerified: false,
     },
     session: { activeOrganizationId: null },
   };
@@ -83,9 +87,11 @@ function signUpInvitedUser() {
 
 beforeEach(() => {
   mocks.googleEnabled = true;
+  mocks.emailEnabled = false;
   mocks.session = null;
   mocks.signup.mockReset().mockImplementation(async () => signUpInvitedUser());
   mocks.social.mockReset();
+  mocks.verification.mockReset().mockResolvedValue({ error: null });
   vi.spyOn(window, "scrollTo").mockImplementation(() => {});
 });
 
@@ -95,6 +101,7 @@ function invitationSignupRouter() {
     beforeLoad: () => ({
       session: mocks.session,
       googleSignInEnabled: mocks.googleEnabled,
+      emailEnabled: mocks.emailEnabled,
     }),
     component: () => (
       <QueryClientProvider client={queryClient}>
@@ -165,9 +172,15 @@ function invitationSignupRouter() {
 }
 
 it.each([
-  "email",
-  "google",
-])("returns an invited %s signup to Accept or Decline without organization creation", async (provider) => {
+  { provider: "email", emailEnabled: false },
+  { provider: "google", emailEnabled: false },
+  { provider: "email", emailEnabled: true },
+])("returns an invited $provider signup to acceptance (email enabled: $emailEnabled)", async ({
+  provider,
+  emailEnabled,
+}) => {
+  mocks.emailEnabled = emailEnabled;
+  mocks.googleEnabled = provider === "google";
   const router = invitationSignupRouter();
   mocks.social.mockImplementation(async (options) => {
     signUpInvitedUser();
@@ -182,6 +195,10 @@ it.each([
   await screen.findByRole("heading", { name: "Create your account" });
   expect(screen.getByLabelText("Email")).toHaveValue("invited@example.com");
   if (provider === "email") {
+    expect(
+      screen.queryByRole("button", { name: "Sign up with Google" }),
+    ).toBeNull();
+    expect(screen.queryByText("or")).toBeNull();
     await user.type(screen.getByLabelText("Name"), "Invited User");
     await user.type(screen.getByLabelText("Password"), "test-password-123");
     await user.click(screen.getByRole("button", { name: "Sign up" }));
@@ -189,6 +206,23 @@ it.each([
     await user.click(
       screen.getByRole("button", { name: "Sign up with Google" }),
     );
+  }
+  if (emailEnabled) {
+    await screen.findByRole("heading", { name: "Verify your email" });
+    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Send verification email" }),
+    );
+    expect(mocks.verification).toHaveBeenCalledWith({
+      email: "invited@example.com",
+      callbackURL: "/invite/invitation-123",
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Check your inbox",
+    );
+    if (!mocks.session) throw new Error("Missing invited session");
+    mocks.session.user.emailVerified = true;
+    await router.invalidate();
   }
   expect(await screen.findByRole("button", { name: "Accept" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Decline" })).toBeVisible();
@@ -204,18 +238,3 @@ vi.mock("@/cloud/organization-provisioning/actions", () => ({
   getOrganizationProvisioningStatus: vi.fn().mockResolvedValue(null),
   retryOrganizationProvisioning: vi.fn(),
 }));
-
-it("keeps invited email signup available without advertising an unconfigured provider", async () => {
-  mocks.googleEnabled = false;
-  const router = invitationSignupRouter();
-  render(<RouterProvider router={router} />);
-  await userEvent
-    .setup()
-    .click(await screen.findByRole("button", { name: "Create account" }));
-  await screen.findByRole("heading", { name: "Create your account" });
-  expect(
-    screen.queryByRole("button", { name: "Sign up with Google" }),
-  ).toBeNull();
-  expect(screen.queryByText("or")).toBeNull();
-  expect(screen.getByRole("button", { name: "Sign up" })).toBeVisible();
-});

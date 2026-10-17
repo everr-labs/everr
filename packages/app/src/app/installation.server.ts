@@ -28,9 +28,13 @@ export async function getInstallation(database: Database = db) {
 }
 
 export async function assertInvitedUser(
-  email: string,
+  user: { email: string; emailVerified?: boolean },
+  invitationId: string | undefined,
   database: Database = db,
 ) {
+  if (!user.emailVerified && !invitationId) {
+    throw new Error("Open your invitation link to create an account.");
+  }
   const workspace = await getInstallation(database);
   if (workspace) {
     const [invite] = await database
@@ -39,7 +43,8 @@ export async function assertInvitedUser(
       .where(
         and(
           eq(invitation.organizationId, workspace.id),
-          eq(sql`lower(${invitation.email})`, email.toLowerCase()),
+          eq(sql`lower(${invitation.email})`, user.email.toLowerCase()),
+          invitationId ? eq(invitation.id, invitationId) : undefined,
           eq(invitation.status, "pending"),
           gt(invitation.expiresAt, new Date()),
         ),

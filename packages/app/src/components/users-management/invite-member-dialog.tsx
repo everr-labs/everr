@@ -44,8 +44,8 @@ export function InviteMemberDialog() {
 
   const handleOpenChange = (next: boolean) => {
     if (!next && invite.isPending) return;
+    if (next) reset();
     setOpen(next);
-    if (!next) reset();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -63,29 +63,27 @@ export function InviteMemberDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button size="sm" />}>Invite member</DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         {invite.data ? (
-          <>
+          <div className="space-y-4">
             <DialogHeader>
               <DialogTitle>Invitation created</DialogTitle>
               <DialogDescription>
-                Share this link with {email.trim()}.
-                {shouldSendEmail && " Email delivery has also been requested."}
+                {email.trim()} can join your workspace using the link below.
               </DialogDescription>
             </DialogHeader>
             <InvitationLink
               url={invitationUrl(invite.data.id, window.location.origin)}
+              onClose={() => handleOpenChange(false)}
             />
-            <DialogFooter>
-              <Button onClick={() => handleOpenChange(false)}>Done</Button>
-            </DialogFooter>
-          </>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <DialogHeader>
               <DialogTitle>Invite member</DialogTitle>
               <DialogDescription>
-                Create an invitation to share by link or email.
+                Create an invitation to share by link or email. Inviting the
+                same email again replaces its previous invitation.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
