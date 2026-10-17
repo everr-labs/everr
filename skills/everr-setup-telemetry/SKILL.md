@@ -25,13 +25,14 @@ If the user wants to setup alerting rules on that telemetry (and dashboards or r
 1. Inspect the services, frameworks, development and production runtimes, and existing OTel setup. In a monorepo, distinguish runnable apps and services from shared libraries, and identify the request or job flows connecting them.
 2. Reuse the user's stated goals, scope, and delegated choices. A specific extension or repair already establishes its observation goal; ask only about missing decisions that change the work.
 3. When the request leaves what to observe unspecified, follow [Choose what to observe](references/instrumentation-planning.md). Offer a basic autopilot setup and a guided, targeted setup using concrete options from the repository. Selecting packages answers where to instrument; coverage still needs to be selected or delegated before editing instrumentation.
-4. Before installing dependencies or editing instrumentation, show the user a concise implementation plan grouped by each selected service or runtime, including in autopilot mode. For each service, state:
+4. Before installing dependencies or editing instrumentation, resolve service names using [Service identity](rules/resolve-values.md#servicename), then show the user a concise implementation plan grouped by each selected service or runtime, including in autopilot mode. For each service, state:
+   - **Identity:** the exact `service.name`, its package/path and runtime, whether it is preserved or proposed, and the evidence or rationale for the choice. Make clear that the user can change proposed names before implementation.
    - **Coverage:** what the user will be able to observe, the targeted operations or code paths, and the signals that answer those questions.
    - **Changes:** which existing instrumentation will be reused, what will be added or repaired, and the main files, dependencies, or configuration involved.
    - **Export:** the selected environment, destination, and how export will be activated.
    - **Validation:** the path to exercise, the expected telemetry to query in Everr, and the build or typecheck to run.
 5. Identify connections between selected services, such as browser-to-API trace propagation or producer-to-worker context, and any shared-library changes supporting them. Keep distinct runtimes visible even when they live in the same package.
-6. Planning is complete when the target runtimes are established, coverage is delegated to the baseline or defined by selected goals, and the per-service plan has been shown to the user. Resolve any remaining scope decision with the user, then proceed without a separate approval round unless they requested one.
+6. Planning is complete when the target runtimes are established, coverage is delegated to the baseline or defined by selected goals, and the per-service plan has been shown to the user. If the plan proposes new or changed service names, wait for the user to confirm or revise them before installing dependencies or editing instrumentation; include this decision in any pending plan confirmation. Names already explicitly approved need no repeated confirmation. With preserved names and no remaining scope decisions, proceed without a separate approval round unless requested.
 
 
 ### Step 2 - Instrument the codebase

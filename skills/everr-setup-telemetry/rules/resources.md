@@ -8,6 +8,8 @@ Resource attributes identify what produced telemetry. They are attached to trace
 
 Every service must set `service.name`. Without it, telemetry appears as `unknown_service` and cannot be reliably queried.
 
+Resolve the identity with [Service identity](resolve-values.md#servicename) during planning. The example below illustrates a new name; reuse the actual name resolved for the project.
+
 Rules:
 
 - Stable across deployments and restarts.
@@ -20,7 +22,7 @@ Example:
 
 ```typescript
 resourceFromAttributes({
-  'service.name': 'checkout-api',
+  'service.name': 'shop.checkout-api',
 });
 ```
 

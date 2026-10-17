@@ -1,23 +1,20 @@
 # Resolve Configuration Values
 
-OpenTelemetry setup needs project-specific values. Do not invent them, hardcode placeholders into working config, or ask the user before checking the codebase.
+OpenTelemetry setup needs project-specific values. Inspect the codebase before asking the user and keep placeholders out of working config.
 
-Use the first source that yields a result. If no source matches and the value is required, ask the user or leave an explicit deploy-time variable reference.
+For service names, follow the identity decision below. For other values, use the first source that yields a result. If no source matches and the value is required, ask the user or leave an explicit deploy-time variable reference.
 
 ## `service.name`
 
-Check in order:
+1. Preserve a name explicitly chosen by the user or already established in working OTel setup or deployment configuration, even if it differs from the convention below. Treat SDK fallbacks such as `unknown_service` and unconfigured example placeholders as unresolved. If existing sources conflict, surface the conflict in the plan and resolve it with the user before implementation.
+2. For each unresolved identity, choose `<project>.<service>` from the repository's actual product and service boundaries:
+   - **Project:** use the product/project identity established in repository documentation and deployment configuration. Package/build metadata and directory names are supporting evidence, not automatic service names. A package scope may identify an organization rather than the project.
+   - **Service:** use the runnable app's responsibility, such as `web`, `api`, `import-worker`, or `desktop`. Distinguish services with the same role by their domain, such as `billing-api` and `catalog-api`. Keep browser and server identities distinct where the runtime rules require it, even within one package. Shared libraries use their host service's identity.
+   - Normalize each component to lowercase kebab-case and join them with a dot. Keep the name stable across environments, destinations, deployments, and restarts; use the corresponding resource attributes for environment, version, and instance identity.
+3. Present the exact name, runtime/path mapping, and rationale in the implementation plan, including preserved names. For example, a project documented as Acme Shop with packages named `@acme/app`, `server`, and `jobs` could use `acme-shop.web`, `acme-shop.api`, and `acme-shop.import-worker` when inspection confirms those roles. If project identity or service boundaries remain ambiguous, ask a focused question instead of falling back to a manifest or directory name.
+4. Confirm proposed names through the planning step before applying them. Hardcode the resolved default in the telemetry setup module and use the same case-sensitive value in every environment, signal, query, and documentation example. Preserve existing configuration overrides when extending a working setup.
 
-1. Existing OTel setup code or deployment config that already sets a stable `service.name`.
-2. Package/build metadata:
-   - Node.js: `name` in `package.json`.
-   - Go: last path segment of `module` in `go.mod`.
-   - Python: `name` in `pyproject.toml`, `setup.cfg`, or `setup.py`.
-   - Rust: `package.name` in `Cargo.toml`.
-   - PHP: package segment after `/` in `composer.json`.
-3. Project directory name.
-
-Normalize names with spaces, underscores, or mixed case to a stable convention such as kebab-case. Hardcode the resolved default in the telemetry setup module and use the same case-sensitive value in every environment.
+The dotted form is an Everr setup convention for new names, not an OpenTelemetry requirement. `service.namespace` remains a separate optional grouping attribute; setting it does not replace the full chosen `service.name`.
 
 ## `service.version`
 
