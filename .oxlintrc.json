@@ -1,0 +1,145 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [],
+  "categories": {
+    "correctness": "off",
+    "suspicious": "off",
+    "pedantic": "off",
+    "perf": "off",
+    "style": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "jsPlugins": ["eslint-plugin-boundaries"],
+  "ignorePatterns": [
+    "**/routeTree.gen.ts",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/.*/**"
+  ],
+  "settings": {
+    "boundaries/elements": [
+      {
+        "type": "package",
+        "pattern": "packages/*",
+        "capture": ["name"]
+      }
+    ],
+    "boundaries/additional-dependency-nodes": [
+      {
+        "selector": "CallExpression[callee.object.name=vi][callee.property.name=/^(mock|doMock|importActual|importMock)$/] > Literal.arguments:first-child",
+        "kind": "value",
+        "name": "test-mock"
+      },
+      {
+        "selector": "TSImportType > Literal, TSImportType > TSLiteralType > Literal",
+        "kind": "type",
+        "name": "import-type"
+      }
+    ],
+    "import/resolver": {
+      "typescript": {
+        "project": [
+          "packages/app/tsconfig.json",
+          "packages/cloud/tsconfig.json"
+        ],
+        "noWarnOnMultipleProjects": true
+      }
+    }
+  },
+  "overrides": [
+    {
+      "files": ["packages/app/**/*", "packages/cloud/**/*"],
+      "rules": {
+        "boundaries/dependencies": [
+          "error",
+          {
+            "default": "disallow",
+            "checkAllOrigins": true,
+            "checkUnknownLocals": true,
+            "checkInternals": true,
+            "policies": [
+              {
+                "allow": {
+                  "to": {
+                    "module": {
+                      "origin": ["core", "external"]
+                    }
+                  },
+                  "dependency": {
+                    "source": ["[^./]*", "[^./]*/**"]
+                  }
+                }
+              },
+              {
+                "allow": {
+                  "dependency": {
+                    "source": "@everr/**"
+                  }
+                }
+              },
+              {
+                "disallow": {
+                  "dependency": {
+                    "source": "@/**"
+                  }
+                }
+              },
+              {
+                "allow": {
+                  "to": {
+                    "element": {
+                      "path": "{{from.element.path}}"
+                    }
+                  }
+                }
+              },
+              {
+                "disallow": {
+                  "dependency": {
+                    "source": ["/**", "**/node_modules/**", "@/**/[.][.]/**"]
+                  }
+                }
+              },
+              {
+                "disallow": {
+                  "dependency": {
+                    "source": "@composition/**"
+                  }
+                },
+                "message": "Use a named composition module, not a directory alias."
+              },
+              {
+                "allow": {
+                  "dependency": {
+                    "source": "@composition/+([a-z])"
+                  }
+                }
+              },
+              {
+                "disallow": {
+                  "dependency": {
+                    "source": "@everr/**"
+                  },
+                  "to": {
+                    "file": {
+                      "path": null
+                    }
+                  }
+                },
+                "message": "The package import must resolve through its public exports."
+              },
+              {
+                "allow": {
+                  "dependency": {
+                    "source": "+([.]/|[.][.]/)**/*.md\\?raw"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

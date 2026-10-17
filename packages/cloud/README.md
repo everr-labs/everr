@@ -124,7 +124,8 @@ TypeScript and editors. Tests and typechecks generate routes automatically.
 `src/composition/ui.tsx` registers workspace switching, billing navigation,
 welcome actions, signup links, account-deletion UI, and CLI recovery copy.
 Shared modules are imported through explicit `@everr/app` exports. Import checks
-run during builds, tests, and typechecks and reject relative imports into other
+run through `pnpm check:boundaries` at the repository root, in the pre-commit
+hook, and in CI. They reject relative imports into other
 packages, the app's private `@/` alias, and non-exported package paths.
 
 Client configuration retains ordinary settings: home dashboard, additional

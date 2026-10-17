@@ -46,6 +46,9 @@
   // sample in content/docs/guides/browser-telemetry.mdx (the reader
   // installs them in their own app); they are not docs-site dependencies.
   "ignoreDependencies": [
+    // Loaded by Oxlint and its boundary plugin from .oxlintrc.json.
+    "eslint-plugin-boundaries",
+    "eslint-import-resolver-typescript",
     // size-limit resolves its preset from package.json at runtime; nothing
     // imports it.
     "@size-limit/preset-small-lib",

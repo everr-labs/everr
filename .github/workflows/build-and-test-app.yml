@@ -15,8 +15,11 @@ on:
       - .github/workflows/build-and-test-app.yml
       - .nvmrc
       - biome.json
+      - .oxlintrc.json
+      - scripts/import-boundaries.test.mjs
       - package.json
       - packages/app/**
+      - packages/cloud/**
       - skills/everr-use-telemetry/rules/schema.md
       - packages/datemath/**
       - packages/otel-errors/**
@@ -34,8 +37,11 @@ on:
       - .github/workflows/build-and-test-app.yml
       - .nvmrc
       - biome.json
+      - .oxlintrc.json
+      - scripts/import-boundaries.test.mjs
       - package.json
       - packages/app/**
+      - packages/cloud/**
       - skills/everr-use-telemetry/rules/schema.md
       - packages/datemath/**
       - packages/otel-errors/**
@@ -74,6 +80,9 @@ jobs:
 
       - name: Lint
         run: pnpm exec biome check packages/app packages/datemath
+
+      - name: Check package boundaries
+        run: pnpm check:boundaries && pnpm test:boundaries
 
       - name: Typecheck
         run: pnpm -r --filter @everr/app... typecheck

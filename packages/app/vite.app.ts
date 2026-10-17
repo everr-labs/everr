@@ -1,4 +1,3 @@
-import { checkPackageImports } from "./build/import-boundaries.ts";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -120,7 +119,6 @@ export function prepareComposition(composition: AppComposition) {
     assertOwnedFile(composition, file);
   for (const file of Object.values(composition.serverEntries ?? {}))
     assertOwnedFile(composition, file);
-  checkPackageImports(composition.directory, resolve(appDirectory, "src"));
   const ownApp = resolve(composition.directory) === resolve(appDirectory);
   const modulePath = (file: string) => {
     const appRelative = relative(appDirectory, file);

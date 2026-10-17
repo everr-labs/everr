@@ -7,7 +7,7 @@ Updated 2026-10-18. Branch: `self-host`. The initial package extraction is in `f
 1. Read `AGENTS.md` and inspect `git status`. Preserve the existing uncommitted work.
 2. Read `packages/app/README.md` and `deploy/README.md` for operation, and `DATABASE-MIGRATIONS.md` for database ownership, local switching, and upgrade verification.
 3. Read the verification status below before continuing the current refactor.
-4. Review the uncommitted composition implementation and the simplification priorities below. The broader building-block and Backstage-style platform discussion remains exploratory.
+4. Review the composition implementation and the simplification priorities below. The broader building-block and Backstage-style platform discussion remains exploratory.
 
 ## Intent and constraints
 
@@ -21,7 +21,7 @@ Self-hosted is a complete application. Its implementation, UI, and tests should 
 - GitHub remains available to both applications. Self-hosted retention defaults to 30 days; Cloud has plan-based policy.
 - Preserve useful behavior tests. Do not add tests whose only purpose is asserting that physically separate cloud source or dependencies are absent, or tests that inspect YAML text.
 - Do not generate schema migrations unless explicitly requested. Use disposable databases for exercises, never an existing developer or production database without authorization.
-- Leave changes uncommitted unless requested. The current composition pass must remain uncommitted.
+- Leave changes uncommitted unless requested. The composition pass was committed on request as `acd415cd0`; the subsequent Oxlint replacement is included in this checkpoint.
 
 ## Current architecture
 
@@ -44,8 +44,8 @@ typechecks. Do not maintain a second list of selected modules in `tsconfig.json`
 Tests and typechecks invoke TanStack's generator so they work before a Vite
 build, including when cloud's generated route tree does not exist yet.
 
-The build, test, and typecheck entry points check imports across source-package
-boundaries. Relative imports must stay in the owning package; shared internals
+Oxlint checks source-package boundaries through `pnpm check:boundaries`, the
+pre-commit hook, and CI. Build configuration no longer scans source imports. Relative imports must stay in the owning package; shared internals
 cannot be reached using its private `@/` alias. Cross-package code uses declared
 package exports. Literal dynamic imports, type imports, re-exports, and test
 mocks are checked. Route and adapter entry files must belong to the composing
@@ -80,7 +80,7 @@ menu placement/admin visibility, page selection, welcome actions, and account
 lifecycle behavior.
 
 This completes the requested composition pass, not a platform/plugin system or
-a physical repository split. All changes in this pass remain uncommitted.
+a physical repository split. This pass is committed as `acd415cd0` (`Make application composition and UI ownership explicit`).
 
 ## Remaining simplification work
 
@@ -88,24 +88,17 @@ The implementation improves ownership and makes contracts explicit, but still
 has tooling debt. Passing verification establishes compatibility, not simplicity.
 The following improvements are proposed, not implemented, in priority order:
 
-1. Replace the custom import checker in
-   `packages/app/build/import-boundaries.ts` with established boundary tooling,
-   such as ESLint import restrictions or a dependency-boundary tool. Package
-   exports and TypeScript should handle public API resolution. Preserve the
-   useful ownership checks without maintaining a custom interpretation of
-   TypeScript imports. The rest of `packages/app/build` handles composition
-   generation and tests; it is not all import-checking machinery.
-2. Simplify route and type generation. Let TanStack own route generation and
+1. Simplify route and type generation. Let TanStack own route generation and
    generated types while composition supplies explicit route configuration.
    Investigate removing the manually reproduced TanStack Start registration
    footer in `packages/app/build/generate.ts`. Also reconsider refreshing tracked
    TypeScript configuration during validation, which currently makes checks
    write files. Preserve typechecking from a fresh checkout without a prior build.
-3. Narrow the shared package's public API. Prefer a few deliberate entry points
+2. Narrow the shared package's public API. Prefer a few deliberate entry points
    for meaningful capabilities, such as members management and account settings,
    over a growing catalogue of exported internal files. This limits accidental
    coupling and makes separate package versioning and repository extraction easier.
-4. Keep UI assembly close to each application's entry points. Cloud should
+3. Keep UI assembly close to each application's entry points. Cloud should
    assemble its menus, account page, and welcome experience from shared
    components; the default application should assemble its ordinary experience.
    Reduce the responsibilities of `ProductUI`, which currently mixes contribution
@@ -115,9 +108,51 @@ The following improvements are proposed, not implemented, in priority order:
 
 Keep the explicit native route registrations. They make ownership visible and
 preserve TanStack routing and code splitting without matching-file overrides.
-Address the checker and generation first, then tighten the public API and make
+Address generation first, then tighten the public API and make
 targeted UI assembly changes. Do not replace this work with a general plugin
 framework or move the whole source tree.
+
+### Oxlint package-boundary enforcement
+
+The Oxlint implementation replaces the custom TypeScript scanner
+and removes its calls from composition preparation. `.oxlintrc.json` enables only
+`boundaries/dependencies` from `eslint-plugin-boundaries`. Every built-in rule
+category is disabled. Biome's configuration and commands are unchanged.
+
+The plugin classifies packages and checks resolved targets using
+`eslint-import-resolver-typescript`. Declarative dependency-node selectors add
+Vitest mocks and TypeScript import-type expressions to the plugin's built-in
+static imports, re-exports, dynamic imports, and `require` support. Policies allow
+same-package access, public workspace exports, external dependencies, and named
+composition modules. They reject private aliases across packages, relative
+cross-package access including missing targets, and unresolvable `@everr/*`
+imports including unexported subpaths. Unlike the old scanner, an exported path
+whose target is missing also fails, so workspace exports must be available.
+Documentation `.md?raw` assets and generated route trees retain their exceptions.
+Computed, nonliteral specifiers remain outside the checked contract.
+
+Run `pnpm check:boundaries` for both applications and `pnpm test:boundaries` for
+the regression fixtures. The pre-commit hook runs the check. The app workflow
+runs both commands and watches both application packages and the configuration.
+Builds and typechecks now focus on their own responsibilities rather than invoking
+a second source parser. Composition entry ownership remains a build-time check.
+
+The executable fixture test exercises all ten supported import/mock syntaxes
+against forbidden relative paths, private aliases, unexported subpaths, absolute
+paths, and composition subpaths. It also checks valid public exports, local
+aliases, ordinary external imports, documentation assets, and unrelated lint
+violations. Fixtures are removed in a `finally` block. Only the boundary rule
+may report diagnostics. Run this test when upgrading Oxlint or the plugin.
+
+Local verification passed for all 122 fixture cases, the full package scan,
+both application typechecks, and Fallow. Existing application dependency
+resolutions are preserved.
+Remote CI has not yet been verified for this checkpoint. The local CLI reported
+no active session during implementation; check the pushed revision before release.
+
+References: [Oxlint integration](https://www.jsboundaries.dev/docs/guides/oxlint-integration/),
+[dependency policies](https://www.jsboundaries.dev/docs/rules/dependencies/), and
+[additional dependency nodes](https://www.jsboundaries.dev/docs/settings/#boundariesadditional-dependency-nodes).
 
 ## Database context to preserve
 
@@ -147,7 +182,7 @@ Diagnostic router and guard annotations were removed. Client configurations use 
 
 ## Verification and next steps
 
-Review the uncommitted composition implementation before expanding its public
+Review the composition implementation before expanding its public
 interface. The default and cloud applications have passed typechecking,
 production builds, full test suites, and Fallow. A route-registration test moves
 a registered source file and checks that its URL and authenticated parent stay
@@ -155,7 +190,7 @@ unchanged. Import tests cover forbidden relative, alias, export, type, dynamic,
 and mock access. Cloud typechecking was also exercised after removing its
 generated route tree.
 
-Local verification: 1,912 app tests and 2,340 cloud tests pass; the external Polar sandbox test remains skipped.
+Previous composition verification, before replacing the import scanner: 1,912 app tests and 2,340 cloud tests passed; the external Polar sandbox test was skipped. The Oxlint verification above covers the subsequent tooling change.
 
 Signed-in browser checks used a disposable PostgreSQL database and the local
 `.auth` credentials. They verified ordinary member management in app, the Hobby

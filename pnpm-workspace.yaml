@@ -34,3 +34,4 @@ allowBuilds:
   lefthook: true
   msw: false
   protobufjs: false
+  unrs-resolver: false

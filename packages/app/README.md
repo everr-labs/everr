@@ -453,7 +453,8 @@ Shared feature components own reusable behavior; application compositions own
 their additional actions and policy decisions. Server authorization remains
 independent of these UI decisions.
 
-The build, test, and typecheck entry points enforce source-package imports:
+Run `pnpm check:boundaries` from the repository root to enforce source-package
+imports with Oxlint. The pre-commit hook and CI run this check:
 relative imports stay in their package, `@/` stays private to its owning package,
 and cross-package imports use declared exports. Re-exports, type imports,
 literal dynamic imports, and test mocks are checked too. Generated route trees
