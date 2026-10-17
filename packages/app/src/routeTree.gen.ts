@@ -66,6 +66,7 @@ import { Route as AuthenticatedOrganizationDashboardPaddedCheckoutSuccessRouteIm
 import { Route as ApiCliResourcesKindProjectSlugRouteImport } from './routes/api/cli/resources/$kind/$project/$slug'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/replay-prototype'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/index'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin'
@@ -417,6 +418,15 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute =
         AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
     } as any,
   )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRouteImport.update(
+    {
+      id: '/replay-prototype',
+      path: '/replay-prototype',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+    } as any,
+  )
 const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute =
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteImport.update(
     {
@@ -757,6 +767,7 @@ export interface FileRoutesByFullPath {
   '/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
   '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/replay-prototype': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRoute
   '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   '/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
@@ -828,6 +839,7 @@ export interface FileRoutesByTo {
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/replay-prototype': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRoute
   '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   '/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
@@ -918,6 +930,7 @@ export interface FileRoutesById {
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/replay-prototype': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
@@ -997,6 +1010,7 @@ export interface FileRouteTypes {
     | '/runs/$traceId'
     | '/errors'
     | '/logs'
+    | '/replay-prototype'
     | '/traces'
     | '/cost-analysis'
     | '/repos'
@@ -1068,6 +1082,7 @@ export interface FileRouteTypes {
     | '/api/cli/resources/$kind/$project/$slug'
     | '/errors'
     | '/logs'
+    | '/replay-prototype'
     | '/traces'
     | '/cost-analysis'
     | '/repos'
@@ -1157,6 +1172,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/replay-prototype'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis'
@@ -1608,6 +1624,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport
       parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
     }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/replay-prototype': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/replay-prototype'
+      path: '/replay-prototype'
+      fullPath: '/replay-prototype'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
+    }
     '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces': {
       id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
       path: '/traces'
@@ -1890,6 +1913,7 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWi
 interface AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren {
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRoute
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesTraceIdRoute
@@ -1901,6 +1925,8 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreReplayPrototypeRoute,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintRoute:
