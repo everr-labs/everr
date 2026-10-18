@@ -2,7 +2,10 @@ import { clearIdentity, setPersistence } from "@everr/otel-web";
 import { ConsentBanner } from "@everr/ui/components/consent-banner";
 import { ConsentSettingsDialog } from "@everr/ui/components/consent-settings-dialog";
 import { createContext, type ReactNode, useContext, useState } from "react";
-import { CONSENT_COOKIE, type ConsentDecision } from "@/telemetry/consent";
+import {
+  CONSENT_COOKIE,
+  type ConsentDecision,
+} from "#app/telemetry/consent.ts";
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 

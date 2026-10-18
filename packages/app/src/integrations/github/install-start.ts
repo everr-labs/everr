@@ -1,7 +1,7 @@
-import { auth } from "@/lib/auth.server";
-import { createInstallState } from "@/lib/github-install-state";
-import { isOrganizationAdmin } from "@/lib/organization-role";
-import { getSession } from "@/lib/session.server";
+import { auth } from "#app/lib/auth.server.ts";
+import { createInstallState } from "#app/lib/github-install-state.ts";
+import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
+import { getSession } from "#app/lib/session.server.ts";
 import { getGithubConfiguration } from "./configuration";
 
 export async function handleInstallStart(request: Request): Promise<Response> {

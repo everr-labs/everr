@@ -1,1 +1,1 @@
-export { defaultProductClient as productClient } from "@/product/client";
+export { defaultProductClient as productClient } from "#app/product/client.ts";

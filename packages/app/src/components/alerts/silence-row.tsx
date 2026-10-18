@@ -10,8 +10,8 @@ import {
   repeatSilenceSeed,
   type SilenceCancelTarget,
   type SilenceSeed,
-} from "@/data/alerting/silences/commands";
-import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
+} from "#app/data/alerting/silences/commands.ts";
+import type { AlertSilenceRecord } from "#app/data/alerting/triage/view.ts";
 import {
   cancelLabel,
   isOpen,

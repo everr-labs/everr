@@ -1,13 +1,13 @@
 import { server } from "@composition/server";
 
-import { getGithubConfiguration } from "@/integrations/github/configuration";
-import { socialProviders } from "@/lib/auth-providers.server";
-import { mailer } from "@/lib/mailer.server";
-import { getSession } from "@/lib/session.server";
+import { getGithubConfiguration } from "#app/integrations/github/configuration.ts";
+import { socialProviders } from "#app/lib/auth-providers.server.ts";
+import { mailer } from "#app/lib/mailer.server.ts";
+import { getSession } from "#app/lib/session.server.ts";
 // This import has an effect at load. It starts the error capture of the browser
 // when the client build loads. It does nothing during the SSR and when the app
 // has no configuration. Refer to telemetry/client.
-import "@/telemetry/client";
+import "#app/telemetry/client.ts";
 import favicon from "@everr/ui/assets/favicon.svg?url";
 import { Toaster } from "@everr/ui/components/sonner";
 import { TooltipProvider } from "@everr/ui/components/tooltip";
@@ -29,10 +29,10 @@ import { getCookie, getRequestHeaders } from "@tanstack/react-start/server";
 import {
   ORGANIZATION_CREATION_COOKIE,
   readCreatedOrganizationId,
-} from "@/lib/organization-creation-continuation.server";
-import appCss from "@/styles/app.css?url";
-import { CONSENT_COOKIE, isConsentDecision } from "@/telemetry/consent";
-import { ConsentGate } from "@/telemetry/consent-gate";
+} from "#app/lib/organization-creation-continuation.server.ts";
+import appCss from "#app/styles/app.css?url";
+import { CONSENT_COOKIE, isConsentDecision } from "#app/telemetry/consent.ts";
+import { ConsentGate } from "#app/telemetry/consent-gate.tsx";
 import type { RouterContext } from "../router";
 
 const { getAppEntry } = server;

@@ -3,7 +3,7 @@ import { Button } from "@everr/ui/components/button";
 import { EverrLogo } from "@everr/ui/components/everr-logo";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "#app/lib/auth-client.ts";
 import { AsciiLogo } from "./_welcome/-components/ascii-logo";
 
 export const Route = createFileRoute("/_welcome")({

@@ -7,9 +7,9 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
-vi.mock("@/lib/clickhouse-writer", () => ({ insertRows: vi.fn() }));
+vi.mock("#app/lib/clickhouse-writer.ts", () => ({ insertRows: vi.fn() }));
 
-vi.mock("@/db/schema", () => ({
+vi.mock("#app/db/schema/index.ts", () => ({
   alertDeliveryEvents: {
     organizationId: "de_org",
     deliveryDedupKey: "de_dedup",
@@ -23,7 +23,7 @@ vi.mock("@/db/schema", () => ({
   alertDefinitions: { organizationId: "ad_org", id: "ad_id", spec: "ad_spec" },
 }));
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     select: vi.fn(() => {
       const chain = {
@@ -46,7 +46,7 @@ vi.mock("../history/clickhouse", async (importOriginal) => ({
   recordAlertHistory: mocks.recordAlertHistory,
 }));
 
-vi.mock("@/telemetry/logger", () => ({
+vi.mock("#app/telemetry/logger.ts", () => ({
   exceptionAttributes: vi.fn(() => ({})),
   serverLogger: { error: mocks.error },
 }));

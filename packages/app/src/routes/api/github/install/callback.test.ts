@@ -1,14 +1,14 @@
-vi.mock("@/integrations/github/configuration", () => ({
+vi.mock("#app/integrations/github/configuration.ts", () => ({
   getGithubConfiguration: () => ({}),
 }));
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/github-install-state", () => ({
+vi.mock("#app/lib/github-install-state.ts", () => ({
   parseInstallState: vi.fn(),
 }));
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
@@ -28,7 +28,7 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
-vi.mock("@/db/schema", () => ({
+vi.mock("#app/db/schema/index.ts", () => ({
   githubInstallationOrganizations: {
     githubInstallationId: "github_installation_id",
     organizationId: "organization_id",
@@ -43,8 +43,8 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-import { db } from "@/db/client";
-import { parseInstallState } from "@/lib/github-install-state";
+import { db } from "#app/db/client.ts";
+import { parseInstallState } from "#app/lib/github-install-state.ts";
 import { Route } from "./callback";
 
 const mockedParseInstallState = vi.mocked(parseInstallState);
@@ -89,7 +89,7 @@ function mockDbNoExistingLink() {
 }
 
 async function mockBetterAuthSession(session: unknown) {
-  const { auth } = await import("@/lib/auth.server");
+  const { auth } = await import("#app/lib/auth.server.ts");
   vi.mocked(auth.api.getSession).mockResolvedValueOnce(session as never);
 }
 

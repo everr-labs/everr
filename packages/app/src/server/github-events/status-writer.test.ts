@@ -1,11 +1,11 @@
-vi.mock("@/db/notify", () => ({
+vi.mock("#app/db/notify.ts", () => ({
   notifyWorkflowUpdate: vi.fn().mockResolvedValue(undefined),
 }));
 
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { notifyWorkflowUpdate } from "@/db/notify";
-import { workflowJobs, workflowRuns } from "@/db/schema";
+import { notifyWorkflowUpdate } from "#app/db/notify.ts";
+import { workflowJobs, workflowRuns } from "#app/db/schema/index.ts";
 import type { ParsedQueuedWorkflowEvent } from "./payloads";
 import {
   handleStatusEvent,

@@ -7,7 +7,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useMemo, useRef } from "react";
-import type { Panel } from "@/data/dashboards/schema";
+import type { Panel } from "#app/data/dashboards/schema.ts";
 import { PanelShell } from "../panel-shell";
 import { useDashboardPanelData } from "./use-dashboard-panel-data";
 import { useInView } from "./use-in-view";

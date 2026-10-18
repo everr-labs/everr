@@ -37,6 +37,8 @@ test("Oxlint enforces package boundaries across import syntaxes without general 
       "@everr/app/product/pages",
       "@everr/app/components/users-management/members-page",
       "@/product/client",
+      "#app/product/client.ts",
+      "#app/../../cloud/private.ts",
       "@composition/ui/private",
       "@composition/ui/../../private",
       "../node_modules/@everr/app/src/product/client",
@@ -57,11 +59,11 @@ test("Oxlint enforces package boundaries across import syntaxes without general 
         syntax('"@everr/app/product/client"'),
         false,
       );
-      add(app, `alias-${syntaxIndex}`, syntax('"@/product/client"'), false);
+      add(app, `alias-${syntaxIndex}`, syntax('"#app/product/client.ts"'), false);
       add(
         app,
         `traversal-${syntaxIndex}`,
-        syntax('"@/../../cloud/private"'),
+        syntax('"#app/../../cloud/private.ts"'),
         true,
       );
       add(

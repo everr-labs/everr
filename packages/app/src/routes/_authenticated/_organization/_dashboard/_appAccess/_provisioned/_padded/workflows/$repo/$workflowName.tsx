@@ -11,19 +11,19 @@ import {
   DollarSign,
   Receipt,
 } from "lucide-react";
-import { DeltaIndicator } from "@/components/delta-indicator";
-import { RunsTable } from "@/components/runs-list/runs-table";
-import { TimeRangePanel } from "@/components/time-range-panel";
-import { CostByJobTable } from "@/components/workflows/cost-by-job-table";
-import { WorkflowJobTimeline } from "@/components/workflows/run-gantt";
-import type { TimeRangeInput } from "@/data/analytics/schemas";
+import { DeltaIndicator } from "#app/components/delta-indicator.tsx";
+import { RunsTable } from "#app/components/runs-list/runs-table.tsx";
+import { TimeRangePanel } from "#app/components/time-range-panel.tsx";
+import { CostByJobTable } from "#app/components/workflows/cost-by-job-table.tsx";
+import { WorkflowJobTimeline } from "#app/components/workflows/run-gantt.tsx";
+import type { TimeRangeInput } from "#app/data/analytics/schemas.ts";
 import {
   workflowCostByJobOptions,
   workflowCostSummaryOptions,
   workflowRecentRunsOptions,
-} from "@/data/workflows/options";
-import { formatCost } from "@/lib/runner-pricing";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+} from "#app/data/workflows/options.ts";
+import { formatCost } from "#app/lib/runner-pricing.ts";
+import { TimeRangeSearchSchema } from "#app/lib/time-range.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName",

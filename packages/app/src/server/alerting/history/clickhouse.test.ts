@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Cuts the import chain to the Postgres client. Retention is fixed so
 // the stamped retention_days is a known value below.
 
-import { uuidv7Time } from "@/data/alerting/history/ids";
+import { uuidv7Time } from "#app/data/alerting/history/ids.ts";
 
-import { retentionForOrg } from "@/lib/retention.server";
-import { retentionForDays } from "@/product/retention.test-fixtures";
+import { retentionForOrg } from "#app/lib/retention.server.ts";
+import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 import {
   deliveryHistoryRow,
   evaluationFailureHistoryRow,
@@ -23,16 +23,16 @@ const mocks = vi.hoisted(() => ({
   insertRows: vi.fn(),
   error: vi.fn(),
 }));
-vi.mock("@/lib/clickhouse-writer", () => ({
+vi.mock("#app/lib/clickhouse-writer.ts", () => ({
   insertRows: mocks.insertRows,
 }));
-vi.mock("@/telemetry/logger", () => ({
+vi.mock("#app/telemetry/logger.ts", () => ({
   exceptionAttributes: vi.fn(() => ({})),
   serverLogger: { error: mocks.error },
 }));
-vi.mock("@/lib/retention.server", async () => {
+vi.mock("#app/lib/retention.server.ts", async () => {
   const { retentionForDays } = await import(
-    "@/product/retention.test-fixtures"
+    "#app/product/retention.test-fixtures.ts"
   );
   return {
     retentionForOrg: vi.fn(async () => retentionForDays(365, 30)),

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/data/runs/server", () => ({
+vi.mock("#app/data/runs/server.ts", () => ({
   getStepLogs: vi.fn(),
 }));
 
-import { getStepLogs } from "@/data/runs/server";
+import { getStepLogs } from "#app/data/runs/server.ts";
 import { getRouteHandler } from "../../-test-utils";
 import { Route } from "./logs";
 

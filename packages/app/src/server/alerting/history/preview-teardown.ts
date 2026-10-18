@@ -1,7 +1,11 @@
 import { and, eq, lt, ne } from "drizzle-orm";
-import { uuidv7 } from "@/data/alerting/history/ids";
-import type { DbExecutor } from "@/db/client";
-import { alertDefinitions, alertInstances, previews } from "@/db/schema";
+import { uuidv7 } from "#app/data/alerting/history/ids.ts";
+import type { DbExecutor } from "#app/db/client.ts";
+import {
+  alertDefinitions,
+  alertInstances,
+  previews,
+} from "#app/db/schema/index.ts";
 import {
   historyDefFromDefinitionRow,
   instanceHistoryRow,

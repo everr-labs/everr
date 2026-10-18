@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 // Importing the Alert rule module for its pure ordering function and the
 // assembler for its board order must not build a real database pool.
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {},
   pool: {},
   runInTransaction: () => Promise.resolve(),
@@ -12,9 +12,9 @@ vi.mock("@/db/client", () => ({
 import {
   compareRuleLabels,
   type TriageStatus,
-} from "@/data/alerting/rules/read";
-import type { AlertingSeverity } from "@/data/alerting/types";
-import { ALERTING_SEVERITIES } from "@/data/alerting/vocabulary";
+} from "#app/data/alerting/rules/read.ts";
+import type { AlertingSeverity } from "#app/data/alerting/types.ts";
+import { ALERTING_SEVERITIES } from "#app/data/alerting/vocabulary.ts";
 import { byTriageOrder } from "./assemble";
 import type { TriageAlert } from "./view";
 

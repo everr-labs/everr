@@ -1,13 +1,13 @@
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { notifyWorkflowUpdate } from "@/db/notify";
+import { notifyWorkflowUpdate } from "#app/db/notify.ts";
 import {
   type WorkflowJobMetadata,
   type WorkflowRunMetadata,
   workflowJobs,
   workflowRuns,
   type workflowStatusEnum,
-} from "@/db/schema";
+} from "#app/db/schema/index.ts";
 import {
   type ParsedQueuedWorkflowEvent,
   parseTimestamp,

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MCP_RESOURCE } from "@/lib/mcp-resource";
-import { mcpResourceClient } from "@/lib/mcp-resource-client";
+import { MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
+import { mcpResourceClient } from "#app/lib/mcp-resource-client.ts";
 
 export const Route = createFileRoute("/.well-known/oauth-protected-resource")({
   server: {

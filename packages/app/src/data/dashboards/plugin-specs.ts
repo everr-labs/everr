@@ -1,15 +1,15 @@
 import type * as z from "zod";
-import { barChartSpec } from "@/components/dashboards/visualizations/bar-chart/spec";
-import { gaugeChartSpec } from "@/components/dashboards/visualizations/gauge-chart/spec";
-import { geoMapSpec } from "@/components/dashboards/visualizations/geo-map/spec";
-import { heatmapSpec } from "@/components/dashboards/visualizations/heatmap/spec";
-import { nodeGraphSpec } from "@/components/dashboards/visualizations/node-graph/spec";
-import { statChartSpec } from "@/components/dashboards/visualizations/stat-chart/spec";
-import { stateTimelineSpec } from "@/components/dashboards/visualizations/state-timeline/spec";
-import { statusHistorySpec } from "@/components/dashboards/visualizations/status-history/spec";
-import { tableSpec } from "@/components/dashboards/visualizations/table/spec";
-import { timeSeriesChartSpec } from "@/components/dashboards/visualizations/time-series-chart/spec";
-import { treemapSpec } from "@/components/dashboards/visualizations/treemap/spec";
+import { barChartSpec } from "#app/components/dashboards/visualizations/bar-chart/spec.ts";
+import { gaugeChartSpec } from "#app/components/dashboards/visualizations/gauge-chart/spec.ts";
+import { geoMapSpec } from "#app/components/dashboards/visualizations/geo-map/spec.ts";
+import { heatmapSpec } from "#app/components/dashboards/visualizations/heatmap/spec.ts";
+import { nodeGraphSpec } from "#app/components/dashboards/visualizations/node-graph/spec.ts";
+import { statChartSpec } from "#app/components/dashboards/visualizations/stat-chart/spec.ts";
+import { stateTimelineSpec } from "#app/components/dashboards/visualizations/state-timeline/spec.ts";
+import { statusHistorySpec } from "#app/components/dashboards/visualizations/status-history/spec.ts";
+import { tableSpec } from "#app/components/dashboards/visualizations/table/spec.ts";
+import { timeSeriesChartSpec } from "#app/components/dashboards/visualizations/time-series-chart/spec.ts";
+import { treemapSpec } from "#app/components/dashboards/visualizations/treemap/spec.ts";
 import { testDataSpec } from "./testdata/spec";
 
 /**

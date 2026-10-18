@@ -18,10 +18,10 @@
 
 import { createHash, createHmac } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
-import { db } from "@/db/client";
-import { workflowRuns } from "@/db/schema";
-import { requireGithubConfiguration } from "@/integrations/github/configuration";
-import { serverLogger } from "@/telemetry/logger";
+import { db } from "#app/db/client.ts";
+import { workflowRuns } from "#app/db/schema/index.ts";
+import { requireGithubConfiguration } from "#app/integrations/github/configuration.ts";
+import { serverLogger } from "#app/telemetry/logger.ts";
 import { enqueueWebhookEvent } from "./enqueue";
 import { getInstallationToken, paginate } from "./github-api";
 import { generateWorkflowTraceId } from "./trace-id";

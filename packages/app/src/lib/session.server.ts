@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth.server";
-import { resolveSessionOrganization } from "@/lib/session-organization.server";
+import { auth } from "#app/lib/auth.server.ts";
+import { resolveSessionOrganization } from "#app/lib/session-organization.server.ts";
 
 export async function getSession({ headers }: { headers: Headers }) {
   const session = await auth.api.getSession({ headers });

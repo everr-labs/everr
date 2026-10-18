@@ -5,7 +5,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { currentTraceLink } from "@/data/alerting/trace-link";
+import { currentTraceLink } from "#app/data/alerting/trace-link.ts";
 import { setAlertSpanAttributes, withAlertJobSpan } from "./telemetry";
 
 const exporter = new InMemorySpanExporter();

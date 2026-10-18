@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getBranchStatus } from "@/data/branch-status";
+import { getBranchStatus } from "#app/data/branch-status.ts";
 
 const WatchQuerySchema = z
   .object({

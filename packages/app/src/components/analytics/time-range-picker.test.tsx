@@ -7,7 +7,7 @@ import { TimeRangePicker } from "./time-range-picker";
 
 const mockSetTimeRange = vi.fn();
 
-vi.mock("@/hooks/use-time-range", () => ({
+vi.mock("#app/hooks/use-time-range.ts", () => ({
   useTimeRange: () => ({
     timeRange: mockTimeRange,
     setTimeRange: mockSetTimeRange,

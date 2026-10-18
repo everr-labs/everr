@@ -1,7 +1,7 @@
 import { ClickHouseError } from "@clickhouse/client";
 import { server } from "@composition/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { StorageNotReadyError } from "@/common/storage-readiness";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
 // vi.hoisted so the hoisted vi.mock factory can reference this safely.
 
@@ -17,7 +17,7 @@ vi.mock("@composition/server", () => ({
   server: { assertStorageReady: vi.fn() },
 }));
 const { previewSqlApi } = vi.hoisted(() => ({ previewSqlApi: vi.fn() }));
-vi.mock("@/lib/clickhouse", () => ({ previewSqlApi }));
+vi.mock("#app/lib/clickhouse.ts", () => ({ previewSqlApi }));
 
 beforeEach(() => previewSqlApi.mockReset());
 

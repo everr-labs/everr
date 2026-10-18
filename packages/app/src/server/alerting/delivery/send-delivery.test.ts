@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     select: () => ({
       from: () => ({
@@ -41,16 +41,16 @@ vi.mock("@/db/client", () => ({
 vi.mock("./journal-reader", () => ({
   liveRuleForDeliveryQuery: () => Promise.resolve(mocks.liveRules),
 }));
-vi.mock("@/data/alerting/delivery/channel-secrets.server", () => ({
+vi.mock("#app/data/alerting/delivery/channel-secrets.server.ts", () => ({
   decryptChannelConfig: () => ({ type: "webhook", url: "https://hook" }),
 }));
-vi.mock("@/data/alerting/delivery/channel-sender.server", () => ({
+vi.mock("#app/data/alerting/delivery/channel-sender.server.ts", () => ({
   sendChannelNotification: mocks.send,
   ChannelSendError: mocks.ChannelSendError,
 }));
 vi.mock("./history", () => ({ recordDeliveryOutcome: mocks.outcome }));
 
-import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
 import { sendAlertDelivery } from "./send-delivery";
 
 const deliveryRow = {

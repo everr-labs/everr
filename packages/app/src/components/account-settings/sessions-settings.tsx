@@ -9,7 +9,7 @@ import {
 } from "@everr/ui/components/card";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "#app/lib/auth-client.ts";
 import { accountSessionsQueryOptions } from "./queries";
 
 function deviceName(userAgent: string | null | undefined) {

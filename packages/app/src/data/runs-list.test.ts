@@ -1,18 +1,18 @@
 import type { QueryResultRow } from "pg";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   pool: {
     query: vi.fn(),
   },
 }));
 
-vi.mock("@/lib/clickhouse", () => ({
+vi.mock("#app/lib/clickhouse.ts", () => ({
   query: vi.fn(),
 }));
 
-import { pool } from "@/db/client";
-import { query } from "@/lib/clickhouse";
+import { pool } from "#app/db/client.ts";
+import { query } from "#app/lib/clickhouse.ts";
 import { getRunsList } from "./runs-list/server";
 
 const mockedQuery = vi.mocked(

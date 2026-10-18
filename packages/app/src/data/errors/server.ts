@@ -7,7 +7,7 @@ import {
   SearchErrorIssuesInputSchema,
   type SqlClient,
 } from "@everr/telemetry-explorer/errors";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
 function repoFromContext(clickhouse: {
   query: <T>(sql: string, params?: Record<string, unknown>) => Promise<T[]>;

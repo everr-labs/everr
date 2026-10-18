@@ -1,5 +1,5 @@
-import { db } from "@/db/client";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import { db } from "#app/db/client.ts";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import {
   type AlertDeliveryTargets,
   type AlertHistoryDefinition,

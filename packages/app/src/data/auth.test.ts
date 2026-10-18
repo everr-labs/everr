@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { auth } from "@/lib/auth.server";
+import { auth } from "#app/lib/auth.server.ts";
 import { getActiveOrganization, getOrganizations } from "./auth";
 
 // getActiveOrganization reads request headers; the shared test-setup does not

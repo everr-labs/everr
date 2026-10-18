@@ -35,7 +35,7 @@ const mocks = vi.hoisted(() => ({
   channelRows: [] as unknown[],
 }));
 
-vi.mock("@/db/client", () => {
+vi.mock("#app/db/client.ts", () => {
   return {
     db: {
       // The tier/rule -> channels lookup, outside any transaction.
@@ -118,7 +118,7 @@ vi.mock("./journal-reader", () => ({
   deliverableGroupMemberQuery: () => Promise.resolve(mocks.memberRows),
 }));
 
-vi.mock("@/server/worker/jobs", () => ({
+vi.mock("#app/server/worker/jobs.ts", () => ({
   addWorkerJobInTransaction: mocks.addWorkerJob,
 }));
 
@@ -128,7 +128,7 @@ vi.mock("./suppression", () => ({
   deferSuppressedEvent: vi.fn(),
 }));
 
-vi.mock("@/data/alerting/silences/repository", () => ({
+vi.mock("#app/data/alerting/silences/repository.ts", () => ({
   loadActiveSilences: mocks.loadSilences,
 }));
 
@@ -140,7 +140,7 @@ vi.mock("../history/clickhouse", () => ({
   ) => ({ notificationEventId: event.id, ...opts }),
 }));
 
-import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";
+import { CHANNEL_TEXT_MAX } from "#app/data/alerting/delivery/channel-text-limits.ts";
 import {
   flushAlertGroup,
   formatNotification,

@@ -1,11 +1,11 @@
 import type { ReactElement } from "react";
 import { render } from "react-email";
-import InvitationEmail from "@/emails/invitation";
-import PasswordResetEmail from "@/emails/password-reset";
-import VerificationEmail from "@/emails/verification";
-import { env } from "@/env";
-import { mailer } from "@/lib/mailer.server";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import InvitationEmail from "#app/emails/invitation.tsx";
+import PasswordResetEmail from "#app/emails/password-reset.tsx";
+import VerificationEmail from "#app/emails/verification.tsx";
+import { env } from "#app/env/index.ts";
+import { mailer } from "#app/lib/mailer.server.ts";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 
 const assetBaseUrl = new URL("/email", env.BETTER_AUTH_URL).toString();
 

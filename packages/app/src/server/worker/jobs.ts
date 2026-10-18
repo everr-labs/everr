@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { TaskSpec } from "graphile-worker";
-import { type DbExecutor, db, type Transaction } from "@/db/client";
+import { type DbExecutor, db, type Transaction } from "#app/db/client.ts";
 
 // One statement for both paths. graphile's `add_job` is the public enqueue
 // API and is transaction-safe, so a job committed with the mutation that

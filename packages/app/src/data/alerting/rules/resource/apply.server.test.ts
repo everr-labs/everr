@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/data/alerting/rules/repository", () => ({
+vi.mock("#app/data/alerting/rules/repository.ts", () => ({
   listAllRules: vi.fn(),
   createRule: vi.fn(),
   adoptRule: vi.fn(),
@@ -8,24 +8,24 @@ vi.mock("@/data/alerting/rules/repository", () => ({
   deleteRule: vi.fn(),
 }));
 
-vi.mock("@/data/alerting/delivery/repository", () => ({
+vi.mock("#app/data/alerting/delivery/repository.ts", () => ({
   listChannels: vi.fn(),
 }));
 
-vi.mock("@/lib/clickhouse", () => ({ querySqlApiWithMeta: vi.fn() }));
+vi.mock("#app/lib/clickhouse.ts", () => ({ querySqlApiWithMeta: vi.fn() }));
 
 // The reconciler builds absolute notification links from the app origin; tests
 // must not depend on real (validated) server env.
-vi.mock("@/env/auth", () => ({
+vi.mock("#app/env/auth.ts", () => ({
   authEnv: { BETTER_AUTH_URL: "https://app.example.com" },
 }));
 
-import { listChannels } from "@/data/alerting/delivery/repository";
-import { AlertingError } from "@/data/alerting/errors";
-import * as alerting from "@/data/alerting/rules/repository";
-import { ApplyValidationError } from "@/data/as-code/errors";
-import type { DbExecutor } from "@/db/client";
-import { querySqlApiWithMeta } from "@/lib/clickhouse";
+import { listChannels } from "#app/data/alerting/delivery/repository.ts";
+import { AlertingError } from "#app/data/alerting/errors.ts";
+import * as alerting from "#app/data/alerting/rules/repository.ts";
+import { ApplyValidationError } from "#app/data/as-code/errors.ts";
+import type { DbExecutor } from "#app/db/client.ts";
+import { querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
 import { applyAlertSpecs } from "./apply.server";
 
 // The repository is mocked, so the executor's identity is all that matters:

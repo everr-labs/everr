@@ -1,17 +1,17 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { formatResourceName } from "@/data/as-code/identity";
+import { formatResourceName } from "#app/data/as-code/identity.ts";
 import {
   type OwnershipConflict,
   partitionByOwnership,
-} from "@/data/as-code/ownership";
-import { reconcile } from "@/data/as-code/reconcile";
-import type { Reconciler } from "@/data/as-code/registry";
+} from "#app/data/as-code/ownership.ts";
+import { reconcile } from "#app/data/as-code/reconcile.ts";
+import type { Reconciler } from "#app/data/as-code/registry.ts";
 import {
   foreignLiveScope,
   previewOwner,
   previewScope,
-} from "@/data/previews/scope";
-import { dashboards } from "@/db/schema";
+} from "#app/data/previews/scope.ts";
+import { dashboards } from "#app/db/schema/index.ts";
 import { buildDesiredSet } from "./desired";
 import type { DashboardResource } from "./schema";
 

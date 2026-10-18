@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Panel } from "@/data/dashboards/schema";
+import type { Panel } from "#app/data/dashboards/schema.ts";
 import {
   getPanelQuerySources,
   getQuerySourceAt,

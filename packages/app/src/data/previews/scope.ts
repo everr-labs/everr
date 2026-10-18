@@ -1,6 +1,6 @@
 import { and, eq, isNull, ne, or, type SQL, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
-import { previews } from "@/db/schema";
+import { previews } from "#app/db/schema/index.ts";
 
 /** The columns every preview-scoped resource table shares. */
 interface ScopedTable {

@@ -2,8 +2,8 @@ import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { Meter } from "@everr/ui/components/meter";
 import { useMemo } from "react";
-import type { WorkflowCostByJob } from "@/data/workflows/schemas";
-import { formatCost } from "@/lib/runner-pricing";
+import type { WorkflowCostByJob } from "#app/data/workflows/schemas.ts";
+import { formatCost } from "#app/lib/runner-pricing.ts";
 
 interface CostByJobTableProps {
   data: WorkflowCostByJob[];

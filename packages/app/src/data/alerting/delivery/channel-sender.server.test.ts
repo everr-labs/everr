@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";
+import { CHANNEL_TEXT_MAX } from "#app/data/alerting/delivery/channel-text-limits.ts";
 
 import {
   ChannelSendError,

@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 // The tasks module reaches the worker enqueue plumbing; the mock only keeps
 // the import from reaching the real database client.
-vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
+vi.mock("#app/db/client.ts", () => ({ db: {}, pool: {} }));
 
-import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
+import { IDLE_GROUP_FLUSH_AT } from "#app/data/alerting/delivery/tasks.ts";
 import {
   type GroupMember,
   groupNotificationPlan,

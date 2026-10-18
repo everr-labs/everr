@@ -2,9 +2,9 @@ import { server } from "@composition/server";
 
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { createFileRoute } from "@tanstack/react-router";
-import { querySqlApi } from "@/lib/clickhouse";
-import { sanitizeSqlApiError } from "@/lib/sql-api-error";
-import { classifySqlQueryError } from "@/lib/sql-api-observability";
+import { querySqlApi } from "#app/lib/clickhouse.ts";
+import { sanitizeSqlApiError } from "#app/lib/sql-api-error.ts";
+import { classifySqlQueryError } from "#app/lib/sql-api-observability.ts";
 
 const { assertStorageReady } = server;
 

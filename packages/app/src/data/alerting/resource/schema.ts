@@ -1,5 +1,5 @@
 import * as z from "zod/v4";
-import { dashboardProjectSchema } from "@/data/dashboards/schema";
+import { dashboardProjectSchema } from "#app/data/dashboards/schema.ts";
 import { isReservedAnnotationKey } from "../resource-annotations";
 
 export const alertingNonEmptyStringSchema = z.string().min(1);

@@ -1,5 +1,5 @@
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import {
   type ActiveBranch,
   RepoDetailInputSchema,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApplyValidationError } from "@/data/as-code/errors";
+import { ApplyValidationError } from "#app/data/as-code/errors.ts";
 import { buildDesiredSet } from "./desired";
 
 const doc = (name?: string) => ({

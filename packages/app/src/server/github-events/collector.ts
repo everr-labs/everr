@@ -1,7 +1,7 @@
 import { server } from "@composition/server";
 
-import { requireGithubConfiguration } from "@/integrations/github/configuration";
-import { retentionForOrg } from "@/lib/retention.server";
+import { requireGithubConfiguration } from "#app/integrations/github/configuration.ts";
+import { retentionForOrg } from "#app/lib/retention.server.ts";
 import { GH_EVENTS_CONFIG } from "./config";
 import { recordToHeaders, stripHopByHopHeaders } from "./headers";
 import type { WebhookHeaders } from "./types";

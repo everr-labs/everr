@@ -1,39 +1,39 @@
 // @vitest-environment node
 import { afterAll, beforeEach, expect, it, vi } from "vitest";
-import { setupWorkspace } from "@/app/installation.server";
-import { createAuthTestDatabase } from "@/app/tests/auth-test-utils";
+import { setupWorkspace } from "#app/app/installation.server.ts";
+import { createAuthTestDatabase } from "#app/app/tests/auth-test-utils.ts";
 
 const state = vi.hoisted(() => ({
   database: undefined as unknown,
   emailEnabled: false,
   verificationUrl: "",
 }));
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   get db() {
     return state.database;
   },
   pool: { options: {} },
 }));
-vi.mock("@/env/index", () => ({
+vi.mock("#app/env/index.ts", () => ({
   env: {
     BETTER_AUTH_URL: "http://localhost:3000",
     BETTER_AUTH_SECRET: "invitation-integration-test-secret-long-enough",
     NODE_ENV: "test",
   },
 }));
-vi.mock("@/lib/mailer.server", () => ({
+vi.mock("#app/lib/mailer.server.ts", () => ({
   get mailer() {
     return state.emailEnabled ? { send: vi.fn() } : null;
   },
 }));
-vi.mock("@/lib/email.server", () => ({
+vi.mock("#app/lib/email.server.tsx", () => ({
   sendInvitationEmail: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
   sendVerificationEmail: ({ url }: { url: string }) => {
     state.verificationUrl = url;
   },
 }));
-vi.unmock("@/lib/auth.server");
+vi.unmock("#app/lib/auth.server.ts");
 
 const { client, database } = await createAuthTestDatabase();
 state.database = database;
@@ -57,7 +57,7 @@ it.each([
   true,
 ])("replaces invitations and enforces signup and verification with email enabled: %s", async (emailEnabled) => {
   state.emailEnabled = emailEnabled;
-  const { auth } = await import("@/lib/auth.server");
+  const { auth } = await import("#app/lib/auth.server.ts");
   const { organizationId } = await setupWorkspace(input, database);
   const owner = await auth.api.signInEmail({ body: input, asResponse: true });
   const headers = new Headers({

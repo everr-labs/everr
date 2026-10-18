@@ -7,11 +7,11 @@ import {
   stripSearchParams,
 } from "@tanstack/react-router";
 import { z } from "zod";
-import { DashboardLayout } from "@/components/dashboard-layout";
+import { DashboardLayout } from "#app/components/dashboard-layout.tsx";
 import {
   ResolvedTimeRangeSearchSchema,
   TimeRangeSearchSchema,
-} from "@/lib/time-range";
+} from "#app/lib/time-range.ts";
 
 const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   // Explore section filters live at this level (not deeper on `_explore`) so the

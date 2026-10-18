@@ -1,9 +1,9 @@
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { useNavigate } from "@tanstack/react-router";
-import { WorkflowLink } from "@/components/workflow-link";
-import type { CostByWorkflow } from "@/data/cost-analysis/schemas";
-import { formatCost } from "@/lib/runner-pricing";
+import { WorkflowLink } from "#app/components/workflow-link.tsx";
+import type { CostByWorkflow } from "#app/data/cost-analysis/schemas.ts";
+import { formatCost } from "#app/lib/runner-pricing.ts";
 
 interface CostByWorkflowTableProps {
   data: CostByWorkflow[];

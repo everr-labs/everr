@@ -1,8 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
-import { WorkspaceAccessRequired } from "@/app/pages/access-required";
-import { returnToSchema } from "@/common/return-to";
-import { getActiveOrganizationAccess } from "@/data/organization-access";
+import { WorkspaceAccessRequired } from "#app/app/pages/access-required.tsx";
+import { returnToSchema } from "#app/common/return-to.ts";
+import { getActiveOrganizationAccess } from "#app/data/organization-access.ts";
 
 export const Route = createFileRoute("/_welcome/_signedIn/access-required")({
   validateSearch: z.object({ returnTo: returnToSchema.default("/") }),

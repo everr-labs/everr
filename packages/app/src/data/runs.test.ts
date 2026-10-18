@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   pool: {
     query: vi.fn().mockResolvedValue({ rows: [] }),
   },
 }));
 
-vi.mock("@/lib/clickhouse", () => ({
+vi.mock("#app/lib/clickhouse.ts", () => ({
   query: vi.fn(),
 }));
 
-import { query } from "@/lib/clickhouse";
+import { query } from "#app/lib/clickhouse.ts";
 import { getRunJobs, getRunSpans, getStepLogs } from "./runs/server";
 
 const mockedQuery = vi.mocked(query);

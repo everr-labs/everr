@@ -1,4 +1,4 @@
-import type { ApplicationServer } from "@/product/server";
+import type { ApplicationServer } from "#app/product/server.ts";
 import * as clickhouse from "../clickhouse";
 import * as ingest from "../ingest";
 import * as storageReadiness from "../storage-readiness";
@@ -45,7 +45,7 @@ export const server: ApplicationServer = {
     return canOpenSignup(input);
   },
   async migrateDatabase(database) {
-    const { migrateDatabase } = await import("@/db/migrations");
+    const { migrateDatabase } = await import("#app/db/migrations.ts");
     return migrateDatabase(database);
   },
   async startAppWorkers() {},

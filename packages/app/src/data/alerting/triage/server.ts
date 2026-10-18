@@ -17,13 +17,13 @@ import {
   loadRules,
   rulePath,
   triageStatus,
-} from "@/data/alerting/rules/read";
+} from "#app/data/alerting/rules/read.ts";
 import {
   loadOpenSilences,
   loadSilencesForPage,
   loadSilencesInWindow,
-} from "@/data/alerting/silences/repository";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+} from "#app/data/alerting/silences/repository.ts";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import {
   assembleAlertDetail,
   assembleRuleStateHistory,

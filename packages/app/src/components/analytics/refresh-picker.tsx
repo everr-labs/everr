@@ -1,6 +1,6 @@
 import { RefreshPicker as BaseRefreshPicker } from "@everr/ui/components/refresh-picker";
 import { useIsFetching } from "@tanstack/react-query";
-import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import { useAutoRefresh } from "#app/hooks/use-auto-refresh.ts";
 
 export function RefreshPicker() {
   const { refreshInterval, setRefreshInterval, refreshNow } = useAutoRefresh();

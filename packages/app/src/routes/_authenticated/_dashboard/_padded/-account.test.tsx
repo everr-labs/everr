@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@composition/ui", async () => import("@/product/ui"));
+vi.mock("@composition/ui", async () => import("#app/product/ui.tsx"));
 
 const mocks = vi.hoisted(() => ({
   googleEnabled: true,
@@ -33,11 +33,11 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-vi.mock("@/data/account-settings", () => ({
+vi.mock("#app/data/account-settings.ts", () => ({
   deleteCurrentUserAccount: mocks.deleteCurrentUserAccount,
 }));
 
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("#app/lib/auth-client.ts", () => ({
   authClient: {
     updateUser: mocks.updateUser,
     changePassword: mocks.changePassword,

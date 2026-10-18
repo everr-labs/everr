@@ -4,9 +4,12 @@ import {
   retainSearchParams,
   useSearch,
 } from "@tanstack/react-router";
-import { FrameToggle } from "@/components/rail/frame-toggle";
-import { RailFrame, railFrameRouteOptions } from "@/components/rail/rail-frame";
-import { RunbooksList } from "@/components/runbooks/runbooks-list";
+import { FrameToggle } from "#app/components/rail/frame-toggle.tsx";
+import {
+  RailFrame,
+  railFrameRouteOptions,
+} from "#app/components/rail/rail-frame.tsx";
+import { RunbooksList } from "#app/components/runbooks/runbooks-list.tsx";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks",

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApplyValidationError } from "@/data/as-code/errors";
+import { ApplyValidationError } from "#app/data/as-code/errors.ts";
 
 // A fake runbook row: identity plus the ownership/scope columns the real
 // predicates (previewScope/foreignLiveScope) filter on. `owner` stands in for
@@ -63,7 +63,7 @@ function evalCond(cond: Cond, row: DbRow): boolean {
   }
 }
 
-vi.mock("@/db/client", () => {
+vi.mock("#app/db/client.ts", () => {
   const selectChain = {
     from: vi.fn(() => selectChain),
     where: vi.fn((cond: Cond) =>
@@ -86,7 +86,7 @@ vi.mock("drizzle-orm", () => ({
   sql: Object.assign(() => ({ op: "sql" }), { raw: vi.fn() }),
 }));
 
-vi.mock("@/db/schema", () => ({
+vi.mock("#app/db/schema/index.ts", () => ({
   runbooks: {
     organizationId: "organization_id",
     repoid: "repoid",
@@ -96,7 +96,7 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-vi.mock("@/data/alerting/rules/repository", () => ({
+vi.mock("#app/data/alerting/rules/repository.ts", () => ({
   listAllRules: vi.fn(() => Promise.resolve(alertingRules)),
 }));
 

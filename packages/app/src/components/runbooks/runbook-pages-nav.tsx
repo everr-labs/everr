@@ -2,7 +2,7 @@ import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import type { CSSProperties, ReactNode } from "react";
-import type { PageNavNode } from "@/data/runbooks/pages";
+import type { PageNavNode } from "#app/data/runbooks/pages.ts";
 import {
   FloatingMarginNav,
   floatingLinkActiveClass,

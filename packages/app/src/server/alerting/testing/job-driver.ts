@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
-import type * as schema from "@/db/schema";
-import { alertTaskList } from "@/server/alerting/runtime";
+import type * as schema from "#app/db/schema/index.ts";
+import { alertTaskList } from "#app/server/alerting/runtime.ts";
 
 type Db = PgliteDatabase<typeof schema>;
 

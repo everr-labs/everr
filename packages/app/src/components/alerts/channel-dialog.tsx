@@ -21,10 +21,10 @@ import {
   channelConfigDraft,
   channelConfigInput,
   EMPTY_CHANNEL_DRAFT,
-} from "@/data/alerting/delivery/channel-input";
-import { testAlertingChannel } from "@/data/alerting/delivery/server";
-import type { NotificationChannelView } from "@/data/alerting/delivery/view";
-import type { AlertingChannelConfigInput } from "@/data/alerting/types";
+} from "#app/data/alerting/delivery/channel-input.ts";
+import { testAlertingChannel } from "#app/data/alerting/delivery/server.ts";
+import type { NotificationChannelView } from "#app/data/alerting/delivery/view.ts";
+import type { AlertingChannelConfigInput } from "#app/data/alerting/types.ts";
 import { CHANNEL_OPTIONS, CHANNEL_URL_FIELD } from "./channel-mark";
 
 /** What the dialog is open on: a channel to make, seeded with a name when a

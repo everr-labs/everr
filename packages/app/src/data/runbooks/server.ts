@@ -1,17 +1,20 @@
 import { notFound } from "@tanstack/react-router";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
-import { identityKey } from "@/data/as-code/reconcile";
-import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
-import { getCoveredRepoids } from "@/data/previews/repoids";
+import { identityKey } from "#app/data/as-code/reconcile.ts";
+import {
+  overlayPreview,
+  type PreviewStatus,
+} from "#app/data/previews/overlay.ts";
+import { getCoveredRepoids } from "#app/data/previews/repoids.ts";
 import {
   effectiveRepoid,
   liveOrPreview,
   previewJoin,
-} from "@/data/previews/scope";
-import { db } from "@/db/client";
-import { previews, runbooks } from "@/db/schema";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+} from "#app/data/previews/scope.ts";
+import { db } from "#app/db/client.ts";
+import { previews, runbooks } from "#app/db/schema/index.ts";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import type { Runbook } from "./schema";
 import { runbookSpecSchema } from "./schema";
 

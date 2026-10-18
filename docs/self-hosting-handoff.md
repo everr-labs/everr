@@ -39,18 +39,33 @@ they are registered explicitly. The rest of the shared route tree stays in its
 existing directories.
 
 Each application's ordinary `tsconfig.json` declares its complete selection of
-named `@composition/*` modules. Vite and Vitest read those mappings, including
-`@/*`, using TypeScript's config parser. Named entries remain subject to package
+named `@composition/*` modules. Vite and Vitest read those mappings using TypeScript's config parser. Named entries remain subject to package
 ownership checks and implementations retain explicit interfaces. The generated
 compiler configs and their writer have been removed. Builds, tests, and
 typechecks no longer write compiler configuration. Restart development after
 changing module mappings.
 
-Cloud's `@/*` mapping resolves internal imports in shared source. Cloud source
-itself uses public package exports. The mapping currently exposes the installed
-package's source layout; tightening the public API remains separate follow-up
-work. All named composition aliases have shared consumers even when they have
-no direct cloud consumer.
+The package-private import migration is included in this checkpoint, following
+`17a8dd7a5`. App owns `"imports": { "#app/*": "./src/*" }` in its package manifest.
+Internal imports use explicit extensions, such as `#app/lib/auth-client.ts`.
+Both tsconfigs have dropped `@/*`, and the build helper handles only named
+composition mappings. Cloud no longer maps its installed dependency's source
+folder. Its own code still uses public package exports.
+
+This requires a mechanical import rewrite across 477 source files plus the
+migration script. Files and behavior stay in place. The boundary fixtures cover
+private imports from app, forbidden use from cloud, and path traversal, across
+ten import syntaxes (162 cases). The old `@/` convention is no longer configured.
+Named composition aliases remain application-owned and have shared consumers
+even when they have no direct cloud consumer.
+
+Verification of the private-import experiment: both production builds and
+TypeScript checks passed, along with 1,906 app tests, 2,340 cloud tests (one
+external Polar sandbox test skipped), nine build-composition tests, boundary
+lint and its 162 fixtures, and Fallow. Native Node resolution succeeds inside
+app and rejects the same private import from cloud. Signed-in browser checks
+confirmed member management in app and the Hobby upgrade page in cloud using a
+disposable database. Both generated route trees remained unchanged.
 
 Both applications now check in `src/routeTree.gen.ts`. TanStack Start owns
 generation during development and builds, including its type-registration
@@ -67,7 +82,7 @@ passed for this batch. Both checked-in route trees remain unchanged.
 
 Oxlint checks source-package boundaries through `pnpm check:boundaries`, the
 pre-commit hook, and CI. Build configuration no longer scans source imports. Relative imports must stay in the owning package; shared internals
-cannot be reached using its private `@/` alias. Cross-package code uses declared
+cannot be reached using its private `#app/` imports. Cross-package code uses declared
 package exports. Literal dynamic imports, type imports, re-exports, and test
 mocks are checked. Route and adapter entry files must belong to the composing
 package. Router tests use named shared module references rather than matching

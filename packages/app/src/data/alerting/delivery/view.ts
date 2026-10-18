@@ -4,7 +4,7 @@
  * way an alert went nowhere. Shared by the server function that builds it and
  * the screen that draws it; the screen only draws.
  */
-import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
+import type { AlertingDefaultTier } from "#app/data/alerting/delivery/defaults.ts";
 import type { AlertingChannelConfig, AlertingSeverity } from "../types";
 
 export type NotificationChannelView = {

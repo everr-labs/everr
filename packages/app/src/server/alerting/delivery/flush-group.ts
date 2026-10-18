@@ -1,16 +1,16 @@
 import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
-import { CHANNEL_TEXT_MIN } from "@/data/alerting/delivery/channel-text-limits";
-import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
-import type { ChannelNotification } from "@/data/alerting/delivery/providers/message";
+import { CHANNEL_TEXT_MIN } from "#app/data/alerting/delivery/channel-text-limits.ts";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
+import type { ChannelNotification } from "#app/data/alerting/delivery/providers/message.ts";
 import {
   ALERT_SEND_DELIVERY_TASK,
   AlertGroupTaskPayloadSchema,
   enqueueFlushGroup,
   IDLE_GROUP_FLUSH_AT,
-} from "@/data/alerting/delivery/tasks";
-import { loadActiveSilences } from "@/data/alerting/silences/repository";
-import { currentTraceLink } from "@/data/alerting/trace-link";
-import { db } from "@/db/client";
+} from "#app/data/alerting/delivery/tasks.ts";
+import { loadActiveSilences } from "#app/data/alerting/silences/repository.ts";
+import { currentTraceLink } from "#app/data/alerting/trace-link.ts";
+import { db } from "#app/db/client.ts";
 import {
   alertChannels,
   alertDefaultChannels,
@@ -20,9 +20,9 @@ import {
   alertEvents,
   alertNotificationGroupEvents,
   alertNotificationGroups,
-} from "@/db/schema";
-import { truncateWithEllipsis } from "@/lib/truncate";
-import { addWorkerJobInTransaction } from "@/server/worker/jobs";
+} from "#app/db/schema/index.ts";
+import { truncateWithEllipsis } from "#app/lib/truncate.ts";
+import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
 import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
 import { setAlertSpanAttributes } from "../telemetry";
 import {

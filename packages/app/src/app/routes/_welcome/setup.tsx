@@ -4,8 +4,8 @@ import { Label } from "@everr/ui/components/label";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { completeSetup } from "@/app/setup";
-import { authClient } from "@/lib/auth-client";
+import { completeSetup } from "#app/app/setup.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 
 export const Route = createFileRoute("/_welcome/setup")({
   head: () => ({ meta: [{ title: "Everr - Set up your workspace" }] }),

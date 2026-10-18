@@ -1,4 +1,4 @@
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import { hotSingleton } from "./hot-singleton";
 
 type WorkerHandle = { promise: Promise<void>; stop(): Promise<void> };

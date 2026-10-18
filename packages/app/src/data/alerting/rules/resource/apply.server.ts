@@ -1,16 +1,19 @@
-import { listChannels } from "@/data/alerting/delivery/repository";
-import { AlertingError } from "@/data/alerting/errors";
-import * as alerting from "@/data/alerting/rules/repository";
-import type { AlertingRuleView } from "@/data/alerting/types";
-import { ApplyValidationError } from "@/data/as-code/errors";
-import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
-import type { OwnershipConflict } from "@/data/as-code/ownership";
-import { stableStringify } from "@/data/as-code/reconcile";
-import type { ApplyCache, Reconciler } from "@/data/as-code/registry";
-import { authEnv } from "@/env/auth";
-import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
-import { createLimiter } from "@/lib/limiter";
-import { errorMessage } from "@/telemetry/logger";
+import { listChannels } from "#app/data/alerting/delivery/repository.ts";
+import { AlertingError } from "#app/data/alerting/errors.ts";
+import * as alerting from "#app/data/alerting/rules/repository.ts";
+import type { AlertingRuleView } from "#app/data/alerting/types.ts";
+import { ApplyValidationError } from "#app/data/as-code/errors.ts";
+import {
+  formatResourceName,
+  parseResourceName,
+} from "#app/data/as-code/identity.ts";
+import type { OwnershipConflict } from "#app/data/as-code/ownership.ts";
+import { stableStringify } from "#app/data/as-code/reconcile.ts";
+import type { ApplyCache, Reconciler } from "#app/data/as-code/registry.ts";
+import { authEnv } from "#app/env/auth.ts";
+import { querySqlApiWithMeta, type SqlApiResult } from "#app/lib/clickhouse.ts";
+import { createLimiter } from "#app/lib/limiter.ts";
+import { errorMessage } from "#app/telemetry/logger.ts";
 import {
   extractVariables,
   validateMessageRefs,

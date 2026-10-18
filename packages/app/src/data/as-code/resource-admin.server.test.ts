@@ -8,7 +8,7 @@ import {
   ReservedProjectError,
 } from "./resource-admin.server";
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: { select: vi.fn(), delete: vi.fn(), update: vi.fn() },
 }));
 

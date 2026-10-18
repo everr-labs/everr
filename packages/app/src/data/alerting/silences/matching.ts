@@ -15,7 +15,7 @@
  * resolves the path they picked, and the screens resolve it back to a name
  * before printing.
  */
-import type { alertEvents } from "@/db/schema";
+import type { alertEvents } from "#app/db/schema/index.ts";
 import type { AlertingMatcher } from "../types";
 
 /** What delivery holds about the event being decided on. */

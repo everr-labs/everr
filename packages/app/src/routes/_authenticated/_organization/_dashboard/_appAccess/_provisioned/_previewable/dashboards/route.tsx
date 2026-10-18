@@ -4,8 +4,11 @@ import {
   retainSearchParams,
   useSearch,
 } from "@tanstack/react-router";
-import { DashboardsList } from "@/components/dashboards/dashboards-list";
-import { RailFrame, railFrameRouteOptions } from "@/components/rail/rail-frame";
+import { DashboardsList } from "#app/components/dashboards/dashboards-list.tsx";
+import {
+  RailFrame,
+  railFrameRouteOptions,
+} from "#app/components/rail/rail-frame.tsx";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards",

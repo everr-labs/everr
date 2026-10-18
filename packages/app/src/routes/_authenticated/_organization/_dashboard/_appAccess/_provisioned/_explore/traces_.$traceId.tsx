@@ -7,7 +7,7 @@ import {
   createFileRoute,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { remoteTracesRepo } from "@/data/traces/remote-repo";
+import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 import {
   ensureTraceDetailData,
   getTraceDetailLoaderDeps,

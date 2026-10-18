@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
-import { getMcpIdentity } from "@/data/mcp/identity";
-import { assertCurrentMember } from "@/data/mcp/membership";
-import { QUERY_TOOL_DESCRIPTION } from "@/data/mcp/query-tool-description";
-import { runSqlForConnection } from "@/data/mcp/run-sql";
-import { AUTH_ISSUER, MCP_RESOURCE } from "@/lib/mcp-resource";
-import { mcpResourceClient } from "@/lib/mcp-resource-client";
-import { mergeTelemetryIdentity } from "@/telemetry/identity";
+import { getMcpIdentity } from "#app/data/mcp/identity.ts";
+import { assertCurrentMember } from "#app/data/mcp/membership.ts";
+import { QUERY_TOOL_DESCRIPTION } from "#app/data/mcp/query-tool-description.ts";
+import { runSqlForConnection } from "#app/data/mcp/run-sql.ts";
+import { AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
+import { mcpResourceClient } from "#app/lib/mcp-resource-client.ts";
+import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
 // Per-request identity, carried on the verified token's AuthInfo.extra. The MCP
 // SDK threads AuthInfo into every tool call's `extra`, so there's no need to

@@ -1,7 +1,7 @@
 import { navigation } from "@composition/navigation";
 
 import { createFileRoute } from "@tanstack/react-router";
-import { requireOrganization } from "@/lib/route-access";
+import { requireOrganization } from "#app/lib/route-access.ts";
 
 const { afterOrganizationSelected } = navigation;
 

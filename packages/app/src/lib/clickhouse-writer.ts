@@ -1,6 +1,6 @@
-import { env } from "@/env";
-import { createClient } from "@/lib/clickhouse-client";
-import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
+import { env } from "#app/env/index.ts";
+import { createClient } from "#app/lib/clickhouse-client.ts";
+import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
 
 const clickhouseAdmin = createClient({
   url: env.CLICKHOUSE_URL,

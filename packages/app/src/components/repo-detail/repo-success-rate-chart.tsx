@@ -20,7 +20,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { RepoSuccessRatePoint } from "@/data/repo-detail/schemas";
+import type { RepoSuccessRatePoint } from "#app/data/repo-detail/schemas.ts";
 
 interface RepoSuccessRateChartProps {
   data: RepoSuccessRatePoint[];

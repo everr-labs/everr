@@ -22,7 +22,7 @@ import { useRouteContext } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { invitationUrl } from "@/common/invitation";
+import { invitationUrl } from "#app/common/invitation.ts";
 import { InvitationLink } from "./invitation-link";
 import { type OrgRole, useInviteMember } from "./queries";
 

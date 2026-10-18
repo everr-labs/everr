@@ -7,14 +7,14 @@ import type { ReactNode } from "react";
 import {
   ALERTING_SEVERITY_TIERS,
   type AlertingDefaultTier,
-} from "@/data/alerting/delivery/defaults";
+} from "#app/data/alerting/delivery/defaults.ts";
 import type {
   AlertNotificationsData,
   NotificationChannelView,
   NotificationGap,
   NotificationOverrideView,
-} from "@/data/alerting/delivery/view";
-import type { AlertingSeverity } from "@/data/alerting/types";
+} from "#app/data/alerting/delivery/view.ts";
+import type { AlertingSeverity } from "#app/data/alerting/types.ts";
 import { SEVERITY_DOT, TIER_LABEL } from "./alert-status";
 import { ChannelMark, channelDetail } from "./channel-mark";
 import { LoadingRows, ROW_HOVER, ROW_TARGET } from "./list-row";

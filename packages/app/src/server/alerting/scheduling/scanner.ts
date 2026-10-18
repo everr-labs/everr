@@ -1,8 +1,8 @@
 import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
-import { enqueueAlertEvaluation } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { db } from "@/db/client";
-import { alertDefinitions } from "@/db/schema";
-import { env } from "@/env";
+import { enqueueAlertEvaluation } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
+import { db } from "#app/db/client.ts";
+import { alertDefinitions } from "#app/db/schema/index.ts";
+import { env } from "#app/env/index.ts";
 import { setAlertSpanAttributes } from "../telemetry";
 
 export const SCANNER_BATCH_SIZE = 5_000;

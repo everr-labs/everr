@@ -1,6 +1,6 @@
 import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
-import type { QueryResultRow } from "@/components/dashboards/visualizations";
+import type { QueryResultRow } from "#app/components/dashboards/visualizations/index.tsx";
 import type {
   GeoSpec,
   RandomWalkSpec,

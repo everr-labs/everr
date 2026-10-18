@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
 }));
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: { execute: mocks.execute },
 }));
 

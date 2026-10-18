@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import type { DbExecutor } from "@/db/client";
-import { member, organization } from "@/db/schema";
+import type { DbExecutor } from "#app/db/client.ts";
+import { member, organization } from "#app/db/schema/index.ts";
 
 export async function findOrganizationForMember(
   database: DbExecutor,

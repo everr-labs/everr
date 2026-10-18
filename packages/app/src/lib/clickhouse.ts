@@ -1,8 +1,8 @@
 import type { DataFormat } from "@clickhouse/client";
 import { server } from "@composition/server";
-import { env } from "@/env";
-import { createClient } from "@/lib/clickhouse-client";
-import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
+import { env } from "#app/env/index.ts";
+import { createClient } from "#app/lib/clickhouse-client.ts";
+import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
 
 const { appQuerySettings, sqlApiAccess } = server;
 

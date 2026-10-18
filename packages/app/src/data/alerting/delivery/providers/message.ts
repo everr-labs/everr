@@ -1,4 +1,4 @@
-import { truncateWithEllipsis } from "@/lib/truncate";
+import { truncateWithEllipsis } from "#app/lib/truncate.ts";
 
 export interface ChannelNotification {
   title: string;

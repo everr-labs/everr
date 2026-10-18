@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { lastViewedStore } from "@/data/last-viewed";
+import { lastViewedStore } from "#app/data/last-viewed.ts";
 
 /** The dashboard to reopen when `/dashboards` is visited without a choice. */
 const LastViewedSchema = z.union([

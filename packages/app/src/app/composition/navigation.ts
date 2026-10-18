@@ -1,4 +1,4 @@
-import type { ApplicationNavigation } from "@/product/navigation";
+import type { ApplicationNavigation } from "#app/product/navigation.ts";
 import {
   afterOrganizationSelected,
   ensureStorageReady,

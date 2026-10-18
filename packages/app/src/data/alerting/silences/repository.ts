@@ -2,15 +2,15 @@ import { and, desc, eq, gt, gte, lt, lte, or, sql } from "drizzle-orm";
 import {
   ALERT_PROCESS_EVENT_TASK,
   PROCESS_EVENT_MAX_ATTEMPTS,
-} from "@/data/alerting/delivery/tasks";
-import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { currentTraceLink } from "@/data/alerting/trace-link";
+} from "#app/data/alerting/delivery/tasks.ts";
+import { alertingPartitionQueue } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
+import { currentTraceLink } from "#app/data/alerting/trace-link.ts";
 import {
   SILENCE_PAGE_LIMIT,
   type SilenceCut,
-} from "@/data/alerting/triage/view";
-import { db } from "@/db/client";
-import { alertEvents, alertSilences } from "@/db/schema";
+} from "#app/data/alerting/triage/view.ts";
+import { db } from "#app/db/client.ts";
+import { alertEvents, alertSilences } from "#app/db/schema/index.ts";
 import {
   parseAlertingInput,
   throwAlertingPersistenceError,

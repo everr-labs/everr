@@ -1,10 +1,10 @@
 import { and, eq, lt } from "drizzle-orm";
-import { type DbExecutor, db } from "@/db/client";
-import { previews } from "@/db/schema";
+import { type DbExecutor, db } from "#app/db/client.ts";
+import { previews } from "#app/db/schema/index.ts";
 import {
   openPreviewAlertInstances,
   recordPreviewTeardownClosures,
-} from "@/server/alerting/history/preview-teardown";
+} from "#app/server/alerting/history/preview-teardown.ts";
 
 /**
  * Record that a preview was applied for (org, repoid) and return its id: the

@@ -1,8 +1,8 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { PgTransaction } from "drizzle-orm/pg-core";
 import { Pool, type PoolConfig } from "pg";
-import * as schema from "@/db/schema";
-import { dbEnv } from "@/env/db";
+import * as schema from "#app/db/schema/index.ts";
+import { dbEnv } from "#app/env/db.ts";
 
 const shouldUseSsl = ["true", "1", "yes", "on"].includes(
   dbEnv.DATABASE_SSL?.toLowerCase() ?? "",

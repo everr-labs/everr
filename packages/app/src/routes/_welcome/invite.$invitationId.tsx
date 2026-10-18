@@ -8,8 +8,8 @@ import {
   isMemberOfOrg,
   lookupInvitation,
   resolveInvitationLoader,
-} from "@/data/invite";
-import { authClient } from "@/lib/auth-client";
+} from "#app/data/invite.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 
 export const Route = createFileRoute("/_welcome/invite/$invitationId")({
   loader: async ({ context: { session }, params: { invitationId } }) => {

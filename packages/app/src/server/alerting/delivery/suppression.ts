@@ -1,15 +1,15 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
+import { enqueueProcessAlertEvent } from "#app/data/alerting/delivery/tasks.ts";
 import {
   eventSubject,
   matchingSilence,
-} from "@/data/alerting/silences/matching";
+} from "#app/data/alerting/silences/matching.ts";
 import {
   loadActiveSilences,
   type SilenceRow,
-} from "@/data/alerting/silences/repository";
-import { db } from "@/db/client";
-import { alertEvents, alertInstances } from "@/db/schema";
+} from "#app/data/alerting/silences/repository.ts";
+import { db } from "#app/db/client.ts";
+import { alertEvents, alertInstances } from "#app/db/schema/index.ts";
 import {
   journalHoldRow,
   journalTerminalRow,

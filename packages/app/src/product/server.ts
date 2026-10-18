@@ -2,7 +2,7 @@ import type { ClickHouseSettings } from "@clickhouse/client";
 import type { BetterAuthPlugin, GenericEndpointContext } from "better-auth";
 import type { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { OrganizationOptions } from "better-auth/plugins/organization";
-import type { MigrationDatabase } from "@/db/migrations";
+import type { MigrationDatabase } from "#app/db/migrations.ts";
 import type { SessionOnboardingHookFactory } from "./onboarding";
 
 export interface ApplicationIdentity {

@@ -2,7 +2,7 @@
 
 import { product } from "@composition/product";
 import { beforeEach, expect, it, vi } from "vitest";
-import { assertCanInviteMembers } from "@/product/membership.server";
+import { assertCanInviteMembers } from "#app/product/membership.server.ts";
 
 beforeEach(() => vi.clearAllMocks());
 

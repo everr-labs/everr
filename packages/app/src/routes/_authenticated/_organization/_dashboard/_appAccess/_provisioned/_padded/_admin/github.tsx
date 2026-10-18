@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import {
   GithubPage,
   githubInstallStatusOptions,
-} from "@/integrations/github/page";
+} from "#app/integrations/github/page.tsx";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github",

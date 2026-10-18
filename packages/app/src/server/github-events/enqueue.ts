@@ -1,4 +1,4 @@
-import { addWorkerJob } from "@/server/worker/jobs";
+import { addWorkerJob } from "#app/server/worker/jobs.ts";
 import { GH_EVENTS_CONFIG } from "./config";
 import {
   COLLECTOR_TASK_IDENTIFIER,

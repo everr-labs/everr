@@ -1,7 +1,7 @@
 import type { BetterAuthPlugin } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { db } from "@/db/client";
+import { db } from "#app/db/client.ts";
 import { assertWorkspaceOwnershipTransferred } from "./installation.server";
 import { lockWorkspaceMembership } from "./request";
 

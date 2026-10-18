@@ -12,7 +12,7 @@ import {
 import {
   mergeTelemetryIdentity,
   withTelemetryIdentityScope,
-} from "@/telemetry/identity";
+} from "#app/telemetry/identity.ts";
 
 /**
  * Every alerting hop is a queue hop, so a job's span links to its enqueuer

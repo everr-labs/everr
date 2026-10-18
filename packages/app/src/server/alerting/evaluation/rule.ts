@@ -2,13 +2,13 @@ import { server } from "@composition/server";
 
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
-import { renderMessage } from "@/data/alerting/delivery/template";
-import { uuidv7 } from "@/data/alerting/history/ids";
+import { enqueueProcessAlertEvent } from "#app/data/alerting/delivery/tasks.ts";
+import { renderMessage } from "#app/data/alerting/delivery/template.ts";
+import { uuidv7 } from "#app/data/alerting/history/ids.ts";
 import {
   alertingConditionMatches,
   alertingConditionValue,
-} from "@/data/alerting/rules/condition";
+} from "#app/data/alerting/rules/condition.ts";
 import {
   ALERT_EVALUATE_TASK,
   alertEvaluationJobKey,
@@ -17,24 +17,24 @@ import {
   alertingRetryDelaySeconds,
   type EvaluatePayload,
   nextAlertEvaluationAt,
-} from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { db } from "@/db/client";
+} from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
+import { db } from "#app/db/client.ts";
 import {
   alertDefinitions,
   alertEvaluations,
   alertEvents,
   alertInstances,
   organization,
-} from "@/db/schema";
-import { env } from "@/env";
-import { querySqlApiWithMeta } from "@/lib/clickhouse";
-import { previewDefinitionsEnqueueable } from "@/server/alerting/scheduling/scanner";
-import { addWorkerJobInTransaction } from "@/server/worker/jobs";
+} from "#app/db/schema/index.ts";
+import { env } from "#app/env/index.ts";
+import { querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
+import { previewDefinitionsEnqueueable } from "#app/server/alerting/scheduling/scanner.ts";
+import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
 import {
   errorMessage,
   exceptionAttributes,
   serverLogger,
-} from "@/telemetry/logger";
+} from "#app/telemetry/logger.ts";
 import {
   type AlertHistoryDefinition,
   type AlertHistoryRow,

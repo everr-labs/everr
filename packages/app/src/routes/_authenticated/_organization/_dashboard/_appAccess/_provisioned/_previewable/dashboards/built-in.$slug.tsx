@@ -3,17 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Info } from "lucide-react";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
-import { CreateFromBuiltin } from "@/components/dashboards/create-from-builtin";
-import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
-import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
-import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
-import { InstrumentFromBuiltin } from "@/components/dashboards/instrument-from-builtin";
-import { DashboardProvider } from "@/components/dashboards/use-dashboard";
-import { evaluateBuiltin } from "@/data/dashboards/built-in/capabilities";
-import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
-import { lastViewedDashboard } from "@/data/dashboards/last-viewed";
-import { telemetryCapabilitiesOptions } from "@/data/dashboards/options";
-import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
+import { CreateFromBuiltin } from "#app/components/dashboards/create-from-builtin.tsx";
+import gridLayoutOverridesCSS from "#app/components/dashboards/dashboard-grid.css?url";
+import { DashboardGrid } from "#app/components/dashboards/dashboard-grid.tsx";
+import { DashboardNotFound } from "#app/components/dashboards/dashboard-not-found.tsx";
+import { InstrumentFromBuiltin } from "#app/components/dashboards/instrument-from-builtin.tsx";
+import { DashboardProvider } from "#app/components/dashboards/use-dashboard.tsx";
+import { evaluateBuiltin } from "#app/data/dashboards/built-in/capabilities.ts";
+import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
+import { lastViewedDashboard } from "#app/data/dashboards/last-viewed.ts";
+import { telemetryCapabilitiesOptions } from "#app/data/dashboards/options.ts";
+import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug",

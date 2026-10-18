@@ -2,8 +2,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { and, eq, like, sql } from "drizzle-orm";
 import { z } from "zod";
-import type { Database } from "@/db/client";
-import { account, session, user, verification } from "@/db/schema/auth";
+import type { Database } from "#app/db/client.ts";
+import { account, session, user, verification } from "#app/db/schema/auth.ts";
 
 export type RecoveryAction =
   | { kind: "link"; baseUrl: string }

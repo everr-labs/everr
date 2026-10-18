@@ -1,6 +1,6 @@
 import { type ComponentType, lazy, Suspense, useMemo } from "react";
 import type * as z from "zod";
-import type { PanelPlugin } from "@/data/dashboards/schema";
+import type { PanelPlugin } from "#app/data/dashboards/schema.ts";
 import { BarChartVisualization } from "./bar-chart/bar-chart-visualization";
 import { barChartSpec } from "./bar-chart/spec";
 import { GaugeChartVisualization } from "./gauge-chart/gauge-chart-visualization";

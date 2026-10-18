@@ -7,8 +7,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
-import { returnToSchema } from "@/common/return-to";
-import { authClient } from "@/lib/auth-client";
+import { returnToSchema } from "#app/common/return-to.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 import {
   AuthPageHeader,
   AuthProviderSeparator,

@@ -3,7 +3,7 @@ import {
   readLocalStorage,
   removeLocalStorage,
   writeLocalStorage,
-} from "@/lib/local-storage";
+} from "#app/lib/local-storage.ts";
 
 /**
  * Where the reader last was in one kind of resource, so visiting its section

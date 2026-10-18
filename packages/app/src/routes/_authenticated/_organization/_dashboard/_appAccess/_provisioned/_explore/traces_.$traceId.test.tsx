@@ -19,7 +19,7 @@ import { useRef } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { Route } from "./traces_.$traceId";
 
-vi.mock("@/data/traces/remote-repo", () => ({ remoteTracesRepo: {} }));
+vi.mock("#app/data/traces/remote-repo.ts", () => ({ remoteTracesRepo: {} }));
 vi.mock("./-trace-detail", () => ({
   ensureTraceDetailData: vi.fn(),
   getTraceDetailLoaderDeps: vi.fn(),

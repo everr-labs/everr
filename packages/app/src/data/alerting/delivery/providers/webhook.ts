@@ -1,4 +1,4 @@
-import type { AlertingChannelConfig } from "@/data/alerting/types";
+import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 import type { ChannelNotification } from "./message";
 import { postJson } from "./outbound";
 

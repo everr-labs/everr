@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { APIError } from "better-auth/api";
 import { Pool, type PoolClient } from "pg";
-import { pool } from "@/db/client";
+import { pool } from "#app/db/client.ts";
 
 // A separate pool keeps lock holders from starving Better Auth's own writes.
 const lockPool = new Pool({

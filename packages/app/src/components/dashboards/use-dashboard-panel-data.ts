@@ -5,11 +5,11 @@ import {
   extractVariableTokens,
   type VariableMeta,
   type VariableValues,
-} from "@/data/dashboards/interpolate";
-import { panelQueryOptions } from "@/data/dashboards/options";
-import type { Panel } from "@/data/dashboards/schema";
-import { pickByNames } from "@/data/dashboards/variable-values";
-import { useTimeRange } from "@/hooks/use-time-range";
+} from "#app/data/dashboards/interpolate.ts";
+import { panelQueryOptions } from "#app/data/dashboards/options.ts";
+import type { Panel } from "#app/data/dashboards/schema.ts";
+import { pickByNames } from "#app/data/dashboards/variable-values.ts";
+import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { getPanelQuerySources, type PanelQuerySource } from "./query-array";
 import { useDashboardVariables } from "./use-dashboard-variables";
 import type { QueryResultRow, ResolvedTimeRange } from "./visualizations";

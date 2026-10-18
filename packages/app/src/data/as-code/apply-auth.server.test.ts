@@ -1,10 +1,10 @@
 import { server } from "@composition/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { StorageNotReadyError } from "@/common/storage-readiness";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
 // Org-name lookup goes through a direct DB select; control its result via orgRows.
 
-import { parseAlertingPrincipal } from "@/data/alerting/session";
+import { parseAlertingPrincipal } from "#app/data/alerting/session.ts";
 import {
   applyAuthErrorResponse,
   buildApplyContext,
@@ -20,7 +20,7 @@ vi.mock("@composition/server", () => ({
 }));
 const verifyApiKey = vi.fn();
 const getSession = vi.fn();
-vi.mock("@/lib/auth.server", () => ({
+vi.mock("#app/lib/auth.server.ts", () => ({
   auth: {
     api: {
       verifyApiKey: (...a: unknown[]) => verifyApiKey(...a),
@@ -28,11 +28,11 @@ vi.mock("@/lib/auth.server", () => ({
     },
   },
 }));
-vi.mock("@/lib/clickhouse", () => ({
+vi.mock("#app/lib/clickhouse.ts", () => ({
   createClickhouseQuery: () => () => Promise.resolve([]),
 }));
 let orgRows: unknown[] = [];
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     select: () => ({
       from: () => ({
@@ -43,7 +43,7 @@ vi.mock("@/db/client", () => ({
     }),
   },
 }));
-vi.mock("@/db/schema", () => ({
+vi.mock("#app/db/schema/index.ts", () => ({
   organization: { id: "id", name: "name" },
 }));
 

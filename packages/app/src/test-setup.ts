@@ -77,7 +77,7 @@ vi.mock("@tanstack/react-start", () => ({
 // client and trigger env access. Individual tests can override this mock.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/clickhouse", () => {
+vi.mock("#app/lib/clickhouse.ts", () => {
   const query = vi.fn();
   const querySqlApi = vi.fn();
 
@@ -96,9 +96,9 @@ vi.mock("@/lib/clickhouse", () => {
 // from getAuth(), with the same guards as the real authMiddleware.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/serverFn", async () => {
-  const { query } = await import("@/lib/clickhouse");
-  const { auth } = await import("@/lib/auth.server");
+vi.mock("#app/lib/serverFn.ts", async () => {
+  const { query } = await import("#app/lib/clickhouse.ts");
+  const { auth } = await import("#app/lib/auth.server.ts");
 
   // requireOrgMiddleware: active org guaranteed + ClickHouse bound to it.
   const makeAuthChain = () =>
@@ -158,7 +158,7 @@ vi.mock("@/lib/serverFn", async () => {
 // Individual tests can override specific methods.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/auth.server", () => ({
+vi.mock("#app/lib/auth.server.ts", () => ({
   auth: {
     api: {
       getSession: vi.fn().mockResolvedValue({
@@ -209,8 +209,8 @@ afterEach(() => {
 });
 
 // Consumer tests use the configured auth double. Session recovery has database-backed tests.
-vi.mock("@/lib/session.server", async () => {
-  const { auth } = await import("@/lib/auth.server");
+vi.mock("#app/lib/session.server.ts", async () => {
+  const { auth } = await import("#app/lib/auth.server.ts");
   return {
     getSession: (options: { headers: Headers }) => auth.api.getSession(options),
   };

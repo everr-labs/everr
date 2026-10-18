@@ -1,6 +1,6 @@
-import { db } from "@/db/client";
-import { findOrganizationForMember } from "@/lib/organization-membership.server";
-import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
+import { db } from "#app/db/client.ts";
+import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
+import { createPartiallyAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
 export const getActiveOrganizationAccess = createPartiallyAuthenticatedServerFn(
   {

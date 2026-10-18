@@ -13,7 +13,7 @@ import {
 } from "@everr/ui/components/empty";
 import type { QueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { remoteTracesRepo } from "@/data/traces/remote-repo";
+import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
 export function getTraceDetailLoaderDeps(search: TraceDetailParams) {
   return {

@@ -21,11 +21,11 @@ import { z } from "zod";
 import { ErrorDetailRouteContent } from "./-error-detail";
 import { Route as ErrorsFileRoute } from "./errors";
 
-vi.mock("@/data/errors/remote-repo", () => ({
+vi.mock("#app/data/errors/remote-repo.ts", () => ({
   remoteErrorsRepo: {},
 }));
 
-vi.mock("@/data/runs/options", () => ({
+vi.mock("#app/data/runs/options.ts", () => ({
   runSpansOptions: vi.fn(() => ({
     queryKey: ["runs", "spans", "test"],
     queryFn: vi.fn(),
@@ -39,7 +39,7 @@ const realtimeSubscriptions = vi.hoisted(() => ({
   stops: [] as Array<{ scope: "tenant" } | { scope: "trace"; traceId: string }>,
 }));
 
-vi.mock("@/hooks/use-realtime-subscription", async () => {
+vi.mock("#app/hooks/use-realtime-subscription.ts", async () => {
   const { useEffect } = await import("react");
 
   return {

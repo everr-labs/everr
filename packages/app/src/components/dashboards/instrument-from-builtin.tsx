@@ -8,7 +8,7 @@ import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { Check, ClipboardList, Copy } from "lucide-react";
 import { useRef } from "react";
-import { instrumentMissingPrompt } from "@/data/dashboards/built-in/prompt";
+import { instrumentMissingPrompt } from "#app/data/dashboards/built-in/prompt.ts";
 
 /**
  * Appears on a built-in dashboard whose telemetry requirements are unmet.

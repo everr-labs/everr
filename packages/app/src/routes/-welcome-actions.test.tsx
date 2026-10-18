@@ -28,7 +28,9 @@ vi.mock("@tanstack/react-router", () => ({
   }),
   Outlet: () => <div>Page content</div>,
 }));
-vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
+vi.mock("#app/lib/auth-client.ts", () => ({
+  authClient: { signOut: vi.fn() },
+}));
 vi.mock("./_welcome/-components/ascii-logo", () => ({ AsciiLogo: () => null }));
 
 import { Route } from "./-_welcome";

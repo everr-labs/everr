@@ -9,19 +9,19 @@ import {
   sql,
 } from "drizzle-orm";
 import { alias, QueryBuilder } from "drizzle-orm/pg-core";
-import { uuidv7 } from "@/data/alerting/history/ids";
-import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
-import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
-import { formatResourceName } from "@/data/as-code/identity";
-import type { Transaction } from "@/db/client";
+import { uuidv7 } from "#app/data/alerting/history/ids.ts";
+import { ALERT_PROJECT_LIFECYCLE_TASK } from "#app/data/alerting/history/tasks.ts";
+import type { AlertingLifecycleReason } from "#app/data/alerting/vocabulary.ts";
+import { formatResourceName } from "#app/data/as-code/identity.ts";
+import type { Transaction } from "#app/db/client.ts";
 import {
   type alertDefinitions,
   alertEvents,
   alertInstances,
   alertNotificationGroupEvents,
   alertNotificationGroups,
-} from "@/db/schema";
-import { addWorkerJobInTransaction } from "@/server/worker/jobs";
+} from "#app/db/schema/index.ts";
+import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
 
 type RuleRow = typeof alertDefinitions.$inferSelect;
 type InstanceRow = typeof alertInstances.$inferSelect;

@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { CirclePlus } from "lucide-react";
 import { useState } from "react";
-import { DashboardTree } from "@/components/dashboards/dashboard-tree";
-import { RailList } from "@/components/rail/rail-list";
-import { RailRow } from "@/components/rail/rail-row";
-import { runbookListOptions } from "@/data/runbooks/options";
+import { DashboardTree } from "#app/components/dashboards/dashboard-tree.tsx";
+import { RailList } from "#app/components/rail/rail-list.tsx";
+import { RailRow } from "#app/components/rail/rail-row.tsx";
+import { runbookListOptions } from "#app/data/runbooks/options.ts";
 
 /** The first navigation level: every runbook in the organization. */
 export function RunbooksList({ preview }: { preview?: string }) {

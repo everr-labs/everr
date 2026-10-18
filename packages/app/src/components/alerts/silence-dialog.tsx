@@ -22,13 +22,13 @@ import {
 } from "@everr/ui/components/select";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import type { AlertRuleOption } from "@/data/alerting/rules/read";
+import type { AlertRuleOption } from "#app/data/alerting/rules/read.ts";
 import {
   SILENCE_DURATIONS,
   type SilenceDraft,
   type SilenceSeed,
-} from "@/data/alerting/silences/commands";
-import { alertRuleOptionsOptions } from "@/data/alerting/triage/options";
+} from "#app/data/alerting/silences/commands.ts";
+import { alertRuleOptionsOptions } from "#app/data/alerting/triage/options.ts";
 
 type SilenceDuration = (typeof SILENCE_DURATIONS)[number];
 

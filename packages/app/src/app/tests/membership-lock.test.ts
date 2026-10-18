@@ -2,7 +2,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ query: vi.fn(), release: vi.fn() }));
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   pool: { options: { host: "localhost", password: "test" } },
 }));
 vi.mock("pg", () => ({
@@ -13,7 +13,10 @@ vi.mock("pg", () => ({
   },
 }));
 
-import { lockWorkspaceMembership, withIdentityRequest } from "@/app/request";
+import {
+  lockWorkspaceMembership,
+  withIdentityRequest,
+} from "#app/app/request.ts";
 
 beforeEach(() => {
   vi.clearAllMocks();

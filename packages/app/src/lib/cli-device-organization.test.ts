@@ -7,7 +7,7 @@ import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
   runWithDeviceOrgCapture,
-} from "@/lib/cli-device-organization";
+} from "#app/lib/cli-device-organization.ts";
 
 // Drives a real device-authorization flow through the installed better-auth
 // (memory adapter) and asserts the approval-time org lands on the created

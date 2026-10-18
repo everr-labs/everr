@@ -10,7 +10,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { alertDefinitions } from "@/db/schema";
+import { alertDefinitions } from "#app/db/schema/index.ts";
 import { BACKOFF_EXPRESSION_TEST } from "./job-driver";
 import {
   applyTestSchema,

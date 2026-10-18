@@ -7,7 +7,7 @@ import {
   performance,
   WebSDK,
 } from "@everr/otel-web";
-import { readConsent } from "@/telemetry/consent";
+import { readConsent } from "#app/telemetry/consent.ts";
 import { resolveBrowserTelemetryConfig } from "./config";
 
 // The browser telemetry of the web app, and this app uses our own product. The

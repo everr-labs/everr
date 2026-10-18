@@ -2,17 +2,17 @@ import { ClickHouseError } from "@clickhouse/client";
 import { server } from "@composition/server";
 import { trace } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { StorageNotReadyError } from "@/common/storage-readiness";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
-import { querySqlApi } from "@/lib/clickhouse";
-import { SCHEMA_PROBE_MESSAGE } from "@/lib/sql-api-error";
+import { querySqlApi } from "#app/lib/clickhouse.ts";
+import { SCHEMA_PROBE_MESSAGE } from "#app/lib/sql-api-error.ts";
 import { Route } from "./sql";
 
 const { assertStorageReady } = server;
 vi.mock("@composition/server", () => ({
   server: { assertStorageReady: vi.fn() },
 }));
-vi.mock("@/lib/clickhouse", () => ({
+vi.mock("#app/lib/clickhouse.ts", () => ({
   querySqlApi: vi.fn(),
 }));
 

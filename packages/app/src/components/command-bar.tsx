@@ -18,11 +18,11 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LayoutDashboard, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
-import { BUILTIN_MANIFEST } from "@/data/dashboards/built-in/manifest";
-import { dashboardListOptions } from "@/data/dashboards/options";
-import { searchRunsOptions } from "@/data/runs-list/options";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { navGroups } from "@/lib/navigation";
+import { BUILTIN_MANIFEST } from "#app/data/dashboards/built-in/manifest.ts";
+import { dashboardListOptions } from "#app/data/dashboards/options.ts";
+import { searchRunsOptions } from "#app/data/runs-list/options.ts";
+import { useDebouncedValue } from "#app/hooks/use-debounced-value.ts";
+import { navGroups } from "#app/lib/navigation.ts";
 
 export function CommandBar() {
   const navigate = useNavigate();

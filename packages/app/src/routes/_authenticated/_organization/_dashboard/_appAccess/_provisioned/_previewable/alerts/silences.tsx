@@ -7,12 +7,12 @@ import {
   ALERT_PANEL_SEARCH,
   AlertDetailShell,
   useAlertDetail,
-} from "@/components/alerts/alert-detail-shell";
-import { SilenceDialog } from "@/components/alerts/silence-dialog";
-import { SilencesPage } from "@/components/alerts/silences-page";
-import { newSilenceSeed } from "@/data/alerting/silences/commands";
-import { alertSilencesOptions } from "@/data/alerting/triage/options";
-import { useTimeRange } from "@/hooks/use-time-range";
+} from "#app/components/alerts/alert-detail-shell.tsx";
+import { SilenceDialog } from "#app/components/alerts/silence-dialog.tsx";
+import { SilencesPage } from "#app/components/alerts/silences-page.tsx";
+import { newSilenceSeed } from "#app/data/alerting/silences/commands.ts";
+import { alertSilencesOptions } from "#app/data/alerting/triage/options.ts";
+import { useTimeRange } from "#app/hooks/use-time-range.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/silences",

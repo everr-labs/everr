@@ -1,8 +1,8 @@
 import { server } from "@composition/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { StorageNotReadyError } from "@/common/storage-readiness";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
-import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
+import { ALERT_EVALUATE_TASK } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
 import {
   evaluateAlert,
   isNoopInactiveTransition,
@@ -32,14 +32,14 @@ const mocks = vi.hoisted(() => ({
   history: vi.fn(),
   previewAlerts: "on" as "on" | "off",
 }));
-vi.mock("@/env", () => ({
+vi.mock("#app/env/index.ts", () => ({
   env: {
     get EVERR_PREVIEW_ALERTS() {
       return mocks.previewAlerts;
     },
   },
 }));
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     select: () => ({
       from: () => ({
@@ -65,8 +65,8 @@ vi.mock("@/db/client", () => ({
   },
   pool: {},
 }));
-vi.mock("@/lib/clickhouse", () => ({ querySqlApiWithMeta: mocks.query }));
-vi.mock("@/server/worker/jobs", () => ({
+vi.mock("#app/lib/clickhouse.ts", () => ({ querySqlApiWithMeta: mocks.query }));
+vi.mock("#app/server/worker/jobs.ts", () => ({
   addWorkerJobInTransaction: (_tx: unknown, task: string, payload: unknown) => {
     mocks.scheduledJobs.push({ task, payload });
     return Promise.resolve();

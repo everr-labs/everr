@@ -17,9 +17,11 @@ it("validates production configuration and registers no integration jobs with op
   vi.stubEnv("EMAIL_DSN", undefined);
   vi.stubEnv("EMAIL_FROM", undefined);
 
-  const { env } = await import("@/env/index");
-  const { githubTasks } = await import("@/integrations/github/registration");
-  const { mailer } = await import("@/lib/mailer.server");
+  const { env } = await import("#app/env/index.ts");
+  const { githubTasks } = await import(
+    "#app/integrations/github/registration.ts"
+  );
+  const { mailer } = await import("#app/lib/mailer.server.ts");
   expect(mailer).toBeNull();
   expect(env.NODE_ENV).toBe("production");
   expect(await githubTasks()).toEqual({});

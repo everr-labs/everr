@@ -1,13 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, isNull, ne } from "drizzle-orm";
-import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
+import {
+  formatResourceName,
+  parseResourceName,
+} from "#app/data/as-code/identity.ts";
 import {
   type DbExecutor,
   db,
   runInTransaction,
   type Transaction,
-} from "@/db/client";
-import { alertDefinitions, alertInstances } from "@/db/schema";
+} from "#app/db/client.ts";
+import { alertDefinitions, alertInstances } from "#app/db/schema/index.ts";
 import {
   throwAlertingPersistenceError,
   translateAlertingConflict,

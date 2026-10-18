@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { ScrollingPageContainer } from "@/components/page-container";
+import { ScrollingPageContainer } from "#app/components/page-container.tsx";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_padded")({
   component: PaddedLayout,

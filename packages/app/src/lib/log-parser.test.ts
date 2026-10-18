@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { LogEntry } from "@/data/runs/schemas";
+import type { LogEntry } from "#app/data/runs/schemas.ts";
 import {
   computeVisibleLines,
   getMarkerClass,

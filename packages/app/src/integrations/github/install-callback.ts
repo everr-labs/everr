@@ -1,9 +1,12 @@
 import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { githubInstallationOrganizations, member } from "@/db/schema";
-import { parseInstallState } from "@/lib/github-install-state";
-import { isOrganizationAdmin } from "@/lib/organization-role";
-import { getSession } from "@/lib/session.server";
+import { db } from "#app/db/client.ts";
+import {
+  githubInstallationOrganizations,
+  member,
+} from "#app/db/schema/index.ts";
+import { parseInstallState } from "#app/lib/github-install-state.ts";
+import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
+import { getSession } from "#app/lib/session.server.ts";
 import { getGithubConfiguration } from "./configuration";
 
 function redirectToGithub(

@@ -2,19 +2,19 @@
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterAll, beforeEach, expect, it, vi } from "vitest";
-import type { Database } from "@/db/client";
+import type { Database } from "#app/db/client.ts";
 
 const state = vi.hoisted(() => ({ database: undefined as unknown }));
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   get db() {
     return state.database;
   },
 }));
-vi.unmock("@/lib/session.server");
+vi.unmock("#app/lib/session.server.ts");
 
-import { auth } from "@/lib/auth.server";
-import { getSession } from "@/lib/session.server";
-import { resolveSessionOrganization } from "@/lib/session-organization.server";
+import { auth } from "#app/lib/auth.server.ts";
+import { getSession } from "#app/lib/session.server.ts";
+import { resolveSessionOrganization } from "#app/lib/session-organization.server.ts";
 
 const client = new PGlite();
 const database = drizzle(client) as unknown as Database;

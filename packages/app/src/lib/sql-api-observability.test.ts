@@ -1,7 +1,7 @@
 import { ClickHouseError } from "@clickhouse/client";
 import { describe, expect, it } from "vitest";
-import { StorageNotReadyError } from "@/common/storage-readiness";
-import { classifySqlQueryError } from "@/lib/sql-api-observability";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
+import { classifySqlQueryError } from "#app/lib/sql-api-observability.ts";
 
 // The guard (when present) throws an Error named "SqlApiGuardError"; the
 // classifier matches on the name, so the test reproduces that shape directly.

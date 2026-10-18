@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { StorageNotReadyError } from "@/common/storage-readiness";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 import { isExpectedServerFunctionError } from "./expected-errors";
 
 // Coverage for these messages used to live in the server-fn telemetry test,

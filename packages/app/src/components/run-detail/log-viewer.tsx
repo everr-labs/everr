@@ -18,12 +18,12 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
-import type { LogEntry } from "@/data/runs/schemas";
+import type { LogEntry } from "#app/data/runs/schemas.ts";
 import {
   computeVisibleLines,
   getMarkerClass,
   parseLogs,
-} from "@/lib/log-parser";
+} from "#app/lib/log-parser.ts";
 
 interface LogViewerProps {
   logs: LogEntry[];

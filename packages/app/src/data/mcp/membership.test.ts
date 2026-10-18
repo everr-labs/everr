@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { selectMock } = vi.hoisted(() => ({ selectMock: vi.fn() }));
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: { select: (...a: unknown[]) => selectMock(...a) },
 }));
 

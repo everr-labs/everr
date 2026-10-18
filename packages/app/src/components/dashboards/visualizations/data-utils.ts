@@ -1,5 +1,5 @@
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
-import { isNumericValue, toNumber } from "@/lib/numeric";
+import { isNumericValue, toNumber } from "#app/lib/numeric.ts";
 import type { QueryResultRow } from "./index";
 
 export { toNumber };

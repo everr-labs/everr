@@ -17,9 +17,9 @@ import {
 import {
   AlertingChannelConfigSchema,
   ALERTING_REDACTED_SECRET as REDACTED,
-} from "@/data/alerting/schema";
-import type { AlertingChannelConfig } from "@/data/alerting/types";
-import { authEnv } from "@/env/auth";
+} from "#app/data/alerting/schema.ts";
+import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
+import { authEnv } from "#app/env/auth.ts";
 
 function key(): Buffer {
   return createHash("sha256")

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { retentionForOrg } from "@/lib/retention.server";
-import { retentionForDays } from "@/product/retention.test-fixtures";
+import { retentionForOrg } from "#app/lib/retention.server.ts";
+import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 import { replayWebhookToCollector } from "./collector";
 
 vi.mock("@composition/server", () => ({
@@ -11,12 +11,12 @@ vi.mock("@composition/server", () => ({
     }),
   },
 }));
-vi.mock("@/integrations/github/configuration", () => ({
+vi.mock("#app/integrations/github/configuration.ts", () => ({
   requireGithubConfiguration: () => ({
     INGRESS_COLLECTOR_URL: "http://collector.test/webhook/github",
   }),
 }));
-vi.mock("@/lib/retention.server", () => ({
+vi.mock("#app/lib/retention.server.ts", () => ({
   retentionForOrg: vi.fn(),
 }));
 

@@ -1,7 +1,7 @@
 import { and, eq, gt } from "drizzle-orm";
-import { invitationIdFromRedirect } from "@/common/invitation";
-import { db } from "@/db/client";
-import { invitation } from "@/db/schema";
+import { invitationIdFromRedirect } from "#app/common/invitation.ts";
+import { db } from "#app/db/client.ts";
+import { invitation } from "#app/db/schema/index.ts";
 import { getInstallation } from "./installation.server";
 
 export async function canOpenSignup(data: { redirect?: string }) {

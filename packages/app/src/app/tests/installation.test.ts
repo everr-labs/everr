@@ -8,9 +8,9 @@ import {
   assertWorkspaceOwnershipTransferred,
   getInstallation,
   setupWorkspace,
-} from "@/app/installation.server";
-import { recoverAccount } from "@/app/recovery.server";
-import * as schema from "@/db/schema/index";
+} from "#app/app/installation.server.ts";
+import { recoverAccount } from "#app/app/recovery.server.ts";
+import * as schema from "#app/db/schema/index.ts";
 import { createAuthTestDatabase } from "./auth-test-utils";
 
 const { client, database } = await createAuthTestDatabase();

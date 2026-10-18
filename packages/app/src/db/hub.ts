@@ -1,4 +1,4 @@
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import { NotificationHub, type Topic } from "./notification-hub";
 import type { NotifyPayload } from "./notify";
 

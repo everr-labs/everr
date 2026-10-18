@@ -1,8 +1,8 @@
 import { and, eq, exists, sql } from "drizzle-orm";
-import type { HomeStatus } from "@/common/onboarding";
-import type { Database } from "@/db/client";
-import { member, organization } from "@/db/schema";
-import { isOrganizationAdmin } from "@/lib/organization-role";
+import type { HomeStatus } from "#app/common/onboarding.ts";
+import type { Database } from "#app/db/client.ts";
+import { member, organization } from "#app/db/schema/index.ts";
+import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 
 interface OnboardingScope {
   organizationId: string;

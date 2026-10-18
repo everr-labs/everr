@@ -6,10 +6,13 @@ import {
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { HomeStatus } from "@/common/onboarding";
-import { createApiKey } from "@/data/api-keys";
-import { homeStatusQueryOptions } from "@/data/onboarding/options";
-import { completeOnboarding, getHomeStatus } from "@/data/onboarding/server";
+import type { HomeStatus } from "#app/common/onboarding.ts";
+import { createApiKey } from "#app/data/api-keys.ts";
+import { homeStatusQueryOptions } from "#app/data/onboarding/options.ts";
+import {
+  completeOnboarding,
+  getHomeStatus,
+} from "#app/data/onboarding/server.ts";
 import { HomeExperience } from "./home-experience";
 import { onboardingProgressKey } from "./use-setup-progress";
 
@@ -18,15 +21,15 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigation,
 }));
 
-vi.mock("@/data/onboarding/server", () => ({
+vi.mock("#app/data/onboarding/server.ts", () => ({
   getHomeStatus: vi.fn(),
   completeOnboarding: vi.fn(),
 }));
-vi.mock("@/data/api-keys", () => ({
+vi.mock("#app/data/api-keys.ts", () => ({
   createApiKey: vi.fn(),
   listApiKeys: vi.fn(),
 }));
-vi.mock("@/lib/auth-client", () => ({ authClient: { apiKey: {} } }));
+vi.mock("#app/lib/auth-client.ts", () => ({ authClient: { apiKey: {} } }));
 
 const initial = (): HomeStatus => ({
   appUrl: "https://app.example.test",

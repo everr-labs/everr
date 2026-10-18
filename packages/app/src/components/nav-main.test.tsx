@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { navGroups } from "@/lib/navigation";
+import { navGroups } from "#app/lib/navigation.ts";
 import { NavMain } from "./nav-main";
 
 /** Renders the sidebar nav at a URL, over a route tree carrying just the

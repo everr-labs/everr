@@ -10,7 +10,7 @@ it.each([
   vi.resetModules();
   vi.stubEnv("GOOGLE_CLIENT_ID", id);
   vi.stubEnv("GOOGLE_CLIENT_SECRET", secret);
-  const { socialProviders } = await import("@/lib/auth-providers.server");
+  const { socialProviders } = await import("#app/lib/auth-providers.server.ts");
   expect(Boolean(socialProviders?.google)).toBe(enabled);
 });
 

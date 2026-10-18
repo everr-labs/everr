@@ -1,9 +1,9 @@
 import { QueryBuilder } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
+vi.mock("#app/db/client.ts", () => ({ db: {}, pool: {} }));
 
-import type { DbExecutor } from "@/db/client";
+import type { DbExecutor } from "#app/db/client.ts";
 import {
   deliverableEventQuery,
   deliverableGroupMemberQuery,

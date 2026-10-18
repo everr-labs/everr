@@ -1,4 +1,4 @@
-import type { PreviewStatus } from "@/data/previews/overlay";
+import type { PreviewStatus } from "#app/data/previews/overlay.ts";
 
 export interface DashboardSummary {
   slug: string;

@@ -7,7 +7,7 @@ for (const [key, value] of Object.entries(loadEnv(mode, process.cwd(), ""))) {
   if (process.env[key] === undefined) process.env[key] = value;
 }
 
-const { pool } = await import("@/db/client");
+const { pool } = await import("#app/db/client.ts");
 try {
   const [
     {
@@ -16,7 +16,7 @@ try {
     { withMigrationLock },
   ] = await Promise.all([
     import("@composition/server"),
-    import("@/db/migrations"),
+    import("#app/db/migrations.ts"),
   ]);
   await withMigrationLock(migrateDatabase);
 } finally {

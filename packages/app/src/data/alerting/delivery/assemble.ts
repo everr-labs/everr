@@ -8,12 +8,12 @@ import {
   ALERTING_SEVERITY_TIERS,
   type AlertingDefaultTier,
   defaultTierFor,
-} from "@/data/alerting/delivery/defaults";
+} from "#app/data/alerting/delivery/defaults.ts";
 import {
   type AlertRuleRead,
   rulePath,
   ruleTitle,
-} from "@/data/alerting/rules/read";
+} from "#app/data/alerting/rules/read.ts";
 import type { AlertingChannel, AlertingDefaultDestination } from "../types";
 import type { UndeliveredRecord } from "./record";
 import type {

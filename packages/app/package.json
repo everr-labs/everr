@@ -223,5 +223,8 @@
     "./account-settings/actions": "./src/data/account-settings.ts",
     "./composition": "./src/product/contracts.ts",
     "./page-layout": "./src/components/page-layout.ts"
+  },
+  "imports": {
+    "#app/*": "./src/*"
   }
 }

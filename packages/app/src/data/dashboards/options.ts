@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { PanelQuerySource } from "@/components/dashboards/query-array";
-import type { QueryResultRow } from "@/components/dashboards/visualizations";
-import { createLimiter } from "@/lib/limiter";
+import type { PanelQuerySource } from "#app/components/dashboards/query-array.ts";
+import type { QueryResultRow } from "#app/components/dashboards/visualizations/index.tsx";
+import { createLimiter } from "#app/lib/limiter.ts";
 import type { VariableMeta, VariableValues } from "./interpolate";
 import {
   getDashboard,

@@ -1,5 +1,5 @@
-import type { AlertingChannelConfig } from "@/data/alerting/types";
-import { truncateWithEllipsis } from "@/lib/truncate";
+import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
+import { truncateWithEllipsis } from "#app/lib/truncate.ts";
 import { CHANNEL_TEXT_MAX } from "../channel-text-limits";
 import { type ChannelNotification, composeText } from "./message";
 import {

@@ -7,15 +7,15 @@ import {
 } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { PageHeader } from "@/components/page-header";
-import { InvitationsTable } from "@/components/users-management/invitations-table";
-import { InviteMemberDialog } from "@/components/users-management/invite-member-dialog";
-import { MembersTable } from "@/components/users-management/members-table";
+import { PageHeader } from "#app/components/page-header.tsx";
+import { InvitationsTable } from "#app/components/users-management/invitations-table.tsx";
+import { InviteMemberDialog } from "#app/components/users-management/invite-member-dialog.tsx";
+import { MembersTable } from "#app/components/users-management/members-table.tsx";
 import {
   invitationsQueryOptions,
   membersQueryOptions,
-} from "@/components/users-management/queries";
-import { authClient } from "@/lib/auth-client";
+} from "#app/components/users-management/queries.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 
 function MembersSkeleton() {
   return (

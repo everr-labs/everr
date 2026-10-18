@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { requireGithubConfiguration } from "@/integrations/github/configuration";
+import { requireGithubConfiguration } from "#app/integrations/github/configuration.ts";
 
 type InstallStatePayload = {
   exp: number;

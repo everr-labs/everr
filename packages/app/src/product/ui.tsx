@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { DeleteAccount } from "@/components/account-settings/delete-account";
+import { DeleteAccount } from "#app/components/account-settings/delete-account.tsx";
 
 export interface WelcomeActionProps {
   activeOrganizationId?: string | null;

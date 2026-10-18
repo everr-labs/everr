@@ -3,7 +3,7 @@ import {
   deriveInvitationLookup,
   type InvitationRow,
   resolveInvitationLoader,
-} from "@/data/invite-resolver";
+} from "#app/data/invite-resolver.ts";
 
 function row(overrides: Partial<InvitationRow> = {}): InvitationRow {
   return {

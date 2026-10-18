@@ -1,7 +1,10 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { lastViewedRunbook } from "@/data/runbooks/last-viewed";
-import { runbookListOptions, runbookOptions } from "@/data/runbooks/options";
-import { findPage } from "@/data/runbooks/pages";
+import { lastViewedRunbook } from "#app/data/runbooks/last-viewed.ts";
+import {
+  runbookListOptions,
+  runbookOptions,
+} from "#app/data/runbooks/options.ts";
+import { findPage } from "#app/data/runbooks/pages.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/",

@@ -1,14 +1,14 @@
 import { EventEmitter } from "node:events";
 import { server } from "@composition/server";
 import { run, type WorkerEvents } from "graphile-worker";
-import { pool } from "@/db/client";
-import { githubTasks } from "@/integrations/github/registration";
-import { alertCronItems, alertTaskList } from "@/server/alerting/runtime";
+import { pool } from "#app/db/client.ts";
+import { githubTasks } from "#app/integrations/github/registration.ts";
+import { alertCronItems, alertTaskList } from "#app/server/alerting/runtime.ts";
 import {
   previewsCronItems,
   previewsTaskList,
-} from "@/server/previews/00-runtime";
-import { registerShutdownHook } from "@/server/shutdown";
+} from "#app/server/previews/00-runtime.ts";
+import { registerShutdownHook } from "#app/server/shutdown.ts";
 import { attachGraphileWorkerEventLogging } from "./events";
 import { managedWorker } from "./managed-worker";
 

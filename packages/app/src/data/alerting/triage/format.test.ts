@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 // Importing the Alert rule module for its pure ordering function must not
 // build a database pool in this browser-environment suite.
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {},
   pool: {},
   runInTransaction: () => Promise.resolve(),
 }));
 
-import { compareRuleLabels } from "@/data/alerting/rules/read";
+import { compareRuleLabels } from "#app/data/alerting/rules/read.ts";
 import {
   formatElapsed,
   formatSincePhrase,

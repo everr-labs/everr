@@ -10,11 +10,11 @@ vi.mock("mcp-handler", () => ({
   createMcpHandler: mocks.createMcpHandler,
   withMcpAuth: mocks.withMcpAuth,
 }));
-vi.mock("@/lib/mcp-resource", () => ({
+vi.mock("#app/lib/mcp-resource.ts", () => ({
   AUTH_ISSUER: "http://localhost:3000/api/auth",
   MCP_RESOURCE: "http://localhost:3000/mcp",
 }));
-vi.mock("@/db/client", () => ({ db: {} }));
+vi.mock("#app/db/client.ts", () => ({ db: {} }));
 
 beforeEach(() => {
   vi.resetModules();

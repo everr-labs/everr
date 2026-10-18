@@ -10,7 +10,7 @@ import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "#app/lib/auth-client.ts";
 
 export function ProfileSettings({
   user,

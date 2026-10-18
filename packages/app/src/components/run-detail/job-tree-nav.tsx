@@ -8,8 +8,8 @@ import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
-import type { Job, Step } from "@/data/runs/schemas";
-import { isInProgressConclusion } from "@/data/runs/schemas";
+import type { Job, Step } from "#app/data/runs/schemas.ts";
+import { isInProgressConclusion } from "#app/data/runs/schemas.ts";
 
 interface JobTreeNavProps {
   jobs: Job[];

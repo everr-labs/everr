@@ -1,12 +1,12 @@
 import { productClient } from "@composition/client";
 import { createFileRoute } from "@tanstack/react-router";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
-import { HomeSearchSchema } from "@/common/onboarding";
-import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
-import { DashboardHome } from "@/components/home/dashboard-home";
-import { HomeExperience } from "@/components/home/home-experience";
-import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
-import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
+import { HomeSearchSchema } from "#app/common/onboarding.ts";
+import gridLayoutOverridesCSS from "#app/components/dashboards/dashboard-grid.css?url";
+import { DashboardHome } from "#app/components/home/dashboard-home.tsx";
+import { HomeExperience } from "#app/components/home/home-experience.tsx";
+import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
+import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
 
 const homeDashboard = getBuiltinDashboard(productClient.homeDashboardId);
 if (!homeDashboard)

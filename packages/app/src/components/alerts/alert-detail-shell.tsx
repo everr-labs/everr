@@ -17,13 +17,13 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useEffectEvent } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { setAlertRulePaused } from "@/data/alerting/triage/mutations";
+import { setAlertRulePaused } from "#app/data/alerting/triage/mutations.ts";
 import {
   alertDetailOptions,
   invalidateAlertTriage,
-} from "@/data/alerting/triage/options";
-import { useSilenceControls } from "@/hooks/use-silence-controls";
-import { useTimeRange } from "@/hooks/use-time-range";
+} from "#app/data/alerting/triage/options.ts";
+import { useSilenceControls } from "#app/hooks/use-silence-controls.ts";
+import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { AlertDetailPanel } from "./alert-detail-panel";
 
 /** The open rule lives in the URL, so the detail survives a reload and can be

@@ -33,7 +33,7 @@ Fsrc1q1fTle7lSONUeU6x3dmVrEfPkOy0qsD4gI8/CjoY5qib+yZLw==
 -----END RSA PRIVATE KEY-----`,
 );
 
-vi.mock("@/integrations/github/configuration", () => ({
+vi.mock("#app/integrations/github/configuration.ts", () => ({
   requireGithubConfiguration: () => ({
     GITHUB_APP_ID: 12345,
     GITHUB_APP_PRIVATE_KEY: TEST_PRIVATE_KEY,
@@ -47,12 +47,12 @@ vi.mock("./enqueue", () => ({
 }));
 
 const mockDbSelect = vi.fn();
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     select: (...args: unknown[]) => mockDbSelect(...args),
   },
 }));
-vi.mock("@/db/schema", () => ({
+vi.mock("#app/db/schema/index.ts", () => ({
   workflowRuns: { traceId: "trace_id", organizationId: "organization_id" },
 }));
 

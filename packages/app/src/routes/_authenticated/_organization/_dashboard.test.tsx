@@ -2,8 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { HomeStatus } from "@/common/onboarding";
-import { homeStatusQueryOptions } from "@/data/onboarding/options";
+import type { HomeStatus } from "#app/common/onboarding.ts";
+import { homeStatusQueryOptions } from "#app/data/onboarding/options.ts";
 
 const mocks = vi.hoisted(() => ({
   activeOrganizationId: "test_org",
@@ -42,7 +42,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-vi.mock("@/data/onboarding/server", () => ({
+vi.mock("#app/data/onboarding/server.ts", () => ({
   getHomeStatus: vi.fn(() => new Promise(() => {})),
   completeOnboarding: vi.fn(),
 }));
@@ -61,27 +61,27 @@ vi.mock("@everr/ui/components/separator", () => ({
   Separator: () => <div />,
 }));
 
-vi.mock("@/components/app-sidebar", () => ({
+vi.mock("#app/components/app-sidebar.tsx", () => ({
   AppSidebar: () => <aside>Organization navigation</aside>,
 }));
 
-vi.mock("@/components/analytics/refresh-picker", () => ({
+vi.mock("#app/components/analytics/refresh-picker.tsx", () => ({
   RefreshPicker: () => <div>Refresh picker</div>,
 }));
 
-vi.mock("@/components/analytics/time-range-picker", () => ({
+vi.mock("#app/components/analytics/time-range-picker.tsx", () => ({
   TimeRangePicker: () => <div>Time range picker</div>,
 }));
 
-vi.mock("@/components/command-bar", () => ({
+vi.mock("#app/components/command-bar.tsx", () => ({
   CommandBar: () => <div>Command bar</div>,
 }));
 
-vi.mock("@/components/dashboard-breadcrumb", () => ({
+vi.mock("#app/components/dashboard-breadcrumb.tsx", () => ({
   DashboardBreadcrumb: () => <div>Dashboard breadcrumb</div>,
 }));
 
-vi.mock("@/components/preview-indicator", () => ({
+vi.mock("#app/components/preview-indicator.tsx", () => ({
   PreviewIndicator: () => <div>Preview indicator</div>,
 }));
 

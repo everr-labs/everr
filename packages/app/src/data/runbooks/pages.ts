@@ -1,5 +1,5 @@
 import { timeRangeFromDuration } from "@everr/ui/lib/time-range";
-import type { Dashboard } from "@/data/dashboards/schema";
+import type { Dashboard } from "#app/data/dashboards/schema.ts";
 import type { Runbook, RunbookPage, RunbookSpec } from "./schema";
 
 export interface ResolvedPage {

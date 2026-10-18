@@ -1,11 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
-vi.mock("@/data/organization-access", () => ({
+vi.mock("#app/data/organization-access.ts", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
 
-import { Route } from "@/app/routes/_welcome/_signedIn/access-required";
-import { getActiveOrganizationAccess } from "@/data/organization-access";
+import { Route } from "#app/app/routes/_welcome/_signedIn/access-required.tsx";
+import { getActiveOrganizationAccess } from "#app/data/organization-access.ts";
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -7,7 +7,7 @@ import {
 } from "@everr/ui/components/sidebar";
 import { Link } from "@tanstack/react-router";
 import { Fragment } from "react";
-import type { NavGroup } from "@/lib/navigation";
+import type { NavGroup } from "#app/lib/navigation.ts";
 
 export function NavMain({ groups }: { groups: NavGroup[] }) {
   return (

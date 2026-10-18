@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { retentionForDays } from "@/product/retention.test-fixtures";
+import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 
 const settings = [
   "EVERR_RETENTION_DAYS",
@@ -18,7 +18,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 async function retention() {
-  const { retentionForOrg } = await import("@/lib/retention.server");
+  const { retentionForOrg } = await import("#app/lib/retention.server.ts");
   return retentionForOrg("org");
 }
 

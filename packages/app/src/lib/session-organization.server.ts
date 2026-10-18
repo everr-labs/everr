@@ -1,8 +1,12 @@
 import { and, eq, gt } from "drizzle-orm";
-import { type Database, db } from "@/db/client";
-import { member, organization, session as sessions } from "@/db/schema";
-import { selectSoleOrganization } from "@/lib/auto-org";
-import { findOrganizationForMember } from "@/lib/organization-membership.server";
+import { type Database, db } from "#app/db/client.ts";
+import {
+  member,
+  organization,
+  session as sessions,
+} from "#app/db/schema/index.ts";
+import { selectSoleOrganization } from "#app/lib/auto-org.ts";
+import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
 
 type SessionIdentity = {
   id: string;

@@ -7,12 +7,12 @@ import { useEffect, useRef, useState } from "react";
 import type {
   SilenceCancelTarget,
   SilenceSeed,
-} from "@/data/alerting/silences/commands";
-import { formatElapsed } from "@/data/alerting/triage/format";
+} from "#app/data/alerting/silences/commands.ts";
+import { formatElapsed } from "#app/data/alerting/triage/format.ts";
 import type {
   AlertSilenceRecord,
   SilenceCut,
-} from "@/data/alerting/triage/view";
+} from "#app/data/alerting/triage/view.ts";
 import { LoadingRows, ROW_HOVER, ROW_TARGET } from "./list-row";
 import { SilenceRowAction, SilenceWindow } from "./silence-row";
 import {

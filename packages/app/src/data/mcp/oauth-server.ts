@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth.server";
-import { AUTH_BASE, AUTH_ISSUER } from "@/lib/mcp-resource";
+import { auth } from "#app/lib/auth.server.ts";
+import { AUTH_BASE, AUTH_ISSUER } from "#app/lib/mcp-resource.ts";
 
 // The MCP OAuth flow runs inside the client's embedded webview, whose document
 // has an opaque origin — so its fetches carry `Origin: null`, which Better

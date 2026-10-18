@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 // Only so that importing the rule module for its pure halves does not build
 // a real database pool. Nothing here answers a query.
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {},
   pool: {},
   runInTransaction: () => Promise.resolve(),
 }));
 
-import type { AlertRuleRead } from "@/data/alerting/rules/read";
+import type { AlertRuleRead } from "#app/data/alerting/rules/read.ts";
 import {
   channelViews,
   deriveGaps,

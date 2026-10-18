@@ -3,13 +3,13 @@ import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { GoogleConnection } from "@/components/account-settings/google-connection";
-import { PasswordSettings } from "@/components/account-settings/password-settings";
-import { ProfileSettings } from "@/components/account-settings/profile-settings";
-import { linkedAccountsQueryOptions } from "@/components/account-settings/queries";
-import { SessionsSettings } from "@/components/account-settings/sessions-settings";
-import { PageHeader } from "@/components/page-header";
-import { authClient } from "@/lib/auth-client";
+import { GoogleConnection } from "#app/components/account-settings/google-connection.tsx";
+import { PasswordSettings } from "#app/components/account-settings/password-settings.tsx";
+import { ProfileSettings } from "#app/components/account-settings/profile-settings.tsx";
+import { linkedAccountsQueryOptions } from "#app/components/account-settings/queries.ts";
+import { SessionsSettings } from "#app/components/account-settings/sessions-settings.tsx";
+import { PageHeader } from "#app/components/page-header.tsx";
+import { authClient } from "#app/lib/auth-client.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_padded/account",

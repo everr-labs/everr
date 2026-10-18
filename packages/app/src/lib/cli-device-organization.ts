@@ -4,12 +4,12 @@ import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import {
   getDeviceApprovalUserCode,
   getDeviceTokenCode,
-} from "@/lib/auth-context-body";
+} from "#app/lib/auth-context-body.ts";
 import {
   getActiveOrganizationIdFromAuthSession,
   getDeviceOrgIdFromScope,
   withDeviceOrgScope,
-} from "@/lib/device-org-scope";
+} from "#app/lib/device-org-scope.ts";
 
 // Carries the approval-time org from the /device/token before-hook to the
 // session.create database hook. better-auth consumes (deletes) the device-code

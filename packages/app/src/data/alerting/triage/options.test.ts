@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 // Only so that importing the options for their keys does not build a real
 // database pool: `server.ts` reaches the database, and nothing here calls it.
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {},
   pool: {},
   runInTransaction: () => Promise.resolve(),

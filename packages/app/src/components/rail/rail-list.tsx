@@ -1,7 +1,7 @@
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import type { ReactNode } from "react";
-import { RailSearch } from "@/components/rail/rail-search";
+import { RailSearch } from "#app/components/rail/rail-search.tsx";
 
 /**
  * A rail's search field with its rows scrolling under it. Only the rows

@@ -25,11 +25,11 @@ vi.mock("@tanstack/react-router", () => ({
     useSearch: () => ({ organization_id: mocks.expectedOrganizationId }),
   }),
 }));
-vi.mock("@/data/auth", () => ({
+vi.mock("#app/data/auth.ts", () => ({
   getActiveOrganization: vi.fn(),
   getOrganizations: vi.fn(),
 }));
-vi.mock("@/lib/device-auth", () => ({
+vi.mock("#app/lib/device-auth.ts", () => ({
   approveDevice: mocks.approveDevice,
   denyDevice: mocks.denyDevice,
 }));

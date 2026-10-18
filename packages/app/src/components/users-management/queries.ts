@@ -3,8 +3,8 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { INVITATION_EMAIL_HEADER } from "@/common/invitation";
-import { authClient } from "@/lib/auth-client";
+import { INVITATION_EMAIL_HEADER } from "#app/common/invitation.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 
 type ListMembersResult = Awaited<
   ReturnType<typeof authClient.organization.listMembers>

@@ -1,5 +1,5 @@
 import { FileCode2, type LucideIcon, RadioTower } from "lucide-react";
-import type { ApiKeyScope } from "@/lib/api-key-scopes";
+import type { ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 
 /**
  * Icon per capability scope, shared by the create dialog and the keys table so

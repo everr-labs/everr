@@ -1,4 +1,4 @@
-import type { ProductPolicy } from "@/product/policy";
+import type { ProductPolicy } from "#app/product/policy.ts";
 import { appEnv as env } from "./env";
 
 export const productPolicy: ProductPolicy = {

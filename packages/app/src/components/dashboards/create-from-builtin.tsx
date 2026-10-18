@@ -8,7 +8,7 @@ import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { Check, Copy, Sparkles } from "lucide-react";
 import { useRef } from "react";
-import { createFromBuiltinPrompt } from "@/data/dashboards/built-in/prompt";
+import { createFromBuiltinPrompt } from "#app/data/dashboards/built-in/prompt.ts";
 
 /**
  * The only create path a built-in offers: hand the Agent a prompt that reads

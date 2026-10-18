@@ -6,7 +6,7 @@ import { sql } from "drizzle-orm";
 import type { MigrationConfig } from "drizzle-orm/migrator";
 import { drizzle, type PgliteDatabase } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import * as schema from "@/db/schema";
+import * as schema from "#app/db/schema/index.ts";
 
 const GRAPHILE_WORKER_SCHEMA = "graphile_worker";
 const CLOCK_SCHEMA = "test_clock";

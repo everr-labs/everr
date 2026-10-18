@@ -1,5 +1,5 @@
-import { ApplyValidationError } from "@/data/as-code/errors";
-import type { DesiredResource } from "@/data/as-code/reconcile";
+import { ApplyValidationError } from "#app/data/as-code/errors.ts";
+import type { DesiredResource } from "#app/data/as-code/reconcile.ts";
 import {
   dashboardProjectSchema,
   dashboardSlugSchema,

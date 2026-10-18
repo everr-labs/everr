@@ -10,7 +10,7 @@ import {
 } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { hrefHash } from "@/data/runbooks/pages";
+import { hrefHash } from "#app/data/runbooks/pages.ts";
 import { PanelEmbedBlock } from "./runbook-panel-embed";
 
 /** Flatten react-markdown code children to the raw fence text. */

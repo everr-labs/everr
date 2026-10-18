@@ -1,6 +1,6 @@
 import { server } from "@composition/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { StorageNotReadyError } from "@/common/storage-readiness";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 import {
   composeMiddleware,
   type FunctionMiddlewareHandler,
@@ -109,7 +109,7 @@ async function loadModule() {
     },
   }));
 
-  vi.doMock("@/db/client", () => ({
+  vi.doMock("#app/db/client.ts", () => ({
     db: {
       select: () => ({
         from: () => ({

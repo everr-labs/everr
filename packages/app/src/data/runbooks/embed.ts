@@ -1,9 +1,9 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { parse } from "yaml";
 import * as z from "zod";
-import type { Panel } from "@/data/dashboards/schema";
-import { panel } from "@/data/dashboards/schema";
-import { firstZodIssue } from "@/lib/zod-issue";
+import type { Panel } from "#app/data/dashboards/schema.ts";
+import { panel } from "#app/data/dashboards/schema.ts";
+import { firstZodIssue } from "#app/lib/zod-issue.ts";
 
 /** One ```panel fence, resolved to how it renders. */
 export type PanelEmbed =

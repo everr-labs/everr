@@ -1,8 +1,8 @@
 import { server } from "@composition/server";
 
 import { createFileRoute } from "@tanstack/react-router";
-import { auth } from "@/lib/auth.server";
-import { runWithDeviceOrgCapture } from "@/lib/cli-device-organization";
+import { auth } from "#app/lib/auth.server.ts";
+import { runWithDeviceOrgCapture } from "#app/lib/cli-device-organization.ts";
 
 const { withIdentityRequest } = server;
 

@@ -25,7 +25,7 @@ vi.mock("@everr/tanstack-start-otel", () => ({
 }));
 
 // The real module pulls the whole generated route tree into this test.
-vi.mock("@/router", () => ({ getRouter: vi.fn() }));
+vi.mock("#app/router.tsx", () => ({ getRouter: vi.fn() }));
 
 describe("startInstance", () => {
   it("registers the telemetry request and server function middleware", async () => {
@@ -49,7 +49,7 @@ describe("startInstance", () => {
   it("gives the request middleware the app's own router factory", async () => {
     await import("./start");
 
-    const { getRouter } = await import("@/router");
+    const { getRouter } = await import("#app/router.tsx");
     const options =
       startMocks.createRequestTelemetryMiddleware.mock.calls[0]?.[0];
     options?.router();

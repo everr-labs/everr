@@ -1,16 +1,16 @@
 import * as z from "zod";
-import { runbookRefSchema } from "@/data/alerting/resource/runbook-ref";
+import { runbookRefSchema } from "#app/data/alerting/resource/runbook-ref.ts";
 import {
   alertingChannelNamesSchema,
   alertingDisplaySchema,
   alertingNonEmptyStringSchema,
   alertingResourceAnnotationsSchema,
   alertingResourceMetadataSchema,
-} from "@/data/alerting/resource/schema";
+} from "#app/data/alerting/resource/schema.ts";
 import {
   AlertingRuleConditionSchema,
   AlertingSeveritySchema,
-} from "@/data/alerting/schema";
+} from "#app/data/alerting/schema.ts";
 import { parseWindow } from "./window";
 
 const notificationMessageSchema = z

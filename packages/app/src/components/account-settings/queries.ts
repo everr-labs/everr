@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "#app/lib/auth-client.ts";
 
 export function linkedAccountsQueryOptions(userId: string) {
   return queryOptions({

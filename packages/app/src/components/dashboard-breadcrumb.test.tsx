@@ -25,7 +25,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { useMatches } from "@tanstack/react-router";
-import type { BreadcrumbSegment } from "@/router-types";
+import type { BreadcrumbSegment } from "#app/router-types.ts";
 import { DashboardBreadcrumb } from "./dashboard-breadcrumb";
 
 const mockUseMatches = useMatches as Mock;

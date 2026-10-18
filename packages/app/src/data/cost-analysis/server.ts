@@ -1,13 +1,16 @@
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
-import { TimeRangeInputSchema } from "@/data/analytics/schemas";
+import { TimeRangeInputSchema } from "#app/data/analytics/schemas.ts";
 import {
   nonEmptyResourceAttribute,
   resourceAttribute,
-} from "@/data/run-query-helpers";
-import { calculateCost } from "@/lib/runner-pricing";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { type BucketGranularity, getBucketGranularity } from "@/lib/time-range";
+} from "#app/data/run-query-helpers.ts";
+import { calculateCost } from "#app/lib/runner-pricing.ts";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
+import {
+  type BucketGranularity,
+  getBucketGranularity,
+} from "#app/lib/time-range.ts";
 import {
   BREAKDOWN_OTHER_KEY,
   type CostByWorkflow,

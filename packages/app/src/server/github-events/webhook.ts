@@ -1,13 +1,13 @@
 import { verify } from "@octokit/webhooks-methods";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db/client";
-import { githubInstallationOrganizations } from "@/db/schema";
+import { db } from "#app/db/client.ts";
+import { githubInstallationOrganizations } from "#app/db/schema/index.ts";
 import {
   getGithubConfiguration,
   requireGithubConfiguration,
-} from "@/integrations/github/configuration";
-import { serverLogger } from "@/telemetry/logger";
+} from "#app/integrations/github/configuration.ts";
+import { serverLogger } from "#app/telemetry/logger.ts";
 import { enqueueWebhookEvent } from "./enqueue";
 import { headersToRecord } from "./headers";
 

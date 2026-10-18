@@ -2,21 +2,21 @@ import { and, eq, or } from "drizzle-orm";
 import {
   parseRunbookRef,
   refIdentityKey,
-} from "@/data/alerting/resource/runbook-ref";
-import { listAllRules } from "@/data/alerting/rules/repository";
-import { fromAlertingRule } from "@/data/alerting/rules/resource/mapping";
-import { AlertRuleYamlSchema } from "@/data/alerting/rules/resource/schema";
+} from "#app/data/alerting/resource/runbook-ref.ts";
+import { listAllRules } from "#app/data/alerting/rules/repository.ts";
+import { fromAlertingRule } from "#app/data/alerting/rules/resource/mapping.ts";
+import { AlertRuleYamlSchema } from "#app/data/alerting/rules/resource/schema.ts";
 import {
   projectFromDocument,
   slugFromDocument,
-} from "@/data/dashboards/desired";
+} from "#app/data/dashboards/desired.ts";
 import {
   foreignLiveScope,
   type Namespace,
   previewScope,
-} from "@/data/previews/scope";
-import { db } from "@/db/client";
-import { runbooks } from "@/db/schema";
+} from "#app/data/previews/scope.ts";
+import { db } from "#app/db/client.ts";
+import { runbooks } from "#app/db/schema/index.ts";
 import { ApplyValidationError } from "./errors";
 import type { ApplyResourceEntry } from "./schema";
 

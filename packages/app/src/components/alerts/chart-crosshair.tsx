@@ -1,10 +1,10 @@
 import type { SeriesTooltipRow } from "@everr/ui/components/series-tooltip";
 import { useCallback, useState } from "react";
-import { formatValue } from "@/data/alerting/triage/format";
+import { formatValue } from "#app/data/alerting/triage/format.ts";
 import type {
   InstanceValuePoint,
   InstanceValueSeries,
-} from "@/data/alerting/triage/view";
+} from "#app/data/alerting/triage/view.ts";
 
 /** An evaluated value as the charts print it: the formatter's own rounding,
  *  falling back to the raw number when it has nothing to say about it. */

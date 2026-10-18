@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/db/client", () => ({ db: {} }));
+vi.mock("#app/db/client.ts", () => ({ db: {} }));
 vi.mock("./configuration", () => ({ getGithubConfiguration: () => undefined }));
 vi.mock("../../server/github-events/enqueue", () => ({
   enqueueWebhookEvent: vi.fn(),
 }));
 
-import { auth } from "@/lib/auth.server";
+import { auth } from "#app/lib/auth.server.ts";
 import {
   getGithubAppInstallStatus,
   getInstallationRepos,

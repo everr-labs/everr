@@ -6,7 +6,7 @@ import {
   dashboardSlugSchema,
   panel,
   variable,
-} from "@/data/dashboards/schema";
+} from "#app/data/dashboards/schema.ts";
 
 /**
  * A markdown body: authored as either inline content or a `file:` pointer

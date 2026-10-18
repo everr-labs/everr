@@ -1,16 +1,16 @@
-import { ApplyValidationError } from "@/data/as-code/errors";
-import type { DesiredResource } from "@/data/as-code/reconcile";
+import { ApplyValidationError } from "#app/data/as-code/errors.ts";
+import type { DesiredResource } from "#app/data/as-code/reconcile.ts";
 /** Shared with the dashboard apply path — same parsed-document shape. */
-import type { InputDocument } from "@/data/dashboards/desired";
+import type { InputDocument } from "#app/data/dashboards/desired.ts";
 import {
   folderPathFromFile,
   projectFromDocument,
   slugFromDocument,
-} from "@/data/dashboards/desired";
+} from "#app/data/dashboards/desired.ts";
 import {
   collectPanelStrictIssues,
   dashboardSlugSchema,
-} from "@/data/dashboards/schema";
+} from "#app/data/dashboards/schema.ts";
 import type { PanelEmbed } from "./embed";
 import { extractPanelFences, parsePanelEmbed } from "./embed";
 import type { RunbookPage, RunbookSpec } from "./schema";

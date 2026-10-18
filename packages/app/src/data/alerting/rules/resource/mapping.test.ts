@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { AlertingRule, AlertingRuleInput } from "@/data/alerting/types";
+import type {
+  AlertingRule,
+  AlertingRuleInput,
+} from "#app/data/alerting/types.ts";
 import {
   fromAlertingRule,
   isOwnedRule,

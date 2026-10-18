@@ -14,7 +14,7 @@ const { mockAnd, mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(
   }),
 );
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   runInTransaction: (
     executor: { transaction: typeof mockTransaction },
     run: unknown,
@@ -49,7 +49,7 @@ import {
   runbooks,
   workflowJobs,
   workflowRuns,
-} from "@/db/schema";
+} from "#app/db/schema/index.ts";
 import { deletePostgresOrganizationData } from "./organization-data-cleanup.server";
 
 const ORG = "org42";

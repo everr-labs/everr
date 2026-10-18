@@ -23,17 +23,17 @@ import { cn } from "@everr/ui/lib/utils";
 import { Check, Copy, Globe, KeyRound, Loader2, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useCreateApiKey } from "@/components/api-keys/queries";
-import { SCOPE_ICONS } from "@/components/api-keys/scope-meta";
+import { useCreateApiKey } from "#app/components/api-keys/queries.ts";
+import { SCOPE_ICONS } from "#app/components/api-keys/scope-meta.tsx";
 import {
   ALL_API_KEY_SCOPES,
   API_KEY_SCOPES,
   type ApiKeyScope,
-} from "@/lib/api-key-scopes";
+} from "#app/lib/api-key-scopes.ts";
 import {
   PUBLIC_KEY_SCOPE,
   publicKeyInputError,
-} from "@/lib/public-ingest-keys";
+} from "#app/lib/public-ingest-keys.ts";
 
 const EXPIRY_OPTIONS = [
   { value: "never", label: "Never" },

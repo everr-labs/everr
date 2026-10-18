@@ -1,9 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db/client";
-import { invitation, member, organization, user } from "@/db/schema";
-import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
+import { db } from "#app/db/client.ts";
+import {
+  invitation,
+  member,
+  organization,
+  user,
+} from "#app/db/schema/index.ts";
+import { createPartiallyAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import {
   deriveInvitationLookup,
   type InvitationLookup,

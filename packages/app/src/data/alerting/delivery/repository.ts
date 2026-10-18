@@ -1,15 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, countDistinct, eq, inArray, sql } from "drizzle-orm";
-import { deliveryIsInFlight } from "@/data/alerting/delivery/config";
-import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
-import { type DbExecutor, db } from "@/db/client";
+import { deliveryIsInFlight } from "#app/data/alerting/delivery/config.ts";
+import type { AlertingDefaultTier } from "#app/data/alerting/delivery/defaults.ts";
+import { type DbExecutor, db } from "#app/db/client.ts";
 import {
   alertChannels,
   alertDefaultChannels,
   alertDeliveries,
-} from "@/db/schema";
-import { truncateWithEllipsis } from "@/lib/truncate";
-import { sanitizeAlertError } from "@/server/alerting/history/content";
+} from "#app/db/schema/index.ts";
+import { truncateWithEllipsis } from "#app/lib/truncate.ts";
+import { sanitizeAlertError } from "#app/server/alerting/history/content.ts";
 import {
   parseAlertingInput,
   throwAlertingPersistenceError,

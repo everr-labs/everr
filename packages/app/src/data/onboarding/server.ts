@@ -1,10 +1,10 @@
 import { server } from "@composition/server";
 
 import { z } from "zod";
-import type { HomeStatus } from "@/common/onboarding";
-import { db } from "@/db/client";
-import { env } from "@/env";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import type { HomeStatus } from "#app/common/onboarding.ts";
+import { db } from "#app/db/client.ts";
+import { env } from "#app/env/index.ts";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import { createOnboardingStore } from "./store";
 
 const { getIngestEndpoint } = server;

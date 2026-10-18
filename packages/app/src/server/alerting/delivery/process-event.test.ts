@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   history: [] as unknown[][],
 }));
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     select: () => ({
       from: () => ({
@@ -37,8 +37,8 @@ vi.mock("../history/clickhouse", () => ({
 }));
 
 import { QueryBuilder } from "drizzle-orm/pg-core";
-import type { Transaction } from "@/db/client";
-import { alertEvents } from "@/db/schema";
+import type { Transaction } from "#app/db/client.ts";
+import { alertEvents } from "#app/db/schema/index.ts";
 import {
   claimNotificationGroup,
   processAlertEvent,

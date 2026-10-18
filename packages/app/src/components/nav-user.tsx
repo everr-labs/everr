@@ -23,10 +23,10 @@ import {
   Settings,
   Users,
 } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
-import { isOrganizationAdmin } from "@/lib/organization-role";
-import type { UserMenuContribution } from "@/product/ui";
-import { useOpenConsentSettings } from "@/telemetry/consent-gate";
+import { authClient } from "#app/lib/auth-client.ts";
+import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
+import type { UserMenuContribution } from "#app/product/ui.tsx";
+import { useOpenConsentSettings } from "#app/telemetry/consent-gate.tsx";
 
 export function NavUser({ items }: { items: readonly UserMenuContribution[] }) {
   const openConsentSettings = useOpenConsentSettings();

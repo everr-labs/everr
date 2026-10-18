@@ -33,7 +33,6 @@ function writeConfig(
     JSON.stringify({
       compilerOptions: {
         paths: {
-          "@/*": ["./src/*"],
           ...Object.fromEntries(
             [
               "server",

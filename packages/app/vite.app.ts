@@ -86,10 +86,7 @@ function compositionPaths(composition: AppComposition) {
         .join("\n"),
     );
   const paths = config.compilerOptions?.paths;
-  const names = [
-    "@/*",
-    ...compositionNames.map((name) => `@composition/${name}`),
-  ];
+  const names = compositionNames.map((name) => `@composition/${name}`);
   for (const name of Object.keys(paths ?? {})) {
     if (name.startsWith("@composition/") && !names.includes(name))
       throw new Error(`Unknown composition module: ${name}`);
@@ -104,19 +101,14 @@ function compositionPaths(composition: AppComposition) {
       )
         throw new Error(`${file}: ${name} must map to exactly one path`);
       const target = targets[0];
-      if (
-        name === "@/*"
-          ? !target.endsWith("/*") || target.slice(0, -1).includes("*")
-          : target.includes("*")
-      )
+      if (target.includes("*"))
         throw new Error(`${file}: invalid path for ${name}`);
       const entry = resolve(
         composition.directory,
         parsed.options.baseUrl ?? ".",
         target,
       );
-      if (name !== "@/*")
-        assertOwnedFile(composition, entry, name === "@composition/routes");
+      assertOwnedFile(composition, entry, name === "@composition/routes");
       return [name, entry];
     }),
   );
@@ -126,11 +118,10 @@ function compositionPaths(composition: AppComposition) {
 }
 
 export function appAliases(composition = installationComposition) {
-  return Object.entries(compositionPaths(composition)).map(([name, entry]) =>
-    name === "@/*"
-      ? { find: /^@\/(.*)$/, replacement: `${entry.slice(0, -1)}$1` }
-      : { find: name, replacement: entry },
-  );
+  return Object.entries(compositionPaths(composition)).map(([name, entry]) => ({
+    find: name,
+    replacement: entry,
+  }));
 }
 
 function assertOwnedFile(

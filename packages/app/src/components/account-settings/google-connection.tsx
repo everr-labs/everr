@@ -10,7 +10,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { siGoogle } from "simple-icons";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "#app/lib/auth-client.ts";
 
 export function GoogleConnection({ linked }: { linked: boolean }) {
   const link = useMutation({

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 
 export type NotifyPayload = {
   tenantId: string;

@@ -2,13 +2,13 @@ import { and, eq, isNull, TransactionRollbackError } from "drizzle-orm";
 import {
   AlertEventTaskPayloadSchema,
   enqueueFlushGroup,
-} from "@/data/alerting/delivery/tasks";
-import { db } from "@/db/client";
+} from "#app/data/alerting/delivery/tasks.ts";
+import { db } from "#app/db/client.ts";
 import {
   alertEvents,
   alertNotificationGroupEvents,
   alertNotificationGroups,
-} from "@/db/schema";
+} from "#app/db/schema/index.ts";
 import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
 import { setAlertSpanAttributes } from "../telemetry";
 import { nextGroupFlushAt } from "./grouping";

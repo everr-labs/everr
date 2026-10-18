@@ -1,18 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { listResources } from "@/data/as-code/resource-admin.server";
+import { listResources } from "#app/data/as-code/resource-admin.server.ts";
 import { getRouteHandler } from "./-test-utils";
 import { Route } from "./resources";
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: { select: vi.fn(), delete: vi.fn(), update: vi.fn() },
 }));
 
-vi.mock("@/data/as-code/resource-admin.server", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@/data/as-code/resource-admin.server")
-  >()),
-  listResources: vi.fn(),
-}));
+vi.mock(
+  "#app/data/as-code/resource-admin.server.ts",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("#app/data/as-code/resource-admin.server.ts")
+    >()),
+    listResources: vi.fn(),
+  }),
+);
 
 const mockedList = vi.mocked(listResources);
 

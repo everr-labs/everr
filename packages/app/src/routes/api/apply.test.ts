@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const applyResources = vi.fn();
-vi.mock("@/data/as-code/registry", () => ({
+vi.mock("#app/data/as-code/registry.ts", () => ({
   applyResources: (...a: unknown[]) => applyResources(...a),
 }));
 
 // apply-auth.server.ts → db/client has server-only env; stub it out.
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
@@ -16,7 +16,7 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
-import { ApplyValidationError } from "@/data/as-code/errors";
+import { ApplyValidationError } from "#app/data/as-code/errors.ts";
 import { Route } from "./apply";
 
 const POST = (

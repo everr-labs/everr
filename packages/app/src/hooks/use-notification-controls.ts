@@ -4,16 +4,16 @@ import { toast } from "sonner";
 import type {
   ChannelDraft,
   ChannelTarget,
-} from "@/components/alerts/channel-dialog";
-import { invalidateAlertNotifications } from "@/data/alerting/delivery/options";
+} from "#app/components/alerts/channel-dialog.tsx";
+import { invalidateAlertNotifications } from "#app/data/alerting/delivery/options.ts";
 import {
   createAlertingChannel,
   deleteAlertingChannel,
   setAlertingDefaultDestination,
   updateAlertingChannel,
-} from "@/data/alerting/delivery/server";
-import type { NotificationChannelView } from "@/data/alerting/delivery/view";
-import type { AlertingDefaultDestination } from "@/data/alerting/types";
+} from "#app/data/alerting/delivery/server.ts";
+import type { NotificationChannelView } from "#app/data/alerting/delivery/view.ts";
+import type { AlertingDefaultDestination } from "#app/data/alerting/types.ts";
 
 /**
  * Everything the Notifications page needs to change what it shows: the two

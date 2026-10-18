@@ -1,8 +1,8 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { useId, useMemo } from "react";
-import { formatElapsed } from "@/data/alerting/triage/format";
-import type { AlertSparkData } from "@/data/alerting/triage/view";
+import { formatElapsed } from "#app/data/alerting/triage/format.ts";
+import type { AlertSparkData } from "#app/data/alerting/triage/view.ts";
 import {
   ChartCrosshair,
   instanceRowsAt,

@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
-import { encryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
-import { enqueueAlertEvaluationInTransaction } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import type { AlertingActor } from "@/data/alerting/session";
-import type { AlertingMatcher, AlertingRuleSpec } from "@/data/alerting/types";
-import type { DbExecutor } from "@/db/client";
-import type * as schema from "@/db/schema";
+import { encryptChannelConfig } from "#app/data/alerting/delivery/channel-secrets.server.ts";
+import { enqueueAlertEvaluationInTransaction } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
+import type { AlertingActor } from "#app/data/alerting/session.ts";
+import type {
+  AlertingMatcher,
+  AlertingRuleSpec,
+} from "#app/data/alerting/types.ts";
+import type { DbExecutor } from "#app/db/client.ts";
+import type * as schema from "#app/db/schema/index.ts";
 import {
   alertChannels,
   alertDefaultChannels,
@@ -13,7 +16,7 @@ import {
   alertSilences,
   organization,
   previews,
-} from "@/db/schema";
+} from "#app/db/schema/index.ts";
 
 type Db = PgliteDatabase<typeof schema>;
 

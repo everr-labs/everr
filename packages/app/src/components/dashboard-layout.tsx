@@ -12,15 +12,15 @@ import {
   useRouteContext,
   useSearch,
 } from "@tanstack/react-router";
-import { homeView } from "@/common/onboarding";
-import { RefreshPicker } from "@/components/analytics/refresh-picker";
-import { TimeRangePicker } from "@/components/analytics/time-range-picker";
-import { AppSidebar } from "@/components/app-sidebar";
-import { CommandBar } from "@/components/command-bar";
-import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
-import { PreviewIndicator } from "@/components/preview-indicator";
-import { homeStatusQueryOptions } from "@/data/onboarding/options";
-import { SIDEBAR_TRACKED_LEFT } from "@/lib/sidebar-tracked-left";
+import { homeView } from "#app/common/onboarding.ts";
+import { RefreshPicker } from "#app/components/analytics/refresh-picker.tsx";
+import { TimeRangePicker } from "#app/components/analytics/time-range-picker.tsx";
+import { AppSidebar } from "#app/components/app-sidebar.tsx";
+import { CommandBar } from "#app/components/command-bar.tsx";
+import { DashboardBreadcrumb } from "#app/components/dashboard-breadcrumb.tsx";
+import { PreviewIndicator } from "#app/components/preview-indicator.tsx";
+import { homeStatusQueryOptions } from "#app/data/onboarding/options.ts";
+import { SIDEBAR_TRACKED_LEFT } from "#app/lib/sidebar-tracked-left.ts";
 
 export function DashboardLayout() {
   const { session } = useRouteContext({ from: "/_authenticated" });

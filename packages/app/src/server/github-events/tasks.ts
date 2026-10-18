@@ -5,13 +5,13 @@ import {
   SpanStatusCode,
 } from "@opentelemetry/api";
 import type { Task, TaskList } from "graphile-worker";
-import { db } from "@/db/client";
+import { db } from "#app/db/client.ts";
 import {
   mergeTelemetryIdentity,
   withTelemetryIdentityScope,
-} from "@/telemetry/identity";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
-import { getTelemetryTracer } from "@/telemetry/node";
+} from "#app/telemetry/identity.ts";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
+import { getTelemetryTracer } from "#app/telemetry/node.ts";
 import { replayWebhookToCollector } from "./collector";
 import { firstHeader } from "./headers";
 import {

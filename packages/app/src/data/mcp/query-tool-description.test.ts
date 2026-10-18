@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SQL_API_TABLES } from "@/lib/sql-api-tables";
+import { SQL_API_TABLES } from "#app/lib/sql-api-tables.ts";
 import { QUERY_TOOL_DESCRIPTION } from "./query-tool-description";
 
 describe("QUERY_TOOL_DESCRIPTION", () => {

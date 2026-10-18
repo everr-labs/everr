@@ -3,15 +3,15 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { LogViewer } from "@/components/run-detail/log-viewer";
-import { ResourceUsagePanel } from "@/components/run-detail/resource-usage-panel";
-import { jobResourceUsageOptions } from "@/data/resource-usage";
+import { LogViewer } from "#app/components/run-detail/log-viewer.tsx";
+import { ResourceUsagePanel } from "#app/components/run-detail/resource-usage-panel.tsx";
+import { jobResourceUsageOptions } from "#app/data/resource-usage.ts";
 import {
   allJobsStepsOptions,
   runDetailsOptions,
   runJobsOptions,
-} from "@/data/runs/options";
-import { getStepLogs } from "@/data/runs/server";
+} from "#app/data/runs/options.ts";
+import { getStepLogs } from "#app/data/runs/server.ts";
 
 const LOG_PAGE_SIZE = 1000;
 

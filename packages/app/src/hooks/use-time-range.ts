@@ -4,7 +4,7 @@ import {
   applyRouteTimeDefaults,
   ResolvedTimeRangeSearchSchema,
   type RouteTimeDefaults,
-} from "@/lib/time-range";
+} from "#app/lib/time-range.ts";
 
 const EMPTY_TIME_DEFAULTS: RouteTimeDefaults = {};
 

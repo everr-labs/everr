@@ -1,23 +1,23 @@
 import { server } from "@composition/server";
 
-import type { AlertHistoryEventType } from "@/data/alerting/history/event-types";
+import type { AlertHistoryEventType } from "#app/data/alerting/history/event-types.ts";
 import {
   deterministicDeliveryEventId,
   deterministicHoldEventId,
   deterministicSuppressionEventId,
   uuidv7,
   uuidv7Time,
-} from "@/data/alerting/history/ids";
-import { ALERTING_SILENCE_COMMENT_MAX } from "@/data/alerting/schema";
+} from "#app/data/alerting/history/ids.ts";
+import { ALERTING_SILENCE_COMMENT_MAX } from "#app/data/alerting/schema.ts";
 import type {
   AlertingEvaluationSample,
   AlertingMatcher,
-} from "@/data/alerting/types";
-import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
-import { formatResourceName } from "@/data/as-code/identity";
-import { insertRows } from "@/lib/clickhouse-writer";
-import { retentionForOrg } from "@/lib/retention.server";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+} from "#app/data/alerting/types.ts";
+import type { AlertingLifecycleReason } from "#app/data/alerting/vocabulary.ts";
+import { formatResourceName } from "#app/data/as-code/identity.ts";
+import { insertRows } from "#app/lib/clickhouse-writer.ts";
+import { retentionForOrg } from "#app/lib/retention.server.ts";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import {
   capAlertLabels,
   resolveAlertServiceName,

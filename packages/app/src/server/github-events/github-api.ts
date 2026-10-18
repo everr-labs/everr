@@ -7,8 +7,8 @@
 
 import { createSign } from "node:crypto";
 import QuickLRU from "quick-lru";
-import { requireGithubConfiguration } from "@/integrations/github/configuration";
-import { serverLogger } from "@/telemetry/logger";
+import { requireGithubConfiguration } from "#app/integrations/github/configuration.ts";
+import { serverLogger } from "#app/telemetry/logger.ts";
 
 // ---------------------------------------------------------------------------
 // Constants

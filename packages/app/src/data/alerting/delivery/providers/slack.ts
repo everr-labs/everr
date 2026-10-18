@@ -1,4 +1,4 @@
-import type { AlertingChannelConfig } from "@/data/alerting/types";
+import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 import { CHANNEL_TEXT_MAX } from "../channel-text-limits";
 import { type ChannelNotification, composeText } from "./message";
 import {

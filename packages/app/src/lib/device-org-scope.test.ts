@@ -3,7 +3,7 @@ import {
   getActiveOrganizationIdFromAuthSession,
   getDeviceOrgIdFromScope,
   withDeviceOrgScope,
-} from "@/lib/device-org-scope";
+} from "#app/lib/device-org-scope.ts";
 
 describe("device org scope helpers", () => {
   it("adds the org marker while preserving existing scope values", () => {

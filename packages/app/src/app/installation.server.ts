@@ -1,9 +1,15 @@
 import { hashPassword } from "better-auth/crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
-import { type Database, db } from "@/db/client";
-import { account, invitation, member, organization, user } from "@/db/schema";
-import { isOrganizationOwner } from "@/lib/organization-role";
+import { type Database, db } from "#app/db/client.ts";
+import {
+  account,
+  invitation,
+  member,
+  organization,
+  user,
+} from "#app/db/schema/index.ts";
+import { isOrganizationOwner } from "#app/lib/organization-role.ts";
 
 export class InstallationSetupError extends Error {}
 

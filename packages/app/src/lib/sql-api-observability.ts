@@ -1,5 +1,5 @@
 import { ClickHouseError } from "@clickhouse/client";
-import { StorageNotReadyError } from "@/common/storage-readiness";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
 // How a SQL query request ended, from the alerting point of view:
 //   - user_error   the caller's SQL is at fault (typo, blocked function, probing

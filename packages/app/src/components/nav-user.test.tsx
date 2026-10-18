@@ -14,7 +14,7 @@ vi.mock("@tanstack/react-router", () => ({
   ),
   useRouteContext: () => ({ githubEnabled: false }),
 }));
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("#app/lib/auth-client.ts", () => ({
   authClient: {
     useSession: () => ({
       data: {
@@ -29,7 +29,7 @@ vi.mock("@/lib/auth-client", () => ({
     }),
   },
 }));
-vi.mock("@/telemetry/consent-gate", () => ({
+vi.mock("#app/telemetry/consent-gate.tsx", () => ({
   useOpenConsentSettings: () => vi.fn(),
 }));
 

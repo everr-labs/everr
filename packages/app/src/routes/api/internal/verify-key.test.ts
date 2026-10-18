@@ -1,19 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { retentionForDays } from "@/product/retention.test-fixtures";
+import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 import { Route } from "./verify-key";
 
 vi.mock("@composition/server", () => ({
   server: { ingestIdentity: () => ({}) },
 }));
 
-vi.mock("@/env", () => ({
+vi.mock("#app/env/index.ts", () => ({
   env: {
     INGEST_VERIFY_SHARED_SECRET:
       "test-shared-secret-with-at-least-32-characters",
   },
 }));
 
-vi.mock("@/lib/auth.server", () => ({
+vi.mock("#app/lib/auth.server.ts", () => ({
   auth: {
     api: {
       verifyApiKey: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock("@/lib/auth.server", () => ({
   },
 }));
 
-vi.mock("@/lib/retention.server", () => ({
+vi.mock("#app/lib/retention.server.ts", () => ({
   retentionForOrg: vi.fn(),
 }));
 
@@ -49,13 +49,13 @@ function makeRequest(body: unknown, secret: string | null = SECRET): Request {
 }
 
 async function mockVerify(result: unknown) {
-  const { auth } = await import("@/lib/auth.server");
+  const { auth } = await import("#app/lib/auth.server.ts");
   vi.mocked(auth.api.verifyApiKey).mockResolvedValueOnce(result as never);
 }
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  const { retentionForOrg } = await import("@/lib/retention.server");
+  const { retentionForOrg } = await import("#app/lib/retention.server.ts");
   vi.mocked(retentionForOrg).mockResolvedValue(retentionForDays(365, 30));
 });
 
@@ -105,7 +105,7 @@ describe("/api/internal/verify-key", () => {
   });
 
   it("returns the verified tenant and forwards each signal's retention", async () => {
-    const { retentionForOrg } = await import("@/lib/retention.server");
+    const { retentionForOrg } = await import("#app/lib/retention.server.ts");
     vi.mocked(retentionForOrg).mockResolvedValueOnce({
       ...retentionForDays(90),
       tracesDays: 14,
@@ -134,7 +134,7 @@ describe("/api/internal/verify-key", () => {
 
     // The configId pin is the sole guarantee that a CLI/user-scoped key
     // can't be used for ingest — assert we still pass it.
-    const { auth } = await import("@/lib/auth.server");
+    const { auth } = await import("#app/lib/auth.server.ts");
     expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
       body: { key: "the-key", configId: "ingest" },
     });

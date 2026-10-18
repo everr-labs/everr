@@ -10,8 +10,8 @@
 import type {
   RuleInventoryState,
   TriageStatus,
-} from "@/data/alerting/rules/read";
-import type { AlertingSeverity } from "@/data/alerting/types";
+} from "#app/data/alerting/rules/read.ts";
+import type { AlertingSeverity } from "#app/data/alerting/types.ts";
 
 /** What a state chart can paint. Spelled out rather than derived from
  *  `RuleInventoryState`: `inactive` is the empty track, and `paused` is a

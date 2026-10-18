@@ -7,12 +7,12 @@ const mocks = vi.hoisted(() => ({
   setup: vi.fn(),
   signIn: vi.fn(),
 }));
-vi.mock("@/app/setup", () => ({ completeSetup: mocks.setup }));
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("#app/app/setup.ts", () => ({ completeSetup: mocks.setup }));
+vi.mock("#app/lib/auth-client.ts", () => ({
   authClient: { signIn: { email: mocks.signIn } },
 }));
 
-import { Route } from "@/app/routes/_welcome/setup";
+import { Route } from "#app/app/routes/_welcome/setup.tsx";
 
 beforeEach(() => {
   vi.resetAllMocks();

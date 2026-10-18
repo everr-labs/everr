@@ -18,29 +18,32 @@ import {
 } from "better-auth/plugins/organization/access";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
-import { INVITATION_EMAIL_HEADER, invitationUrl } from "@/common/invitation";
-import { db } from "@/db/client";
-import { member, session as sessionTable } from "@/db/schema";
-import { env } from "@/env";
-import { socialProviders } from "@/lib/auth-providers.server";
-import { selectSoleOrganization } from "@/lib/auto-org";
+import {
+  INVITATION_EMAIL_HEADER,
+  invitationUrl,
+} from "#app/common/invitation.ts";
+import { db } from "#app/db/client.ts";
+import { member, session as sessionTable } from "#app/db/schema/index.ts";
+import { env } from "#app/env/index.ts";
+import { socialProviders } from "#app/lib/auth-providers.server.ts";
+import { selectSoleOrganization } from "#app/lib/auto-org.ts";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
-} from "@/lib/cli-device-organization";
+} from "#app/lib/cli-device-organization.ts";
 import {
   sendInvitationEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
-} from "@/lib/email.server";
-import { mailer } from "@/lib/mailer.server";
-import { MCP_RESOURCE } from "@/lib/mcp-resource";
-import { assertCanInviteMembers } from "@/product/membership.server";
+} from "#app/lib/email.server.tsx";
+import { mailer } from "#app/lib/mailer.server.ts";
+import { MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
+import { assertCanInviteMembers } from "#app/product/membership.server.ts";
 import {
   createIdentityAuthHooks,
   type ResolvedSession,
-} from "@/telemetry/auth-identity";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+} from "#app/telemetry/auth-identity.ts";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 
 const {
   authPlugins,

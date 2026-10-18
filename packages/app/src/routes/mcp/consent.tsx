@@ -15,8 +15,11 @@ import {
   Terminal,
 } from "lucide-react";
 import { useState } from "react";
-import { setActiveMcpOrganization, submitMcpConsent } from "@/data/mcp/oauth";
-import { authClient } from "@/lib/auth-client";
+import {
+  setActiveMcpOrganization,
+  submitMcpConsent,
+} from "#app/data/mcp/oauth.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 import { OAuthShell } from "./-components/oauth-shell";
 
 // Human-readable rendering for the scopes an MCP client can request. Unknown

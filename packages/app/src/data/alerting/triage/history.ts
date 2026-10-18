@@ -18,9 +18,9 @@
  * also names `is_live` and a time floor, and the app's ClickHouse user carries
  * a tenant row policy, so none of them can take that shape.
  */
-import { ALERT_HISTORY_EVENT_TYPES } from "@/data/alerting/history/event-types";
-import { ALERTING_EVENT_TYPES } from "@/data/alerting/vocabulary";
-import type { ClickhouseQuery } from "@/lib/clickhouse";
+import { ALERT_HISTORY_EVENT_TYPES } from "#app/data/alerting/history/event-types.ts";
+import { ALERTING_EVENT_TYPES } from "#app/data/alerting/vocabulary.ts";
+import type { ClickhouseQuery } from "#app/lib/clickhouse.ts";
 import type { LifecycleEventType } from "./segments";
 import type { SilenceImpactCounts } from "./silences";
 

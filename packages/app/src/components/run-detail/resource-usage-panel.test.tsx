@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { JobResourceUsage } from "@/data/resource-usage";
+import type { JobResourceUsage } from "#app/data/resource-usage.ts";
 import { ResourceUsagePanel } from "./resource-usage-panel";
 
 vi.mock("@everr/ui/components/chart", () => ({

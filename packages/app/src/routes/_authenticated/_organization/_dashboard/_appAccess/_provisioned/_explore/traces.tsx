@@ -10,8 +10,8 @@ import {
   stripSearchParams,
   useSearch,
 } from "@tanstack/react-router";
-import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
-import { remoteTracesRepo } from "@/data/traces/remote-repo";
+import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
+import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
 // service/environment live in the shared _explore topbar but must also be in
 // the child schema so the leaf route's validateSearch doesn't strip them.

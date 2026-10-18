@@ -1,6 +1,6 @@
 import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
 import { createFileRoute } from "@tanstack/react-router";
-import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+import { useRealtimeSubscription } from "#app/hooks/use-realtime-subscription.ts";
 import { ErrorDetailRouteContent } from "./-error-detail";
 
 export const Route = createFileRoute(

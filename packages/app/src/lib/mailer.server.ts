@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
-import { env } from "@/env";
+import { env } from "#app/env/index.ts";
 
 interface SendEmailParams {
   to: string;

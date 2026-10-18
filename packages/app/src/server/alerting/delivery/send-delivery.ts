@@ -1,14 +1,14 @@
 import { and, eq, ne, type SQL, sql } from "drizzle-orm";
-import { decryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
+import { decryptChannelConfig } from "#app/data/alerting/delivery/channel-secrets.server.ts";
 import {
   ChannelSendError,
   sendChannelNotification,
-} from "@/data/alerting/delivery/channel-sender.server";
-import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
-import { AlertDeliveryTaskPayloadSchema } from "@/data/alerting/delivery/tasks";
-import { db } from "@/db/client";
-import { alertChannels, alertDeliveries } from "@/db/schema";
-import { errorMessage } from "@/telemetry/logger";
+} from "#app/data/alerting/delivery/channel-sender.server.ts";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
+import { AlertDeliveryTaskPayloadSchema } from "#app/data/alerting/delivery/tasks.ts";
+import { db } from "#app/db/client.ts";
+import { alertChannels, alertDeliveries } from "#app/db/schema/index.ts";
+import { errorMessage } from "#app/telemetry/logger.ts";
 import { sanitizeAlertError } from "../history/content";
 import { recordAlertNotification, setAlertSpanAttributes } from "../telemetry";
 import { recordDeliveryOutcome } from "./history";

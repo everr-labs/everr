@@ -3,8 +3,8 @@
  * with nothing to carry it. The read names `is_live` and a time floor, for
  * the reasons `triage/history.ts` gives.
  */
-import { ALERTING_SEVERITIES } from "@/data/alerting/vocabulary";
-import type { ClickhouseQuery } from "@/lib/clickhouse";
+import { ALERTING_SEVERITIES } from "#app/data/alerting/vocabulary.ts";
+import type { ClickhouseQuery } from "#app/lib/clickhouse.ts";
 import type { AlertingSeverity } from "../types";
 
 export type UndeliveredRecord = {

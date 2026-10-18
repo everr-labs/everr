@@ -11,9 +11,9 @@ import {
   SidebarRail,
 } from "@everr/ui/components/sidebar";
 import { Link } from "@tanstack/react-router";
-import { NavMain } from "@/components/nav-main";
-import { NavUser } from "@/components/nav-user";
-import { navGroups } from "@/lib/navigation";
+import { NavMain } from "#app/components/nav-main.tsx";
+import { NavUser } from "#app/components/nav-user.tsx";
+import { navGroups } from "#app/lib/navigation.ts";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (

@@ -1,8 +1,8 @@
 import { ExploreGlobalFilters } from "@everr/telemetry-explorer/filters";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { remoteRepo } from "@/data/logs-explorer/remote-repo";
-import { remoteTracesRepo } from "@/data/traces/remote-repo";
+import { remoteRepo } from "#app/data/logs-explorer/remote-repo.ts";
+import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
 /**
  * The top zone of the Explore filter rail.

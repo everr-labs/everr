@@ -5,9 +5,13 @@ import {
   defaultStreamHandler,
   defineHandlerCallback,
 } from "@tanstack/react-start/server";
-import { withMigrationLock } from "@/db/migrations";
-import { startWorkerRuntime } from "@/server/worker/runtime";
-import { captureError, getTelemetryTracer, SpanKind } from "@/telemetry/node";
+import { withMigrationLock } from "#app/db/migrations.ts";
+import { startWorkerRuntime } from "#app/server/worker/runtime.ts";
+import {
+  captureError,
+  getTelemetryTracer,
+  SpanKind,
+} from "#app/telemetry/node.ts";
 
 const { migrateDatabase } = server;
 

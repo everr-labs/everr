@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import { z } from "zod";
-import { subscribe, subscribeAuthor, subscribeTenant } from "@/db/hub";
+import { subscribe, subscribeAuthor, subscribeTenant } from "#app/db/hub.ts";
 import {
   assertOrganizationTarget,
   organizationTargetErrorResponse,
-} from "@/lib/cli-target";
-import { getSession } from "@/lib/session.server";
-import { createSSEStream } from "@/lib/sse";
+} from "#app/lib/cli-target.ts";
+import { getSession } from "#app/lib/session.server.ts";
+import { createSSEStream } from "#app/lib/sse.ts";
 
 const StreamQuerySchema = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("tenant") }),

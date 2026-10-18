@@ -2,8 +2,8 @@ import {
   resolveTimeRange,
   toClickHouseDateTime,
 } from "@everr/ui/lib/time-range";
-import { calculateCost } from "@/lib/runner-pricing";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { calculateCost } from "#app/lib/runner-pricing.ts";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import {
   CONCLUSION_EXPR,
   nonEmptyResourceAttribute,

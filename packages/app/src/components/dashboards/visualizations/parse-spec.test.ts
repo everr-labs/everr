@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { panelPluginSpecs } from "@/data/dashboards/plugin-specs";
+import { panelPluginSpecs } from "#app/data/dashboards/plugin-specs.ts";
 import { parseSpecLenient } from "./parse-spec";
 import { statChartSpec } from "./stat-chart/spec";
 import { timeSeriesChartSpec } from "./time-series-chart/spec";

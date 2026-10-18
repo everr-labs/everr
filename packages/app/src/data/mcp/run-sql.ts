@@ -4,11 +4,11 @@ import {
   MCP_MAX_CELL_CHARS,
   MCP_MAX_OUTPUT_CHARS,
   MCP_MAX_ROWS,
-} from "@/data/mcp/query-tool-description";
-import { previewSqlApi } from "@/lib/clickhouse";
-import { sanitizeSqlApiError } from "@/lib/sql-api-error";
-import { classifySqlQueryError } from "@/lib/sql-api-observability";
-import { truncateWithEllipsis } from "@/lib/truncate";
+} from "#app/data/mcp/query-tool-description.ts";
+import { previewSqlApi } from "#app/lib/clickhouse.ts";
+import { sanitizeSqlApiError } from "#app/lib/sql-api-error.ts";
+import { classifySqlQueryError } from "#app/lib/sql-api-observability.ts";
+import { truncateWithEllipsis } from "#app/lib/truncate.ts";
 
 const { assertStorageReady } = server;
 

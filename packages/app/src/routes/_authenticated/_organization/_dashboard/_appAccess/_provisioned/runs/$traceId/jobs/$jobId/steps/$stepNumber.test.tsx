@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { stepLogsInfiniteOptions } from "./$stepNumber";
 
-vi.mock("@/data/runs/server", () => ({
+vi.mock("#app/data/runs/server.ts", () => ({
   getAllJobsSteps: vi.fn(),
   getRunDetails: vi.fn(),
   getRunJobs: vi.fn(),

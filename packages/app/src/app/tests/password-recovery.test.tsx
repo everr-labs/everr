@@ -10,11 +10,11 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
     <a href="/auth/sign-in">{children}</a>
   ),
 }));
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("#app/lib/auth-client.ts", () => ({
   authClient: { requestPasswordReset: state.request },
 }));
 
-import { Route } from "@/routes/_welcome/_guest/auth/forgot-password";
+import { Route } from "#app/routes/_welcome/_guest/auth/forgot-password.tsx";
 
 beforeEach(() => {
   state.emailEnabled = false;

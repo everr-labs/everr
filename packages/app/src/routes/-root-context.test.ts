@@ -13,14 +13,14 @@ vi.mock("@composition/server", () => ({
     getAppEntry: async () => ({ setupRequired: false }),
   },
 }));
-vi.mock("@/telemetry/client", () => ({}));
-vi.mock("@/lib/auth-providers.server", () => ({
+vi.mock("#app/telemetry/client.ts", () => ({}));
+vi.mock("#app/lib/auth-providers.server.ts", () => ({
   socialProviders: { google: {} },
 }));
-vi.mock("@/integrations/github/configuration", () => ({
+vi.mock("#app/integrations/github/configuration.ts", () => ({
   getGithubConfiguration: () => ({}),
 }));
-vi.mock("@/lib/auth.server", () => ({
+vi.mock("#app/lib/auth.server.ts", () => ({
   auth: { api: { getSession: mocks.getSession } },
 }));
 vi.mock("@tanstack/react-start/server", () => ({

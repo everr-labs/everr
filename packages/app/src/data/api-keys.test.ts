@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { auth } from "@/lib/auth.server";
+import { auth } from "#app/lib/auth.server.ts";
 import {
   ApiKeyCreateInputSchema,
   createApiKey,

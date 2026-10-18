@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@everr/ui/components/card";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { allJobsStepsOptions, runJobsOptions } from "@/data/runs/options";
+import { allJobsStepsOptions, runJobsOptions } from "#app/data/runs/options.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/",

@@ -1,6 +1,6 @@
 import { product } from "@composition/product";
 import { createServerFn } from "@tanstack/react-start";
-import { requireOrgMiddleware } from "@/lib/serverFn";
+import { requireOrgMiddleware } from "#app/lib/serverFn.ts";
 
 export const getActiveOrgPolicy = createServerFn()
   .middleware([requireOrgMiddleware])

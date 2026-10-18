@@ -1,5 +1,5 @@
 import { ClickHouseError } from "@clickhouse/client";
-import { SQL_API_TABLES } from "@/lib/sql-api-tables";
+import { SQL_API_TABLES } from "#app/lib/sql-api-tables.ts";
 
 // ClickHouse spells out exact table/column names in access-denied errors and
 // returns distinct errors for "exists but no read grant" vs "doesn't exist".

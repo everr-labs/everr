@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { ComponentType } from "react";
-import { OrganizationMembersPage } from "@/components/users-management/members-page";
+import { OrganizationMembersPage } from "#app/components/users-management/members-page.tsx";
 
 export interface OrganizationPageProps {
   organizationId: string;

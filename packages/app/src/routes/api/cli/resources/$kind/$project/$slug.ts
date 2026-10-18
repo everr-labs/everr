@@ -3,9 +3,9 @@ import {
   deleteResource,
   getResource,
   isResourceKind,
-} from "@/data/as-code/resource-admin.server";
-import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
-import { BUILTIN_PROJECT } from "@/data/dashboards/schema";
+} from "#app/data/as-code/resource-admin.server.ts";
+import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
+import { BUILTIN_PROJECT } from "#app/data/dashboards/schema.ts";
 import {
   notFoundResponse,
   reservedProjectResponse,

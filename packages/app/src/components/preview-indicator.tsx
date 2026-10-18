@@ -4,7 +4,7 @@ import {
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
 import { GitBranch, LogOut } from "lucide-react";
-import { usePreview } from "@/hooks/use-preview";
+import { usePreview } from "#app/hooks/use-preview.ts";
 
 // "Not on live" marker in the global header, driven by the `?preview=` param.
 // Unlike the dismissible banner, it always offers a way out of preview mode.

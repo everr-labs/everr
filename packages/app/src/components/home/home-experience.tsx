@@ -20,13 +20,13 @@ import {
   Loader2,
 } from "lucide-react";
 import { type ReactNode, useRef } from "react";
-import { INSTALL_COMMAND } from "@/common/install-command";
-import { type HomeStatus, homeView } from "@/common/onboarding";
-import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
+import { INSTALL_COMMAND } from "#app/common/install-command.ts";
+import { type HomeStatus, homeView } from "#app/common/onboarding.ts";
+import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
 import {
   homeStatusQueryOptions,
   useCompleteOnboarding,
-} from "@/data/onboarding/options";
+} from "#app/data/onboarding/options.ts";
 import {
   type OnboardingStep,
   onboardingProgressKey,

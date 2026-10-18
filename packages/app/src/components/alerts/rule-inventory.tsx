@@ -5,7 +5,7 @@ import type {
   RuleInventoryRow,
   RuleStateHistory,
   RuleStateHistoryData,
-} from "@/data/alerting/triage/view";
+} from "#app/data/alerting/triage/view.ts";
 import { SeverityLabel, StatusIcon } from "./alert-status";
 import { RowTarget, SelectableRow } from "./list-row";
 import {

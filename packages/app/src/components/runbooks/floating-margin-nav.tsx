@@ -1,6 +1,6 @@
 import { cn } from "@everr/ui/lib/utils";
 import type { ReactNode } from "react";
-import { groupLabelClass } from "@/components/rail/rail-row";
+import { groupLabelClass } from "#app/components/rail/rail-row.tsx";
 
 /**
  * `@[67rem]/pane` is the reading column plus the nav beside it. Below it there

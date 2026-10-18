@@ -2,9 +2,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ rows: vi.fn(), select: vi.fn() }));
-vi.mock("@/db/client", () => ({ db: { select: mocks.select } }));
+vi.mock("#app/db/client.ts", () => ({ db: { select: mocks.select } }));
 
-import { auth } from "@/lib/auth.server";
+import { auth } from "#app/lib/auth.server.ts";
 import { getActiveOrganizationAccess } from "./organization-access";
 
 beforeEach(() => {

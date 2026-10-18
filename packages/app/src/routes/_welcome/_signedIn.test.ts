@@ -1,4 +1,4 @@
-vi.mock("@/data/organization-access", () => ({
+vi.mock("#app/data/organization-access.ts", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
 

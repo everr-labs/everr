@@ -2,19 +2,19 @@ import { server } from "@composition/server";
 
 import { createMiddleware } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
-import { StorageNotReadyError } from "@/common/storage-readiness";
-import { parseAlertingPrincipal } from "@/data/alerting/session";
-import { db } from "@/db/client";
-import { organization } from "@/db/schema";
-import { hasApiKeyScope } from "@/lib/api-key-scopes";
-import { auth } from "@/lib/auth.server";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
+import { parseAlertingPrincipal } from "#app/data/alerting/session.ts";
+import { db } from "#app/db/client.ts";
+import { organization } from "#app/db/schema/index.ts";
+import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
+import { auth } from "#app/lib/auth.server.ts";
 import {
   assertOrganizationTarget,
   organizationTargetErrorResponse,
-} from "@/lib/cli-target";
-import { createClickhouseQuery } from "@/lib/clickhouse";
-import { getSession } from "@/lib/session.server";
-import { mergeTelemetryIdentity } from "@/telemetry/identity";
+} from "#app/lib/cli-target.ts";
+import { createClickhouseQuery } from "#app/lib/clickhouse.ts";
+import { getSession } from "#app/lib/session.server.ts";
+import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
 const { assertStorageReady } = server;
 

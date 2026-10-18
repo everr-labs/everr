@@ -3,7 +3,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import type { HomeStatus } from "@/common/onboarding";
+import type { HomeStatus } from "#app/common/onboarding.ts";
 import { completeOnboarding, getHomeStatus } from "./server";
 
 export function homeStatusQueryOptions(userId: string, organizationId: string) {

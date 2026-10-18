@@ -13,7 +13,7 @@ import {
 } from "@everr/ui/components/chart-helpers";
 import { formatDurationCompact } from "@everr/ui/lib/formatting";
 import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
-import type { RepoDurationPoint } from "@/data/repo-detail/schemas";
+import type { RepoDurationPoint } from "#app/data/repo-detail/schemas.ts";
 
 interface RepoDurationTrendChartProps {
   data: RepoDurationPoint[];

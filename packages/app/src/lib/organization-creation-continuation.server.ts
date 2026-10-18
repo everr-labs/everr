@@ -1,7 +1,7 @@
 import type { GenericEndpointContext } from "better-auth";
 import { symmetricDecrypt, symmetricEncrypt } from "better-auth/crypto";
 import { z } from "zod";
-import { env } from "@/env";
+import { env } from "#app/env/index.ts";
 
 export const ORGANIZATION_CREATION_COOKIE = "everr.organization-creation";
 const MAX_AGE_SECONDS = 600;

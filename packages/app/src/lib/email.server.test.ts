@@ -19,15 +19,15 @@ const mocks = vi.hoisted(() => ({
   logError: vi.fn(),
   enabled: true,
 }));
-vi.mock("@/lib/mailer.server", () => ({
+vi.mock("#app/lib/mailer.server.ts", () => ({
   get mailer() {
     return mocks.enabled ? { send: mocks.send } : null;
   },
 }));
-vi.mock("@/env", () => ({
+vi.mock("#app/env/index.ts", () => ({
   env: { BETTER_AUTH_URL: "https://app.example.com" },
 }));
-vi.mock("@/telemetry/logger", () => ({
+vi.mock("#app/telemetry/logger.ts", () => ({
   serverLogger: { error: mocks.logError },
   exceptionAttributes: (error: unknown) => ({ error }),
 }));

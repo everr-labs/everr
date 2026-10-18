@@ -1,14 +1,14 @@
 import { server } from "@composition/server";
 
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
-import { db } from "@/db/client";
+import { db } from "#app/db/client.ts";
 import {
   assertOrganizationTarget,
   organizationTargetErrorResponse,
-} from "@/lib/cli-target";
-import { findOrganizationForMember } from "@/lib/organization-membership.server";
-import { isOrganizationAdmin } from "@/lib/organization-role";
-import { getSession } from "@/lib/session.server";
+} from "#app/lib/cli-target.ts";
+import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
+import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
+import { getSession } from "#app/lib/session.server.ts";
 import { createClickhouseQuery } from "./clickhouse";
 
 const { assertStorageReady } = server;

@@ -1,9 +1,12 @@
-import { applyAlertSpecs } from "@/data/alerting/rules/resource/apply.server";
-import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
-import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
-import type { Namespace } from "@/data/previews/scope";
-import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
-import { type DbExecutor, db } from "@/db/client";
+import { applyAlertSpecs } from "#app/data/alerting/rules/resource/apply.server.ts";
+import { applyDashboardSpecs } from "#app/data/dashboards/apply.server.ts";
+import {
+  findPreviewId,
+  upsertPreview,
+} from "#app/data/previews/apply.server.ts";
+import type { Namespace } from "#app/data/previews/scope.ts";
+import { applyRunbookSpecs } from "#app/data/runbooks/apply.server.ts";
+import { type DbExecutor, db } from "#app/db/client.ts";
 import { ApplyValidationError } from "./errors";
 import type { OwnershipConflict } from "./ownership";
 import {

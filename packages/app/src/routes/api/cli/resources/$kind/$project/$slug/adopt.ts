@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
   adoptResource,
   isResourceKind,
-} from "@/data/as-code/resource-admin.server";
+} from "#app/data/as-code/resource-admin.server.ts";
 import {
   notFoundResponse,
   reservedProjectResponse,

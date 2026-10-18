@@ -1,4 +1,4 @@
-import type { BucketGranularity } from "@/data/cost-analysis/schemas";
+import type { BucketGranularity } from "#app/data/cost-analysis/schemas.ts";
 
 export function formatBucket(
   iso: string,

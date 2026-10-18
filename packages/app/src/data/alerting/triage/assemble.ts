@@ -9,13 +9,13 @@
  * tests build the inputs by hand and call.
  */
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
-import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
+import type { AlertingDefaultTier } from "#app/data/alerting/delivery/defaults.ts";
 import {
   ANN_ALERTING_DESCRIPTION,
   ANN_ALERTING_LINK_RUNBOOK,
   ANN_ALERTING_SUMMARY,
   ANN_DISPLAY_DESCRIPTION,
-} from "@/data/alerting/resource-annotations";
+} from "#app/data/alerting/resource-annotations.ts";
 import {
   type AlertInstanceRead,
   type AlertRuleRead,
@@ -30,14 +30,14 @@ import {
   type TriageStatus,
   triageStatus,
   worstInstance,
-} from "@/data/alerting/rules/read";
-import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
-import type { SilenceRow } from "@/data/alerting/silences/repository";
+} from "#app/data/alerting/rules/read.ts";
+import { formatDurationSeconds } from "#app/data/alerting/rules/resource/window.ts";
+import type { SilenceRow } from "#app/data/alerting/silences/repository.ts";
 import type {
   AlertingEvaluationSample,
   AlertingSeverity,
-} from "@/data/alerting/types";
-import { ALERTING_SEVERITIES } from "@/data/alerting/vocabulary";
+} from "#app/data/alerting/types.ts";
+import { ALERTING_SEVERITIES } from "#app/data/alerting/vocabulary.ts";
 import {
   formatClock,
   formatElapsed,

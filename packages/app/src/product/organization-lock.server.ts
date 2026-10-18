@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { Transaction } from "@/db/client";
+import type { Transaction } from "#app/db/client.ts";
 export async function lockOrganizationOwnership(
   tx: Transaction,
   userId: string,

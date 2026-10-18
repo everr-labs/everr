@@ -6,12 +6,12 @@ import { and, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import {
   type AlertingDefaultTier,
   defaultTierFor,
-} from "@/data/alerting/delivery/defaults";
-import type { AlertRuleRead } from "@/data/alerting/rules/read";
-import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
-import type { SilenceRow } from "@/data/alerting/silences/repository";
-import { db } from "@/db/client";
-import { alertDefaultChannels, alertEvents } from "@/db/schema";
+} from "#app/data/alerting/delivery/defaults.ts";
+import type { AlertRuleRead } from "#app/data/alerting/rules/read.ts";
+import { formatDurationSeconds } from "#app/data/alerting/rules/resource/window.ts";
+import type { SilenceRow } from "#app/data/alerting/silences/repository.ts";
+import { db } from "#app/db/client.ts";
+import { alertDefaultChannels, alertEvents } from "#app/db/schema/index.ts";
 import { formatClock, formatElapsed } from "./format";
 
 export type NotificationFact = {

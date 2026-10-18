@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/env/auth", () => ({
+vi.mock("#app/env/auth.ts", () => ({
   authEnv: { BETTER_AUTH_SECRET: "a-test-secret-long-enough-to-hash" },
 }));
 

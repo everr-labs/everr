@@ -2,13 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-import { INVITATION_EMAIL_HEADER } from "@/common/invitation";
+import { INVITATION_EMAIL_HEADER } from "#app/common/invitation.ts";
 
 const mocks = vi.hoisted(() => ({ invite: vi.fn(), emailEnabled: true }));
 vi.mock("@tanstack/react-router", () => ({
   useRouteContext: () => ({ emailEnabled: mocks.emailEnabled }),
 }));
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("#app/lib/auth-client.ts", () => ({
   authClient: { organization: { inviteMember: mocks.invite } },
 }));
 
