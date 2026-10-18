@@ -11,6 +11,10 @@ import svgr from "vite-plugin-svgr";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+export const alertingIntegrationTests = [
+  `${appDirectory}src/{data,server}/alerting/**/*.integration.test.ts`,
+];
+
 export function createAppTestConfig(
   composition: AppComposition = installationComposition,
   root = appDirectory,

@@ -6,31 +6,31 @@
  * the read gives the names back by tier.
  */
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../../testing/alerting-harness";
 import {
   insertChannel,
   insertDefaultChannels,
   TEST_ACTOR,
   TEST_ORG,
-} from "@everr/app/server/alerting/testing/fixtures";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
+vi.mock("#app/db/client.ts", async () => {
   const { testDb, runInTransaction } = await import(
-    "@everr/app/server/alerting/testing/db-proxy"
+    "#app/server/alerting/testing/db-proxy.ts"
   );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock(
-  "@everr/app/lib/clickhouse",
-  async () => import("../../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 import {
   listDefaultDestination,
   setDefaultDestination,
   testChannel,
-} from "@everr/app/data/alerting/delivery/repository";
+} from "#app/data/alerting/delivery/repository.ts";
 
 const harness = useAlertingHarness();
 const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };

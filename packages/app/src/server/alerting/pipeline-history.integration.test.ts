@@ -1,24 +1,29 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../testing/alerting-harness";
 import {
   insertDirectRule,
   insertPreview,
   insertRule,
   insertSilence,
   TEST_ORG,
-} from "@everr/app/server/alerting/testing/fixtures";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
-  const { testDb, runInTransaction } = await import("@everr/app/server/alerting/testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@everr/app/lib/clickhouse", async () => import("../../../../testing/test-clickhouse"));
-vi.mock(
-  "@everr/app/lib/clickhouse-writer",
-  async () => import("../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 
@@ -54,7 +59,9 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     // value column numeric. A stub that answered "String" for every column
     // would let a rule that labels on a number look valid. These are the
     // engine's own answers.
-    const { querySqlApiWithMeta } = await import("../../../../testing/test-clickhouse");
+    const { querySqlApiWithMeta } = await import(
+      "#app/testing/test-clickhouse.ts"
+    );
     const result = await querySqlApiWithMeta<Record<string, unknown>>(
       "SELECT * FROM app.test_signal",
       TEST_ORG,
@@ -71,7 +78,9 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     // Production asks for FORMAT JSON precisely so metadata survives an empty
     // result (lib/clickhouse.ts). A rule that currently matches nothing still
     // has to describe its own shape, or every read of a quiet rule loses it.
-    const { querySqlApiWithMeta } = await import("../../../../testing/test-clickhouse");
+    const { querySqlApiWithMeta } = await import(
+      "#app/testing/test-clickhouse.ts"
+    );
     const result = await querySqlApiWithMeta<Record<string, unknown>>(
       "SELECT * FROM app.test_signal",
       TEST_ORG,
@@ -99,7 +108,6 @@ describe("the alerting pipeline's ClickHouse projection", () => {
         )
         .map((row) => [row.name as string, row.type as string]),
     );
-    expect(declared.get("tenant_id")).toBe("LowCardinality(String)");
     expect(declared.get("event_id")).toBe("UUID");
     expect(declared.get("episode_id")).toBe("UUID");
     expect(declared.get("event_time")).toBe("DateTime64(3)");

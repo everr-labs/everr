@@ -45,7 +45,7 @@ compiler configs and their writer have been removed. Builds, tests, and
 typechecks no longer write compiler configuration. Restart development after
 changing module mappings.
 
-The package-private import migration is included in this checkpoint, following
+The package-private import migration is committed as `ebec18acb`, following
 `17a8dd7a5`. App owns `"imports": { "#app/*": "./src/*" }` in its package manifest.
 Internal imports use explicit extensions, such as `#app/lib/auth-client.ts`.
 Both tsconfigs have dropped `@/*`, and the build helper handles only named
@@ -110,12 +110,31 @@ settings dialog; no deletion was submitted. Generated route trees did not
 change. This pass and the preceding compiler-config simplification are included in
 this checkpoint.
 
-The public interface is still wider than desired. Many remaining exports serve
-cloud tests of shared internals, especially alerting and route guards. Address
-test ownership and reusable test harnesses before removing those exports. Merely
-renaming them under a testing prefix would leave the coupling intact. Shared
-runtime helpers also need selective capability interfaces; do not combine
-browser and server dependencies into one runtime barrel.
+The test-ownership pass included in this checkpoint moves 20 alerting integration suites
+and their harness into app. The shared testing-config export supplies the suite
+selection, so cloud does not name shared test directories. Cloud runs its own
+tests plus those suites, rather
+than including almost every app unit test. Shared tests consume their own
+private imports. Vitest's `provide`/`inject` supplies additional migrations and
+a schema target; the shared harness has no cloud imports or branches. The
+cloud-specific tenant-column assertion remains in cloud. The chdb development
+dependency moves to app without changing its resolved version.
+
+This removes 37 internal exports and adds one deliberate test-storage entry,
+reducing the public interface from 117 to 81 entries. Remaining cloud tests
+cover billing, organization lifecycle, routing, and other composed behavior.
+Some still reach shared internal helpers. Tighten those interfaces selectively;
+do not turn them into a testing wildcard or remove useful coverage. UI assembly
+and the remaining runtime-helper interfaces are the next design work.
+
+Full-suite verification after the move: 2,110 app tests and 480 cloud tests
+passed; the external Polar sandbox test remains skipped. Cloud includes 204
+shared alerting cases, with the remaining ordinary app tests run only by app.
+Both production builds, typechecks, boundary lint and fixtures, and Fallow
+passed. Signed-in browser smoke checks passed in both apps using a disposable
+database, and both generated route trees stayed unchanged. Initial
+simultaneous full-suite runs hit startup timeouts; sequential runs passed with
+unchanged timeout limits. Run these database-heavy suites sequentially locally.
 
 ### UI ownership
 
@@ -152,9 +171,10 @@ The following improvements are proposed, not implemented, in priority order:
 
 1. Continue narrowing the shared package's public interface. The first pass
    consolidates adapter types and gives members, account settings, and layout
-   stable entry points. Next address test-only exports through test ownership and
-   shared harnesses, then group runtime helpers where a capability can hide
-   meaningful implementation details. Preserve useful behavior coverage.
+   stable entry points. The alerting test-ownership pass removes its internal
+   exports. Next inspect the remaining composed routing/lifecycle test imports
+   and group runtime helpers where a capability can hide meaningful
+   implementation details. Preserve useful behavior coverage.
 2. Keep UI assembly close to each application's entry points. Cloud should
    assemble its menus, account page, and welcome experience from shared
    components; the default application should assemble its ordinary experience.

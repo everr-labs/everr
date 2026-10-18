@@ -153,7 +153,9 @@ separate migration histories. Plans and customer references belong to
 `organization_billing`; subscription and checkout tables are also owned here.
 Do not generate new migrations while iterating on schema changes.
 
-The test command runs this package's scenarios and the shared behavior tests.
-Its provisioning and tenant-aware ClickHouse fixtures live in `src/testing`.
-Installation-specific scenarios under the dependency's `src/app/tests` are
-excluded from this composed application's suite.
+The test command runs this package's scenarios and the shared alerting
+integration suites. Ordinary app unit tests run only in app. Vitest's `provide`
+configuration passes cloud migrations and the schema target to the shared
+alerting harness; the suites exercise the same behavior against this
+application's database setup. Provisioning fixtures remain in `src/testing`,
+and the cloud-only tenant-column assertion stays in this package.

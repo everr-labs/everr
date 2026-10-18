@@ -10,26 +10,26 @@
  * then formats perfectly.
  */
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../../testing/alerting-harness";
-import { ANN_DISPLAY_NAME } from "@everr/app/data/alerting/resource-annotations";
-import { alertInstances } from "@everr/app/db/schema";
+import { ANN_DISPLAY_NAME } from "#app/data/alerting/resource-annotations.ts";
+import { alertInstances } from "#app/db/schema/index.ts";
 import {
   insertPreview,
   insertRule,
   TEST_ORG,
-} from "@everr/app/server/alerting/testing/fixtures";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
+vi.mock("#app/db/client.ts", async () => {
   const { testDb, runInTransaction } = await import(
-    "@everr/app/server/alerting/testing/db-proxy"
+    "#app/server/alerting/testing/db-proxy.ts"
   );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock(
-  "@everr/app/lib/clickhouse",
-  async () => import("../../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 import {
   loadInstances,
@@ -37,7 +37,7 @@ import {
   loadRuleInstances,
   loadRules,
   rulePath,
-} from "@everr/app/data/alerting/rules/read";
+} from "#app/data/alerting/rules/read.ts";
 
 const harness = useAlertingHarness();
 

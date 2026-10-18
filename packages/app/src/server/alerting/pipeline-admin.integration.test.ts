@@ -1,38 +1,43 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../testing/alerting-harness";
-import { decryptChannelConfig } from "@everr/app/data/alerting/delivery/channel-secrets.server";
+import { decryptChannelConfig } from "#app/data/alerting/delivery/channel-secrets.server.ts";
 import {
   createChannel,
   deleteChannel,
   listChannels,
   updateChannel,
-} from "@everr/app/data/alerting/delivery/repository";
+} from "#app/data/alerting/delivery/repository.ts";
 import {
   createSilence,
   expireSilence,
   listSilences,
-} from "@everr/app/data/alerting/silences/repository";
-import { listResources } from "@everr/app/data/as-code/resource-admin.server";
-import { alertChannels } from "@everr/app/db/schema";
+} from "#app/data/alerting/silences/repository.ts";
+import { listResources } from "#app/data/as-code/resource-admin.server.ts";
+import { alertChannels } from "#app/db/schema/index.ts";
 import {
   insertPreview,
   insertRule,
   TEST_ACTOR,
   TEST_ORG,
-} from "@everr/app/server/alerting/testing/fixtures";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
-  const { testDb, runInTransaction } = await import("@everr/app/server/alerting/testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@everr/app/lib/clickhouse", async () => import("../../../../testing/test-clickhouse"));
-vi.mock(
-  "@everr/app/lib/clickhouse-writer",
-  async () => import("../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 

@@ -2,22 +2,22 @@
 
 /** The Alert rule state command, against a real PostgreSQL. */
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../../testing/alerting-harness";
-import { insertRule } from "@everr/app/server/alerting/testing/fixtures";
+import { insertRule } from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
+vi.mock("#app/db/client.ts", async () => {
   const { testDb, runInTransaction } = await import(
-    "@everr/app/server/alerting/testing/db-proxy"
+    "#app/server/alerting/testing/db-proxy.ts"
   );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock(
-  "@everr/app/lib/clickhouse",
-  async () => import("../../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
-import { setAlertRulePaused } from "@everr/app/data/alerting/triage/mutations";
+import { setAlertRulePaused } from "#app/data/alerting/triage/mutations.ts";
 
 const harness = useAlertingHarness();
 const SESSION_ORG = "test_org";

@@ -1,25 +1,33 @@
 // @vitest-environment node
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../testing/alerting-harness";
 import {
   alertDefinitions,
   alertEvents,
   alertInstances,
   previews,
-} from "@everr/app/db/schema";
-import { insertPreview, insertRule } from "@everr/app/server/alerting/testing/fixtures";
+} from "#app/db/schema/index.ts";
+import {
+  insertPreview,
+  insertRule,
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
-  const { testDb, runInTransaction } = await import("@everr/app/server/alerting/testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@everr/app/lib/clickhouse", async () => import("../../../../testing/test-clickhouse"));
-vi.mock(
-  "@everr/app/lib/clickhouse-writer",
-  async () => import("../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 
@@ -61,7 +69,7 @@ describe("the alerting pipeline's preview teardown", () => {
 
     await agePreview(preview.id, RETENTION_DAYS + 1);
     const { deleteStalePreviews } = await import(
-      "@everr/app/data/previews/apply.server"
+      "#app/data/previews/apply.server.ts"
     );
     expect(await deleteStalePreviews(RETENTION_DAYS)).toBe(1);
 
@@ -93,7 +101,7 @@ describe("the alerting pipeline's preview teardown", () => {
 
     await agePreview(preview.id, RETENTION_DAYS + 1);
     const { deleteStalePreviews } = await import(
-      "@everr/app/data/previews/apply.server"
+      "#app/data/previews/apply.server.ts"
     );
     await deleteStalePreviews(RETENTION_DAYS);
 
@@ -118,7 +126,7 @@ describe("the alerting pipeline's preview teardown", () => {
 
     await agePreview(preview.id, RETENTION_DAYS + 1);
     const { deleteStalePreviews } = await import(
-      "@everr/app/data/previews/apply.server"
+      "#app/data/previews/apply.server.ts"
     );
     await deleteStalePreviews(RETENTION_DAYS);
 
@@ -148,7 +156,7 @@ describe("the alerting pipeline's preview teardown", () => {
     // branch never ages out from under a running incident.
     await agePreview(preview.id, RETENTION_DAYS - 1);
     const { deleteStalePreviews } = await import(
-      "@everr/app/data/previews/apply.server"
+      "#app/data/previews/apply.server.ts"
     );
     expect(await deleteStalePreviews(RETENTION_DAYS)).toBe(0);
 

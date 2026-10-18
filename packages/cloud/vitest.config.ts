@@ -1,8 +1,11 @@
 import { resolve } from "node:path";
 import { configDefaults } from "vitest/config";
-import { createAppTestConfig } from "@everr/app/testing/config";
-import { appDirectory } from "@everr/app/build/composition";
+import {
+  alertingIntegrationTests,
+  createAppTestConfig,
+} from "@everr/app/testing/config";
 import { cloudComposition } from "./composition";
+import { cloudTestMigrations } from "./src/testing/migrations";
 
 const config = createAppTestConfig(
   cloudComposition,
@@ -10,7 +13,11 @@ const config = createAppTestConfig(
 );
 config.test = {
   ...config.test,
-  include: [...configDefaults.include, `${appDirectory}src/**/*.test.{ts,tsx}`],
-  exclude: [...configDefaults.exclude, `${appDirectory}src/app/tests/**`],
+  include: [...configDefaults.include, ...alertingIntegrationTests],
+  provide: {
+    alertingMigrations: cloudTestMigrations,
+    alertingSchemaTarget: "cloud",
+  },
+  exclude: configDefaults.exclude,
 };
 export default config;

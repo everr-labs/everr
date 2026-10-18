@@ -7,27 +7,27 @@
  * directly, the way `triage/history.integration.test.ts` does it.
  */
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../../testing/alerting-harness";
-import { uuidv7 } from "@everr/app/data/alerting/history/ids";
+import { uuidv7 } from "#app/data/alerting/history/ids.ts";
 import {
   type AlertHistoryDefinition,
   journalTerminalRow,
-} from "@everr/app/server/alerting/history/clickhouse";
-import { TEST_ORG } from "@everr/app/server/alerting/testing/fixtures";
+} from "#app/server/alerting/history/clickhouse.ts";
+import { TEST_ORG } from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
+vi.mock("#app/db/client.ts", async () => {
   const { testDb, runInTransaction } = await import(
-    "@everr/app/server/alerting/testing/db-proxy"
+    "#app/server/alerting/testing/db-proxy.ts"
   );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock(
-  "@everr/app/lib/clickhouse",
-  async () => import("../../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
-import { loadUndeliveredRecords } from "@everr/app/data/alerting/delivery/record";
+import { loadUndeliveredRecords } from "#app/data/alerting/delivery/record.ts";
 
 const harness = useAlertingHarness();
 

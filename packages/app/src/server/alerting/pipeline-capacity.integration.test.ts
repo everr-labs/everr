@@ -1,50 +1,58 @@
 // @vitest-environment node
 import { eq, isNull } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import {
-  type AlertingHarness,
-  useAlertingHarness,
-} from "../../../../testing/alerting-harness";
-import { ALERTING_DEFAULT_GROUP_INTERVAL_SECS } from "@everr/app/data/alerting/delivery/defaults";
-import { IDLE_GROUP_FLUSH_AT } from "@everr/app/data/alerting/delivery/tasks";
+import { ALERTING_DEFAULT_GROUP_INTERVAL_SECS } from "#app/data/alerting/delivery/defaults.ts";
+import { IDLE_GROUP_FLUSH_AT } from "#app/data/alerting/delivery/tasks.ts";
 import {
   ALERT_EVALUATE_TASK,
   enqueueAlertEvaluation,
-} from "@everr/app/data/alerting/scheduling/evaluation-jobs.server";
-import type { AlertingEvaluationSample } from "@everr/app/data/alerting/types";
+} from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
+import type { AlertingEvaluationSample } from "#app/data/alerting/types.ts";
 import {
   alertDefinitions,
   alertEvents,
   alertNotificationGroupEvents,
   alertNotificationGroups,
-} from "@everr/app/db/schema";
+} from "#app/db/schema/index.ts";
 import {
   BODY_MAX_EVENTS,
   FLUSH_GROUP_MEMBER_CLAIM_CAP,
-} from "@everr/app/server/alerting/delivery/flush-group";
-import { MAX_EVIDENCE_BYTES, MAX_EVIDENCE_ROWS } from "@everr/app/server/alerting/evaluation/evidence";
-import { ALERT_EVALUATION_SAMPLE_LIMIT } from "@everr/app/server/alerting/evaluation/samples";
+} from "#app/server/alerting/delivery/flush-group.ts";
+import {
+  MAX_EVIDENCE_BYTES,
+  MAX_EVIDENCE_ROWS,
+} from "#app/server/alerting/evaluation/evidence.ts";
+import { ALERT_EVALUATION_SAMPLE_LIMIT } from "#app/server/alerting/evaluation/samples.ts";
 import {
   SCANNER_BATCH_SIZE,
   scanDueAlerts,
   staleEnqueueCutoff,
-} from "@everr/app/server/alerting/scheduling/scanner";
+} from "#app/server/alerting/scheduling/scanner.ts";
 import {
   insertDirectRule,
   insertRule,
   insertRulesInBulk,
-} from "@everr/app/server/alerting/testing/fixtures";
+} from "#app/server/alerting/testing/fixtures.ts";
+import {
+  type AlertingHarness,
+  useAlertingHarness,
+} from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
-  const { testDb, runInTransaction } = await import("@everr/app/server/alerting/testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@everr/app/lib/clickhouse", async () => import("../../../../testing/test-clickhouse"));
-vi.mock(
-  "@everr/app/lib/clickhouse-writer",
-  async () => import("../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 

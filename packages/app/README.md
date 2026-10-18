@@ -29,6 +29,12 @@ pnpm build
 
 ## Testing
 
+Shared alerting integration suites live beside their implementation under
+`src/data/alerting` and `src/server/alerting`. Their harness in `src/testing`
+uses the application's database schema by default. Composing applications can
+run the same suites with Vitest-provided `alertingMigrations` and
+`alertingSchemaTarget` inputs. Ordinary unit tests belong to this package.
+
 This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
 
 ```bash

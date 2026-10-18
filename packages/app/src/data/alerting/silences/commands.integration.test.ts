@@ -14,23 +14,23 @@
  */
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../../testing/alerting-harness";
-import { alertSilences } from "@everr/app/db/schema";
-import { insertRule } from "@everr/app/server/alerting/testing/fixtures";
+import { alertSilences } from "#app/db/schema/index.ts";
+import { insertRule } from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
+vi.mock("#app/db/client.ts", async () => {
   const { testDb, runInTransaction } = await import(
-    "@everr/app/server/alerting/testing/db-proxy"
+    "#app/server/alerting/testing/db-proxy.ts"
   );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock(
-  "@everr/app/lib/clickhouse",
-  async () => import("../../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
-import { createAlertSilence } from "@everr/app/data/alerting/silences/server";
+import { createAlertSilence } from "#app/data/alerting/silences/server.ts";
 
 const harness = useAlertingHarness();
 

@@ -15,7 +15,7 @@ interface ClickHouseWriteSettings {
 }
 
 /**
- * What the alerting suite gets instead of `@/lib/clickhouse`.
+ * What the alerting suite gets instead of `#app/lib/clickhouse.ts`.
  *
  * Nothing here is a double any more. A rule's SQL runs against a real
  * ClickHouse (chdb, see chdb-database.ts), the rows it reads come from a real
@@ -118,7 +118,7 @@ export async function querySqlApiWithMeta<T>(
   return activeClickHouse.read<T>(statement, query_params);
 }
 
-export async function querySqlApi<T>(
+async function querySqlApi<T>(
   statement: string,
   organizationId: string,
   query_params?: QueryParams,
@@ -127,7 +127,7 @@ export async function querySqlApi<T>(
   return activeClickHouse.read<T>(statement, query_params).rows;
 }
 
-export async function query<T>(
+async function query<T>(
   statement: string,
   organizationId: string,
   query_params?: QueryParams,
@@ -136,7 +136,7 @@ export async function query<T>(
   return activeClickHouse.read<T>(statement, query_params).rows;
 }
 
-export async function insertRows(
+async function insertRows(
   _table: string,
   rows: object[],
   clickhouse_settings?: ClickHouseWriteSettings,
@@ -144,10 +144,19 @@ export async function insertRows(
   activeClickHouse.write(rows, clickhouse_settings);
 }
 
-export function createClickhouseQuery(organizationId: string) {
+function createClickhouseQuery(organizationId: string) {
   requireTenant(organizationId);
   return async <T>(
     statement: string,
     query_params?: QueryParams,
   ): Promise<T[]> => activeClickHouse.read<T>(statement, query_params).rows;
 }
+
+/** Module replacement used by the integration suites' hoisted mocks. */
+export const clickhouseMock = {
+  querySqlApiWithMeta,
+  querySqlApi,
+  query,
+  insertRows,
+  createClickhouseQuery,
+};

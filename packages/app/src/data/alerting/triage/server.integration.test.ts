@@ -18,28 +18,32 @@
  */
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../../testing/alerting-harness";
-import type { AlertingEvaluationSample } from "@everr/app/data/alerting/types";
-import { alertDefinitions, alertInstances } from "@everr/app/db/schema";
+import type { AlertingEvaluationSample } from "#app/data/alerting/types.ts";
+import { alertDefinitions, alertInstances } from "#app/db/schema/index.ts";
 import {
   type AlertHistoryDefinition,
   evaluationHistoryRow,
-} from "@everr/app/server/alerting/history/clickhouse";
-import { insertRule } from "@everr/app/server/alerting/testing/fixtures";
+} from "#app/server/alerting/history/clickhouse.ts";
+import { insertRule } from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
+vi.mock("#app/db/client.ts", async () => {
   const { testDb, runInTransaction } = await import(
-    "@everr/app/server/alerting/testing/db-proxy"
+    "#app/server/alerting/testing/db-proxy.ts"
   );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock(
-  "@everr/app/lib/clickhouse",
-  async () => import("../../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
-import { getAlertDetail, getAlertTriage, getRuleStateHistory } from "@everr/app/data/alerting/triage/server";
+import {
+  getAlertDetail,
+  getAlertTriage,
+  getRuleStateHistory,
+} from "#app/data/alerting/triage/server.ts";
 
 const harness = useAlertingHarness();
 

@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../testing/alerting-harness";
-import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@everr/app/data/alerting/delivery/config";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
 import {
   alertDeliveries,
   alertDeliveryEvents,
@@ -10,20 +9,29 @@ import {
   alertInstances,
   alertNotificationGroups,
   alertSilences,
-} from "@everr/app/db/schema";
-import { cleanupAlertingHistory } from "@everr/app/server/alerting/maintenance/cleanup";
-import { insertDirectRule, insertSilence } from "@everr/app/server/alerting/testing/fixtures";
+} from "#app/db/schema/index.ts";
+import { cleanupAlertingHistory } from "#app/server/alerting/maintenance/cleanup.ts";
+import {
+  insertDirectRule,
+  insertSilence,
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
-  const { testDb, runInTransaction } = await import("@everr/app/server/alerting/testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@everr/app/lib/clickhouse", async () => import("../../../../testing/test-clickhouse"));
-vi.mock(
-  "@everr/app/lib/clickhouse-writer",
-  async () => import("../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 

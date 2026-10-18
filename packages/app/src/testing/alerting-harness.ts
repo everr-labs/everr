@@ -1,11 +1,19 @@
+import "./alerting-context";
 import type { MigrationConfig } from "drizzle-orm/migrator";
-import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
-import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@everr/app/data/alerting/delivery/defaults";
-import { organization } from "@everr/app/db/schema";
-import { setTestDatabase } from "@everr/app/server/alerting/testing/db-proxy";
-import { TEST_ORG } from "@everr/app/server/alerting/testing/fixtures";
-import { failedJobs, pendingJobs, runDueJobs } from "@everr/app/server/alerting/testing/job-driver";
-import { createTestDatabase, type TestDatabase } from "@everr/app/server/alerting/testing/pglite-database";
+import { afterAll, afterEach, beforeAll, beforeEach, inject, vi } from "vitest";
+import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "#app/data/alerting/delivery/defaults.ts";
+import { organization } from "#app/db/schema/index.ts";
+import { setTestDatabase } from "#app/server/alerting/testing/db-proxy.ts";
+import { TEST_ORG } from "#app/server/alerting/testing/fixtures.ts";
+import {
+  failedJobs,
+  pendingJobs,
+  runDueJobs,
+} from "#app/server/alerting/testing/job-driver.ts";
+import {
+  createTestDatabase,
+  type TestDatabase,
+} from "#app/server/alerting/testing/pglite-database.ts";
 import { activeClickHouse, type TestClickHouse } from "./test-clickhouse";
 
 type FetchResponse = { status: number; body?: string };
@@ -34,7 +42,7 @@ export interface AlertingHarness {
 }
 
 export async function createAlertingHarness(
-  additionalMigrations: MigrationConfig[] = [],
+  additionalMigrations: MigrationConfig[] = inject("alertingMigrations") ?? [],
 ): Promise<AlertingHarness> {
   // Fake Date only, not the whole timer set: PGlite boots a WebAssembly
   // runtime and awaits real timers while doing so, so a fully faked clock
@@ -130,7 +138,7 @@ const TEST_CLOCK_START = new Date("2026-01-01T00:00:00Z");
  * the file that holds them, so a mock moved in here does not apply.
  */
 export function useAlertingHarness(
-  additionalMigrations: MigrationConfig[] = [],
+  additionalMigrations: MigrationConfig[] = inject("alertingMigrations") ?? [],
 ): () => AlertingHarness {
   let harness: AlertingHarness | undefined;
 

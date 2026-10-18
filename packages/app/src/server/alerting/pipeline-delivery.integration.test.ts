@@ -1,27 +1,26 @@
 // @vitest-environment node
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { useAlertingHarness } from "../../../../testing/alerting-harness";
-import { sendChannelNotification } from "@everr/app/data/alerting/delivery/channel-sender.server";
-import { CHANNEL_TEXT_MAX } from "@everr/app/data/alerting/delivery/channel-text-limits";
-import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@everr/app/data/alerting/delivery/config";
+import { sendChannelNotification } from "#app/data/alerting/delivery/channel-sender.server.ts";
+import { CHANNEL_TEXT_MAX } from "#app/data/alerting/delivery/channel-text-limits.ts";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
 import {
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
-} from "@everr/app/data/alerting/delivery/defaults";
+} from "#app/data/alerting/delivery/defaults.ts";
 import {
   deleteChannel,
   testChannel,
-} from "@everr/app/data/alerting/delivery/repository";
+} from "#app/data/alerting/delivery/repository.ts";
 import {
   ALERT_SEND_DELIVERY_TASK,
   IDLE_GROUP_FLUSH_AT,
-} from "@everr/app/data/alerting/delivery/tasks";
+} from "#app/data/alerting/delivery/tasks.ts";
 import {
   deleteRule,
   pauseRule,
   updateRule,
-} from "@everr/app/data/alerting/rules/repository";
+} from "#app/data/alerting/rules/repository.ts";
 import {
   alertChannels,
   alertDefaultChannels,
@@ -29,10 +28,10 @@ import {
   alertEvents,
   alertNotificationGroupEvents,
   alertNotificationGroups,
-} from "@everr/app/db/schema";
-import { flushAlertGroup } from "@everr/app/server/alerting/delivery/flush-group";
-import { processAlertEvent } from "@everr/app/server/alerting/delivery/process-event";
-import { sendAlertDelivery } from "@everr/app/server/alerting/delivery/send-delivery";
+} from "#app/db/schema/index.ts";
+import { flushAlertGroup } from "#app/server/alerting/delivery/flush-group.ts";
+import { processAlertEvent } from "#app/server/alerting/delivery/process-event.ts";
+import { sendAlertDelivery } from "#app/server/alerting/delivery/send-delivery.ts";
 import {
   asDbExecutor,
   insertChannel,
@@ -41,18 +40,24 @@ import {
   insertRule,
   TEST_ACTOR,
   TEST_ORG,
-} from "@everr/app/server/alerting/testing/fixtures";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@everr/app/db/client", async () => {
-  const { testDb, runInTransaction } = await import("@everr/app/server/alerting/testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@everr/app/lib/clickhouse", async () => import("../../../../testing/test-clickhouse"));
-vi.mock(
-  "@everr/app/lib/clickhouse-writer",
-  async () => import("../../../../testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 
