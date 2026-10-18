@@ -157,7 +157,7 @@ Verification for this additional reduction: both production builds, cloud
 typecheck, six retention and legacy-migration tests, boundary lint, and Fallow
 passed. Both generated route trees stayed unchanged.
 
-The current UI follow-up moves account assembly into `ApplicationPages.account`.
+Commit `770aa55de` moves account assembly into `ApplicationPages.account`.
 The shared `AccountSettings` component owns profile, password, provider, and
 session behavior and accepts children for the lifecycle section. Each
 application assembles its own deletion UI, and `ProductUI.AccountDeletion` is
@@ -197,7 +197,7 @@ The route inventory excludes ignored helper files and tests so these mocks do
 not replace dependencies of retained routes. Signup-to-invitation returns,
 email verification, welcome-layout persistence, and setup completion remain
 covered. All six route-file exports are removed, reducing the public interface
-from 68 to 62. Worker lifecycle tests still retain internal helper imports.
+from 68 to 62.
 Verification: all 474 cloud tests passed (external Polar sandbox skipped),
 along with both typechecks, boundary lint, and Fallow. This follow-up changes
 test composition and exports only; the preceding UI build and browser checks
@@ -208,6 +208,24 @@ exports, bringing the interface to 60 entries. The onboarding test supplies
 server configuration through the existing environment interface while running
 the real configuration modules, instead of mocking their private files.
 The onboarding test, boundary lint, and Fallow pass after this change.
+
+The current worker follow-up removes three exports that existed only for cloud
+test mocks: GitHub configuration, GitHub task registration, and preview runtime.
+The public interface now has 57 entries. App owns task-registration coverage
+(with GitHub enabled and disabled) and generic worker event logging. Cloud's
+worker-runtime test uses the actual shared registrations with GitHub disabled
+through environment configuration. It checks reserved pool configuration,
+memoization, shutdown, failure isolation, and retry recovery. No shared task-list
+contents or private feature mocks remain in cloud's worker test. Runtime
+implementation and behavior are unchanged.
+Verification: 14 focused app worker tests and all 472 cloud tests passed
+(external Polar sandbox skipped), along with both typechecks, boundary lint,
+and Fallow. The worker follow-up remains uncommitted.
+
+The remaining worker exports serve actual composed behavior: runtime startup,
+job enqueueing, supervision, and event logging. Keep those distinct capabilities
+unless a concrete runtime change lets one interface hide more implementation.
+Do not merge unrelated helpers into a barrel solely to lower the export count.
 
 Keep the two remaining `ProductUI` content slots for now. Moving the complete
 sign-in and device forms behind additional page interfaces solely to remove
@@ -255,8 +273,10 @@ The following improvements are proposed, not implemented, in priority order:
    stable entry points. The alerting test-ownership pass removes its internal
    exports. The follow-up removes direct guard-route and onboarding internals.
    Welcome tests now use the composed tree and all route-file exports are gone.
-   Group worker/runtime helpers only where a capability can hide meaningful
-   implementation details. Preserve useful behavior coverage.
+   Worker registration and logging tests now live in app, while cloud tests
+   retain composed lifecycle coverage without private feature mocks. Further
+   reductions should hide meaningful implementation details, not merely group
+   exports. Preserve useful behavior coverage.
 2. Account, menu, and welcome assembly now live in each application's typed
    composition. `ProductUI` has only two remaining text/content responsibilities:
    the sign-in footer and device-login recovery. Revisit these when working on

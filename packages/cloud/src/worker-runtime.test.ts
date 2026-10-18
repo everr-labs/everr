@@ -13,10 +13,6 @@ type MockRunOptions = {
 const runtimeMocks = vi.hoisted(() => {
   const runOptions: MockRunOptions[] = [];
   return {
-    githubEventsTaskList: {
-      "github-events/collector": vi.fn(),
-      "github-events/status": vi.fn(),
-    },
     pool: { query: vi.fn(), options: { host: "database", max: 10 } },
     organizationPool: {
       query: vi.fn().mockResolvedValue({ rows: [] }),
@@ -24,8 +20,6 @@ const runtimeMocks = vi.hoisted(() => {
     },
     poolOptions: [] as unknown[],
     runners: [] as { stop: ReturnType<typeof vi.fn> }[],
-    previewsCronItems: [{ task: "previews/retention" }],
-    previewsTaskList: { "previews/retention": vi.fn() },
     run: vi.fn(async (options: MockRunOptions) => {
       runOptions.push(options);
       const runner = {
@@ -38,11 +32,10 @@ const runtimeMocks = vi.hoisted(() => {
     }),
     runOptions,
     serverLoggerError: vi.fn(),
-    serverLoggerInfo: vi.fn(),
   };
 });
 
-vi.mock("../../../../clickhouse/provisioning", () => ({
+vi.mock("./clickhouse/provisioning", () => ({
   provisionSqlApiOrgUser: vi.fn(),
   deprovisionSqlApiOrgUser: vi.fn(),
 }));
@@ -62,18 +55,6 @@ vi.mock("pg", () => ({
 vi.mock("graphile-worker", () => ({
   parseCronItems: (items: unknown[]) => items,
   run: runtimeMocks.run,
-}));
-
-vi.mock("@everr/app/integrations/github/configuration", () => ({
-  getGithubConfiguration: () => ({}),
-}));
-vi.mock("@everr/app/server/github-events/tasks", () => ({
-  githubEventsTaskList: runtimeMocks.githubEventsTaskList,
-}));
-
-vi.mock("@everr/app/server/previews/00-runtime", () => ({
-  previewsCronItems: runtimeMocks.previewsCronItems,
-  previewsTaskList: runtimeMocks.previewsTaskList,
 }));
 
 vi.mock("@everr/app/db/client", () => ({
@@ -98,19 +79,25 @@ vi.mock("@everr/app/telemetry/logger", () => ({
     reason instanceof Error ? reason.message : String(reason),
   serverLogger: {
     error: runtimeMocks.serverLoggerError,
-    info: runtimeMocks.serverLoggerInfo,
+    info: vi.fn(),
   },
 }));
 
 let activeRuntime:
-  | Awaited<ReturnType<typeof import("@everr/app/server/worker/runtime")["startWorkerRuntime"]>>
+  | Awaited<
+      ReturnType<
+        typeof import("@everr/app/server/worker/runtime")["startWorkerRuntime"]
+      >
+    >
   | undefined;
 afterEach(async () => {
   await activeRuntime?.stop();
   activeRuntime = undefined;
+  vi.unstubAllEnvs();
 });
 
 async function loadRuntime() {
+  vi.stubEnv("EVERR_GITHUB_ENABLED", "false");
   vi.resetModules();
   // The runner handle deliberately lives on the hot-singleton registry on
   // globalThis to survive HMR module replacement; tests need each import to
@@ -124,7 +111,6 @@ async function loadRuntime() {
   runtimeMocks.organizationPool.query.mockClear();
   runtimeMocks.organizationPool.end.mockClear();
   runtimeMocks.serverLoggerError.mockClear();
-  runtimeMocks.serverLoggerInfo.mockClear();
   const runtime = await import("@everr/app/server/worker/runtime");
   return {
     startWorkerRuntime: async () => {
@@ -155,24 +141,7 @@ describe("worker runtime", () => {
       concurrency: 2,
       noHandleSignals: true,
       pgPool: runtimeMocks.pool,
-      parsedCronItems: expect.arrayContaining([
-        expect.objectContaining({ task: "alerts/scan" }),
-        expect.objectContaining({ task: "alerts/retention" }),
-        ...runtimeMocks.previewsCronItems,
-      ]),
     });
-    expect(Object.keys(general.taskList).sort()).toEqual([
-      "alerts/evaluate",
-      "alerts/flush-group",
-      "alerts/process-event",
-      "alerts/project-lifecycle",
-      "alerts/retention",
-      "alerts/scan",
-      "alerts/send-delivery",
-      "github-events/collector",
-      "github-events/status",
-      "previews/retention",
-    ]);
     expect(organizations).toMatchObject({
       concurrency: 2,
       noHandleSignals: true,
@@ -257,54 +226,5 @@ describe("worker runtime", () => {
     for (const runner of runtimeMocks.runners)
       expect(runner.stop).not.toHaveBeenCalled();
     expect(runtimeMocks.organizationPool.end).not.toHaveBeenCalled();
-  });
-
-  it("logs meaningful Graphile Worker runner failures", async () => {
-    const runtime = await loadRuntime();
-    await runtime.startWorkerRuntime();
-
-    const error = new Error("listen failed");
-    runtimeMocks.runOptions[0].events.emit("pool:listen:error", {
-      client: {},
-      error,
-      workerPool: {},
-    });
-
-    expect(runtimeMocks.serverLoggerError).toHaveBeenCalledWith(
-      "worker.jobs.pool_listen_error",
-      expect.objectContaining({
-        "exception.message": "listen failed",
-        "exception.type": "Error",
-      }),
-    );
-  });
-
-  it("logs successful worker jobs with duration", async () => {
-    const runtime = await loadRuntime();
-    await runtime.startWorkerRuntime();
-
-    const worker = { workerId: "worker-test" };
-    const job = {
-      attempts: 1,
-      id: "18001",
-      max_attempts: 25,
-      task_identifier: "github-events/collector",
-    };
-
-    runtimeMocks.runOptions[0].events.emit("job:start", { job, worker });
-    runtimeMocks.runOptions[0].events.emit("job:success", { job, worker });
-
-    expect(runtimeMocks.serverLoggerInfo).toHaveBeenLastCalledWith(
-      "worker.jobs.job_completed",
-      expect.objectContaining({
-        "graphile_worker.job.attempts": 1,
-        "graphile_worker.job.duration_ms": expect.any(Number),
-        "graphile_worker.job.id": "18001",
-        "graphile_worker.job.max_attempts": 25,
-        "graphile_worker.job.name": "github-events/collector",
-        "graphile_worker.task.identifier": "github-events/collector",
-        "graphile_worker.worker.id": "worker-test",
-      }),
-    );
   });
 });
