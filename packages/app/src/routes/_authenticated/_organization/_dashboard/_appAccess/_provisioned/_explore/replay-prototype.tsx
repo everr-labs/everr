@@ -9,6 +9,7 @@ import {
   DURATION_MS,
   ERROR_MS,
   type Signal,
+  spanUnderPlayhead,
 } from "./-replay-prototype/fixture";
 import type { ReplayHandle } from "./-replay-prototype/player";
 import {
@@ -51,7 +52,11 @@ function ReplayPrototypePage() {
     let frame = 0;
     const tick = () => {
       const next = playerRef.current?.getTime();
-      if (next != null) setTimeMs(Math.min(DURATION_MS, next));
+      if (next != null) {
+        const ms = Math.min(DURATION_MS, next);
+        setTimeMs(ms);
+        setSelectedId(spanUnderPlayhead(ms));
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -106,6 +111,7 @@ function ReplayPrototypePage() {
     playerRef,
     onSeek: seek,
     onSelect,
+    onClearSelection: () => setSelectedId(""),
     onTogglePlay,
     onEnded: () => setPlaying(false),
   };

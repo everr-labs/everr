@@ -14,6 +14,7 @@ export type VariantProps = {
   playerRef: RefObject<ReplayHandle | null>;
   onSeek: (ms: number) => void;
   onSelect: (signal: Signal) => void;
+  onClearSelection: () => void;
   onTogglePlay: () => void;
   onEnded: () => void;
 };

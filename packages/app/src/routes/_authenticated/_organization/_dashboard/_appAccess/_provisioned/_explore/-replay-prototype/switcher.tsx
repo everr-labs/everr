@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { formatSeconds, signalById } from "./fixture";
+import { formatSeconds, signals } from "./fixture";
 import type { Host, RecordingMode } from "./types";
 
 const VARIANTS = [
@@ -66,7 +66,7 @@ export function PrototypeSwitcher({
   if (!import.meta.env.DEV) return null;
 
   const current = VARIANTS.find((item) => item.key === variant) ?? VARIANTS[0];
-  const selected = signalById(selectedId);
+  const selected = signals.find((signal) => signal.id === selectedId);
 
   return (
     <div className="fixed bottom-4 left-1/2 z-50 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-full bg-neutral-950 px-2 py-1.5 text-xs text-white shadow-lg">
@@ -123,7 +123,7 @@ export function PrototypeSwitcher({
       ))}
       <span className="mx-1 h-4 w-px bg-white/20" />
       <span className="px-2 font-mono text-white/80">
-        {formatSeconds(timeMs)} · {selected.name}
+        {formatSeconds(timeMs)} · {selected?.name ?? "none"}
       </span>
     </div>
   );

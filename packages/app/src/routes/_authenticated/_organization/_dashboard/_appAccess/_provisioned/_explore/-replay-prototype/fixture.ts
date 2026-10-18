@@ -1,5 +1,9 @@
 // PROTOTYPE fixture. A checkout Recording, 18 seconds, plus the signals on its clock.
 // Throwaway: packages/app replay-prototype route.
+import type {
+  Span,
+  TracesRepositoryLike,
+} from "@everr/telemetry-explorer/traces";
 
 export const DURATION_MS = 18_000;
 export const ERROR_MS = 8_000;
@@ -58,7 +62,7 @@ export const signals: Signal[] = [
     detail: "500 card declined",
     service: "shop-api",
     t: 6_100,
-    dur: 1_700,
+    dur: 2_900,
     depth: 1,
   },
   {
@@ -98,6 +102,149 @@ export const STACK = [
   "    at submitCheckout (checkout.ts:88)",
   "    at onClick (PayButton.tsx:24)",
 ].join("\n");
+
+const TRACE_EPOCH_MS = Date.UTC(2026, 9, 17, 12, 0, 0);
+
+export const TRACE_ID = "trace-checkout";
+
+function at(offsetMs: number) {
+  const ms = TRACE_EPOCH_MS + offsetMs;
+  const date = new Date(ms);
+  const pad = (value: number, width = 2) => String(value).padStart(width, "0");
+  return {
+    timestamp: `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}.${pad(date.getUTCMilliseconds(), 3)}`,
+    timestampNs: (BigInt(ms) * 1_000_000n).toString(),
+  };
+}
+
+export const TRACE_START = at(0).timestamp;
+export const TRACE_END = at(DURATION_MS).timestamp;
+
+function event(
+  offsetMs: number,
+  name: string,
+  attributes: Record<string, string>,
+): Span["events"][number] {
+  return { name, timestamp: at(offsetMs).timestamp, attributes };
+}
+
+function checkoutSpan(input: {
+  id: string;
+  parent: string;
+  name: string;
+  service: string;
+  t: number;
+  dur: number;
+  kind: string;
+  status?: Span["statusCode"];
+  attributes?: Record<string, string>;
+  events?: Span["events"];
+}): Span {
+  const start = at(input.t);
+  return {
+    traceId: TRACE_ID,
+    spanId: input.id,
+    parentSpanId: input.parent,
+    spanName: input.name,
+    serviceName: input.service,
+    serviceNamespace: "shop",
+    timestamp: start.timestamp,
+    timestampNs: start.timestampNs,
+    duration: String(input.dur * 1_000_000),
+    statusCode: input.status ?? "Ok",
+    spanKind: input.kind,
+    spanAttributes: input.attributes ?? {},
+    resourceAttributes: {},
+    events: input.events ?? [],
+    links: [],
+  };
+}
+
+// The same checkout story as `signals`, in the shape TraceExplorer already renders.
+export const checkoutSpans: Span[] = [
+  checkoutSpan({
+    id: "doc",
+    parent: "",
+    name: "GET /checkout",
+    service: "shop-web",
+    t: 0,
+    dur: DURATION_MS,
+    kind: "Client",
+    attributes: {
+      "http.request.method": "GET",
+      "url.path": "/checkout",
+    },
+    events: [
+      event(14_000, "dismiss", { "everr.detail": "user closed the error" }),
+    ],
+  }),
+  checkoutSpan({
+    id: "click",
+    parent: "doc",
+    name: "click Pay",
+    service: "shop-web",
+    t: 2_400,
+    dur: 180,
+    kind: "Internal",
+    attributes: { "everr.target": "button.pay" },
+    events: [event(2_400, "click", { target: "Pay $42" })],
+  }),
+  checkoutSpan({
+    id: "post",
+    parent: "doc",
+    name: "POST /checkout",
+    service: "shop-api",
+    t: 6_100,
+    dur: 2_900,
+    kind: "Server",
+    status: "Error",
+    attributes: {
+      "http.request.method": "POST",
+      "http.response.status_code": "500",
+      "url.path": "/checkout",
+    },
+    events: [
+      event(ERROR_MS, "exception", {
+        "exception.type": "PaymentError",
+        "exception.message": "card declined",
+        "exception.stacktrace": STACK,
+      }),
+    ],
+  }),
+  checkoutSpan({
+    id: "retry",
+    parent: "doc",
+    name: "GET /checkout",
+    service: "shop-web",
+    t: 11_200,
+    dur: 900,
+    kind: "Client",
+    attributes: {
+      "http.request.method": "GET",
+      "http.response.status_code": "200",
+      "url.path": "/checkout",
+    },
+  }),
+];
+
+export const checkoutTraceRepo: TracesRepositoryLike = {
+  getTrace: async () => checkoutSpans,
+  search: async () => [],
+  listServiceIdentities: async () => [],
+  attributeKeys: async () => [],
+  attributeValues: async () => [],
+};
+
+export function spanUnderPlayhead(timeMs: number) {
+  const covering = signals.filter(
+    (signal) =>
+      signal.kind === "span" &&
+      signal.t <= timeMs &&
+      timeMs <= signal.t + signal.dur,
+  );
+  covering.sort((a, b) => b.depth - a.depth || b.t - a.t);
+  return covering[0]?.id ?? "doc";
+}
 
 export function signalById(id: string) {
   return signals.find((signal) => signal.id === id) ?? signals[0];
