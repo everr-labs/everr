@@ -6,11 +6,12 @@ Updated 2026-10-18. Branch: `self-host`.
 
 The worker test ownership and export cleanup checkpoint is `7e7f8fd1b`.
 UI assembly and the preceding export review are in `770aa55de`. This checkpoint
-adds storage test ownership cleanup, removes its test-only telemetry export,
-and records the resolver investigation and deferred packaging experiment.
+follows storage test ownership cleanup in `dc21b7af3` and adds membership
+endpoint coverage and UI mock cleanup. The resolver investigation and deferred
+packaging experiment are recorded below.
 
-The application has **56 public package exports**. All have consumers in cloud
-source or configuration. Thirteen currently serve only cloud tests or their
+The application has **53 public package exports**. All have consumers in cloud
+source or configuration. Ten currently serve only cloud tests or their
 configuration; that does not make them automatically removable. The interface
 review below identifies concrete opportunities and the remaining split risks.
 
@@ -123,18 +124,18 @@ entry point. No unused export was found. Export count alone is not the goal.
 | --- | --- |
 | Invitation resolver, retain | Tried replacing the separate resolver import with a partial mock of `data/invite`. Importing the original module loads `db/client` and fails during browser-test collection on server-only environment access; the module also imports authentication middleware. Reverted the experiment. Keep the pure resolver export so the routing test exercises real invitation behavior without mocking additional server dependencies. Reconsider only alongside a useful invitation-interface redesign. |
 | Storage test ownership, completed | App `src/lib/clickhouse.test.ts` owns shared client settings, SQL API metadata, writes, and telemetry wrapping. Cloud `src/clickhouse/provisioning.test.ts` retains tenant-scope enforcement, derived credentials, provisioning, authentication failure, and cancellation coverage through the real shared clients. Removed the `telemetry/clickhouse` public export and its cloud mock. Runtime code, SQL, and schema are unchanged. |
-| Membership enforcement | `product/membership.server` is imported only by cloud's three policy-enforcement tests. Test the real Better Auth invitation/member endpoints and their registered hooks before removing it. Testing only `productPolicy` would lose proof that the server applies the restriction. |
-| Other test-only implementation access | `data/auth`, `data/invite`, `telemetry/client`, and `telemetry/consent-gate` are used by composed UI tests. `telemetry/config` verifies the configured receiver. These imports are live, not unused. Reduce mocks through feature-level behavior tests, without weakening consent, auth refresh, or telemetry configuration coverage. |
+| Membership enforcement, completed | Replaced three helper-only tests with seven tests using the production auth configuration and its registered policy hooks against PGlite. They call Better Auth invitation creation, direct member addition, and invitation acceptance for hobby, suspended, and active pro states, verify persistence on success and denial, and preserve initial-owner creation. Billing/provisioning side effects and entitlement reads are isolated; the actual cloud policy and shared hooks run. Removed the `product/membership.server` export. |
+| UI test interfaces, reviewed | Removed redundant `data/auth` mocks and the `telemetry/client` mock, then removed both exports. Onboarding renders the real consent gate and loads browser telemetry with development export disabled. Menu tests render the real consent gate and exercise opening privacy preferences, saving a choice, and revoking it. Keep `telemetry/consent-gate` for that provider and `telemetry/config` for receiver configuration coverage. Keep `data/invite` for invitation server-function doubles and its pure resolver export as explained above. |
 | Deliberate test infrastructure | Keep `testing/config`, `testing/routes`, `testing/alerting-storage`, and the PGlite helper while their consumers need them. The PGlite helper currently has an alerting-internal export name despite serving organization lifecycle tests. A future generic database-test interface should preserve migration/worker setup; a naming change alone is not a reduction. |
 | Worker capabilities | Events, job enqueueing, and supervision have production cloud callers. Runtime startup is consumed by the composed cloud test. Keep that test at the real runtime interface. Do not merge these unrelated functions into a barrel just to count fewer exports. |
 | Auth and organization lifecycle | `lib/auth.server`, `lib/auth-client`, `lib/serverFn`, organization locks, continuation cookies, cleanup, and role helpers have real runtime consumers. Preserve browser/server separation and transactional ownership. Introduce a higher-level operation only when it can hide a complete workflow, not just forward to these helpers. |
 | Storage and migrations | `db/client`, `db/schema`, `db/migrations`, Drizzle config, and migration entry points support real schema extensions, transactions, and upgrades. `migrations/journal` is consumed by legacy-upgrade tests. Do not conceal this dependency by duplicating schema or baselines. |
 | Stable feature interfaces | Keep members, account settings/dialog/actions, user menu, welcome, page layout, and type-only composition contracts. Their callers assemble substantial shared behavior. Product factories and client defaults are intentionally separate from the type-only contracts. |
 
-The thirteen exports currently used only by cloud tests/configuration are:
-`data/auth`, `data/invite`, `data/invite-resolver`, `product/membership.server`,
+The ten exports currently used only by cloud tests/configuration are:
+`data/invite`, `data/invite-resolver`,
 `server/alerting/testing/pglite-database`, `server/worker/runtime`,
-`telemetry/client`, `telemetry/consent-gate`,
+`telemetry/consent-gate`,
 `telemetry/config`, `testing/config`, `testing/routes`, `testing/alerting-storage`,
 and `migrations/journal`.
 
@@ -222,6 +223,11 @@ See `DATABASE-MIGRATIONS.md` for the exercise history and upgrade procedure.
 
 ## Verification and next steps
 
+Membership/UI cleanup verification: all 472 cloud tests passed, with the Polar
+sandbox test skipped. Both typechecks and boundary lint passed. Seven endpoint
+tests replace the three membership-helper tests, and the menu now exercises
+real consent settings. No runtime implementation changed.
+
 Storage cleanup verification: 12 app client/telemetry tests and eight cloud
 storage/provisioning tests passed. Both typechecks and boundary lint passed.
 This change moves test coverage and removes a test-only public export; it does
@@ -247,14 +253,14 @@ It has not been run during the latest cleanup.
 
 Next work, in order:
 
-1. Improve membership coverage through the real Better Auth endpoints and
-   registered hooks before considering removal of `product/membership.server`.
-   Keep the invitation-resolver export for the reason documented above. The
-   generic storage test split is complete.
-2. Before release, run a complete fresh Compose lifecycle with real ingestion and
+Membership endpoint coverage and the remaining UI test-interface review are
+complete. Keep the remaining deliberate test interfaces; do not add mocks or
+rename barrels solely to reduce the export count.
+
+1. Before release, run a complete fresh Compose lifecycle with real ingestion and
    querying, invitation acceptance without SMTP, and operator recovery. Use the
    required telemetry skill to verify ingestion.
-3. Verify the pushed revision's remote checks using the CI skill. Remote status
+2. Verify the pushed revision's remote checks using the CI skill. Remote status
    is not established by these local results. Rehearse deployed cloud upgrades
    against a representative disposable database copy and coordinate old-instance
    replacement around column removal. Previous main-history exercises were local.

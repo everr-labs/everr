@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   settings: vi.fn(),
   transfer: vi.fn(),
 }));
-vi.mock("@everr/app/data/auth", () => ({ getActiveOrganization: vi.fn() }));
 vi.mock("@tanstack/react-router", async (original) => ({
   ...(await original<typeof import("@tanstack/react-router")>()),
   useRouter: () => mocks.router,

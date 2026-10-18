@@ -26,15 +26,14 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { type ReactNode, useState } from "react";
-import { afterEach, expect, it, vi } from "vitest";
+import { useState } from "react";
+import { afterAll, afterEach, expect, it, vi } from "vitest";
 
-vi.mock("@everr/app/telemetry/client", () => ({}));
+// Exercise the real root without enabling the development telemetry exporter.
+vi.stubEnv("DEV", false);
+afterAll(() => vi.unstubAllEnvs());
 // jsdom has no canvas renderer; keep the real welcome layout mounted.
 vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
-vi.mock("@everr/app/telemetry/consent-gate", () => ({
-  ConsentGate: ({ children }: { children: ReactNode }) => children,
-}));
 vi.mock("@tanstack/react-devtools", () => ({ TanStackDevtools: () => null }));
 vi.mock("@everr/app/lib/auth-client", () => ({
   authClient: {

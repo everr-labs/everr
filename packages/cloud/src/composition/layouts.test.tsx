@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   githubEnabled: false,
   pathname: "/organization-setup",
   invalidate: vi.fn(),
-  openConsentSettings: vi.fn(),
   role: "owner",
   setActive: vi.fn(),
   organizations: [{ id: "org_1", name: "Acme" }],
@@ -72,9 +71,7 @@ vi.mock("@everr/app/lib/auth-client", () => ({
   },
 }));
 
-vi.mock("@everr/app/telemetry/consent-gate", () => ({
-  useOpenConsentSettings: () => mocks.openConsentSettings,
-}));
+import { ConsentGate } from "@everr/app/telemetry/consent-gate";
 
 import { layouts } from "./layouts";
 
@@ -116,9 +113,11 @@ describe("User menu", () => {
     try {
       render(
         <QueryClientProvider client={queryClient}>
-          <SidebarProvider>
-            <layouts.UserMenu />
-          </SidebarProvider>
+          <ConsentGate initialConsent="denied">
+            <SidebarProvider>
+              <layouts.UserMenu />
+            </SidebarProvider>
+          </ConsentGate>
         </QueryClientProvider>,
       );
       await userEvent
@@ -151,9 +150,11 @@ describe("User menu", () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SidebarProvider>
-          <layouts.UserMenu />
-        </SidebarProvider>
+        <ConsentGate initialConsent="denied">
+          <SidebarProvider>
+            <layouts.UserMenu />
+          </SidebarProvider>
+        </ConsentGate>
       </QueryClientProvider>,
     );
 
@@ -173,14 +174,47 @@ describe("User menu", () => {
     ).toHaveAttribute("href", "/billing");
   });
 
+  it("opens privacy settings from the menu and preserves the saved choice", async () => {
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ConsentGate initialConsent="denied">
+          <SidebarProvider>
+            <layouts.UserMenu />
+          </SidebarProvider>
+        </ConsentGate>
+      </QueryClientProvider>,
+    );
+    const open = async () => {
+      await user.click(screen.getByRole("button", { name: /Test User/ }));
+      await user.click(
+        await screen.findByRole("menuitem", { name: "Privacy preferences" }),
+      );
+      expect(
+        await screen.findByRole("dialog", { name: "Your Privacy" }),
+      ).toBeVisible();
+    };
+    await open();
+    expect(screen.getByRole("switch", { name: "Analytics" })).not.toBeChecked();
+    await user.click(screen.getByRole("switch", { name: "Analytics" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await open();
+    expect(screen.getByRole("switch", { name: "Analytics" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Deny" }));
+    await open();
+    expect(screen.getByRole("switch", { name: "Analytics" })).not.toBeChecked();
+  });
+
   it("hides GitHub when the integration is disabled", async () => {
     mocks.githubEnabled = false;
     const queryClient = new QueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <SidebarProvider>
-          <layouts.UserMenu />
-        </SidebarProvider>
+        <ConsentGate initialConsent="denied">
+          <SidebarProvider>
+            <layouts.UserMenu />
+          </SidebarProvider>
+        </ConsentGate>
       </QueryClientProvider>,
     );
     await userEvent
@@ -198,9 +232,11 @@ describe("User menu", () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SidebarProvider>
-          <layouts.UserMenu />
-        </SidebarProvider>
+        <ConsentGate initialConsent="denied">
+          <SidebarProvider>
+            <layouts.UserMenu />
+          </SidebarProvider>
+        </ConsentGate>
       </QueryClientProvider>,
     );
 

@@ -43,7 +43,6 @@ vi.mock("@everr/app/lib/auth-client", () => ({
     }),
   },
 }));
-vi.mock("@everr/app/data/auth", () => ({ getActiveOrganization: () => null }));
 vi.mock("../../data/organizations", () => ({
   getOrganizationCreationOptions: async () => ({ canCreateHobby: true }),
 }));

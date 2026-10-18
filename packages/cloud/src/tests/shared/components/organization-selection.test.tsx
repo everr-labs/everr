@@ -60,9 +60,6 @@ vi.mock("@tanstack/react-router", () => ({
   redirect: vi.fn(),
 }));
 vi.mock("@tanstack/react-start/server", () => ({ getRequestHeaders: vi.fn() }));
-vi.mock("@everr/app/data/auth", () => ({
-  getActiveOrganization: vi.fn(),
-}));
 vi.mock("../../../data/organizations", () => ({
   createOrganization: vi.fn().mockResolvedValue({
     kind: "created",
