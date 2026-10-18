@@ -1,18 +1,5 @@
 // @vitest-environment node
-
-import { product } from "@composition/product";
-import { beforeEach, expect, it, vi } from "vitest";
-import { assertCanInviteMembers } from "#app/product/membership.server.ts";
-
-beforeEach(() => vi.clearAllMocks());
-
-it("permits workspace collaboration", async () => {
-  expect(await product.forOrganization("org")).toMatchObject({
-    access: "enabled",
-    canInviteMembers: true,
-  });
-  await expect(assertCanInviteMembers("org")).resolves.toBeUndefined();
-});
+import { expect, it } from "vitest";
 
 it("rejects organization creation and deletion through authentication hooks", async () => {
   const { server } = await import("@composition/server");

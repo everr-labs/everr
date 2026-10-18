@@ -21,16 +21,6 @@ vi.mock("../organization-provisioning/actions", () => ({
   getOrganizationProvisioningStatus: mocks.getOrganization,
   retryOrganizationProvisioning: mocks.retry,
 }));
-vi.mock("@everr/app/lib/auth-client", () => ({
-  authClient: {
-    useListOrganizations: () => ({
-      data: [
-        { id: "pending", name: "Pending" },
-        { id: "other", name: "Other" },
-      ],
-    }),
-  },
-}));
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => mocks.router,
   useSearch: () => ({ returnTo: "/logs?service=api" }),
@@ -58,20 +48,6 @@ function show() {
   );
   return client;
 }
-
-it("keeps the setup message free of inline organization switch buttons", async () => {
-  mocks.getOrganization.mockResolvedValue({
-    id: "pending",
-    status: "pending",
-  });
-  show();
-  expect(await screen.findByRole("status")).toHaveTextContent(
-    "We're setting up your organization. You'll be taken into Everr when it's ready.",
-  );
-  expect(screen.queryByRole("link", { name: "Account settings" })).toBeNull();
-  expect(screen.queryByRole("button", { name: "Switch to Other" })).toBeNull();
-  expect(mocks.router.invalidate).not.toHaveBeenCalled();
-});
 
 it("refreshes the route when a subsequent status check becomes ready", async () => {
   mocks.getOrganization.mockResolvedValue({

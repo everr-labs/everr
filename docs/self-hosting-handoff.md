@@ -5,10 +5,10 @@ Updated 2026-10-18. Branch: `self-host`.
 ## Current checkpoint
 
 The worker test ownership and export cleanup checkpoint is `7e7f8fd1b`.
-UI assembly and the preceding export review are in `770aa55de`. This checkpoint
-follows storage test ownership cleanup in `dc21b7af3` and adds membership
-endpoint coverage and UI mock cleanup. The resolver investigation and deferred
-packaging experiment are recorded below.
+UI assembly and the preceding export review are in `770aa55de`. Storage test
+ownership cleanup is in `dc21b7af3`; membership endpoint coverage and UI mock
+cleanup are in `5ee82832a`. This checkpoint includes the test-pruning pass below. The
+resolver investigation and deferred packaging experiment are recorded below.
 
 The application has **53 public package exports**. All have consumers in cloud
 source or configuration. Ten currently serve only cloud tests or their
@@ -220,6 +220,35 @@ multi-workspace database still does not satisfy the single-workspace requirement
 Remove `drizzle-legacy` only after supported databases transition and an
 intermediate upgrade path is documented for old installations and backups.
 See `DATABASE-MIGRATIONS.md` for the exercise history and upgrade procedure.
+
+## Test-pruning pass
+
+Removed 12 cases and 129 net lines from six test files, without runtime changes:
+
+- Removed the self-hosted collaboration helper assertion. Real invitation
+  creation and acceptance remain covered with SMTP enabled and disabled. Kept
+  the separate organization creation/deletion restriction test.
+- Removed mocked account-page forwarding tests. Actual deletion behavior remains
+  covered by the account-deletion suite; the removed tests asserted synthetic
+  markup supplied by their own mocks.
+- Removed basic member-page selection cases. The retained refresh/isolation test
+  renders both allowed and restricted states across organizations and revisits.
+- Removed the setup-screen test for absent old controls and its unused auth mock.
+  Pending/error UI, completion, revoked access, and retry behavior remain covered.
+- Removed the hook-level fast-completion timer case. The real-router onboarding
+  test already checks 2,499 ms versus 2,500 ms, navigation, and session refresh.
+  Kept readiness loss, prolonged waiting, and immediate recovery cases. Removed
+  unused query providers from those hook tests.
+- Removed four duplicate unsafe-URL cases from the cloud setup route suite. The
+  shared return-destination suite covers those inputs; cloud retains its extra
+  setup/chooser loop cases and local destination preservation.
+- Removed the runtime test that only compared a returned endpoint literal.
+  Receiver selection and credential behavior remain tested separately.
+
+Verification: 15 affected cloud tests and 11 app tests passed, including the
+stronger tests retained in place of the removed cases. Both typechecks, boundary
+lint, and Fallow passed. The last full cloud-suite result below predates these
+deletions.
 
 ## Verification and next steps
 
