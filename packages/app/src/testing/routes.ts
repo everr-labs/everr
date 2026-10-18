@@ -18,5 +18,8 @@ export const sharedRouteModules = {
     "../routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned.tsx",
   ),
   signedIn: moduleReference("../routes/_welcome/-_signedIn.tsx"),
+  logs: moduleReference(
+    "../routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs.tsx",
+  ),
   device: moduleReference("../routes/_authenticated/_organization/device.tsx"),
 };

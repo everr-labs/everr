@@ -74,8 +74,8 @@ it("preserves authentication when deriving the checkout pool from a real pg pool
 });
 
 it("retains and reuses nested organization locks until the whole request completes", async () => {
-  const { withBillingRequest } = await import("./lock.server");
-  await withBillingRequest(async () => {
+  const { server } = await import("../runtime");
+  await server.withIdentityRequest(async () => {
     await withCheckoutLock("billing:org", async () => {
       await withCheckoutLock("billing:org", async () => "nested");
     });

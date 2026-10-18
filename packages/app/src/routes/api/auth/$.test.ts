@@ -1,19 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ handler: vi.fn(), inBillingRequest: false }));
-vi.mock("@everr/app/lib/auth.server", () => ({ auth: { handler: mocks.handler } }));
-vi.mock("../../../../../billing/lock.server", () => ({
-  withBillingRequest: async (run: () => Promise<Response>) => {
-    mocks.inBillingRequest = true;
-    try {
-      return await run();
-    } finally {
-      mocks.inBillingRequest = false;
-    }
+const mocks = vi.hoisted(() => ({
+  handler: vi.fn(),
+  inIdentityRequest: false,
+}));
+vi.mock("#app/lib/auth.server.ts", () => ({
+  auth: { handler: mocks.handler },
+}));
+vi.mock("@composition/server", () => ({
+  server: {
+    withIdentityRequest: async (run: () => Promise<Response>) => {
+      mocks.inIdentityRequest = true;
+      try {
+        return await run();
+      } finally {
+        mocks.inIdentityRequest = false;
+      }
+    },
   },
 }));
 
-import { Route } from "@everr/app/routes/api/auth/$";
+import { Route } from "./$";
 
 type AuthHandler = (args: { request: Request }) => Response | Promise<Response>;
 
@@ -28,7 +35,7 @@ function getHandler(method: "GET" | "POST") {
 
 beforeEach(() => {
   mocks.handler.mockReset();
-  mocks.inBillingRequest = false;
+  mocks.inIdentityRequest = false;
 });
 
 describe("/api/auth/$ route", () => {
@@ -48,18 +55,18 @@ describe("/api/auth/$ route", () => {
   it.each([
     "GET",
     "POST",
-  ] as const)("handles %s inside the billing request context", async (method) => {
+  ] as const)("handles %s inside the identity request context", async (method) => {
     const request = new Request("http://localhost:5173/api/auth/get-session", {
       method,
     });
     const expected = new Response("auth response");
     mocks.handler.mockImplementation(async (received) => {
       expect(received).toBe(request);
-      expect(mocks.inBillingRequest).toBe(true);
+      expect(mocks.inIdentityRequest).toBe(true);
       return expected;
     });
     expect(await getHandler(method)({ request })).toBe(expected);
     expect(mocks.handler).toHaveBeenCalledTimes(1);
-    expect(mocks.inBillingRequest).toBe(false);
+    expect(mocks.inIdentityRequest).toBe(false);
   });
 });

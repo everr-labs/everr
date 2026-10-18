@@ -23,11 +23,15 @@ const state = vi.hoisted(() => ({
   ready: true,
   suspended: false,
   member: true,
+  accessError: null as Error | null,
+  membershipReads: vi.fn(),
   load: vi.fn(),
 }));
 vi.mock("@everr/app/data/organization-access", () => ({
-  getActiveOrganizationAccess: vi.fn(async () =>
-    state.member
+  getActiveOrganizationAccess: vi.fn(async () => {
+    state.membershipReads();
+    if (state.accessError) throw state.accessError;
+    return state.member
       ? {
           status: "available",
           organization: {
@@ -35,8 +39,8 @@ vi.mock("@everr/app/data/organization-access", () => ({
             metadata: JSON.stringify({ clickhouseReady: state.ready }),
           },
         }
-      : { status: "missing" },
-  ),
+      : { status: "missing" };
+  }),
 }));
 vi.mock("@everr/app/data/product", () => ({
   getActiveOrgPolicy: vi.fn(async () => ({
@@ -74,7 +78,11 @@ for (const path of [
               path === sharedRouteModules.device
                 ? { authEntry: "/auth/sign-up" }
                 : {},
-            loader: () => state.load(path),
+            loader: ({ context }) =>
+              state.load(
+                path,
+                (context as { organization?: { id: string } }).organization,
+              ),
           }),
   }));
 }
@@ -87,6 +95,7 @@ beforeEach(() => {
   };
   state.createdOrganizationId = null;
   state.member = true;
+  state.accessError = null;
   state.ready = true;
   state.suspended = false;
   vi.clearAllMocks();
@@ -109,7 +118,7 @@ it("blocks data loaders and preserves the entire destination for pending organiz
     "/logs?service=api#results",
   );
   expect(
-    state.load.mock.calls.some(([path]) => path.endsWith("/_explore/logs.tsx")),
+    state.load.mock.calls.some(([path]) => path === sharedRouteModules.logs),
   ).toBe(false);
 });
 it("redirects suspended organizations before loading telemetry", async () => {
@@ -117,7 +126,7 @@ it("redirects suspended organizations before loading telemetry", async () => {
   const router = await open("/logs?service=api");
   expect(router.state.location.pathname).toBe("/billing/suspended");
   expect(
-    state.load.mock.calls.some(([path]) => path.endsWith("/_explore/logs.tsx")),
+    state.load.mock.calls.some(([path]) => path === sharedRouteModules.logs),
   ).toBe(false);
 });
 it.each([
@@ -138,6 +147,7 @@ it("keeps account settings accessible without an organization", async () => {
   };
   state.member = false;
   expect((await open("/account")).state.location.pathname).toBe("/account");
+  expect(state.membershipReads).not.toHaveBeenCalled();
 });
 it("forces fast automatic creation through setup and resumes data routes after completion", async () => {
   state.createdOrganizationId = "org";
@@ -176,4 +186,51 @@ it("keeps signed-in creation accessible without an organization", async () => {
     (await open("/create-organization?returnTo=%2Flogs")).state.location
       .pathname,
   ).toBe("/create-organization");
+});
+
+it("passes verified organization context to data loaders", async () => {
+  await open("/logs");
+  expect(state.membershipReads).toHaveBeenCalledOnce();
+  expect(state.load).toHaveBeenCalledWith(
+    sharedRouteModules.logs,
+    expect.objectContaining({ id: "org" }),
+  );
+});
+it("preserves the destination when no organization is selected", async () => {
+  state.session = {
+    user: { id: "user" },
+    session: { activeOrganizationId: null },
+  };
+  const router = await open("/logs?service=api#results");
+  expect(router.state.location.pathname).toBe("/choose-organization");
+  expect(router.state.location.search.returnTo).toBe(
+    "/logs?service=api#results",
+  );
+  expect(state.membershipReads).not.toHaveBeenCalled();
+});
+it("redirects revoked membership before running data loaders", async () => {
+  state.member = false;
+  const router = await open("/logs?service=api#results");
+  expect(router.state.location.pathname).toBe("/choose-organization");
+  expect(router.state.location.search.returnTo).toBe(
+    "/logs?service=api#results",
+  );
+  expect(
+    state.load.mock.calls.some(([path]) => path === sharedRouteModules.logs),
+  ).toBe(false);
+});
+it("does not apply another organization's creation continuation", async () => {
+  state.createdOrganizationId = "another-org";
+  expect((await open("/logs")).state.location.pathname).toBe("/logs");
+});
+it("keeps organization lookup failures visible instead of redirecting", async () => {
+  state.accessError = new Error("Organization database unavailable");
+  const router = await open("/logs");
+  expect(router.state.location.pathname).toBe("/logs");
+  expect(
+    router.state.matches.some((match) => match.error === state.accessError),
+  ).toBe(true);
+  expect(
+    state.load.mock.calls.some(([path]) => path === sharedRouteModules.logs),
+  ).toBe(false);
 });

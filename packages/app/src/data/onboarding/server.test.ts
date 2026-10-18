@@ -1,13 +1,19 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
+vi.mock("@composition/server", () => ({
+  server: { getIngestEndpoint: () => "https://ingest.example.test/" },
+}));
+
 const store = vi.hoisted(() => ({ getStatus: vi.fn(), complete: vi.fn() }));
-vi.mock("@everr/app/db/client", () => ({ db: {} }));
-vi.mock("@everr/app/data/onboarding/store", () => ({ createOnboardingStore: () => store }));
-vi.mock("@everr/app/env", () => ({
+vi.mock("#app/db/client.ts", () => ({ db: {} }));
+vi.mock("#app/data/onboarding/store.ts", () => ({
+  createOnboardingStore: () => store,
+}));
+vi.mock("#app/env/index.ts", () => ({
   env: { BETTER_AUTH_URL: "https://app.example.test" },
 }));
 
-import { completeOnboarding, getHomeStatus } from "@everr/app/data/onboarding/server";
+import { completeOnboarding, getHomeStatus } from "./server";
 
 beforeEach(() => vi.clearAllMocks());
 it("derives identity and the active organization from the authenticated session", async () => {
@@ -41,7 +47,7 @@ it("rejects injected identity, secrets and flag values", async () => {
   expect(store.complete).not.toHaveBeenCalled();
 });
 
-it("includes the hosted ingestion endpoint in Cloud onboarding", async () => {
+it("includes the configured ingestion endpoint and application URL", async () => {
   store.getStatus.mockResolvedValue({
     canCreateKeys: true,
     onboardingCompleted: false,
@@ -50,7 +56,7 @@ it("includes the hosted ingestion endpoint in Cloud onboarding", async () => {
     {
       canCreateKeys: true,
       onboardingCompleted: false,
-      ingestEndpoint: "https://ingest.everr.dev/",
+      ingestEndpoint: "https://ingest.example.test/",
       appUrl: "https://app.example.test",
     },
   );

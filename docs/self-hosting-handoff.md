@@ -110,7 +110,7 @@ settings dialog; no deletion was submitted. Generated route trees did not
 change. This pass and the preceding compiler-config simplification are included in
 this checkpoint.
 
-The test-ownership pass included in this checkpoint moves 20 alerting integration suites
+The test-ownership pass committed as `fd067ec20` moves 20 alerting integration suites
 and their harness into app. The shared testing-config export supplies the suite
 selection, so cloud does not name shared test directories. Cloud runs its own
 tests plus those suites, rather
@@ -135,6 +135,33 @@ passed. Signed-in browser smoke checks passed in both apps using a disposable
 database, and both generated route trees stayed unchanged. Initial
 simultaneous full-suite runs hit startup timeouts; sequential runs passed with
 unchanged timeout limits. Run these database-heavy suites sequentially locally.
+
+The current uncommitted follow-up reduces exports from 81 to 67. Generic
+onboarding validation and auth-route handler tests now live in app. Cloud owns
+its ingestion endpoint assertion, and its real runtime adapter is exercised by
+the billing lock-lifetime test. Guard assertions use the existing composed
+router tests, including verified organization context, missing/revoked
+membership, creation continuation, and infrastructure failures. Direct shared
+guard-route exports are removed. Existing overlapping unit assertions are
+consolidated into those behavior checks. Verification: all 469 cloud tests
+passed (external Polar sandbox skipped), as did 16 focused app/composition
+tests, both typechecks, boundary lint and fixtures, and Fallow. This follow-up
+changes tests and exports; it does not require schema migrations.
+
+The latest reduction removes unused router, server, start, test setup, and
+package metadata entry points. Cloud billing imports the existing public schema
+entry instead of a duplicate auth-schema export. Cloud retention tests declare
+their expected values directly, removing the shared retention-fixture export.
+The remaining private fixture is still used by app tests.
+Verification for this additional reduction: both production builds, cloud
+typecheck, six retention and legacy-migration tests, boundary lint, and Fallow
+passed. Both generated route trees stayed unchanged.
+
+The next useful design work is UI assembly. Welcome-flow tests still compose
+shared route implementations and mock UI details; address that coupling while
+clarifying the welcome, account, and menu interfaces. Worker lifecycle tests also
+retain some internal helper imports. Do not introduce a broad test-only facade
+that merely renames those private files.
 
 ### UI ownership
 
@@ -172,8 +199,9 @@ The following improvements are proposed, not implemented, in priority order:
 1. Continue narrowing the shared package's public interface. The first pass
    consolidates adapter types and gives members, account settings, and layout
    stable entry points. The alerting test-ownership pass removes its internal
-   exports. Next inspect the remaining composed routing/lifecycle test imports
-   and group runtime helpers where a capability can hide meaningful
+   exports. The follow-up removes direct guard-route and onboarding internals.
+   Address the remaining welcome-flow imports during UI assembly work, and
+   group worker/runtime helpers only where a capability can hide meaningful
    implementation details. Preserve useful behavior coverage.
 2. Keep UI assembly close to each application's entry points. Cloud should
    assemble its menus, account page, and welcome experience from shared
