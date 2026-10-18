@@ -145,7 +145,6 @@
     "./server/worker/jobs": "./src/server/worker/jobs.ts",
     "./server/worker/managed-worker": "./src/server/worker/managed-worker.ts",
     "./server/worker/runtime": "./src/server/worker/runtime.ts",
-    "./telemetry/clickhouse": "./src/telemetry/clickhouse.ts",
     "./telemetry/client": "./src/telemetry/client.ts",
     "./telemetry/consent-gate": "./src/telemetry/consent-gate.tsx",
     "./telemetry/error-boundary": "./src/telemetry/error-boundary.ts",

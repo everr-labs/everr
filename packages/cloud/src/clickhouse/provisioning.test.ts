@@ -3,35 +3,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   deprovisionSqlApiOrgUser,
   provisionSqlApiOrgUser,
-} from "../../../clickhouse/provisioning";
+} from "./provisioning";
 
-const {
-  mockQuery,
-  mockInsert,
-  mockCommand,
-  mockJson,
-  mockInstrumentClickhouseOperation,
-  MASTER_KEY,
-} = vi.hoisted(() => ({
+const { mockQuery, mockCommand, mockJson, MASTER_KEY } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
-  mockInsert: vi.fn(),
   mockCommand: vi.fn(),
   mockJson: vi.fn(),
-  mockInstrumentClickhouseOperation: vi.fn(
-    async (_attributes: unknown, run: () => Promise<unknown>) => run(),
-  ),
   MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
 }));
 
 vi.mock("@clickhouse/client", () => ({
   createClient: vi.fn(() => ({
     query: mockQuery,
-    insert: mockInsert,
     command: mockCommand,
   })),
 }));
 
-vi.mock("../../../app/env", () => ({
+vi.mock("../app/env", () => ({
   appEnv: { CLICKHOUSE_SQL_API_MASTER_KEY: MASTER_KEY },
 }));
 
@@ -47,14 +35,9 @@ vi.mock("@everr/app/env", () => ({
   },
 }));
 
-vi.mock("@everr/app/telemetry/clickhouse", () => ({
-  instrumentClickhouseOperation: mockInstrumentClickhouseOperation,
-}));
-
 vi.unmock("@everr/app/lib/clickhouse");
 
-import { query, querySqlApi, querySqlApiWithMeta } from "@everr/app/lib/clickhouse";
-import { insertRows } from "@everr/app/lib/clickhouse-writer";
+import { query, querySqlApi } from "@everr/app/lib/clickhouse";
 
 const ORG = "org42";
 const ORG_USER = `sql_api_org_${ORG}`;
@@ -64,27 +47,12 @@ const ORG_PASSWORD = `${createHmac("sha256", MASTER_KEY)
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockInstrumentClickhouseOperation.mockImplementation(
-    async (_attributes: unknown, run: () => Promise<unknown>) => run(),
-  );
   mockJson.mockReturnValue([]);
   mockQuery.mockResolvedValue({ json: mockJson });
   mockCommand.mockResolvedValue(undefined);
 });
 
 describe("query", () => {
-  it("wraps app ClickHouse reads in telemetry", async () => {
-    await query("SELECT {n:UInt8}", ORG, { n: 1 });
-
-    expect(mockInstrumentClickhouseOperation).toHaveBeenCalledWith(
-      {
-        client: "app",
-        operation: "QUERY",
-      },
-      expect.any(Function),
-    );
-  });
-
   it("forwards caller-supplied settings alongside the tenant scope", async () => {
     await query("SELECT 1", ORG, undefined, { max_execution_time: 30 });
 
@@ -114,13 +82,6 @@ describe("querySqlApi", () => {
   it("authenticates per-query as the org user and forwards query params", async () => {
     await querySqlApi("SELECT {n:UInt8}", ORG, { n: 1 });
 
-    expect(mockInstrumentClickhouseOperation).toHaveBeenCalledWith(
-      {
-        client: "sql_api",
-        operation: "QUERY",
-      },
-      expect.any(Function),
-    );
     expect(mockQuery).toHaveBeenCalledWith({
       query: "SELECT {n:UInt8}",
       query_params: { n: 1 },
@@ -143,77 +104,6 @@ describe("querySqlApi", () => {
 
     expect(firstAuth).toEqual(secondAuth);
     expect(firstAuth.password).toBe(ORG_PASSWORD);
-  });
-
-  it("rejects when tenant id is missing", async () => {
-    await expect(querySqlApi("SELECT 1", "")).rejects.toThrow(
-      /workspace context/i,
-    );
-    expect(mockQuery).not.toHaveBeenCalled();
-  });
-});
-
-describe("querySqlApiWithMeta", () => {
-  it("uses JSON format so column metadata is available for empty results", async () => {
-    mockJson.mockResolvedValueOnce({
-      meta: [
-        { name: "route", type: "String" },
-        { name: "n", type: "UInt64" },
-      ],
-      data: [],
-    });
-
-    await expect(querySqlApiWithMeta("SELECT 1", ORG)).resolves.toEqual({
-      rows: [],
-      columns: ["route", "n"],
-      columnTypes: ["String", "UInt64"],
-    });
-
-    expect(mockQuery).toHaveBeenCalledWith({
-      query: "SELECT 1",
-      query_params: undefined,
-      format: "JSON",
-      auth: { username: ORG_USER, password: ORG_PASSWORD },
-      http_headers: { "X-ClickHouse-Quota": ORG_USER },
-    });
-  });
-});
-
-describe("insertRows", () => {
-  it("writes rows through the admin client with the given settings", async () => {
-    await insertRows(
-      "app.logs",
-      [
-        {
-          organization_id: ORG,
-          service_name: "everr",
-          body: "hello",
-        },
-      ],
-      { async_insert: 1, wait_for_async_insert: 1 },
-    );
-
-    expect(mockInsert).toHaveBeenCalledWith({
-      table: "app.logs",
-      values: [
-        {
-          organization_id: ORG,
-          service_name: "everr",
-          body: "hello",
-        },
-      ],
-      format: "JSONEachRow",
-      clickhouse_settings: {
-        async_insert: 1,
-        wait_for_async_insert: 1,
-      },
-    });
-  });
-
-  it("does not issue an insert for an empty batch", async () => {
-    await insertRows("app.logs", []);
-
-    expect(mockInsert).not.toHaveBeenCalled();
   });
 });
 
@@ -240,10 +130,6 @@ describe("provisionSqlApiOrgUser", () => {
 
     const setRoleCall = mockCommand.mock.calls[1][0];
     const grantCall = mockCommand.mock.calls[2][0];
-    expect(mockInstrumentClickhouseOperation.mock.calls[0][0]).toEqual({
-      client: "admin",
-      operation: "QUERY",
-    });
     expect(setRoleCall.clickhouse_settings.session_id).toBeDefined();
     expect(grantCall.clickhouse_settings.session_id).toBe(
       setRoleCall.clickhouse_settings.session_id,
