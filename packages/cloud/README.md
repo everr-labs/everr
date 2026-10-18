@@ -1,5 +1,8 @@
 # Cloud application
 
+See [organization billing](docs/billing.md) for Polar identity, access, checkout
+recovery, and verification.
+
 # Cloud organization data access setup
 
 The organization adapter atomically records provisioning intent alongside creation.
