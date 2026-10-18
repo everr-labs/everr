@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRouteWithContext,
-  createRoute,
+  createFileRoute,
   createRouter,
   Outlet,
   RouterProvider,
@@ -27,9 +27,8 @@ const mocks = vi.hoisted(() => ({
   verification: vi.fn(),
   refetch: () => Promise.resolve(),
 }));
-vi.mock("@everr/app/routes/_welcome/-components/ascii-logo", () => ({
-  AsciiLogo: () => null,
-}));
+// jsdom has no canvas renderer; keep the real welcome layout mounted.
+vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 vi.mock("@everr/app/lib/auth-client", () => ({
   authClient: {
     signUp: { email: mocks.signup },
@@ -64,13 +63,53 @@ vi.mock("@everr/app/data/invite", async () => {
   };
 });
 
-import { Route as setupRoute } from "../../routes/_welcome/_signedIn/_organization/organization-setup";
-import { Route as chooseRoute } from "../../routes/_welcome/_signedIn/choose-organization";
-import { Route as authRoute } from "@everr/app/routes/_welcome";
-import { Route as guestRoute } from "@everr/app/routes/_welcome/_guest";
-import { Route as signupRoute } from "@everr/app/routes/_welcome/_guest/auth/sign-up";
-import { Route as onboardingRoute } from "@everr/app/routes/_welcome/_signedIn";
-import { Route as invitationRoute } from "@everr/app/routes/_welcome/invite.$invitationId";
+import {
+  productRouteFiles,
+  sharedRouteModules,
+} from "@everr/app/testing/routes";
+
+const sourceModule = (path: string) => new URL(path, import.meta.url).pathname;
+const retained = new Set([
+  sharedRouteModules.welcome,
+  sharedRouteModules.guest,
+  sharedRouteModules.signup,
+  sharedRouteModules.invitation,
+  sharedRouteModules.signedIn,
+  sourceModule("../../routes/_welcome/_signedIn/_organization.tsx"),
+  sourceModule(
+    "../../routes/_welcome/_signedIn/_organization/organization-setup.tsx",
+  ),
+  sourceModule("../../routes/_welcome/_signedIn/choose-organization.tsx"),
+]);
+for (const path of [
+  ...productRouteFiles,
+  ...Object.keys(import.meta.glob("../../routes/**/*.{ts,tsx}")).map(
+    sourceModule,
+  ),
+]) {
+  if (retained.has(path)) continue;
+  vi.doMock(path, () => {
+    if (path !== sharedRouteModules.root)
+      return { Route: createFileRoute()({}) };
+    const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+      beforeLoad: () => ({
+        session: mocks.session,
+        googleSignInEnabled: mocks.googleEnabled,
+        emailEnabled: mocks.emailEnabled,
+      }),
+      component: () => {
+        const { queryClient } = Route.useRouteContext();
+        return (
+          <QueryClientProvider client={queryClient}>
+            <Outlet />
+          </QueryClientProvider>
+        );
+      },
+    });
+    return { Route };
+  });
+}
+const { routeTree } = await import("@composition/routes");
 
 function signUpInvitedUser() {
   mocks.session = {
@@ -97,73 +136,8 @@ beforeEach(() => {
 
 function invitationSignupRouter() {
   const queryClient = new QueryClient();
-  const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-    beforeLoad: () => ({
-      session: mocks.session,
-      googleSignInEnabled: mocks.googleEnabled,
-      emailEnabled: mocks.emailEnabled,
-    }),
-    component: () => (
-      <QueryClientProvider client={queryClient}>
-        <Outlet />
-      </QueryClientProvider>
-    ),
-  });
-  const authentication = createRoute({
-    getParentRoute: () => root,
-    id: "_welcome",
-    component: authRoute.options.component,
-  });
-  const guest = createRoute({
-    getParentRoute: () => authentication,
-    id: "_guest",
-    beforeLoad: (options) => guestRoute.options.beforeLoad?.(options as never),
-    component: guestRoute.options.component,
-  });
-  const signup = createRoute({
-    getParentRoute: () => guest,
-    path: "/auth/sign-up",
-    validateSearch: signupRoute.options.validateSearch,
-    beforeLoad: (options) => signupRoute.options.beforeLoad?.(options as never),
-    component: signupRoute.options.component,
-  });
-  const onboarding = createRoute({
-    getParentRoute: () => authentication,
-    id: "_signedIn",
-    beforeLoad: (options) =>
-      onboardingRoute.options.beforeLoad?.(options as never),
-  });
-  const setup = createRoute({
-    getParentRoute: () => onboarding,
-    path: "/organization-setup",
-    validateSearch: setupRoute.options.validateSearch,
-    component: setupRoute.options.component,
-  });
-  const choose = createRoute({
-    getParentRoute: () => onboarding,
-    path: "/choose-organization",
-    validateSearch: chooseRoute.options.validateSearch,
-    component: chooseRoute.options.component,
-  });
-  const invitation = createRoute({
-    getParentRoute: () => authentication,
-    path: "/invite/$invitationId",
-    loader: (options) => {
-      const loader = invitationRoute.options.loader;
-      if (typeof loader !== "function")
-        throw new Error("Expected invite loader");
-      return loader(options as never);
-    },
-    component: invitationRoute.options.component,
-  });
   return createRouter({
-    routeTree: root.addChildren([
-      authentication.addChildren([
-        guest.addChildren([signup]),
-        onboarding.addChildren([setup, choose]),
-        invitation,
-      ]),
-    ]),
+    routeTree,
     history: createMemoryHistory({
       initialEntries: ["/invite/invitation-123"],
     }),

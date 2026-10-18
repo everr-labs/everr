@@ -423,7 +423,7 @@ and optionally `VITE_EVERR_PUBLIC_INGEST_KEY`.
 Application behavior is supplied as typed values. The contracts live in
 `src/product`: `ApplicationServer`, `ApplicationIdentity`,
 `ApplicationNavigation`, `ApplicationDashboards`, `Product`, `ProductClient`,
-and `ProductUI`. Implementations use `satisfies` or an explicit type annotation
+`ApplicationPages`, `ApplicationLayouts`, and `ProductUI`. Implementations use `satisfies` or an explicit type annotation
 so missing methods and incompatible signatures fail typechecking.
 
 Public adapter types are imported from `@everr/app/composition`. This entry
@@ -474,9 +474,17 @@ routes: {
 ```
 
 `ApplicationPages.members` replaces page loading and rendering while preserving
-the route's existing authentication and admin guards. `ProductUI` declares menu
-and welcome-action contributions, a sign-in footer, account-deletion UI, and
-device-login recovery content. Defaults describe an ordinary installation.
+the route's existing authentication and admin guards. `ApplicationPages.account`
+assembles account settings and the application's deletion flow. The shared
+`AccountSettings` component owns profile, sign-in methods, and session behavior;
+its children supply the account lifecycle section. `ApplicationLayouts` assembles
+the user menu and welcome shell. The public `UserMenu` and `WelcomeLayout`
+components accept ordinary React nodes for additional actions. Organization
+menu actions remain inside the shared admin check, and welcome actions render
+only while signed in. Applications compose these components directly, without
+contribution IDs or placement registries. `ProductUI` now contains only the
+sign-in footer and device-login recovery content. Defaults describe an ordinary
+installation.
 Shared feature components own reusable behavior; application compositions own
 their additional actions and policy decisions. Server authorization remains
 independent of these UI decisions.

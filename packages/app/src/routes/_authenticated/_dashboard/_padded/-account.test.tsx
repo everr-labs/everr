@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@composition/ui", async () => import("#app/product/ui.tsx"));
+vi.mock("@composition/pages", async () => import("#app/product/pages.tsx"));
 
 const mocks = vi.hoisted(() => ({
   googleEnabled: true,

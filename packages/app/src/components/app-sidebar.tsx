@@ -1,4 +1,4 @@
-import { productUI } from "@composition/ui";
+import { layouts } from "@composition/layouts";
 import { EverrLogoMark } from "@everr/ui/components/everr-logo";
 import {
   Sidebar,
@@ -12,7 +12,6 @@ import {
 } from "@everr/ui/components/sidebar";
 import { Link } from "@tanstack/react-router";
 import { NavMain } from "#app/components/nav-main.tsx";
-import { NavUser } from "#app/components/nav-user.tsx";
 import { navGroups } from "#app/lib/navigation.ts";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -39,7 +38,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain groups={navGroups} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser items={productUI.userMenu ?? []} />
+        <layouts.UserMenu />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

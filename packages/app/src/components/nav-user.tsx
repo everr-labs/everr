@@ -23,12 +23,21 @@ import {
   Settings,
   Users,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { authClient } from "#app/lib/auth-client.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
-import type { UserMenuContribution } from "#app/product/ui.tsx";
 import { useOpenConsentSettings } from "#app/telemetry/consent-gate.tsx";
 
-export function NavUser({ items }: { items: readonly UserMenuContribution[] }) {
+export interface UserMenuProps {
+  beforeOrganization?: ReactNode;
+  /** Rendered inside the organization group, only for organization admins. */
+  organizationItems?: ReactNode;
+}
+
+export function UserMenu({
+  beforeOrganization,
+  organizationItems,
+}: UserMenuProps) {
   const openConsentSettings = useOpenConsentSettings();
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
@@ -103,11 +112,7 @@ export function NavUser({ items }: { items: readonly UserMenuContribution[] }) {
               </div>
             </div>
             <DropdownMenuSeparator />
-            {items
-              .filter((item) => item.placement === "before-organization")
-              .map(({ id, component: Component }) => (
-                <Component key={id} />
-              ))}
+            {beforeOrganization}
             {activeOrg && isAdmin ? (
               <>
                 <DropdownMenuSeparator />
@@ -136,11 +141,7 @@ export function NavUser({ items }: { items: readonly UserMenuContribution[] }) {
                       GitHub
                     </DropdownMenuItem>
                   ) : null}
-                  {items
-                    .filter((item) => item.placement === "organization")
-                    .map(({ id, component: Component }) => (
-                      <Component key={id} />
-                    ))}
+                  {organizationItems}
                 </DropdownMenuGroup>
               </>
             ) : null}

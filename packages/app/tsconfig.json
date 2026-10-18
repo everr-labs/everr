@@ -18,7 +18,8 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@composition/pages": ["./src/product/pages.ts"],
+      "@composition/layouts": ["./src/product/layouts.tsx"],
+      "@composition/pages": ["./src/product/pages.tsx"],
       "@composition/ui": ["./src/product/ui.tsx"],
       "@composition/server": ["./src/app/composition/server.ts"],
       "@composition/client": ["./src/app/composition/client.tsx"],

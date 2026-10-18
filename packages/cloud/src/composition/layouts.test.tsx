@@ -12,6 +12,7 @@ import { StorageNotReadyError } from "@everr/app/common/storage-readiness";
 
 const mocks = vi.hoisted(() => ({
   githubEnabled: false,
+  pathname: "/organization-setup",
   invalidate: vi.fn(),
   openConsentSettings: vi.fn(),
   role: "owner",
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
+  useLocation: () => mocks.pathname,
   useRouteContext: () => ({ githubEnabled: mocks.githubEnabled }),
   Link: forwardRef<
     HTMLAnchorElement,
@@ -36,7 +38,7 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 
-vi.mock("../../../data/organizations", () => ({
+vi.mock("../data/organizations", () => ({
   createOrganization: vi.fn(),
   getOrganizationCreationOptions: vi
     .fn()
@@ -74,10 +76,9 @@ vi.mock("@everr/app/telemetry/consent-gate", () => ({
   useOpenConsentSettings: () => mocks.openConsentSettings,
 }));
 
-import { productUI } from "../../../composition/ui";
-import { NavUser } from "@everr/app/components/nav-user";
+import { layouts } from "./layouts";
 
-describe("NavUser", () => {
+describe("User menu", () => {
   beforeEach(() => {
     mocks.role = "owner";
     mocks.githubEnabled = false;
@@ -116,7 +117,7 @@ describe("NavUser", () => {
       render(
         <QueryClientProvider client={queryClient}>
           <SidebarProvider>
-            <NavUser items={productUI.userMenu ?? []} />
+            <layouts.UserMenu />
           </SidebarProvider>
         </QueryClientProvider>,
       );
@@ -151,7 +152,7 @@ describe("NavUser", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <SidebarProvider>
-          <NavUser items={productUI.userMenu ?? []} />
+          <layouts.UserMenu />
         </SidebarProvider>
       </QueryClientProvider>,
     );
@@ -178,7 +179,7 @@ describe("NavUser", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <SidebarProvider>
-          <NavUser items={productUI.userMenu ?? []} />
+          <layouts.UserMenu />
         </SidebarProvider>
       </QueryClientProvider>,
     );
@@ -198,7 +199,7 @@ describe("NavUser", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <SidebarProvider>
-          <NavUser items={productUI.userMenu ?? []} />
+          <layouts.UserMenu />
         </SidebarProvider>
       </QueryClientProvider>,
     );
@@ -207,5 +208,49 @@ describe("NavUser", () => {
 
     expect(await screen.findByText("Account & privacy")).toBeVisible();
     expect(screen.queryByText("Organization settings")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Plan & Billing" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Acme" })).toBeVisible();
   });
+});
+
+// jsdom has no canvas renderer; exercise the actual welcome layout.
+vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+
+it.each([
+  [true, "/organization-setup", true],
+  [true, "/choose-organization", false],
+  [false, "/organization-setup", false],
+] as const)("shows the welcome switcher when signed in on setup (%s, %s)", async (signedIn, pathname, visible) => {
+  mocks.pathname = pathname;
+  mocks.organizations = [
+    { id: "org_1", name: "Acme" },
+    { id: "org_2", name: "Other" },
+  ];
+  mocks.setActive.mockClear();
+  mocks.invalidate.mockClear();
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <layouts.Welcome signedIn={signedIn} activeOrganizationId="org_1">
+        <p>Welcome page content</p>
+      </layouts.Welcome>
+    </QueryClientProvider>,
+  );
+  expect(screen.getByText("Welcome page content")).toBeVisible();
+  if (!visible) {
+    expect(
+      screen.queryByRole("button", { name: "Switch organization" }),
+    ).not.toBeInTheDocument();
+    expect(!!screen.queryByRole("button", { name: "Log out" })).toBe(signedIn);
+    return;
+  }
+  const user = userEvent.setup();
+  const switcher = screen.getByRole("button", { name: "Switch organization" });
+  expect(switcher).toHaveTextContent("Acme");
+  switcher.focus();
+  await user.keyboard("{ArrowDown}");
+  await user.click(await screen.findByRole("menuitem", { name: "Other" }));
+  expect(mocks.setActive).toHaveBeenCalledWith({ organizationId: "org_2" });
+  expect(mocks.invalidate).toHaveBeenCalledOnce();
 });

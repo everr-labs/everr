@@ -1,16 +1,26 @@
-vi.mock("@everr/app/lib/mailer.server", () => ({ mailer: null }));
-vi.mock("@everr/app/lib/auth-providers.server", () => ({ socialProviders: undefined }));
+// Supply server configuration while rendering the real root route in jsdom.
+vi.mock("@everr/app/env", () => ({
+  env: {
+    NODE_ENV: "test",
+    EMAIL_DSN: undefined,
+    GOOGLE_CLIENT_ID: undefined,
+    GOOGLE_CLIENT_SECRET: undefined,
+  },
+}));
 vi.mock("../../organization-provisioning/actions", () => ({
   completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@everr/app/data/organization-access", () => ({
-  getActiveOrganizationAccess: vi.fn(),
+  getActiveOrganizationAccess: vi.fn().mockResolvedValue({
+    status: "available",
+    organization: { id: "only-org" },
+  }),
 }));
 
 import { QueryClient } from "@tanstack/react-query";
 import {
   createMemoryHistory,
-  createRoute,
+  createFileRoute,
   createRouter,
   RouterProvider,
   useRouter,
@@ -20,9 +30,8 @@ import { type ReactNode, useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
 vi.mock("@everr/app/telemetry/client", () => ({}));
-vi.mock("@everr/app/routes/_welcome/-components/ascii-logo", () => ({
-  AsciiLogo: () => <div data-testid="mascot" />,
-}));
+// jsdom has no canvas renderer; keep the real welcome layout mounted.
+vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 vi.mock("@everr/app/telemetry/consent-gate", () => ({
   ConsentGate: ({ children }: { children: ReactNode }) => children,
 }));
@@ -46,9 +55,61 @@ vi.mock("@tanstack/react-start", () => ({
 
 import { useOrganizationSetupCompletion } from "../../components/use-organization-setup-completion";
 import { auth } from "@everr/app/lib/auth.server";
-import { Route as root } from "@everr/app/routes/__root";
-import { Route as authRoute } from "@everr/app/routes/_welcome";
-import { Route as onboardingRoute } from "@everr/app/routes/_welcome/_signedIn";
+import {
+  productRouteFiles,
+  sharedRouteModules,
+} from "@everr/app/testing/routes";
+
+function Signup() {
+  const router = useRouter();
+  return (
+    <button
+      type="button"
+      onClick={() => void router.navigate({ to: "/organization-setup" })}
+    >
+      Complete signup
+    </button>
+  );
+}
+function Setup() {
+  const [startedAt] = useState(Date.now);
+  useOrganizationSetupCompletion(true, startedAt, "/", "only-org");
+  return <p>Provisioning</p>;
+}
+const sourceModule = (path: string) => new URL(path, import.meta.url).pathname;
+const setupModule = sourceModule(
+  "../../routes/_welcome/_signedIn/_organization/organization-setup.tsx",
+);
+const retained = new Set([
+  sharedRouteModules.root,
+  sharedRouteModules.welcome,
+  sharedRouteModules.guest,
+  sharedRouteModules.signedIn,
+  sourceModule("../../routes/_welcome/_signedIn/_organization.tsx"),
+]);
+for (const path of [
+  ...productRouteFiles,
+  ...Object.keys(import.meta.glob("../../routes/**/*.{ts,tsx}")).map(
+    sourceModule,
+  ),
+]) {
+  if (retained.has(path)) continue;
+  vi.doMock(path, () => ({
+    Route: createFileRoute()({
+      component:
+        path === sharedRouteModules.signup
+          ? Signup
+          : path === setupModule
+            ? Setup
+            : path === sharedRouteModules.home
+              ? () => <p>Dashboard</p>
+              : undefined,
+    }),
+  }));
+}
+const { routeTree } = await import("@composition/routes");
+// Render route content inside jsdom's existing document.
+Object.assign(routeTree.options, { shellComponent: undefined });
 
 afterEach(() => vi.useRealTimers());
 
@@ -58,55 +119,8 @@ it("preserves the welcome mascot from signup through setup and refreshes auth on
   vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   vi.mocked(auth.api.getSession).mockResolvedValueOnce(null);
 
-  function Signup() {
-    const router = useRouter();
-    return (
-      <button
-        type="button"
-        onClick={() => void router.navigate({ to: "/organization-setup" })}
-      >
-        Complete signup
-      </button>
-    );
-  }
-  function Setup() {
-    const [startedAt] = useState(Date.now);
-    useOrganizationSetupCompletion(true, startedAt, "/", "only-org");
-    return <p>Provisioning</p>;
-  }
-  const authentication = createRoute({
-    getParentRoute: () => root,
-    id: "_welcome",
-    component: authRoute.options.component,
-  });
-  const onboarding = createRoute({
-    getParentRoute: () => authentication,
-    id: "_signedIn",
-    beforeLoad: (options) =>
-      onboardingRoute.options.beforeLoad?.(options as never),
-  });
-  const signup = createRoute({
-    getParentRoute: () => authentication,
-    path: "/auth/sign-up",
-    component: Signup,
-  });
-  const setup = createRoute({
-    getParentRoute: () => onboarding,
-    path: "/organization-setup",
-    component: Setup,
-  });
-  const app = createRoute({
-    getParentRoute: () => root,
-    path: "/",
-    component: () => <p>Dashboard</p>,
-  });
-  // This test renders the route content inside jsdom's existing document.
-  Object.assign(root.options, { shellComponent: undefined });
   const router = createRouter({
-    routeTree: root.addChildren([
-      authentication.addChildren([signup, onboarding.addChildren([setup])]),
-      app,
-    ]),
+    routeTree,
     history: createMemoryHistory({ initialEntries: ["/auth/sign-up"] }),
     context: { queryClient: new QueryClient() },
   });
@@ -115,7 +129,8 @@ it("preserves the welcome mascot from signup through setup and refreshes auth on
     await router.load();
   });
   render(<RouterProvider router={router} />);
-  const mascot = screen.getByTestId("mascot");
+  const mascot = document.querySelector("canvas");
+  expect(mascot).not.toBeNull();
   const headline = screen.getByText("Observability made simple");
   expect(screen.queryByRole("button", { name: "Log out" })).toBeNull();
   await act(async () => {
@@ -127,7 +142,7 @@ it("preserves the welcome mascot from signup through setup and refreshes auth on
   expect(
     screen.queryByRole("button", { name: "Switch organization" }),
   ).toBeNull();
-  expect(screen.getByTestId("mascot")).toBe(mascot);
+  expect(document.querySelector("canvas")).toBe(mascot);
   expect(screen.getByText("Observability made simple")).toBe(headline);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(2499);
@@ -139,5 +154,5 @@ it("preserves the welcome mascot from signup through setup and refreshes auth on
   });
   expect(screen.getByText("Dashboard")).toBeVisible();
   expect(auth.api.getSession).toHaveBeenCalledOnce();
-  expect(screen.queryByTestId("mascot")).toBeNull();
+  expect(document.querySelector("canvas")).toBeNull();
 });

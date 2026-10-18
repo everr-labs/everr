@@ -61,6 +61,7 @@ const compositionNames = [
   "dashboards",
   "ui",
   "pages",
+  "layouts",
   "routes",
 ] as const;
 

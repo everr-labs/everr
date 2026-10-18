@@ -42,6 +42,7 @@ function writeConfig(
               "dashboards",
               "ui",
               "pages",
+              "layouts",
             ].map((name) => [
               `@composition/${name}`,
               ["./src/arbitrary-name.tsx"],
@@ -106,6 +107,7 @@ it("keeps URLs and parent guards when a registered source file moves", async () 
         "dashboards",
         "ui",
         "pages",
+        "layouts",
       ].map((name) => [`@composition/${name}`, ["./src/renamed.tsx"]]),
     ),
   );

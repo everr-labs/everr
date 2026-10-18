@@ -1,3 +1,5 @@
+import { AccountSettings } from "@everr/app/account-settings";
+import { AccountDeletion } from "../components/account-deletion";
 import { OrganizationMembersPage } from "@everr/app/members";
 import { getActiveOrgPolicy } from "@everr/app/data/product";
 import type {
@@ -25,6 +27,11 @@ function MembersPage({ organizationId }: OrganizationPageProps) {
 }
 
 export const pages: ApplicationPages = {
+  account: (props) => (
+    <AccountSettings {...props}>
+      <AccountDeletion />
+    </AccountSettings>
+  ),
   members: {
     async load({ queryClient, organizationId }) {
       await queryClient.fetchQuery({

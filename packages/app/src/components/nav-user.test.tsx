@@ -33,7 +33,7 @@ vi.mock("#app/telemetry/consent-gate.tsx", () => ({
   useOpenConsentSettings: () => vi.fn(),
 }));
 
-import { NavUser } from "./nav-user";
+import { UserMenu } from "./nav-user";
 
 beforeEach(() => {
   state.role = "owner";
@@ -42,26 +42,14 @@ beforeEach(() => {
 it.each([
   "owner",
   "member",
-])("renders contributions in their allowed menu sections for %s", async (role) => {
+])("renders actions in their allowed menu sections for %s", async (role) => {
   state.role = role;
   const user = userEvent.setup();
   render(
     <SidebarProvider>
-      <NavUser
-        items={[
-          {
-            id: "general",
-            placement: "before-organization",
-            component: () => (
-              <DropdownMenuItem>General action</DropdownMenuItem>
-            ),
-          },
-          {
-            id: "admin",
-            placement: "organization",
-            component: () => <DropdownMenuItem>Admin action</DropdownMenuItem>,
-          },
-        ]}
+      <UserMenu
+        beforeOrganization={<DropdownMenuItem>General action</DropdownMenuItem>}
+        organizationItems={<DropdownMenuItem>Admin action</DropdownMenuItem>}
       />
     </SidebarProvider>,
   );

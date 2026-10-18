@@ -1,15 +1,4 @@
 import type { ComponentType } from "react";
-import { DeleteAccount } from "#app/components/account-settings/delete-account.tsx";
-
-export interface WelcomeActionProps {
-  activeOrganizationId?: string | null;
-}
-
-export interface UserMenuContribution {
-  id: string;
-  placement: "before-organization" | "organization";
-  component: ComponentType;
-}
 
 export interface SignInFooterProps {
   redirect?: string;
@@ -17,13 +6,7 @@ export interface SignInFooterProps {
 }
 
 export interface ProductUI {
-  userMenu?: readonly UserMenuContribution[];
-  welcomeActions?: readonly {
-    id: string;
-    component: ComponentType<WelcomeActionProps>;
-  }[];
   SignInFooter: ComponentType<SignInFooterProps>;
-  AccountDeletion: ComponentType;
   DeviceLoginRecovery: ComponentType;
 }
 
@@ -33,6 +16,5 @@ export const productUI: ProductUI = {
       Contact your administrator for an invitation.
     </p>
   ),
-  AccountDeletion: DeleteAccount,
   DeviceLoginRecovery: () => <>Restart the login from your terminal.</>,
 };

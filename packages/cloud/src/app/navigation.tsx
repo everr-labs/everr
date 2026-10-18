@@ -19,9 +19,8 @@ export function OrganizationMenuItems() {
 }
 
 import { OrganizationSwitcher } from "../components/organization-switcher";
-import type { WelcomeActionProps } from "@everr/app/composition";
 
-export function WelcomeActions(props: WelcomeActionProps) {
+export function WelcomeActions(props: { activeOrganizationId?: string | null }) {
   const pathname = useLocation({ select: (location) => location.pathname });
   return pathname === "/organization-setup" ? (
     <OrganizationSwitcher {...props} />

@@ -136,7 +136,7 @@ database, and both generated route trees stayed unchanged. Initial
 simultaneous full-suite runs hit startup timeouts; sequential runs passed with
 unchanged timeout limits. Run these database-heavy suites sequentially locally.
 
-The current uncommitted follow-up reduces exports from 81 to 67. Generic
+Commit `0be5fcf1c` reduces exports from 81 to 67. Generic
 onboarding validation and auth-route handler tests now live in app. Cloud owns
 its ingestion endpoint assertion, and its real runtime adapter is exercised by
 the billing lock-lifetime test. Guard assertions use the existing composed
@@ -157,11 +157,62 @@ Verification for this additional reduction: both production builds, cloud
 typecheck, six retention and legacy-migration tests, boundary lint, and Fallow
 passed. Both generated route trees stayed unchanged.
 
-The next useful design work is UI assembly. Welcome-flow tests still compose
-shared route implementations and mock UI details; address that coupling while
-clarifying the welcome, account, and menu interfaces. Worker lifecycle tests also
-retain some internal helper imports. Do not introduce a broad test-only facade
-that merely renames those private files.
+The current UI follow-up moves account assembly into `ApplicationPages.account`.
+The shared `AccountSettings` component owns profile, password, provider, and
+session behavior and accepts children for the lifecycle section. Each
+application assembles its own deletion UI, and `ProductUI.AccountDeletion` is
+removed. The file-based account route retains its metadata and supplies the
+Google configuration from route context. This adds one capability export,
+`@everr/app/account-settings`, bringing the public interface to 68 entries.
+Verification: both typechecks and production builds, 22 focused account,
+page-composition, and menu tests, boundary lint, and Fallow passed. Signed-in
+browser checks confirmed the account screens and their distinct confirmation
+dialogs. The temporary servers and database were stopped afterward. Generated
+route trees stayed unchanged.
+
+Menu and welcome assembly now use `ApplicationLayouts`, selected through the
+explicit `@composition/layouts` mapping. App uses the shared `UserMenu` and
+`WelcomeLayout` directly. Cloud assembles its workspace menu, billing item,
+and setup-page organization switcher with ordinary JSX. Shared components
+retain admin-only organization menu visibility and signed-in welcome action
+visibility. No contribution IDs or placement registry remain. The welcome route
+passes session-derived props and its outlet; routing and guards stay unchanged.
+
+`@everr/app/user-menu` replaces the internal component-path export, and
+`@everr/app/welcome` replaces the mascot export. The mascot is private to the
+shared welcome layout. Cloud tests now render the actual mascot markup with a
+canvas-platform stub, preserving the layout-persistence assertion. Menu and
+welcome tests exercise cloud's real layout assembly. Public exports remain 68.
+Verification: 25 focused menu, welcome, routing, and build-composition tests,
+both typechecks and production builds, boundary lint, and Fallow passed.
+Browser checks covered the ordinary welcome screen and menu, cloud menu
+actions, switching to a pending workspace, and switching back through the
+setup welcome screen. Generated route trees stayed unchanged, and temporary
+servers and the disposable database were stopped.
+
+Welcome-flow tests now load the actual composed route tree instead of rebuilding
+nesting from individual route options. They keep the relevant welcome routes
+and replace unrelated page bodies through the existing testing route references.
+The route inventory excludes ignored helper files and tests so these mocks do
+not replace dependencies of retained routes. Signup-to-invitation returns,
+email verification, welcome-layout persistence, and setup completion remain
+covered. All six route-file exports are removed, reducing the public interface
+from 68 to 62. Worker lifecycle tests still retain internal helper imports.
+Verification: all 474 cloud tests passed (external Polar sandbox skipped),
+along with both typechecks, boundary lint, and Fallow. This follow-up changes
+test composition and exports only; the preceding UI build and browser checks
+remain the runtime verification. Generated route trees stayed unchanged.
+
+A further reduction removes the mailer and Google-provider configuration
+exports, bringing the interface to 60 entries. The onboarding test supplies
+server configuration through the existing environment interface while running
+the real configuration modules, instead of mocking their private files.
+The onboarding test, boundary lint, and Fallow pass after this change.
+
+Keep the two remaining `ProductUI` content slots for now. Moving the complete
+sign-in and device forms behind additional page interfaces solely to remove
+these slots would add code movement and public interfaces without simplifying
+their behavior. Reconsider this only when those features need broader assembly.
 
 ### UI ownership
 
@@ -169,11 +220,14 @@ that merely renames those private files.
   authentication, organization, provisioning, and admin guards. App renders the
   shared members feature. Cloud loads policy and chooses that feature or its
   upgrade screen. No invitation-entitlement fallback remains in the shared route.
-- `ProductUI` declares typed menu and welcome-action contributions, sign-in
-  footer, account-deletion component, and device-login recovery component.
+- `ApplicationLayouts` assembles user menus and welcome screens from shared
+  behavior and application-owned actions.
+- `ProductUI` contains only the sign-in footer and device-login recovery component.
   Default implementations contain ordinary installation behavior. Cloud owns
   workspace switching, billing links, signup links, organization-deletion
   choices, and CLI-specific instructions.
+- `ApplicationPages.account` composes shared settings behavior with each
+  application's account deletion UI.
 - `DeleteAccountDialog` owns confirmation, loading, and errors. Cloud composes
   its organization-deletion choices around that reusable behavior. Those tests
   live in cloud and are no longer conditional tests in the shared application.
@@ -182,8 +236,8 @@ that merely renames those private files.
   signup/deletion flags or CLI-specific JSX.
 
 Server authorization continues to enforce policy independently of rendering.
-The remaining contracts are explicit public interfaces. Removing a contribution
-consumer is a behavioral API break even if the types still compile; tests cover
+The remaining contracts are explicit public interfaces. Removing an action
+slot is a behavioral API break even if the types still compile; tests cover
 menu placement/admin visibility, page selection, welcome actions, and account
 lifecycle behavior.
 
@@ -200,16 +254,14 @@ The following improvements are proposed, not implemented, in priority order:
    consolidates adapter types and gives members, account settings, and layout
    stable entry points. The alerting test-ownership pass removes its internal
    exports. The follow-up removes direct guard-route and onboarding internals.
-   Address the remaining welcome-flow imports during UI assembly work, and
-   group worker/runtime helpers only where a capability can hide meaningful
+   Welcome tests now use the composed tree and all route-file exports are gone.
+   Group worker/runtime helpers only where a capability can hide meaningful
    implementation details. Preserve useful behavior coverage.
-2. Keep UI assembly close to each application's entry points. Cloud should
-   assemble its menus, account page, and welcome experience from shared
-   components; the default application should assemble its ordinary experience.
-   Reduce the responsibilities of `ProductUI`, which currently mixes contribution
-   lists with component replacements and risks becoming a catchall. Keep
-   substantial feature behavior shared and make these changes selectively to
-   avoid another large reorganization.
+2. Account, menu, and welcome assembly now live in each application's typed
+   composition. `ProductUI` has only two remaining text/content responsibilities:
+   the sign-in footer and device-login recovery. Revisit these when working on
+   their feature interfaces, rather than adding new unrelated responsibilities.
+   Keep substantial feature behavior shared and avoid a broad reorganization.
 
 Keep the explicit native route registrations. They make ownership visible and
 preserve TanStack routing and code splitting without matching-file overrides.

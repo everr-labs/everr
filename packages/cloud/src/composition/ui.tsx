@@ -1,27 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { AccountDeletion } from "../components/account-deletion";
 import type { ProductUI } from "@everr/app/composition";
-import {
-  OrganizationMenuItems,
-  WorkspaceMenu,
-  WelcomeActions,
-} from "../app/navigation";
-
 export const productUI: ProductUI = {
-  userMenu: [
-    {
-      id: "workspaces",
-      placement: "before-organization",
-      component: WorkspaceMenu,
-    },
-    {
-      id: "billing",
-      placement: "organization",
-      component: OrganizationMenuItems,
-    },
-  ],
-  welcomeActions: [{ id: "organization-switcher", component: WelcomeActions }],
-  AccountDeletion,
   SignInFooter: ({ redirect, email }) => (
     <p className="text-center text-sm text-muted-foreground">
       Don't have an account?{" "}
