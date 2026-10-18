@@ -6,7 +6,7 @@ import {
 import { Link, useLocation } from "@tanstack/react-router";
 import { Check, CreditCard, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { useOrganizationActivation } from "@everr/app/components/use-organization-activation";
+import { useOrganizationActivation } from "../components/use-organization-activation";
 import { authClient } from "@everr/app/lib/auth-client";
 
 export function OrganizationMenuItems() {

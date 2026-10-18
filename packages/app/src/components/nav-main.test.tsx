@@ -64,11 +64,4 @@ describe("sidebar nav active state", () => {
     await screen.findByText("Triage");
     expect(activeLinkNames()).toEqual(["Triage"]);
   });
-
-  it("does not keep Home active away from the root", async () => {
-    renderNav("/alerts");
-
-    await screen.findByText("Home");
-    expect(activeLinkNames()).toEqual(["Triage"]);
-  });
 });

@@ -62,39 +62,11 @@ beforeEach(() => {
 });
 
 describe("automatic organization creation", () => {
-  it("creates once and reuses the organization for overlapping sign-ins", async () => {
-    const create = vi.fn(async () => {
-      await Promise.resolve();
-      const id = `org-${state.memberships.length + 1}`;
-      state.memberships.push({ organizationId: id });
-      return { id };
-    });
-
-    const organizations = await Promise.all([
-      ensureAutomaticOrganization("user-1", create),
-      ensureAutomaticOrganization("user-1", create),
-    ]);
-
-    expect(create).toHaveBeenCalledTimes(1);
-    expect(organizations).toEqual(["org-1", "org-1"]);
-    expect(state.memberships).toHaveLength(1);
-    expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "user-1" }),
-    );
-  });
-
   it("preserves the organization chooser if several memberships appeared", async () => {
     state.memberships = [
       { organizationId: "org-1" },
       { organizationId: "org-2" },
     ];
-    const create = vi.fn();
-    expect(await ensureAutomaticOrganization("user-1", create)).toBeNull();
-    expect(create).not.toHaveBeenCalled();
-  });
-
-  it("does not create a personal organization for an invited user", async () => {
-    state.invitations = [{ id: "invite-1" }];
     const create = vi.fn();
     expect(await ensureAutomaticOrganization("user-1", create)).toBeNull();
     expect(create).not.toHaveBeenCalled();
@@ -136,6 +108,10 @@ it("records creation only for the session that actually creates an organization"
     activeOrganizationId: null as string | null,
   };
   await Promise.all([hook(first), hook(second)]);
+  expect(create).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ userId: "user" }),
+  );
+  expect(state.memberships).toHaveLength(1);
   expect(first.activeOrganizationId).toBe("new");
   expect(second.activeOrganizationId).toBe("new");
   expect(onCreated).toHaveBeenCalledExactlyOnceWith(

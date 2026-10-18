@@ -130,7 +130,7 @@ export async function querySqlApiWithMeta<T>(
   };
 }
 
-export interface SqlApiPreview extends SqlApiResult<unknown[]> {
+interface SqlApiPreview extends SqlApiResult<unknown[]> {
   /** The query had more than `maxRows` rows; the rest were never read. */
   truncated: boolean;
 }

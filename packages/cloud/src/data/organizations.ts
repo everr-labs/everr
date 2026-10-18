@@ -3,9 +3,9 @@ import { userOwnsHobbyOrganization } from "../billing-data.server";
 import { CreateOrganizationInputSchema } from "../common/organization-name";
 import { db } from "@everr/app/db/client";
 import { auth } from "@everr/app/lib/auth.server";
-import { generateOrgSlug } from "@everr/app/lib/auto-org";
+import { generateOrgSlug } from "../common/organization-name";
 import { createPartiallyAuthenticatedServerFn } from "@everr/app/lib/serverFn";
-import { lockOrganizationOwnership } from "@everr/app/product/organization-lock.server";
+import { lockOrganizationOwnership } from "../organization-lock.server";
 
 class OrganizationCreationError extends Error {
   name = "OrganizationCreationError";

@@ -128,6 +128,7 @@ describe("worker runtime", () => {
     expect(runtimeMocks.run).not.toHaveBeenCalled();
 
     await runtime.startWorkerRuntime();
+    await runtime.startWorkerRuntime();
 
     expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
     const general = runtimeMocks.runOptions.find(
@@ -166,17 +167,6 @@ describe("worker runtime", () => {
       },
     ]);
     expect(runtimeMocks.organizationPool.query).toHaveBeenCalledOnce();
-  });
-
-  it("memoizes the runner across calls", async () => {
-    const runtime = await loadRuntime();
-
-    const first = await runtime.startWorkerRuntime();
-    const second = await runtime.startWorkerRuntime();
-
-    expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
-    expect(second).toBeDefined();
-    expect(first).toBeDefined();
   });
 
   it("stops both runners and closes the reserved pool", async () => {

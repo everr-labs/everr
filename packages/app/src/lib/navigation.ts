@@ -13,7 +13,7 @@ import {
   Waypoints,
 } from "lucide-react";
 
-export type NavItem = {
+type NavItem = {
   title: string;
   url: string;
   icon: LucideIcon;

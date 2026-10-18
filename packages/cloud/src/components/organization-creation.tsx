@@ -9,7 +9,7 @@ import { OrganizationProvisioning } from "./organization-provisioning";
 import { OrganizationProvisioningContent } from "./organization-provisioning-content";
 import { ORGANIZATION_SETUP_MINIMUM_MS } from "./use-organization-setup-completion";
 import { createOrganization } from "../data/organizations";
-import { useOrganizationActivation } from "@everr/app/components/use-organization-activation";
+import { useOrganizationActivation } from "./use-organization-activation";
 
 export function OrganizationCreation({
   canCreateHobby,

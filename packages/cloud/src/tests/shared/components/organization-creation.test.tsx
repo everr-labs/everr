@@ -327,14 +327,11 @@ it("retries exhausted provisioning without creating another organization", async
 
 it.each([
   "missing",
-  "revoked",
   "switched",
 ])("returns to organization selection when the organization is %s during setup", async (state) => {
-  if (state === "revoked") mocks.read.mockResolvedValue(null);
-  else
-    mocks.read.mockResolvedValue(
-      state === "missing" ? null : { id: "other", status: "ready" },
-    );
+  mocks.read.mockResolvedValue(
+    state === "missing" ? null : { id: "other", status: "ready" },
+  );
   show();
   await confirmName();
   await act(async () => {

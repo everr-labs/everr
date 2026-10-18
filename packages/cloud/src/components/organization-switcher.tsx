@@ -7,7 +7,7 @@ import {
 } from "@everr/ui/components/dropdown-menu";
 import { Check, ChevronDown } from "lucide-react";
 import { useState } from "react";
-import { useOrganizationActivation } from "@everr/app/components/use-organization-activation";
+import { useOrganizationActivation } from "./use-organization-activation";
 import { authClient } from "@everr/app/lib/auth-client";
 
 export function OrganizationSwitcher({

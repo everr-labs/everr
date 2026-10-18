@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
-import { authClient } from "#app/lib/auth-client.ts";
+import { authClient } from "@everr/app/lib/auth-client";
 
 export function useOrganizationActivation() {
   const router = useRouter();

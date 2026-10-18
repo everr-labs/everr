@@ -32,7 +32,7 @@ vi.mock("@everr/app/lib/auth.server", () => ({
 vi.mock("../billing-data.server", () => ({
   userOwnsHobbyOrganization: mocks.userOwnsHobbyOrganization,
 }));
-vi.mock("@everr/app/product/organization-lock.server", () => ({
+vi.mock("../organization-lock.server", () => ({
   lockOrganizationOwnership: mocks.lockOrganizationOwnership,
 }));
 

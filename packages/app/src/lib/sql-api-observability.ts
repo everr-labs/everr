@@ -8,9 +8,9 @@ import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 //   - system_error our infrastructure is at fault (ClickHouse timed out, ran out
 //                  of memory/quota, was unreachable, or an unexpected exception).
 //                  Marks the span as an error and drives the pager.
-export type SqlQueryOutcome = "ok" | "user_error" | "system_error";
+type SqlQueryOutcome = "ok" | "user_error" | "system_error";
 
-export type SqlQueryErrorKind =
+type SqlQueryErrorKind =
   | "empty"
   | "account_setup"
   | "guard_blocked"
@@ -22,7 +22,7 @@ export type SqlQueryErrorKind =
   | "network"
   | "internal";
 
-export type SqlQueryClassification = {
+type SqlQueryClassification = {
   outcome: Exclude<SqlQueryOutcome, "ok">;
   kind: SqlQueryErrorKind;
 };

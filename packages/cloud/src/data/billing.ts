@@ -15,7 +15,7 @@ import {
   createOrganizationAdminServerFn,
   requireOrgMiddleware,
 } from "@everr/app/lib/serverFn";
-import { lockOrganizationOwnership } from "@everr/app/product/organization-lock.server";
+import { lockOrganizationOwnership } from "../organization-lock.server";
 
 class HobbyDowngradeUnavailableError extends Error {
   name = "HobbyDowngradeUnavailableError";

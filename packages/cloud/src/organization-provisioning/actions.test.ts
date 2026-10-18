@@ -24,7 +24,6 @@ beforeEach(() => {
     id: "requested-org",
     metadata: { clickhouseReady: false },
   } as never);
-  mocks.read.mockResolvedValue("failed");
 });
 it("verifies membership in the requested organization before restarting its failed job", async () => {
   await retryOrganizationProvisioning({
@@ -34,6 +33,7 @@ it("verifies membership in the requested organization before restarting its fail
     headers: new Headers(),
     query: { organizationId: "requested-org" },
   });
+  expect(mocks.read).not.toHaveBeenCalled();
   expect(mocks.retry).toHaveBeenCalledWith("requested-org");
 });
 it("does not retry when organization membership has been revoked", async () => {
@@ -56,11 +56,4 @@ it("does not restart an already-ready organization", async () => {
     data: { organizationId: "requested-org" },
   });
   expect(mocks.retry).not.toHaveBeenCalled();
-});
-it("delegates retry eligibility to the atomic restart without another status read", async () => {
-  await retryOrganizationProvisioning({
-    data: { organizationId: "requested-org" },
-  });
-  expect(mocks.read).not.toHaveBeenCalled();
-  expect(mocks.retry).toHaveBeenCalledWith("requested-org");
 });

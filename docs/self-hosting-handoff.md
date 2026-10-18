@@ -7,10 +7,11 @@ Updated 2026-10-18. Branch: `self-host`.
 The worker test ownership and export cleanup checkpoint is `7e7f8fd1b`.
 UI assembly and the preceding export review are in `770aa55de`. Storage test
 ownership cleanup is in `dc21b7af3`; membership endpoint coverage and UI mock
-cleanup are in `5ee82832a`. This checkpoint includes the test-pruning pass below. The
+cleanup are in `5ee82832a`; the first test-pruning pass is `237a6bd1e`.
+This checkpoint includes the deeper cleanup and independent scan follow-ups. The
 resolver investigation and deferred packaging experiment are recorded below.
 
-The application has **53 public package exports**. All have consumers in cloud
+The application has **50 public package exports**. All have consumers in cloud
 source or configuration. Ten currently serve only cloud tests or their
 configuration; that does not make them automatically removable. The interface
 review below identifies concrete opportunities and the remaining split risks.
@@ -128,7 +129,7 @@ entry point. No unused export was found. Export count alone is not the goal.
 | UI test interfaces, reviewed | Removed redundant `data/auth` mocks and the `telemetry/client` mock, then removed both exports. Onboarding renders the real consent gate and loads browser telemetry with development export disabled. Menu tests render the real consent gate and exercise opening privacy preferences, saving a choice, and revoking it. Keep `telemetry/consent-gate` for that provider and `telemetry/config` for receiver configuration coverage. Keep `data/invite` for invitation server-function doubles and its pure resolver export as explained above. |
 | Deliberate test infrastructure | Keep `testing/config`, `testing/routes`, `testing/alerting-storage`, and the PGlite helper while their consumers need them. The PGlite helper currently has an alerting-internal export name despite serving organization lifecycle tests. A future generic database-test interface should preserve migration/worker setup; a naming change alone is not a reduction. |
 | Worker capabilities | Events, job enqueueing, and supervision have production cloud callers. Runtime startup is consumed by the composed cloud test. Keep that test at the real runtime interface. Do not merge these unrelated functions into a barrel just to count fewer exports. |
-| Auth and organization lifecycle | `lib/auth.server`, `lib/auth-client`, `lib/serverFn`, organization locks, continuation cookies, cleanup, and role helpers have real runtime consumers. Preserve browser/server separation and transactional ownership. Introduce a higher-level operation only when it can hide a complete workflow, not just forward to these helpers. |
+| Auth and organization lifecycle | `lib/auth.server`, `lib/auth-client`, `lib/serverFn`, continuation cookies, cleanup, and role helpers have real runtime consumers. Preserve browser/server separation and transactional ownership. Introduce a higher-level operation only when it can hide a complete workflow, not just forward to these helpers. |
 | Storage and migrations | `db/client`, `db/schema`, `db/migrations`, Drizzle config, and migration entry points support real schema extensions, transactions, and upgrades. `migrations/journal` is consumed by legacy-upgrade tests. Do not conceal this dependency by duplicating schema or baselines. |
 | Stable feature interfaces | Keep members, account settings/dialog/actions, user menu, welcome, page layout, and type-only composition contracts. Their callers assemble substantial shared behavior. Product factories and client defaults are intentionally separate from the type-only contracts. |
 
@@ -249,6 +250,64 @@ Verification: 15 affected cloud tests and 11 app tests passed, including the
 stronger tests retained in place of the removed cases. Both typechecks, boundary
 lint, and Fallow passed. The last full cloud-suite result below predates these
 deletions.
+
+### Deeper cleanup
+
+Moved personal-organization naming and slug helpers to cloud's existing
+`common/organization-name` module, along with their name/fallback tests. App
+keeps its private sole-membership selector, which auth/session lookup still
+uses. Removed the `lib/auto-org` public export: no cloud consumer remains.
+
+Removed `shouldCreateAutomaticOrganization`, a one-caller boolean wrapper. Its
+caller already returns for existing memberships, so the remaining decision is
+simply whether a pending invitation exists. The existing real signup tests
+cover automatic creation, selection, invited users, and enqueue failure.
+
+Consolidated overlapping automatic-signup tests into the session-hook test:
+creation still happens once under overlapping sign-ins, both sessions select
+the organization, and only the creator receives the continuation callback.
+Kept the creation-failure/lock-release and multiple-membership cases. Merged
+retry eligibility assertions into the existing retry action test. This pass
+removes 82 net code/test lines across ten files and four net test cases.
+
+Verification: all 461 remaining cloud tests passed (Polar sandbox skipped),
+along with 12 focused app selection/session tests, both typechecks, boundary
+lint, and Fallow.
+
+### Independent scan follow-up
+
+Moved the ownership-lock helper and organization-activation hook into cloud,
+where all their production consumers live. Updated callers and test mocks and
+removed both app exports. Their locking and activation behavior is unchanged.
+
+Removed the duplicate null-organization setup case and the redundant Home
+navigation assertion. Folded worker memoization into the existing cloud
+runner/pool ownership test, retaining the assertion that repeated startup creates no additional
+runners or pools. Keep the cloud alerting-schema assertion in cloud; do not add
+cloud-specific conditions to shared app tests to consolidate it.
+
+Verification: all 459 cloud tests passed (Polar sandbox skipped), along with
+the two remaining navigation tests, both typechecks, boundary lint, and Fallow.
+
+### Collector layout and final test cleanup
+
+Restored the three usage component directories from `collector/cloud` to their
+original connector, extension, and processor locations. Their existing Go
+module identities never changed. Binary separation still comes from the base
+and cloud manifests and build targets; keep those. Preserved the usage-test
+clock fix and updated Makefile includes, manifest replacements, and smoke SQL
+fixture paths for the restored layout.
+
+Both collector variants build and validate their configuration. Component
+inventories verify all three usage components appear only in cloud. All three
+component test suites pass. This checks build/configuration separation, not a
+fresh live-ingestion exercise.
+
+Removed duplicate breadcrumb renders, preserving separator assertions in the
+existing one-, two-, and three-crumb cases. Removed the test-owned callback
+fallback case and the tiny sole-membership helper suite, which is covered by
+real database session recovery tests. Made six unused type exports private.
+The 18 focused breadcrumb/session tests and both app typechecks pass.
 
 ## Verification and next steps
 

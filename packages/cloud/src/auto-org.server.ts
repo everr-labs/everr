@@ -1,14 +1,14 @@
 import type { GenericEndpointContext } from "better-auth";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { type Database, db } from "@everr/app/db/client";
-import { invitation, member, session as sessionTable, user } from "@everr/app/db/schema";
 import {
-  deriveOrgName,
-  generateOrgSlug,
-  selectSoleOrganization,
-  shouldCreateAutomaticOrganization,
-} from "@everr/app/lib/auto-org";
-import { lockOrganizationOwnership } from "@everr/app/product/organization-lock.server";
+  invitation,
+  member,
+  session as sessionTable,
+  user,
+} from "@everr/app/db/schema";
+import { deriveOrgName, generateOrgSlug } from "./common/organization-name";
+import { lockOrganizationOwnership } from "./organization-lock.server";
 import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
 
 type CreateAutomaticOrganization = (body: {
@@ -80,9 +80,7 @@ export async function ensureAutomaticOrganization(
       .where(eq(member.userId, userId))
       .limit(2);
     if (memberships.length > 0) {
-      return selectSoleOrganization(
-        memberships.map((row) => row.organizationId),
-      );
+      return memberships.length === 1 ? memberships[0].organizationId : null;
     }
 
     const [userRecord] = await tx
@@ -108,13 +106,7 @@ export async function ensureAutomaticOrganization(
         ),
       )
       .limit(1);
-    if (
-      !shouldCreateAutomaticOrganization({
-        membershipCount: memberships.length,
-        hasPendingInvitation: pendingInvitations.length > 0,
-      })
-    )
-      return null;
+    if (pendingInvitations.length > 0) return null;
 
     // Better Auth writes through its own connection. Keep the ownership lock
     // until both the organization and its owner membership have been created.

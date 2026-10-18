@@ -46,7 +46,7 @@ vi.mock("../billing-data.server", () => ({
   readOrgEntitlement: mocks.entitlement,
   userOwnsHobbyOrganization: mocks.ownsHobby,
 }));
-vi.mock("@everr/app/product/organization-lock.server", () => ({
+vi.mock("../organization-lock.server", () => ({
   lockOrganizationOwnership: mocks.lockOwnership,
 }));
 vi.mock("@tanstack/react-start/server", () => ({

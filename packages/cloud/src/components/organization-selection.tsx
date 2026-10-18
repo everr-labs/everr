@@ -5,7 +5,7 @@ import { ArrowRight, Loader2, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { OrganizationCreation } from "./organization-creation";
 import { getOrganizationCreationOptions } from "../data/organizations";
-import { useOrganizationActivation } from "@everr/app/components/use-organization-activation";
+import { useOrganizationActivation } from "./use-organization-activation";
 import { authClient } from "@everr/app/lib/auth-client";
 
 export function OrganizationSelection() {

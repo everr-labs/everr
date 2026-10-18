@@ -2,7 +2,7 @@ import { generateId } from "better-auth";
 import { and, eq, isNull } from "drizzle-orm";
 import { orgSubscription, proOrganizationCheckout } from "../db/schema";
 import { returnToSchema } from "@everr/app/common/return-to";
-import { generateOrgSlug } from "@everr/app/lib/auto-org";
+import { generateOrgSlug } from "../common/organization-name";
 import { creationLock, metadataFor } from "./attempts";
 import type { createBillingIdentity } from "./identity";
 import { creationMetadata } from "./metadata";

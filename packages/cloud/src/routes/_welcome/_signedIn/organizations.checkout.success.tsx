@@ -1,5 +1,5 @@
 import { returnToSchema } from "@everr/app/common/return-to";
-import { useOrganizationActivation } from "@everr/app/components/use-organization-activation";
+import { useOrganizationActivation } from "../../../components/use-organization-activation";
 import { Button } from "@everr/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
