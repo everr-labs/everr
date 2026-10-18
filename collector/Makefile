@@ -1,8 +1,7 @@
 include ./Makefile.Common
 
 EVERR_BUILD_TARGET ?= cloud
-MANIFEST_ADDITIONS = $(if $(filter cloud,$(EVERR_BUILD_TARGET)),config/manifest.cloud.yaml,)
-MANIFEST ?= config/manifest.$(EVERR_BUILD_TARGET).generated.yaml
+MANIFEST ?= config/manifest.$(EVERR_BUILD_TARGET).yaml
 OUT ?= ./build/$(EVERR_BUILD_TARGET)
 DEBUG_COMPILATION ?= false
 CUSTOM_COL_DIR ?= $(SRC_ROOT)/collector/build/$(EVERR_BUILD_TARGET)
@@ -23,20 +22,12 @@ endif
 
 .PHONY: build
 build: $(addprefix $(TOOLS_BIN_DIR)/, builder)
-	@set -e; \
-	  trap 'rm -f "$(MANIFEST)"' EXIT; \
-	  if [ -n "$(MANIFEST_ADDITIONS)" ]; then \
-	    (cd internal/tools && go run ./cmd/manifestgen ../../config/manifest.yaml ../../$(MANIFEST_ADDITIONS) ../../$(MANIFEST) '$(OUT)' '$(DEBUG_COMPILATION)'); \
-	  else \
-	    (cd internal/tools && go run ./cmd/manifestgen ../../config/manifest.yaml /dev/null ../../$(MANIFEST) '$(OUT)' '$(DEBUG_COMPILATION)'); \
-	  fi; \
-	  mkdir -p $(OUT); \
+	env 'dist.output_path=$(OUT)' 'dist.debug_compilation=$(DEBUG_COMPILATION)' \
 	  GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 $(OCB) --config $(MANIFEST)
 
 .PHONY: build-debug
 build-debug: DEBUG_COMPILATION = true
 build-debug: OUT = ./build/$(EVERR_BUILD_TARGET)-debug
-build-debug: MANIFEST = config/manifest.$(EVERR_BUILD_TARGET).debug.generated.yaml
 build-debug: build
 
 .PHONY: build-local

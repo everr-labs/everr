@@ -1,6 +1,6 @@
 # Everr Changes To Upstream ClickHouse Exporter
 
-This file records the meaningful differences from upstream `open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter` at `v0.160.0`, the version `collector/config/manifest.yaml` pins for the cloud collector.
+This file records the meaningful differences from upstream `open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter` at `v0.160.0`, the version `collector/config/manifest.cloud.yaml` pins for the cloud collector.
 
 ## Initial copy
 

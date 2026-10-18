@@ -293,8 +293,8 @@ the two remaining navigation tests, both typechecks, boundary lint, and Fallow.
 
 Restored the three usage component directories from `collector/cloud` to their
 original connector, extension, and processor locations. Their existing Go
-module identities never changed. Binary separation still comes from the base
-and cloud manifests and build targets; keep those. Preserved the usage-test
+module identities never changed. Binary separation comes from the explicit self-hosted and cloud manifests
+and build targets; keep those. Preserved the usage-test
 clock fix and updated Makefile includes, manifest replacements, and smoke SQL
 fixture paths for the restored layout.
 
@@ -365,3 +365,15 @@ worktree's `.auth`; never copy secrets into documentation or commits. Temporary
 servers and databases from the latest checks were stopped. Recheck local state
 rather than relying on old ports. Physical repository extraction, published
 packages/images, and release automation remain future work.
+
+Collector manifest simplification: both
+`collector/config/manifest.self-hosted.yaml` and `manifest.cloud.yaml` are complete
+builder manifests. The Go manifest generator is removed. Make selects the
+manifest directly and uses the builder's native environment overrides for
+output directory and debug compilation. Local replacement paths are relative
+to the generated module directories under `collector/build/`, including debug
+builds. Keep shared component versions aligned when editing the two manifests.
+
+Verification: self-hosted, cloud, and self-hosted debug builds pass. Both normal
+binaries validate their configurations and report exactly the same component
+inventories as before this change. No ingestion behavior changed.

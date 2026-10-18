@@ -1,7 +1,7 @@
 dist:
   name: everr-collector
   description: CI/CD OpenTelemetry Collector
-  output_path: ./build
+  output_path: ./build/self-hosted
   debug_compilation: false
   version: 0.1.0
   otelcol_version: 0.160.0
@@ -36,7 +36,7 @@ providers:
   - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.66.0
 
 replaces:
-  - github.com/everr-labs/everr/collector/receiver/githubactionsreceiver => ../receiver/githubactionsreceiver
-  - github.com/everr-labs/everr/collector/internal/sharedcomponent => ../internal/sharedcomponent
-  - github.com/everr-labs/everr/collector/semconv => ../semconv
-  - github.com/everr-labs/everr/collector/extension/everrapikeyauth => ../extension/everrapikeyauth
+  - github.com/everr-labs/everr/collector/receiver/githubactionsreceiver => ../../receiver/githubactionsreceiver
+  - github.com/everr-labs/everr/collector/internal/sharedcomponent => ../../internal/sharedcomponent
+  - github.com/everr-labs/everr/collector/semconv => ../../semconv
+  - github.com/everr-labs/everr/collector/extension/everrapikeyauth => ../../extension/everrapikeyauth

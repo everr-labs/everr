@@ -3,7 +3,7 @@
 -- 10-create-mvs.sql, which stamp retention_days (and Cloud tenancy) from the
 -- resource attributes and write the row into app.*. Column lists follow the
 -- upstream clickhouseexporter schema for the version pinned in
--- collector/config/manifest.yaml (v0.160.0); app.* copies its types from here,
+-- collector/config/manifest.cloud.yaml (v0.160.0); app.* copies its types from here,
 -- so keep them in step when that pin moves. The exporter's DDL is the
 -- reference: internal/sqltemplates/*.sql in that module.
 --
