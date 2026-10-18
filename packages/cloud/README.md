@@ -154,7 +154,10 @@ Database startup applies the shared app migrations and `src/drizzle`.
 Existing databases first complete `src/drizzle-legacy` before adopting the
 separate migration histories. Plans and customer references belong to
 `organization_billing`; subscription and checkout tables are also owned here.
-Do not generate new migrations while iterating on schema changes.
+The legacy history is frozen and used only for execution, which reads SQL and
+`meta/_journal.json`. Generate future migrations from the current app or cloud
+schema, never from the legacy directory. Do not generate new migrations while
+iterating on schema changes.
 
 The test command runs this package's scenarios and the shared alerting
 integration suites. Ordinary app unit tests run only in app. Vitest's `provide`

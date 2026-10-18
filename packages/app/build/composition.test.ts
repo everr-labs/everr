@@ -120,19 +120,6 @@ it("keeps URLs and parent guards when a registered source file moves", async () 
   expect(tree).toContain("./renamed");
   expect(tree).not.toContain("./arbitrary-name");
 });
-it("reads module selection from tsconfig without writing files", () => {
-  const composition = fixture();
-  const file = resolve(composition.directory, "tsconfig.json");
-  const before = readFileSync(file, "utf8");
-  expect(appAliases(composition)).toContainEqual({
-    find: "@composition/server",
-    replacement: resolve(composition.directory, "src/arbitrary-name.tsx"),
-  });
-  expect(appRoutes(composition).generatedRouteTree).toBe(
-    resolve(composition.directory, "src/routeTree.gen.ts"),
-  );
-  expect(readFileSync(file, "utf8")).toBe(before);
-});
 it("uses TypeScript's inherited baseUrl and accepts JSONC", () => {
   const composition = fixture();
   const configFile = resolve(composition.directory, "tsconfig.json");

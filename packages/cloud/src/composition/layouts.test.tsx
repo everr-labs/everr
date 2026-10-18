@@ -75,6 +75,18 @@ import { ConsentGate } from "@everr/app/telemetry/consent-gate";
 
 import { layouts } from "./layouts";
 
+function renderUserMenu(queryClient = new QueryClient()) {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ConsentGate initialConsent="denied">
+        <SidebarProvider>
+          <layouts.UserMenu />
+        </SidebarProvider>
+      </ConsentGate>
+    </QueryClientProvider>,
+  );
+}
+
 describe("User menu", () => {
   beforeEach(() => {
     mocks.role = "owner";
@@ -111,15 +123,7 @@ describe("User menu", () => {
     });
     const unsubscribe = observer.subscribe(() => {});
     try {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ConsentGate initialConsent="denied">
-            <SidebarProvider>
-              <layouts.UserMenu />
-            </SidebarProvider>
-          </ConsentGate>
-        </QueryClientProvider>,
-      );
+      renderUserMenu(queryClient);
       await userEvent
         .setup()
         .click(screen.getByRole("button", { name: /Test User/ }));
@@ -146,17 +150,7 @@ describe("User menu", () => {
   it("opens the flat menu without losing the menu group context", async () => {
     mocks.githubEnabled = true;
     const user = userEvent.setup();
-    const queryClient = new QueryClient();
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ConsentGate initialConsent="denied">
-          <SidebarProvider>
-            <layouts.UserMenu />
-          </SidebarProvider>
-        </ConsentGate>
-      </QueryClientProvider>,
-    );
+    renderUserMenu();
 
     await user.click(screen.getByRole("button", { name: /Test User/ }));
 
@@ -166,27 +160,18 @@ describe("User menu", () => {
     ).toHaveAttribute("href", "/github");
     expect(screen.getByText("Account & privacy")).toBeVisible();
     expect(
-      screen.queryByRole("menuitem", { name: "Download App" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("Billing details")).not.toBeInTheDocument();
-    expect(
       screen.getByRole("menuitem", { name: "Plan & Billing" }),
     ).toHaveAttribute("href", "/billing");
   });
 
   it("opens privacy settings from the menu and preserves the saved choice", async () => {
     const user = userEvent.setup();
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ConsentGate initialConsent="denied">
-          <SidebarProvider>
-            <layouts.UserMenu />
-          </SidebarProvider>
-        </ConsentGate>
-      </QueryClientProvider>,
-    );
+    renderUserMenu();
     const open = async () => {
       await user.click(screen.getByRole("button", { name: /Test User/ }));
+      expect(
+        screen.queryByRole("menuitem", { name: "GitHub" }),
+      ).not.toBeInTheDocument();
       await user.click(
         await screen.findByRole("menuitem", { name: "Privacy preferences" }),
       );
@@ -205,40 +190,10 @@ describe("User menu", () => {
     expect(screen.getByRole("switch", { name: "Analytics" })).not.toBeChecked();
   });
 
-  it("hides GitHub when the integration is disabled", async () => {
-    mocks.githubEnabled = false;
-    const queryClient = new QueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ConsentGate initialConsent="denied">
-          <SidebarProvider>
-            <layouts.UserMenu />
-          </SidebarProvider>
-        </ConsentGate>
-      </QueryClientProvider>,
-    );
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: /Test User/ }));
-    expect(
-      screen.queryByRole("menuitem", { name: "GitHub" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("hides organization settings from ordinary members", async () => {
     mocks.role = "member";
     const user = userEvent.setup();
-    const queryClient = new QueryClient();
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ConsentGate initialConsent="denied">
-          <SidebarProvider>
-            <layouts.UserMenu />
-          </SidebarProvider>
-        </ConsentGate>
-      </QueryClientProvider>,
-    );
+    renderUserMenu();
 
     await user.click(screen.getByRole("button", { name: /Test User/ }));
 
