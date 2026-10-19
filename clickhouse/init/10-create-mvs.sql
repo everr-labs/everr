@@ -79,7 +79,9 @@ FROM
 -- Each inserted batch contributes a trace window. Readers aggregate min(Start)
 -- and max(End) + 1 before querying logs or traces; +1 covers whole-second truncation.
 -- Monthly partitions and small granules reduce point-lookup reads. Whole-part
--- expiry can retain these lookup rows up to a month beyond their spans.
+-- expiry waits until every batch in the part has expired.
+-- Expire from End so a batch spanning dates stays discoverable until its
+-- latest span expires.
 CREATE TABLE IF NOT EXISTS app.traces_trace_id_ts
 (
   tenant_id LowCardinality(String) CODEC(ZSTD(1)),
@@ -91,8 +93,12 @@ CREATE TABLE IF NOT EXISTS app.traces_trace_id_ts
 ENGINE = MergeTree
 PARTITION BY (toStartOfMonth(Start), retention_days)
 ORDER BY (tenant_id, TraceId, Start)
-TTL toDate(Start) + toIntervalDay(retention_days)
+TTL toDate(End) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 256, ttl_only_drop_parts = 1;
+
+-- CREATE IF NOT EXISTS leaves older tables' TTL unchanged.
+ALTER TABLE app.traces_trace_id_ts
+  MODIFY TTL toDate(End) + toIntervalDay(retention_days);
 
 -- Read the landing table directly: chaining off app.traces would require
 -- the collector user to have SELECT access to app.*, beyond its otel.* grants.

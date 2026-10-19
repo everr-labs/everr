@@ -217,12 +217,27 @@ func renderCreateTracesTableSQL(cfg *Config) string {
 }
 
 func renderCreateTraceIDTsTableSQL(cfg *Config) string {
-	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Start)")
+	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(End)")
 	return fmt.Sprintf(sqltemplates.TracesCreateTsTable,
 		cfg.database(), cfg.TracesTableName, cfg.clusterString(),
 		cfg.tableEngineString(),
 		ttlExpr,
 	)
+}
+
+func createTraceIDTsTable(ctx context.Context, cfg *Config, db driver.Conn) error {
+	if err := db.Exec(ctx, renderCreateTraceIDTsTableSQL(cfg)); err != nil {
+		return fmt.Errorf("exec create traceID timestamp table sql: %w", err)
+	}
+	// CREATE IF NOT EXISTS preserves the old Start-based TTL on existing stores.
+	if ttl := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(End)"); ttl != "" {
+		sql := fmt.Sprintf("ALTER TABLE %q.%q %s MODIFY %s", cfg.database(),
+			cfg.TracesTableName+"_trace_id_ts", cfg.clusterString(), ttl)
+		if err := db.Exec(ctx, sql); err != nil {
+			return fmt.Errorf("update traceID timestamp table TTL: %w", err)
+		}
+	}
+	return nil
 }
 
 func renderTraceIDTsMaterializedViewSQL(cfg *Config) string {
@@ -238,8 +253,8 @@ func createTraceTables(ctx context.Context, cfg *Config, db driver.Conn) error {
 	if err := db.Exec(ctx, renderCreateTracesTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create traces table sql: %w", err)
 	}
-	if err := db.Exec(ctx, renderCreateTraceIDTsTableSQL(cfg)); err != nil {
-		return fmt.Errorf("exec create traceID timestamp table sql: %w", err)
+	if err := createTraceIDTsTable(ctx, cfg, db); err != nil {
+		return err
 	}
 	if err := db.Exec(ctx, renderTraceIDTsMaterializedViewSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create traceID timestamp view sql: %w", err)
