@@ -22,6 +22,7 @@ endif
 
 .PHONY: build
 build: $(addprefix $(TOOLS_BIN_DIR)/, builder)
+	mkdir -p "$(OUT)"
 	env 'dist.output_path=$(OUT)' 'dist.debug_compilation=$(DEBUG_COMPILATION)' \
 	  GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 $(OCB) --config $(MANIFEST)
 
