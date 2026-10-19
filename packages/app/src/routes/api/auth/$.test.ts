@@ -2,22 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   handler: vi.fn(),
-  inIdentityRequest: false,
 }));
 vi.mock("#app/lib/auth.server.ts", () => ({
   auth: { handler: mocks.handler },
-}));
-vi.mock("@composition/server", () => ({
-  server: {
-    withIdentityRequest: async (run: () => Promise<Response>) => {
-      mocks.inIdentityRequest = true;
-      try {
-        return await run();
-      } finally {
-        mocks.inIdentityRequest = false;
-      }
-    },
-  },
 }));
 
 import { Route } from "./$";
@@ -35,7 +22,6 @@ function getHandler(method: "GET" | "POST") {
 
 beforeEach(() => {
   mocks.handler.mockReset();
-  mocks.inIdentityRequest = false;
 });
 
 describe("/api/auth/$ route", () => {
@@ -55,18 +41,13 @@ describe("/api/auth/$ route", () => {
   it.each([
     "GET",
     "POST",
-  ] as const)("handles %s inside the identity request context", async (method) => {
+  ] as const)("delegates %s to the configured auth handler", async (method) => {
     const request = new Request("http://localhost:5173/api/auth/get-session", {
       method,
     });
     const expected = new Response("auth response");
-    mocks.handler.mockImplementation(async (received) => {
-      expect(received).toBe(request);
-      expect(mocks.inIdentityRequest).toBe(true);
-      return expected;
-    });
+    mocks.handler.mockResolvedValue(expected);
     expect(await getHandler(method)({ request })).toBe(expected);
-    expect(mocks.handler).toHaveBeenCalledTimes(1);
-    expect(mocks.inIdentityRequest).toBe(false);
+    expect(mocks.handler).toHaveBeenCalledExactlyOnceWith(request);
   });
 });

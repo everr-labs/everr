@@ -7,12 +7,24 @@ const state = vi.hoisted(() => ({
   database: undefined as unknown,
   emailEnabled: false,
   verificationUrl: "",
+  lockQuery: vi.fn(),
+  releaseLock: vi.fn(),
 }));
 vi.mock("#app/db/client.ts", () => ({
   get db() {
     return state.database;
   },
   pool: { options: {} },
+}));
+vi.mock("pg", () => ({
+  Pool: class {
+    connect() {
+      return Promise.resolve({
+        query: state.lockQuery,
+        release: state.releaseLock,
+      });
+    }
+  },
 }));
 vi.mock("#app/env/index.ts", () => ({
   env: {
@@ -41,6 +53,8 @@ afterAll(() => client.close());
 beforeEach(async () => {
   vi.resetModules();
   state.verificationUrl = "";
+  state.lockQuery.mockReset().mockResolvedValue({ rows: [{ locked: true }] });
+  state.releaseLock.mockReset();
   await client.exec(
     'TRUNCATE "user", account, organization, member, invitation, session, verification CASCADE',
   );
@@ -113,4 +127,46 @@ it.each([
     });
   }
   await expect(accept(replacement.id)).resolves.toBeTruthy();
+});
+
+it.each([
+  "recipient@example.test",
+  "owner@example.test",
+])("scopes membership mutations and releases locks when removing %s", async (email) => {
+  state.emailEnabled = false;
+  const { auth } = await import("#app/lib/auth.server.ts");
+  const { organizationId } = await setupWorkspace(input, database);
+  await client.exec(
+    `INSERT INTO "user" (id, name, email) VALUES ('recipient', 'Recipient', 'recipient@example.test')`,
+  );
+  await client.query(
+    "INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES ('recipient-member', $1, 'recipient', 'member', now())",
+    [organizationId],
+  );
+  const owner = await auth.api.signInEmail({ body: input, asResponse: true });
+  const removingOwner = email === input.email;
+  let membersAtUnlock: number | undefined;
+  state.lockQuery.mockImplementation(async (sql: string) => {
+    expect(state.releaseLock).not.toHaveBeenCalled();
+    if (sql.includes("pg_advisory_unlock")) {
+      const result = await client.query("SELECT id FROM member");
+      membersAtUnlock = result.rows.length;
+    }
+    return { rows: [{ locked: true }] };
+  });
+  const response = await auth.handler(
+    new Request("http://localhost:3000/api/auth/organization/remove-member", {
+      method: "POST",
+      headers: {
+        cookie: owner.headers.get("set-cookie") ?? "",
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+      },
+      body: JSON.stringify({ organizationId, memberIdOrEmail: email }),
+    }),
+  );
+  expect(response.ok).toBe(!removingOwner);
+  expect(membersAtUnlock).toBe(removingOwner ? 2 : 1);
+  expect(state.lockQuery).toHaveBeenCalledTimes(2);
+  expect(state.releaseLock).toHaveBeenCalledOnce();
 });

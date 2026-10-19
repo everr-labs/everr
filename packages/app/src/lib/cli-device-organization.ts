@@ -16,7 +16,7 @@ import {
 // row before creating the session, so the org can't be read back from the row
 // at session-create time; and better-auth offers no documented way to pass
 // app data from an endpoint hook into a database hook. An app-owned
-// AsyncLocalStorage sidesteps both: the auth route handler opens a capture
+// AsyncLocalStorage sidesteps both: the auth factory opens a capture
 // scope around auth.handler(request), and both hooks run inside it.
 const deviceOrgCapture = new AsyncLocalStorage<{
   organizationId: string | null;

@@ -15,29 +15,8 @@ export const server: ApplicationServer = {
   getIngestEndpoint: () => "https://ingest.everr.dev/",
   assertStorageReady: storageReadiness.assertStorageReady,
   async loadIdentity() {
-    const {
-      identityAdapter,
-      organizationHooks,
-      identityLifecycle,
-      authPlugins,
-      membershipPlugins,
-    } = await import("./app/auth");
-    const { beforeUserCreate, createSessionOnboardingHook } = await import(
-      "./app/onboarding"
-    );
-    return {
-      identityAdapter,
-      organizationHooks,
-      identityLifecycle,
-      authPlugins,
-      membershipPlugin: membershipPlugins[0],
-      beforeUserCreate,
-      createSessionOnboardingHook,
-    };
-  },
-  async withIdentityRequest(run) {
-    const { withBillingRequest } = await import("./billing/lock.server");
-    return withBillingRequest(run);
+    const { identity } = await import("./app/auth");
+    return identity;
   },
   async assertAccountDeletionAllowed(organizations) {
     const { assertAccountDeletionAllowed } = await import("./app/account");

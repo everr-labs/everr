@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `4d6224c00`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `85c0227cb`.
 
 ## Direction and next architecture work
 
@@ -12,7 +12,7 @@ build and maintenance burden. Cloud's TypeScript source exclusions alone do not
 justify extraction. Revisit only for independent versioning, another consumer,
 or recurring coupling that directory-level enforcement cannot contain.
 
-The first composition cleanup is implemented in the working tree: page, layout,
+The first composition cleanup is committed: page, layout,
 and UI contracts now contain only types, with self-hosted implementations under
 `src/app/composition`. Both applications declare their own client configuration;
 cloud no longer inherits the installation-only `/access-required` entry route.
@@ -36,12 +36,13 @@ incrementally, preserving behavior:
    runtime as separate modules. Consumers should depend only on what they use;
    splitting files without reducing caller knowledge is not sufficient. Preserve
    lazy initialization of authentication and workers.
-3. **Deepen identity assembly.** Shared auth, application auth, membership plugins,
-   and request wrappers jointly enforce behavior. A shared identity factory could
-   own plugin/hook ordering, shared authorization plus application policy, and
-   the request scope required for locking. Make these invariants explicit and
-   keep Better Auth details inside the integration layer. Avoid a generic hook
-   framework and preserve transactional ownership.
+3. **Identity assembly now has a factory.** `createApplicationAuth` in
+   `lib/auth.server.ts` owns plugin ordering and wraps HTTP requests with identity
+   locking and device-login capture. `ApplicationIdentity` includes the scope;
+   `ApplicationServer` no longer exposes it separately. Direct server-side account
+   deletion uses `auth.withIdentityRequest`. Application hooks cannot replace the
+   four shared membership/deletion guards. Preserve these invariants when further
+   narrowing the server interface; avoid a generic hook framework.
 4. **Keep configuration application-owned.** Client destinations and additional
    dashboard manifests are now explicit. Preserve literal dashboard IDs and the
    separation of lightweight manifests from document loading.
@@ -175,6 +176,14 @@ tests, styling, and migrations. Old `/tmp` artifacts are disposable evidence,
 not a supported harness or a prerequisite for resuming the work.
 
 ## Verification status and release work
+
+Identity factory follow-up: both typechecks passed, including temporary negative
+probes for the four reserved organization hooks. All 23 focused app tests and
+37 focused cloud tests passed. New HTTP endpoint coverage verifies lock lifetime
+through successful member removal and last-owner denial. Import enforcement and
+dead-code checks passed. Manual sign-in verification still fails at the existing
+`alert_delivery_state` startup migration; the CLI still has no active session
+for remote status. Changes after the checkpoint above remain uncommitted.
 
 Dashboard typing follow-up: seven focused app tests and the actual catalog/home
 check under cloud composition passed. Both typechecks include temporary negative

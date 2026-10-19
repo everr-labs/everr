@@ -511,3 +511,11 @@ Server identity and background work load on demand, so importing storage or
 public endpoint settings does not initialize authentication or workers. Browser
 navigation stays separate from server behavior. Dashboard documents also have
 their own entry to keep the small dashboard menu manifest lightweight.
+
+`ApplicationIdentity` supplies authentication policy, persistence, and its request
+scope together. The shared factory in `lib/auth.server.ts` owns plugin ordering
+and gives `auth.handler` identity locking plus device-login capture automatically.
+Server-side mutations that need the same lock lifetime use
+`auth.withIdentityRequest`. Application organization hooks cannot replace the
+shared member-addition, invitation-creation/acceptance, or organization-deletion
+guards; use the lifecycle policy methods for application decisions.

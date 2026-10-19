@@ -1,17 +1,18 @@
-import type { BetterAuthPlugin } from "better-auth";
+import type { ApplicationIdentity } from "@everr/app/composition";
 import { billingIdentityAdapter } from "../billing/auth-adapter.server";
 import { billingAuthPlugin } from "../billing/auth-plugin.server";
+import { withBillingRequest } from "../billing/lock.server";
 import {
   billingMembershipPlugin,
   billingOrganizationHooks,
 } from "../billing/membership-plugin.server";
 import { beforeCreateCheckoutOrganization } from "../billing/organization-context.server";
-import type { CreateOrganization } from "../billing/types";
+import { billing } from "../billing/server";
 import { organizationLifecycleAdapter } from "../organization-provisioning/adapter.server";
 import { waitForOrganizationProvisioning } from "../organization-provisioning/fast-path";
 import { parseOrganizationMetadata } from "../organization-provisioning/metadata";
-export const identityAdapter = () =>
-  billingIdentityAdapter(organizationLifecycleAdapter());
+import { beforeUserCreate, createSessionOnboardingHook } from "./onboarding";
+
 async function afterCreateOrganization({
   organization,
 }: {
@@ -27,16 +28,17 @@ async function afterCreateOrganization({
   }
 }
 
-export const organizationHooks = () => ({
-  beforeCreateOrganization: beforeCreateCheckoutOrganization,
-  ...billingOrganizationHooks(),
-  afterCreateOrganization,
-});
-export { billing as identityLifecycle } from "../billing/server";
-export function authPlugins(
-  createOrganization: CreateOrganization,
-): BetterAuthPlugin[] {
-  return [billingAuthPlugin(createOrganization)];
-}
-
-export const membershipPlugins = [billingMembershipPlugin()] as const;
+export const identity = {
+  withIdentityRequest: withBillingRequest,
+  beforeUserCreate,
+  createSessionOnboardingHook,
+  identityAdapter: () => billingIdentityAdapter(organizationLifecycleAdapter()),
+  organizationHooks: () => ({
+    beforeCreateOrganization: beforeCreateCheckoutOrganization,
+    ...billingOrganizationHooks(),
+    afterCreateOrganization,
+  }),
+  identityLifecycle: billing,
+  authPlugins: (createOrganization) => [billingAuthPlugin(createOrganization)],
+  membershipPlugin: billingMembershipPlugin(),
+} satisfies ApplicationIdentity;

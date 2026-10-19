@@ -6,7 +6,7 @@ import { auth } from "#app/lib/auth.server.ts";
 import { isOrganizationOwner } from "#app/lib/organization-role.ts";
 import { createPartiallyAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
-const { assertAccountDeletionAllowed, withIdentityRequest } = server;
+const { assertAccountDeletionAllowed } = server;
 
 const DeleteCurrentUserAccountInputSchema = z.object({
   confirmation: z.literal("DELETE"),
@@ -96,7 +96,7 @@ export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
       });
     }
 
-    await withIdentityRequest(() =>
+    await auth.withIdentityRequest(() =>
       auth.api.deleteUser({
         headers,
         body: {},

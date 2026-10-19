@@ -11,29 +11,8 @@ export const server: ApplicationServer = {
   ...ingest,
   assertStorageReady: storageReadiness.assertStorageReady,
   async loadIdentity() {
-    const {
-      identityAdapter,
-      organizationHooks,
-      identityLifecycle,
-      authPlugins,
-      membershipPlugins,
-    } = await import("../auth");
-    const { beforeUserCreate, createSessionOnboardingHook } = await import(
-      "../onboarding"
-    );
-    return {
-      identityAdapter,
-      organizationHooks,
-      identityLifecycle,
-      authPlugins,
-      membershipPlugin: membershipPlugins[0],
-      beforeUserCreate,
-      createSessionOnboardingHook,
-    };
-  },
-  async withIdentityRequest(run) {
-    const { withIdentityRequest } = await import("../request");
-    return withIdentityRequest(run);
+    const { identity } = await import("../auth");
+    return identity;
   },
   async assertAccountDeletionAllowed(_organizations) {},
   async getAppEntry() {

@@ -28,7 +28,7 @@ vi.mock("pg", () => ({
   },
 }));
 
-import { withCheckoutLock } from "./lock.server";
+import { withBillingRequest, withCheckoutLock } from "./lock.server";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -74,8 +74,7 @@ it("preserves authentication when deriving the checkout pool from a real pg pool
 });
 
 it("retains and reuses nested organization locks until the whole request completes", async () => {
-  const { server } = await import("../runtime");
-  await server.withIdentityRequest(async () => {
+  await withBillingRequest(async () => {
     await withCheckoutLock("billing:org", async () => {
       await withCheckoutLock("billing:org", async () => "nested");
     });

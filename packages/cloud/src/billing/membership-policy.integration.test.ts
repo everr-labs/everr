@@ -27,15 +27,19 @@ vi.mock("@everr/app/db/client", () => ({
 vi.mock("../billing-data.server", () => ({ readOrgEntitlement: vi.fn() }));
 // Keep the production auth configuration and policy hooks. Isolate billing and
 // provisioning side effects, which have their own integration suites.
-vi.mock("../app/auth", () => ({
-  identityAdapter: () =>
-    drizzleAdapter(state.database as Parameters<typeof drizzleAdapter>[0], {
-      provider: "pg",
-    }),
-  organizationHooks: () => ({}),
-  identityLifecycle: { beforeMembershipChange: state.beforeMembershipChange },
-  authPlugins: () => [],
-  membershipPlugins: [{ id: "membership-policy-fixture" }],
+vi.mock("../app/auth", async () => ({
+  identity: {
+    ...(await import("../app/onboarding")),
+    withIdentityRequest: (await import("./lock.server")).withBillingRequest,
+    identityAdapter: () =>
+      drizzleAdapter(state.database as Parameters<typeof drizzleAdapter>[0], {
+        provider: "pg",
+      }),
+    organizationHooks: () => ({}),
+    identityLifecycle: { beforeMembershipChange: state.beforeMembershipChange },
+    authPlugins: () => [],
+    membershipPlugin: { id: "membership-policy-fixture" },
+  },
 }));
 vi.unmock("@everr/app/lib/auth.server");
 
