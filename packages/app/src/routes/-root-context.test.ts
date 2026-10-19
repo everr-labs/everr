@@ -5,12 +5,13 @@ import { Route } from "./__root";
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
+  getEntryRedirect: vi.fn(),
   getCookie: vi.fn(),
   headers: new Headers(),
 }));
 vi.mock("@composition/server", () => ({
   server: {
-    getAppEntry: async () => ({ setupRequired: false }),
+    getEntryRedirect: mocks.getEntryRedirect,
   },
 }));
 vi.mock("#app/telemetry/client.ts", () => ({}));
@@ -28,7 +29,9 @@ vi.mock("@tanstack/react-start/server", () => ({
   getCookie: mocks.getCookie,
 }));
 vi.mock("@tanstack/react-start", () => ({
-  createServerFn: () => ({ handler: (fn: () => unknown) => fn }),
+  createServerFn: () => ({
+    inputValidator: () => ({ handler: (fn: () => unknown) => fn }),
+  }),
   createIsomorphicFn: () => ({
     server: (fn: () => unknown) => ({ client: () => fn }),
   }),
@@ -41,9 +44,9 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllEnvs());
 
-async function loadContext() {
+async function loadContext(pathname = "/") {
   return (Route.options.beforeLoad as (options: unknown) => unknown)({
-    location: { pathname: "/" },
+    location: { pathname },
   });
 }
 
@@ -56,7 +59,6 @@ it("resolves the session and consent for live requests before auth guards run", 
     session,
     consent: "granted",
     createdOrganizationId: null,
-    setupRequired: false,
     emailEnabled: true,
     googleSignInEnabled: true,
     githubEnabled: true,
@@ -70,7 +72,6 @@ it("keeps signed-out live requests signed out", async () => {
 
   expect(await loadContext()).toEqual({
     createdOrganizationId: null,
-    setupRequired: false,
     emailEnabled: true,
     googleSignInEnabled: true,
     githubEnabled: true,
@@ -87,11 +88,22 @@ it("generates the prerendered shell without looking up runtime session data", as
     session: null,
     consent: undefined,
     createdOrganizationId: null,
-    setupRequired: false,
     emailEnabled: false,
     googleSignInEnabled: false,
     githubEnabled: false,
   });
   expect(mocks.getSession).not.toHaveBeenCalled();
   expect(mocks.getCookie).not.toHaveBeenCalled();
+  expect(mocks.getEntryRedirect).not.toHaveBeenCalled();
+});
+
+it.each([
+  { href: "/setup" },
+  { to: "/" },
+])("applies the application's redirect %j with history replacement", async (entryRedirect) => {
+  mocks.getEntryRedirect.mockResolvedValueOnce(entryRedirect);
+  await expect(loadContext("/some-path")).rejects.toMatchObject({
+    options: { ...entryRedirect, replace: true },
+  });
+  expect(mocks.getEntryRedirect).toHaveBeenCalledWith("/some-path");
 });

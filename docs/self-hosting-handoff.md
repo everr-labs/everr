@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `b22391b4a`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `77cb2249a`.
 
 ## Direction and next architecture work
 
@@ -177,6 +177,16 @@ not a supported harness or a prerequisite for resuming the work.
 
 ## Verification status and release work
 
+Entry routing follow-up: `getEntryRedirect(pathname)` replaces
+`getAppEntry`. Self-hosted composition owns installation redirects; cloud retains
+its `/setup` redirect to `/`. Shared root context no longer carries installation
+state. Both `to` and `href` use the selected application's generated route types,
+filtered with TanStack's `ResolveParams` to exclude parameterized destinations.
+Navigation semantics remain unchanged. Temporary type probes reject unknown
+paths, dynamic routes, external URLs, and use of `/setup` in cloud. Both typechecks,
+13 focused tests, import enforcement, and dead-code checks passed. Manual `/setup` verification
+remains blocked by the existing `alert_delivery_state` startup migration failure.
+
 Telemetry tenancy follow-up: one `telemetryTenantId` mapping replaces
 row-decoration, ingestion-response, and forwarding-header hooks. The shared writer
 requires organization context through its row type and owns stored tenant columns.
@@ -192,7 +202,7 @@ probes for the four reserved organization hooks. All 23 focused app tests and
 through successful member removal and last-owner denial. Import enforcement and
 dead-code checks passed. Manual sign-in verification still fails at the existing
 `alert_delivery_state` startup migration; the CLI still has no active session
-for remote status. Identity changes are committed at the checkpoint above.
+for remote status. Identity changes are committed at `b22391b4a`.
 
 Dashboard typing follow-up: seven focused app tests and the actual catalog/home
 check under cloud composition passed. Both typechecks include temporary negative

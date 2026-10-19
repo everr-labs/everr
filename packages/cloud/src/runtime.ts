@@ -15,8 +15,8 @@ export const server: ApplicationServer = {
     const { assertAccountDeletionAllowed } = await import("./app/account");
     return assertAccountDeletionAllowed(organizations);
   },
-  async getAppEntry() {
-    return { setupRequired: false };
+  async getEntryRedirect(pathname) {
+    if (pathname === "/setup") return { to: "/" };
   },
   async canOpenSignup() {
     return true;

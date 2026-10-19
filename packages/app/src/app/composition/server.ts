@@ -13,9 +13,9 @@ export const server: ApplicationServer = {
     return identity;
   },
   async assertAccountDeletionAllowed(_organizations) {},
-  async getAppEntry() {
-    const { getAppEntry } = await import("../entry");
-    return getAppEntry();
+  async getEntryRedirect(pathname) {
+    const { getEntryRedirect } = await import("../entry");
+    return getEntryRedirect(pathname);
   },
   async canOpenSignup(input) {
     const { canOpenSignup } = await import("../signup");

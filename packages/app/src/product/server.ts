@@ -3,6 +3,7 @@ import type { BetterAuthPlugin, GenericEndpointContext } from "better-auth";
 import type { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { OrganizationOptions } from "better-auth/plugins/organization";
 import type { MigrationDatabase } from "#app/db/migrations.ts";
+import type { ApplicationPath } from "./client";
 import type { SessionOnboardingHookFactory } from "./onboarding";
 
 /** Authorization hooks owned by the shared authentication module. */
@@ -93,8 +94,10 @@ export interface ApplicationServer {
   telemetryTenantId(organizationId: string): string | undefined;
   /** Public collector address advertised to clients; undefined represents an unconfigured endpoint. */
   getIngestEndpoint(): string | undefined;
-  /** Installation bootstrap state for the application's entry flow. */
-  getAppEntry(): Promise<{ setupRequired: boolean }>;
+  /** Application entry policy for static local routes, preserving href or to navigation semantics. */
+  getEntryRedirect(
+    pathname: string,
+  ): Promise<{ href: ApplicationPath } | { to: ApplicationPath } | undefined>;
   /** Signup-page eligibility for a destination, distinct from admission of a specific identity. */
   canOpenSignup(input: { redirect?: string }): Promise<boolean>;
   /** Database upgrade lifecycle for the application's shared and additional schema histories. */

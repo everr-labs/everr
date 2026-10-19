@@ -35,41 +35,36 @@ import { CONSENT_COOKIE, isConsentDecision } from "#app/telemetry/consent.ts";
 import { ConsentGate } from "#app/telemetry/consent-gate.tsx";
 import type { RouterContext } from "../router";
 
-const { getAppEntry } = server;
-
 // Load session and consent together so auth guards see the same session.
-const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
-  const session = await getSession({
-    headers: getRequestHeaders(),
+const getRootContext = createServerFn({ method: "GET" })
+  .inputValidator((pathname: string) => pathname)
+  .handler(async ({ data: pathname }) => {
+    const session = await getSession({
+      headers: getRequestHeaders(),
+    });
+    const consentValue = getCookie(CONSENT_COOKIE);
+    const entryRedirect = await server.getEntryRedirect(pathname);
+
+    const context = {
+      emailEnabled: mailer !== null,
+      googleSignInEnabled: Boolean(socialProviders?.google),
+      githubEnabled: Boolean(getGithubConfiguration()),
+      createdOrganizationId: await readCreatedOrganizationId(
+        getCookie(ORGANIZATION_CREATION_COOKIE),
+        session?.session,
+      ),
+      session:
+        session?.session && session?.user
+          ? { user: session.user, session: session.session }
+          : null,
+      consent: isConsentDecision(consentValue) ? consentValue : undefined,
+    };
+    if (entryRedirect)
+      throw "href" in entryRedirect
+        ? redirect({ href: entryRedirect.href, replace: true })
+        : redirect({ to: entryRedirect.to, replace: true });
+    return context;
   });
-  const consentValue = getCookie(CONSENT_COOKIE);
-  const appEntry = await getAppEntry();
-
-  return {
-    ...appEntry,
-    emailEnabled: mailer !== null,
-    googleSignInEnabled: Boolean(socialProviders?.google),
-    githubEnabled: Boolean(getGithubConfiguration()),
-    createdOrganizationId: await readCreatedOrganizationId(
-      getCookie(ORGANIZATION_CREATION_COOKIE),
-      session?.session,
-    ),
-    session:
-      session?.session && session?.user
-        ? { user: session.user, session: session.session }
-        : null,
-    consent: isConsentDecision(consentValue) ? consentValue : undefined,
-  };
-});
-
-async function loadAppContext(pathname: string) {
-  const context = await getRootContext();
-  if (context.setupRequired && pathname !== "/setup")
-    throw redirect({ href: "/setup", replace: true });
-  if (!context.setupRequired && pathname === "/setup")
-    throw redirect({ to: "/", replace: true });
-  return context;
-}
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: createIsomorphicFn()
@@ -79,15 +74,14 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           session: null,
           consent: undefined,
           createdOrganizationId: null,
-          setupRequired: false,
           emailEnabled: false,
           googleSignInEnabled: false,
           githubEnabled: false,
         };
-      return loadAppContext(location.pathname);
+      return getRootContext({ data: location.pathname });
     })
     .client(({ location }: { location: { pathname: string } }) =>
-      loadAppContext(location.pathname),
+      getRootContext({ data: location.pathname }),
     ),
   head: () => ({
     meta: [
