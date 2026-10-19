@@ -5,9 +5,17 @@ import {
   markOrganizationCreated,
   ORGANIZATION_CREATION_COOKIE,
   readCreatedOrganizationId,
-} from "./organization-creation-continuation.server";
+  getOrganizationEntryRedirect,
+} from "./continuation.server";
 
-afterEach(() => vi.useRealTimers());
+const state = vi.hoisted(() => ({ cookie: undefined as string | undefined }));
+vi.mock("@tanstack/react-start/server", () => ({
+  getCookie: () => state.cookie,
+}));
+afterEach(() => {
+  vi.useRealTimers();
+  state.cookie = undefined;
+});
 async function marker() {
   const setCookie = vi.fn();
   await markOrganizationCreated(
@@ -67,4 +75,34 @@ it("expires even if the cookie is retained past its browser lifetime", async () 
       activeOrganizationId: "org",
     }),
   ).toBeNull();
+});
+
+it("resolves setup only for the session and organization that created the marker", async () => {
+  state.cookie = await marker();
+  expect(
+    await getOrganizationEntryRedirect({
+      id: "session",
+      activeOrganizationId: "org",
+    }),
+  ).toEqual({ to: "/organization-setup" });
+  expect(
+    await getOrganizationEntryRedirect({
+      id: "other-session",
+      activeOrganizationId: "org",
+    }),
+  ).toBeUndefined();
+  expect(
+    await getOrganizationEntryRedirect({
+      id: "session",
+      activeOrganizationId: "other-org",
+    }),
+  ).toBeUndefined();
+});
+it("continues normally without an organization creation marker", async () => {
+  expect(
+    await getOrganizationEntryRedirect({
+      id: "session",
+      activeOrganizationId: "org",
+    }),
+  ).toBeUndefined();
 });

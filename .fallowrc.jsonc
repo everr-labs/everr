@@ -26,12 +26,12 @@
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
-    // Cloud composition selected by the explicit cloud Vite build alias.
+    // Application-owned cloud adapters and policy selected through composition.
     "packages/cloud/src/app/**",
-    "packages/cloud/src/composition/**",
-    "packages/cloud/src/runtime.ts",
-    "packages/cloud/src/navigation.ts",
-    "packages/cloud/src/dashboards.ts",
+    // Compile-only navigation fixtures exercise the generated route contracts.
+    "packages/app/src/testing/navigation.typecheck.tsx",
+    "packages/app/src/app/testing/navigation.typecheck.tsx",
+    "packages/cloud/src/app/testing/navigation.typecheck.tsx",
     // size-limit's own config file, resolved by its CLI at runtime; nothing
     // in the package imports it.
     "packages/otel-web/.size-limit.cjs",

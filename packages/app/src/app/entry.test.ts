@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, it, vi } from "vitest";
-import { server } from "./composition/server";
+import { entry } from "./composition/entry";
 import { getInstallation } from "./installation.server";
 
 vi.mock("./installation.server", () => ({ getInstallation: vi.fn() }));
@@ -18,14 +18,14 @@ it.each([
   vi.mocked(getInstallation).mockResolvedValueOnce(
     installed ? { id: "workspace" } : null,
   );
-  expect(await server.getEntryRedirect(pathname)).toEqual(redirect);
+  expect(await entry.getEntryRedirect(pathname)).toEqual(redirect);
 });
 
 it("propagates installation lookup failures", async () => {
   vi.mocked(getInstallation).mockRejectedValueOnce(
     new Error("installation unavailable"),
   );
-  await expect(server.getEntryRedirect("/")).rejects.toThrow(
+  await expect(entry.getEntryRedirect("/")).rejects.toThrow(
     "installation unavailable",
   );
 });

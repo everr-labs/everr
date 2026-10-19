@@ -5,9 +5,11 @@ import { Route } from "./me";
 const configuration = vi.hoisted(() => ({
   endpoint: undefined as string | undefined,
 }));
-vi.mock("@composition/server", () => ({
-  server: {
-    getIngestEndpoint: () => configuration.endpoint,
+vi.mock("@composition/deployment", () => ({
+  deployment: {
+    get ingestEndpoint() {
+      return configuration.endpoint;
+    },
   },
 }));
 

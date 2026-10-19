@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
 import { runbookOptions } from "#app/data/runbooks/options.ts";
 import { findPage, toDashboardDocument } from "#app/data/runbooks/pages.ts";
@@ -15,7 +16,7 @@ export const runbookBreadcrumb = (match: {
 }): BreadcrumbSegment[] => {
   const name = match.loaderData?.name ?? "Runbook";
   const pageTitle = match.loaderData?.pageTitle;
-  const runbooks = { label: "Runbooks", to: "/runbooks" };
+  const runbooks = { label: "Runbooks", link: <Link to="/runbooks" /> };
   // On the index page the runbook is where you are; on one of its pages it
   // becomes the way back, and the page names the place.
   if (pageTitle === undefined) return [runbooks, { label: name }];
@@ -23,7 +24,7 @@ export const runbookBreadcrumb = (match: {
     runbooks,
     {
       label: name,
-      to: `/runbooks/${match.params.project}/${match.params.slug}`,
+      link: <Link to="/runbooks/$project/$slug" params={match.params} />,
     },
     { label: pageTitle },
   ];

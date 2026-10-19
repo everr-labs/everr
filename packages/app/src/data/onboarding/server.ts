@@ -1,4 +1,4 @@
-import { server } from "@composition/server";
+import { deployment } from "@composition/deployment";
 
 import { z } from "zod";
 import type { HomeStatus } from "#app/common/onboarding.ts";
@@ -6,8 +6,6 @@ import { db } from "#app/db/client.ts";
 import { env } from "#app/env/index.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import { createOnboardingStore } from "./store";
-
-const { getIngestEndpoint } = server;
 
 const store = createOnboardingStore(db);
 const identityInput = z.object({ organizationId: z.string().min(1) }).strict();
@@ -35,7 +33,7 @@ export const getHomeStatus = createAuthenticatedServerFn({ method: "GET" })
           session.user.id,
         ),
       )),
-      ingestEndpoint: getIngestEndpoint(),
+      ingestEndpoint: deployment.ingestEndpoint,
       appUrl: env.BETTER_AUTH_URL,
     }),
   );

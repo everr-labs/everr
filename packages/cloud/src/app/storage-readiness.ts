@@ -9,15 +9,3 @@ export function ensureStorageReady(metadata: unknown, returnTo: string): void {
       replace: true,
     });
 }
-export function afterOrganizationSelected(
-  createdId: string | null | undefined,
-  organizationId: string,
-  returnTo: string,
-): void {
-  if (createdId === organizationId)
-    throw redirect({
-      to: "/organization-setup",
-      search: { returnTo },
-      replace: true,
-    });
-}

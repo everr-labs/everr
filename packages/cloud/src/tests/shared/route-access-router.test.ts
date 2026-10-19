@@ -38,6 +38,10 @@ vi.mock("@everr/app/data/organization-access", () => ({
             id: "org",
             metadata: JSON.stringify({ clickhouseReady: state.ready }),
           },
+          entryRedirect:
+            state.createdOrganizationId === "org"
+              ? { to: "/organization-setup" }
+              : undefined,
         }
       : { status: "missing" };
   }),
@@ -70,7 +74,6 @@ for (const path of [
         ? createRootRoute({
             beforeLoad: () => ({
               session: state.session,
-              createdOrganizationId: state.createdOrganizationId,
             }),
           })
         : createFileRoute()({

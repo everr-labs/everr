@@ -1,7 +1,7 @@
 import { dashboards } from "@composition/dashboards";
 
-import { parse } from "yaml";
 import { BUILTIN_MANIFEST } from "../manifest";
+import { parseBuiltinDashboard } from "../parse";
 import type { BuiltinDashboard } from "../types";
 import { assembleBuiltinCatalog } from "./assemble";
 
@@ -14,18 +14,16 @@ const { additionalBuiltinDashboards } = dashboards;
  * at module init. Built-ins render live from this catalog under the reserved
  * `built-in` pseudo-project (ADR 0004).
  */
-const sources = import.meta.glob("./*/*.yaml", {
+const sources = import.meta.glob<string>("./*/*.yaml", {
   query: "?raw",
   import: "default",
   eager: true,
-}) as Record<string, string>;
+});
 
 export const BUILTIN_DASHBOARDS: BuiltinDashboard[] = assembleBuiltinCatalog(
   BUILTIN_MANIFEST,
   [
-    ...Object.values(sources).map(
-      (source) => parse(source) as BuiltinDashboard,
-    ),
+    ...Object.values(sources).map(parseBuiltinDashboard),
     ...additionalBuiltinDashboards,
   ],
 );

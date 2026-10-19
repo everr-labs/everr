@@ -1,7 +1,6 @@
-import type { ApplicationNavigation } from "#app/product/navigation.ts";
+import type { ApplicationNavigation } from "#app/composition/navigation.ts";
 
 export const navigation: ApplicationNavigation = {
   ensureStorageReady() {},
-  afterOrganizationSelected() {},
   ensureAppAccess() {},
 };

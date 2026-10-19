@@ -11,11 +11,11 @@ const { pool } = await import("#app/db/client.ts");
 try {
   const [
     {
-      server: { migrateDatabase },
+      runtime: { migrateDatabase },
     },
     { withMigrationLock },
   ] = await Promise.all([
-    import("@composition/server"),
+    import("@composition/runtime"),
     import("#app/db/migrations.ts"),
   ]);
   await withMigrationLock(migrateDatabase);

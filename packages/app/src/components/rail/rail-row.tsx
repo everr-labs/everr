@@ -1,5 +1,10 @@
 import { cn } from "@everr/ui/lib/utils";
-import { Link, type LinkProps } from "@tanstack/react-router";
+import {
+  createLink,
+  type LinkComponentProps,
+  type RegisteredRouter,
+} from "@tanstack/react-router";
+import type { ComponentPropsWithRef, ReactElement } from "react";
 
 /** The look every navigable row in a rail shares. */
 export const railRowClass =
@@ -27,28 +32,46 @@ export const rowIndent = (depth: number, kind: "resource" | "folder") =>
  * accepted at all: the active look is what makes a rail row a rail row, so
  * overriding it is a type error rather than something that silently happens.
  */
-export function RailRow({
+type RailRowAnchorProps = ComponentPropsWithRef<"a"> & {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  activeProps?: never;
+};
+
+function RailRowAnchor({
   label,
   icon: Icon,
   className,
-  ...linkProps
-}: {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  className?: string;
-} & Omit<LinkProps, "className" | "activeProps">) {
+  ...anchorProps
+}: RailRowAnchorProps) {
   return (
-    <Link
-      {...linkProps}
+    <a
+      {...anchorProps}
       className={cn(
         railRowClass,
         "flex w-full items-center gap-2.5 px-2 text-left text-foreground",
+        "data-[status=active]:bg-muted data-[status=active]:text-foreground data-[status=active]:[&>svg]:text-primary",
         className,
       )}
-      activeProps={railRowActiveProps}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-    </Link>
+    </a>
   );
 }
+
+export const RailRow: <
+  const TFrom extends string = string,
+  const TTo extends string | undefined = undefined,
+  const TMaskFrom extends string = TFrom,
+  const TMaskTo extends string = "",
+>(
+  props: LinkComponentProps<
+    typeof RailRowAnchor,
+    RegisteredRouter,
+    TFrom,
+    TTo,
+    TMaskFrom,
+    TMaskTo
+  > & { activeProps?: never },
+) => ReactElement = createLink(RailRowAnchor);

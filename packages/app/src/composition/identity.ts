@@ -3,18 +3,12 @@ import type { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { OrganizationOptions } from "better-auth/plugins/organization";
 import type { SessionOnboardingHookFactory } from "./onboarding";
 
-/** Authorization hooks owned by the shared authentication module. */
-type SharedOrganizationHook =
-  | "beforeAddMember"
-  | "beforeCreateInvitation"
-  | "beforeAcceptInvitation"
-  | "beforeDeleteOrganization";
-
-/** Organization lifecycle extensions outside the shared authorization policy. */
-type ApplicationOrganizationHooks = Omit<
-  NonNullable<OrganizationOptions["organizationHooks"]>,
-  SharedOrganizationHook
-> & { [Hook in SharedOrganizationHook]?: never };
+/** Organization creation extensions. Membership and deletion hooks are shared-owned. */
+type OrganizationHooks = NonNullable<OrganizationOptions["organizationHooks"]>;
+type CreationHook = "beforeCreateOrganization" | "afterCreateOrganization";
+type ApplicationOrganizationHooks = Pick<OrganizationHooks, CreationHook> & {
+  [Hook in Exclude<keyof OrganizationHooks, CreationHook>]?: never;
+};
 
 /**
  * The application's identity model: credential persistence, membership policy,
@@ -31,8 +25,16 @@ export interface ApplicationIdentity {
   identityAdapter(): ReturnType<typeof drizzleAdapter>;
   /** Application lifecycle extensions around organization persistence and membership changes. */
   organizationHooks(): ApplicationOrganizationHooks;
+  /** Account-deletion preflight, complementary to mutation-time guards. */
+  assertAccountDeletionAllowed(
+    organizations: Array<{ id: string; name: string }>,
+  ): void | Promise<void>;
   /** Account and membership policy shared by the authentication entry points. */
   identityLifecycle: {
+    /** Acquire application locks before the authentication provider reads membership state. */
+    beforeMembershipMutation?(): Promise<void>;
+    /** Reconcile application state after a membership change commits. */
+    afterMembershipChange(orgId: string): Promise<void>;
     /** Account-removal policy, including obligations to organizations the user owns. */
     beforeUserDelete(userId: string): Promise<void>;
     /** Membership-transition policy; a null role represents departure from the organization. */
@@ -45,13 +47,11 @@ export interface ApplicationIdentity {
     assertDeletable(orgId: string): Promise<void>;
   };
   /** Additional authentication integrations, with access to the shared organization-creation flow. */
-  authPlugins(
+  authPlugins?(
     createOrganization: (input: {
       body: { name: string; slug: string; userId: string };
     }) => Promise<unknown>,
   ): BetterAuthPlugin[];
-  /** Endpoint-level membership policy for mutations outside organization hooks. */
-  membershipPlugin: BetterAuthPlugin;
   /** Signup admission policy for new identities, including invitation requirements. */
   beforeUserCreate(
     user: { email: string; emailVerified?: boolean },

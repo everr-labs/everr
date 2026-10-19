@@ -1,28 +1,33 @@
 import type { BetterAuthPlugin } from "better-auth";
-import {
-  APIError,
-  createAuthMiddleware,
-  getSessionFromCtx,
-} from "better-auth/api";
+import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
 import { z } from "zod";
-import { billing } from "./server";
+import type { ApplicationIdentity } from "#app/composition/identity.ts";
+
+type MembershipPolicy = ApplicationIdentity["identityLifecycle"];
 
 // Better Auth's leave endpoint bypasses organization member-removal hooks.
-type MembershipBilling = Pick<
-  typeof billing,
-  "beforeMembershipChange" | "afterMembershipChange"
->;
-export function billingMembershipPlugin(
-  module: MembershipBilling = billing,
+export function membershipMutationPlugin(
+  policy: MembershipPolicy,
+  resolveSession: (
+    headers: Headers,
+  ) => Promise<{ user: { id: string } } | null>,
 ): BetterAuthPlugin {
   return {
-    id: "billing-membership",
+    id: "membership-policy",
     hooks: {
       before: [
         {
-          matcher: (ctx) => ctx.path === "/organization/leave",
+          matcher: (ctx) =>
+            [
+              "/organization/remove-member",
+              "/organization/update-member-role",
+              "/organization/leave",
+              "/delete-user",
+            ].includes(ctx.path ?? ""),
           handler: createAuthMiddleware(async (ctx) => {
-            const session = await getSessionFromCtx(ctx);
+            await policy.beforeMembershipMutation?.();
+            if (ctx.path !== "/organization/leave") return;
+            const session = await resolveSession(ctx.headers ?? new Headers());
             if (!session) return;
             const { organizationId } = z
               .object({ organizationId: z.string() })
@@ -38,7 +43,7 @@ export function billingMembershipPlugin(
               throw new APIError("FORBIDDEN", {
                 message: "You are not a member of this organization.",
               });
-            await module.beforeMembershipChange(
+            await policy.beforeMembershipChange(
               organizationId,
               session.user.id,
               null,
@@ -50,13 +55,14 @@ export function billingMembershipPlugin(
         {
           matcher: (ctx) => ctx.path === "/organization/leave",
           handler: createAuthMiddleware(async (ctx) => {
-            const session = await getSessionFromCtx(ctx);
+            if (isAPIError(ctx.context.returned)) return;
+            const session = await resolveSession(ctx.headers ?? new Headers());
             if (!session) return;
             const body = z
               .object({ organizationId: z.string() })
               .safeParse(ctx.body);
             if (body.success)
-              await module.afterMembershipChange(body.data.organizationId);
+              await policy.afterMembershipChange(body.data.organizationId);
           }),
         },
       ],
@@ -64,14 +70,14 @@ export function billingMembershipPlugin(
   };
 }
 
-export function billingOrganizationHooks(module: MembershipBilling = billing) {
+export function membershipOrganizationHooks(policy: MembershipPolicy) {
   type Input = { member: { organizationId: string; userId: string } };
   const finish = async ({ member }: Input) => {
-    await module.afterMembershipChange(member.organizationId);
+    await policy.afterMembershipChange(member.organizationId);
   };
   return {
     beforeRemoveMember: async ({ member }: Input) => {
-      await module.beforeMembershipChange(
+      await policy.beforeMembershipChange(
         member.organizationId,
         member.userId,
         null,
@@ -82,7 +88,7 @@ export function billingOrganizationHooks(module: MembershipBilling = billing) {
       member,
       newRole,
     }: Input & { newRole: string }) => {
-      await module.beforeMembershipChange(
+      await policy.beforeMembershipChange(
         member.organizationId,
         member.userId,
         newRole,

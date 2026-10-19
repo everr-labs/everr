@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
   appStop: vi.fn(),
   registerShutdownHook: vi.fn(),
 }));
-vi.mock("@composition/server", () => ({
-  server: { startAppWorkers: mocks.appStart },
+vi.mock("@composition/runtime", () => ({
+  runtime: { startAppWorkers: mocks.appStart },
 }));
 vi.mock("./managed-worker", () => ({
   managedWorker: () => ({ start: mocks.generalStart, stop: mocks.generalStop }),

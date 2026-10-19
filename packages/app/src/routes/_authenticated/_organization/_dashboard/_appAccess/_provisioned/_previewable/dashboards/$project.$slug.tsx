@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import gridLayoutOverridesCSS from "#app/components/dashboards/dashboard-grid.css?url";
 import { DashboardGrid } from "#app/components/dashboards/dashboard-grid.tsx";
@@ -14,7 +14,7 @@ export const Route = createFileRoute(
 )({
   staticData: {
     breadcrumb: (match: { loaderData?: { name: string } }) => [
-      { label: "Dashboards", to: "/dashboards" },
+      { label: "Dashboards", link: <Link to="/dashboards" /> },
       { label: match.loaderData?.name ?? "Dashboard" },
     ],
   },

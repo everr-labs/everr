@@ -1,4 +1,4 @@
-import { server } from "@composition/server";
+import { entry } from "@composition/entry";
 
 import { getGithubConfiguration } from "#app/integrations/github/configuration.ts";
 import { socialProviders } from "#app/lib/auth-providers.server.ts";
@@ -26,10 +26,6 @@ import {
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { createIsomorphicFn, createServerFn } from "@tanstack/react-start";
 import { getCookie, getRequestHeaders } from "@tanstack/react-start/server";
-import {
-  ORGANIZATION_CREATION_COOKIE,
-  readCreatedOrganizationId,
-} from "#app/lib/organization-creation-continuation.server.ts";
 import appCss from "#app/styles/app.css?url";
 import { CONSENT_COOKIE, isConsentDecision } from "#app/telemetry/consent.ts";
 import { ConsentGate } from "#app/telemetry/consent-gate.tsx";
@@ -43,16 +39,12 @@ const getRootContext = createServerFn({ method: "GET" })
       headers: getRequestHeaders(),
     });
     const consentValue = getCookie(CONSENT_COOKIE);
-    const entryRedirect = await server.getEntryRedirect(pathname);
+    const entryRedirect = await entry.getEntryRedirect(pathname);
 
     const context = {
       emailEnabled: mailer !== null,
       googleSignInEnabled: Boolean(socialProviders?.google),
       githubEnabled: Boolean(getGithubConfiguration()),
-      createdOrganizationId: await readCreatedOrganizationId(
-        getCookie(ORGANIZATION_CREATION_COOKIE),
-        session?.session,
-      ),
       session:
         session?.session && session?.user
           ? { user: session.user, session: session.session }
@@ -73,7 +65,6 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         return {
           session: null,
           consent: undefined,
-          createdOrganizationId: null,
           emailEnabled: false,
           googleSignInEnabled: false,
           githubEnabled: false,

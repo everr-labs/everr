@@ -17,19 +17,15 @@ it.each([
 it("leaves the ingestion endpoint unset until configured", async () => {
   vi.resetModules();
   vi.stubEnv("EVERR_PUBLIC_INGEST_URL", undefined);
-  const {
-    server: { getIngestEndpoint },
-  } = await import("@composition/server");
-  expect(getIngestEndpoint()).toBeUndefined();
+  const { deployment } = await import("@composition/deployment");
+  expect(deployment.ingestEndpoint).toBeUndefined();
 });
 
 it("publishes the configured public ingestion endpoint", async () => {
   vi.resetModules();
   vi.stubEnv("EVERR_PUBLIC_INGEST_URL", "https://telemetry.example.test/otlp");
-  const {
-    server: { getIngestEndpoint },
-  } = await import("@composition/server");
-  expect(getIngestEndpoint()).toBe("https://telemetry.example.test/otlp");
+  const { deployment } = await import("@composition/deployment");
+  expect(deployment.ingestEndpoint).toBe("https://telemetry.example.test/otlp");
 });
 
 it.each([
@@ -42,7 +38,7 @@ it.each([
   vi.stubEnv("EVERR_PUBLIC_INGEST_URL", endpoint);
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
-    await expect(import("@composition/server")).rejects.toThrow(
+    await expect(import("@composition/deployment")).rejects.toThrow(
       "Invalid environment variables",
     );
   } finally {

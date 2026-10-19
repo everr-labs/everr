@@ -12,10 +12,11 @@ import {
   ScrollText,
   Waypoints,
 } from "lucide-react";
+import type { ApplicationPath } from "#app/composition/client.ts";
 
 type NavItem = {
   title: string;
-  url: string;
+  url: ApplicationPath;
   icon: LucideIcon;
   /** Light the item up only on its own URL, not on the URLs nested under it.
    *  A section index such as `/alerts` needs this: without it it stays active

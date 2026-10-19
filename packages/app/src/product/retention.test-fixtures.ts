@@ -1,4 +1,4 @@
-import type { TenantRetention } from "./retention";
+import type { TenantRetention } from "../composition/retention";
 
 export function retentionForDays(
   telemetryDays: number,

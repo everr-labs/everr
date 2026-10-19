@@ -8,7 +8,6 @@ import * as cloudSchema from "../db/schema";
 import type { Database } from "@everr/app/db/client";
 import * as coreSchema from "@everr/app/db/schema";
 import { serverLogger } from "@everr/app/telemetry/logger";
-import { billingOrganizationHooks } from "./membership-plugin.server";
 import { createBillingModule } from "./module";
 import { beforeCreateCheckoutOrganization } from "./organization-context.server";
 import type {
@@ -235,10 +234,7 @@ async function paidNew() {
 
 it("does not contact Polar for a new Hobby owner, then creates its team at the first checkout", async () => {
   await client.exec("DELETE FROM member WHERE user_id <> 'owner'");
-  const hooks = billingOrganizationHooks(billing);
-  await hooks.afterAddMember({
-    member: { organizationId: "org", userId: "owner" },
-  });
+  await billing.afterMembershipChange("org");
   expect(await billing.getSettings("org", "owner")).toMatchObject({
     connected: false,
     owner: null,

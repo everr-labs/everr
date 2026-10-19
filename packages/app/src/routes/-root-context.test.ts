@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
   getCookie: vi.fn(),
   headers: new Headers(),
 }));
-vi.mock("@composition/server", () => ({
-  server: {
+vi.mock("@composition/entry", () => ({
+  entry: {
     getEntryRedirect: mocks.getEntryRedirect,
   },
 }));
@@ -58,7 +58,6 @@ it("resolves the session and consent for live requests before auth guards run", 
   expect(await loadContext()).toEqual({
     session,
     consent: "granted",
-    createdOrganizationId: null,
     emailEnabled: true,
     googleSignInEnabled: true,
     githubEnabled: true,
@@ -71,7 +70,6 @@ it("keeps signed-out live requests signed out", async () => {
   mocks.getCookie.mockReturnValue(undefined);
 
   expect(await loadContext()).toEqual({
-    createdOrganizationId: null,
     emailEnabled: true,
     googleSignInEnabled: true,
     githubEnabled: true,
@@ -87,7 +85,6 @@ it("generates the prerendered shell without looking up runtime session data", as
   expect(await loadContext()).toEqual({
     session: null,
     consent: undefined,
-    createdOrganizationId: null,
     emailEnabled: false,
     googleSignInEnabled: false,
     githubEnabled: false,

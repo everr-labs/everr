@@ -1,4 +1,4 @@
-import { server } from "@composition/server";
+import { runtime } from "@composition/runtime";
 
 import {
   createStartHandler,
@@ -13,7 +13,7 @@ import {
   SpanKind,
 } from "#app/telemetry/node.ts";
 
-const { migrateDatabase } = server;
+const { migrateDatabase } = runtime;
 
 const startupTracer = getTelemetryTracer("everr-app.startup");
 

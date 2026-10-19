@@ -139,6 +139,32 @@
               {
                 "disallow": {
                   "dependency": {
+                    "source": "@composition/runtime"
+                  }
+                },
+                "message": "Import @composition/runtime only from app server entry points, scripts, or tests.",
+                "from": {
+                  "file": {
+                    "path": "!{packages/app/src/server.ts,packages/app/src/server/**,packages/app/scripts/**,**/*.test.{ts,tsx},**/*.spec.{ts,tsx},**/__tests__/**,**/testing/**}"
+                  }
+                }
+              },
+              {
+                "disallow": {
+                  "dependency": {
+                    "source": "@composition/identity"
+                  }
+                },
+                "message": "Import @composition/identity only from auth.server and tests.",
+                "from": {
+                  "file": {
+                    "path": "!{packages/app/src/lib/auth.server.ts,**/*.test.{ts,tsx},**/*.spec.{ts,tsx},**/__tests__/**,**/testing/**}"
+                  }
+                }
+              },
+              {
+                "disallow": {
+                  "dependency": {
                     "source": "@everr/**"
                   },
                   "to": {

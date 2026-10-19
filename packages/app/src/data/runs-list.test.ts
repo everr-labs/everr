@@ -9,6 +9,7 @@ vi.mock("#app/db/client.ts", () => ({
 
 vi.mock("#app/lib/clickhouse.ts", () => ({
   query: vi.fn(),
+  querySqlApi: vi.fn(),
 }));
 
 import { pool } from "#app/db/client.ts";

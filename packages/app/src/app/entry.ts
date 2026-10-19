@@ -1,7 +1,7 @@
-import type { ApplicationServer } from "#app/product/server.ts";
+import type { ApplicationEntry } from "#app/composition/entry.ts";
 import { getInstallation } from "./installation.server";
 
-export const getEntryRedirect: ApplicationServer["getEntryRedirect"] = async (
+export const getEntryRedirect: ApplicationEntry["getEntryRedirect"] = async (
   pathname,
 ) => {
   const setupRequired = !(await getInstallation());

@@ -5,7 +5,7 @@ import {
   OrganizationMenuItems,
   WorkspaceMenu,
   WelcomeActions,
-} from "../app/navigation";
+} from "../navigation";
 
 export const layouts: ApplicationLayouts = {
   UserMenu: () => (

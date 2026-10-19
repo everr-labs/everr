@@ -1,10 +1,13 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { assertAccountDeletionAllowed } from "../../../app/account";
 import { readOrgEntitlement } from "../../../billing-data.server";
 import { auth } from "@everr/app/lib/auth.server";
 import { deleteCurrentUserAccount } from "@everr/app/account-settings/actions";
 
-vi.mock("../../../billing-data.server", () => ({ readOrgEntitlement: vi.fn() }));
+vi.mock("../../../billing-data.server", () => ({
+  readOrgEntitlement: vi.fn(),
+}));
 
 vi.mock("../../../billing/lock.server", () => ({
   withBillingRequest: (run: () => Promise<unknown>) => run(),
@@ -33,6 +36,9 @@ function orgSummary(id: string, name: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(auth.assertAccountDeletionAllowed).mockImplementation(
+    assertAccountDeletionAllowed,
+  );
   vi.mocked(readOrgEntitlement).mockResolvedValue({
     plan: "hobby",
     appState: "hobby",

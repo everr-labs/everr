@@ -1,5 +1,5 @@
-import type { ApplicationStorage } from "#app/product/storage.ts";
-import { appEnv } from "./env";
+import type { ApplicationStorage } from "#app/composition/storage.ts";
+import { appEnv } from "../env";
 
 export const storage: ApplicationStorage = {
   appQuerySettings(_organizationId, settings) {

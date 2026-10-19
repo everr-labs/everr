@@ -12,7 +12,7 @@ import { auth } from "@everr/app/lib/auth.server";
 import {
   ORGANIZATION_CREATION_COOKIE,
   readCreatedOrganizationId,
-} from "@everr/app/lib/organization-creation-continuation.server";
+} from "./continuation.server";
 import { createPartiallyAuthenticatedServerFn } from "@everr/app/lib/serverFn";
 
 export const getOrganizationProvisioningStatus =

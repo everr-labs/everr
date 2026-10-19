@@ -1,8 +1,6 @@
-import { server } from "@composition/server";
+import { deployment } from "@composition/deployment";
 
 import { createFileRoute } from "@tanstack/react-router";
-
-const { getIngestEndpoint } = server;
 
 export const Route = createFileRoute("/api/cli/me")({
   server: {
@@ -14,7 +12,7 @@ export const Route = createFileRoute("/api/cli/me")({
           email: session.user.email,
           name: session.user.name || session.user.email,
           organizationName: organization.name,
-          ingestEndpoint: getIngestEndpoint() ?? null,
+          ingestEndpoint: deployment.ingestEndpoint ?? null,
         });
       },
     },

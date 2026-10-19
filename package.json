@@ -19,7 +19,7 @@
     "dev:local": "pnpm --filter @everr/local-app dev",
     "dev:local:ui": "pnpm --filter @everr/local-app dev:ui",
     "build:cli": "pnpm --filter @everr/cli build:release",
-    "check:boundaries": "oxlint -c .oxlintrc.json packages/app packages/cloud"
+    "check:boundaries": "oxlint -c .oxlintrc.json packages/app packages/cloud && node packages/app/build/check-composition-contracts.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",

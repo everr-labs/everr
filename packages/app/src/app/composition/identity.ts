@@ -1,12 +1,13 @@
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import { APIError } from "better-auth/api";
+import type { ApplicationIdentity } from "#app/composition/identity.ts";
 import { db } from "#app/db/client.ts";
-import type { ApplicationIdentity } from "#app/product/identity.ts";
-import { assertWorkspaceOwnershipTransferred } from "./installation.server";
-import { beforeUserCreate, createSessionOnboardingHook } from "./onboarding";
-import { lockWorkspaceMembership, withIdentityRequest } from "./request";
+import { assertWorkspaceOwnershipTransferred } from "../installation.server";
+import { beforeUserCreate, createSessionOnboardingHook } from "../onboarding";
+import { lockWorkspaceMembership, withIdentityRequest } from "../request";
 
 export const identity = {
+  async assertAccountDeletionAllowed() {},
   withIdentityRequest,
   beforeUserCreate,
   createSessionOnboardingHook,
@@ -20,6 +21,8 @@ export const identity = {
     },
   }),
   identityLifecycle: {
+    beforeMembershipMutation: lockWorkspaceMembership,
+    async afterMembershipChange() {},
     async beforeUserDelete(userId: string) {
       await lockWorkspaceMembership();
       try {
@@ -35,26 +38,6 @@ export const identity = {
       throw new APIError("FORBIDDEN", {
         message: "The installation workspace cannot be deleted.",
       });
-    },
-  },
-  authPlugins: () => [],
-  membershipPlugin: {
-    id: "workspace-membership",
-    hooks: {
-      before: [
-        {
-          matcher: (ctx) =>
-            [
-              "/organization/remove-member",
-              "/organization/update-member-role",
-              "/organization/leave",
-              "/delete-user",
-            ].includes(ctx.path ?? ""),
-          handler: createAuthMiddleware(async () => {
-            await lockWorkspaceMembership();
-          }),
-        },
-      ],
     },
   },
 } satisfies ApplicationIdentity;

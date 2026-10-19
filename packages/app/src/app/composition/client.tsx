@@ -1,4 +1,4 @@
-import type { ProductClient } from "#app/product/client.ts";
+import type { ProductClient } from "#app/composition/client.ts";
 
 export const productClient: ProductClient = {
   homeDashboardId: "traces-overview",

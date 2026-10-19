@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, it } from "vitest";
-import { server } from "./runtime";
+import { entry } from "./app/composition/entry";
 
 it.each([
   { pathname: "/setup", redirect: { to: "/" } },
@@ -10,5 +10,5 @@ it.each([
   pathname,
   redirect,
 }) => {
-  expect(await server.getEntryRedirect(pathname)).toEqual(redirect);
+  expect(await entry.getEntryRedirect(pathname)).toEqual(redirect);
 });

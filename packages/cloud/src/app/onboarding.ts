@@ -1,6 +1,6 @@
 import { createAutomaticOrganizationSessionHook } from "../auto-org.server";
 import { db } from "@everr/app/db/client";
-import { markOrganizationCreated } from "@everr/app/lib/organization-creation-continuation.server";
+import { markOrganizationCreated } from "../organization-provisioning/continuation.server";
 import type { SessionOnboardingHookFactory } from "@everr/app/composition";
 
 export const createSessionOnboardingHook: SessionOnboardingHookFactory = (

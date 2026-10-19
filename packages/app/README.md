@@ -1,521 +1,127 @@
-Welcome to your new TanStack app! 
+# Self-hosted application
 
-# Getting Started
+`@everr/app` is the complete self-hosted application and the base for
+`@everr/app-cloud`. It owns shared product features and the defaults needed to run
+one workspace. Cloud composes those features and supplies its own policy and
+cloud capabilities. The app must remain usable without importing or depending
+on cloud.
 
-To run this application:
+For installation, configuration, deployment, and account recovery, see the
+[deployment guide](../../deploy/README.md). For migration ownership, upgrade
+steps, and database compatibility, see [DATABASE-MIGRATIONS.md](../../DATABASE-MIGRATIONS.md).
 
-```bash
+## Ownership
+
+Shared features own their behavior and server-side authorization. Application
+specific decisions enter through typed contracts in `src/composition`, exported
+from `@everr/app/composition`. Each application provides adapters in its own
+`src/app/composition` directory. Keep contracts type-only so importing a
+contract does not load an application's implementation.
+
+The self-hosted app owns the single-workspace installation flow, its default
+identity and retention policies, and the shared feature implementations. Cloud
+owns billing, usage metering, tenant provisioning, commercial policy, and its
+Polar integration. Shared code should depend on the narrow contract for the
+behavior it needs, not on cloud modules or application implementation paths.
+
+Server responsibilities are separated by workflow: runtime manages migrations
+and workers; entry handles installation, signup, and guarded organization
+entry; deployment configuration provides the ingest endpoint; identity owns
+authentication and membership lifecycle behavior, including shared endpoint
+guards. Account preflight stays alongside identity. After membership validation,
+`getActiveOrganizationAccess` calls `getOrganizationEntryRedirect(session)` and
+applies the returned destination while preserving `returnTo`. Cloud owns
+organization creation cookies and continuation behavior. Identity adapters may
+implement `beforeMembershipMutation` for lock acquisition and
+`beforeMembershipChange` or `afterMembershipChange` for application policy;
+creation-only organization hooks remain separate. Shared endpoint guards remain
+in place.
+
+## Extending the application
+
+- Use ordinary component props and `children` when adding content to a shared
+  component. For example, account composition keeps shared profile and session
+  behavior while supplying the application's account-lifecycle action:
+
+  ```tsx
+  account: (props) => (
+    <AccountSettings {...props}>
+      <AccountDeletion />
+    </AccountSettings>
+  ),
+  ```
+
+  Keep shared authorization checks around actions restricted to administrators
+  or signed-in users.
+- Compose a page when an application needs different data loading or rendering.
+  `ApplicationPages.members` can provide both. Its `load` function may prefetch
+  data, and its component owns rendering:
+
+  ```tsx
+  members: {
+    async load({ queryClient, organizationId }) {
+      await queryClient.fetchQuery(membersPolicy(organizationId));
+    },
+    component: MembersPage,
+  },
+  ```
+
+  Shared routes continue to own authentication and authorization guards.
+- Register new application routes explicitly in `AppComposition.routes`. A route
+  declaration names its mount point, URL path, and source file:
+
+  ```ts
+  import { resolve } from "node:path";
+  import type { AppComposition } from "@everr/app/build/composition";
+
+  export const composition: AppComposition = {
+    directory: import.meta.dirname,
+    routes: {
+      signedIn: [
+        {
+          type: "route",
+          path: "settings",
+          file: resolve(import.meta.dirname, "src/routes/settings.tsx"),
+        },
+      ],
+    },
+  };
+  ```
+
+  Shared routes retain file-based discovery. After changing routes, regenerate
+  the application's checked-in TanStack route tree by running its development
+  server or build. Do not add a component or feature registry for contributions.
+- Keep application policy in its adapter. Shared identity code owns membership
+  endpoint quirks and normalizes lifecycle behavior before invoking application
+  hooks, so an adapter cannot replace the shared membership and deletion guards.
+
+Each application's `tsconfig.json` selects a complete set of named
+`@composition/*` modules. Vite and Vitest use the same selection. The root
+`pnpm check:boundaries` command checks package imports and composition contracts.
+
+Navigation uses the selected application's generated TanStack route types. Use
+literal route patterns with `params` for dynamic destinations. Shared navigation
+lists accept only parameter-free `ApplicationPath` values; `RailRow` preserves
+TanStack's route, params, and search inference. Breadcrumb segments accept a
+`link` element so each route can declare a fully typed `<Link />` directly.
+Compile-only navigation checks run with both applications' `typecheck` commands
+and verify that invalid routes, params, search, and cross-application links fail.
+
+When changing migration behavior or supported upgrade paths, update the
+[migration guide](../../DATABASE-MIGRATIONS.md). When changing installation,
+deployment, or recovery procedures, update the
+[deployment guide](../../deploy/README.md).
+
+## Local development
+
+From the repository root, install dependencies and start the self-hosted app:
+
+```sh
 pnpm install
-pnpm dev
-```
-
-To preview and edit the transactional email templates, run `pnpm dev:email` from
-this directory. The preview opens at `http://localhost:3000` (or the next
-available port) and reads templates from `src/emails`. Verification, password
-reset, and invitation emails use these templates for HTML and include a plain
-text fallback. Style the templates with Tailwind utility classes through React
-Email's `Tailwind` component and `pixelBasedPreset`. The shared branding and
-layout live in `src/lib/email-layout.tsx`. Dedicated copies of the logo and
-social icons live in `public/email` and are available to the preview through
-`src/emails/static`.
-
-# Building For Production
-
-To build this application for production:
-
-```bash
-pnpm build
-```
-
-## Testing
-
-Shared alerting integration suites live beside their implementation under
-`src/data/alerting` and `src/server/alerting`. Their harness in `src/testing`
-uses the application's database schema by default. Composing applications can
-run the same suites with Vitest-provided `alertingMigrations` and
-`alertingSchemaTarget` inputs. Ordinary unit tests belong to this package.
-
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
-
-```bash
-pnpm test
-```
-
-## Styling
-
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
-
-
-## Linting & Formatting
-
-This project uses [Biome](https://biomejs.dev/) for linting and formatting. The following scripts are available:
-
-
-```bash
-pnpm lint
-pnpm format
-pnpm check
-```
-
-## Routing
-This project uses [TanStack Router](https://tanstack.com/router). The initial setup is a file based router. Which means that the routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add another a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you use the `<Outlet />` component.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { Outlet, createRootRoute } from '@tanstack/react-router'
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
-
-import { Link } from "@tanstack/react-router";
-
-export const Route = createRootRoute({
-  component: () => (
-    <>
-      <header>
-        <nav>
-          <Link to="/">Home</Link>
-          <Link to="/about">About</Link>
-        </nav>
-      </header>
-      <Outlet />
-      <TanStackRouterDevtools />
-    </>
-  ),
-})
-```
-
-The `<TanStackRouterDevtools />` component is not required so you can remove it if you don't want it in your layout.
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-const peopleRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/people",
-  loader: async () => {
-    const response = await fetch("https://swapi.dev/api/people");
-    return response.json() as Promise<{
-      results: {
-        name: string;
-      }[];
-    }>;
-  },
-  component: () => {
-    const data = peopleRoute.useLoaderData();
-    return (
-      <ul>
-        {data.results.map((person) => (
-          <li key={person.name}>{person.name}</li>
-        ))}
-      </ul>
-    );
-  },
-});
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-### React-Query
-
-React-Query is an excellent addition or alternative to route loading and integrating it into you application is a breeze.
-
-First add your dependencies:
-
-```bash
-pnpm add @tanstack/react-query @tanstack/react-query-devtools
-```
-
-Next we'll need to create a query client and provider. We recommend putting those in `main.tsx`.
-
-```tsx
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-// ...
-
-const queryClient = new QueryClient();
-
-// ...
-
-if (!rootElement.innerHTML) {
-  const root = ReactDOM.createRoot(rootElement);
-
-  root.render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
-  );
-}
-```
-
-You can also add TanStack Query Devtools to the root route (optional).
-
-```tsx
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-
-const rootRoute = createRootRoute({
-  component: () => (
-    <>
-      <Outlet />
-      <ReactQueryDevtools buttonPosition="top-right" />
-      <TanStackRouterDevtools />
-    </>
-  ),
-});
-```
-
-Now you can use `useQuery` to fetch your data.
-
-```tsx
-import { useQuery } from "@tanstack/react-query";
-
-import "./App.css";
-
-function App() {
-  const { data } = useQuery({
-    queryKey: ["people"],
-    queryFn: () =>
-      fetch("https://swapi.dev/api/people")
-        .then((res) => res.json())
-        .then((data) => data.results as { name: string }[]),
-    initialData: [],
-  });
-
-  return (
-    <div>
-      <ul>
-        {data.map((person) => (
-          <li key={person.name}>{person.name}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-export default App;
-```
-
-You can find out everything you need to know on how to use React-Query in the [React-Query documentation](https://tanstack.com/query/latest/docs/framework/react/overview).
-
-## State Management
-
-Another common requirement for React applications is state management. There are many options for state management in React. TanStack Store provides a great starting point for your project.
-
-First you need to add TanStack Store as a dependency:
-
-```bash
-pnpm add @tanstack/store
-```
-
-Now let's create a simple counter in the `src/App.tsx` file as a demonstration.
-
-```tsx
-import { useStore } from "@tanstack/react-store";
-import { Store } from "@tanstack/store";
-import "./App.css";
-
-const countStore = new Store(0);
-
-function App() {
-  const count = useStore(countStore);
-  return (
-    <div>
-      <button onClick={() => countStore.setState((n) => n + 1)}>
-        Increment - {count}
-      </button>
-    </div>
-  );
-}
-
-export default App;
-```
-
-One of the many nice features of TanStack Store is the ability to derive state from other state. That derived state will update when the base state updates.
-
-Let's check this out by doubling the count using derived state.
-
-```tsx
-import { useStore } from "@tanstack/react-store";
-import { Store, Derived } from "@tanstack/store";
-import "./App.css";
-
-const countStore = new Store(0);
-
-const doubledStore = new Derived({
-  fn: () => countStore.state * 2,
-  deps: [countStore],
-});
-doubledStore.mount();
-
-function App() {
-  const count = useStore(countStore);
-  const doubledCount = useStore(doubledStore);
-
-  return (
-    <div>
-      <button onClick={() => countStore.setState((n) => n + 1)}>
-        Increment - {count}
-      </button>
-      <div>Doubled - {doubledCount}</div>
-    </div>
-  );
-}
-
-export default App;
-```
-
-We use the `Derived` class to create a new store that is derived from another store. The `Derived` class has a `mount` method that will start the derived store updating.
-
-Once we've created the derived store we can use it in the `App` component just like we would any other store using the `useStore` hook.
-
-You can find out everything you need to know on how to use TanStack Store in the [TanStack Store documentation](https://tanstack.com/store/latest).
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-# Installation
-
-The app manages one workspace. Configure PostgreSQL, ClickHouse, authentication
-secrets, and the public app URL using `.env.example` as a reference. Local
-settings can go in `.env.local`; shell environment variables take precedence.
-
-```sh
 pnpm --filter @everr/app dev
-pnpm --filter @everr/app build
-pnpm --filter @everr/app typecheck
-pnpm --filter @everr/app test:ci
 ```
 
-The production output is `.output`. PostgreSQL migrations in `drizzle`
-run automatically at startup, or explicitly with `pnpm db:migrate`. Create the
-database before starting the app. Use `packages/app/Dockerfile` for the image
-and see [deployment instructions](../../deploy/README.md) for setup and account
-recovery. The build includes `.output/server/recovery.mjs`.
-
-### Single-workspace setup
-
-The default app supports exactly one workspace per installation. On a fresh
-installation, browser visits open `/setup`. The first person to complete setup
-becomes the workspace owner. Enter a workspace name and the owner's name, email,
-and password (at least 8 characters).
-
-Setup atomically creates the owner, password credentials, workspace, and owner
-membership. Concurrent requests cannot create a second
-workspace. After setup, the owner signs in and continues through telemetry
-configuration. Setup remains closed while the workspace exists.
-
-If setup fails before committing, no owner or workspace is
-left behind; submit the form again after resolving the error. If the connection
-is lost after committing, or automatic sign-in fails, sign in with the owner
-credentials entered during setup. Repeating setup cannot create another workspace.
-
-Later users need an invitation. Public signup and automatic personal workspace
-creation are disabled. Invited users can accept a valid invitation without
-verifying their email. Acceptance does not mark the address as verified. Existing
-members sign in directly; users without membership see access instructions. The product has no organization switcher or creation action.
-Direct organization creation and deletion are rejected server-side. The last owner
-must transfer ownership before deleting their account.
-
-An existing database containing one organization uses that workspace. Databases
-with multiple organizations are rejected with an operator-facing error; this
-change does not merge, select, or delete existing organizations. Keep such an
-installation on the previous build until its data has been migrated deliberately.
-
-
-### Optional integrations
-
-Email delivery requires `EMAIL_DSN` and `EMAIL_FROM`. Without email delivery,
-admins can share invitation links and use the account recovery command. Google
-sign-in is available when both Google credentials are configured.
-
-GitHub is enabled by complete integration configuration. Set
-`EVERR_GITHUB_ENABLED=false` to disable it. Setting it to `true` requires all
-integration settings. Partial configuration fails validation. Disabled GitHub
-integration hides its navigation and disables its endpoints and jobs.
-
-Set `EVERR_PUBLIC_INGEST_URL` to the public collector URL shown in onboarding
-and returned by CLI discovery. When unset, onboarding asks users to contact
-their administrator.
-
-### Retention policy composition
-
-`product/retention.ts` defines the retention interface.
-`lib/retention.server.ts` obtains the selected app policy and caches
-it per organization for 30 seconds. The ingestion-key verifier, GitHub collector
-forwarder, and alert-history writer all use this lookup.
-
-Retention reads operator settings from the environment:
-
-```sh
-EVERR_RETENTION_DAYS=30
-# Optional overrides; otherwise each inherits EVERR_RETENTION_DAYS.
-EVERR_RETENTION_TRACES_DAYS=14
-EVERR_RETENTION_LOGS_DAYS=7
-EVERR_RETENTION_METRICS_DAYS=90
-EVERR_RETENTION_ALERT_EVALUATIONS_DAYS=7
-EVERR_RETENTION_ALERT_LIFECYCLE_DAYS=180
-```
-
-Supported windows are 1, 7, 14, 30, 90, 180, and 365 days. The finite set keeps
-retention partition variants bounded (ClickHouse guidance:
-`schema-partition-low-cardinality`). Zero, fractional values, and unlimited
-retention are not supported. Settings apply to every organization on the
-installation.
-
-Restart after changing settings. The existing collector cache can briefly retain
-the previous values. Retention is stamped into rows at ingestion; changing policy
-affects new writes and does not rewrite the TTL of existing rows. The existing
-TTL enforcement stays unchanged (`schema-partition-lifecycle`); this change
-requires no database migration.
-
-
-### Application telemetry
-
-Development uses the local collector at `http://127.0.0.1:54318`. Production
-requires an explicit endpoint. Configure `OTEL_EXPORTER_OTLP_ENDPOINT` for a
-standard receiver, or `EVERR_INGEST_ENDPOINT` and `EVERR_INGEST_KEY` for an
-authenticated Everr receiver. Browser telemetry uses `VITE_EVERR_INGEST_ENDPOINT`
-and optionally `VITE_EVERR_PUBLIC_INGEST_KEY`.
-
-## Application composition
-
-Application behavior is supplied as typed values. The contracts live in
-`src/product`: `ApplicationServer`, `ApplicationIdentity`,
-`ApplicationNavigation`, `ApplicationDashboards`, `Product`, `ProductClient`,
-`ApplicationPages`, `ApplicationLayouts`, and `ProductUI`. Implementations use `satisfies` or an explicit type annotation
-so missing methods and incompatible signatures fail typechecking.
-
-Public adapter types are imported from `@everr/app/composition`. This entry
-exports types only, so consuming a contract does not load its default
-implementation. Feature consumers use `@everr/app/members`,
-`@everr/app/account-settings/dialog`, and `@everr/app/account-settings/actions`.
-`@everr/app/page-layout` exposes the shared page header and containers. These
-package names remain stable when implementation files move. Runtime factories
-retain separate entry points. Self-hosted page, layout, UI,
-and client implementations live in `src/app/composition`; their contracts in
-`src/product` contain types only. Each application declares its own client
-configuration and entry destinations rather than inheriting installation defaults.
-Route destinations use the selected generated route tree's static paths.
-`ProductClient` accepts a readonly literal manifest of additional dashboards as
-its type parameter; `homeDashboardId` must name a shared or additional entry.
-The lightweight built-in manifest owns display order. When dashboard documents
-load, catalog assembly rejects missing, duplicate, unlisted, or name-mismatched
-entries. Navigation does not import the documents.
-
-Each application's `tsconfig.json` selects explicit server, client, policy,
-navigation, dashboard, page, UI, and route-tree modules through named
-`@composition/*` paths. Implementations need not have matching filenames or
-directories. Vite and Vitest read those same paths. Each application declares
-a complete selection; named entries
-must belong to that package. No compiler configuration is generated.
-Restart development after changing module mappings.
-
-Internal imports use package-private paths such as
-`#app/lib/auth-client.ts`. The `imports` field in this package's `package.json`
-maps `#app/*` to `./src/*`. Include the file extension (and `index.ts` for directory
-entry points). Resolution belongs to this package even when another application
-compiles its source. No tsconfig or Vite alias is needed for these imports.
-The named `@composition/*` mappings still select application implementations.
-
-
-Each application checks in its `routeTree.gen.ts`, generated by TanStack Start.
-Tests and typechecks use those files directly, so a fresh checkout does not need
-a build. After changing routes, run development or a build and commit the
-generated changes alongside the source changes.
-
-`AppComposition.routes` registers extra routes under named attachment points:
-`welcome`, `signedIn`, and `organizationDashboard`. Each registration provides a
-URL path or layout ID and its source file. TanStack virtual routes preserve
-loading, type generation, and route code splitting. Six explicitly registered
-shared layout files use the normal `-` ignore prefix so physical discovery does
-not register them twice. Other shared routes retain file-based discovery.
-
-For example, an application can register a page without reproducing internal
-route directories:
-
-```ts
-routes: {
-  signedIn: [
-    { type: "route", path: "settings", file: resolve(directory, "src/settings.tsx") },
-  ],
-}
-```
-
-`ApplicationPages.members` replaces page loading and rendering while preserving
-the route's existing authentication and admin guards. `ApplicationPages.account`
-assembles account settings and the application's deletion flow. The shared
-`AccountSettings` component owns profile, sign-in methods, and session behavior;
-its children supply the account lifecycle section. `ApplicationLayouts` assembles
-the user menu and welcome shell. The public `UserMenu` and `WelcomeLayout`
-components accept ordinary React nodes for additional actions. Organization
-menu actions remain inside the shared admin check, and welcome actions render
-only while signed in. Applications compose these components directly, without
-contribution IDs or placement registries. `ProductUI` now contains only the
-sign-in footer and device-login recovery content. Defaults describe an ordinary
-installation.
-Shared feature components own reusable behavior; application compositions own
-their additional actions and policy decisions. Server authorization remains
-independent of these UI decisions.
-
-Run `pnpm check:boundaries` from the repository root to enforce source-package
-imports with Oxlint. The pre-commit hook and CI run this check:
-relative imports stay in their package, `#app/` stays private to this package,
-and cross-package imports use declared exports. Re-exports, type imports,
-literal dynamic imports, and test mocks are checked too. Generated route trees
-are exempt because TanStack owns their cross-package imports. Documentation
-assets imported with `.md?raw` are allowed. These checks prevent accidental
-private-source coupling; they are not a security sandbox.
-
-Server identity and background work load on demand, so importing storage or
-public endpoint settings does not initialize authentication or workers. Browser
-navigation stays separate from server behavior. Dashboard documents also have
-their own entry to keep the small dashboard menu manifest lightweight.
-
-`ApplicationIdentity` supplies authentication policy, persistence, and its request
-scope together. The shared factory in `lib/auth.server.ts` owns plugin ordering
-and gives `auth.handler` identity locking plus device-login capture automatically.
-Server-side mutations that need the same lock lifetime use
-`auth.withIdentityRequest`. Application organization hooks cannot replace the
-shared member-addition, invitation-creation/acceptance, or organization-deletion
-guards; use the lifecycle policy methods for application decisions.
+Useful package commands include `pnpm --filter @everr/app build`,
+`pnpm --filter @everr/app typecheck`, and
+`pnpm --filter @everr/app test:ci`. Run `pnpm check:boundaries` from the
+repository root to check package imports.

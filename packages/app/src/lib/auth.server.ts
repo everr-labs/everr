@@ -21,6 +21,7 @@ import {
   INVITATION_EMAIL_HEADER,
   invitationUrl,
 } from "#app/common/invitation.ts";
+import type { ApplicationIdentity } from "#app/composition/identity.ts";
 import { db } from "#app/db/client.ts";
 import { member, session as sessionTable } from "#app/db/schema/index.ts";
 import { env } from "#app/env/index.ts";
@@ -38,7 +39,10 @@ import {
 } from "#app/lib/email.server.tsx";
 import { mailer } from "#app/lib/mailer.server.ts";
 import { MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
-import type { ApplicationIdentity } from "#app/product/identity.ts";
+import {
+  membershipMutationPlugin,
+  membershipOrganizationHooks,
+} from "#app/lib/membership-policy.server.ts";
 import { assertCanInviteMembers } from "#app/product/membership.server.ts";
 import {
   createIdentityAuthHooks,
@@ -144,7 +148,6 @@ function createApplicationAuth(identity: ApplicationIdentity) {
     authPlugins,
     identityAdapter,
     identityLifecycle,
-    membershipPlugin,
     organizationHooks,
     beforeUserCreate,
     createSessionOnboardingHook,
@@ -260,7 +263,6 @@ function createApplicationAuth(identity: ApplicationIdentity) {
         auth.api.getSession({ headers, returnHeaders: true }),
     ),
     plugins: [
-      membershipPlugin,
       cliDeviceOrganizationPlugin({
         onError: (stage, error) => {
           serverLogger.error(
@@ -291,6 +293,7 @@ function createApplicationAuth(identity: ApplicationIdentity) {
         },
         organizationHooks: {
           ...organizationHooks(),
+          ...membershipOrganizationHooks(identityLifecycle),
           beforeAddMember: async ({ member: newMember }) => {
             const existingMembers = await db
               .select({ id: member.id })
@@ -351,11 +354,16 @@ function createApplicationAuth(identity: ApplicationIdentity) {
         },
       ]),
       bearer(),
-      ...authPlugins(
+      membershipMutationPlugin(
+        identityLifecycle,
+        async (headers): Promise<{ user: { id: string } } | null> =>
+          auth.api.getSession({ headers }),
+      ),
+      ...(authPlugins?.(
         async (input: {
           body: { name: string; slug: string; userId: string };
         }): Promise<unknown> => auth.api.createOrganization(input),
-      ),
+      ) ?? []),
       jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),
       oauthProvider({
         loginPage: "/auth/sign-in",
@@ -406,6 +414,7 @@ function createApplicationAuth(identity: ApplicationIdentity) {
   return {
     ...auth,
     withIdentityRequest: identity.withIdentityRequest,
+    assertAccountDeletionAllowed: identity.assertAccountDeletionAllowed,
     handler: (request: Request) =>
       identity.withIdentityRequest(() =>
         runWithDeviceOrgCapture(() => auth.handler(request)),

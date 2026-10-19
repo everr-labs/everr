@@ -1,69 +1,60 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `4d3251db2`.
+Updated 2026-10-19. Branch: `self-host`. Base checkpoint: `c67dad9eb`.
+The architecture cleanup described here is uncommitted.
 
-## Direction and next architecture work
+## Architecture and ownership
 
-Keep the existing two packages. Self-hosted is the base application in
-`packages/app`; `packages/cloud` composes shared behavior and adds cloud
-capabilities. A third shared package is not planned. Directory-level ownership
-and explicit interfaces should provide the separation without another package's
-build and maintenance burden. Cloud's TypeScript source exclusions alone do not
-justify extraction. Revisit only for independent versioning, another consumer,
-or recurring coupling that directory-level enforcement cannot contain.
+Keep the existing two packages. Self-hosted is the complete base application in
+`packages/app`; `packages/cloud` composes its shared features and adds cloud
+capabilities. A third shared package is not planned. Revisit extraction only for
+independent versioning, another consumer, or coupling that directory-level
+ownership cannot contain.
 
-The first composition cleanup is committed: page, layout,
-and UI contracts now contain only types, with self-hosted implementations under
-`src/app/composition`. Both applications declare their own client configuration;
-cloud no longer inherits the installation-only `/access-required` entry route.
-The unused client-default export is removed. Route destinations are constrained
-to the selected application's generated static paths. Home dashboard IDs are
-constrained to the shared manifest plus the application's literal additions.
-The lightweight manifest owns catalog order; catalog assembly validates parsed
-identities against it without importing documents into navigation.
+Type-only contracts live in `packages/app/src/composition`, publicly exported
+through `@everr/app/composition`. Both applications select their adapters from
+`src/app/composition`. Shared code cannot import self-hosted implementation
+paths directly. `pnpm check:boundaries` checks package imports and rejects runtime
+statements, values, or imports in the contract directory. Runtime and identity
+composition imports are restricted to their owning startup/auth modules and tests.
 
-Remaining improvements are proposals, not a mandate for a broad rewrite. Work
-incrementally, preserving behavior:
+Server composition has three cohesive interfaces. `ApplicationRuntime` owns
+migrations and application workers. `ApplicationEntry` owns installation and
+signup decisions plus the guarded organization-entry destination.
+`ApplicationDeployment` supplies the public ingest endpoint. Identity owns account
+preflight, persistence, request locking, and application lifecycle policy. These
+interfaces preserve lazy authentication and worker startup.
 
-1. **Clarify ownership within app.** Maintain the separation of contracts and
-   self-hosted defaults. Group installation policy, setup, recovery, and composition under
-   `src/app/`. Shared features reach application-specific behavior through
-   composition interfaces; cloud uses public exports. Preserve the current
-   package layout while strengthening these rules. Import checks now reject
-   direct access to `packages/app/src/app` from outside that directory, including
-   shared tests. Named `@composition/*` imports remain allowed; generated route
-   trees retain their existing lint exclusion.
-2. **Make server interfaces cohesive.** `ApplicationServer` currently combines
-   account deletion, the public ingest address, entry flow, migrations, and
-   workers. Identity and storage now have their own composition modules. Further
-   splits should clarify application ownership rather than just move methods. Consumers should depend only on what they use;
-   splitting files without reducing caller knowledge is not sufficient. Preserve
-   lazy initialization of authentication and workers.
-3. **Identity assembly now has a factory.** `createApplicationAuth` in
-   `lib/auth.server.ts` owns plugin ordering and wraps HTTP requests with identity
-   locking and device-login capture. `@composition/identity` selects each
-   application's existing `app/auth.ts`; shared auth imports it dynamically at
-   initialization. The type-only contract lives in `product/identity.ts` and
-   remains publicly exported. `ApplicationServer.loadIdentity` and its forwarding
-   implementations are removed. Direct server-side account
-   deletion uses `auth.withIdentityRequest`. Application hooks cannot replace the
-   four shared membership/deletion guards. Preserve these invariants when further
-   narrowing the server interface; avoid a generic hook framework.
-4. **Keep configuration application-owned.** Client destinations and additional
-   dashboard manifests are now explicit. Preserve literal dashboard IDs and the
-   separation of lightweight manifests from document loading.
-5. **Improve public interfaces where they hide real workflows.** Feature exports
-   such as members and account settings are useful models. Review file-oriented
-   auth, organization lifecycle, and runtime exports for opportunities to hide
-   implementation knowledge. Keep browser/server entry points separate. Renaming
-   exports or merging unrelated helpers into barrels is not an improvement.
+Shared identity translates Better Auth membership endpoints into application
+policy, including remove, role update, and voluntary leave. The shared module owns
+all membership and deletion hooks; application organization hooks cover creation
+only. Applications supply before/after membership policy and, where needed, lock
+acquisition before provider membership reads. Session resolution for leave uses
+the full auth flow so both cookie and bearer credentials enforce policy. Shared
+invitation guards and the initial-owner exception remain in place. Direct
+server-side mutations that need request-scoped locks use
+`auth.withIdentityRequest`.
 
-Keep the current UI approach: ordinary props/children for additions, page
-composition for different loading or behavior, and explicit route registration
-for new flows. Preserve shared authentication/admin guards and the small sign-in
-footer and device-recovery slots. A component registry or override framework is
-not needed. Replace the starter-heavy app README with a concise ownership and
-extension guide when implementing these changes.
+Cloud owns the organization-creation cookie and its continuation implementation.
+The shared root route no longer reads that cookie or exposes a creation marker.
+After verifying membership, organization access asks the entry adapter for a
+redirect or permission to continue. Shared organization routing applies the
+returned destination and preserves `returnTo`. Cloud setup and recovery routes
+remain accessible without applying that dashboard-entry redirect. The old shared
+continuation-helper export is removed.
+
+Keep ordinary props and children for additions, page composition for different
+loading or rendering, and explicit route registration for new flows. Shared
+routes retain authentication and admin guards independently of UI composition.
+The sign-in footer and device-recovery slots remain small. Feature exports such
+as members and account settings hide reusable behavior; preserve database and
+migration exports needed for real transactional extensions. Do not add a generic
+component registry or rename helpers into barrels without hiding coordination.
+
+The [app README](../packages/app/README.md) is the ownership and extension guide.
+Client destinations and dashboard additions remain application-owned, with static
+route typing, literal dashboard IDs, and lightweight manifests separate from
+loaded dashboard documents.
 
 ## Product constraints
 
@@ -89,7 +80,7 @@ upgrade exercises, read [DATABASE-MIGRATIONS.md](../DATABASE-MIGRATIONS.md).
 App resolves private source through `#app/*` with explicit file extensions.
 Cloud imports declared `@everr/app` exports. Each application's `tsconfig.json`
 selects a complete set of named `@composition/*` modules; Vite and Vitest consume
-those mappings. Type-only contracts are exported from `@everr/app/composition`.
+those mappings. Type-only contracts in `src/composition` are exported from `@everr/app/composition`.
 Selected modules and registered routes must belong to the composing package.
 There are no generated compiler configs. Restart development after mapping changes.
 
@@ -180,7 +171,51 @@ assets, typecheck inputs, and route generation. Then verify fresh-tarball builds
 tests, styling, and migrations. Old `/tmp` artifacts are disposable evidence,
 not a supported harness or a prerequisite for resuming the work.
 
-## Verification status and release work
+## Architecture cleanup verification (2026-10-19)
+
+Both application typechecks and package-import plus contract checks pass. Three
+real-Oxlint regression cases also verify lifecycle import restrictions. Full
+suites with two workers passed 2,157 self-hosted tests and 473 cloud tests; the
+Polar sandbox test remains skipped. Focused membership checks verify policy
+denials preserve storage and successful changes invoke reconciliation, including
+bearer-authenticated leave. The cloud cookie tests cover session/organization
+binding, tampering, expiry, and setup destinations.
+
+Both production builds pass. Cloud prerendering requires SMTP configuration;
+its build used a local `smtp://localhost:1025` placeholder because this checkout
+has no SMTP DSN configured. This does not verify live email delivery or a running
+cloud deployment. The first unrestricted parallel suite runs timed out under
+resource contention; the final runs used two workers. Incomplete older test
+mocks were repaired without weakening their behavior assertions.
+
+Manual self-hosted browser checks used the main worktree test account at
+`http://localhost:5174`: sign-in, home, members, account settings, and repeated
+account/home navigation. One initial account navigation redirected to sign-in;
+a fresh session and repeated navigation passed. No account or membership changes
+were made. Local Everr telemetry contained fresh `everr-dev-app` traces during
+these checks. Remote status remains unavailable because the CLI has no active
+session. Local verification servers and sessions are cleaned up after testing.
+
+The navigation follow-up uses TanStack `createLink` for rail rows, literal
+route patterns with params in the command palette, and authored Link elements
+for breadcrumbs. Persistent compile-only checks in both applications reject
+unknown routes, missing or invalid params, invalid search, and routes belonging
+only to the other application. A real-router breadcrumb test verifies encoded
+dynamic parent URLs from a splat leaf. Built-in YAML loading now validates its
+catalog envelope and dashboard spec instead of asserting the parsed type.
+The identity plugin contribution is optional, removing the empty self-hosted
+implementation, and Cloud no longer needs a direct YAML dependency.
+
+Both typechecks, production builds, full suites, import and contract checks, and
+dead-code checks passed again after these changes. Manual checks against the
+built self-hosted app passed sign-in, dashboard and runbook rails, breadcrumbs,
+and command-palette navigation to a built-in dashboard, followed by logout.
+Dashboard data queries failed in this local environment, so this verifies
+navigation and document rendering rather than data retrieval. Development
+browser verification hit reload and password-manager interference; the built
+app completed the navigation checks. No changes have been committed.
+
+## Historical verification status and release work
 
 Storage composition: `@composition/storage` selects each application's `app/storage.ts`.
 The type-only `ApplicationStorage` contract groups query settings/credentials,

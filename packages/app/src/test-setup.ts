@@ -168,6 +168,7 @@ vi.mock("#app/lib/serverFn.ts", async () => {
 
 vi.mock("#app/lib/auth.server.ts", () => ({
   auth: {
+    assertAccountDeletionAllowed: vi.fn(),
     withIdentityRequest: <T>(run: () => Promise<T>) => run(),
     api: {
       getSession: vi.fn().mockResolvedValue({

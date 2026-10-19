@@ -46,9 +46,24 @@ vi.mock("@tanstack/react-start/server", () => ({
   getCookie: () => undefined,
 }));
 vi.mock("@tanstack/react-start", () => ({
-  createServerFn: () => ({ handler: (handler: () => unknown) => handler }),
+  createServerFn: () => {
+    let validate = (value: unknown) => value;
+    const chain = {
+      inputValidator: (validator: (value: unknown) => unknown) => {
+        validate = validator;
+        return chain;
+      },
+      handler:
+        (handler: (args: { data: unknown }) => unknown) =>
+        async (options: { data: unknown }) =>
+          handler({ data: validate(options.data) }),
+    };
+    return chain;
+  },
   createIsomorphicFn: () => ({
-    server: () => ({ client: (handler: () => unknown) => handler }),
+    server: (_handler: (...args: never[]) => unknown) => ({
+      client: (handler: (...args: never[]) => unknown) => handler,
+    }),
   }),
 }));
 

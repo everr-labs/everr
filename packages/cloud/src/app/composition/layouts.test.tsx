@@ -37,7 +37,7 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 
-vi.mock("../data/organizations", () => ({
+vi.mock("../../data/organizations", () => ({
   createOrganization: vi.fn(),
   getOrganizationCreationOptions: vi
     .fn()

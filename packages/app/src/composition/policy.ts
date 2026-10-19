@@ -1,4 +1,4 @@
-import type { TenantRetention } from "#app/product/retention.ts";
+import type { TenantRetention } from "#app/composition/retention.ts";
 
 export interface OrganizationPolicy {
   access: "enabled" | "suspended";

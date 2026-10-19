@@ -46,6 +46,7 @@ export async function requireOrganization({
   if (access.status === "missing") throw missingWorkspace();
   return {
     organization: access.organization,
+    entryRedirect: access.entryRedirect,
     session: {
       ...session,
       session: {

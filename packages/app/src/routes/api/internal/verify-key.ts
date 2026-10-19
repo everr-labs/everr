@@ -1,12 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
 import { storage } from "@composition/storage";
 import { createFileRoute } from "@tanstack/react-router";
+import type { TenantRetention } from "#app/composition/retention.ts";
 import { env } from "#app/env/index.ts";
 import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { auth } from "#app/lib/auth.server.ts";
 import { originPolicyAllows } from "#app/lib/public-ingest-keys.ts";
 import { retentionForOrg } from "#app/lib/retention.server.ts";
-import type { TenantRetention } from "#app/product/retention.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
 const INGEST_CONFIG_ID = "ingest";

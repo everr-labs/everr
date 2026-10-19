@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { betterAuth } from "better-auth";
 import { type MemoryDB, memoryAdapter } from "better-auth/adapters/memory";
-import { organization } from "better-auth/plugins";
 import { expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -16,10 +15,6 @@ vi.mock("./lock.server", () => ({
 }));
 
 import { billingIdentityAdapter } from "./auth-adapter.server";
-import {
-  billingMembershipPlugin,
-  billingOrganizationHooks,
-} from "./membership-plugin.server";
 
 it("uses the actual update target for authenticated profile and anonymous verified-email changes", async () => {
   vi.clearAllMocks();
@@ -69,82 +64,4 @@ it("uses the actual update target for authenticated profile and anonymous verifi
   );
   expect(mocks.afterUserUpdate).toHaveBeenCalledWith(owner.id);
   expect(db.user[0].email).toBe("new@example.com");
-});
-it("blocks direct Better Auth removal, role changes and voluntary leave when Polar revocation fails", async () => {
-  vi.clearAllMocks();
-  const db: MemoryDB = {
-    user: [],
-    session: [],
-    account: [],
-    verification: [],
-    organization: [],
-    member: [],
-    invitation: [],
-  };
-  const auth = betterAuth({
-    baseURL: "http://localhost:3000",
-    secret: "billing-auth-integration-secret-long-enough",
-    database: memoryAdapter(db),
-    emailAndPassword: { enabled: true },
-    plugins: [
-      billingMembershipPlugin(mocks),
-      organization({ organizationHooks: billingOrganizationHooks(mocks) }),
-    ],
-  });
-  const response = await auth.api.signUpEmail({
-    body: {
-      email: "owner@example.com",
-      name: "Owner",
-      password: "password-12345",
-    },
-    asResponse: true,
-  });
-  const headers = new Headers({
-    cookie: response.headers.get("set-cookie") ?? "",
-  });
-  const owner = db.user[0];
-  const org = await auth.api.createOrganization({
-    headers,
-    body: { name: "Org", slug: "org" },
-  });
-  if (!org) throw new Error("Organization missing");
-  const second = await auth.api.signUpEmail({
-    body: {
-      email: "admin@example.com",
-      name: "Admin",
-      password: "password-12345",
-    },
-    asResponse: true,
-  });
-  const admin = db.user.find((u) => u.email === "admin@example.com");
-  if (!admin) throw new Error("Admin missing");
-  await auth.api.addMember({
-    body: { organizationId: org.id, userId: admin.id, role: "admin" },
-  });
-  const membership = db.member.find((m) => m.userId === admin.id);
-  if (!membership) throw new Error("Membership missing");
-  mocks.beforeMembershipChange.mockRejectedValue(
-    new Error("Polar unavailable"),
-  );
-  await expect(
-    auth.api.removeMember({
-      headers,
-      body: { organizationId: org.id, memberIdOrEmail: membership.id },
-    }),
-  ).rejects.toThrow("Polar unavailable");
-  await expect(
-    auth.api.updateMemberRole({
-      headers,
-      body: { organizationId: org.id, memberId: membership.id, role: "member" },
-    }),
-  ).rejects.toThrow("Polar unavailable");
-  await expect(
-    auth.api.leaveOrganization({
-      headers: new Headers({ cookie: second.headers.get("set-cookie") ?? "" }),
-      body: { organizationId: org.id },
-    }),
-  ).rejects.toThrow("Polar unavailable");
-  expect(db.member.find((m) => m.userId === admin.id)?.role).toBe("admin");
-  expect(db.member.some((m) => m.userId === owner.id)).toBe(true);
-  mocks.beforeMembershipChange.mockReset();
 });

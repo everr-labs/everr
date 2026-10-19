@@ -1,6 +1,6 @@
-import { server } from "@composition/server";
+import { entry } from "@composition/entry";
 
-const { canOpenSignup: checkSignup } = server;
+const { canOpenSignup: checkSignup } = entry;
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";

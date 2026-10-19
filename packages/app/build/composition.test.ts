@@ -37,7 +37,9 @@ function writeConfig(
             [
               "storage",
               "identity",
-              "server",
+              "runtime",
+              "entry",
+              "deployment",
               "client",
               "product",
               "navigation",
@@ -104,7 +106,9 @@ it("keeps URLs and parent guards when a registered source file moves", async () 
       [
         "storage",
         "identity",
-        "server",
+        "runtime",
+        "entry",
+        "deployment",
         "client",
         "product",
         "navigation",
@@ -144,7 +148,7 @@ it("uses TypeScript's inherited baseUrl and accepts JSONC", () => {
     `// Application-owned module mappings\n${JSON.stringify(config)}`,
   );
   expect(appAliases(composition)).toContainEqual({
-    find: "@composition/server",
+    find: "@composition/runtime",
     replacement: resolve(composition.directory, "src/arbitrary-name.tsx"),
   });
 });
@@ -152,9 +156,11 @@ it("uses TypeScript's inherited baseUrl and accepts JSONC", () => {
 it.each([
   { "@composition/storage": [] },
   { "@composition/identity": [] },
-  { "@composition/server": [] },
-  { "@composition/server": ["./src/arbitrary-name.tsx", "./src/fallback.tsx"] },
-  { "@composition/server": ["./src/*"] },
+  { "@composition/runtime": [] },
+  {
+    "@composition/runtime": ["./src/arbitrary-name.tsx", "./src/fallback.tsx"],
+  },
+  { "@composition/runtime": ["./src/*"] },
   { "@composition/unknown": ["./src/arbitrary-name.tsx"] },
 ])("rejects ambiguous or unsupported composition mappings: %j", (overrides) => {
   const composition = fixture();
@@ -169,9 +175,9 @@ it("rejects duplicate route registration", () => {
 
 it("rejects registered files from another package", () => {
   const composition = fixture();
-  const foreign = resolve(appDirectory, "src/product/client.ts");
+  const foreign = resolve(appDirectory, "src/app/composition/client.tsx");
   composition.routes.signedIn![0].file = foreign;
   expect(() => appRoutes(composition)).toThrow(/must belong/);
-  writeConfig(composition.directory, { "@composition/server": [foreign] });
+  writeConfig(composition.directory, { "@composition/runtime": [foreign] });
   expect(() => appAliases(composition)).toThrow(/must belong/);
 });

@@ -1,6 +1,6 @@
 import QuickLRU from "quick-lru";
-import type { ProductPolicy } from "./policy";
-import type { TenantRetention } from "./retention";
+import type { ProductPolicy } from "../composition/policy";
+import type { TenantRetention } from "../composition/retention";
 
 export interface Product {
   forOrganization: ProductPolicy["forOrganization"];

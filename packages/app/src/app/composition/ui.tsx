@@ -1,4 +1,4 @@
-import type { ProductUI } from "#app/product/ui.ts";
+import type { ProductUI } from "#app/composition/ui.ts";
 
 export const productUI: ProductUI = {
   SignInFooter: () => (

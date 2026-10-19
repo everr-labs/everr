@@ -16,7 +16,6 @@
     "pg": "^8.20.0",
     "react": "catalog:",
     "sonner": "^2.0.7",
-    "yaml": "^2.9.0",
     "zod": "catalog:",
     "@everr/app": "workspace:*",
     "drizzle-orm": "^0.45.2",

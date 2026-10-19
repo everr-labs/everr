@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
-vi.mock("@composition/server", () => ({
-  server: { getIngestEndpoint: () => "https://ingest.example.test/" },
+vi.mock("@composition/deployment", () => ({
+  deployment: { ingestEndpoint: "https://ingest.example.test/" },
 }));
 
 const store = vi.hoisted(() => ({ getStatus: vi.fn(), complete: vi.fn() }));

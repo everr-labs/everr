@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("#app/lib/clickhouse.ts", () => ({
   query: vi.fn(),
+  querySqlApi: vi.fn(),
 }));
 
 import { query } from "#app/lib/clickhouse.ts";

@@ -1,7 +1,7 @@
 import type { GenericEndpointContext } from "better-auth";
 import { APIError } from "better-auth/api";
 import { invitationIdFromRedirect } from "#app/common/invitation.ts";
-import type { SessionOnboardingHookFactory } from "#app/product/onboarding.ts";
+import type { SessionOnboardingHookFactory } from "#app/composition/onboarding.ts";
 import { assertInvitedUser } from "./installation.server";
 
 export const createSessionOnboardingHook: SessionOnboardingHookFactory =

@@ -30,7 +30,7 @@ export const Route = createFileRoute(
 )({
   staticData: {
     breadcrumb: (match: { params?: { workflowName?: string } }) => [
-      { label: "Cost Analysis", to: "/cost-analysis" },
+      { label: "Cost Analysis", link: <Link to="/cost-analysis" /> },
       {
         label: match.params?.workflowName
           ? decodeURIComponent(match.params.workflowName)

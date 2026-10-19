@@ -1,3 +1,4 @@
+import { entry } from "@composition/entry";
 import { db } from "#app/db/client.ts";
 import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
 import { createPartiallyAuthenticatedServerFn } from "#app/lib/serverFn.ts";
@@ -18,6 +19,10 @@ export const getActiveOrganizationAccess = createPartiallyAuthenticatedServerFn(
     ? {
         status: "available" as const,
         organization: { id: organization.id, metadata: organization.metadata },
+        entryRedirect: await entry.getOrganizationEntryRedirect({
+          id: session.session.id,
+          activeOrganizationId: organization.id,
+        }),
       }
     : { status: "missing" as const };
 });

@@ -1,6 +1,6 @@
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Info } from "lucide-react";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { CreateFromBuiltin } from "#app/components/dashboards/create-from-builtin.tsx";
@@ -20,7 +20,7 @@ export const Route = createFileRoute(
 )({
   staticData: {
     breadcrumb: (match: { loaderData?: { name: string } }) => [
-      { label: "Dashboards", to: "/dashboards" },
+      { label: "Dashboards", link: <Link to="/dashboards" /> },
       { label: match.loaderData?.name ?? "Built-in dashboard" },
     ],
   },

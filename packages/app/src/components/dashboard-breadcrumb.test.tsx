@@ -5,14 +5,29 @@ vi.mock("@tanstack/react-router", () => ({
   useMatches: vi.fn(),
   Link: ({
     to,
+    from,
+    params,
     search,
     children,
   }: {
     to: string;
-    search?: (prev: Record<string, unknown>) => Record<string, unknown>;
+    from?: string;
+    params?: Record<string, string>;
+    search?:
+      | Record<string, unknown>
+      | ((prev: Record<string, unknown>) => Record<string, unknown>);
     children?: React.ReactNode;
   }) => {
-    const resolvedSearch = search ? search({}) : undefined;
+    const route = to === "." ? (from ?? ".") : to;
+    const path = route.replace(
+      /\$([A-Za-z0-9_]+)/g,
+      (segment, name: string) => {
+        const value = params?.[name];
+        return value === undefined ? segment : encodeURIComponent(value);
+      },
+    );
+    const resolvedSearch =
+      typeof search === "function" ? search({ keep: "current" }) : search;
     const searchStr = resolvedSearch
       ? `?${new URLSearchParams(
           Object.entries(resolvedSearch)
@@ -20,11 +35,11 @@ vi.mock("@tanstack/react-router", () => ({
             .map(([k, v]) => [k, String(v)]),
         ).toString()}`
       : "";
-    return <a href={`${to}${searchStr}`}>{children}</a>;
+    return <a href={`${path}${searchStr}`}>{children}</a>;
   },
 }));
 
-import { useMatches } from "@tanstack/react-router";
+import { Link, useMatches } from "@tanstack/react-router";
 import type { BreadcrumbSegment } from "#app/router-types.ts";
 import { DashboardBreadcrumb } from "./dashboard-breadcrumb";
 
@@ -70,7 +85,9 @@ describe("DashboardBreadcrumb", () => {
   it("renders multiple breadcrumbs with links and a final page", () => {
     mockUseMatches.mockReturnValue([
       makeMatch("/runs", "Runs"),
-      makeMatch("/runs/abc123", "My Workflow"),
+      makeMatch("/runs/$traceId", "My Workflow", {
+        params: { traceId: "abc123" },
+      }),
     ]);
     const { container } = render(<DashboardBreadcrumb />);
 
@@ -95,7 +112,8 @@ describe("DashboardBreadcrumb", () => {
 
     mockUseMatches.mockReturnValue([
       makeMatch("/runs", "Runs"),
-      makeMatch("/runs/abc123", breadcrumbFn, {
+      makeMatch("/runs/$traceId", breadcrumbFn, {
+        params: { traceId: "abc123" },
         loaderData: { runDetails: { workflowName: "CI Build" } },
       }),
     ]);
@@ -121,7 +139,9 @@ describe("DashboardBreadcrumb", () => {
   it("filters out crumbs where function returns empty string", () => {
     mockUseMatches.mockReturnValue([
       makeMatch("/runs", "Runs"),
-      makeMatch("/runs/abc123", () => ""),
+      makeMatch("/runs/$traceId", () => "", {
+        params: { traceId: "abc123" },
+      }),
     ]);
     render(<DashboardBreadcrumb />);
 
@@ -134,7 +154,9 @@ describe("DashboardBreadcrumb", () => {
   it("applies hidden md:block class to non-last items for responsive behavior", () => {
     mockUseMatches.mockReturnValue([
       makeMatch("/runs", "Runs"),
-      makeMatch("/runs/abc123", "My Workflow"),
+      makeMatch("/runs/$traceId", "My Workflow", {
+        params: { traceId: "abc123" },
+      }),
     ]);
     const { container } = render(<DashboardBreadcrumb />);
 
@@ -147,27 +169,38 @@ describe("DashboardBreadcrumb", () => {
   it("renders multi-segment breadcrumbs from array return", () => {
     const segmentsFn = () =>
       [
-        { label: "My Dash", search: {} },
-        { label: "my-proj", search: { project: "my-proj" } },
         {
-          label: "Overview",
-          search: { project: "my-proj", slug: "overview" },
+          label: "Dashboards",
+          link: <Link to="/dashboards" search={{ preview: "published" }} />,
         },
-      ] as BreadcrumbSegment[];
+        {
+          label: "my-proj",
+          link: (
+            <Link
+              to="/runbooks/$project/$slug"
+              params={{ project: "my-proj", slug: "overview" }}
+              search={(prev) => ({ ...prev, preview: "draft" })}
+            />
+          ),
+        },
+        { label: "Overview" },
+      ] satisfies BreadcrumbSegment[];
 
     mockUseMatches.mockReturnValue([
-      makeMatch("/dashboards/my-dash", segmentsFn),
+      makeMatch("/runbooks/$project/$slug", segmentsFn, {
+        params: { project: "my-proj", slug: "overview" },
+      }),
     ]);
     const { container } = render(<DashboardBreadcrumb />);
 
     // First two are links, last is a page
-    const rootLink = screen.getByText("My Dash").closest("a");
-    expect(rootLink).toHaveAttribute("href", "/dashboards/my-dash?");
+    const rootLink = screen.getByText("Dashboards").closest("a");
+    expect(rootLink).toHaveAttribute("href", "/dashboards?preview=published");
 
     const pkgLink = screen.getByText("my-proj").closest("a");
     expect(pkgLink).toHaveAttribute(
       "href",
-      "/dashboards/my-dash?project=my-proj",
+      "/runbooks/my-proj/overview?keep=current&preview=draft",
     );
 
     expect(
