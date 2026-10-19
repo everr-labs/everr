@@ -22,6 +22,19 @@ document:
     variables:
       - kind: ListVariable
         spec:
+          name: namespace
+          display:
+            name: Namespace
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') AS namespace FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY namespace
+      - kind: ListVariable
+        spec:
           name: service
           display:
             name: Service
@@ -53,7 +66,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS invocations
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
                       GROUP BY ts
                       ORDER BY ts
       error-rate:
@@ -85,7 +98,7 @@ document:
                     query: |-
                       SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
       p95-latency:
         kind: Panel
         spec:
@@ -107,7 +120,7 @@ document:
                     query: |-
                       SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
       p99-latency:
         kind: Panel
         spec:
@@ -129,7 +142,7 @@ document:
                     query: |-
                       SELECT round(quantile(0.99)(Duration) / 1000000, 1) AS p99
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
       by-function:
         kind: Panel
         spec:
@@ -152,9 +165,9 @@ document:
                              toString(SpanAttributes.`everr.server_function.name`) AS fn,
                              count() AS invocations
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
                         AND toString(SpanAttributes.`everr.server_function.name`) IN (
-                        SELECT toString(SpanAttributes.`everr.server_function.name`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                        SELECT toString(SpanAttributes.`everr.server_function.name`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
                         GROUP BY toString(SpanAttributes.`everr.server_function.name`) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, fn
@@ -181,7 +194,7 @@ document:
                              toString(SpanAttributes.`everr.server_function.transport`) AS transport,
                              count() AS invocations
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
                       GROUP BY ts, transport
                       ORDER BY ts
       latency-by-function:
@@ -206,9 +219,9 @@ document:
                              toString(SpanAttributes.`everr.server_function.name`) AS fn,
                              round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
                         AND toString(SpanAttributes.`everr.server_function.name`) IN (
-                        SELECT toString(SpanAttributes.`everr.server_function.name`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                        SELECT toString(SpanAttributes.`everr.server_function.name`) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
                         GROUP BY toString(SpanAttributes.`everr.server_function.name`) ORDER BY count() DESC LIMIT 8
                       )
                       GROUP BY ts, fn
@@ -236,7 +249,7 @@ document:
                              round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
                              round(quantile(0.99)(Duration) / 1000000, 1) AS p99_ms
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
                       GROUP BY fn
                       ORDER BY p95_ms DESC
                       LIMIT 30
@@ -260,9 +273,9 @@ document:
                       SELECT toString(SpanAttributes.`everr.server_function.name`) AS fn,
                              count() AS invocations,
                              round(sum(Duration) / 1000000000, 2) AS total_seconds,
-                             round(sum(Duration) / (SELECT sum(Duration) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != '') * 100, 1) AS share_pct
+                             round(sum(Duration) / (SELECT sum(Duration) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != '') * 100, 1) AS share_pct
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
                       GROUP BY fn
                       ORDER BY total_seconds DESC
                       LIMIT 30
@@ -288,7 +301,7 @@ document:
                              countIf(StatusCode = 'Error') AS errors,
                              anyIf(StatusMessage, StatusCode = 'Error' AND StatusMessage != '') AS sample_message
                       FROM traces
-                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND toString(SpanAttributes.`everr.server_function.name`) != ''
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(SpanAttributes.`everr.server_function.name`) != ''
                       GROUP BY fn
                       HAVING errors > 0
                       ORDER BY errors DESC
