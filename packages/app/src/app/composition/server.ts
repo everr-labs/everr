@@ -5,9 +5,7 @@ import * as storageReadiness from "../storage-readiness";
 
 export const server: ApplicationServer = {
   ...clickhouse,
-  decorateTelemetryRow: (_organizationId, row) => row,
-  ingestIdentity: (_organizationId) => ({}),
-  internalIngestHeaders: (_organizationId) => ({}),
+  telemetryTenantId: (_organizationId) => undefined,
   ...ingest,
   assertStorageReady: storageReadiness.assertStorageReady,
   async loadIdentity() {

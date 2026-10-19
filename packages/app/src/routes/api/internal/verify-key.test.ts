@@ -1,9 +1,12 @@
+import { server } from "@composition/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 import { Route } from "./verify-key";
 
 vi.mock("@composition/server", () => ({
-  server: { ingestIdentity: () => ({}) },
+  server: {
+    telemetryTenantId: vi.fn<(organizationId: string) => string | undefined>(),
+  },
 }));
 
 vi.mock("#app/env/index.ts", () => ({
@@ -104,7 +107,11 @@ describe("/api/internal/verify-key", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns the verified tenant and forwards each signal's retention", async () => {
+  it.each([
+    "org_42",
+    undefined,
+  ])("returns tenant %s and each signal's retention", async (tenantId) => {
+    vi.mocked(server.telemetryTenantId).mockReturnValueOnce(tenantId);
     const { retentionForOrg } = await import("#app/lib/retention.server.ts");
     vi.mocked(retentionForOrg).mockResolvedValueOnce({
       ...retentionForDays(90),
@@ -125,6 +132,7 @@ describe("/api/internal/verify-key", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
+      ...(tenantId === undefined ? {} : { tenantId }),
       keyId: "ak_3",
       tracesDays: 14,
       logsDays: 7,

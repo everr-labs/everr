@@ -89,12 +89,8 @@ export interface ApplicationServer {
   };
   /** Organization storage-readiness policy, based on application-owned provisioning metadata. */
   assertStorageReady(metadata: unknown): void;
-  /** The deployment's organization identity representation in stored telemetry rows. */
-  decorateTelemetryRow<T extends object>(organizationId: string, row: T): T;
-  /** Collector-facing tenant identity associated with an ingestion key. */
-  ingestIdentity(organizationId: string): { tenantId?: string };
-  /** Organization identity carried by internal telemetry forwarding requests. */
-  internalIngestHeaders(organizationId: string): Record<string, string>;
+  /** Storage and collector tenant identity; undefined denotes unpartitioned self-hosted storage. */
+  telemetryTenantId(organizationId: string): string | undefined;
   /** Public collector address advertised to clients; undefined represents an unconfigured endpoint. */
   getIngestEndpoint(): string | undefined;
   /** Installation bootstrap state for the application's entry flow. */

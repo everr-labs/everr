@@ -4,14 +4,7 @@ import * as storageReadiness from "./app/storage-readiness";
 
 export const server: ApplicationServer = {
   ...clickhouse,
-  decorateTelemetryRow: (organizationId, row) => ({
-    ...row,
-    tenant_id: organizationId,
-  }),
-  ingestIdentity: (organizationId) => ({ tenantId: organizationId }),
-  internalIngestHeaders: (organizationId) => ({
-    "x-everr-tenant-id": organizationId,
-  }),
+  telemetryTenantId: (organizationId) => organizationId,
   getIngestEndpoint: () => "https://ingest.everr.dev/",
   assertStorageReady: storageReadiness.assertStorageReady,
   async loadIdentity() {

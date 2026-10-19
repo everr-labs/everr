@@ -5,16 +5,20 @@ import {
   provisionSqlApiOrgUser,
 } from "./provisioning";
 
-const { mockQuery, mockCommand, mockJson, MASTER_KEY } = vi.hoisted(() => ({
-  mockQuery: vi.fn(),
-  mockCommand: vi.fn(),
-  mockJson: vi.fn(),
-  MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
-}));
+const { mockQuery, mockInsert, mockCommand, mockJson, MASTER_KEY } = vi.hoisted(
+  () => ({
+    mockQuery: vi.fn(),
+    mockInsert: vi.fn(),
+    mockCommand: vi.fn(),
+    mockJson: vi.fn(),
+    MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
+  }),
+);
 
 vi.mock("@clickhouse/client", () => ({
   createClient: vi.fn(() => ({
     query: mockQuery,
+    insert: mockInsert,
     command: mockCommand,
   })),
 }));
@@ -37,6 +41,7 @@ vi.mock("@everr/app/env", () => ({
 
 vi.unmock("@everr/app/lib/clickhouse");
 
+import { insertRows } from "@everr/app/lib/clickhouse-writer";
 import { query, querySqlApi } from "@everr/app/lib/clickhouse";
 
 const ORG = "org42";
@@ -180,4 +185,19 @@ it("forwards shutdown cancellation to all provisioning DDL and the authenticatio
   await deprovisionSqlApiOrgUser(ORG, signal);
   for (const [args] of mockCommand.mock.calls)
     expect(args.abort_signal).toBe(signal);
+});
+
+describe("insertRows", () => {
+  it("stamps each organization in a mixed batch and overrides supplied tenant columns", async () => {
+    const rows = [
+      { organizationId: "org-a", tenant_id: "wrong", body: "first" },
+      { organizationId: "org-b", tenant_id: "wrong", body: "second" },
+    ];
+    await insertRows("app.logs", rows);
+    expect(mockInsert.mock.calls[0][0].values).toEqual([
+      { tenant_id: "org-a", body: "first" },
+      { tenant_id: "org-b", body: "second" },
+    ]);
+    expect(rows[0].tenant_id).toBe("wrong");
+  });
 });

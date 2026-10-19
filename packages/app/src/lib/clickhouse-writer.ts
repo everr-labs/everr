@@ -1,3 +1,4 @@
+import { server } from "@composition/server";
 import { env } from "#app/env/index.ts";
 import { createClient } from "#app/lib/clickhouse-client.ts";
 import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
@@ -14,19 +15,24 @@ type InsertSettings = Parameters<
   typeof clickhouseAdmin.insert
 >[0]["clickhouse_settings"];
 
-export async function insertRows(
+export async function insertRows<T extends { organizationId: string }>(
   table: string,
-  rows: object[],
+  rows: T[],
   clickhouse_settings?: InsertSettings,
 ): Promise<void> {
   if (rows.length === 0) return;
+
+  const values = rows.map(({ organizationId, ...row }) => {
+    const tenantId = server.telemetryTenantId(organizationId);
+    return tenantId === undefined ? row : { ...row, tenant_id: tenantId };
+  });
 
   await instrumentClickhouseOperation(
     { client: "admin", operation: "INSERT" },
     () =>
       clickhouseAdmin.insert({
         table,
-        values: rows,
+        values,
         format: "JSONEachRow",
         clickhouse_settings,
       }),

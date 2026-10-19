@@ -1,5 +1,3 @@
-import { server } from "@composition/server";
-
 import type { AlertHistoryEventType } from "#app/data/alerting/history/event-types.ts";
 import {
   deterministicDeliveryEventId,
@@ -23,8 +21,6 @@ import {
   resolveAlertServiceName,
   sanitizeAlertError,
 } from "./content";
-
-const { decorateTelemetryRow } = server;
 
 export const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
@@ -498,13 +494,12 @@ async function insertAlertHistoryRows(
   const stamped = await Promise.all(
     rows.map(async (row) => {
       const retention = await retentionForOrg(row.organizationId);
-      const { organizationId, ...storedRow } = row;
-      return decorateTelemetryRow(organizationId, {
-        ...storedRow,
+      return {
+        ...row,
         retention_days: isEvaluationHistoryEvent(row.event_type)
           ? retention.alertEvaluationDays
           : retention.alertLifecycleDays,
-      });
+      };
     }),
   );
   return insertRows("app.alert_events", stamped, {

@@ -148,7 +148,7 @@ describe("insertRows", () => {
       "app.logs",
       [
         {
-          organization_id: ORG,
+          organizationId: ORG,
           service_name: "everr",
           body: "hello",
         },
@@ -160,7 +160,6 @@ describe("insertRows", () => {
       table: "app.logs",
       values: [
         {
-          organization_id: ORG,
           service_name: "everr",
           body: "hello",
         },

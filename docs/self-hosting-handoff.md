@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `85c0227cb`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `b22391b4a`.
 
 ## Direction and next architecture work
 
@@ -177,13 +177,22 @@ not a supported harness or a prerequisite for resuming the work.
 
 ## Verification status and release work
 
+Telemetry tenancy follow-up: one `telemetryTenantId` mapping replaces
+row-decoration, ingestion-response, and forwarding-header hooks. The shared writer
+requires organization context through its row type and owns stored tenant columns.
+It adds no runtime rejection for missing context. Best-effort history logs failures,
+while strict lifecycle projection retries. Query access policies remain separate.
+Both typechecks, 62 focused app tests, 28 cloud tests, import enforcement and
+dead-code checks passed. Browser startup still fails at `alert_delivery_state`;
+live ingestion remains unverified. The local Everr collector is stopped.
+
 Identity factory follow-up: both typechecks passed, including temporary negative
 probes for the four reserved organization hooks. All 23 focused app tests and
 37 focused cloud tests passed. New HTTP endpoint coverage verifies lock lifetime
 through successful member removal and last-owner denial. Import enforcement and
 dead-code checks passed. Manual sign-in verification still fails at the existing
 `alert_delivery_state` startup migration; the CLI still has no active session
-for remote status. Changes after the checkpoint above remain uncommitted.
+for remote status. Identity changes are committed at the checkpoint above.
 
 Dashboard typing follow-up: seven focused app tests and the actual catalog/home
 check under cloud composition passed. Both typechecks include temporary negative

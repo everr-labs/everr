@@ -1,3 +1,4 @@
+import { server } from "@composition/server";
 import {
   type ChdbDatabase,
   createChdbDatabase,
@@ -136,12 +137,18 @@ async function query<T>(
   return activeClickHouse.read<T>(statement, query_params).rows;
 }
 
-async function insertRows(
+async function insertRows<T extends { organizationId: string }>(
   _table: string,
-  rows: object[],
+  rows: T[],
   clickhouse_settings?: ClickHouseWriteSettings,
 ): Promise<void> {
-  activeClickHouse.write(rows, clickhouse_settings);
+  activeClickHouse.write(
+    rows.map(({ organizationId, ...row }) => {
+      const tenantId = server.telemetryTenantId(organizationId);
+      return tenantId === undefined ? row : { ...row, tenant_id: tenantId };
+    }),
+    clickhouse_settings,
+  );
 }
 
 function createClickhouseQuery(organizationId: string) {

@@ -38,27 +38,11 @@ vi.mock("#app/lib/retention.server.ts", async () => {
     retentionForOrg: vi.fn(async () => retentionForDays(365, 30)),
   };
 });
-vi.mock("@composition/server", () => ({
-  server: {
-    decorateTelemetryRow: (scope: string, row: object) => ({
-      ...row,
-      testScope: scope,
-    }),
-  },
-}));
-const expectedRow = <T extends object>(organizationId: string, row: T) => ({
-  ...row,
-  testScope: organizationId,
-});
-
 // Expected configured retention at the write boundary; row builders own no retention.
-const stamped = <T extends { organizationId: string }>(row: T, days = 365) => {
-  const { organizationId, ...storedRow } = row;
-  return expectedRow(organizationId, {
-    ...storedRow,
-    retention_days: days,
-  });
-};
+const stamped = <T extends { organizationId: string }>(row: T, days = 365) => ({
+  ...row,
+  retention_days: days,
+});
 
 const def = {
   id: "019c3ab6-54d6-7e26-bc76-8cadd67542fb",
@@ -212,34 +196,31 @@ describe("ClickHouse alert history", () => {
       "app.alert_events",
       [
         expect.objectContaining({
-          ...expectedRow("org-1", { retention_days: 30 }),
+          organizationId: "org-1",
+          retention_days: 30,
         }),
         expect.objectContaining({
-          ...expectedRow("org-2", { retention_days: 14 }),
+          organizationId: "org-2",
+          retention_days: 14,
         }),
         expect.objectContaining({
-          ...expectedRow("org-1", {}),
+          organizationId: "org-1",
           event_type: "evaluation_failed",
           retention_days: 30,
         }),
         expect.objectContaining({
-          ...expectedRow("org-1", {}),
+          organizationId: "org-1",
           event_type: "notification_suppressed",
           retention_days: 365,
         }),
         expect.objectContaining({
-          ...expectedRow("org-2", {}),
+          organizationId: "org-2",
           event_type: "notification_suppressed",
           retention_days: 14,
         }),
       ],
       expect.anything(),
     );
-    const insertedRows = mocks.insertRows.mock.calls[0]?.[1] as Array<
-      Record<string, unknown>
-    >;
-    expect(insertedRows.every((row) => !("organizationId" in row))).toBe(true);
-    expect(insertedRows.every((row) => "testScope" in row)).toBe(true);
   });
 
   it("mints time-decodable v7 ids for rows without a caller-supplied id", () => {

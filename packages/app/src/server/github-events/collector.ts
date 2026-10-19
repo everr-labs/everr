@@ -7,8 +7,6 @@ import { recordToHeaders, stripHopByHopHeaders } from "./headers";
 import type { WebhookHeaders } from "./types";
 import { TerminalEventError } from "./types";
 
-const { internalIngestHeaders } = server;
-
 // The collector's internal pipeline copies these into resource attributes
 // (collector/config.example.yml, processor `resource`); the views stamp
 // retention_days from them and strip them before storage.
@@ -41,11 +39,9 @@ export async function replayWebhookToCollector(
 ): Promise<void> {
   const headers = recordToHeaders(event.headers);
   stripHopByHopHeaders(headers);
-  for (const [name, value] of Object.entries(
-    internalIngestHeaders(organizationId),
-  )) {
-    headers.set(name, value);
-  }
+  const tenantId = server.telemetryTenantId(organizationId);
+  headers.delete("x-everr-tenant-id");
+  if (tenantId !== undefined) headers.set("x-everr-tenant-id", tenantId);
   const retention = await retentionForOrg(organizationId);
   headers.set(retentionHeaderNames.logsDays, String(retention.logsDays));
   headers.set(retentionHeaderNames.tracesDays, String(retention.tracesDays));

@@ -9,8 +9,6 @@ import { retentionForOrg } from "#app/lib/retention.server.ts";
 import type { TenantRetention } from "#app/product/retention.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
-const { ingestIdentity } = server;
-
 const INGEST_CONFIG_ID = "ingest";
 
 // The retention days come straight from TenantRetention. The collector stamps
@@ -83,7 +81,7 @@ export const Route = createFileRoute("/api/internal/verify-key")({
         mergeTelemetryIdentity({ organizationId: result.key.referenceId });
         const retention = await retentionForOrg(result.key.referenceId);
         const payload: VerifyKeyResponse = {
-          ...ingestIdentity(result.key.referenceId),
+          tenantId: server.telemetryTenantId(result.key.referenceId),
           keyId: result.key.id,
           tracesDays: retention.tracesDays,
           logsDays: retention.logsDays,
