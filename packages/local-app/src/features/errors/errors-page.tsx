@@ -8,7 +8,6 @@ import {
   ErrorsRepository,
   ErrorTracePanel,
   getErrorOccurrenceKey,
-  getErrorTraceWindow,
 } from "@everr/telemetry-explorer/errors";
 import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
@@ -190,12 +189,10 @@ export function ErrorDetailPage() {
 
 function LocalErrorTracePanel({ occurrence }: { occurrence: ErrorOccurrence }) {
   const hasTrace = occurrence.traceId.length > 0;
-  const { start, end } = getErrorTraceWindow(occurrence.timestamp);
   const traceQuery = useQuery({
     ...getTraceOptions({
       repo: localTracesRepo,
       traceId: occurrence.traceId,
-      window: { fromTs: start, toTs: end },
       refresh: "",
     }),
     enabled: hasTrace,
@@ -216,15 +213,13 @@ function LocalErrorTracePanel({ occurrence }: { occurrence: ErrorOccurrence }) {
       isPending={traceQuery.isPending && hasTrace}
       isError={traceQuery.isError}
       onRetry={() => void traceQuery.refetch()}
-      renderTraceLink={({ traceId, spanId, start, end, children }) => (
+      renderTraceLink={({ traceId, spanId, children }) => (
         <Link
           to="/traces/$traceId"
           params={{ traceId }}
           search={(prev) => ({
             ...prev,
             span: spanId || undefined,
-            start,
-            end,
           })}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >

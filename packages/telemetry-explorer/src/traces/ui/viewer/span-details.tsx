@@ -21,15 +21,11 @@ import type { TraceNode } from "./model";
 export function SpanDetails({
   node,
   durationMs,
-  start,
-  end,
   onClose,
   onFocus,
 }: {
   node: TraceNode;
   durationMs: number;
-  start: string;
-  end: string;
   onClose: () => void;
   onFocus: () => void;
 }) {
@@ -146,11 +142,7 @@ export function SpanDetails({
                 <Link
                   to="/traces/$traceId"
                   params={{ traceId: link.traceId }}
-                  search={
-                    link.traceId === span.traceId
-                      ? { start, end, span: link.spanId }
-                      : { span: link.spanId }
-                  }
+                  search={{ span: link.spanId }}
                   className="break-all font-mono text-primary underline"
                 >
                   {link.traceId} / {link.spanId}

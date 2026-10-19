@@ -271,8 +271,15 @@ export class TracesRepository {
   // fallow-ignore-next-line unused-class-member
   async getTrace(input: GetTraceInput): Promise<Span[]> {
     validateTableName(this.tableName);
-    // TraceId is not a sort-key prefix; the time window limits the scan.
+    // Resolve the scan window through the TraceId-sorted lookup table, across
+    // all ingested batches. End is truncated to seconds, so include that second.
     const sql = /* sql */ `
+      WITH
+        (SELECT tuple(
+           toDateTime64(min(Start), 9),
+           toDateTime64(max(End), 9) + INTERVAL 1 SECOND
+         ) FROM ${this.tableName}_trace_id_ts
+         WHERE TraceId = {traceId:String}) AS traceWindow
       SELECT
         TraceId      AS traceId,
         SpanId       AS spanId,
@@ -295,13 +302,11 @@ export class TracesRepository {
         Links.Attributes  AS linkAttributes
       FROM ${this.tableName}
       WHERE TraceId = {traceId:String}
-        AND ${TIME_WINDOW_SQL}
+        AND Timestamp >= traceWindow.1 AND Timestamp < traceWindow.2
       ORDER BY Timestamp ASC
     `;
     const rows = await this.client.execute<SpanRow>(sql, {
       traceId: input.traceId,
-      fromTs: input.fromTs,
-      toTs: input.toTs,
     });
     return rows.map(rowToSpan);
   }

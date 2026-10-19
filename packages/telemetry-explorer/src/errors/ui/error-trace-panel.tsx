@@ -6,15 +6,12 @@ import { cn } from "@everr/ui/lib/utils";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ErrorOccurrence, RelatedSpan } from "../data/types";
-import { getErrorTraceWindow } from "./trace-window";
 
 const RELATED_TRACE_ITEM_LIMIT = 10;
 
 export type RenderTraceLink = (input: {
   traceId: string;
   spanId: string;
-  start: string;
-  end: string;
   children: ReactNode;
 }) => ReactNode;
 
@@ -44,7 +41,6 @@ export function ErrorTracePanel({
 
   if (occurrence.traceId.trim().length === 0) return null;
 
-  const window = getErrorTraceWindow(occurrence.timestamp);
   const visibleSpans = spans.slice(0, RELATED_TRACE_ITEM_LIMIT);
   const hasMoreSpans = spans.length > RELATED_TRACE_ITEM_LIMIT;
 
@@ -70,8 +66,6 @@ export function ErrorTracePanel({
         {renderTraceLink({
           traceId: occurrence.traceId,
           spanId: occurrence.spanId,
-          start: window.start,
-          end: window.end,
           children: (
             <>
               <ExternalLink data-icon="inline-start" />

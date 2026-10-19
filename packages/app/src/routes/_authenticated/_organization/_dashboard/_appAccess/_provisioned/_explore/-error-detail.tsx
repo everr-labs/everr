@@ -87,11 +87,11 @@ function WebErrorTracePanel({ occurrence }: { occurrence: ErrorOccurrence }) {
       isPending={spansQuery.isPending && hasTrace}
       isError={spansQuery.isError}
       onRetry={() => void spansQuery.refetch()}
-      renderTraceLink={({ traceId, spanId, start, end, children }) => (
+      renderTraceLink={({ traceId, spanId, children }) => (
         <Link
           to="/traces/$traceId"
           params={{ traceId }}
-          search={{ span: spanId || undefined, start, end }}
+          search={{ span: spanId || undefined }}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           {children}
