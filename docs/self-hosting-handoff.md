@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `3f5f252cb`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `3eabc79eb`.
 
 ## Direction and next architecture work
 
@@ -190,6 +190,12 @@ the earlier `__everr_core_migrations` ledger; its baseline hash matched the curr
 SQL exactly. Recording that baseline with its current journal timestamp in
 `__drizzle_migrations` and restarting Vite resolved the duplicate-type failure
 without changing schema or application data.
+
+The import boundary now rejects direct low-level SQL API imports, whole-module
+runtime imports, and runtime re-exports from `lib/clickhouse.ts`. The organization
+SQL factory, cloud credential provisioning, and tests are exempt; existing package
+boundaries still apply to those exemptions. Types and application-owned query
+imports remain allowed. The import regression test and app/cloud boundary scan pass.
 
 Live self-hosted checks after repair: sign-in, session resolution, and organization
 listing returned 200. Authenticated dashboard RPCs returned an empty dashboard

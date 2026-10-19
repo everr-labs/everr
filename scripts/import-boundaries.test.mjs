@@ -59,7 +59,12 @@ test("Oxlint enforces package boundaries across import syntaxes without general 
         syntax('"@everr/app/composition"'),
         false,
       );
-      add(app, `alias-${syntaxIndex}`, syntax('"#app/product/client.ts"'), false);
+      add(
+        app,
+        `alias-${syntaxIndex}`,
+        syntax('"#app/product/client.ts"'),
+        false,
+      );
       add(
         app,
         `traversal-${syntaxIndex}`,
@@ -80,6 +85,65 @@ test("Oxlint enforces package boundaries across import syntaxes without general 
       false,
     );
     add(app, "documentation", 'import "../../../docs/schema.md?raw";', false);
+    const sqlImports = [
+      "import { querySqlApi } from PATH;",
+      "import { querySqlApiWithMeta as query } from PATH;",
+      "import { previewSqlApi } from PATH;",
+      "import { runSqlApiQuery } from PATH;",
+      "import { createClickhouseQuery, querySqlApi } from PATH;",
+      "import * as sql from PATH;",
+      "import sql from PATH;",
+      "vi.importActual(PATH);",
+      "export { querySqlApi as query } from PATH;",
+      "export * from PATH;",
+      "import(PATH);",
+      "require(PATH);",
+    ];
+    for (const [directory, paths] of [
+      [app, ["#app/lib/clickhouse.ts", "../src/lib/clickhouse"]],
+      [cloud, ["@everr/app/lib/clickhouse"]],
+    ]) {
+      for (const [pathIndex, path] of paths.entries()) {
+        for (const [index, source] of sqlImports.entries()) {
+          add(
+            directory,
+            `sql-${pathIndex}-${index}`,
+            source.replace("PATH", JSON.stringify(path)),
+            true,
+          );
+        }
+        add(
+          directory,
+          `sql-types-${pathIndex}`,
+          `import type { SqlApiResult } from "${path}";`,
+          false,
+        );
+        add(
+          directory,
+          `app-query-${pathIndex}`,
+          `import { createClickhouseQuery } from "${path}";`,
+          false,
+        );
+        add(
+          directory,
+          `sql-mock-${pathIndex}.test`,
+          `import { querySqlApi } from "${path}"; vi.mock("${path}");`,
+          false,
+        );
+      }
+    }
+    add(
+      cloud,
+      "sql-cross-package.test",
+      'import { querySqlApi } from "../../app/src/lib/clickhouse";',
+      true,
+    );
+    add(
+      app,
+      "sql-type-namespace",
+      'import type * as sql from "#app/lib/clickhouse.ts";',
+      false,
+    );
     const result = spawnSync(
       process.execPath,
       [

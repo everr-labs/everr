@@ -35,6 +35,11 @@
         "selector": "TSImportType > Literal, TSImportType > TSLiteralType > Literal",
         "kind": "type",
         "name": "import-type"
+      },
+      {
+        "selector": "ImportDeclaration:not([importKind=type]):has(ImportNamespaceSpecifier, ImportDefaultSpecifier) > Literal",
+        "kind": "value",
+        "name": "module-import"
       }
     ],
     "import/resolver": {
@@ -133,6 +138,41 @@
                 "allow": {
                   "dependency": {
                     "source": "+([.]/|[.][.]/)**/*.md\\?raw"
+                  }
+                }
+              },
+              {
+                "disallow": {
+                  "to": {
+                    "file": {
+                      "path": "packages/app/src/lib/clickhouse.ts"
+                    }
+                  },
+                  "dependency": [
+                    {
+                      "specifiers": [
+                        "querySqlApi",
+                        "querySqlApiWithMeta",
+                        "previewSqlApi",
+                        "runSqlApiQuery"
+                      ]
+                    },
+                    {
+                      "kind": "value",
+                      "nodeKind": [
+                        "dynamic-import",
+                        "require",
+                        "export",
+                        "module-import",
+                        "test-mock"
+                      ]
+                    }
+                  ]
+                },
+                "message": "Use createOrganizationSql at the readiness boundary and pass its SQL access to callers.",
+                "from": {
+                  "file": {
+                    "path": "!{packages/app/src/lib/organization-sql.ts,packages/cloud/src/clickhouse/provisioning.ts,**/*.test.{ts,tsx},**/test-setup.ts,**/testing/**}"
                   }
                 }
               }
