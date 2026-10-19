@@ -1,16 +1,13 @@
 import { ClickHouseError } from "@clickhouse/client";
-import { server } from "@composition/server";
 import {
   MCP_MAX_CELL_CHARS,
   MCP_MAX_OUTPUT_CHARS,
   MCP_MAX_ROWS,
 } from "#app/data/mcp/query-tool-description.ts";
-import { previewSqlApi } from "#app/lib/clickhouse.ts";
+import { createOrganizationSql } from "#app/lib/organization-sql.ts";
 import { sanitizeSqlApiError } from "#app/lib/sql-api-error.ts";
 import { classifySqlQueryError } from "#app/lib/sql-api-observability.ts";
 import { truncateWithEllipsis } from "#app/lib/truncate.ts";
-
-const { assertStorageReady } = server;
 
 export interface RunSqlResult {
   isError: boolean;
@@ -39,8 +36,8 @@ export async function runSqlForConnection(args: {
   }
 
   try {
-    assertStorageReady(args.metadata);
-    const result = await previewSqlApi(sql, args.orgId, MCP_MAX_ROWS);
+    const storage = createOrganizationSql(args.orgId, args.metadata);
+    const result = await storage.preview(sql, MCP_MAX_ROWS);
     const lines = [
       JSON.stringify(result.columns),
       JSON.stringify(result.columnTypes),

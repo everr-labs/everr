@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `77cb2249a`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `ded3eb387`.
 
 ## Direction and next architecture work
 
@@ -176,6 +176,13 @@ tests, styling, and migrations. Old `/tmp` artifacts are disposable evidence,
 not a supported harness or a prerequisite for resuming the work.
 
 ## Verification status and release work
+
+SQL readiness follow-up: CLI and MCP use `createOrganizationSql`
+to check readiness and bind the organization once. Empty-SQL validation remains
+before readiness; response formatting and errors remain with each caller. Other
+readiness consumers are unchanged. Both typechecks, 22 focused tests, import
+boundaries, and dead-code checks passed. Manual verification remains blocked by
+the existing `alert_delivery_state` startup migration failure.
 
 Entry routing follow-up: `getEntryRedirect(pathname)` replaces
 `getAppEntry`. Self-hosted composition owns installation redirects; cloud retains

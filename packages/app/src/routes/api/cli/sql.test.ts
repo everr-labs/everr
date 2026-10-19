@@ -62,6 +62,7 @@ describe("/api/cli/sql", () => {
       },
     });
     expect(mockedQuerySqlApi).not.toHaveBeenCalled();
+    expect(assertStorageReady).toHaveBeenCalledWith({ clickhouseReady: false });
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBe("5");
     expect(await response.json()).toEqual({
@@ -97,7 +98,7 @@ describe("/api/cli/sql", () => {
     expect(await response.text()).toBe('{"ok":1}\n');
   });
 
-  it("returns 400 when SQL is empty", async () => {
+  it("returns 400 for empty SQL before checking storage readiness", async () => {
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/sql", {
         method: "POST",
@@ -109,6 +110,7 @@ describe("/api/cli/sql", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "SQL query is required." });
+    expect(assertStorageReady).not.toHaveBeenCalled();
     expect(mockedQuerySqlApi).not.toHaveBeenCalled();
   });
 

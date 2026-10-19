@@ -19,7 +19,10 @@ vi.mock("@composition/server", () => ({
 const { previewSqlApi } = vi.hoisted(() => ({ previewSqlApi: vi.fn() }));
 vi.mock("#app/lib/clickhouse.ts", () => ({ previewSqlApi }));
 
-beforeEach(() => previewSqlApi.mockReset());
+beforeEach(() => {
+  vi.mocked(assertStorageReady).mockReset();
+  previewSqlApi.mockReset();
+});
 
 function run(sql: string) {
   return runSqlForConnection({ orgId: "org-1", metadata: null, sql });
@@ -30,11 +33,13 @@ function chError(type: string, message: string, code = "0") {
 }
 
 describe("runSqlForConnection", () => {
-  it("rejects empty SQL", async () => {
+  it("rejects empty SQL before checking storage readiness", async () => {
     expect(await run(" ")).toEqual({
       isError: true,
       content: ["SQL query is required."],
     });
+    expect(assertStorageReady).not.toHaveBeenCalled();
+    expect(previewSqlApi).not.toHaveBeenCalled();
   });
 
   it("rejects pending setup before issuing SQL", async () => {
@@ -46,7 +51,9 @@ describe("runSqlForConnection", () => {
       metadata: { clickhouseReady: false },
       sql: "SELECT 1",
     });
+    expect(result.content[0]).toBe("Storage is not ready.");
     expect(result.isError).toBe(true);
+    expect(assertStorageReady).toHaveBeenCalledWith({ clickhouseReady: false });
     expect(previewSqlApi).not.toHaveBeenCalled();
   });
 

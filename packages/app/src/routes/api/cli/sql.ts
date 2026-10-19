@@ -1,12 +1,8 @@
-import { server } from "@composition/server";
-
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { createFileRoute } from "@tanstack/react-router";
-import { querySqlApi } from "#app/lib/clickhouse.ts";
+import { createOrganizationSql } from "#app/lib/organization-sql.ts";
 import { sanitizeSqlApiError } from "#app/lib/sql-api-error.ts";
 import { classifySqlQueryError } from "#app/lib/sql-api-observability.ts";
-
-const { assertStorageReady } = server;
 
 function toNdjson(rows: Array<Record<string, unknown>>): string {
   if (rows.length === 0) {
@@ -39,8 +35,11 @@ export const Route = createFileRoute("/api/cli/sql")({
         }
 
         try {
-          assertStorageReady(context.organization.metadata);
-          const rows = await querySqlApi<Record<string, unknown>>(sql, orgId);
+          const storage = createOrganizationSql(
+            orgId,
+            context.organization.metadata,
+          );
+          const rows = await storage.query<Record<string, unknown>>(sql);
 
           span?.setAttribute("everr.sql_query.outcome", "ok");
           span?.setAttribute("everr.sql_query.result_rows", rows.length);
