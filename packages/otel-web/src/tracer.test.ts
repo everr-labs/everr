@@ -35,10 +35,7 @@ describe("public tracer", () => {
       },
     });
     clients.push(client);
-    const load = instrumentationTracer.startActiveSpan(
-      "pageLoad",
-      (span) => span,
-    );
+    const load = instrumentationTracer.startActiveSpan("visit", (span) => span);
     const value = await tracer.startActiveSpan("checkout", async (parent) => {
       try {
         await Promise.resolve();
@@ -65,7 +62,7 @@ describe("public tracer", () => {
     expect(child.kind).toBe(1);
     expect(value).toBe("done");
     expect(parent.kind).toBe(1); // OTLP INTERNAL
-    expect(parent.parentSpanId).toBe(byName("pageLoad").spanId);
+    expect(parent.parentSpanId).toBe(byName("visit").spanId);
     expect(child.parentSpanId).toBe(parent.spanId);
     expect(child.traceId).toBe(parent.traceId);
     expect(child.endTimeUnixNano).toBe("1789568000020000000");
@@ -75,7 +72,7 @@ describe("public tracer", () => {
       "session.id": expect.any(String),
     });
     expect(byName("GET /checkout").parentSpanId).toBe(parent.spanId);
-    expect(byName("GET /checkout").kind).toBe(3);
+    expect(byName("GET /checkout").kind).toBe(1);
     expect(byName("later").parentSpanId).toBeUndefined();
   });
 
@@ -101,7 +98,7 @@ describe("public tracer", () => {
     const [failed, after] = batches.flatMap((batch) => batch.spans);
     expect(failed.kind).toBe(3);
     expect(failed.status).toEqual({ code: 2 });
-    expect(attrs(failed)["exception.message"]).toBe("checkout failed");
+    expect(attrs(failed)["exception.message"]).toBeUndefined();
     expect(after.parentSpanId).toBeUndefined();
   });
 

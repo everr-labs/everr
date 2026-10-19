@@ -130,7 +130,7 @@ A capture source composed into the WebSDK: the only way the browser SDK captures
 _Avoid_: plugin (former name), integration, capture source (informal)
 
 **Analytics event**:
-A browser interaction or page lifecycle moment captured as a Log with an event name (`everr.browser.page_view`, `everr.browser.interaction.rage_click`, and the like). Not a separate signal kind: analytics events are Logs.
+A browser interaction or page lifecycle moment captured as a Log with an event name (`everr.browser.page_view`, `everr.browser.interaction.click`, and the like). Not a separate signal kind: analytics events are Logs.
 _Avoid_: autocapture event, tracking event
 
 **Session**:

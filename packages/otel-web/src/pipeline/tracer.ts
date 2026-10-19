@@ -6,38 +6,59 @@
 // module imports @opentelemetry/api for the types only. Thus there is no
 // dependency at run time, and the code uses no global provider.
 //
-// The implementation has these limits. The SDK always samples a span. The code
-// makes the ids locally and gives them with spanContext(), and thus an
-// instrumentation can send them to a server. The kind is CLIENT, the same as
-// each built-in span, unless options.kind overrides it. The tracer accepts
-// events and links but discards them, because the payload carries neither.
+// The SDK always samples a span. The code makes the ids locally and gives them
+// with spanContext(), and thus an instrumentation can send them to a server.
+// The kind is INTERNAL unless options.kind overrides it. A request span passes
+// CLIENT itself. addEvent and recordException record nothing. Links, status,
+// attribute arrays, and the accepted timestamp forms go on the span.
 //
 // There is no context manager, and the active span has a rule of its own. In
 // OTel, a span is active for the synchronous duration of the function of
 // startActiveSpan, and a context manager carries it into the callbacks. This
 // SDK has no such manager: a span from startActiveSpan is active from that
 // call until its end(). A span from startSpan is a child of the active span,
-// when there is one, or a root. Thus the rule is the time, and not the cause:
-// each span that starts while the page load root is active joins its trace.
-// The active spans are a stack, and the most recent is the parent of a new
-// span. The end() of a span removes it from the stack, in any sequence. The
-// tracer ignores the context argument of the two functions.
+// when there is one, or a root. The active spans are a stack, and the most
+// recent is the parent of a new span. The end() of a span removes it from the
+// stack, in any sequence. The tracer ignores the context argument of the two
+// functions. options.root starts a new trace, and a startActiveSpan with that
+// option still becomes the active parent until its end(). A log carries the
+// trace id, span id, and trace flags of the most recent span that is active
+// now and was already active at the time of the log.
 
-import type { Exception, Span, SpanOptions, Tracer } from "@opentelemetry/api";
+import type {
+  Span,
+  SpanContext,
+  SpanOptions,
+  TimeInput,
+  Tracer,
+} from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
-import type { AttrValue, EmitSpan } from "./emitter.js";
+import type { AttrValue, EmitSpan, SpanLink, SpanStatus } from "./emitter.js";
 
-export function createTracer(emitSpan?: EmitSpan): Tracer {
-  // The active spans, the most recent last.
-  const active: Span[] = [];
+// An HrTime rounds its nanoseconds on their own. Adding them to the seconds as
+// a fraction makes a non-integer millisecond, and the encoder then writes an
+// invalid timestamp.
+function epochMs(value: TimeInput): number {
+  return Array.isArray(value)
+    ? value[0] * 1000 + Math.round(value[1] / 1e6)
+    : Math.round(+value);
+}
+
+export function createTracer(emitSpan?: EmitSpan): Tracer & {
+  activeSpanContext(time?: number): SpanContext | undefined;
+} {
+  // The active spans with the instant each became active, the most recent last.
+  const active: [Span, number][] = [];
 
   // Makes a span. The most recent active span, when there is one, is the
-  // parent.
+  // parent. options.root starts a new trace.
   const make = (name: string, options?: SpanOptions): Span => {
     // One read of the CSPRNG gives the ids, the same as in the network
     // signal. A child keeps the trace id of its parent, and thus it reads only
     // the bytes of its span id.
-    const parent = active[active.length - 1]?.spanContext();
+    const parent = options?.root
+      ? undefined
+      : active[active.length - 1]?.[0].spanContext();
     const ids = emitSpan ? randomHex(parent ? 8 : 24) : "0".repeat(48);
     const spanContext = {
       traceId: parent?.traceId ?? ids.slice(0, 32),
@@ -45,16 +66,16 @@ export function createTracer(emitSpan?: EmitSpan): Tracer {
       traceFlags: emitSpan ? 1 : 0,
     };
     const attributes: Record<string, AttrValue> = {};
-    const start = (options?.startTime as number | undefined) ?? Date.now();
+    const links: SpanLink[] = [];
+    const start =
+      options?.startTime == null ? Date.now() : epochMs(options.startTime);
     let spanName = name;
     let ended = false;
-    let errored = false;
+    // UNSET until setStatus records OK or ERROR. OK sticks.
+    let status: SpanStatus | undefined;
 
     const span: Span = {
       spanContext: () => spanContext,
-      // The code copies the attributes without a change. The AttrValue types of
-      // the emitter give the rules. The caller is responsible for an array
-      // value. An ended span accepts no attribute, the same as in OTel.
       setAttribute: (key, value) => {
         if (!ended) attributes[key] = value as AttrValue;
         return span;
@@ -64,54 +85,69 @@ export function createTracer(emitSpan?: EmitSpan): Tracer {
         return span;
       },
       addEvent: () => span,
-      addLink: () => span,
-      addLinks: () => span,
-      setStatus: (status) => {
-        errored = status.code === 2; // SpanStatusCode.ERROR
+      addLink: (link) => {
+        if (ended) return span;
+        links.push({
+          ...link.context,
+          attributes: link.attributes as SpanLink["attributes"],
+        });
+        return span;
+      },
+      addLinks: (next) => {
+        for (const link of next) span.addLink(link);
+        return span;
+      },
+      setStatus: (next) => {
+        // UNSET is ignored. OK sticks, and a later status does not replace it.
+        // The message is kept only for ERROR.
+        if (ended || next.code === 0 || status?.code === 1) return span;
+        if (next.code === 1) status = { code: 1 };
+        else if (next.code === 2) {
+          status = next.message
+            ? { code: 2, message: next.message }
+            : { code: 2 };
+        }
         return span;
       },
       updateName: (next) => {
-        spanName = next;
+        if (!ended) spanName = next;
         return span;
       },
       isRecording: () => !!emitSpan && !ended,
-      recordException: (exception: Exception) => {
-        const error = exception as { name?: string; message?: string };
-        // The exception event of semconv. The code puts it in the span
-        // attributes, because the payload carries no events.
-        span.setAttribute(
-          "exception.type",
-          (typeof exception === "object" && error.name) || "Error",
-        );
-        if (typeof exception === "string") {
-          span.setAttribute("exception.message", exception);
-        } else if (error.message) {
-          span.setAttribute("exception.message", error.message);
-        }
-      },
+      recordException: () => {},
       end: (endTime) => {
         if (ended) return;
         ended = true;
-        const index = active.indexOf(span);
+        const index = active.findIndex(([item]) => item === span);
         if (index >= 0) active.splice(index, 1);
         emitSpan?.(
           spanContext.traceId,
           spanContext.spanId,
           spanName,
           start,
-          (endTime as number | undefined) ?? Date.now(),
+          endTime == null ? Date.now() : epochMs(endTime),
           attributes,
-          errored,
+          status,
           parent?.spanId,
-          (options?.kind ?? 2) + 1, // OTel API kinds are zero-based; OTLP is one-based.
+          (options?.kind ?? 0) + 1, // OTel API kinds are zero-based; OTLP is one-based.
+          links.length ? links : undefined,
         );
       },
     };
     if (options?.attributes) span.setAttributes(options.attributes);
+    if (options?.links) span.addLinks(options.links);
     return span;
   };
 
   return {
+    // A log with an earlier timestamp skips the spans that became active after
+    // it. The stack is in activation sequence, so the first match from the end
+    // is the most recent span that was active at that time.
+    activeSpanContext: (time = Date.now()) => {
+      for (let i = active.length; i--; ) {
+        if (active[i][1] <= time) return active[i][0].spanContext();
+      }
+    },
     startSpan: (name, options) => make(name, options),
     // This function accepts all the argument sequences. The function to call is
     // always the last argument, and the options are the first argument when
@@ -120,7 +156,7 @@ export function createTracer(emitSpan?: EmitSpan): Tracer {
     startActiveSpan: ((name: string, ...rest: unknown[]) => {
       const fn = rest.pop() as (span: Span) => unknown;
       const span = make(name, rest[0] as SpanOptions | undefined);
-      if (emitSpan) active.push(span);
+      if (emitSpan) active.push([span, Date.now()]);
       return fn(span);
     }) as Tracer["startActiveSpan"],
   };

@@ -360,20 +360,13 @@ describe("TracesRepository.getTrace", () => {
 
     const result = await makeRepo().getTrace({
       traceId: "t1",
-      fromTs: "2026-05-20 11:00:00.000",
-      toTs: "2026-05-20 13:00:00.000",
     });
 
     expect(query).toHaveBeenCalledTimes(1);
     const [sql, params] = query.mock.calls[0] ?? [];
     expect(sql).toContain("WHERE TraceId = {traceId:String}");
-    expect(sql).toContain("parseDateTime64BestEffort({fromTs:String}, 9)");
-    expect(sql).toContain("parseDateTime64BestEffort({toTs:String}, 9)");
-    expect(params).toEqual({
-      traceId: "t1",
-      fromTs: "2026-05-20 11:00:00.000",
-      toTs: "2026-05-20 13:00:00.000",
-    });
+    expect(sql).toContain("FROM traces_trace_id_ts");
+    expect(params).toEqual({ traceId: "t1" });
 
     expect(result).toHaveLength(1);
     expect(result[0]?.events).toEqual([
@@ -424,8 +417,6 @@ describe("TracesRepository.getTrace", () => {
 
     const result = await makeRepo().getTrace({
       traceId: "t1",
-      fromTs: "2026-05-20 11:00:00.000",
-      toTs: "2026-05-20 13:00:00.000",
     });
 
     expect(result[0]?.spanAttributes).toEqual({ "http.route": "/x" });
@@ -440,8 +431,6 @@ describe("TracesRepository.getTrace", () => {
     await expect(
       makeRepo().getTrace({
         traceId: "missing",
-        fromTs: "2026-05-20 11:00:00.000",
-        toTs: "2026-05-20 13:00:00.000",
       }),
     ).rejects.toThrow("not found");
   });

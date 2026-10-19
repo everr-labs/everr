@@ -29,6 +29,9 @@ export type OtlpRecord = {
   eventName: string;
   body?: unknown;
   attributes: Array<{ key: string; value: Record<string, unknown> }>;
+  traceId?: string;
+  spanId?: string;
+  flags?: number;
 };
 
 export type OtlpSpan = {
@@ -39,7 +42,13 @@ export type OtlpSpan = {
   kind: number;
   startTimeUnixNano: string;
   endTimeUnixNano: string;
-  status: { code?: number };
+  status?: { code?: number; message?: string };
+  links?: Array<{
+    traceId: string;
+    spanId: string;
+    flags?: number;
+    attributes?: Array<{ key: string; value: Record<string, unknown> }>;
+  }>;
   attributes: Array<{ key: string; value: Record<string, unknown> }>;
 };
 

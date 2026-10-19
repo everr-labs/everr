@@ -12,13 +12,12 @@ export function pageviews(): Instrumentation {
   // can make a hash from instrumentation.name, and the decisions for the
   // different instrumentations are different.
   return function pageviews(ctx) {
-    const [onNavigate, onHide, stop] = startPageviews(ctx.emit, ctx.page);
+    const [onNavigate, onHide] = startPageviews(ctx.emit, ctx.page);
     const offNavigation = ctx.onNavigation(onNavigate);
     const offHide = ctx.onHide(onHide);
     return () => {
       offHide();
       offNavigation();
-      stop();
     };
   };
 }

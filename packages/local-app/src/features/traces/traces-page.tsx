@@ -81,11 +81,11 @@ export function TracesPage() {
               replace: true,
             })
           }
-          renderTraceLink={({ traceId, start, end, className, children }) => (
+          renderTraceLink={({ traceId, className, children }) => (
             <Link
               to="/traces/$traceId"
               params={{ traceId }}
-              search={(prev) => ({ ...prev, start, end })}
+              search
               className={className}
             >
               {children}

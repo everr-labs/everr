@@ -22,7 +22,7 @@ npm install @everr/otel-web
 
 ```ts
 // src/telemetry.ts, imported once before the app renders
-import { errors, interactions, network, pageLoad, pageviews, performance, WebSDK } from "@everr/otel-web";
+import { errors, interactions, network, pageviews, performance, WebSDK } from "@everr/otel-web";
 
 const endpoint = import.meta.env.VITE_EVERR_INGEST_ENDPOINT;
 if (endpoint) {
@@ -36,7 +36,7 @@ if (endpoint) {
     dev: import.meta.env.DEV,
     // Capture is opt-in. errors() owns the window error/unhandledrejection
     // handlers; never register your own alongside it, that double-captures.
-    instrumentations: [errors(), pageviews(), interactions(), performance(), pageLoad(), network()],
+    instrumentations: [errors(), pageviews(), interactions(), performance(), network()],
   });
 }
 ```

@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { TraceDetailParamsSchema, toTraceListSearch } from "./schemas";
+import {
+  GetTraceInputSchema,
+  TraceDetailParamsSchema,
+  toTraceListSearch,
+} from "./schemas";
+
+it("accepts ID-only trace requests and ignores legacy time bounds", () => {
+  expect(GetTraceInputSchema.parse({ traceId: "trace-1" })).toEqual({
+    traceId: "trace-1",
+  });
+  expect(
+    GetTraceInputSchema.parse({
+      traceId: "trace-1",
+      fromTs: "2026-01-01 00:00:00",
+      toTs: "2026-01-01 01:00:00",
+    }),
+  ).toEqual({ traceId: "trace-1" });
+});
 
 describe("TraceDetailParamsSchema", () => {
   it("preserves trace list filters on detail URLs", () => {

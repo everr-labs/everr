@@ -20,11 +20,6 @@ import { afterEach, expect, it, vi } from "vitest";
 import { Route } from "./traces_.$traceId";
 
 vi.mock("#app/data/traces/remote-repo.ts", () => ({ remoteTracesRepo: {} }));
-vi.mock("./-trace-detail", () => ({
-  ensureTraceDetailData: vi.fn(),
-  getTraceDetailLoaderDeps: vi.fn(),
-  TraceDetailRouteError: () => null,
-}));
 vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("@everr/telemetry-explorer/traces")

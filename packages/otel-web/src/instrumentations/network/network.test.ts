@@ -25,8 +25,8 @@ let stop: () => void;
 let lastRequest: { input: RequestInfo | URL; init?: RequestInit } | undefined;
 let respondWith: () => Promise<Response>;
 
-const emitSpan: EmitSpan = (traceId, spanId, name, _s, _e, attrs, error) => {
-  spans.push({ traceId, spanId, name, attrs, error });
+const emitSpan: EmitSpan = (traceId, spanId, name, _s, _e, attrs, status) => {
+  spans.push({ traceId, spanId, name, attrs, error: status?.code === 2 });
 };
 
 function start(

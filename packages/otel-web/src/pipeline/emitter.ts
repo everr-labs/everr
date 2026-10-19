@@ -9,9 +9,16 @@
 // an intValue is a decimal string. The other internal structures use tuples,
 // because minification keeps the property names but it does not keep the tuple
 // indexes.
+import type { SpanContext } from "@opentelemetry/api";
 import type { Send, Signal } from "./transport.js";
 
-export type AttrValue = string | number | boolean;
+export type AttrValue =
+  | string
+  | number
+  | boolean
+  | string[]
+  | number[]
+  | boolean[];
 
 // All the event names in one type. The names that semconv registers have no
 // prefix. All the other names have the everr prefix. This is a type only, and
@@ -24,16 +31,15 @@ export type EventName =
   | "exception"
   | "everr.browser.page_view"
   | "everr.browser.page_leave"
-  | "everr.browser.interaction.rage_click"
   | "everr.browser.interaction.click"
-  | "everr.browser.interaction.change"
   | "everr.browser.interaction.submit";
 
 type AnyValue =
   | { stringValue: string }
   | { intValue: string }
   | { doubleValue: number }
-  | { boolValue: boolean };
+  | { boolValue: boolean }
+  | { arrayValue: { values: AnyValue[] } };
 
 type KeyValue = { key: string; value: AnyValue };
 
@@ -43,6 +49,16 @@ type OtlpLogRecord = {
   eventName: string;
   body: AnyValue;
   attributes: KeyValue[];
+  traceId?: string;
+  spanId?: string;
+  flags?: number;
+};
+
+type OtlpLink = {
+  traceId: string;
+  spanId: string;
+  flags: number;
+  attributes?: KeyValue[];
 };
 
 type OtlpSpan = {
@@ -54,7 +70,8 @@ type OtlpSpan = {
   startTimeUnixNano: string;
   endTimeUnixNano: string;
   attributes: KeyValue[];
-  status?: { code: number };
+  status?: { code: number; message?: string };
+  links?: OtlpLink[];
 };
 
 /**
@@ -73,11 +90,19 @@ export type Emit = (
   body?: string,
 ) => void;
 
+/** OTLP status. `UNSET` is omitted. The message is present only for `ERROR`. */
+export type SpanStatus = { code: 1 } | { code: 2; message?: string };
+
+/** One link to another span. `traceFlags` is the W3C trace-flags byte. */
+export type SpanLink = SpanContext & {
+  attributes?: Record<string, AttrValue | null | undefined>;
+};
+
 /**
  * Puts one completed span into the traces queue. The span carries the
- * envelope, the same as each log record. The `error` value becomes the OTLP
- * status ERROR. A span with a `parentSpanId` is a child in the trace of
- * `traceId`; without it, the span is the root of that trace.
+ * envelope, the same as each log record. A span with a `parentSpanId` is a
+ * child in the trace of `traceId`; without it, the span is the root of that
+ * trace. The kind defaults to INTERNAL (OTLP 1).
  */
 export type EmitSpan = (
   traceId: string,
@@ -86,9 +111,10 @@ export type EmitSpan = (
   startTime: number,
   endTime: number,
   attributes: Record<string, AttrValue | null | undefined>,
-  error?: boolean,
+  status?: SpanStatus,
   parentSpanId?: string,
   kind?: number,
+  links?: SpanLink[],
 ) => void;
 
 /**
@@ -108,7 +134,8 @@ export type SpanEvent = {
   kind: "span";
   name: string;
   attributes: Record<string, AttrValue | null | undefined>;
-  error?: boolean;
+  status?: SpanStatus;
+  links?: SpanLink[];
 };
 
 /**
@@ -120,7 +147,8 @@ export type SpanEvent = {
  * attribute to all the signals.
  *
  * The ids and the times are absent, because a hook does not change the identity
- * of a record or the time of a record.
+ * of a record or the time of a record. Log correlation is written after the
+ * hook, so the hook cannot see or change the trace id, span id, or trace flags.
  */
 export type SendEvent = LogEvent | SpanEvent;
 
@@ -197,20 +225,30 @@ const EXIT_BUDGET = 64_000;
 
 export const noop = () => Promise.resolve();
 
+function unixNano(ms: number): string {
+  return `${Math.round(ms)}000000`;
+}
+
 function toAnyValue(value: AttrValue): AnyValue {
   if (typeof value === "string") return { stringValue: value };
   if (typeof value === "boolean") return { boolValue: value };
-  return Number.isInteger(value)
-    ? { intValue: String(value) }
-    : { doubleValue: value };
+  if (!Array.isArray(value)) {
+    return Number.isInteger(value)
+      ? { intValue: String(value) }
+      : { doubleValue: value };
+  }
+  return {
+    arrayValue: {
+      values: value.flatMap((entry) =>
+        entry == null ? [] : [toAnyValue(entry)],
+      ),
+    },
+  };
 }
 
 function toKeyValues(
   attributes: Record<string, AttrValue | null | undefined>,
 ): KeyValue[] {
-  // The code ignores a value of null and a value of undefined. Thus a caller
-  // can write an optional attribute as a usual property, and it can send a DOM
-  // getter that returns null.
   return Object.entries(attributes).flatMap(([key, value]) =>
     value == null ? [] : [{ key, value: toAnyValue(value) }],
   );
@@ -230,6 +268,8 @@ export function createEmitter(
   envelope: () => Record<string, AttrValue | null | undefined>,
   /** The hook of the host on each item. Refer to {@link BeforeSend}. */
   beforeSend?: BeforeSend,
+  /** The span active at the time of the log, when there is one. */
+  activeSpan?: (time?: number) => SpanContext | undefined,
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
   let queue: OtlpLogRecord[] = [];
@@ -404,9 +444,12 @@ export function createEmitter(
     severityNumber = 9, // INFO
     body = eventName,
   ) => {
-    // Read this before the hook. The default is the instant emit was called,
-    // even when a host hook does synchronous work before the item is queued.
-    const timestamp = `${time ?? Date.now()}000000`;
+    // Read the time before the hook. The default is the instant emit was
+    // called, even when a host hook does synchronous work before the item is
+    // queued. A log with an earlier timestamp takes the span that was already
+    // active at that time, and not a span that became active after it.
+    const timestamp = unixNano(time ?? Date.now());
+    const span = activeSpan?.(time);
     const item = applyBeforeSend({
       kind: "log",
       eventName,
@@ -424,6 +467,9 @@ export function createEmitter(
       eventName: item.eventName,
       body: toAnyValue(item.body),
       attributes: toKeyValues(item.attributes),
+      ...(span
+        ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags }
+        : {}),
     });
     schedule();
   };
@@ -435,9 +481,10 @@ export function createEmitter(
     startTime,
     endTime,
     attributes,
-    error,
+    status,
     parentSpanId,
-    kind = 3,
+    kind = 1, // INTERNAL. Callers pass CLIENT for a request span.
+    links,
   ) => {
     // The hook sees the envelope also, and not only the attributes of the
     // instrumentation. The envelope carries `url.full`. Thus a host that
@@ -448,21 +495,31 @@ export function createEmitter(
       kind: "span",
       name,
       attributes: { ...envelope(), ...attributes },
-      error,
+      status,
+      links,
     });
     if (item?.kind !== "span") return;
+    const wireLinks = item.links?.map((link) => {
+      const attributes = toKeyValues(link.attributes ?? {});
+      return {
+        traceId: link.traceId,
+        spanId: link.spanId,
+        flags: link.traceFlags,
+        ...(attributes.length ? { attributes } : {}),
+      };
+    });
     spanQueue.push({
       traceId,
       spanId,
       parentSpanId,
       name: item.name,
       kind,
-      startTimeUnixNano: `${startTime}000000`,
-      endTimeUnixNano: `${endTime}000000`,
+      startTimeUnixNano: unixNano(startTime),
+      endTimeUnixNano: unixNano(endTime),
       attributes: toKeyValues(item.attributes),
-      // This is STATUS_CODE_ERROR. If not, the field is absent and thus Unset,
-      // because JSON removes a value of undefined.
-      status: item.error ? { code: 2 } : undefined,
+      // UNSET is absent. JSON also removes a value of undefined.
+      status: item.status,
+      ...(wireLinks?.length ? { links: wireLinks } : {}),
     });
     schedule();
   };

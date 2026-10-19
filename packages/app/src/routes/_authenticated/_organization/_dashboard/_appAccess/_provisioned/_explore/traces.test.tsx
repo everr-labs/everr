@@ -30,8 +30,6 @@ vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
     }: {
       renderTraceLink: (props: {
         traceId: string;
-        start: string;
-        end: string;
         className: string;
         children: ReactNode;
       }) => ReactNode;
@@ -40,8 +38,6 @@ vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
         <div>Trace list page</div>
         {renderTraceLink({
           traceId: "trace-1",
-          start: "2026-05-20 12:00:00.000",
-          end: "2026-05-20 12:00:01.000",
           className: "trace-link",
           children: "Open trace trace-1",
         })}
@@ -132,9 +128,9 @@ describe("/traces route", () => {
     expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
   });
 
-  it("opens a full-page trace from the list and preserves the time window", async () => {
+  it("opens a full-page trace and preserves list filters without adding trace timestamps", async () => {
     const user = userEvent.setup();
-    const router = renderTracesRoute(["/traces"]);
+    const router = renderTracesRoute(["/traces?from=now-1h&to=now"]);
     await user.click(
       await screen.findByRole("link", { name: "Open trace trace-1" }),
     );
@@ -144,9 +140,11 @@ describe("/traces route", () => {
     expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/traces/trace-1");
     expect(router.state.location.search).toMatchObject({
-      start: "2026-05-20 12:00:00.000",
-      end: "2026-05-20 12:00:01.000",
+      from: "now-1h",
+      to: "now",
     });
+    expect(router.state.location.search).not.toHaveProperty("start");
+    expect(router.state.location.search).not.toHaveProperty("end");
     expect(router.state.location.maskedLocation).toBeUndefined();
   });
 

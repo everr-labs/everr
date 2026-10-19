@@ -1,3 +1,4 @@
+import type { SpanContext } from "@opentelemetry/api";
 import { attributionAttributes } from "./attribution.js";
 import type { InstrumentationContext } from "./instrumentations/runtime.js";
 import { type NavigationListener, watchNavigation } from "./navigation.js";
@@ -63,6 +64,8 @@ export class WebSDK {
       document.referrer,
     );
 
+    let activeSpan: (time?: number) => SpanContext | undefined = () =>
+      undefined;
     const [emit, flush, exitFlush, emitSpan] = createEmitter(
       ...transport,
       // The resource does not contain the viewport, and this is correct. The
@@ -94,12 +97,14 @@ export class WebSDK {
       { name: SDK_NAME, version: SDK_VERSION },
       createEnvelope(current),
       options.beforeSend,
+      (time) => activeSpan(time),
     );
     // This is the only connection of the package functions, logger and
     // captureError, to this pipeline. Each call reads the pipeline from
     // current.ts.
     const unbindEmit = bindEmit(emit);
     const sdkTracer = createTracer(emitSpan);
+    activeSpan = (time) => sdkTracer.activeSpanContext(time);
     const unbindTracer = bindTracer(sdkTracer);
 
     // The instrumentations are the only sources of the capture. The SDK starts

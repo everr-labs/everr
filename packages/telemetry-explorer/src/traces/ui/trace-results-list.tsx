@@ -25,7 +25,6 @@ import { Check, Copy } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
-import { addNsToCHDateTime } from "../data/window";
 import { useDelayedFlag } from "../util/use-delayed-flag";
 import { DurationBar } from "./duration-bar";
 import { isSafeMethod, splitSpanName } from "./http-method";
@@ -49,8 +48,6 @@ type Props = {
 
 export type TraceLinkRenderProps = {
   traceId: string;
-  start: string;
-  end: string;
   className: string;
   children: ReactNode;
 };
@@ -157,7 +154,6 @@ function TraceRow({
   maxDuration: bigint;
   renderTraceLink: (props: TraceLinkRenderProps) => React.ReactNode;
 }) {
-  const end = addNsToCHDateTime(row.startTs, BigInt(row.durationNs));
   const started = parseTimestampAsUTC(row.startTs);
   const name = splitSpanName(row.rootName);
   // The link wraps only the name but its `after` pseudo-element stretches over
@@ -169,8 +165,6 @@ function TraceRow({
       <div className="flex min-w-0 flex-1 items-center gap-1.5 leading-tight">
         {renderTraceLink({
           traceId: row.traceId,
-          start: row.startTs,
-          end,
           className:
             "flex min-w-0 items-center gap-1.5 font-medium after:absolute after:inset-0 after:content-['']",
           children: (

@@ -8,7 +8,7 @@ import { emitVital, scriptAttrs, whenIdleOrHidden } from "./shared.js";
 // The measurement of the interaction latency. One Event Timing observer gives
 // the data for two outputs.
 //
-// 1. The `slow_interaction` spans. The code makes one CLIENT span for each
+// 1. The `slow_interaction` spans. The code makes one INTERNAL span for each
 //    interaction of the user with a latency of more than 200 ms. That value is
 //    the limit for the INP rating "needs improvement". The code completes a
 //    maximum of one span for each interactionId, after a short wait. The span

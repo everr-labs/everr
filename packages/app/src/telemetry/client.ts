@@ -2,7 +2,6 @@ import {
   errors,
   interactions,
   network,
-  pageLoad,
   pageviews,
   performance,
   WebSDK,
@@ -11,7 +10,7 @@ import { readConsent } from "#app/telemetry/consent.ts";
 import { resolveBrowserTelemetryConfig } from "./config";
 
 // The browser telemetry of the web app, and this app uses our own product. The
-// page views, the frustration clicks, the web vitals, and the errors go to Everr
+// page views, the clicks, the web vitals, and the errors go to Everr
 // as OTel log records. They use a browser service name, and that name is
 // different from the name of the server in `node.ts`. Thus a query can select
 // one of the two.
@@ -46,14 +45,12 @@ new WebSDK({
   endpoint: browserTelemetry.endpoint,
   dev: import.meta.env.DEV,
   // The caller must select the capture. This app uses all the built-in
-  // instrumentations. By default performance() includes the load window of the
-  // page, which gives the resource spans and the long-animation-frame records.
+  // instrumentations.
   instrumentations: [
     errors(),
     pageviews(),
     interactions(),
     performance(),
-    pageLoad(),
     // The request route template comes from the `request` route resolver in
     // route-pattern.ts.
     network(),

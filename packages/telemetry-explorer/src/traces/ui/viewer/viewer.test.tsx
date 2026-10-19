@@ -4,6 +4,7 @@ import { type Ref, useImperativeHandle } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TracesRepositoryLike } from "../../data/repository";
+import { TraceDetailParamsSchema } from "../../data/schemas";
 import type { Span } from "../../data/types";
 import type { TraceNode } from "./model";
 import * as processor from "./processor";
@@ -35,6 +36,7 @@ vi.mock("./flamegraph", async (importOriginal) => ({
 }));
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
@@ -123,8 +125,6 @@ function renderExplorer(
     repo,
     traceId: "trace-1",
     search: {
-      start: "2026-10-06 12:00:00.000",
-      end: "2026-10-06 12:00:01.000",
       ...search,
     },
     onSpanChange: vi.fn(),
@@ -145,6 +145,48 @@ function renderExplorer(
 }
 
 describe("shared trace explorer", () => {
+  it.each([
+    {},
+    { from: "now-1h", to: "now" },
+  ])("finishes loading a direct trace link with search %j", async (search) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-19T14:00:00Z"));
+    const getTrace = vi.fn(async () => {
+      vi.setSystemTime(new Date(Date.now() + 100));
+      return [];
+    });
+    const repo: TracesRepositoryLike = {
+      getTrace,
+      search: vi.fn(async () => []),
+      listServiceIdentities: vi.fn(async () => []),
+      attributeKeys: vi.fn(async () => []),
+      attributeValues: vi.fn(async () => []),
+    };
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const result = render(
+      <QueryClientProvider client={client}>
+        <TraceExplorer
+          repo={repo}
+          traceId="a73013fe4538179d2bb3c13234b37de4"
+          search={TraceDetailParamsSchema.parse(search)}
+          onBack={vi.fn()}
+          onSpanChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    try {
+      expect(
+        await screen.findByRole("heading", { name: "Trace not found" }),
+      ).toBeInTheDocument();
+      expect(getTrace).toHaveBeenCalledTimes(1);
+    } finally {
+      result.unmount();
+      client.clear();
+    }
+  });
+
   it("keeps the waterfall in place when a visible row is selected", async () => {
     vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation(
       (callback) => {
@@ -286,15 +328,18 @@ describe("shared trace explorer", () => {
     expect(props.onBack).toHaveBeenCalledTimes(1);
   });
 
-  it("loads from the supplied repository and preserves the bounded detail window", async () => {
-    const { repo } = renderExplorer();
+  it("loads by trace ID even when the URL includes a time window", async () => {
+    const { repo } = renderExplorer(
+      TraceDetailParamsSchema.parse({
+        start: "2026-10-06 12:00:00.000",
+        end: "2026-10-06 12:00:01.000",
+      }),
+    );
     expect(
       await screen.findByRole("heading", { name: "root" }),
     ).toBeInTheDocument();
     expect(repo.getTrace).toHaveBeenCalledWith({
       traceId: "trace-1",
-      fromTs: "2026-10-06 11:00:00.000",
-      toTs: "2026-10-06 13:00:01.000",
     });
     expect(screen.getByRole("button", { name: "Select root" })).toHaveAttribute(
       "aria-pressed",

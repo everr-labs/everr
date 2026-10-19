@@ -21,10 +21,6 @@ export {
   type NetworkOptions,
   network,
 } from "./instrumentations/network/index.js";
-export {
-  type PageLoadOptions,
-  pageLoad,
-} from "./instrumentations/pageload/index.js";
 export { pageviews } from "./instrumentations/pageviews/index.js";
 export {
   type PerformanceOptions,
@@ -44,6 +40,8 @@ export type {
   LogEvent,
   SendEvent,
   SpanEvent,
+  SpanLink,
+  SpanStatus,
 } from "./pipeline/emitter.js";
 export { setAttributes } from "./state/attributes.js";
 export {

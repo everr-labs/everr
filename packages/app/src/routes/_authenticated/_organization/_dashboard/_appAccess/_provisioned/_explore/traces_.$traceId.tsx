@@ -1,18 +1,22 @@
 import {
+  getTraceOptions,
   TraceDetailParamsSchema,
   TraceExplorer,
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
+import { Button } from "@everr/ui/components/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@everr/ui/components/empty";
 import {
   createFileRoute,
   type ErrorComponentProps,
+  Link,
 } from "@tanstack/react-router";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
-import {
-  ensureTraceDetailData,
-  getTraceDetailLoaderDeps,
-  TraceDetailRouteError,
-} from "./-trace-detail";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId",
@@ -24,13 +28,14 @@ export const Route = createFileRoute(
   },
   head: () => ({ meta: [{ title: "Everr - Trace" }] }),
   validateSearch: TraceDetailParamsSchema,
-  loaderDeps: ({ search }) => getTraceDetailLoaderDeps(search),
-  loader: async ({ context: { queryClient }, params, deps }) => {
-    await ensureTraceDetailData({
-      queryClient,
-      traceId: params.traceId,
-      deps,
-    });
+  loader: async ({ context: { queryClient }, params }) => {
+    await queryClient.ensureQueryData(
+      getTraceOptions({
+        repo: remoteTracesRepo,
+        traceId: params.traceId,
+        refresh: "off",
+      }),
+    );
   },
   component: TraceDetailRoute,
   errorComponent: TraceDetailError,
@@ -66,5 +71,23 @@ function TraceDetailRoute() {
 }
 
 function TraceDetailError({ error }: ErrorComponentProps) {
-  return <TraceDetailRouteError error={error} search={Route.useSearch()} />;
+  const search = Route.useSearch();
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyTitle>Failed to load trace</EmptyTitle>
+        <EmptyDescription>
+          {error instanceof Error ? error.message : String(error)}
+        </EmptyDescription>
+      </EmptyHeader>
+      <Button
+        variant="outline"
+        size="sm"
+        nativeButton={false}
+        render={<Link to="/traces" search={toTraceListSearch(search)} />}
+      >
+        Back to traces
+      </Button>
+    </Empty>
+  );
 }
