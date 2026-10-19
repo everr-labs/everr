@@ -162,15 +162,15 @@ An element in a Recording replaced by an empty placeholder of the same size.
 _Avoid_: omit, delete
 
 **Ignore**:
-Input events inside an element left out of a Recording. The element stays.
+Input events inside an element left out of a Recording. The element stays. This is not the `errors()` `ignore` option, which drops an error by message.
 _Avoid_: skip
 
 **Stream**:
-The part of a Recording that one document captured: one page load in one tab. A hard navigation or a reload starts a new Stream. Two tabs that share a Session give two Streams at the same time.
+The part of a Recording that one document captured in one Session: one page load in one tab. A hard navigation or a reload starts a new Stream. When the Session changes during a page, the current Stream ends and the next Stream belongs to the new Session's Recording. Two tabs that share a Session give two Streams at the same time.
 _Avoid_: tab recording, track
 
 **Segment**:
-One contiguous slice of a Stream. A long Stream is a sequence of Segments.
+One contiguous slice of a Stream, stored as one OTLP log of rrweb events. A long Stream is a sequence of Segments. A Segment is not a Span.
 _Avoid_: chunk, batch, blob
 
 **Replay**:
