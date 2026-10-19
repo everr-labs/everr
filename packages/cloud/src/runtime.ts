@@ -29,12 +29,6 @@ export const server: ApplicationServer = {
     const { startOrganizationWorker } = await import(
       "./organization-provisioning/worker"
     );
-    await startOrganizationWorker();
-  },
-  async stopAppWorkers() {
-    const { stopOrganizationWorker } = await import(
-      "./organization-provisioning/worker"
-    );
-    await stopOrganizationWorker();
+    return startOrganizationWorker();
   },
 };

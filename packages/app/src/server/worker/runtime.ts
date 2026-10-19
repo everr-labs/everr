@@ -12,7 +12,7 @@ import { registerShutdownHook } from "#app/server/shutdown.ts";
 import { attachGraphileWorkerEventLogging } from "./events";
 import { managedWorker } from "./managed-worker";
 
-const { startAppWorkers, stopAppWorkers } = server;
+const { startAppWorkers } = server;
 
 const general = managedWorker({
   name: "everrGeneralWorker",
@@ -45,14 +45,40 @@ const general = managedWorker({
   },
 });
 
-registerShutdownHook("worker.general", "workers", () => general.stop());
-registerShutdownHook("worker.app", "workers", stopAppWorkers);
-
 export async function startWorkerRuntime() {
-  await Promise.all([general.start(), startAppWorkers()]);
-  return {
-    stop: async () => {
-      await Promise.all([general.stop(), stopAppWorkers()]);
-    },
+  const application = Promise.resolve().then(() => startAppWorkers());
+  let stopping: Promise<void> | undefined;
+  const stop = () => {
+    stopping ??= (async () => {
+      const results = await Promise.allSettled([
+        general.stop(),
+        application.then(
+          (workers) => workers.stop(),
+          () => {}, // Failed startup has no application handle to release.
+        ),
+      ]);
+      const errors = results.flatMap((result) =>
+        result.status === "rejected" ? [result.reason] : [],
+      );
+      if (errors.length)
+        throw new AggregateError(errors, "Worker shutdown failed");
+    })();
+    return stopping;
   };
+  registerShutdownHook("worker.runtime", "workers", stop);
+
+  try {
+    await Promise.all([general.start(), application]);
+    return { stop };
+  } catch (error) {
+    try {
+      await stop();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "Worker startup and rollback failed",
+      );
+    }
+    throw error;
+  }
 }

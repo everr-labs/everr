@@ -102,8 +102,6 @@ export interface ApplicationServer {
   canOpenSignup(input: { redirect?: string }): Promise<boolean>;
   /** Database upgrade lifecycle for the application's shared and additional schema histories. */
   migrateDatabase(database: MigrationDatabase): Promise<void>;
-  /** Startup lifecycle for application-owned background workers, alongside shared workers. */
-  startAppWorkers(): Promise<void>;
-  /** Shutdown lifecycle for application-owned workers and their resources. */
-  stopAppWorkers(): Promise<void>;
+  /** Application-owned workers and the shutdown handle for their lifecycle. */
+  startAppWorkers(): Promise<{ stop(): Promise<void> }>;
 }

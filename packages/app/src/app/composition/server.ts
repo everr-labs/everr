@@ -25,6 +25,7 @@ export const server: ApplicationServer = {
     const { migrateDatabase } = await import("#app/db/migrations.ts");
     return migrateDatabase(database);
   },
-  async startAppWorkers() {},
-  async stopAppWorkers() {},
+  async startAppWorkers() {
+    return { async stop() {} };
+  },
 };

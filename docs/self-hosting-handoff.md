@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `3eabc79eb`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `dc7e2de4f`.
 
 ## Direction and next architecture work
 
@@ -176,6 +176,15 @@ tests, styling, and migrations. Old `/tmp` artifacts are disposable evidence,
 not a supported harness or a prerequisite for resuming the work.
 
 ## Verification status and release work
+
+Worker lifecycle: `startAppWorkers` now returns its shutdown handle; the separate
+stop hook is removed. Shared runtime owns one idempotent shutdown operation,
+registered before startup completes. It drains both groups on shutdown and rolls
+back partial startup, preserving startup and cleanup failures. Runner retry and
+hot-reload supervision remain in `managedWorker`. All 22 worker/lifecycle tests,
+both application typechecks, import boundaries, and dead-code checks pass. The
+local browser still reaches sign-in; cloud shutdown was covered through the
+contract and lifecycle tests, not a live cloud process.
 
 SQL access: `createOrganizationSql` binds the organization after checking storage
 readiness. CLI, MCP, dashboard middleware, and the alert worker use this boundary;

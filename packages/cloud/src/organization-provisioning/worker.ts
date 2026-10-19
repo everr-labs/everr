@@ -68,5 +68,7 @@ const runtime = managedWorker({
   },
 });
 
-export const startOrganizationWorker = () => runtime.start();
-export const stopOrganizationWorker = () => runtime.stop();
+export async function startOrganizationWorker() {
+  await runtime.start();
+  return { stop: runtime.stop };
+}
