@@ -3,6 +3,7 @@ import { billingIdentityAdapter } from "../../billing/auth-adapter.server";
 import { billingAuthPlugin } from "../../billing/auth-plugin.server";
 import {
   lockAccountDeletion,
+  lockUserLifecycle,
   withBillingRequest,
 } from "../../billing/lock.server";
 import { beforeCreateCheckoutOrganization } from "../../billing/organization-context.server";
@@ -32,6 +33,7 @@ export const identity = {
   provider: {
     withIdentityRequest: withBillingRequest,
     lockAccountDeletion,
+    lockUserLifecycle,
     createSessionOnboardingHook,
     identityAdapter: () =>
       billingIdentityAdapter(organizationLifecycleAdapter()),

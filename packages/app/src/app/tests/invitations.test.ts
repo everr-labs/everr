@@ -160,6 +160,7 @@ it.each([
         body: { name: "Another", slug: "another", userId: "recipient" },
       }),
     ).rejects.toThrow("one workspace");
+    expect(state.releaseLock).toHaveBeenCalledOnce();
     const deletion = await auth.handler(
       new Request("http://localhost:3000/api/auth/organization/delete", {
         method: "POST",
@@ -175,6 +176,8 @@ it.each([
       (await client.query("SELECT id FROM organization")).rows,
     ).toHaveLength(1);
   }
+  state.lockQuery.mockClear();
+  state.releaseLock.mockClear();
   let membersAtUnlock: number | undefined;
   state.lockQuery.mockImplementation(async (sql: string) => {
     expect(state.releaseLock).not.toHaveBeenCalled();
@@ -210,18 +213,23 @@ it.each([
   }
 });
 
-it("owns account deletion checks and locks without exposing a request protocol to callers", async () => {
+it.each([
+  false,
+  true,
+])("owns account deletion checks and locks with contention: %s", async (busy) => {
   const auth = createAuth();
   await setupWorkspace(input, database);
   const owner = await auth.api.signInEmail({ body: input, asResponse: true });
   const headers = new Headers({
     cookie: owner.headers.get("set-cookie") ?? "",
   });
+  if (busy)
+    state.lockQuery.mockResolvedValueOnce({ rows: [{ locked: false }] });
   await expect(auth.deleteAccount({ headers })).rejects.toMatchObject({
-    status: "FORBIDDEN",
-    message: expect.stringContaining("only owner"),
+    status: busy ? "CONFLICT" : "FORBIDDEN",
+    message: expect.stringContaining(busy ? "Please try again" : "only owner"),
   });
-  expect(state.lockQuery).toHaveBeenCalledTimes(2);
+  expect(state.lockQuery).toHaveBeenCalledTimes(busy ? 1 : 2);
   expect(state.releaseLock).toHaveBeenCalledOnce();
   expect((await client.query('SELECT id FROM "user"')).rows).toHaveLength(1);
 });

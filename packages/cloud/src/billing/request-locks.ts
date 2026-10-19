@@ -94,5 +94,16 @@ export function createBillingRequestLocks(
       await withCheckoutLock(`billing:${organizationId}`, async () => {});
   }
 
-  return { withBillingRequest, withCheckoutLock, lockAccountDeletion };
+  async function lockUserLifecycle(userId: string) {
+    if (!requestLocks.getStore())
+      throw new Error("User lifecycle changes require an identity request.");
+    await withCheckoutLock(`identity:user:${userId}`, async () => {});
+  }
+
+  return {
+    withBillingRequest,
+    withCheckoutLock,
+    lockAccountDeletion,
+    lockUserLifecycle,
+  };
 }

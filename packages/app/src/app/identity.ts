@@ -17,6 +17,7 @@ export function createInstallationIdentity(
     provider: {
       withIdentityRequest,
       beforeMembershipMutation: lockWorkspaceMembership,
+      lockUserLifecycle: lockWorkspaceMembership,
       lockAccountDeletion: lockWorkspaceMembership,
       createSessionOnboardingHook: () => async () => {},
       identityAdapter: () => drizzleAdapter(database, { provider: "pg" }),

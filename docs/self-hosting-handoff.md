@@ -43,9 +43,11 @@ ownership and permission denials in its policy adapter.
 
 Shared ownership and application-policy checks also run in the provider's
 `user.deleteUser.beforeDelete`, before credentials or sessions are removed. The
-installation no longer duplicates this ownership guard. Organization discovery
-and locks do not fully serialize concurrent creation of a new organization for
-the deleting user; consistent user-level lifecycle locking remains separate work.
+installation no longer duplicates this ownership guard. Shared creation and
+deletion hold `provider.lockUserLifecycle` through their writes. Creation rechecks
+the creator after locking; deletion locks before discovering memberships. Cloud
+uses a per-user lock and the installation reuses its workspace lock. Server-side
+`auth.api.createOrganization` scopes the full operation, including its hooks.
 
 Cloud owns the organization-creation cookie and its continuation implementation.
 The shared root route no longer reads that cookie or exposes a creation marker.

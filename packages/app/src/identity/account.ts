@@ -31,6 +31,7 @@ interface AccountDependencies {
     "assertAccountDeletionAllowed" | "beforeUserDelete"
   >;
   withIdentityRequest: IdentityProvider["withIdentityRequest"];
+  lockUserLifecycle: IdentityProvider["lockUserLifecycle"];
   lockAccountDeletion: IdentityProvider["lockAccountDeletion"];
   sessionFreshAge(): Promise<number>;
 }
@@ -41,10 +42,12 @@ export function createAccountLifecycle({
   api,
   policy,
   withIdentityRequest,
+  lockUserLifecycle,
   lockAccountDeletion,
   sessionFreshAge,
 }: AccountDependencies) {
   async function readOrganizations(userId: string) {
+    await lockUserLifecycle(userId);
     const memberships = await database
       .select({ id: member.organizationId })
       .from(member)

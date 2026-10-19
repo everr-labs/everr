@@ -27,6 +27,7 @@ import {
   vi,
 } from "vitest";
 import { createCloudIdentityPolicy } from "../app/identity-policy";
+import { beforeCreateCheckoutOrganization } from "./organization-context.server";
 import { createBillingRequestLocks } from "./request-locks";
 import { BillingError } from "./types";
 
@@ -36,6 +37,7 @@ const state = {
   readOrgEntitlement: vi.fn(),
   beforeUserDelete: vi.fn(),
   assertDeletable: vi.fn(),
+  afterOrganizationCreate: vi.fn(),
   lockQuery: vi.fn(),
   releaseLock: vi.fn(),
 };
@@ -73,9 +75,13 @@ beforeAll(async () => {
     {
       provider: {
         withIdentityRequest: locks.withBillingRequest,
+        lockUserLifecycle: locks.lockUserLifecycle,
         lockAccountDeletion: locks.lockAccountDeletion,
         identityAdapter: () => drizzleAdapter(fixture.db, { provider: "pg" }),
-        organizationHooks: () => ({}),
+        organizationHooks: () => ({
+          beforeCreateOrganization: beforeCreateCheckoutOrganization,
+          afterCreateOrganization: state.afterOrganizationCreate,
+        }),
         createSessionOnboardingHook: () => async () => {},
       },
       policy: createCloudIdentityPolicy({
@@ -386,6 +392,85 @@ it("does not reconcile when the authentication provider rejects the last owner's
 });
 
 describe("account deletion", () => {
+  it.each([
+    "deletion",
+    "creation",
+  ] as const)("keeps an owner when %s starts first", async (first) => {
+    entitlement("hobby");
+    await addRecipient("owner");
+    let reached!: () => void;
+    let resume!: () => void;
+    const paused = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const resumed = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    const held = new Set<string>();
+    state.lockQuery.mockImplementation(async (sql: string, [key]: string[]) => {
+      if (sql.includes("pg_try_advisory_lock")) {
+        if (held.has(key)) return { rows: [{ locked: false }] };
+        held.add(key);
+      } else held.delete(key);
+      return { rows: [{ locked: true }] };
+    });
+    const pause = async () => {
+      reached();
+      await resumed;
+    };
+    const create = () =>
+      auth.api.createOrganization({
+        body: { name: "Concurrent", slug: "concurrent", userId: "recipient" },
+      });
+    const remove = () => auth.deleteAccount({ headers: recipientHeaders });
+    if (first === "deletion")
+      state.beforeUserDelete.mockImplementationOnce(pause);
+    else state.afterOrganizationCreate.mockImplementationOnce(pause);
+    const pending = first === "deletion" ? remove() : create();
+    await paused;
+    try {
+      await expect(first === "deletion" ? create() : remove()).rejects.toThrow(
+        "Please try again",
+      );
+    } finally {
+      resume();
+      await pending;
+    }
+    expect(held.size).toBe(0);
+    expect(await fixture.db.select().from(organization)).toHaveLength(
+      first === "deletion" ? 1 : 2,
+    );
+    if (first === "creation") {
+      await expect(remove()).rejects.toThrow("only owner");
+      expect(
+        await fixture.db
+          .select()
+          .from(member)
+          .where(eq(member.userId, "recipient")),
+      ).toHaveLength(2);
+    } else {
+      await expect(create()).rejects.toMatchObject({ status: "UNAUTHORIZED" });
+      expect(
+        await fixture.db.select().from(user).where(eq(user.id, "recipient")),
+      ).toHaveLength(0);
+    }
+  });
+
+  it("rechecks the creator after locking and releases the lock when creation fails", async () => {
+    state.lockQuery.mockImplementationOnce(async () => {
+      // Deletion committed after Better Auth resolved the creator, before locking.
+      await fixture.db.delete(user).where(eq(user.id, "recipient"));
+      return { rows: [{ locked: true }] };
+    });
+    const response = await auth.api.createOrganization({
+      body: { name: "Concurrent", slug: "concurrent", userId: "recipient" },
+      asResponse: true,
+    });
+    expect(response.status).toBe(401);
+    expect(await fixture.db.select().from(organization)).toHaveLength(1);
+    expect(state.releaseLock).toHaveBeenCalledOnce();
+  });
+
   async function addOwnedOrganization(id: string) {
     await fixture.db
       .insert(organization)
@@ -536,9 +621,12 @@ describe("account deletion", () => {
   it("rechecks ownership after acquiring the cloud organization lock", async () => {
     entitlement("hobby");
     await addRecipient("owner");
-    state.lockQuery.mockImplementationOnce(async () => {
+    state.lockQuery.mockImplementation(async (sql: string, [key]: string[]) => {
       // Another owner's deletion committed before this request acquired the lock.
-      await fixture.db.delete(member).where(eq(member.id, "recipient-member"));
+      if (sql.includes("pg_try_advisory_lock") && key === "billing:org")
+        await fixture.db
+          .delete(member)
+          .where(eq(member.id, "recipient-member"));
       return { rows: [{ locked: true }] };
     });
     await expect(auth.deleteAccount({ headers: ownerHeaders })).rejects.toThrow(

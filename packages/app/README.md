@@ -70,9 +70,13 @@ preserves the original cause.
 The provider's `user.deleteUser.beforeDelete` uses the same ownership and
 application-policy guard before credential or session cleanup begins. Server
 callers use `auth.deleteAccount`; HTTP deletion and token callbacks enter through
-the request-scoped `auth.handler`. Organization locks protect discovered
-memberships. Concurrent creation of a new organization during deletion still
-needs a consistent user-level locking protocol across creation and deletion.
+the request-scoped `auth.handler`. Before discovering memberships, deletion takes
+`provider.lockUserLifecycle`. Shared organization creation takes the same lock,
+rechecks that the creator exists, and retains it through creation and its hooks.
+`auth.api.createOrganization` supplies the request scope for server callers,
+including onboarding and checkout callbacks. Cloud uses a per-user lock;
+the installation reuses its workspace lock. Contention fails immediately, so
+creation and billing can acquire their other locks without waiting in a cycle.
 
 Expected identity policy denials throw `IdentityPolicyError`, exported from
 `@everr/app/identity/policy-error`. Identity translates them to forbidden provider

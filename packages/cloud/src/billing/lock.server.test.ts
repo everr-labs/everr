@@ -68,20 +68,23 @@ it("preserves authentication when deriving the checkout pool from a real pg pool
   }
 });
 
-it("retains and reuses nested organization locks until the whole request completes", async () => {
+it("retains and reuses user and organization locks until the whole request completes", async () => {
   await withBillingRequest(async () => {
+    await locks.lockUserLifecycle("owner");
+    await locks.lockUserLifecycle("owner");
     await locks.lockAccountDeletion(["org", "other", "org"]);
     await withCheckoutLock("billing:org", async () => {
       await withCheckoutLock("billing:org", async () => "nested");
     });
     expect(mocks.release).not.toHaveBeenCalled();
-    expect(mocks.query.mock.calls.slice(0, 2).map(([, keys]) => keys)).toEqual([
+    expect(mocks.query.mock.calls.slice(0, 3).map(([, keys]) => keys)).toEqual([
+      ["identity:user:owner"],
       ["billing:org"],
       ["billing:other"],
     ]);
     expect(mocks.release).not.toHaveBeenCalled();
   });
-  expect(mocks.query).toHaveBeenCalledTimes(4);
+  expect(mocks.query).toHaveBeenCalledTimes(6);
   expect(mocks.release).toHaveBeenCalledTimes(1);
 });
 

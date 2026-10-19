@@ -25,7 +25,11 @@ import {
 } from "#app/common/invitation.ts";
 import type { ApplicationIdentity } from "#app/composition/identity.ts";
 import type { Database } from "#app/db/database.ts";
-import { member, session as sessionTable } from "#app/db/schema/index.ts";
+import {
+  member,
+  session as sessionTable,
+  user as userTable,
+} from "#app/db/schema/index.ts";
 import { enforceIdentityPolicy } from "#app/identity/enforce-policy.ts";
 import {
   membershipMutationPlugin,
@@ -185,6 +189,7 @@ export function createApplicationAuth(
     organizationHooks,
     createSessionOnboardingHook,
   } = provider;
+  const creationHooks = organizationHooks();
 
   const auth = betterAuth({
     baseURL,
@@ -298,7 +303,7 @@ export function createApplicationAuth(
           },
           after: createSessionOnboardingHook(
             async (body): Promise<{ id: string } | null> =>
-              auth.api.createOrganization({ body }),
+              createOrganization({ body }),
           ),
         },
       },
@@ -339,7 +344,21 @@ export function createApplicationAuth(
           });
         },
         organizationHooks: {
-          ...organizationHooks(),
+          ...creationHooks,
+          beforeCreateOrganization: async (input) => {
+            await provider.lockUserLifecycle(input.user.id);
+            // Better Auth resolved the user before this lock. Deletion may have
+            // finished in between, so do not create from that stale user object.
+            const [user] = await db
+              .select({ id: userTable.id })
+              .from(userTable)
+              .where(eq(userTable.id, input.user.id));
+            if (!user)
+              throw new APIError("UNAUTHORIZED", {
+                message: "Unauthenticated",
+              });
+            return creationHooks.beforeCreateOrganization?.(input);
+          },
           ...membershipOrganizationHooks(policy),
           beforeAddMember: async ({ member: newMember }) => {
             const existingMembers = await db
@@ -416,7 +435,7 @@ export function createApplicationAuth(
       ...(authPlugins?.(
         async (input: {
           body: { name: string; slug: string; userId: string };
-        }): Promise<unknown> => auth.api.createOrganization(input),
+        }): Promise<unknown> => createOrganization(input),
       ) ?? []),
       jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),
       oauthProvider({
@@ -465,16 +484,26 @@ export function createApplicationAuth(
     },
   });
 
+  // Preserve Better Auth's response options and endpoint metadata while giving
+  // server calls the same lock lifetime as HTTP requests and account deletion.
+  const createOrganization = Object.assign(
+    (input: Parameters<typeof auth.api.createOrganization>[0]) =>
+      provider.withIdentityRequest(() => auth.api.createOrganization(input)),
+    auth.api.createOrganization,
+  ) as typeof auth.api.createOrganization;
+
   const accounts = createAccountLifecycle({
     database: db,
     api: auth.api,
     policy,
     withIdentityRequest: provider.withIdentityRequest,
+    lockUserLifecycle: provider.lockUserLifecycle,
     lockAccountDeletion: provider.lockAccountDeletion,
     sessionFreshAge: async () => (await auth.$context).sessionConfig.freshAge,
   });
   return {
     ...auth,
+    api: { ...auth.api, createOrganization },
     deleteAccount: accounts.deleteAccount,
     handler: (request: Request) =>
       provider.withIdentityRequest(() =>
