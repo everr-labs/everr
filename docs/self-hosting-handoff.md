@@ -1,7 +1,7 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Base checkpoint: `c67dad9eb`.
-The architecture cleanup described here is uncommitted.
+Updated 2026-10-19. Branch: `self-host`. Base checkpoint: `98e178d84`.
+The latest architecture cleanup described here is uncommitted.
 
 ## Architecture and ownership
 
@@ -31,9 +31,21 @@ all membership and deletion hooks; application organization hooks cover creation
 only. Applications supply before/after membership policy and, where needed, lock
 acquisition before provider membership reads. Session resolution for leave uses
 the full auth flow so both cookie and bearer credentials enforce policy. Shared
-invitation guards and the initial-owner exception remain in place. Direct
-server-side mutations that need request-scoped locks use
-`auth.withIdentityRequest`.
+invitation guards and the initial-owner exception remain in place.
+
+Account deletion uses `auth.deleteAccount`, which resolves an uncached session and
+checks provider session freshness before any deletion. It discovers organizations,
+locks them through `provider.lockAccountDeletion`, and reads current ownership and
+application policy while holding those locks through deletion. Callers do not coordinate preflight or locking.
+Expected application denials use the public `IdentityPolicyError` contract;
+provider and database failures propagate unchanged. Cloud translates billing
+ownership and permission denials in its policy adapter.
+
+Shared ownership and application-policy checks also run in the provider's
+`user.deleteUser.beforeDelete`, before credentials or sessions are removed. The
+installation no longer duplicates this ownership guard. Organization discovery
+and locks do not fully serialize concurrent creation of a new organization for
+the deleting user; consistent user-level lifecycle locking remains separate work.
 
 Cloud owns the organization-creation cookie and its continuation implementation.
 The shared root route no longer reads that cookie or exposes a creation marker.
@@ -50,6 +62,19 @@ The sign-in footer and device-recovery slots remain small. Feature exports such
 as members and account settings hide reusable behavior; preserve database and
 migration exports needed for real transactional extensions. Do not add a generic
 component registry or rename helpers into barrels without hiding coordination.
+
+Shared authentication is constructed through `@everr/app/identity/module` with
+explicit database, authentication, email, and invitation-eligibility dependencies.
+`identity/server` is its production composition entry. Installation identity and
+both applications' request-lock scopes have explicit constructors. Database and
+dedicated lock pools are constructed from explicit configuration. Constructor
+imports cannot load environment or production instances, enforced by import rules.
+
+Shared membership changes belong to `@everr/app/identity/memberships`.
+Cloud downgrade calls `restrictOrganizationToOwner` within its existing transaction
+and retains ownership of billing coordination, eligibility, and plan persistence.
+The shared operation validates the retained Owner and owns member removal and
+pending-invitation cancellation.
 
 The [app README](../packages/app/README.md) is the ownership and extension guide.
 Client destinations and dashboard additions remain application-owned, with static

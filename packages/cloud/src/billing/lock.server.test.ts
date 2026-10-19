@@ -1,37 +1,23 @@
 // @vitest-environment node
+
+import { createLockPool } from "@everr/app/db/database";
+
+import { Pool, type PoolClient } from "pg";
 import { beforeEach, expect, it, vi } from "vitest";
+import { createBillingRequestLocks } from "./request-locks";
 
-const mocks = vi.hoisted(() => ({
-  query: vi.fn(),
-  release: vi.fn(),
-  poolOptions: {} as Record<string, unknown>,
-}));
-vi.mock("@everr/app/db/client", async () => {
-  const { Pool } = await vi.importActual<typeof import("pg")>("pg");
-  // Use the real driver's option descriptors, including its hidden password.
-  return {
-    pool: new Pool({
-      password: "regression-test-password",
-      host: "localhost",
-      connectionTimeoutMillis: 10000,
-    }),
-  };
-});
-vi.mock("pg", () => ({
-  Pool: class {
-    constructor(options: Record<string, unknown>) {
-      mocks.poolOptions = options;
-    }
-    connect() {
-      return Promise.resolve(mocks);
-    }
-  },
-}));
-
-import { withBillingRequest, withCheckoutLock } from "./lock.server";
+const mocks = { query: vi.fn(), release: vi.fn() };
+let locks: ReturnType<typeof createBillingRequestLocks>;
+const withBillingRequest = <T>(run: () => Promise<T>) =>
+  locks.withBillingRequest(run);
+const withCheckoutLock = <T>(key: string, run: () => Promise<T>) =>
+  locks.withCheckoutLock(key, run);
 
 beforeEach(() => {
   vi.resetAllMocks();
+  locks = createBillingRequestLocks({
+    connect: async () => mocks as unknown as PoolClient,
+  });
   mocks.query.mockResolvedValue({ rows: [{ locked: true }] });
 });
 it("releases its session lock after a failed operation", async () => {
@@ -67,22 +53,48 @@ it("discards a connection if unlock fails", async () => {
   expect(mocks.release).toHaveBeenCalledWith(error);
 });
 
-it("preserves authentication when deriving the checkout pool from a real pg pool", () => {
-  expect(mocks.poolOptions.password).toBe("regression-test-password");
-  expect(mocks.poolOptions.connectionTimeoutMillis).toBe(10000);
-  expect(mocks.poolOptions.max).toBe(2);
+it("preserves authentication when deriving the checkout pool from a real pg pool", async () => {
+  const base = new Pool({
+    password: "regression-test-password",
+    connectionTimeoutMillis: 10000,
+  });
+  const dedicated = createLockPool(base.options);
+  try {
+    expect(dedicated.options.password).toBe("regression-test-password");
+    expect(dedicated.options.connectionTimeoutMillis).toBe(10000);
+    expect(dedicated.options.max).toBe(2);
+  } finally {
+    await Promise.all([base.end(), dedicated.end()]);
+  }
 });
 
 it("retains and reuses nested organization locks until the whole request completes", async () => {
   await withBillingRequest(async () => {
+    await locks.lockAccountDeletion(["org", "other", "org"]);
     await withCheckoutLock("billing:org", async () => {
       await withCheckoutLock("billing:org", async () => "nested");
     });
     expect(mocks.release).not.toHaveBeenCalled();
-    expect(mocks.query).toHaveBeenCalledTimes(1);
-    await withCheckoutLock("billing:other", async () => "other");
+    expect(mocks.query.mock.calls.slice(0, 2).map(([, keys]) => keys)).toEqual([
+      ["billing:org"],
+      ["billing:other"],
+    ]);
     expect(mocks.release).not.toHaveBeenCalled();
   });
   expect(mocks.query).toHaveBeenCalledTimes(4);
   expect(mocks.release).toHaveBeenCalledTimes(1);
+});
+
+it("keeps independent request-lock instances isolated", async () => {
+  const other = createBillingRequestLocks({
+    connect: async () => mocks as unknown as PoolClient,
+  });
+  await withBillingRequest(async () => {
+    await withCheckoutLock("billing:org", async () => {});
+    await other.withBillingRequest(() =>
+      other.withCheckoutLock("billing:org", async () => {}),
+    );
+    expect(mocks.release).toHaveBeenCalledTimes(1);
+  });
+  expect(mocks.release).toHaveBeenCalledTimes(2);
 });

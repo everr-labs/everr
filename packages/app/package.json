@@ -155,7 +155,11 @@
     "./account-settings/actions": "./src/data/account-settings.ts",
     "./composition": "./src/composition/index.ts",
     "./page-layout": "./src/components/page-layout.ts",
-    "./testing/alerting-storage": "./src/testing/chdb-database.ts"
+    "./testing/alerting-storage": "./src/testing/chdb-database.ts",
+    "./db/database": "./src/db/database.ts",
+    "./identity/module": "./src/identity/module.ts",
+    "./identity/policy-error": "./src/identity/policy-error.ts",
+    "./identity/memberships": "./src/identity/memberships.ts"
   },
   "imports": {
     "#app/*": "./src/*"

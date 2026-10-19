@@ -48,11 +48,48 @@ Authentication is exposed through the explicitly server-only
 and role helpers use `@everr/app/identity/client` and `@everr/app/identity/roles`.
 Keep provider internals inside `src/identity`.
 
+`createApplicationAuth` in `@everr/app/identity/module` constructs identity from
+the selected policy/provider adapter, a database, authentication settings, mail
+delivery, and invitation eligibility. Importing this constructor does not read
+environment settings or create database clients. `identity/server` is the
+production composition entry. Database and request-lock constructors likewise
+accept explicit configuration or pools; application composition owns their
+instances. Tests can construct independent identities with disposable databases
+and external-provider doubles without replacing global modules.
+
+Call `auth.deleteAccount({ headers, deleteOrganization })` for account deletion.
+Identity resolves an uncached session and checks the authentication provider's
+freshness requirement before any deletion. It discovers organization IDs, acquires
+application-owned locks through `provider.lockAccountDeletion`, then reads current
+ownership and application policy while holding those locks through provider writes. Callers do
+not manage identity locks or account-deletion preflight. Organization deletion
+and user deletion are separate provider commits; if the second operation fails,
+the error explicitly reports that the organization was already deleted and
+preserves the original cause.
+
+The provider's `user.deleteUser.beforeDelete` uses the same ownership and
+application-policy guard before credential or session cleanup begins. Server
+callers use `auth.deleteAccount`; HTTP deletion and token callbacks enter through
+the request-scoped `auth.handler`. Organization locks protect discovered
+memberships. Concurrent creation of a new organization during deletion still
+needs a consistent user-level locking protocol across creation and deletion.
+
+Expected identity policy denials throw `IdentityPolicyError`, exported from
+`@everr/app/identity/policy-error`. Identity translates them to forbidden provider
+responses. Application adapters translate their own business denials into this
+type and propagate database or external-provider failures unchanged.
+
 Cloud organization creation, checkout completion, and downgrade are owned by
 cloud's `organizations/commands.server.ts`. Request handlers validate input and
 pass the authenticated actor to that workflow. The workflow owns eligibility,
 lock ordering, billing coordination, and persistence. Infrastructure exports such
 as database executors and migrations remain available for transactional extensions.
+
+Shared membership mutations belong to `@everr/app/identity/memberships`.
+`restrictOrganizationToOwner` checks the retained Owner, removes other Members,
+and cancels pending invitations within the caller's transaction. Cloud owns
+downgrade eligibility and billing coordination and composes this shared operation
+with its plan update.
 
 ## Extending the application
 

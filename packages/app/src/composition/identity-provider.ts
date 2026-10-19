@@ -16,6 +16,8 @@ export interface IdentityProvider {
   withIdentityRequest<T>(run: () => Promise<T>): Promise<T>;
   /** Acquire locks before Better Auth reads membership state. */
   beforeMembershipMutation?(): Promise<void>;
+  /** Hold locks for the discovered organizations until the identity request finishes. */
+  lockAccountDeletion(organizationIds: readonly string[]): Promise<void>;
   identityAdapter(): ReturnType<typeof drizzleAdapter>;
   organizationHooks(): ApplicationOrganizationHooks;
   authPlugins?(

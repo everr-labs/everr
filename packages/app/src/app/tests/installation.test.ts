@@ -2,16 +2,16 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { verifyPassword } from "better-auth/crypto";
-import { afterAll, beforeEach, expect, it } from "vitest";
+import { afterAll, beforeEach, expect, it, vi } from "vitest";
+import { createInstallationIdentityPolicy } from "#app/app/identity-policy.ts";
 import {
   assertInvitedUser,
-  assertWorkspaceOwnershipTransferred,
   getInstallation,
   setupWorkspace,
 } from "#app/app/installation.server.ts";
 import { recoverAccount } from "#app/app/recovery.server.ts";
 import * as schema from "#app/db/schema/index.ts";
-import { createAuthTestDatabase } from "./auth-test-utils";
+import { createAuthTestDatabase } from "#app/identity/testing/database.ts";
 
 const { client, database } = await createAuthTestDatabase();
 afterAll(() => client.close());
@@ -124,29 +124,6 @@ it("does not silently choose a workspace in an existing multi-organization datab
   await expect(getInstallation(database)).rejects.toThrow(
     "multiple organizations",
   );
-});
-
-it("requires ownership transfer before the last owner can delete their account", async () => {
-  const { organizationId } = await setupWorkspace(input, database);
-  const [owner] = await database.select().from(schema.user);
-  await expect(
-    assertWorkspaceOwnershipTransferred(owner.id, database),
-  ).rejects.toThrow("Transfer workspace ownership");
-  await database.insert(schema.user).values({
-    id: "next-owner",
-    name: "Next owner",
-    email: "next@example.test",
-  });
-  await database.insert(schema.member).values({
-    id: "next-membership",
-    userId: "next-owner",
-    organizationId,
-    role: "owner",
-    createdAt: new Date(),
-  });
-  await expect(
-    assertWorkspaceOwnershipTransferred(owner.id, database),
-  ).resolves.toBeUndefined();
 });
 
 it("rejects replay after a committed setup without changing the workspace or owner", async () => {
@@ -265,4 +242,19 @@ it("refuses recovery for missing or external-only accounts without creating cred
   ).rejects.toThrow("no local password");
   expect(await database.select().from(schema.verification)).toEqual([]);
   expect((await database.select().from(schema.account))[0].password).toBeNull();
+});
+
+it("preserves database failures in installation identity policy", async () => {
+  const policy = createInstallationIdentityPolicy(database);
+  const failure = new Error("database connection lost");
+  const select = vi.spyOn(database, "select").mockImplementation(() => {
+    throw failure;
+  });
+  try {
+    await expect(
+      policy.beforeUserCreate({ email: "invited@example.test" }, "invite"),
+    ).rejects.toBe(failure);
+  } finally {
+    select.mockRestore();
+  }
 });

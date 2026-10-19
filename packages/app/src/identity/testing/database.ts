@@ -1,6 +1,6 @@
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
-import type { Database } from "#app/db/client.ts";
+import type { Database } from "#app/db/database.ts";
 import * as schema from "#app/db/schema/index.ts";
 
 export async function createAuthTestDatabase() {

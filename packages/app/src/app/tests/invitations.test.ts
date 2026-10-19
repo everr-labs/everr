@@ -1,57 +1,21 @@
 // @vitest-environment node
-import { afterAll, beforeEach, expect, it, vi } from "vitest";
-import { setupWorkspace } from "#app/app/installation.server.ts";
-import { createAuthTestDatabase } from "#app/app/tests/auth-test-utils.ts";
 
-const state = vi.hoisted(() => ({
-  database: undefined as unknown,
-  emailEnabled: false,
+import type { PoolClient } from "pg";
+import { afterAll, beforeEach, expect, it, vi } from "vitest";
+import { createInstallationIdentity } from "#app/app/identity.ts";
+import { setupWorkspace } from "#app/app/installation.server.ts";
+import { createWorkspaceIdentityRequests } from "#app/app/request.ts";
+import { createApplicationAuth } from "#app/identity/module.ts";
+import { createAuthTestDatabase } from "#app/identity/testing/database.ts";
+
+const state = {
   verificationUrl: "",
   lockQuery: vi.fn(),
   releaseLock: vi.fn(),
-}));
-vi.mock("#app/db/client.ts", () => ({
-  get db() {
-    return state.database;
-  },
-  pool: { options: {} },
-}));
-vi.mock("pg", () => ({
-  Pool: class {
-    connect() {
-      return Promise.resolve({
-        query: state.lockQuery,
-        release: state.releaseLock,
-      });
-    }
-  },
-}));
-vi.mock("#app/env/index.ts", () => ({
-  env: {
-    BETTER_AUTH_URL: "http://localhost:3000",
-    BETTER_AUTH_SECRET: "invitation-integration-test-secret-long-enough",
-    NODE_ENV: "test",
-  },
-}));
-vi.mock("#app/lib/mailer.server.ts", () => ({
-  get mailer() {
-    return state.emailEnabled ? { send: vi.fn() } : null;
-  },
-}));
-vi.mock("#app/lib/email.server.tsx", () => ({
-  sendInvitationEmail: vi.fn(),
-  sendPasswordResetEmail: vi.fn(),
-  sendVerificationEmail: ({ url }: { url: string }) => {
-    state.verificationUrl = url;
-  },
-}));
-vi.unmock("#app/identity/server.ts");
-
+};
 const { client, database } = await createAuthTestDatabase();
-state.database = database;
 afterAll(() => client.close());
 beforeEach(async () => {
-  vi.resetModules();
   state.verificationUrl = "";
   state.lockQuery.mockReset().mockResolvedValue({ rows: [{ locked: true }] });
   state.releaseLock.mockReset();
@@ -59,6 +23,29 @@ beforeEach(async () => {
     'TRUNCATE "user", account, organization, member, invitation, session, verification CASCADE',
   );
 });
+function createAuth(emailEnabled = false) {
+  const requests = createWorkspaceIdentityRequests({
+    connect: async () =>
+      ({
+        query: state.lockQuery,
+        release: state.releaseLock,
+      }) as unknown as PoolClient,
+  });
+  return createApplicationAuth(createInstallationIdentity(database, requests), {
+    database,
+    baseURL: "http://localhost:3000",
+    secret: "invitation-integration-test-secret-long-enough",
+    email: {
+      enabled: emailEnabled,
+      sendInvitation() {},
+      sendPasswordReset() {},
+      sendVerification: ({ url }) => {
+        state.verificationUrl = url;
+      },
+    },
+    canInviteMembers: async () => true,
+  });
+}
 const input = {
   workspaceName: "Acme",
   name: "Owner",
@@ -70,8 +57,7 @@ it.each([
   false,
   true,
 ])("replaces invitations and enforces signup and verification with email enabled: %s", async (emailEnabled) => {
-  state.emailEnabled = emailEnabled;
-  const { auth } = await import("#app/identity/server.ts");
+  const auth = createAuth(emailEnabled);
   const { organizationId } = await setupWorkspace(input, database);
   const owner = await auth.api.signInEmail({ body: input, asResponse: true });
   const headers = new Headers({
@@ -153,8 +139,7 @@ it.each([
   email,
   allowed,
 }) => {
-  state.emailEnabled = false;
-  const { auth } = await import("#app/identity/server.ts");
+  const auth = createAuth();
   const { organizationId } = await setupWorkspace(input, database);
   await client.exec(
     `INSERT INTO "user" (id, name, email) VALUES ('recipient', 'Recipient', 'recipient@example.test')`,
@@ -217,8 +202,26 @@ it.each([
   if (path === "delete-user") {
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({
-      message: "Transfer workspace ownership before deleting your account.",
+      message: expect.stringContaining(
+        "Transfer ownership before deleting your account.",
+      ),
     });
     expect((await client.query('SELECT id FROM "user"')).rows).toHaveLength(2);
   }
+});
+
+it("owns account deletion checks and locks without exposing a request protocol to callers", async () => {
+  const auth = createAuth();
+  await setupWorkspace(input, database);
+  const owner = await auth.api.signInEmail({ body: input, asResponse: true });
+  const headers = new Headers({
+    cookie: owner.headers.get("set-cookie") ?? "",
+  });
+  await expect(auth.deleteAccount({ headers })).rejects.toMatchObject({
+    status: "FORBIDDEN",
+    message: expect.stringContaining("only owner"),
+  });
+  expect(state.lockQuery).toHaveBeenCalledTimes(2);
+  expect(state.releaseLock).toHaveBeenCalledOnce();
+  expect((await client.query('SELECT id FROM "user"')).rows).toHaveLength(1);
 });

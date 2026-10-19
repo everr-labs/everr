@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { db } from "#app/db/client.ts";
 import {
   InstallationSetupError,
   SetupWorkspaceSchema,
@@ -9,7 +10,7 @@ export const completeSetup = createServerFn({ method: "POST" })
   .inputValidator(SetupWorkspaceSchema)
   .handler(async ({ data }) => {
     try {
-      return await setupWorkspace(data);
+      return await setupWorkspace(data, db);
     } catch (error) {
       if (error instanceof InstallationSetupError) throw error;
       throw new Error(

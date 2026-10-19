@@ -226,7 +226,7 @@
                 "disallow": {
                   "to": {
                     "file": {
-                      "path": "packages/{app,cloud}/src/**/{*.server.{ts,tsx},identity/server.ts,db/**,server/**,app/composition/{identity,runtime,storage,deployment,product,entry}.ts}"
+                      "path": "packages/{app,cloud}/src/**/{*.server.{ts,tsx},identity/{server,module,account,memberships}.ts,db/**,server/**,app/composition/{identity,runtime,storage,deployment,product,entry}.ts}"
                     }
                   },
                   "dependency": {
@@ -238,7 +238,7 @@
               {
                 "from": {
                   "file": {
-                    "path": "packages/{app,cloud}/src/{composition/**/identity-policy.ts,app/**/identity-policy.server.ts}"
+                    "path": "packages/{app,cloud}/src/{composition/**/identity-policy.ts,app/**/identity-policy{,.server}.ts}"
                   }
                 },
                 "disallow": {
@@ -261,7 +261,7 @@
                 "disallow": {
                   "to": {
                     "file": {
-                      "path": "packages/app/src/identity/{membership,enforce-policy}.ts"
+                      "path": "packages/app/src/identity/{membership,enforce-policy,account}.ts"
                     }
                   },
                   "dependency": {
@@ -280,7 +280,7 @@
                   "to": {
                     "file": {
                       "path": [
-                        "packages/app/src/db/{client.ts,schema/**}",
+                        "packages/app/src/db/{client.ts,database.ts,schema/**}",
                         "packages/cloud/src/db/schema/**"
                       ]
                     }
@@ -290,6 +290,35 @@
                   }
                 },
                 "message": "Cloud request handlers call owned workflows; database coordination belongs inside the feature."
+              },
+              {
+                "from": {
+                  "file": {
+                    "path": [
+                      "packages/app/src/identity/**/{module,account,memberships}.ts",
+                      "packages/app/src/app/{identity,request,installation.server}.ts",
+                      "packages/cloud/src/app/identity-policy.ts",
+                      "packages/cloud/src/billing/request-locks.ts",
+                      "packages/app/src/app/**/identity-policy.ts",
+                      "packages/app/src/db/database.ts"
+                    ]
+                  }
+                },
+                "disallow": {
+                  "to": {
+                    "file": {
+                      "path": [
+                        "packages/{app,cloud}/src/{env/**,db/client.ts,app/env.ts,app/composition/**,identity/server.ts}",
+                        "packages/cloud/src/billing/{server,lock.server,polar.server}.ts",
+                        "packages/app/src/lib/{mailer,email,auth-providers}.server.{ts,tsx}"
+                      ]
+                    }
+                  },
+                  "dependency": {
+                    "kind": "value"
+                  }
+                },
+                "message": "Construct identity and request locks with explicit dependencies; environment and instances belong to server composition."
               }
             ]
           }

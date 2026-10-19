@@ -1,7 +1,6 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { auth } from "#app/identity/server.ts";
-import { isOrganizationOwner } from "#app/lib/organization-role.ts";
 import { createPartiallyAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
 const DeleteCurrentUserAccountInputSchema = z.object({
@@ -9,93 +8,13 @@ const DeleteCurrentUserAccountInputSchema = z.object({
   deleteOrganization: z.boolean().optional(),
 });
 
-async function getFullOrganizations(headers: Headers) {
-  const organizations = await auth.api.listOrganizations({ headers });
-
-  return Promise.all(
-    organizations.map((organization) =>
-      auth.api.getFullOrganization({
-        headers,
-        query: { organizationId: organization.id },
-      }),
-    ),
-  );
-}
-
 export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(DeleteCurrentUserAccountInputSchema)
-  .handler(async ({ data, context: { session } }) => {
-    const headers = getRequestHeaders();
-    const organizations = (await getFullOrganizations(headers))
-      .filter((organization) => organization !== null)
-      .map((organization) => {
-        const currentMember = organization.members.find(
-          (member) => member.userId === session.user.id,
-        );
-        return {
-          organization,
-          isOwner: isOrganizationOwner(currentMember?.role),
-          ownerCount: organization.members.filter((member) =>
-            isOrganizationOwner(member.role),
-          ).length,
-        };
-      });
-    await auth.assertAccountDeletionAllowed(
-      organizations
-        .filter(({ isOwner }) => isOwner)
-        .map(({ organization }) => organization),
-    );
-
-    const soleOwnedOrganizations = organizations.filter(
-      ({ organization, isOwner, ownerCount }) =>
-        isOwner &&
-        ownerCount === 1 &&
-        !(
-          data.deleteOrganization &&
-          organization.id === session.session.activeOrganizationId
-        ),
-    );
-
-    if (soleOwnedOrganizations.length > 0) {
-      const organizationNames = soleOwnedOrganizations
-        .map(({ organization }) => organization.name)
-        .filter((name): name is string => Boolean(name))
-        .join(", ");
-      throw new Error(
-        `Transfer ownership before deleting your account. You are the only owner of: ${organizationNames}.`,
-      );
-    }
-
-    if (data.deleteOrganization) {
-      const activeOrganizationId = session.session.activeOrganizationId;
-      if (!activeOrganizationId) {
-        throw new Error(
-          "Select an organization before deleting it with your account.",
-        );
-      }
-
-      const org = organizations.find(
-        ({ organization }) => organization.id === activeOrganizationId,
-      );
-
-      if (!org?.isOwner) {
-        throw new Error(
-          "Only organization owners can delete the organization while deleting their account.",
-        );
-      }
-
-      await auth.api.deleteOrganization({
-        headers,
-        body: { organizationId: activeOrganizationId },
-      });
-    }
-
-    await auth.withIdentityRequest(() =>
-      auth.api.deleteUser({
-        headers,
-        body: {},
-      }),
-    );
-  });
+  .handler(({ data }) =>
+    auth.deleteAccount({
+      headers: getRequestHeaders(),
+      deleteOrganization: data.deleteOrganization,
+    }),
+  );

@@ -1,12 +1,8 @@
-import type { IdentityPolicy } from "@everr/app/composition";
 import { billing } from "../billing/server";
-import { assertAccountDeletionAllowed } from "./account";
+import { readOrgEntitlement } from "../billing-data.server";
+import { createCloudIdentityPolicy } from "./identity-policy";
 
-export const identityPolicy: IdentityPolicy = {
-  async beforeUserCreate() {},
-  assertAccountDeletionAllowed,
-  beforeUserDelete: billing.beforeUserDelete,
-  beforeMembershipChange: billing.beforeMembershipChange,
-  afterMembershipChange: billing.afterMembershipChange,
-  assertDeletable: billing.assertDeletable,
-};
+export const identityPolicy = createCloudIdentityPolicy({
+  billing,
+  readOrgEntitlement,
+});

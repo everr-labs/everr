@@ -67,6 +67,27 @@ it.each([
     source: 'import { membershipMutationPlugin } from "#app/identity/membership.ts"; void membershipMutationPlugin;',
     message: "Authentication provider internals belong to the identity module",
   },
+  {
+    name: "production instances in the identity constructor",
+    source: 'import { db } from "#app/db/client.ts"; void db;',
+    directory: "packages/app/src/identity",
+    filename: "module.ts",
+    message: "Construct identity and request locks with explicit dependencies",
+  },
+  {
+    name: "environment access in installation identity policy",
+    source: 'import { env } from "#app/env/index.ts"; void env;',
+    directory: "packages/app/src/app",
+    filename: "identity-policy.ts",
+    message: "Construct identity and request locks with explicit dependencies",
+  },
+  {
+    name: "identity construction in browser composition",
+    source: 'import { createApplicationAuth } from "@everr/app/identity/module"; void createApplicationAuth;',
+    directory: "packages/cloud/src/app/composition",
+    filename: "layouts.tsx",
+    message: "Browser composition must use client-safe features",
+  },
 ])("rejects $name", ({ source, directory, filename, message }) => {
   const result = lintFixture(source, directory, filename);
   expect(result.status).not.toBe(0);

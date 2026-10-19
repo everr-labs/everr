@@ -1,7 +1,10 @@
 import type { ApplicationIdentity } from "@everr/app/composition";
 import { billingIdentityAdapter } from "../../billing/auth-adapter.server";
 import { billingAuthPlugin } from "../../billing/auth-plugin.server";
-import { withBillingRequest } from "../../billing/lock.server";
+import {
+  lockAccountDeletion,
+  withBillingRequest,
+} from "../../billing/lock.server";
 import { beforeCreateCheckoutOrganization } from "../../billing/organization-context.server";
 import { organizationLifecycleAdapter } from "../../organization-provisioning/adapter.server";
 import { waitForOrganizationProvisioning } from "../../organization-provisioning/fast-path";
@@ -28,6 +31,7 @@ export const identity = {
   policy: identityPolicy,
   provider: {
     withIdentityRequest: withBillingRequest,
+    lockAccountDeletion,
     createSessionOnboardingHook,
     identityAdapter: () =>
       billingIdentityAdapter(organizationLifecycleAdapter()),

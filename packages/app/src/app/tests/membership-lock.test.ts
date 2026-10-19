@@ -1,25 +1,20 @@
 // @vitest-environment node
+
+import type { PoolClient } from "pg";
 import { beforeEach, expect, it, vi } from "vitest";
+import { createWorkspaceIdentityRequests } from "#app/app/request.ts";
 
-const mocks = vi.hoisted(() => ({ query: vi.fn(), release: vi.fn() }));
-vi.mock("#app/db/client.ts", () => ({
-  pool: { options: { host: "localhost", password: "test" } },
-}));
-vi.mock("pg", () => ({
-  Pool: class {
-    connect() {
-      return Promise.resolve(mocks);
-    }
-  },
-}));
-
-import {
-  lockWorkspaceMembership,
-  withIdentityRequest,
-} from "#app/app/request.ts";
+const mocks = { query: vi.fn(), release: vi.fn() };
+let requests: ReturnType<typeof createWorkspaceIdentityRequests>;
+const withIdentityRequest = <T>(run: () => Promise<T>) =>
+  requests.withIdentityRequest(run);
+const lockWorkspaceMembership = () => requests.lockWorkspaceMembership();
 
 beforeEach(() => {
   vi.clearAllMocks();
+  requests = createWorkspaceIdentityRequests({
+    connect: async () => mocks as unknown as PoolClient,
+  });
   mocks.query.mockResolvedValue({ rows: [{ locked: true }] });
 });
 it("holds one lock through the whole identity mutation and releases it on failure", async () => {

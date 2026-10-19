@@ -1,7 +1,7 @@
 import { db } from "@everr/app/db/client";
-import { invitation, member } from "@everr/app/db/schema";
+import { restrictOrganizationToOwner } from "@everr/app/identity/memberships";
 import { auth } from "@everr/app/identity/server";
-import { and, eq, ne } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { z } from "zod";
 import { billing } from "../billing/server";
 import {
@@ -133,33 +133,15 @@ export const organizationCommands = {
 
         await revokeBillingAccess();
 
-        const removedMembers = await tx
-          .delete(member)
-          .where(
-            and(
-              eq(member.organizationId, organizationId),
-              ne(member.userId, actorId),
-            ),
-          )
-          .returning({ id: member.id });
-        const canceledInvitations = await tx
-          .update(invitation)
-          .set({ status: "canceled" })
-          .where(
-            and(
-              eq(invitation.organizationId, organizationId),
-              eq(invitation.status, "pending"),
-            ),
-          )
-          .returning({ id: invitation.id });
+        const membershipChanges = await restrictOrganizationToOwner(tx, {
+          organizationId,
+          ownerId: actorId,
+        });
         await tx
           .update(organizationBilling)
           .set({ plan: "hobby" })
           .where(eq(organizationBilling.orgId, organizationId));
-        return {
-          removedMembers: removedMembers.length,
-          canceledInvitations: canceledInvitations.length,
-        };
+        return membershipChanges;
       }),
     );
   },

@@ -6,7 +6,7 @@ import { getInstallation } from "./installation.server";
 
 export async function canOpenSignup(data: { redirect?: string }) {
   const invitationId = invitationIdFromRedirect(data.redirect);
-  const workspace = await getInstallation();
+  const workspace = await getInstallation(db);
   if (!invitationId || !workspace) return false;
   const [invite] = await db
     .select({ id: invitation.id })

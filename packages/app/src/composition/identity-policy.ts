@@ -1,4 +1,8 @@
-/** Business policy for identity changes, independent of the authentication provider. */
+/**
+ * Business policy for identity changes, independent of the authentication provider.
+ * Expected denials throw IdentityPolicyError from the public identity/policy-error entry.
+ * Operational failures propagate unchanged for the caller to report and retry.
+ */
 export interface IdentityPolicy {
   beforeUserCreate(
     user: { email: string; emailVerified?: boolean },

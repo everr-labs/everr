@@ -1,62 +1,47 @@
 // @vitest-environment node
 
+import type { Database } from "@everr/app/db/database";
 import {
+  account,
   invitation,
   member,
   organization,
   session,
   user,
 } from "@everr/app/db/schema";
+import { createApplicationAuth } from "@everr/app/identity/module";
 import {
   createTestDatabase,
   type TestDatabase,
 } from "@everr/app/server/alerting/testing/pglite-database";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
+import type { PoolClient } from "pg";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { createCloudIdentityPolicy } from "../app/identity-policy";
+import { createBillingRequestLocks } from "./request-locks";
+import { BillingError } from "./types";
 
-const state = vi.hoisted(() => ({
-  database: undefined as unknown,
+const state = {
   beforeMembershipChange: vi.fn(),
   afterMembershipChange: vi.fn(),
-}));
-vi.mock("@everr/app/db/client", () => ({
-  get db() {
-    return state.database;
-  },
-  pool: { options: {} },
-}));
-vi.mock("../billing-data.server", () => ({ readOrgEntitlement: vi.fn() }));
-// Keep the production auth configuration and policy hooks. Isolate billing and
-// provisioning side effects, which have their own integration suites.
-vi.mock("../app/composition/identity", async () => ({
-  identity: {
-    provider: {
-      ...(await import("../app/onboarding")),
-      withIdentityRequest: (await import("./lock.server")).withBillingRequest,
-      identityAdapter: () =>
-        drizzleAdapter(state.database as Parameters<typeof drizzleAdapter>[0], {
-          provider: "pg",
-        }),
-      organizationHooks: () => ({}),
-      authPlugins: () => [],
-    },
-    policy: {
-      async beforeUserCreate() {},
-      async assertAccountDeletionAllowed() {},
-      beforeMembershipChange: state.beforeMembershipChange,
-      afterMembershipChange: state.afterMembershipChange,
-      async beforeUserDelete() {},
-      async assertDeletable() {},
-    },
-  },
-}));
-vi.unmock("@everr/app/identity/server");
-
-import { readOrgEntitlement } from "../billing-data.server";
+  readOrgEntitlement: vi.fn(),
+  beforeUserDelete: vi.fn(),
+  assertDeletable: vi.fn(),
+  lockQuery: vi.fn(),
+  releaseLock: vi.fn(),
+};
 
 let fixture: TestDatabase;
-let auth: typeof import("@everr/app/identity/server").auth;
+let auth: ReturnType<typeof createApplicationAuth>;
 const ownerHeaders = new Headers({
   authorization: "Bearer owner-token",
   "x-everr-send-invitation-email": "false",
@@ -66,7 +51,7 @@ const recipientHeaders = new Headers({
 });
 
 function entitlement(appState: "hobby" | "suspended" | "pro") {
-  vi.mocked(readOrgEntitlement).mockResolvedValue({
+  state.readOrgEntitlement.mockResolvedValue({
     plan: appState === "hobby" ? "hobby" : "pro",
     appState,
     status: appState === "pro" ? "active" : null,
@@ -77,14 +62,53 @@ function entitlement(appState: "hobby" | "suspended" | "pro") {
 
 beforeAll(async () => {
   fixture = await createTestDatabase();
-  state.database = fixture.db;
-  ({ auth } = await import("@everr/app/identity/server"));
+  const locks = createBillingRequestLocks({
+    connect: async () =>
+      ({
+        query: state.lockQuery,
+        release: state.releaseLock,
+      }) as unknown as PoolClient,
+  });
+  auth = createApplicationAuth(
+    {
+      provider: {
+        withIdentityRequest: locks.withBillingRequest,
+        lockAccountDeletion: locks.lockAccountDeletion,
+        identityAdapter: () => drizzleAdapter(fixture.db, { provider: "pg" }),
+        organizationHooks: () => ({}),
+        createSessionOnboardingHook: () => async () => {},
+      },
+      policy: createCloudIdentityPolicy({
+        billing: {
+          beforeMembershipChange: state.beforeMembershipChange,
+          afterMembershipChange: state.afterMembershipChange,
+          beforeUserDelete: state.beforeUserDelete,
+          assertDeletable: state.assertDeletable,
+        },
+        readOrgEntitlement: state.readOrgEntitlement,
+      }),
+    },
+    {
+      database: fixture.db as unknown as Database,
+      baseURL: "http://localhost:3000",
+      secret: "cloud-membership-test-secret-long-enough",
+      email: {
+        enabled: true,
+        sendInvitation() {},
+        sendPasswordReset() {},
+        sendVerification() {},
+      },
+      canInviteMembers: async (organizationId) =>
+        (await state.readOrgEntitlement(organizationId)).appState === "pro",
+    },
+  );
 });
 afterAll(async () => fixture?.close());
 beforeEach(async () => {
   await fixture.truncate();
-  vi.clearAllMocks();
-  state.beforeMembershipChange.mockReset();
+  vi.resetAllMocks();
+  entitlement("pro");
+  state.lockQuery.mockResolvedValue({ rows: [{ locked: true }] });
   const now = new Date();
   await fixture.db.insert(user).values(
     ["owner", "recipient"].map((id) => ({
@@ -106,11 +130,21 @@ beforeEach(async () => {
     role: "owner",
     createdAt: now,
   });
+  await fixture.db.insert(account).values(
+    ["owner", "recipient"].map((id) => ({
+      id: `${id}-credential`,
+      accountId: id,
+      providerId: "credential",
+      userId: id,
+      password: "unused-credential-hash",
+    })),
+  );
   await fixture.db.insert(session).values(
     ["owner", "recipient"].map((id) => ({
       id: `${id}-session`,
       userId: id,
       token: `${id}-token`,
+      activeOrganizationId: "org",
       expiresAt: new Date(Date.now() + 86400000),
       createdAt: now,
       updatedAt: now,
@@ -160,7 +194,7 @@ it.each([
     expect(await fixture.db.select().from(member)).toHaveLength(1);
     expect(state.beforeMembershipChange).not.toHaveBeenCalled();
   }
-  expect(readOrgEntitlement).toHaveBeenCalledWith("org");
+  expect(state.readOrgEntitlement).toHaveBeenCalledWith("org");
 });
 
 it.each([
@@ -226,12 +260,12 @@ it("allows the initial owner of a hobby organization, then blocks additional mem
   expect(state.beforeMembershipChange).not.toHaveBeenCalled();
 });
 
-async function addRecipient() {
+async function addRecipient(role: "admin" | "owner" = "admin") {
   await fixture.db.insert(member).values({
     id: "recipient-member",
     organizationId: "org",
     userId: "recipient",
-    role: "admin",
+    role,
     createdAt: new Date(),
   });
 }
@@ -259,15 +293,50 @@ const mutations = {
 };
 
 it.each([
-  "remove",
-  "role",
-  "leave",
-] as const)("preserves membership when %s is denied by application policy", async (mutation) => {
+  {
+    mutation: "remove",
+    error: new BillingError("forbidden", "Transfer billing ownership."),
+    denied: true,
+  },
+  {
+    mutation: "role",
+    error: new BillingError("owner_required", "Transfer billing ownership."),
+    denied: true,
+  },
+  {
+    mutation: "leave",
+    error: new BillingError("owner_required", "Transfer billing ownership."),
+    denied: true,
+  },
+  {
+    mutation: "remove",
+    error: new BillingError("unavailable", "Polar unavailable"),
+    denied: false,
+  },
+  {
+    mutation: "role",
+    error: new BillingError("identity_conflict", "Billing identity mismatch"),
+    denied: false,
+  },
+  {
+    mutation: "leave",
+    error: new Error("Provider unavailable"),
+    denied: false,
+  },
+] as const)("preserves membership for $mutation after $error.name ($denied)", async ({
+  mutation,
+  error,
+  denied,
+}) => {
   await addRecipient();
-  state.beforeMembershipChange.mockRejectedValueOnce(
-    new Error("Polar unavailable"),
-  );
-  await expect(mutations[mutation]()).rejects.toThrow("Polar unavailable");
+  state.beforeMembershipChange.mockRejectedValueOnce(error);
+  const request = expect(mutations[mutation]());
+  if (denied)
+    await request.rejects.toMatchObject({
+      status: "FORBIDDEN",
+      message: error.message,
+    });
+  else await request.rejects.toBe(error);
   expect(state.beforeMembershipChange).toHaveBeenCalledWith(
     "org",
     "recipient",
@@ -314,4 +383,210 @@ it("does not reconcile when the authentication provider rejects the last owner's
     { userId: "owner" },
   ]);
   expect(state.afterMembershipChange).not.toHaveBeenCalled();
+});
+
+describe("account deletion", () => {
+  async function addOwnedOrganization(id: string) {
+    await fixture.db
+      .insert(organization)
+      .values({ id, name: id, slug: id, createdAt: new Date() });
+    await fixture.db.insert(member).values({
+      id: `${id}-owner`,
+      organizationId: id,
+      userId: "owner",
+      role: "owner",
+      createdAt: new Date(),
+    });
+  }
+
+  it("names only the Pro organizations preventing account deletion", async () => {
+    await addOwnedOrganization("personal");
+    state.readOrgEntitlement.mockImplementation(async (id: string) => ({
+      plan: id === "org" ? "pro" : "hobby",
+    }));
+    await expect(
+      auth.deleteAccount({ headers: ownerHeaders }),
+    ).rejects.toMatchObject({
+      status: "FORBIDDEN",
+      message: expect.stringContaining("Transfer ownership of: Org."),
+    });
+    expect(await fixture.db.select().from(user)).toHaveLength(2);
+  });
+
+  it.each([
+    "admin",
+    "owner",
+  ] as const)("deletes an account with $0 membership while preserving the organization", async (role) => {
+    entitlement("hobby");
+    await addRecipient(role);
+    await auth.deleteAccount({ headers: recipientHeaders });
+    expect(
+      await fixture.db.select().from(user).where(eq(user.id, "recipient")),
+    ).toHaveLength(0);
+    expect(
+      await fixture.db
+        .select()
+        .from(member)
+        .where(eq(member.userId, "recipient")),
+    ).toHaveLength(0);
+    expect(await fixture.db.select().from(organization)).toHaveLength(1);
+    expect(state.releaseLock).toHaveBeenCalledOnce();
+  });
+
+  it("requires ownership transfer for another organization even when deleting the active one", async () => {
+    entitlement("hobby");
+    await addRecipient("owner");
+    await addOwnedOrganization("other");
+    await expect(
+      auth.deleteAccount({ headers: ownerHeaders, deleteOrganization: true }),
+    ).rejects.toThrow("only owner of: other");
+    expect(await fixture.db.select().from(organization)).toHaveLength(2);
+    expect(await fixture.db.select().from(user)).toHaveLength(2);
+  });
+
+  it("deletes the active organization before its sole owner account", async () => {
+    entitlement("hobby");
+    state.beforeUserDelete.mockImplementationOnce(async () => {
+      expect(await fixture.db.select().from(organization)).toHaveLength(0);
+      expect(state.releaseLock).not.toHaveBeenCalled();
+    });
+    await auth.deleteAccount({
+      headers: ownerHeaders,
+      deleteOrganization: true,
+    });
+    expect(
+      await fixture.db.select().from(user).where(eq(user.id, "owner")),
+    ).toHaveLength(0);
+    expect(state.releaseLock).toHaveBeenCalledOnce();
+  });
+
+  it("rejects unauthenticated or expired sessions before taking locks or mutating data", async () => {
+    await fixture.db
+      .update(session)
+      .set({ expiresAt: new Date(Date.now() - 1000) });
+    await expect(
+      auth.deleteAccount({ headers: ownerHeaders, deleteOrganization: true }),
+    ).rejects.toMatchObject({ status: "UNAUTHORIZED" });
+    expect(state.lockQuery).not.toHaveBeenCalled();
+    expect(await fixture.db.select().from(organization)).toHaveLength(1);
+  });
+
+  it("requires a fresh session before deleting an organization", async () => {
+    entitlement("hobby");
+    await fixture.db
+      .update(session)
+      .set({ createdAt: new Date(Date.now() - 2 * 86400000) });
+    await expect(
+      auth.deleteAccount({ headers: ownerHeaders, deleteOrganization: true }),
+    ).rejects.toMatchObject({
+      status: "BAD_REQUEST",
+      message: "Sign in again before deleting your account.",
+    });
+    expect(await fixture.db.select().from(organization)).toHaveLength(1);
+    expect(state.lockQuery).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "admin",
+    "missing",
+  ] as const)("rejects organization deletion with $0 ownership", async (ownership) => {
+    await addRecipient();
+    if (ownership === "missing")
+      await fixture.db.update(session).set({ activeOrganizationId: null });
+    await expect(
+      auth.deleteAccount({
+        headers: recipientHeaders,
+        deleteOrganization: true,
+      }),
+    ).rejects.toMatchObject({
+      status: ownership === "missing" ? "BAD_REQUEST" : "FORBIDDEN",
+    });
+    expect(await fixture.db.select().from(user)).toHaveLength(2);
+    expect(await fixture.db.select().from(organization)).toHaveLength(1);
+  });
+
+  it.each([
+    "organization",
+    "user",
+    "entitlement",
+  ] as const)("preserves the cause and releases locks after a $0 failure", async (stage) => {
+    entitlement("hobby");
+    const error = new Error(`${stage} unavailable`);
+    if (stage === "organization")
+      state.assertDeletable.mockRejectedValueOnce(error);
+    if (stage === "user") state.beforeUserDelete.mockRejectedValueOnce(error);
+    if (stage === "entitlement")
+      state.readOrgEntitlement.mockRejectedValueOnce(error);
+    const request = expect(
+      auth.deleteAccount({ headers: ownerHeaders, deleteOrganization: true }),
+    );
+    if (stage === "user")
+      await request.rejects.toMatchObject({
+        message: expect.stringContaining("organization was deleted"),
+        cause: error,
+      });
+    else await request.rejects.toBe(error);
+    expect(await fixture.db.select().from(organization)).toHaveLength(
+      stage === "user" ? 0 : 1,
+    );
+    expect(await fixture.db.select().from(user)).toHaveLength(2);
+    expect(state.releaseLock).toHaveBeenCalledOnce();
+  });
+
+  it("rechecks ownership after acquiring the cloud organization lock", async () => {
+    entitlement("hobby");
+    await addRecipient("owner");
+    state.lockQuery.mockImplementationOnce(async () => {
+      // Another owner's deletion committed before this request acquired the lock.
+      await fixture.db.delete(member).where(eq(member.id, "recipient-member"));
+      return { rows: [{ locked: true }] };
+    });
+    await expect(auth.deleteAccount({ headers: ownerHeaders })).rejects.toThrow(
+      "only owner",
+    );
+    expect(
+      await fixture.db.select().from(user).where(eq(user.id, "owner")),
+    ).toHaveLength(1);
+    expect(state.releaseLock).toHaveBeenCalledOnce();
+  });
+  it.each([
+    "sole-owner",
+    "pro-owner",
+    "provider-failure",
+  ] as const)("guards the raw deletion endpoint before removing credentials ($0)", async (scenario) => {
+    entitlement(scenario === "pro-owner" ? "pro" : "hobby");
+    if (scenario !== "sole-owner") await addRecipient("owner");
+    if (scenario === "provider-failure")
+      state.beforeUserDelete.mockRejectedValueOnce(
+        new Error("Provider unavailable"),
+      );
+    const response = await auth.handler(
+      new Request("http://localhost:3000/api/auth/delete-user", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer owner-token",
+          origin: "http://localhost:3000",
+          "content-type": "application/json",
+        },
+        body: "{}",
+      }),
+    );
+    expect(response.status).toBe(scenario === "provider-failure" ? 500 : 403);
+    expect(
+      await fixture.db.select().from(user).where(eq(user.id, "owner")),
+    ).toHaveLength(1);
+    expect(
+      await fixture.db
+        .select()
+        .from(account)
+        .where(eq(account.userId, "owner")),
+    ).toHaveLength(1);
+    expect(
+      await fixture.db
+        .select()
+        .from(session)
+        .where(eq(session.userId, "owner")),
+    ).toHaveLength(1);
+    expect(state.releaseLock).toHaveBeenCalledOnce();
+  });
 });

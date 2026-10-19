@@ -1,7 +1,7 @@
 import { hashPassword } from "better-auth/crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
-import { type Database, db } from "#app/db/client.ts";
+import type { Database } from "#app/db/database.ts";
 import {
   account,
   invitation,
@@ -9,7 +9,7 @@ import {
   organization,
   user,
 } from "#app/db/schema/index.ts";
-import { isOrganizationOwner } from "#app/lib/organization-role.ts";
+import { IdentityPolicyError } from "#app/identity/policy-error.ts";
 
 export class InstallationSetupError extends Error {}
 
@@ -20,7 +20,7 @@ export const SetupWorkspaceSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
-export async function getInstallation(database: Database = db) {
+export async function getInstallation(database: Database) {
   const organizations = await database
     .select({ id: organization.id })
     .from(organization)
@@ -36,10 +36,12 @@ export async function getInstallation(database: Database = db) {
 export async function assertInvitedUser(
   user: { email: string; emailVerified?: boolean },
   invitationId: string | undefined,
-  database: Database = db,
+  database: Database,
 ) {
   if (!user.emailVerified && !invitationId) {
-    throw new Error("Open your invitation link to create an account.");
+    throw new IdentityPolicyError(
+      "Open your invitation link to create an account.",
+    );
   }
   const workspace = await getInstallation(database);
   if (workspace) {
@@ -58,12 +60,14 @@ export async function assertInvitedUser(
       .limit(1);
     if (invite) return;
   }
-  throw new Error("Contact your administrator for an invitation.");
+  throw new IdentityPolicyError(
+    "Contact your administrator for an invitation.",
+  );
 }
 
 export async function setupWorkspace(
   input: z.infer<typeof SetupWorkspaceSchema>,
-  database: Database = db,
+  database: Database,
 ) {
   const data = SetupWorkspaceSchema.parse(input);
   const password = await hashPassword(data.password);
@@ -109,25 +113,4 @@ export async function setupWorkspace(
     });
     return { organizationId };
   });
-}
-
-export async function assertWorkspaceOwnershipTransferred(
-  userId: string,
-  database: Database = db,
-) {
-  const memberships = await database
-    .select()
-    .from(member)
-    .where(eq(member.userId, userId));
-  for (const membership of memberships) {
-    if (!isOrganizationOwner(membership.role)) continue;
-    const peers = await database
-      .select({ role: member.role })
-      .from(member)
-      .where(eq(member.organizationId, membership.organizationId));
-    if (peers.filter((peer) => isOrganizationOwner(peer.role)).length <= 1)
-      throw new Error(
-        "Transfer workspace ownership before deleting your account.",
-      );
-  }
 }
