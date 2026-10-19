@@ -101,7 +101,7 @@ async function loadModule() {
   vi.doMock("@tanstack/react-start/server", () => ({
     getRequest: mocked.getRequest,
   }));
-  vi.doMock("./auth.server", () => ({
+  vi.doMock("#app/identity/server.ts", () => ({
     auth: {
       api: {
         getActiveMemberRole: mocked.getActiveMemberRole,

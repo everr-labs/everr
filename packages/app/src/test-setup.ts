@@ -98,7 +98,7 @@ vi.mock("#app/lib/clickhouse.ts", () => {
 
 vi.mock("#app/lib/serverFn.ts", async () => {
   const { query, querySqlApi } = await import("#app/lib/clickhouse.ts");
-  const { auth } = await import("#app/lib/auth.server.ts");
+  const { auth } = await import("#app/identity/server.ts");
 
   // requireOrgMiddleware: active org guaranteed + ClickHouse bound to it.
   const makeAuthChain = (withSql = false) =>
@@ -162,11 +162,11 @@ vi.mock("#app/lib/serverFn.ts", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// @/lib/auth.server — prevent env/db access at import time.
+// #app/identity/server.ts — prevent env/db access at import time.
 // Individual tests can override specific methods.
 // ---------------------------------------------------------------------------
 
-vi.mock("#app/lib/auth.server.ts", () => ({
+vi.mock("#app/identity/server.ts", () => ({
   auth: {
     assertAccountDeletionAllowed: vi.fn(),
     withIdentityRequest: <T>(run: () => Promise<T>) => run(),
@@ -220,7 +220,7 @@ afterEach(() => {
 
 // Consumer tests use the configured auth double. Session recovery has database-backed tests.
 vi.mock("#app/lib/session.server.ts", async () => {
-  const { auth } = await import("#app/lib/auth.server.ts");
+  const { auth } = await import("#app/identity/server.ts");
   return {
     getSession: (options: { headers: Headers }) => auth.api.getSession(options),
   };

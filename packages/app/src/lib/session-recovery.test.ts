@@ -12,7 +12,7 @@ vi.mock("#app/db/client.ts", () => ({
 }));
 vi.unmock("#app/lib/session.server.ts");
 
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { resolveSessionOrganization } from "#app/lib/session-organization.server.ts";
 

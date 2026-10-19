@@ -1,6 +1,6 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 import { isOrganizationOwner } from "#app/lib/organization-role.ts";
 import { createPartiallyAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 

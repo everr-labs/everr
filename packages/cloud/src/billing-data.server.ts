@@ -1,12 +1,12 @@
+import { db } from "@everr/app/db/client";
+import { member } from "@everr/app/db/schema";
+import { isOrganizationOwner } from "@everr/app/identity/roles";
 import { and, eq, ne, sql } from "drizzle-orm";
 import {
   assertPolarProductGrantsPlan,
   planForPolarProductId,
 } from "./billing/catalog.server";
 import { organizationBilling, orgSubscription } from "./db/schema";
-import { db } from "@everr/app/db/client";
-import { member } from "@everr/app/db/schema";
-import { isOrganizationOwner } from "@everr/app/lib/organization-role";
 
 export type OrganizationPlan = "hobby" | "pro";
 export type OrganizationAppState = "hobby" | "pro" | "suspended";

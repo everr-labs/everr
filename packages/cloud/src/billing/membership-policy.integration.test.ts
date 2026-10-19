@@ -1,7 +1,5 @@
 // @vitest-environment node
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
+
 import {
   invitation,
   member,
@@ -13,6 +11,9 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from "@everr/app/server/alerting/testing/pglite-database";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   database: undefined as unknown,
@@ -30,28 +31,32 @@ vi.mock("../billing-data.server", () => ({ readOrgEntitlement: vi.fn() }));
 // provisioning side effects, which have their own integration suites.
 vi.mock("../app/composition/identity", async () => ({
   identity: {
-    ...(await import("../app/onboarding")),
-    withIdentityRequest: (await import("./lock.server")).withBillingRequest,
-    identityAdapter: () =>
-      drizzleAdapter(state.database as Parameters<typeof drizzleAdapter>[0], {
-        provider: "pg",
-      }),
-    organizationHooks: () => ({}),
-    async assertAccountDeletionAllowed() {},
-    identityLifecycle: {
+    provider: {
+      ...(await import("../app/onboarding")),
+      withIdentityRequest: (await import("./lock.server")).withBillingRequest,
+      identityAdapter: () =>
+        drizzleAdapter(state.database as Parameters<typeof drizzleAdapter>[0], {
+          provider: "pg",
+        }),
+      organizationHooks: () => ({}),
+      authPlugins: () => [],
+    },
+    policy: {
+      async beforeUserCreate() {},
+      async assertAccountDeletionAllowed() {},
       beforeMembershipChange: state.beforeMembershipChange,
       afterMembershipChange: state.afterMembershipChange,
       async beforeUserDelete() {},
       async assertDeletable() {},
     },
-    authPlugins: () => [],
   },
 }));
-vi.unmock("@everr/app/lib/auth.server");
+vi.unmock("@everr/app/identity/server");
 
 import { readOrgEntitlement } from "../billing-data.server";
+
 let fixture: TestDatabase;
-let auth: typeof import("@everr/app/lib/auth.server").auth;
+let auth: typeof import("@everr/app/identity/server").auth;
 const ownerHeaders = new Headers({
   authorization: "Bearer owner-token",
   "x-everr-send-invitation-email": "false",
@@ -73,7 +78,7 @@ function entitlement(appState: "hobby" | "suspended" | "pro") {
 beforeAll(async () => {
   fixture = await createTestDatabase();
   state.database = fixture.db;
-  ({ auth } = await import("@everr/app/lib/auth.server"));
+  ({ auth } = await import("@everr/app/identity/server"));
 });
 afterAll(async () => fixture?.close());
 beforeEach(async () => {

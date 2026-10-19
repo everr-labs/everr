@@ -30,7 +30,7 @@ vi.mock("../data/billing", () => ({
   getOrgPortalUrl: mocks.portal,
   startOrgCheckout: mocks.checkout,
 }));
-vi.mock("@everr/app/lib/auth-client", () => ({
+vi.mock("@everr/app/identity/client", () => ({
   authClient: {
     useActiveOrganization: () => ({ data: { id: "org", name: "Acme" } }),
     organization: { setActive: vi.fn() },

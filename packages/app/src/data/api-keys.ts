@@ -1,13 +1,13 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import type { ApiKeyRow } from "#app/db/schema/auth.ts";
+import { auth } from "#app/identity/server.ts";
 import {
   ALL_API_KEY_SCOPES,
   API_KEY_SCOPES,
   type ApiKeyPermissions,
   type ApiKeyScope,
 } from "#app/lib/api-key-scopes.ts";
-import { auth } from "#app/lib/auth.server.ts";
 import {
   buildPublicKeyMetadata,
   type PublicKeyMetadata,

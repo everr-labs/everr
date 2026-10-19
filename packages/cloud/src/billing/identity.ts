@@ -1,7 +1,7 @@
 import {
   isOrganizationAdmin,
   isOrganizationOwner,
-} from "@everr/app/lib/organization-role";
+} from "@everr/app/identity/roles";
 import { serverLogger } from "@everr/app/telemetry/logger";
 import { createBillingMembers } from "./members";
 import type { BillingStore } from "./store";

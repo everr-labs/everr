@@ -1,6 +1,6 @@
 import { oauthProviderAuthServerMetadata } from "@better-auth/oauth-provider";
 import { createFileRoute } from "@tanstack/react-router";
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 
 const handler = oauthProviderAuthServerMetadata(auth);
 

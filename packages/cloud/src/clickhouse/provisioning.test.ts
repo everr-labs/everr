@@ -41,8 +41,8 @@ vi.mock("@everr/app/env", () => ({
 
 vi.unmock("@everr/app/lib/clickhouse");
 
-import { insertRows } from "@everr/app/lib/clickhouse-writer";
 import { query, querySqlApi } from "@everr/app/lib/clickhouse";
+import { insertRows } from "@everr/app/lib/clickhouse-writer";
 
 const ORG = "org42";
 const ORG_USER = `sql_api_org_${ORG}`;
@@ -94,7 +94,7 @@ describe("querySqlApi", () => {
       auth: { username: ORG_USER, password: ORG_PASSWORD },
       http_headers: { "X-ClickHouse-Quota": ORG_USER },
     });
-    // Per-org user provisioning happens at org creation (auth.server.ts), never
+    // Per-org user provisioning happens at org creation (identity/server.ts), never
     // on the read path.
     expect(mockCommand).not.toHaveBeenCalled();
   });

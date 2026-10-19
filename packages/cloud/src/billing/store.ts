@@ -1,10 +1,10 @@
-import { and, eq, getTableColumns, isNull, or, sql } from "drizzle-orm";
-import { organizationBilling, orgSubscription } from "../db/schema";
 import { member, organization, user } from "@everr/app/db/schema";
 import {
   isOrganizationAdmin,
   isOrganizationOwner,
-} from "@everr/app/lib/organization-role";
+} from "@everr/app/identity/roles";
+import { and, eq, getTableColumns, isNull, or, sql } from "drizzle-orm";
+import { organizationBilling, orgSubscription } from "../db/schema";
 import { assertPolarProductGrantsPlan } from "./catalog.server";
 import {
   type BillingDependencies,

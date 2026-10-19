@@ -1,3 +1,4 @@
+import "@tanstack/react-start/server-only";
 import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
@@ -19,12 +20,18 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import {
   INVITATION_EMAIL_HEADER,
+  invitationIdFromRedirect,
   invitationUrl,
 } from "#app/common/invitation.ts";
 import type { ApplicationIdentity } from "#app/composition/identity.ts";
 import { db } from "#app/db/client.ts";
 import { member, session as sessionTable } from "#app/db/schema/index.ts";
 import { env } from "#app/env/index.ts";
+import { enforceIdentityPolicy } from "#app/identity/enforce-policy.ts";
+import {
+  membershipMutationPlugin,
+  membershipOrganizationHooks,
+} from "#app/identity/membership.ts";
 import { socialProviders } from "#app/lib/auth-providers.server.ts";
 import { selectSoleOrganization } from "#app/lib/auto-org.ts";
 import {
@@ -39,10 +46,6 @@ import {
 } from "#app/lib/email.server.tsx";
 import { mailer } from "#app/lib/mailer.server.ts";
 import { MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
-import {
-  membershipMutationPlugin,
-  membershipOrganizationHooks,
-} from "#app/lib/membership-policy.server.ts";
 import { assertCanInviteMembers } from "#app/product/membership.server.ts";
 import {
   createIdentityAuthHooks,
@@ -143,15 +146,13 @@ const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
     : undefined;
 
 /** Composition root for shared authentication and the application identity model. */
-function createApplicationAuth(identity: ApplicationIdentity) {
+function createApplicationAuth({ policy, provider }: ApplicationIdentity) {
   const {
     authPlugins,
     identityAdapter,
-    identityLifecycle,
     organizationHooks,
-    beforeUserCreate,
     createSessionOnboardingHook,
-  } = identity;
+  } = provider;
 
   const auth = betterAuth({
     baseURL: env.BETTER_AUTH_URL,
@@ -204,10 +205,23 @@ function createApplicationAuth(identity: ApplicationIdentity) {
     },
     databaseHooks: {
       user: {
-        create: { before: beforeUserCreate },
+        create: {
+          before: async (user, context) => {
+            const callbackURL = context?.body?.callbackURL;
+            await enforceIdentityPolicy(() =>
+              policy.beforeUserCreate(
+                user,
+                invitationIdFromRedirect(
+                  typeof callbackURL === "string" ? callbackURL : undefined,
+                ),
+              ),
+            );
+          },
+        },
         delete: {
           before: async (user) => {
-            await identityLifecycle.beforeUserDelete(user.id);
+            await provider.beforeMembershipMutation?.();
+            await enforceIdentityPolicy(() => policy.beforeUserDelete(user.id));
           },
         },
       },
@@ -293,7 +307,7 @@ function createApplicationAuth(identity: ApplicationIdentity) {
         },
         organizationHooks: {
           ...organizationHooks(),
-          ...membershipOrganizationHooks(identityLifecycle),
+          ...membershipOrganizationHooks(policy),
           beforeAddMember: async ({ member: newMember }) => {
             const existingMembers = await db
               .select({ id: member.id })
@@ -303,10 +317,12 @@ function createApplicationAuth(identity: ApplicationIdentity) {
             if (existingMembers.length === 0) return;
 
             await assertCanInviteMembers(newMember.organizationId);
-            await identityLifecycle.beforeMembershipChange(
-              newMember.organizationId,
-              newMember.userId,
-              newMember.role,
+            await enforceIdentityPolicy(() =>
+              policy.beforeMembershipChange(
+                newMember.organizationId,
+                newMember.userId,
+                newMember.role,
+              ),
             );
           },
           beforeCreateInvitation: async ({ invitation: newInvitation }) => {
@@ -317,14 +333,18 @@ function createApplicationAuth(identity: ApplicationIdentity) {
             user,
           }) => {
             await assertCanInviteMembers(acceptedInvitation.organizationId);
-            await identityLifecycle.beforeMembershipChange(
-              acceptedInvitation.organizationId,
-              user.id,
-              acceptedInvitation.role,
+            await enforceIdentityPolicy(() =>
+              policy.beforeMembershipChange(
+                acceptedInvitation.organizationId,
+                user.id,
+                acceptedInvitation.role,
+              ),
             );
           },
           beforeDeleteOrganization: async ({ organization }) => {
-            await identityLifecycle.assertDeletable(organization.id);
+            await enforceIdentityPolicy(() =>
+              policy.assertDeletable(organization.id),
+            );
           },
         },
       }),
@@ -355,9 +375,10 @@ function createApplicationAuth(identity: ApplicationIdentity) {
       ]),
       bearer(),
       membershipMutationPlugin(
-        identityLifecycle,
+        policy,
         async (headers): Promise<{ user: { id: string } } | null> =>
           auth.api.getSession({ headers }),
+        provider.beforeMembershipMutation,
       ),
       ...(authPlugins?.(
         async (input: {
@@ -413,10 +434,10 @@ function createApplicationAuth(identity: ApplicationIdentity) {
 
   return {
     ...auth,
-    withIdentityRequest: identity.withIdentityRequest,
-    assertAccountDeletionAllowed: identity.assertAccountDeletionAllowed,
+    withIdentityRequest: provider.withIdentityRequest,
+    assertAccountDeletionAllowed: policy.assertAccountDeletionAllowed,
     handler: (request: Request) =>
-      identity.withIdentityRequest(() =>
+      provider.withIdentityRequest(() =>
         runWithDeviceOrgCapture(() => auth.handler(request)),
       ),
   };

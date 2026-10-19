@@ -1,7 +1,7 @@
+import { member } from "@everr/app/db/schema";
+import { isOrganizationOwner } from "@everr/app/identity/roles";
 import { eq } from "drizzle-orm";
 import { orgSubscription } from "../db/schema";
-import { member } from "@everr/app/db/schema";
-import { isOrganizationOwner } from "@everr/app/lib/organization-role";
 import { createBillingCheckouts } from "./checkout";
 import { createBillingIdentity } from "./identity";
 import { createBillingStore } from "./store";

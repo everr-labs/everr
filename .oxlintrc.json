@@ -155,10 +155,10 @@
                     "source": "@composition/identity"
                   }
                 },
-                "message": "Import @composition/identity only from auth.server and tests.",
+                "message": "Import @composition/identity only from identity/server and tests.",
                 "from": {
                   "file": {
-                    "path": "!{packages/app/src/lib/auth.server.ts,**/*.test.{ts,tsx},**/*.spec.{ts,tsx},**/__tests__/**,**/testing/**}"
+                    "path": "!{packages/app/src/identity/server.ts,**/*.test.{ts,tsx},**/*.spec.{ts,tsx},**/__tests__/**,**/testing/**}"
                   }
                 }
               },
@@ -216,6 +216,80 @@
                     "path": "!{packages/app/src/lib/organization-sql.ts,packages/cloud/src/clickhouse/provisioning.ts,**/*.test.{ts,tsx},**/test-setup.ts,**/testing/**}"
                   }
                 }
+              },
+              {
+                "from": {
+                  "file": {
+                    "path": "packages/{app,cloud}/src/app/composition/**/{client,ui,layouts,navigation,pages,dashboards}.{ts,tsx}"
+                  }
+                },
+                "disallow": {
+                  "to": {
+                    "file": {
+                      "path": "packages/{app,cloud}/src/**/{*.server.{ts,tsx},identity/server.ts,db/**,server/**,app/composition/{identity,runtime,storage,deployment,product,entry}.ts}"
+                    }
+                  },
+                  "dependency": {
+                    "kind": "value"
+                  }
+                },
+                "message": "Browser composition must use client-safe features or server-function interfaces, not server implementations."
+              },
+              {
+                "from": {
+                  "file": {
+                    "path": "packages/{app,cloud}/src/{composition/**/identity-policy.ts,app/**/identity-policy.server.ts}"
+                  }
+                },
+                "disallow": {
+                  "dependency": {
+                    "source": [
+                      "better-auth",
+                      "better-auth/**",
+                      "@polar-sh/**"
+                    ]
+                  }
+                },
+                "message": "Identity policy uses application facts; authentication-provider integration belongs in the provider adapter."
+              },
+              {
+                "from": {
+                  "file": {
+                    "path": "!{packages/app/src/identity/**,**/*.test.{ts,tsx},**/testing/**}"
+                  }
+                },
+                "disallow": {
+                  "to": {
+                    "file": {
+                      "path": "packages/app/src/identity/{membership,enforce-policy}.ts"
+                    }
+                  },
+                  "dependency": {
+                    "kind": "value"
+                  }
+                },
+                "message": "Authentication provider internals belong to the identity module. Use its public server interface."
+              },
+              {
+                "from": {
+                  "file": {
+                    "path": "packages/cloud/src/data/**/!(*.test).{ts,tsx}"
+                  }
+                },
+                "disallow": {
+                  "to": {
+                    "file": {
+                      "path": [
+                        "packages/app/src/db/{client.ts,schema/**}",
+                        "packages/cloud/src/db/schema/**"
+                      ]
+                    }
+                  },
+                  "dependency": {
+                    "kind": "value"
+                  }
+                },
+                "message": "Cloud request handlers call owned workflows; database coordination belongs inside the feature."
               }
             ]
           }

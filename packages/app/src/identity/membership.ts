@@ -1,9 +1,13 @@
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
 import { z } from "zod";
-import type { ApplicationIdentity } from "#app/composition/identity.ts";
+import type { IdentityPolicy } from "#app/composition/identity-policy.ts";
+import { enforceIdentityPolicy } from "#app/identity/enforce-policy.ts";
 
-type MembershipPolicy = ApplicationIdentity["identityLifecycle"];
+type MembershipPolicy = Pick<
+  IdentityPolicy,
+  "beforeMembershipChange" | "afterMembershipChange"
+>;
 
 // Better Auth's leave endpoint bypasses organization member-removal hooks.
 export function membershipMutationPlugin(
@@ -11,6 +15,7 @@ export function membershipMutationPlugin(
   resolveSession: (
     headers: Headers,
   ) => Promise<{ user: { id: string } } | null>,
+  beforeMutation?: () => Promise<void>,
 ): BetterAuthPlugin {
   return {
     id: "membership-policy",
@@ -25,7 +30,7 @@ export function membershipMutationPlugin(
               "/delete-user",
             ].includes(ctx.path ?? ""),
           handler: createAuthMiddleware(async (ctx) => {
-            await policy.beforeMembershipMutation?.();
+            await beforeMutation?.();
             if (ctx.path !== "/organization/leave") return;
             const session = await resolveSession(ctx.headers ?? new Headers());
             if (!session) return;
@@ -43,10 +48,12 @@ export function membershipMutationPlugin(
               throw new APIError("FORBIDDEN", {
                 message: "You are not a member of this organization.",
               });
-            await policy.beforeMembershipChange(
-              organizationId,
-              session.user.id,
-              null,
+            await enforceIdentityPolicy(() =>
+              policy.beforeMembershipChange(
+                organizationId,
+                session.user.id,
+                null,
+              ),
             );
           }),
         },
@@ -62,7 +69,9 @@ export function membershipMutationPlugin(
               .object({ organizationId: z.string() })
               .safeParse(ctx.body);
             if (body.success)
-              await policy.afterMembershipChange(body.data.organizationId);
+              await enforceIdentityPolicy(() =>
+                policy.afterMembershipChange(body.data.organizationId),
+              );
           }),
         },
       ],
@@ -73,14 +82,18 @@ export function membershipMutationPlugin(
 export function membershipOrganizationHooks(policy: MembershipPolicy) {
   type Input = { member: { organizationId: string; userId: string } };
   const finish = async ({ member }: Input) => {
-    await policy.afterMembershipChange(member.organizationId);
+    await enforceIdentityPolicy(() =>
+      policy.afterMembershipChange(member.organizationId),
+    );
   };
   return {
     beforeRemoveMember: async ({ member }: Input) => {
-      await policy.beforeMembershipChange(
-        member.organizationId,
-        member.userId,
-        null,
+      await enforceIdentityPolicy(() =>
+        policy.beforeMembershipChange(
+          member.organizationId,
+          member.userId,
+          null,
+        ),
       );
     },
     afterRemoveMember: finish,
@@ -88,10 +101,12 @@ export function membershipOrganizationHooks(policy: MembershipPolicy) {
       member,
       newRole,
     }: Input & { newRole: string }) => {
-      await policy.beforeMembershipChange(
-        member.organizationId,
-        member.userId,
-        newRole,
+      await enforceIdentityPolicy(() =>
+        policy.beforeMembershipChange(
+          member.organizationId,
+          member.userId,
+          newRole,
+        ),
       );
     },
     afterUpdateMemberRole: finish,

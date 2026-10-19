@@ -1,4 +1,4 @@
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 import { resolveSessionOrganization } from "#app/lib/session-organization.server.ts";
 
 export async function getSession({ headers }: { headers: Headers }) {

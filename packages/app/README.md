@@ -32,10 +32,27 @@ guards. Account preflight stays alongside identity. After membership validation,
 `getActiveOrganizationAccess` calls `getOrganizationEntryRedirect(session)` and
 applies the returned destination while preserving `returnTo`. Cloud owns
 organization creation cookies and continuation behavior. Identity adapters may
-implement `beforeMembershipMutation` for lock acquisition and
+implement `provider.beforeMembershipMutation` for lock acquisition and
 `beforeMembershipChange` or `afterMembershipChange` for application policy;
 creation-only organization hooks remain separate. Shared endpoint guards remain
 in place.
+
+Identity composition selects two cohesive parts together: `policy` contains
+signup admission, account-deletion preflight, and membership/deletion rules;
+`provider` contains Better Auth persistence, plugins, organization-creation hooks,
+session onboarding, and request-wide locking. Signup policy receives an invitation
+ID rather than provider endpoint context. The identity module translates policy
+denials into provider responses and retains ownership of shared guards.
+Authentication is exposed through the explicitly server-only
+`@everr/app/identity/server` entry; browser identity
+and role helpers use `@everr/app/identity/client` and `@everr/app/identity/roles`.
+Keep provider internals inside `src/identity`.
+
+Cloud organization creation, checkout completion, and downgrade are owned by
+cloud's `organizations/commands.server.ts`. Request handlers validate input and
+pass the authenticated actor to that workflow. The workflow owns eligibility,
+lock ordering, billing coordination, and persistence. Infrastructure exports such
+as database executors and migrations remain available for transactional extensions.
 
 ## Extending the application
 
@@ -98,6 +115,11 @@ in place.
 Each application's `tsconfig.json` selects a complete set of named
 `@composition/*` modules. Vite and Vitest use the same selection. The root
 `pnpm check:boundaries` command checks package imports and composition contracts.
+It also keeps identity policy free of authentication-provider dependencies,
+provider internals private, browser composition free of server implementations,
+and cloud request handlers free of direct database coordination. Browser pages
+may consume explicit server-function interfaces. These rules preserve the existing
+named adapters; new seams should correspond to behavior that actually varies.
 
 Navigation uses the selected application's generated TanStack route types. Use
 literal route patterns with `params` for dynamic destinations. Shared navigation

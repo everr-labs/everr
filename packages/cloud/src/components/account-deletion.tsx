@@ -1,7 +1,7 @@
-import { DeleteAccountDialog } from "@everr/app/account-settings/dialog";
 import { deleteCurrentUserAccount } from "@everr/app/account-settings/actions";
-import { authClient } from "@everr/app/lib/auth-client";
-import { isOrganizationOwner } from "@everr/app/lib/organization-role";
+import { DeleteAccountDialog } from "@everr/app/account-settings/dialog";
+import { authClient } from "@everr/app/identity/client";
+import { isOrganizationOwner } from "@everr/app/identity/roles";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 

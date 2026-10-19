@@ -1,12 +1,12 @@
+import { authClient } from "@everr/app/identity/client";
 import { Button, buttonVariants } from "@everr/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
 import { ArrowRight, Loader2, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { OrganizationCreation } from "./organization-creation";
 import { getOrganizationCreationOptions } from "../data/organizations";
+import { OrganizationCreation } from "./organization-creation";
 import { useOrganizationActivation } from "./use-organization-activation";
-import { authClient } from "@everr/app/lib/auth-client";
 
 export function OrganizationSelection() {
   const activateOrganization = useOrganizationActivation();

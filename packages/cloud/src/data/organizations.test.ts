@@ -1,7 +1,7 @@
+import { auth } from "@everr/app/identity/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { completeProOrganizationCheckout } from "./organization-checkout";
 import { createOrganization } from "./organizations";
-import { auth } from "@everr/app/lib/auth.server";
 
 const mocks = vi.hoisted(() => ({
   startCheckout: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock("@everr/app/env", () => ({
   },
 }));
 
-vi.mock("@everr/app/lib/auth.server", () => ({
+vi.mock("@everr/app/identity/server", () => ({
   auth: {
     api: {
       getSession: mocks.getSession,

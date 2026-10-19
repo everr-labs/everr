@@ -4,8 +4,8 @@ import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 import { parseAlertingPrincipal } from "#app/data/alerting/session.ts";
 import { db } from "#app/db/client.ts";
 import { organization } from "#app/db/schema/index.ts";
+import { auth } from "#app/identity/server.ts";
 import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
-import { auth } from "#app/lib/auth.server.ts";
 import {
   assertOrganizationTarget,
   organizationTargetErrorResponse,

@@ -2,6 +2,7 @@ import {
   productRouteFiles,
   sharedRouteModules,
 } from "@everr/app/testing/routes";
+
 vi.mock("@everr/app/data/organization-access", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
@@ -24,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../data/organization-checkout", () => ({
   completeProOrganizationCheckout: mocks.complete,
 }));
-vi.mock("@everr/app/lib/auth-client", () => ({
+vi.mock("@everr/app/identity/client", () => ({
   authClient: {
     organization: { setActive: mocks.select },
   },

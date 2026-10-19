@@ -3,11 +3,11 @@ import { billingIdentityAdapter } from "../../billing/auth-adapter.server";
 import { billingAuthPlugin } from "../../billing/auth-plugin.server";
 import { withBillingRequest } from "../../billing/lock.server";
 import { beforeCreateCheckoutOrganization } from "../../billing/organization-context.server";
-import { billing } from "../../billing/server";
 import { organizationLifecycleAdapter } from "../../organization-provisioning/adapter.server";
 import { waitForOrganizationProvisioning } from "../../organization-provisioning/fast-path";
 import { parseOrganizationMetadata } from "../../organization-provisioning/metadata";
-import { beforeUserCreate, createSessionOnboardingHook } from "../onboarding";
+import { identityPolicy } from "../identity-policy.server";
+import { createSessionOnboardingHook } from "../onboarding";
 
 async function afterCreateOrganization({
   organization,
@@ -25,18 +25,18 @@ async function afterCreateOrganization({
 }
 
 export const identity = {
-  async assertAccountDeletionAllowed(organizations) {
-    const { assertAccountDeletionAllowed } = await import("../account");
-    return assertAccountDeletionAllowed(organizations);
+  policy: identityPolicy,
+  provider: {
+    withIdentityRequest: withBillingRequest,
+    createSessionOnboardingHook,
+    identityAdapter: () =>
+      billingIdentityAdapter(organizationLifecycleAdapter()),
+    organizationHooks: () => ({
+      beforeCreateOrganization: beforeCreateCheckoutOrganization,
+      afterCreateOrganization,
+    }),
+    authPlugins: (createOrganization) => [
+      billingAuthPlugin(createOrganization),
+    ],
   },
-  withIdentityRequest: withBillingRequest,
-  beforeUserCreate,
-  createSessionOnboardingHook,
-  identityAdapter: () => billingIdentityAdapter(organizationLifecycleAdapter()),
-  organizationHooks: () => ({
-    beforeCreateOrganization: beforeCreateCheckoutOrganization,
-    afterCreateOrganization,
-  }),
-  identityLifecycle: billing,
-  authPlugins: (createOrganization) => [billingAuthPlugin(createOrganization)],
 } satisfies ApplicationIdentity;

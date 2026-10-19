@@ -11,6 +11,9 @@
       "packages/app/**/src/**/*",
       "packages/app/vite.config.ts",
 
+      "packages/cloud/**/src/**/*",
+      "packages/cloud/vite.config.ts",
+
       "packages/docs/**/src/**/*",
       "packages/docs/vite.config.ts",
 
@@ -35,8 +38,8 @@
       "packages/datemath/vite.config.ts",
 
       "!packages/**/src/**/routeTree.gen.ts",
-      "!packages/app/src/cloud/drizzle",
-      "!packages/app/src/cloud/drizzle-legacy"
+      "!packages/cloud/src/drizzle",
+      "!packages/cloud/src/drizzle-legacy"
     ]
   },
   "formatter": {

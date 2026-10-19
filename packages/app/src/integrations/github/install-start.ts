@@ -1,4 +1,4 @@
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 import { createInstallState } from "#app/lib/github-install-state.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import { getSession } from "#app/lib/session.server.ts";

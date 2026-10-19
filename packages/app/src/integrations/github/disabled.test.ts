@@ -6,7 +6,7 @@ vi.mock("../../server/github-events/enqueue", () => ({
   enqueueWebhookEvent: vi.fn(),
 }));
 
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 import {
   getGithubAppInstallStatus,
   getInstallationRepos,

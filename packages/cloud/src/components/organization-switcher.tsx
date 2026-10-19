@@ -1,3 +1,4 @@
+import { authClient } from "@everr/app/identity/client";
 import { Button } from "@everr/ui/components/button";
 import {
   DropdownMenu,
@@ -8,7 +9,6 @@ import {
 import { Check, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { useOrganizationActivation } from "./use-organization-activation";
-import { authClient } from "@everr/app/lib/auth-client";
 
 export function OrganizationSwitcher({
   activeOrganizationId,

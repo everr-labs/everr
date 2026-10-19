@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   refetch: () => Promise.resolve(),
 }));
 
-vi.mock("@everr/app/lib/auth-client", async () => {
+vi.mock("@everr/app/identity/client", async () => {
   const { createAuthClient } = await import("better-auth/react");
   const { organizationClient } = await import("better-auth/client/plugins");
   const client = createAuthClient({
@@ -70,8 +70,8 @@ vi.mock("../../../data/organizations", () => ({
     .mockResolvedValue({ canCreateHobby: true }),
 }));
 
+import { authClient } from "@everr/app/identity/client";
 import { OrganizationSelection } from "../../../components/organization-selection";
-import { authClient } from "@everr/app/lib/auth-client";
 
 function CachedOrganizationMenu() {
   const { data, refetch } = authClient.useListOrganizations();

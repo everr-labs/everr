@@ -4,9 +4,9 @@ vi.mock("@everr/app/data/organization-access", () => ({
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  createFileRoute,
   createMemoryHistory,
   createRootRouteWithContext,
-  createFileRoute,
   createRouter,
   Outlet,
   RouterProvider,
@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => ({
 }));
 // jsdom has no canvas renderer; keep the real welcome layout mounted.
 vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
-vi.mock("@everr/app/lib/auth-client", () => ({
+vi.mock("@everr/app/identity/client", () => ({
   authClient: {
     signUp: { email: mocks.signup },
     signIn: { social: mocks.social },

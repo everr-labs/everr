@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   deleteCurrentUserAccount: vi.fn(),
   navigate: vi.fn(),
 }));
-vi.mock("@everr/app/lib/auth-client", () => ({
+vi.mock("@everr/app/identity/client", () => ({
   authClient: {
     useSession: () => ({ data: { user: { id: "test_user" } } }),
     useActiveOrganization: mocks.useActiveOrganization,
@@ -19,7 +19,9 @@ vi.mock("@everr/app/account-settings/actions", () => ({
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
 }));
+
 import { AccountDeletion } from "./account-deletion";
+
 function renderPage() {
   return render(<AccountDeletion />);
 }

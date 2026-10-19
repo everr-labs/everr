@@ -1,3 +1,12 @@
+import type { Database } from "@everr/app/db/client";
+import { organization } from "@everr/app/db/schema";
+import { deletePostgresOrganizationData } from "@everr/app/organizations/cleanup";
+import { withBoundaryErrorCapture } from "@everr/app/telemetry/error-boundary";
+import {
+  mergeTelemetryIdentity,
+  withTelemetryIdentityScope,
+} from "@everr/app/telemetry/identity";
+import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
 import {
   context,
   ROOT_CONTEXT,
@@ -12,26 +21,17 @@ import {
   deprovisionSqlApiOrgUser,
   provisionSqlApiOrgUser,
 } from "../clickhouse/provisioning";
-import { isOrganizationProvisioned } from "./metadata";
-import {
-  organizationProvisioningPending,
-  provisionedOrganizationMetadata,
-} from "./metadata.server";
-import type { Database } from "@everr/app/db/client";
-import { organization } from "@everr/app/db/schema";
-import { deletePostgresOrganizationData } from "@everr/app/lib/organization-data-cleanup.server";
-import { withBoundaryErrorCapture } from "@everr/app/telemetry/error-boundary";
-import {
-  mergeTelemetryIdentity,
-  withTelemetryIdentityScope,
-} from "@everr/app/telemetry/identity";
-import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
 import {
   DEPROVISION_ORGANIZATION_TASK,
   enqueueOrganizationProvisioning,
   ORGANIZATION_MAX_ATTEMPTS,
   PROVISION_ORGANIZATION_TASK,
 } from "./jobs";
+import { isOrganizationProvisioned } from "./metadata";
+import {
+  organizationProvisioningPending,
+  provisionedOrganizationMetadata,
+} from "./metadata.server";
 
 const payloadSchema = z.object({ organizationId: z.string().min(1) });
 const SCAN_PENDING_TASK = "clickhouse/scan-pending-organizations";

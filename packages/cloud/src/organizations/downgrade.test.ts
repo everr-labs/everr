@@ -5,34 +5,13 @@ const mocks = vi.hoisted(() => ({
   lockOwnership: vi.fn(),
   entitlement: vi.fn(),
   ownsHobby: vi.fn(),
-  getRole: vi.fn(),
   revoke: vi.fn(),
   beforeBillingLock: vi.fn(),
   afterOwnershipLock: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-start", () => {
-  const chain = () => {
-    const builder = {
-      middleware: () => callable,
-      inputValidator: () => callable,
-      handler: (handler: unknown) => handler,
-      server: () => callable,
-    };
-    const callable = Object.assign(() => callable, builder);
-    return callable;
-  };
-  return { createServerFn: chain, createMiddleware: chain };
-});
-vi.mock("@everr/app/lib/serverFn", async () => {
-  const { createServerFn } = await import("@tanstack/react-start");
-  return {
-    requireOrgMiddleware: {},
-    createOrganizationAdminServerFn: createServerFn(),
-  };
-});
-vi.mock("@everr/app/lib/auth.server", () => ({
-  auth: { api: { getActiveMemberRole: mocks.getRole } },
+vi.mock("@everr/app/identity/server", () => ({
+  auth: { api: {} },
 }));
 vi.mock("@everr/app/db/client", () => ({
   db: {
@@ -49,38 +28,24 @@ vi.mock("../billing-data.server", () => ({
 vi.mock("../organization-lock.server", () => ({
   lockOrganizationOwnership: mocks.lockOwnership,
 }));
-vi.mock("@tanstack/react-start/server", () => ({
-  getRequestHeaders: () => new Headers(),
-}));
 vi.mock("../billing/server", () => ({
   billing: {
     downgrade: async (
       _orgId: string,
-      userId: string,
+      _userId: string,
       commit: (revoke: () => Promise<void>) => Promise<unknown>,
     ) => {
       await mocks.beforeBillingLock();
-      // Match the billing module's nonblocking organization lock and its
-      // authorization check. The module itself has separate integration tests.
-      if (billingLocked) throw new Error("Billing is being processed");
-      billingLocked = true;
-      try {
-        if (!members.get(userId)?.split(",").includes("owner"))
-          throw new Error("You cannot manage billing for this organization");
-        return await commit(mocks.revoke);
-      } finally {
-        billingLocked = false;
-      }
+      return commit(mocks.revoke);
     },
   },
 }));
 
-import { downgradeSuspendedOrganization } from "./billing";
 import { organizationBilling } from "../db/schema";
+import { organizationCommands } from "./commands.server";
 
 let members: Map<string, string>;
 let plan: "pro" | "hobby";
-let billingLocked: boolean;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -89,8 +54,6 @@ beforeEach(() => {
     ["owner-b", "owner"],
   ]);
   plan = "pro";
-  billingLocked = false;
-  mocks.getRole.mockResolvedValue({ role: "owner" });
   mocks.entitlement.mockImplementation(async () => ({
     appState: plan === "pro" ? "suspended" : "hobby",
   }));
@@ -126,44 +89,25 @@ beforeEach(() => {
   });
 });
 
-function downgrade(userId: string): Promise<unknown> {
-  return Reflect.apply(downgradeSuspendedOrganization, undefined, [
-    {
-      context: {
-        session: {
-          user: { id: userId },
-          session: { activeOrganizationId: "org" },
-        },
-      },
-    },
-  ]);
+function downgrade(actorId: string) {
+  return organizationCommands.downgradeToHobby({
+    organizationId: "org",
+    actorId,
+  });
 }
 
 describe("suspended organization downgrade", () => {
-  it("keeps the winning owner when two owners downgrade concurrently", async () => {
-    const results = await Promise.allSettled([
-      downgrade("owner-a"),
-      downgrade("owner-b"),
-    ]);
-    expect(
-      results.filter((result) => result.status === "fulfilled"),
-    ).toHaveLength(1);
-    expect(
-      results.filter((result) => result.status === "rejected"),
-    ).toHaveLength(1);
-    expect(members.size).toBe(1);
-    expect([...members.values()]).toEqual(["owner"]);
+  it("downgrades an eligible organization and retains its Owner", async () => {
+    await expect(downgrade("owner-a")).resolves.toEqual({
+      removedMembers: 1,
+      canceledInvitations: 0,
+    });
+    expect([...members.keys()]).toEqual(["owner-a"]);
     expect(plan).toBe("hobby");
+    expect(mocks.revoke).toHaveBeenCalledOnce();
   });
 
-  it("rejects a caller whose owner membership has been removed", async () => {
-    members.delete("owner-a");
-    await expect(downgrade("owner-a")).rejects.toThrow("cannot manage billing");
-    expect([...members.keys()]).toEqual(["owner-b"]);
-    expect(plan).toBe("pro");
-  });
-
-  it("rechecks suspension before removing members", async () => {
+  it("rechecks suspension after acquiring the billing lock", async () => {
     mocks.beforeBillingLock.mockImplementationOnce(() => {
       mocks.entitlement.mockResolvedValue({ appState: "pro" });
     });
@@ -189,11 +133,9 @@ it("rechecks suspension after waiting for the Hobby ownership lock", async () =>
   expect(mocks.revoke).not.toHaveBeenCalled();
 });
 
-it("rejects a removed owner even if the earlier role check succeeded", async () => {
-  mocks.beforeBillingLock.mockImplementationOnce(() =>
-    members.delete("owner-a"),
-  );
-  await expect(downgrade("owner-a")).rejects.toThrow("cannot manage billing");
-  expect([...members.keys()]).toEqual(["owner-b"]);
-  expect(mocks.revoke).not.toHaveBeenCalled();
+it("preserves memberships and the plan when provider revocation fails", async () => {
+  mocks.revoke.mockRejectedValueOnce(new Error("Provider unavailable"));
+  await expect(downgrade("owner-a")).rejects.toThrow("Provider unavailable");
+  expect(members.size).toBe(2);
+  expect(plan).toBe("pro");
 });

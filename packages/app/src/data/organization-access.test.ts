@@ -11,7 +11,7 @@ vi.mock("@composition/entry", () => ({
 }));
 vi.mock("#app/db/client.ts", () => ({ db: { select: mocks.select } }));
 
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 import { getActiveOrganizationAccess } from "./organization-access";
 
 beforeEach(() => {

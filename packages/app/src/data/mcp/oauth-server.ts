@@ -1,4 +1,4 @@
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 import { AUTH_BASE, AUTH_ISSUER } from "#app/lib/mcp-resource.ts";
 
 // The MCP OAuth flow runs inside the client's embedded webview, whose document

@@ -1,3 +1,4 @@
+import { authClient } from "@everr/app/identity/client";
 import {
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -7,7 +8,6 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { Check, CreditCard, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useOrganizationActivation } from "../components/use-organization-activation";
-import { authClient } from "@everr/app/lib/auth-client";
 
 export function OrganizationMenuItems() {
   return (
@@ -20,7 +20,9 @@ export function OrganizationMenuItems() {
 
 import { OrganizationSwitcher } from "../components/organization-switcher";
 
-export function WelcomeActions(props: { activeOrganizationId?: string | null }) {
+export function WelcomeActions(props: {
+  activeOrganizationId?: string | null;
+}) {
   const pathname = useLocation({ select: (location) => location.pathname });
   return pathname === "/organization-setup" ? (
     <OrganizationSwitcher {...props} />

@@ -1,3 +1,10 @@
+import {
+  type Database,
+  type DbExecutor,
+  db,
+  runInTransaction,
+} from "@everr/app/db/client";
+import { deletePostgresOrganizationData } from "@everr/app/organizations/cleanup";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { z } from "zod";
 import { organizationCreationPlan } from "../billing/organization-context.server";
@@ -8,13 +15,6 @@ import {
 } from "./jobs";
 import { parseOrganizationMetadata } from "./metadata";
 import { preserveOrganizationProvisioningStatus } from "./metadata.server";
-import {
-  type Database,
-  type DbExecutor,
-  db,
-  runInTransaction,
-} from "@everr/app/db/client";
-import { deletePostgresOrganizationData } from "@everr/app/lib/organization-data-cleanup.server";
 
 // Keep access-entity work in the same commit as the organization mutation.
 // Better Auth's after-hooks cannot provide that guarantee after process death.

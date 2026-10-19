@@ -131,12 +131,26 @@ builds; tests and typechecks consume the checked-in file. Commit generated
 changes alongside route changes. Restart development after changing module
 mappings.
 
-`src/composition/pages.tsx` owns the members entitlement decision.
-`src/composition/ui.tsx` registers workspace switching, billing navigation,
+`src/app/composition/pages.tsx` owns the members entitlement decision.
+`src/app/composition/ui.tsx` registers workspace switching, billing navigation,
 welcome actions, signup links, account-deletion UI, and CLI recovery copy.
 Adapter types come from the type-only `@everr/app/composition` entry. Shared
 features use `@everr/app/members`, `@everr/app/account-settings/dialog`,
 `@everr/app/account-settings/actions`, and `@everr/app/page-layout`.
+`src/app/composition/identity.ts` selects business policy and Better Auth
+integration together. `src/app/identity-policy.server.ts` owns application rules;
+the provider adapter owns persistence wrappers, provider hooks, and request locks.
+Shared authentication remains responsible for membership and deletion guards.
+Use the shared identity feature through `@everr/app/identity/server`,
+`@everr/app/identity/client`, and `@everr/app/identity/roles`.
+
+`src/organizations/commands.server.ts` owns explicit organization creation,
+checkout completion, and downgrade. Its callers supply the authenticated actor
+and input. Eligibility checks, lock ordering, provider coordination, and database
+writes stay in that workflow. Request handlers in `src/data` validate and translate
+requests without coordinating database mutations. Automatic signup organization
+creation retains its own post-commit onboarding flow.
+
 Shared modules are imported through explicit `@everr/app` exports. Import checks
 run through `pnpm check:boundaries` at the repository root, in the pre-commit
 hook, and in CI. They reject relative imports into other

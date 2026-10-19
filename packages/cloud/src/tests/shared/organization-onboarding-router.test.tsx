@@ -19,8 +19,8 @@ vi.mock("@everr/app/data/organization-access", () => ({
 
 import { QueryClient } from "@tanstack/react-query";
 import {
-  createMemoryHistory,
   createFileRoute,
+  createMemoryHistory,
   createRouter,
   RouterProvider,
   useRouter,
@@ -35,7 +35,7 @@ afterAll(() => vi.unstubAllEnvs());
 // jsdom has no canvas renderer; keep the real welcome layout mounted.
 vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 vi.mock("@tanstack/react-devtools", () => ({ TanStackDevtools: () => null }));
-vi.mock("@everr/app/lib/auth-client", () => ({
+vi.mock("@everr/app/identity/client", () => ({
   authClient: {
     useListOrganizations: () => ({ data: [{ id: "only-org", name: "Acme" }] }),
     signOut: vi.fn(),
@@ -67,12 +67,12 @@ vi.mock("@tanstack/react-start", () => ({
   }),
 }));
 
-import { useOrganizationSetupCompletion } from "../../components/use-organization-setup-completion";
-import { auth } from "@everr/app/lib/auth.server";
+import { auth } from "@everr/app/identity/server";
 import {
   productRouteFiles,
   sharedRouteModules,
 } from "@everr/app/testing/routes";
+import { useOrganizationSetupCompletion } from "../../components/use-organization-setup-completion";
 
 function Signup() {
   const router = useRouter();

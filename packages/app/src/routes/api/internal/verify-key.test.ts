@@ -16,7 +16,7 @@ vi.mock("#app/env/index.ts", () => ({
   },
 }));
 
-vi.mock("#app/lib/auth.server.ts", () => ({
+vi.mock("#app/identity/server.ts", () => ({
   auth: {
     api: {
       verifyApiKey: vi.fn(),
@@ -52,7 +52,7 @@ function makeRequest(body: unknown, secret: string | null = SECRET): Request {
 }
 
 async function mockVerify(result: unknown) {
-  const { auth } = await import("#app/lib/auth.server.ts");
+  const { auth } = await import("#app/identity/server.ts");
   vi.mocked(auth.api.verifyApiKey).mockResolvedValueOnce(result as never);
 }
 
@@ -142,7 +142,7 @@ describe("/api/internal/verify-key", () => {
 
     // The configId pin is the sole guarantee that a CLI/user-scoped key
     // can't be used for ingest — assert we still pass it.
-    const { auth } = await import("#app/lib/auth.server.ts");
+    const { auth } = await import("#app/identity/server.ts");
     expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
       body: { key: "the-key", configId: "ingest" },
     });

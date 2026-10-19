@@ -1,3 +1,4 @@
+import { StorageNotReadyError } from "@everr/app/common/storage-readiness";
 import { SidebarProvider } from "@everr/ui/components/sidebar";
 import {
   QueryClient,
@@ -8,7 +9,6 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { forwardRef, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { StorageNotReadyError } from "@everr/app/common/storage-readiness";
 
 const mocks = vi.hoisted(() => ({
   githubEnabled: false,
@@ -44,7 +44,7 @@ vi.mock("../../data/organizations", () => ({
     .mockResolvedValue({ canCreateHobby: true }),
 }));
 
-vi.mock("@everr/app/lib/auth-client", () => ({
+vi.mock("@everr/app/identity/client", () => ({
   authClient: {
     organization: { setActive: mocks.setActive },
     signOut: vi.fn(),

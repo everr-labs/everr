@@ -1,6 +1,6 @@
 import { oauthProviderAuthServerMetadata } from "@better-auth/oauth-provider";
 import { createFileRoute } from "@tanstack/react-router";
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 
 // better-auth's issuer is "<host>/api/auth", so per RFC 8414 the authorization
 // server metadata must be served at the path-suffixed well-known location

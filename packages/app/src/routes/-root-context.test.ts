@@ -21,7 +21,7 @@ vi.mock("#app/lib/auth-providers.server.ts", () => ({
 vi.mock("#app/integrations/github/configuration.ts", () => ({
   getGithubConfiguration: () => ({}),
 }));
-vi.mock("#app/lib/auth.server.ts", () => ({
+vi.mock("#app/identity/server.ts", () => ({
   auth: { api: { getSession: mocks.getSession } },
 }));
 vi.mock("@tanstack/react-start/server", () => ({

@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { member, organization } from "@everr/app/db/schema";
+import { isOrganizationOwner } from "@everr/app/identity/roles";
 import { eq } from "drizzle-orm";
 import { proOrganizationCheckout } from "../db/schema";
-import { member, organization } from "@everr/app/db/schema";
-import { isOrganizationOwner } from "@everr/app/lib/organization-role";
 import { creationLock, readIntent } from "./attempts";
 import { assertTeam, type createBillingIdentity } from "./identity";
 import { type CreationMetadata, creationMetadata } from "./metadata";

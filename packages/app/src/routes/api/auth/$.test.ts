@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   handler: vi.fn(),
 }));
-vi.mock("#app/lib/auth.server.ts", () => ({
+vi.mock("#app/identity/server.ts", () => ({
   auth: { handler: mocks.handler },
 }));
 

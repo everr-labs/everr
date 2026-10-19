@@ -15,7 +15,7 @@ vi.mock("./jobs", () => ({
   restartOrganizationProvisioningJob: mocks.retry,
 }));
 
-import { auth } from "@everr/app/lib/auth.server";
+import { auth } from "@everr/app/identity/server";
 import { retryOrganizationProvisioning } from "./actions";
 
 beforeEach(() => {

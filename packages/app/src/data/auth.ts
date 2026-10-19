@@ -1,5 +1,5 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 import { createPartiallyAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
 export const getOrganizations = createPartiallyAuthenticatedServerFn({

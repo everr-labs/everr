@@ -11,12 +11,12 @@ const repositoryRoot = resolve(
 );
 const fixtureDirectories: string[] = [];
 
-function lintFixture(source: string) {
+function lintFixture(source: string, directoryPath = "packages/app/src/components", filename = "fixture.ts") {
   const directory = mkdtempSync(
-    resolve(repositoryRoot, "packages/app/src/components/composition-lifecycle-"),
+    resolve(repositoryRoot, directoryPath, "composition-lifecycle-"),
   );
   fixtureDirectories.push(directory);
-  const file = resolve(directory, "fixture.ts");
+  const file = resolve(directory, filename);
   writeFileSync(file, source);
   return spawnSync(
     resolve(repositoryRoot, "node_modules/.bin/oxlint"),
@@ -33,25 +33,59 @@ afterEach(() =>
 
 it.each([
   {
-    alias: "runtime",
+    name: "runtime lifecycle imports",
     source: 'import { runtime } from "@composition/runtime"; void runtime;',
+    message: "Import @composition/runtime only",
   },
   {
-    alias: "identity",
+    name: "identity lifecycle imports",
     source: 'import { identity } from "@composition/identity"; void identity;',
+    message: "Import @composition/identity only",
   },
-])("restricts @composition/$alias to its lifecycle boundary", ({ source, alias }) => {
-  const result = lintFixture(source);
-  const output = `${result.stdout}\n${result.stderr}`;
+  {
+    name: "server implementations in browser composition",
+    source: 'import { storage } from "@composition/storage"; void storage;',
+    directory: "packages/cloud/src/app/composition",
+    filename: "pages.tsx",
+    message: "Browser composition must use client-safe features",
+  },
+  {
+    name: "provider types in identity policy",
+    source: 'import type { GenericEndpointContext } from "better-auth"; export type Context = GenericEndpointContext;',
+    directory: "packages/app/src/app",
+    filename: "identity-policy.server.ts",
+    message: "Identity policy uses application facts",
+  },
+  {
+    name: "database coordination in cloud request handlers",
+    source: 'import { db } from "@everr/app/db/client"; void db;',
+    directory: "packages/cloud/src/data",
+    message: "Cloud request handlers call owned workflows",
+  },
+  {
+    name: "provider internals outside identity",
+    source: 'import { membershipMutationPlugin } from "#app/identity/membership.ts"; void membershipMutationPlugin;',
+    message: "Authentication provider internals belong to the identity module",
+  },
+])("rejects $name", ({ source, directory, filename, message }) => {
+  const result = lintFixture(source, directory, filename);
   expect(result.status).not.toBe(0);
-  expect(output).toContain("boundaries(dependencies)");
-  expect(output).toContain(`Import @composition/${alias} only`);
+  expect(result.stdout + result.stderr).toContain(message);
 });
 
-it("allows ordinary named composition imports", () => {
-  const result = lintFixture(
-    'import { productClient } from "@composition/client"; void productClient;',
-  );
+it.each([
+  {
+    name: "ordinary named composition imports",
+    source: 'import { productClient } from "@composition/client"; void productClient;',
+  },
+  {
+    name: "server-function interfaces in browser pages",
+    source: 'import { getActiveOrgPolicy } from "@everr/app/data/product"; void getActiveOrgPolicy;',
+    directory: "packages/cloud/src/app/composition",
+    filename: "pages.tsx",
+  },
+])("allows $name", ({ source, directory, filename }) => {
+  const result = lintFixture(source, directory, filename);
   expect(result.status).toBe(0);
   expect(result.stderr).toBe("");
 });

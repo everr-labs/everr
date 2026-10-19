@@ -31,7 +31,7 @@ vi.mock("@everr/app/data/organization-admin", () => ({
   NotOrganizationAdminError: class NotOrganizationAdminError extends Error {},
 }));
 
-vi.mock("@everr/app/lib/auth-client", () => ({
+vi.mock("@everr/app/identity/client", () => ({
   authClient: { useActiveOrganization: () => ({ data: null }) },
 }));
 

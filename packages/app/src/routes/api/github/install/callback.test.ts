@@ -89,7 +89,7 @@ function mockDbNoExistingLink() {
 }
 
 async function mockBetterAuthSession(session: unknown) {
-  const { auth } = await import("#app/lib/auth.server.ts");
+  const { auth } = await import("#app/identity/server.ts");
   vi.mocked(auth.api.getSession).mockResolvedValueOnce(session as never);
 }
 

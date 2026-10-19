@@ -45,7 +45,7 @@ vi.mock("#app/lib/email.server.tsx", () => ({
     state.verificationUrl = url;
   },
 }));
-vi.unmock("#app/lib/auth.server.ts");
+vi.unmock("#app/identity/server.ts");
 
 const { client, database } = await createAuthTestDatabase();
 state.database = database;
@@ -71,7 +71,7 @@ it.each([
   true,
 ])("replaces invitations and enforces signup and verification with email enabled: %s", async (emailEnabled) => {
   state.emailEnabled = emailEnabled;
-  const { auth } = await import("#app/lib/auth.server.ts");
+  const { auth } = await import("#app/identity/server.ts");
   const { organizationId } = await setupWorkspace(input, database);
   const owner = await auth.api.signInEmail({ body: input, asResponse: true });
   const headers = new Headers({
@@ -130,11 +130,31 @@ it.each([
 });
 
 it.each([
-  "recipient@example.test",
-  "owner@example.test",
-])("scopes membership mutations and releases locks when removing %s", async (email) => {
+  {
+    name: "removing a Member",
+    path: "organization/remove-member",
+    email: "recipient@example.test",
+    allowed: true,
+  },
+  {
+    name: "removing the last Owner",
+    path: "organization/remove-member",
+    email: "owner@example.test",
+    allowed: false,
+  },
+  {
+    name: "deleting the last Owner account",
+    path: "delete-user",
+    email: undefined,
+    allowed: false,
+  },
+])("holds and releases identity locks when $name", async ({
+  path,
+  email,
+  allowed,
+}) => {
   state.emailEnabled = false;
-  const { auth } = await import("#app/lib/auth.server.ts");
+  const { auth } = await import("#app/identity/server.ts");
   const { organizationId } = await setupWorkspace(input, database);
   await client.exec(
     `INSERT INTO "user" (id, name, email) VALUES ('recipient', 'Recipient', 'recipient@example.test')`,
@@ -144,29 +164,61 @@ it.each([
     [organizationId],
   );
   const owner = await auth.api.signInEmail({ body: input, asResponse: true });
-  const removingOwner = email === input.email;
+  const headers = {
+    cookie: owner.headers.get("set-cookie") ?? "",
+    "content-type": "application/json",
+    origin: "http://localhost:3000",
+  };
+  if (path === "delete-user") {
+    await expect(
+      auth.api.createOrganization({
+        body: { name: "Another", slug: "another", userId: "recipient" },
+      }),
+    ).rejects.toThrow("one workspace");
+    const deletion = await auth.handler(
+      new Request("http://localhost:3000/api/auth/organization/delete", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ organizationId }),
+      }),
+    );
+    expect(deletion.status).toBe(403);
+    expect(await deletion.json()).toMatchObject({
+      message: "The installation workspace cannot be deleted.",
+    });
+    expect(
+      (await client.query("SELECT id FROM organization")).rows,
+    ).toHaveLength(1);
+  }
   let membersAtUnlock: number | undefined;
   state.lockQuery.mockImplementation(async (sql: string) => {
     expect(state.releaseLock).not.toHaveBeenCalled();
     if (sql.includes("pg_advisory_unlock")) {
-      const result = await client.query("SELECT id FROM member");
-      membersAtUnlock = result.rows.length;
+      membersAtUnlock = (await client.query("SELECT id FROM member")).rows
+        .length;
     }
     return { rows: [{ locked: true }] };
   });
   const response = await auth.handler(
-    new Request("http://localhost:3000/api/auth/organization/remove-member", {
+    new Request(`http://localhost:3000/api/auth/${path}`, {
       method: "POST",
-      headers: {
-        cookie: owner.headers.get("set-cookie") ?? "",
-        "content-type": "application/json",
-        origin: "http://localhost:3000",
-      },
-      body: JSON.stringify({ organizationId, memberIdOrEmail: email }),
+      headers,
+      body: JSON.stringify(
+        email
+          ? { organizationId, memberIdOrEmail: email }
+          : { password: input.password },
+      ),
     }),
   );
-  expect(response.ok).toBe(!removingOwner);
-  expect(membersAtUnlock).toBe(removingOwner ? 2 : 1);
+  expect(response.ok).toBe(allowed);
+  expect(membersAtUnlock).toBe(allowed ? 1 : 2);
   expect(state.lockQuery).toHaveBeenCalledTimes(2);
   expect(state.releaseLock).toHaveBeenCalledOnce();
+  if (path === "delete-user") {
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      message: "Transfer workspace ownership before deleting your account.",
+    });
+    expect((await client.query('SELECT id FROM "user"')).rows).toHaveLength(2);
+  }
 });

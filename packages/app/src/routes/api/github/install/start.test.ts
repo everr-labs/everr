@@ -10,7 +10,7 @@ vi.mock("#app/lib/github-install-state.ts", () => ({
   createInstallState: vi.fn(() => "signed-state"),
 }));
 
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 import { createInstallState } from "#app/lib/github-install-state.ts";
 import { Route } from "./start";
 

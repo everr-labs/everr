@@ -1,6 +1,6 @@
 import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resource-client";
 import { createAuthClient } from "better-auth/client";
-import { auth } from "#app/lib/auth.server.ts";
+import { auth } from "#app/identity/server.ts";
 
 function createMcpResourceClient() {
   return createAuthClient({ plugins: [oauthProviderResourceClient(auth)] });

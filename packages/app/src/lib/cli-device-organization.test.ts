@@ -49,7 +49,7 @@ function makeTestAuth() {
         create: {
           before: async (session) => ({
             // Mirrors the marked-device-org branch of the production
-            // session.create.before hook (auth.server.ts).
+            // session.create.before hook (identity/server.ts).
             data: {
               ...session,
               activeOrganizationId: getCapturedDeviceOrganizationId(),

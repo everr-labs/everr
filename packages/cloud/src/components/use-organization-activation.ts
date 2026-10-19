@@ -1,7 +1,7 @@
+import { authClient } from "@everr/app/identity/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
-import { authClient } from "@everr/app/lib/auth-client";
 
 export function useOrganizationActivation() {
   const router = useRouter();

@@ -1,7 +1,7 @@
 import { productClient } from "@composition/client";
 import { redirect } from "@tanstack/react-router";
 import { getActiveOrganizationAccess } from "#app/data/organization-access.ts";
-import type { auth } from "#app/lib/auth.server.ts";
+import type { auth } from "#app/identity/server.ts";
 
 type Session = typeof auth.$Infer.Session;
 

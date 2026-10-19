@@ -38,7 +38,7 @@ vi.mock("@everr/app/lib/serverFn", async () => {
     createOrganizationAdminServerFn: createServerFn(),
   };
 });
-vi.mock("@everr/app/lib/auth.server", () => ({ auth: { api: {} } }));
+vi.mock("@everr/app/identity/server", () => ({ auth: { api: {} } }));
 vi.mock("../billing-data.server", () => ({}));
 vi.mock("../billing/server", () => ({
   billing: {

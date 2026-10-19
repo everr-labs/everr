@@ -1,25 +1,17 @@
+import { auth } from "@everr/app/identity/server";
+import {
+  createOrganizationAdminServerFn,
+  requireOrgMiddleware,
+} from "@everr/app/lib/serverFn";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { and, eq, ne } from "drizzle-orm";
 import * as z from "zod";
 import { billing } from "../billing/server";
 import {
   readOrgEntitlement,
   userOwnsHobbyOrganization,
 } from "../billing-data.server";
-import { organizationBilling } from "../db/schema";
-import { db } from "@everr/app/db/client";
-import { invitation, member } from "@everr/app/db/schema";
-import { auth } from "@everr/app/lib/auth.server";
-import {
-  createOrganizationAdminServerFn,
-  requireOrgMiddleware,
-} from "@everr/app/lib/serverFn";
-import { lockOrganizationOwnership } from "../organization-lock.server";
-
-class HobbyDowngradeUnavailableError extends Error {
-  name = "HobbyDowngradeUnavailableError";
-}
+import { organizationCommands } from "../organizations/commands.server";
 
 export const getOrgEntitlement = createOrganizationAdminServerFn({
   method: "GET",
@@ -82,69 +74,10 @@ export const confirmOrgCheckout = createOrganizationAdminServerFn({
 
 export const downgradeSuspendedOrganization = createServerFn({ method: "POST" })
   .middleware([requireOrgMiddleware])
-  .handler(async ({ context: { session } }) => {
-    const orgId = session.session.activeOrganizationId;
-    const { role } = await auth.api.getActiveMemberRole({
-      headers: getRequestHeaders(),
-    });
-    if (!role?.split(",").includes("owner")) {
-      throw new HobbyDowngradeUnavailableError(
-        "Only an Owner can downgrade this organization.",
-      );
-    }
-    const result = await billing.downgrade(
-      orgId,
-      session.user.id,
-      (revokeBillingAccess) =>
-        db.transaction(async (tx) => {
-          // Serialize the application-level one-Hobby-per-Owner check before
-          // revoking a subscription that may not be convertible to Hobby.
-          await lockOrganizationOwnership(tx, session.user.id);
-          // Billing holds the organization lock and has rechecked ownership.
-          // Re-read suspension after both locks: a subscription may have
-          // recovered since this request started.
-          if ((await readOrgEntitlement(orgId)).appState !== "suspended") {
-            throw new HobbyDowngradeUnavailableError(
-              "Only a suspended Pro organization can be downgraded.",
-            );
-          }
-          if (await userOwnsHobbyOrganization(session.user.id, orgId)) {
-            throw new HobbyDowngradeUnavailableError(
-              "You already own a Hobby organization.",
-            );
-          }
-
-          await revokeBillingAccess();
-
-          const removedMembers = await tx
-            .delete(member)
-            .where(
-              and(
-                eq(member.organizationId, orgId),
-                ne(member.userId, session.user.id),
-              ),
-            )
-            .returning({ id: member.id });
-          const canceledInvitations = await tx
-            .update(invitation)
-            .set({ status: "canceled" })
-            .where(
-              and(
-                eq(invitation.organizationId, orgId),
-                eq(invitation.status, "pending"),
-              ),
-            )
-            .returning({ id: invitation.id });
-          await tx
-            .update(organizationBilling)
-            .set({ plan: "hobby" })
-            .where(eq(organizationBilling.orgId, orgId));
-          return {
-            removedMembers: removedMembers.length,
-            canceledInvitations: canceledInvitations.length,
-          };
-        }),
-    );
-
-    return { status: "completed" as const, ...result };
-  });
+  .handler(async ({ context: { session } }) => ({
+    status: "completed" as const,
+    ...(await organizationCommands.downgradeToHobby({
+      organizationId: session.session.activeOrganizationId,
+      actorId: session.user.id,
+    })),
+  }));

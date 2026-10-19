@@ -21,7 +21,7 @@ vi.mock("@composition/storage", () => ({
 }));
 const verifyApiKey = vi.fn();
 const getSession = vi.fn();
-vi.mock("#app/lib/auth.server.ts", () => ({
+vi.mock("#app/identity/server.ts", () => ({
   auth: {
     api: {
       verifyApiKey: (...a: unknown[]) => verifyApiKey(...a),

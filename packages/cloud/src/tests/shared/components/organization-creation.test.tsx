@@ -24,7 +24,7 @@ vi.mock("../../../organization-provisioning/actions", () => ({
   getOrganizationProvisioningStatus: mocks.read,
   retryOrganizationProvisioning: mocks.retry,
 }));
-vi.mock("@everr/app/lib/auth-client", () => ({
+vi.mock("@everr/app/identity/client", () => ({
   authClient: { organization: { setActive: mocks.select } },
 }));
 vi.mock("@tanstack/react-router", () => ({
