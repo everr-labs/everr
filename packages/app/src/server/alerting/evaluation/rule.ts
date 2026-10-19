@@ -1,5 +1,3 @@
-import { server } from "@composition/server";
-
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { enqueueProcessAlertEvent } from "#app/data/alerting/delivery/tasks.ts";
@@ -27,7 +25,7 @@ import {
   organization,
 } from "#app/db/schema/index.ts";
 import { env } from "#app/env/index.ts";
-import { querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
+import { createOrganizationSql } from "#app/lib/organization-sql.ts";
 import { previewDefinitionsEnqueueable } from "#app/server/alerting/scheduling/scanner.ts";
 import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
 import {
@@ -61,8 +59,6 @@ import {
   type PresentAlertInstance,
   type StoredAlertInstance,
 } from "./state-machine";
-
-const { assertStorageReady } = server;
 
 // How far a failing rule's retry may back off when the spec sets no
 // `max_interval_secs` of its own: this many times its evaluation interval.
@@ -422,8 +418,8 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   // floor, not the plan: a rule quiet for 15 minutes has already missed the
   // window it exists to watch.
   try {
-    assertStorageReady(record.metadata);
-    await evaluateAlertRule(def, payload, scheduledFor);
+    const storage = createOrganizationSql(def.organizationId, record.metadata);
+    await evaluateAlertRule(def, payload, scheduledFor, storage);
     recordAlertEvaluation("ok");
   } catch (cause) {
     recordAlertEvaluation("query_failed");
@@ -435,14 +431,12 @@ async function evaluateAlertRule(
   def: typeof alertDefinitions.$inferSelect,
   payload: z.infer<typeof EvaluatePayloadSchema>,
   scheduledFor: Date,
+  storage: Pick<ReturnType<typeof createOrganizationSql>, "queryWithMeta">,
 ): Promise<void> {
   // The rule's own query is the slow step, and the previous instances depend
   // only on the rule id, so the read does not have to wait behind it.
   const [result, previousRows] = await Promise.all([
-    querySqlApiWithMeta<Record<string, unknown>>(
-      def.spec.sql,
-      def.organizationId,
-    ),
+    storage.queryWithMeta<Record<string, unknown>>(def.spec.sql),
     db
       .select()
       .from(alertInstances)

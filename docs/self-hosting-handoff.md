@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `b2dc6c609`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `10b2232d3`.
 
 ## Direction and next architecture work
 
@@ -182,8 +182,11 @@ the organization once. The dashboard follow-up provides this access
 as `context.sql` through authenticated data middleware. Dashboard handlers use
 `context.sql.query(sql, params)`; application-owned queries retain their separate
 credentials. Membership and readiness ordering, admin access during provisioning,
-and CLI/MCP validation and responses are preserved. Both typechecks, 57 focused
-tests, import boundaries, and dead-code checks passed. Manual verification remains
+and CLI/MCP validation and responses are preserved. The alert worker follow-up
+constructs the same access inside its existing failure scope and
+passes only `queryWithMeta` to the evaluator. Pending storage still records failure
+history and reschedules without issuing SQL. Both typechecks, 41 focused app tests,
+18 cloud integration tests, import boundaries, and dead-code checks passed. Manual verification remains
 blocked by the existing `alert_delivery_state` startup migration failure.
 
 Entry routing follow-up: `getEntryRedirect(pathname)` replaces

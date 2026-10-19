@@ -145,6 +145,7 @@ const payload = {
 
 describe("evaluateAlert scheduling state", () => {
   beforeEach(() => {
+    vi.mocked(assertStorageReady).mockReset();
     mocks.definition = definition;
     mocks.metadata = null;
     mocks.freshDefinition = undefined;
@@ -166,8 +167,11 @@ describe("evaluateAlert scheduling state", () => {
       (cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()),
     );
     await evaluateAlert(payload);
+    expect(assertStorageReady).toHaveBeenCalledWith({ clickhouseReady: false });
     expect(mocks.query).not.toHaveBeenCalled();
     expect(mocks.scheduledJobs).toHaveLength(1);
+    expect(mocks.scheduledJobs[0].task).toBe(ALERT_EVALUATE_TASK);
+    expect(mocks.history).toHaveBeenCalled();
   });
 
   // The switch must end running chains, not only gate the scanner: the
@@ -199,6 +203,10 @@ describe("evaluateAlert scheduling state", () => {
       );
 
     await expect(evaluateAlert(payload)).resolves.toBeUndefined();
+    expect(mocks.query).toHaveBeenCalledWith(
+      definition.spec.sql,
+      definition.organizationId,
+    );
 
     expect(mocks.definitionUpdates).toContainEqual(
       expect.objectContaining({ degradedSince: expect.anything() }),
