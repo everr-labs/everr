@@ -1,10 +1,10 @@
-import { server } from "@composition/server";
+import { storage } from "@composition/storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 import { Route } from "./verify-key";
 
-vi.mock("@composition/server", () => ({
-  server: {
+vi.mock("@composition/storage", () => ({
+  storage: {
     telemetryTenantId: vi.fn<(organizationId: string) => string | undefined>(),
   },
 }));
@@ -111,7 +111,7 @@ describe("/api/internal/verify-key", () => {
     "org_42",
     undefined,
   ])("returns tenant %s and each signal's retention", async (tenantId) => {
-    vi.mocked(server.telemetryTenantId).mockReturnValueOnce(tenantId);
+    vi.mocked(storage.telemetryTenantId).mockReturnValueOnce(tenantId);
     const { retentionForOrg } = await import("#app/lib/retention.server.ts");
     vi.mocked(retentionForOrg).mockResolvedValueOnce({
       ...retentionForDays(90),

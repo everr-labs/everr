@@ -1,12 +1,12 @@
-import { server } from "@composition/server";
+import { storage } from "@composition/storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { retentionForOrg } from "#app/lib/retention.server.ts";
 import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 import { replayWebhookToCollector } from "./collector";
 
-vi.mock("@composition/server", () => ({
-  server: {
+vi.mock("@composition/storage", () => ({
+  storage: {
     telemetryTenantId: vi.fn<(organizationId: string) => string | undefined>(),
   },
 }));
@@ -26,7 +26,7 @@ describe("replayWebhookToCollector", () => {
     "org_7",
     undefined,
   ])("sends authoritative tenant %s and retention headers", async (tenantId) => {
-    vi.mocked(server.telemetryTenantId).mockReturnValueOnce(tenantId);
+    vi.mocked(storage.telemetryTenantId).mockReturnValueOnce(tenantId);
     vi.mocked(retentionForOrg).mockResolvedValueOnce(retentionForDays(14));
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
@@ -46,7 +46,7 @@ describe("replayWebhookToCollector", () => {
     const [, init] = fetchMock.mock.calls[0];
     const headers = init?.headers as Headers;
     expect(headers.get("x-everr-tenant-id")).toBe(tenantId ?? null);
-    expect(server.telemetryTenantId).toHaveBeenCalledWith("org_7");
+    expect(storage.telemetryTenantId).toHaveBeenCalledWith("org_7");
     expect(headers.get("x-everr-retention-logs-days")).toBe("14");
     expect(headers.get("x-everr-retention-traces-days")).toBe("14");
     expect(headers.get("x-everr-retention-metrics-days")).toBe("14");

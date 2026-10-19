@@ -35,6 +35,7 @@ function writeConfig(
         paths: {
           ...Object.fromEntries(
             [
+              "storage",
               "identity",
               "server",
               "client",
@@ -101,6 +102,7 @@ it("keeps URLs and parent guards when a registered source file moves", async () 
     composition.directory,
     Object.fromEntries(
       [
+        "storage",
         "identity",
         "server",
         "client",
@@ -148,6 +150,7 @@ it("uses TypeScript's inherited baseUrl and accepts JSONC", () => {
 });
 
 it.each([
+  { "@composition/storage": [] },
   { "@composition/identity": [] },
   { "@composition/server": [] },
   { "@composition/server": ["./src/arbitrary-name.tsx", "./src/fallback.tsx"] },

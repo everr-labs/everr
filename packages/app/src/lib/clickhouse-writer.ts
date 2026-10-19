@@ -1,4 +1,4 @@
-import { server } from "@composition/server";
+import { storage } from "@composition/storage";
 import { env } from "#app/env/index.ts";
 import { createClient } from "#app/lib/clickhouse-client.ts";
 import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
@@ -23,7 +23,7 @@ export async function insertRows<T extends { organizationId: string }>(
   if (rows.length === 0) return;
 
   const values = rows.map(({ organizationId, ...row }) => {
-    const tenantId = server.telemetryTenantId(organizationId);
+    const tenantId = storage.telemetryTenantId(organizationId);
     return tenantId === undefined ? row : { ...row, tenant_id: tenantId };
   });
 

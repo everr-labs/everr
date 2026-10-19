@@ -1,5 +1,5 @@
 import { ClickHouseError } from "@clickhouse/client";
-import { server } from "@composition/server";
+import { storage } from "@composition/storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
@@ -12,9 +12,9 @@ import {
 } from "./query-tool-description";
 import { runSqlForConnection } from "./run-sql";
 
-const { assertStorageReady } = server;
-vi.mock("@composition/server", () => ({
-  server: { assertStorageReady: vi.fn() },
+const { assertStorageReady } = storage;
+vi.mock("@composition/storage", () => ({
+  storage: { assertStorageReady: vi.fn() },
 }));
 const { previewSqlApi } = vi.hoisted(() => ({ previewSqlApi: vi.fn() }));
 vi.mock("#app/lib/clickhouse.ts", () => ({ previewSqlApi }));

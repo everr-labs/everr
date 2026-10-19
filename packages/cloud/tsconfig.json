@@ -3,6 +3,7 @@
   "include": ["src", "*.ts", "scripts", "node_modules/@everr/app/src"],
   "compilerOptions": {
     "paths": {
+      "@composition/storage": ["./src/app/storage.ts"],
       "@composition/identity": ["./src/app/auth.ts"],
       "@composition/layouts": ["./src/composition/layouts.tsx"],
       "@composition/pages": ["./src/composition/pages.tsx"],

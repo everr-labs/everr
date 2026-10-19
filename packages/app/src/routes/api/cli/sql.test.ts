@@ -1,5 +1,5 @@
 import { ClickHouseError } from "@clickhouse/client";
-import { server } from "@composition/server";
+import { storage } from "@composition/storage";
 import { trace } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
@@ -8,9 +8,9 @@ import { querySqlApi } from "#app/lib/clickhouse.ts";
 import { SCHEMA_PROBE_MESSAGE } from "#app/lib/sql-api-error.ts";
 import { Route } from "./sql";
 
-const { assertStorageReady } = server;
-vi.mock("@composition/server", () => ({
-  server: { assertStorageReady: vi.fn() },
+const { assertStorageReady } = storage;
+vi.mock("@composition/storage", () => ({
+  storage: { assertStorageReady: vi.fn() },
 }));
 vi.mock("#app/lib/clickhouse.ts", () => ({
   querySqlApi: vi.fn(),

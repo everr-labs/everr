@@ -1,4 +1,4 @@
-import { server } from "@composition/server";
+import { storage } from "@composition/storage";
 import {
   type ChdbDatabase,
   createChdbDatabase,
@@ -144,7 +144,7 @@ async function insertRows<T extends { organizationId: string }>(
 ): Promise<void> {
   activeClickHouse.write(
     rows.map(({ organizationId, ...row }) => {
-      const tenantId = server.telemetryTenantId(organizationId);
+      const tenantId = storage.telemetryTenantId(organizationId);
       return tenantId === undefined ? row : { ...row, tenant_id: tenantId };
     }),
     clickhouse_settings,

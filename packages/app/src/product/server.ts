@@ -1,10 +1,9 @@
-import type { ClickHouseSettings } from "@clickhouse/client";
 import type { MigrationDatabase } from "#app/db/migrations.ts";
 import type { ApplicationPath } from "./client";
 
 /**
- * The server-side deployment adapter for the shared application. Tenancy,
- * installation entry, and operational lifecycle belong to the selected
+ * The server-side deployment adapter for the shared application. Installation
+ * entry and operational lifecycle belong to the selected
  * application; shared features depend on this contract rather than its implementation.
  */
 export interface ApplicationServer {
@@ -12,22 +11,6 @@ export interface ApplicationServer {
   assertAccountDeletionAllowed(
     organizations: Array<{ id: string; name: string } | null>,
   ): void | Promise<void>;
-  /** Query isolation settings for the deployment's tenancy model. */
-  appQuerySettings(
-    organizationId: string,
-    settings?: ClickHouseSettings,
-  ): ClickHouseSettings | undefined;
-  /** Organization-scoped SQL access, separate from the application's database identity. */
-  sqlApiAccess(organizationId: string): {
-    /** SQL API credentials for the selected organization. */
-    auth: { username: string; password: string };
-    /** Additional transport identity required by the deployment's SQL gateway. */
-    http_headers?: Record<string, string>;
-  };
-  /** Organization storage-readiness policy, based on application-owned provisioning metadata. */
-  assertStorageReady(metadata: unknown): void;
-  /** Storage and collector tenant identity; undefined denotes unpartitioned self-hosted storage. */
-  telemetryTenantId(organizationId: string): string | undefined;
   /** Public collector address advertised to clients; undefined represents an unconfigured endpoint. */
   getIngestEndpoint(): string | undefined;
   /** Application entry policy for static local routes, preserving href or to navigation semantics. */

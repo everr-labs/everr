@@ -1,4 +1,4 @@
-import { server } from "@composition/server";
+import { storage } from "@composition/storage";
 import { previewSqlApi, querySqlApi, querySqlApiWithMeta } from "./clickhouse";
 
 /** SQL API access for an organization whose storage is ready. */
@@ -6,7 +6,7 @@ export function createOrganizationSql(
   organizationId: string,
   metadata: unknown,
 ) {
-  server.assertStorageReady(metadata);
+  storage.assertStorageReady(metadata);
   return {
     query: <T>(sql: string, params?: Record<string, unknown>) =>
       querySqlApi<T>(sql, organizationId, params),

@@ -1,13 +1,10 @@
 import type { ApplicationServer } from "#app/product/server.ts";
-import * as clickhouse from "../clickhouse";
-import * as ingest from "../ingest";
-import * as storageReadiness from "../storage-readiness";
+import { appEnv } from "../env";
 
 export const server: ApplicationServer = {
-  ...clickhouse,
-  telemetryTenantId: (_organizationId) => undefined,
-  ...ingest,
-  assertStorageReady: storageReadiness.assertStorageReady,
+  getIngestEndpoint() {
+    return appEnv.EVERR_PUBLIC_INGEST_URL;
+  },
   async assertAccountDeletionAllowed(_organizations) {},
   async getEntryRedirect(pathname) {
     const { getEntryRedirect } = await import("../entry");

@@ -54,6 +54,7 @@ export const installationComposition: AppComposition = {
 };
 
 const compositionNames = [
+  "storage",
   "identity",
   "server",
   "client",

@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { server } from "@composition/server";
+import { storage } from "@composition/storage";
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "#app/env/index.ts";
 import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
@@ -81,7 +81,7 @@ export const Route = createFileRoute("/api/internal/verify-key")({
         mergeTelemetryIdentity({ organizationId: result.key.referenceId });
         const retention = await retentionForOrg(result.key.referenceId);
         const payload: VerifyKeyResponse = {
-          tenantId: server.telemetryTenantId(result.key.referenceId),
+          tenantId: storage.telemetryTenantId(result.key.referenceId),
           keyId: result.key.id,
           tracesDays: retention.tracesDays,
           logsDays: retention.logsDays,

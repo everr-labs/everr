@@ -1,4 +1,4 @@
-import { server } from "@composition/server";
+import { storage } from "@composition/storage";
 
 import { requireGithubConfiguration } from "#app/integrations/github/configuration.ts";
 import { retentionForOrg } from "#app/lib/retention.server.ts";
@@ -39,7 +39,7 @@ export async function replayWebhookToCollector(
 ): Promise<void> {
   const headers = recordToHeaders(event.headers);
   stripHopByHopHeaders(headers);
-  const tenantId = server.telemetryTenantId(organizationId);
+  const tenantId = storage.telemetryTenantId(organizationId);
   headers.delete("x-everr-tenant-id");
   if (tenantId !== undefined) headers.set("x-everr-tenant-id", tenantId);
   const retention = await retentionForOrg(organizationId);

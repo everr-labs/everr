@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `94a855d2a`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `4d3251db2`.
 
 ## Direction and next architecture work
 
@@ -31,9 +31,9 @@ incrementally, preserving behavior:
    composition interfaces; cloud uses public exports. Preserve the current
    package layout while strengthening these rules.
 2. **Make server interfaces cohesive.** `ApplicationServer` currently combines
-   account deletion, storage access, ingestion, entry flow, migrations, and
-   workers. Identity now has its own composition module. Investigate organization
-   data access, entry flow, and runtime as separate modules. Consumers should depend only on what they use;
+   account deletion, the public ingest address, entry flow, migrations, and
+   workers. Identity and storage now have their own composition modules. Further
+   splits should clarify application ownership rather than just move methods. Consumers should depend only on what they use;
    splitting files without reducing caller knowledge is not sufficient. Preserve
    lazy initialization of authentication and workers.
 3. **Identity assembly now has a factory.** `createApplicationAuth` in
@@ -180,6 +180,22 @@ not a supported harness or a prerequisite for resuming the work.
 
 ## Verification status and release work
 
+Storage composition: `@composition/storage` selects each application's `app/storage.ts`.
+The type-only `ApplicationStorage` contract groups query settings/credentials,
+readiness, and telemetry tenant identity. Shared SQL, ingestion verification,
+collector forwarding, and row writing consume it directly. The former
+`app/clickhouse.ts` helpers and server forwarding are removed. Client readiness
+redirects remain in navigation. Self-hosted navigation no-ops and the ingest
+endpoint live directly in their composition objects, without helper modules.
+All 132 focused app checks and 27 cloud tests
+(including alert-history integration), both typechecks, import boundaries, and
+dead-code checks pass. Live self-hosted ingestion through the local collector
+returned 200, and the authenticated Everr SQL endpoint found the probe exactly
+once. The approved temporary ingest-only key was revoked and the session signed
+out. The configured ingest key returned 401 for this installation; its configuration
+was left unchanged. Cloud ingestion was exercised by integration tests, not a
+running cloud deployment.
+
 Identity composition: 20 focused app tests (including composition registration,
 invitation/signup, membership locking, and auth endpoints), nine cloud auth and
 membership-policy tests, both typechecks, import boundaries, and dead-code checks
@@ -224,7 +240,8 @@ SQL. Cookie-only apply returned 401 as expected because apply requires a bearer
 credential. Browser navigation to `/setup` redirected through `/` to sign-in.
 No alert rules or dashboards were created. These were live HTTP checks except
 for browser routing; signed-in visual rendering, a real worker evaluation,
-MCP OAuth, cloud runtime, and end-to-end ingestion remain unverified. The local
+MCP OAuth and cloud runtime remain unverified. Self-hosted end-to-end ingestion
+subsequently passed as recorded above. The local
 collector is running, but the freshness check showed CLI traces only.
 
 Entry routing follow-up: `getEntryRedirect(pathname)` replaces
@@ -242,7 +259,8 @@ requires organization context through its row type and owns stored tenant column
 It adds no runtime rejection for missing context. Best-effort history logs failures,
 while strict lifecycle projection retries. Query access policies remain separate.
 Both typechecks, 62 focused app tests, 28 cloud tests, import enforcement and
-dead-code checks passed. Browser startup now succeeds; live ingestion remains unverified.
+dead-code checks passed. Browser startup and live self-hosted ingestion now pass; live cloud ingestion
+remains unverified.
 
 Identity factory follow-up: both typechecks passed, including temporary negative
 probes for the four reserved organization hooks. All 23 focused app tests and
