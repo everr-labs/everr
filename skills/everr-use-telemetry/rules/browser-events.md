@@ -5,7 +5,7 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 ## Where Browser Data Lands
 
 - Everything except requests is a **log record** in `logs` with the event name in the `EventName` column. A log emitted during `startActiveSpan`, until `end()`, carries that span's `TraceId`, `SpanId`, and `TraceFlags`. Clicks, submits, and web vitals use the time of the event, so they join only a span that was already active then. Any log joins whichever span is active, including a span from another interaction.
-- Browser `fetch` and XHR requests are **CLIENT spans** in `traces`. Slow interactions and custom spans from the exported `tracer` are **INTERNAL spans**.
+- Browser `fetch` and XHR requests are **CLIENT spans** in `traces`. Slow interactions are **INTERNAL spans**. Custom spans from the exported `tracer` are INTERNAL by default; `options.kind` can set another kind.
 - Every record (logs and spans) carries the context envelope in its attributes map, so any signal can slice by page and join by session.
 
 ## The Context Envelope (on every record)

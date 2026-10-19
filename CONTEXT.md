@@ -154,7 +154,7 @@ The captured screen history of one Session: what the page showed and how the per
 _Avoid_: session replay (for the data), video, capture
 
 **Mask**:
-Text in a Recording replaced with asterisks of the same length. The element stays.
+Text in a Recording replaced, by default with asterisks of the same length. The element stays.
 _Avoid_: redact, scrub
 
 **Block**:
@@ -166,7 +166,7 @@ Input events inside an element left out of a Recording. The element stays. This 
 _Avoid_: skip
 
 **Stream**:
-The part of a Recording that one document captured in one Session: one page load in one tab. A hard navigation or a reload starts a new Stream. When the Session changes during a page, the current Stream ends and the next Stream belongs to the new Session's Recording. Two tabs that share a Session give two Streams at the same time.
+The part of a Recording that one document captured in one Session: one page load in one tab. A hard navigation or a reload starts a new Stream. When the Session changes during a page, the current Stream ends and the next Stream belongs to the new Session's Recording. A Stream exists from the start of buffering, but it joins the stored Recording only when it sends its first Segment. Two tabs that share a Session give two Streams at the same time.
 _Avoid_: tab recording, track
 
 **Segment**:

@@ -85,7 +85,7 @@ export { epoch } from "./time.js";
 export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 export { logger };
 
-/** Capture segments through the app's OpenTelemetry provider and context manager. */
+/** Capture spans through the app's OpenTelemetry provider and context manager. */
 export const tracer: Tracer = {
   startSpan: (...args) =>
     trace.getTracer(SDK_NAME, SDK_VERSION).startSpan(...args),
