@@ -493,6 +493,135 @@ fn legacy_session_is_migrated_using_authenticated_server_identity() {
 }
 
 #[test]
+fn login_preserves_the_legacy_account_before_adding_an_installation() {
+    let env = CliTestEnv::new();
+    let mut legacy = Server::new();
+    let mut selfhost = Server::new();
+    env.write_legacy_session(&legacy.url(), "legacy-token");
+    let identity = legacy.mock("GET", "/api/cli/me")
+        .match_header("authorization", "Bearer legacy-token")
+        .with_body(r#"{"email":"old@example.test","name":"Old","userId":"old","organizationId":"org-old","organizationName":"Old"}"#)
+        .expect(1).create();
+    let requests = login_server(&mut selfhost, "org-new", "new", 200);
+    env.command()
+        .args([
+            "login",
+            "--profile",
+            "selfhost",
+            "--url",
+            &selfhost.url(),
+            "--no-open",
+        ])
+        .assert()
+        .success();
+    identity.assert();
+    for request in requests {
+        request.assert();
+    }
+    assert_eq!(env.profile_store().load().unwrap().profiles.len(), 2);
+    assert_eq!(
+        env.profile_store()
+            .session("default")
+            .unwrap()
+            .unwrap()
+            .token,
+        "legacy-token"
+    );
+    assert_eq!(
+        env.profile_store()
+            .session("selfhost")
+            .unwrap()
+            .unwrap()
+            .token,
+        "new-token"
+    );
+    assert!(!env.session_path().exists());
+}
+
+#[test]
+fn legacy_migration_merges_existing_profiles_without_replacing_credentials_or_default() {
+    for same_account in [false, true] {
+        let env = CliTestEnv::new();
+        let mut server = Server::new();
+        save(&env, "default", &server.url(), "org-current", "current");
+        env.write_legacy_session(&server.url(), "legacy-token");
+        let (organization, user) = if same_account {
+            ("org-current", "current")
+        } else {
+            ("org-old", "old")
+        };
+        let identity = server.mock("GET", "/api/cli/me")
+            .match_header("authorization", "Bearer legacy-token")
+            .with_body(serde_json::json!({"email":format!("{user}@example.test"),"name":user,"userId":user,"organizationId":organization,"organizationName":organization}).to_string())
+            .expect(1).create();
+        env.command().args(["profiles", "list"]).assert().success();
+        identity.assert();
+        assert_eq!(
+            env.profile_store()
+                .session("default")
+                .unwrap()
+                .unwrap()
+                .token,
+            "token-default"
+        );
+        let config = env.profile_store().load().unwrap();
+        assert_eq!(config.current_profile.as_deref(), Some("default"));
+        assert_eq!(config.profiles.len(), if same_account { 1 } else { 2 });
+        if !same_account {
+            assert_eq!(
+                env.profile_store()
+                    .session("legacy-1")
+                    .unwrap()
+                    .unwrap()
+                    .token,
+                "legacy-token"
+            );
+        }
+        assert!(!env.session_path().exists());
+    }
+}
+
+#[test]
+fn expired_legacy_session_does_not_block_a_new_login_or_its_requests() {
+    let env = CliTestEnv::new();
+    let mut legacy = Server::new();
+    let mut selfhost = Server::new();
+    env.write_legacy_session(&legacy.url(), "expired-token");
+    let expired = legacy
+        .mock("GET", "/api/cli/me")
+        .with_status(401)
+        .expect(1)
+        .create();
+    let requests = login_server(&mut selfhost, "org-new", "new", 200);
+    env.command()
+        .args([
+            "login",
+            "--profile",
+            "selfhost",
+            "--url",
+            &selfhost.url(),
+            "--no-open",
+        ])
+        .assert()
+        .success()
+        .stderr(contains("credentials were preserved"));
+    for request in requests {
+        request.assert();
+    }
+    let identity = selfhost.mock("GET", "/api/cli/me")
+        .match_header("authorization", "Bearer new-token")
+        .match_header("x-everr-organization-id", "org-new")
+        .with_body(r#"{"email":"new@example.test","name":"New","userId":"new","organizationId":"org-new","organizationName":"New"}"#).create();
+    env.command()
+        .args(["whoami", "--profile", "selfhost"])
+        .assert()
+        .success();
+    expired.assert();
+    identity.assert();
+    assert!(env.session_path().exists());
+}
+
+#[test]
 fn expired_profile_never_falls_back_to_another_account() {
     let env = CliTestEnv::new();
     let mut server = Server::new();

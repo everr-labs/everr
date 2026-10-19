@@ -28,10 +28,6 @@ COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui
 COPY packages/telemetry-explorer ./packages/telemetry-explorer
 COPY packages/app ./packages/app
-# Stage runtime migrations without generation snapshots.
-RUN mkdir -p /app/runtime-drizzle/meta && \
-    cp packages/app/drizzle/*.sql /app/runtime-drizzle/ && \
-    cp packages/app/drizzle/meta/_journal.json /app/runtime-drizzle/meta/
 # The MCP query tool description inlines the telemetry skill's schema at build time.
 COPY skills/everr-use-telemetry/rules/schema.md ./skills/everr-use-telemetry/rules/schema.md
 # SPA prerender initializes auth and mailer configuration without using them.
@@ -49,9 +45,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 # Nitro includes the runtime dependencies in its standalone output.
 COPY --from=build /app/packages/app/.output ./.output
-
-# Runtime migrations are staged by build target, with journals but no snapshots.
-COPY --from=build /app/runtime-drizzle ./drizzle
 
 EXPOSE 3000
 CMD [".output/server/index.mjs"]

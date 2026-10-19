@@ -82,7 +82,11 @@ use `config-dev.yaml` and `credentials-dev.json`. Credential files are private t
 the user. `EVERR_CONFIG_DIR` can override this directory with an absolute path.
 Existing sessions are migrated to a `default` profile after fetching their account
 and organization identity from the server, then the legacy session file is
-removed. Profiles require an updated server
+removed. Migration also merges sessions left alongside existing profiles. If
+`default` already belongs to another account, the migrated profile uses the next
+available `legacy-<number>` name. Existing credentials and the selected default
+are preserved. An unreachable or expired previous login does not block a new
+login or requests using a configured profile. Profiles require an updated server
 that returns those IDs and checks the expected organization on requests.
 
 For unattended `apply`, `EVERR_API_KEY` (or the deprecated `EVERR_API_TOKEN`) can

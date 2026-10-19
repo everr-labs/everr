@@ -30,16 +30,6 @@ COPY packages/ui ./packages/ui
 COPY packages/telemetry-explorer ./packages/telemetry-explorer
 COPY packages/app ./packages/app
 COPY packages/cloud ./packages/cloud
-# Application and cloud migration histories are owned and shipped separately.
-RUN set -eu; \
-    stage_migrations() { \
-      mkdir -p "/app/runtime-drizzle/$2/meta"; \
-      cp "$1"/*.sql "/app/runtime-drizzle/$2/"; \
-      cp "$1/meta/_journal.json" "/app/runtime-drizzle/$2/meta/"; \
-    }; \
-    stage_migrations packages/app/drizzle .; \
-    stage_migrations packages/cloud/src/drizzle cloud; \
-    stage_migrations packages/cloud/src/drizzle-legacy legacy
 # The MCP query tool description inlines the telemetry skill's schema at build time.
 COPY skills/everr-use-telemetry/rules/schema.md ./skills/everr-use-telemetry/rules/schema.md
 # SPA prerender initializes auth and mailer configuration without using them.
@@ -57,9 +47,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 # Nitro includes the runtime dependencies in its standalone output.
 COPY --from=build /app/packages/cloud/.output ./.output
-
-# Runtime migrations are staged by build target, with journals but no snapshots.
-COPY --from=build /app/runtime-drizzle ./drizzle
 
 EXPOSE 3000
 CMD [".output/server/index.mjs"]

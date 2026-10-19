@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use fs2::FileExt;
@@ -271,7 +272,12 @@ impl ProfileStore {
         Ok(file)
     }
 
-    pub fn save(&self, name: &str, mut profile: Profile, session: Session) -> Result<()> {
+    pub fn save(&self, name: &str, profile: Profile, session: Session) -> Result<()> {
+        let _lock = self.lock()?;
+        self.save_locked(name, profile, session)
+    }
+
+    fn save_locked(&self, name: &str, mut profile: Profile, session: Session) -> Result<()> {
         validate_name(name)?;
         profile.target.validate()?;
         if normalize_url(&session.api_base_url)? != profile.target.url {
@@ -280,7 +286,6 @@ impl ProfileStore {
         if profile.user_id.is_empty() || profile.email.is_empty() {
             bail!("Profile is missing account identity");
         }
-        let _lock = self.lock()?;
         let mut config = self.load()?;
         if let Some(existing) = config.profiles.get(name) {
             if existing.target != profile.target || existing.user_id != profile.user_id {
@@ -362,18 +367,28 @@ impl ProfileStore {
     }
 
     pub async fn migrate_legacy(&self) -> Result<()> {
-        if self.path("config", "yaml").try_exists()? {
-            return Ok(());
-        }
         let Some(session) = self.legacy_session()? else {
             return Ok(());
         };
-        let me = ApiClient::from_session(&session)?.get_me().await?;
-        self.save(
-            "default",
-            Profile::from_identity(&session.api_base_url, &me)?,
-            session,
-        )?;
+        let client = ApiClient::from_session(&session)?;
+        let me = tokio::time::timeout(Duration::from_secs(5), client.get_me())
+            .await
+            .context("The previous login server did not respond within five seconds")??;
+        let profile = Profile::from_identity(&session.api_base_url, &me)?;
+        let _lock = self.lock()?;
+        let config = self.load()?;
+        // A newer login or explicit logout for the same account takes precedence.
+        if !config.profiles.values().any(|existing| {
+            existing.target == profile.target && existing.user_id == profile.user_id
+        }) {
+            let mut name = "default".to_owned();
+            let mut suffix = 1;
+            while config.profiles.contains_key(&name) {
+                name = format!("legacy-{suffix}");
+                suffix += 1;
+            }
+            self.save_locked(&name, profile, session)?;
+        }
         LegacySessionStore::at(&self.directory).clear_session()?;
         Ok(())
     }
@@ -444,7 +459,13 @@ pub async fn client(profile: Option<&str>, allow_api_key: bool) -> Result<ApiCli
             };
         }
     }
-    store.migrate_legacy().await?;
+    // A stale legacy login must not prevent use of an already configured profile.
+    if !matches!(
+        store.load()?.select(explicit.as_deref(), &project),
+        Ok(Some(_))
+    ) {
+        store.migrate_legacy().await?;
+    }
     let (name, selected) = store
         .load()?
         .select(explicit.as_deref(), &project)?

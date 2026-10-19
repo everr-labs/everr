@@ -12,11 +12,13 @@ import { upgradeLegacyCloudDatabase } from "../db/legacy-migrations";
 // Source paths are used by Vite development; the image ships only SQL/journals.
 function migrationFolder(name: "cloud" | "legacy") {
   const packaged = `./drizzle/${name}`;
-  return existsSync(`${packaged}/meta/_journal.json`)
-    ? packaged
-    : name === "cloud"
-      ? resolve(import.meta.dirname, "../drizzle")
-      : resolve(import.meta.dirname, "../drizzle-legacy");
+  const built = resolve(import.meta.dirname, "../../drizzle", name);
+  if (existsSync(`${packaged}/meta/_journal.json`)) return packaged;
+  if (existsSync(`${built}/meta/_journal.json`)) return built;
+  return resolve(
+    import.meta.dirname,
+    name === "cloud" ? "../drizzle" : "../drizzle-legacy",
+  );
 }
 
 export async function migrateDatabase(database: MigrationDatabase) {

@@ -7,6 +7,10 @@ const routeFile = (file: string) =>
 export const cloudComposition: AppComposition = {
   directory: import.meta.dirname,
   cssSources: [resolve(import.meta.dirname, "./src")],
+  migrationHistories: {
+    cloud: resolve(import.meta.dirname, "src/drizzle"),
+    legacy: resolve(import.meta.dirname, "src/drizzle-legacy"),
+  },
   routes: {
     signedIn: [
       {

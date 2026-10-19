@@ -98,6 +98,11 @@ The app uses `packages/app/drizzle`, `0000_baseline.sql`, and Drizzle's default
 names. Its configuration does not override the migration schema or table.
 Cloud keeps its separate `__everr_cloud_migrations` table.
 
+Production builds copy executable SQL and journals into `.output/drizzle`.
+Cloud includes its additive history under `cloud` and its transition history
+under `legacy`. This directory ships with the server output for both ordinary
+Node startup and container images; generation snapshots are not included.
+
 Legacy upgrade preserves the original tracking rows and appends the app baseline
 marker to that same table. Adoption checks the baseline hash and timestamp,
 not merely whether the table exists. A database initialized by the app already

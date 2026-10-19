@@ -23,6 +23,8 @@ export interface AppComposition {
   routes: Partial<Record<keyof typeof routeMounts, RegisteredRoute[]>>;
   cssSources?: string[];
   serverEntries?: Record<string, string>;
+  /** Additional migration histories shipped beside the shared app history. */
+  migrationHistories?: Record<string, string>;
 }
 
 export const installationComposition: AppComposition = {

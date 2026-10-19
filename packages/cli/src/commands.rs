@@ -11,7 +11,7 @@ pub async fn run_command(cli: Cli, lifetime: &mut telemetry::SupervisorLifetime)
         Commands::Logout => auth::logout(profile).await?,
         Commands::Whoami(args) => auth::whoami(args, profile).await?,
         Commands::Query(args) => core::cloud_query(args, client(profile, false).await?).await?,
-        Commands::Profiles(args) => auth::profiles(args.command)?,
+        Commands::Profiles(args) => auth::profiles(args.command).await?,
         Commands::Uninstall => uninstall::run_uninstall()?,
         Commands::Upgrade => upgrade::run().await?,
         Commands::Cloud(args) => match args.command {

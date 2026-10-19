@@ -195,6 +195,9 @@ impl LoginContext {
 }
 
 pub async fn login(args: LoginArgs, profile: Option<&str>) -> Result<()> {
+    if let Err(error) = ProfileStore::user()?.migrate_legacy().await {
+        eprintln!("Previous login could not be migrated: {error}. Its credentials were preserved.");
+    }
     let mut login = LoginContext::user(profile, args.url)?;
     if let Some(organization_id) = args.organization_id {
         let organization_id = organization_id.trim();
@@ -284,9 +287,12 @@ pub async fn whoami(args: WhoamiArgs, profile: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-pub fn profiles(command: crate::cli::ProfilesSubcommand) -> Result<()> {
+pub async fn profiles(command: crate::cli::ProfilesSubcommand) -> Result<()> {
     use crate::cli::ProfilesSubcommand as P;
     let store = ProfileStore::user()?;
+    if let Err(error) = store.migrate_legacy().await {
+        eprintln!("Previous login could not be migrated: {error}. Its credentials were preserved.");
+    }
     match command {
         P::List => {
             let config = store.load()?;
