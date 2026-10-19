@@ -3,6 +3,7 @@
 export type { BuiltinDashboard } from "../data/dashboards/built-in/types";
 export type { ProductClient } from "./client";
 export type { ApplicationDashboards } from "./dashboards";
+export type { ApplicationIdentity } from "./identity";
 export type { ApplicationLayouts, WelcomeProps } from "./layouts";
 export type { Product } from "./module";
 export type { ApplicationNavigation } from "./navigation";
@@ -14,7 +15,7 @@ export type {
 } from "./pages";
 export type { OrganizationPolicy, ProductPolicy } from "./policy";
 export type { TenantRetention } from "./retention";
-export type { ApplicationIdentity, ApplicationServer } from "./server";
+export type { ApplicationServer } from "./server";
 export type {
   ProductUI,
   SignInFooterProps,

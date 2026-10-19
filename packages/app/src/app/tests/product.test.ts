@@ -2,8 +2,8 @@
 import { expect, it } from "vitest";
 
 it("rejects organization creation and deletion through authentication hooks", async () => {
-  const { server } = await import("@composition/server");
-  const { organizationHooks, identityLifecycle } = await server.loadIdentity();
+  const { identity } = await import("@composition/identity");
+  const { organizationHooks, identityLifecycle } = identity;
   await expect(organizationHooks().beforeCreateOrganization()).rejects.toThrow(
     "one workspace",
   );

@@ -1,6 +1,5 @@
 import { apiKey } from "@better-auth/api-key";
 import { oauthProvider } from "@better-auth/oauth-provider";
-import { server } from "@composition/server";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import {
@@ -39,8 +38,8 @@ import {
 } from "#app/lib/email.server.tsx";
 import { mailer } from "#app/lib/mailer.server.ts";
 import { MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
+import type { ApplicationIdentity } from "#app/product/identity.ts";
 import { assertCanInviteMembers } from "#app/product/membership.server.ts";
-import type { ApplicationIdentity } from "#app/product/server.ts";
 import {
   createIdentityAuthHooks,
   type ResolvedSession,
@@ -414,4 +413,5 @@ function createApplicationAuth(identity: ApplicationIdentity) {
   };
 }
 
-export const auth = createApplicationAuth(await server.loadIdentity());
+const { identity } = await import("@composition/identity");
+export const auth = createApplicationAuth(identity);

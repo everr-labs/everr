@@ -18,6 +18,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
+      "@composition/identity": ["./src/app/auth.ts"],
       "@composition/layouts": ["./src/app/composition/layouts.tsx"],
       "@composition/pages": ["./src/app/composition/pages.tsx"],
       "@composition/ui": ["./src/app/composition/ui.tsx"],

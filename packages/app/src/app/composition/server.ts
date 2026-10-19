@@ -8,10 +8,6 @@ export const server: ApplicationServer = {
   telemetryTenantId: (_organizationId) => undefined,
   ...ingest,
   assertStorageReady: storageReadiness.assertStorageReady,
-  async loadIdentity() {
-    const { identity } = await import("../auth");
-    return identity;
-  },
   async assertAccountDeletionAllowed(_organizations) {},
   async getEntryRedirect(pathname) {
     const { getEntryRedirect } = await import("../entry");

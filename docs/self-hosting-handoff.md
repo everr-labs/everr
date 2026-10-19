@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `dc7e2de4f`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `94a855d2a`.
 
 ## Direction and next architecture work
 
@@ -31,15 +31,18 @@ incrementally, preserving behavior:
    composition interfaces; cloud uses public exports. Preserve the current
    package layout while strengthening these rules.
 2. **Make server interfaces cohesive.** `ApplicationServer` currently combines
-   identity, account deletion, storage access, ingestion, entry flow, migrations,
-   and workers. Investigate identity, organization data access, entry flow, and
-   runtime as separate modules. Consumers should depend only on what they use;
+   account deletion, storage access, ingestion, entry flow, migrations, and
+   workers. Identity now has its own composition module. Investigate organization
+   data access, entry flow, and runtime as separate modules. Consumers should depend only on what they use;
    splitting files without reducing caller knowledge is not sufficient. Preserve
    lazy initialization of authentication and workers.
 3. **Identity assembly now has a factory.** `createApplicationAuth` in
    `lib/auth.server.ts` owns plugin ordering and wraps HTTP requests with identity
-   locking and device-login capture. `ApplicationIdentity` includes the scope;
-   `ApplicationServer` no longer exposes it separately. Direct server-side account
+   locking and device-login capture. `@composition/identity` selects each
+   application's existing `app/auth.ts`; shared auth imports it dynamically at
+   initialization. The type-only contract lives in `product/identity.ts` and
+   remains publicly exported. `ApplicationServer.loadIdentity` and its forwarding
+   implementations are removed. Direct server-side account
    deletion uses `auth.withIdentityRequest`. Application hooks cannot replace the
    four shared membership/deletion guards. Preserve these invariants when further
    narrowing the server interface; avoid a generic hook framework.
@@ -176,6 +179,12 @@ tests, styling, and migrations. Old `/tmp` artifacts are disposable evidence,
 not a supported harness or a prerequisite for resuming the work.
 
 ## Verification status and release work
+
+Identity composition: 20 focused app tests (including composition registration,
+invitation/signup, membership locking, and auth endpoints), nine cloud auth and
+membership-policy tests, both typechecks, import boundaries, and dead-code checks
+passed. Live self-hosted HTTP sign-in, active-organization session resolution,
+and sign-out passed. Cloud behavior was verified through its integration tests.
 
 Worker lifecycle: `startAppWorkers` now returns its shutdown handle; the separate
 stop hook is removed. Shared runtime owns one idempotent shutdown operation,

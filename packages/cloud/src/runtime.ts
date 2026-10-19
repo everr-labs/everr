@@ -7,10 +7,6 @@ export const server: ApplicationServer = {
   telemetryTenantId: (organizationId) => organizationId,
   getIngestEndpoint: () => "https://ingest.everr.dev/",
   assertStorageReady: storageReadiness.assertStorageReady,
-  async loadIdentity() {
-    const { identity } = await import("./app/auth");
-    return identity;
-  },
   async assertAccountDeletionAllowed(organizations) {
     const { assertAccountDeletionAllowed } = await import("./app/account");
     return assertAccountDeletionAllowed(organizations);
