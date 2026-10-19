@@ -213,15 +213,13 @@ function LocalErrorTracePanel({ occurrence }: { occurrence: ErrorOccurrence }) {
       isPending={traceQuery.isPending && hasTrace}
       isError={traceQuery.isError}
       onRetry={() => void traceQuery.refetch()}
-      renderTraceLink={({ traceId, spanId, start, end, children }) => (
+      renderTraceLink={({ traceId, spanId, children }) => (
         <Link
           to="/traces/$traceId"
           params={{ traceId }}
           search={(prev) => ({
             ...prev,
             span: spanId || undefined,
-            start,
-            end,
           })}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >

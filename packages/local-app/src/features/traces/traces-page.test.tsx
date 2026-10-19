@@ -35,8 +35,6 @@ vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
         Trace list page
         {props.renderTraceLink?.({
           traceId: "trace-1",
-          start: "2026-10-06 12:00:00.000",
-          end: "2026-10-06 12:00:01.000",
           className: "",
           children: "Open trace",
         })}
@@ -84,15 +82,17 @@ describe("local traces routes", () => {
     expect(local.repositoryClient).toBe(local.client);
   });
 
-  it("preserves the detail time window and span selection when opened from the list", async () => {
-    const router = renderTracesRoute(["/traces"]);
+  it("preserves list filters and span selection without adding trace timestamps", async () => {
+    const router = renderTracesRoute(["/traces?from=now-1h&to=now"]);
     fireEvent.click(await screen.findByRole("link", { name: "Open trace" }));
     expect(await screen.findByText("Trace detail page")).toBeInTheDocument();
     expect(screen.getByText("Selected none")).toBeInTheDocument();
     expect(router.state.location.search).toMatchObject({
-      start: "2026-10-06 12:00:00.000",
-      end: "2026-10-06 12:00:01.000",
+      from: "now-1h",
+      to: "now",
     });
+    expect(router.state.location.search).not.toHaveProperty("start");
+    expect(router.state.location.search).not.toHaveProperty("end");
     fireEvent.click(screen.getByRole("button", { name: "Select child" }));
     expect(await screen.findByText("Selected child")).toBeInTheDocument();
     expect(router.state.location.search.span).toBe("child");

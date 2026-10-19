@@ -4,6 +4,7 @@ import { type Ref, useImperativeHandle } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TracesRepositoryLike } from "../../data/repository";
+import { TraceDetailParamsSchema } from "../../data/schemas";
 import type { Span } from "../../data/types";
 import type { TraceNode } from "./model";
 import * as processor from "./processor";
@@ -124,8 +125,6 @@ function renderExplorer(
     repo,
     traceId: "trace-1",
     search: {
-      start: "2026-10-06 12:00:00.000",
-      end: "2026-10-06 12:00:01.000",
       ...search,
     },
     onSpanChange: vi.fn(),
@@ -171,7 +170,7 @@ describe("shared trace explorer", () => {
         <TraceExplorer
           repo={repo}
           traceId="a73013fe4538179d2bb3c13234b37de4"
-          search={search}
+          search={TraceDetailParamsSchema.parse(search)}
           onBack={vi.fn()}
           onSpanChange={vi.fn()}
         />
@@ -330,7 +329,12 @@ describe("shared trace explorer", () => {
   });
 
   it("loads by trace ID even when the URL includes a time window", async () => {
-    const { repo } = renderExplorer();
+    const { repo } = renderExplorer(
+      TraceDetailParamsSchema.parse({
+        start: "2026-10-06 12:00:00.000",
+        end: "2026-10-06 12:00:01.000",
+      }),
+    );
     expect(
       await screen.findByRole("heading", { name: "root" }),
     ).toBeInTheDocument();

@@ -65,10 +65,6 @@ export type TraceExplorerProps = {
   traceId: string;
   search: {
     span?: string;
-    start?: string;
-    end?: string;
-    from?: string;
-    to?: string;
     refresh?: string;
   };
   onBack: () => void;
@@ -596,8 +592,6 @@ function TraceViewer({
                 key={selected.spanId}
                 node={selected}
                 durationMs={model.durationMs}
-                start={search.start ?? root?.source.timestamp ?? ""}
-                end={search.end ?? ""}
                 onClose={() => onSpanChange(undefined)}
                 onFocus={() => {
                   const padding = Math.max(
