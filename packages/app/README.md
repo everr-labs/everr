@@ -432,7 +432,16 @@ implementation. Feature consumers use `@everr/app/members`,
 `@everr/app/account-settings/dialog`, and `@everr/app/account-settings/actions`.
 `@everr/app/page-layout` exposes the shared page header and containers. These
 package names remain stable when implementation files move. Runtime factories
-and defaults retain separate entry points.
+retain separate entry points. Self-hosted page, layout, UI,
+and client implementations live in `src/app/composition`; their contracts in
+`src/product` contain types only. Each application declares its own client
+configuration and entry destinations rather than inheriting installation defaults.
+Route destinations use the selected generated route tree's static paths.
+`ProductClient` accepts a readonly literal manifest of additional dashboards as
+its type parameter; `homeDashboardId` must name a shared or additional entry.
+The lightweight built-in manifest owns display order. When dashboard documents
+load, catalog assembly rejects missing, duplicate, unlisted, or name-mismatched
+entries. Navigation does not import the documents.
 
 Each application's `tsconfig.json` selects explicit server, client, policy,
 navigation, dashboard, page, UI, and route-tree modules through named

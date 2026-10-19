@@ -1,14 +1,4 @@
-import type { ComponentType } from "react";
-
-export interface SignInFooterProps {
-  redirect?: string;
-  email?: string;
-}
-
-export interface ProductUI {
-  SignInFooter: ComponentType<SignInFooterProps>;
-  DeviceLoginRecovery: ComponentType;
-}
+import type { ProductUI } from "#app/product/ui.ts";
 
 export const productUI: ProductUI = {
   SignInFooter: () => (

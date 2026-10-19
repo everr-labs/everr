@@ -18,9 +18,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@composition/layouts": ["./src/product/layouts.tsx"],
-      "@composition/pages": ["./src/product/pages.tsx"],
-      "@composition/ui": ["./src/product/ui.tsx"],
+      "@composition/layouts": ["./src/app/composition/layouts.tsx"],
+      "@composition/pages": ["./src/app/composition/pages.tsx"],
+      "@composition/ui": ["./src/app/composition/ui.tsx"],
       "@composition/server": ["./src/app/composition/server.ts"],
       "@composition/client": ["./src/app/composition/client.tsx"],
       "@composition/product": ["./src/app/composition/product.ts"],

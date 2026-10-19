@@ -1,379 +1,222 @@
-# Self-hosting and Cloud separation handoff
+# Self-hosting and cloud separation handoff
 
-Updated 2026-10-18. Branch: `self-host`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `4d6224c00`.
 
-## Current checkpoint
+## Direction and next architecture work
 
-The worker test ownership and export cleanup checkpoint is `7e7f8fd1b`.
-UI assembly and the preceding export review are in `770aa55de`. Storage test
-ownership cleanup is in `dc21b7af3`; membership endpoint coverage and UI mock
-cleanup are in `5ee82832a`; the first test-pruning pass is `237a6bd1e`.
-This checkpoint includes the deeper cleanup and independent scan follow-ups. The
-resolver investigation and deferred packaging experiment are recorded below.
+Keep the existing two packages. Self-hosted is the base application in
+`packages/app`; `packages/cloud` composes shared behavior and adds cloud
+capabilities. A third shared package is not planned. Directory-level ownership
+and explicit interfaces should provide the separation without another package's
+build and maintenance burden. Cloud's TypeScript source exclusions alone do not
+justify extraction. Revisit only for independent versioning, another consumer,
+or recurring coupling that directory-level enforcement cannot contain.
 
-The application has **50 public package exports**. All have consumers in cloud
-source or configuration. Ten currently serve only cloud tests or their
-configuration; that does not make them automatically removable. The interface
-review below identifies concrete opportunities and the remaining split risks.
+The first composition cleanup is implemented in the working tree: page, layout,
+and UI contracts now contain only types, with self-hosted implementations under
+`src/app/composition`. Both applications declare their own client configuration;
+cloud no longer inherits the installation-only `/access-required` entry route.
+The unused client-default export is removed. Route destinations are constrained
+to the selected application's generated static paths. Home dashboard IDs are
+constrained to the shared manifest plus the application's literal additions.
+The lightweight manifest owns catalog order; catalog assembly validates parsed
+identities against it without importing documents into navigation.
 
-Read `AGENTS.md`, `packages/app/README.md`, `deploy/README.md`, and
-`DATABASE-MIGRATIONS.md` before changing behavior. Check `git status` and preserve
-existing work. The broader building-block/platform discussion remains exploratory.
+Remaining improvements are proposals, not a mandate for a broad rewrite. Work
+incrementally, preserving behavior:
 
-## Intent and constraints
+1. **Clarify ownership within app.** Maintain the separation of contracts and
+   self-hosted defaults. Group installation policy, setup, recovery, and composition under
+   `src/app/`. Shared features reach application-specific behavior through
+   composition interfaces; cloud uses public exports. Preserve the current
+   package layout while strengthening these rules.
+2. **Make server interfaces cohesive.** `ApplicationServer` currently combines
+   identity, account deletion, storage access, ingestion, entry flow, migrations,
+   and workers. Investigate identity, organization data access, entry flow, and
+   runtime as separate modules. Consumers should depend only on what they use;
+   splitting files without reducing caller knowledge is not sufficient. Preserve
+   lazy initialization of authentication and workers.
+3. **Deepen identity assembly.** Shared auth, application auth, membership plugins,
+   and request wrappers jointly enforce behavior. A shared identity factory could
+   own plugin/hook ordering, shared authorization plus application policy, and
+   the request scope required for locking. Make these invariants explicit and
+   keep Better Auth details inside the integration layer. Avoid a generic hook
+   framework and preserve transactional ownership.
+4. **Keep configuration application-owned.** Client destinations and additional
+   dashboard manifests are now explicit. Preserve literal dashboard IDs and the
+   separation of lightweight manifests from document loading.
+5. **Improve public interfaces where they hide real workflows.** Feature exports
+   such as members and account settings are useful models. Review file-oriented
+   auth, organization lifecycle, and runtime exports for opportunities to hide
+   implementation knowledge. Keep browser/server entry points separate. Renaming
+   exports or merging unrelated helpers into barrels is not an improvement.
 
-Self-hosted is a complete application. Its implementation, UI, and tests should
-not mention Cloud, editions, or features that only exist in another product.
-Cloud should eventually move into a separate repository without changing
-self-hosted behavior.
+Keep the current UI approach: ordinary props/children for additions, page
+composition for different loading or behavior, and explicit route registration
+for new flows. Preserve shared authentication/admin guards and the small sign-in
+footer and device-recovery slots. A component registry or override framework is
+not needed. Replace the starter-heavy app README with a concise ownership and
+extension guide when implementing these changes.
 
-- App owns the application and shared functionality. Cloud owns billing, usage
-  metering, tenant provisioning, commercial policy, and Polar dependencies.
-- Use explicit interfaces, not matching filenames or directory layouts. Do not
-  introduce a plugin framework or relocate the whole source tree.
-- Self-hosted has one workspace: the first user creates it and becomes owner;
-  subsequent users join by invitation. There is no public signup or workspace
-  chooser. SMTP is optional, with copyable invitation links and operator recovery.
+## Product constraints
+
+- App is complete on its own and does not depend on cloud. Cloud owns billing,
+  usage metering, tenant provisioning, commercial policy, and Polar dependencies.
+- Self-hosted has one workspace. Initial setup creates its owner; later users
+  join by invitation. Public signup and workspace switching are unavailable.
+  SMTP is optional, with copyable invitation links and operator recovery.
 - GitHub is available to both applications. App retention defaults to 30 days;
   cloud supplies plan-based policy and requires SMTP.
-- Preserve behavior tests. Do not test that physically separate cloud features
-  are absent, and do not add YAML text-content tests.
-- Do not generate migrations unless explicitly requested. Use disposable
-  databases for exercises. Existing developer and production databases are not
-  disposable.
-- Leave further changes uncommitted unless requested.
+- Preserve behavior tests; do not add tests asserting absent cloud features or
+  YAML text content. Do not generate migrations while iterating on schemas.
+- Use disposable databases for exercises. Existing developer and production
+  databases are not disposable. Leave changes uncommitted unless requested.
 
-## Architecture that is already in place
+Read [AGENTS.md](../AGENTS.md) before editing. For installation and recovery,
+read [deploy/README.md](../deploy/README.md). For billing behavior, read
+[cloud billing](../packages/cloud/docs/billing.md). For migration changes or
+upgrade exercises, read [DATABASE-MIGRATIONS.md](../DATABASE-MIGRATIONS.md).
 
-`packages/app` does not depend on `packages/cloud`. App imports its own source
-through package-private `#app/*` mappings with explicit extensions. Cloud uses
-explicit public package exports; neither application has an `@/*` mapping.
+## Current composition
 
-Each application's `tsconfig.json` selects its complete set of named
-`@composition/*` modules. Vite and Vitest read those mappings with TypeScript's
-config parser. Implementations satisfy explicit public contracts exported as
-types from `@everr/app/composition`. Build-time ownership checks require selected
-modules and registered routes to belong to the composing package. There are no
-generated compiler configs. Restart development after changing mappings.
+App resolves private source through `#app/*` with explicit file extensions.
+Cloud imports declared `@everr/app` exports. Each application's `tsconfig.json`
+selects a complete set of named `@composition/*` modules; Vite and Vitest consume
+those mappings. Type-only contracts are exported from `@everr/app/composition`.
+Selected modules and registered routes must belong to the composing package.
+There are no generated compiler configs. Restart development after mapping changes.
 
-`packages/app/vite.app.ts` defines build composition. Cloud registers additional
-routes at the named `welcome`, `signedIn`, and `organizationDashboard` attachment
-points using native TanStack virtual routes. Source filenames do not select
-replacements. Shared routes retain their existing file-based layout; explicitly
-registered shared layouts use the `-` ignore prefix.
+`packages/app/vite.app.ts` registers routes at `welcome`, `signedIn`, and
+`organizationDashboard` through TanStack virtual routes. Shared routes retain
+file-based discovery; explicitly registered layouts use the `-` ignore prefix.
+Both generated route trees are tracked. Regenerate them through development or
+a build after route changes. Preserve the explicit
+`ReturnType<typeof requireSession>` guard wrappers that avoid circular inference.
 
-Both `src/routeTree.gen.ts` files are tracked. TanStack Start generates them in
-development and builds; tests and typechecks consume them without generation.
-After route changes, run development or a build and commit the generated changes.
-The authenticated and signed-in guards keep an explicit
-`ReturnType<typeof requireSession>` wrapper to avoid circular route inference.
-Do not replace this with casts or source exclusions.
+`ApplicationPages` composes member loading/rendering and account lifecycle UI.
+`ApplicationLayouts` assembles user menus and welcome layouts with React nodes.
+Shared modules retain admin visibility and signed-in action visibility. Server
+policy remains independent of UI selection. Removing a slot can break behavior
+even if types compile.
 
-### UI and policy ownership
+Import enforcement uses `pnpm check:boundaries`; when changing enforcement, also
+run `pnpm test:boundaries`. It covers declared exports, private aliases,
+cross-package relative imports, re-exports, literal dynamic/type imports, and
+mocks. Generated route trees and `.md?raw` assets have deliberate exceptions;
+computed nonliteral imports are outside the checked contract.
 
-- `ApplicationPages.members` supplies loading/rendering inside the existing
-  guards. Cloud selects shared member management or its upgrade screen.
-- `ApplicationPages.account` assembles shared `AccountSettings` behavior with
-  the application's deletion section. `DeleteAccountDialog` owns confirmation,
-  loading, and errors; cloud owns organization-deletion choices.
-- `ApplicationLayouts` assembles `UserMenu` and `WelcomeLayout` through ordinary
-  JSX. Cloud supplies workspace switching, billing, and setup-page switching.
-  Shared behavior retains admin visibility and signed-in action visibility.
-  Contribution IDs and placement registries are gone. The mascot is private.
-- `ProductUI` retains only sign-in footer and device-login recovery content.
-  Keep these small slots for now. Extracting complete forms just to eliminate
-  them would add movement and interfaces without simplifying behavior.
-- `ProductClient` supplies configuration, including entry destinations,
-  additional dashboards, and telemetry endpoint. Server policy enforces access
-  independently of UI selection.
+## Test ownership and retained interfaces
 
-Removing an action slot can be a behavioral interface break even when types
-compile. Existing tests cover assembly, visibility, invitation returns, account
-lifecycle, and organization switching.
+App owns ordinary shared tests. Cloud runs its scenarios and the shared alerting
+integration suites using Vitest-provided migrations and schema targets. Keep the
+cloud tenant-column assertion in cloud. Shared worker tests own task registration,
+event logging, and supervision; cloud tests the composed runtime and its reserved
+pool, shutdown, isolation, and recovery.
 
-### Tests and import enforcement
+The export/test cleanup is complete enough to stop pruning by count. Retain
+interfaces with useful consumers, including these deliberate exceptions:
 
-Ordinary app tests run in app. Cloud runs its own tests plus the shared alerting
-integration suites selected by `@everr/app/testing/config`. The shared harness
-accepts additional migrations and a schema target through Vitest provide/inject,
-without cloud imports or branches. The tenant-column assertion belongs to cloud.
+- The pure invitation resolver lets routing tests exercise real resolution
+  without loading server-only database/auth dependencies. A partial mock of the
+  server-function module failed browser-test collection; do not repeat that
+  approach without redesigning the invitation interface.
+- Shared testing configuration, route helpers, storage fixtures, and the PGlite
+  helper support real integration behavior. Rename or consolidate only if the
+  resulting interface also simplifies migration/worker setup.
+- Consent and telemetry configuration exports support real provider behavior and
+  receiver configuration checks. Avoid replacing that coverage with extra mocks.
+- Database/schema/migration exports support schema extensions, transactions, and
+  upgrades. Preserve those capabilities rather than duplicating baselines.
 
-Cloud routing tests load the actual composed route tree. They preserve relevant
-routes and replace unrelated page bodies through the shared testing interface.
-Its opaque references are test infrastructure, not runtime override contracts.
-The route inventory excludes ignored helpers and test files.
+Membership enforcement is covered through production auth hooks and Better Auth
+endpoints, including invitation creation/acceptance, direct addition, denial,
+and initial-owner creation. Preserve those tests when changing identity assembly.
 
-App owns worker task-registration tests (GitHub enabled and disabled), event
-logging, and supervisor behavior. Cloud tests the composed runtime's reserved
-pool, memoization, shutdown, failure isolation, and retry recovery. Cloud no
-longer mocks the shared GitHub or preview task modules.
+## Database and collector constraints
 
-Oxlint runs only `boundaries/dependencies`; Biome retains formatting and general
-linting. Run `pnpm check:boundaries` and, when changing enforcement,
-`pnpm test:boundaries`. Checks cover public exports, private aliases, relative
-cross-package access, static/dynamic/type imports, re-exports, and test mocks.
-Generated route trees and `.md?raw` documentation assets have explicit exceptions.
-Computed nonliteral imports are outside the checked contract. Build configuration
-checks composition ownership but no longer scans source imports.
+App applies `packages/app/drizzle`, tracked in `drizzle.__drizzle_migrations`.
+Cloud first upgrades legacy databases when needed, then applies shared migrations
+and `packages/cloud/src/drizzle` under the startup lock. Cloud additions use
+`drizzle.__everr_cloud_migrations`. Billing fields belong to cloud-owned tables.
 
-## Remaining export review
+Legacy adoption preserves history and pinned baseline markers without marking
+later migrations applied. Keep `src/drizzle-legacy` until supported databases
+have transitioned and an intermediate upgrade path is documented. Returning to
+app leaves cloud tables intact; a multi-workspace database still cannot run as a
+single-workspace installation. The migration document owns detailed procedures.
 
-This is a review of current consumers, not a proposal to rename every file-based
-entry point. No unused export was found. Export count alone is not the goal.
+Collector separation uses complete `manifest.self-hosted.yaml` and
+`manifest.cloud.yaml` files and explicit build targets. The Go manifest generator
+is removed. Usage components remain in their original connector, extension, and
+processor directories with unchanged module identities. Keep shared component
+versions aligned across manifests. Replacement paths are relative to generated
+module directories under `collector/build/`, including debug builds.
 
-| Area | Evidence and next action |
-| --- | --- |
-| Invitation resolver, retain | Tried replacing the separate resolver import with a partial mock of `data/invite`. Importing the original module loads `db/client` and fails during browser-test collection on server-only environment access; the module also imports authentication middleware. Reverted the experiment. Keep the pure resolver export so the routing test exercises real invitation behavior without mocking additional server dependencies. Reconsider only alongside a useful invitation-interface redesign. |
-| Storage test ownership, completed | App `src/lib/clickhouse.test.ts` owns shared client settings, SQL API metadata, writes, and telemetry wrapping. Cloud `src/clickhouse/provisioning.test.ts` retains tenant-scope enforcement, derived credentials, provisioning, authentication failure, and cancellation coverage through the real shared clients. Removed the `telemetry/clickhouse` public export and its cloud mock. Runtime code, SQL, and schema are unchanged. |
-| Membership enforcement, completed | Replaced three helper-only tests with seven tests using the production auth configuration and its registered policy hooks against PGlite. They call Better Auth invitation creation, direct member addition, and invitation acceptance for hobby, suspended, and active pro states, verify persistence on success and denial, and preserve initial-owner creation. Billing/provisioning side effects and entitlement reads are isolated; the actual cloud policy and shared hooks run. Removed the `product/membership.server` export. |
-| UI test interfaces, reviewed | Removed redundant `data/auth` mocks and the `telemetry/client` mock, then removed both exports. Onboarding renders the real consent gate and loads browser telemetry with development export disabled. Menu tests render the real consent gate and exercise opening privacy preferences, saving a choice, and revoking it. Keep `telemetry/consent-gate` for that provider and `telemetry/config` for receiver configuration coverage. Keep `data/invite` for invitation server-function doubles and its pure resolver export as explained above. |
-| Deliberate test infrastructure | Keep `testing/config`, `testing/routes`, `testing/alerting-storage`, and the PGlite helper while their consumers need them. The PGlite helper currently has an alerting-internal export name despite serving organization lifecycle tests. A future generic database-test interface should preserve migration/worker setup; a naming change alone is not a reduction. |
-| Worker capabilities | Events, job enqueueing, and supervision have production cloud callers. Runtime startup is consumed by the composed cloud test. Keep that test at the real runtime interface. Do not merge these unrelated functions into a barrel just to count fewer exports. |
-| Auth and organization lifecycle | `lib/auth.server`, `lib/auth-client`, `lib/serverFn`, continuation cookies, cleanup, and role helpers have real runtime consumers. Preserve browser/server separation and transactional ownership. Introduce a higher-level operation only when it can hide a complete workflow, not just forward to these helpers. |
-| Storage and migrations | `db/client`, `db/schema`, `db/migrations`, Drizzle config, and migration entry points support real schema extensions, transactions, and upgrades. `migrations/journal` is consumed by legacy-upgrade tests. Do not conceal this dependency by duplicating schema or baselines. |
-| Stable feature interfaces | Keep members, account settings/dialog/actions, user menu, welcome, page layout, and type-only composition contracts. Their callers assemble substantial shared behavior. Product factories and client defaults are intentionally separate from the type-only contracts. |
+## Deferred independent distribution
 
-The ten exports currently used only by cloud tests/configuration are:
-`data/invite`, `data/invite-resolver`,
-`server/alerting/testing/pglite-database`, `server/worker/runtime`,
-`telemetry/consent-gate`,
-`telemetry/config`, `testing/config`, `testing/routes`, `testing/alerting-storage`,
-and `migrations/journal`.
+Keep both applications in this repository for now. Independent distribution and
+a physical repository split are not the next cleanup task. The 2026-10-18 scratch
+tarball experiment established dependency installation, but not a working
+standalone application. Retain these findings for when that work resumes:
 
-### Deferred: standalone packaging experiment, 2026-10-18
+- Packaging needs a version/content strategy. Prepared copies installed only
+  after scratch manifest changes and with lifecycle scripts disabled.
+- Installed TypeScript build/test entry points failed Node's loader. The alternate
+  build loader progressed but exposed missing tooling dependencies. Typechecking
+  also failed on dependencies and inclusion of shared test source.
+- An isolated route-generation probe passed, but generated imports contained
+  installation-specific pnpm paths. This was not a production build pass.
+- Migrations/public assets were present; email static symlinks and repository-root
+  resources were not. CSS scanning also assumes sibling directories.
 
-Decision: keep both applications in this repository for now. Independent package
-distribution is future repository-split work, not a blocker or the next cleanup
-task. Preserve the findings below for that future work.
+Before claiming portability, resolve exported tooling/dependencies, package-owned
+assets, typecheck inputs, and route generation. Then verify fresh-tarball builds,
+tests, styling, and migrations. Old `/tmp` artifacts are disposable evidence,
+not a supported harness or a prerequisite for resuming the work.
 
-Exercised a disposable cloud checkout at `/tmp/everr-standalone.Id9LNf/cloud`
-using tarballs for app, UI, datemath, telemetry-explorer, and the three telemetry
-SDK packages. No workspace source links were used: all 2,797 installed symlinks
-resolved inside the standalone checkout, with none broken. Only tracked source
-and freshly built SDK artifacts were copied; local credentials and environment
-files were excluded. Repository implementation and manifests were unchanged.
+## Verification status and release work
 
-The experiment needed scratch-only manifest preparation: missing versions were
-set to `0.0.0-standalone`, internal dependencies became local tarball references,
-and ordinary direct dependencies were pinned using the current lockfile.
-Installation used `--ignore-scripts --no-frozen-lockfile`; this proves dependency
-installation, not lifecycle scripts or exact transitive lockfile reproducibility.
+Dashboard typing follow-up: seven focused app tests and the actual catalog/home
+check under cloud composition passed. Both typechecks include temporary negative
+probes for unknown and undeclared home dashboard IDs; the probes are removed
+after verification. Import enforcement passed. YAML and panel queries are
+unchanged. The manual startup blocker below still limits browser verification.
 
-| Check | Observed result |
-| --- | --- |
-| Pack unchanged app | Failed: `ERR_PNPM_PACKAGE_VERSION_NOT_FOUND`. App has no version. Cloud and telemetry-explorer also lack versions. A distribution/versioning strategy is required. |
-| Pack prepared copies and install cloud | Passed for all seven tarballs and the standalone dependency install. |
-| Normal production build | Failed loading exported `vite.config.ts`: Node rejects TypeScript stripping inside `node_modules`. |
-| Selected composed UI/worker tests | Failed before collecting tests, for the same reason in exported `vitest.config.ts`. No standalone test pass is established. |
-| Build with `--configLoader runner` | Passed the initial loader obstacle, then failed resolving `@tanstack/devtools-vite`, declared only in app's development dependencies. This confirms that changing loaders alone is insufficient. |
-| Typecheck | Failed. Missing build/test dependencies and declarations include Nitro, smee-client, chdb, and Nodemailer types. Explicit inclusion of installed app source also brings app tests and dependency-resolution errors into cloud's compilation. Do not assume all errors represent undeclared runtime dependencies. |
-| Isolated route generator probe | Passed after transpiling only the two composition helper modules to temporary JavaScript and invoking TanStack's installed generator directly. All 91 relative imports in the resulting tree resolve. This bypasses the failed build configuration, so it is not a successful production build. |
-| Route portability | Generated imports contain the resolved pnpm store path under this installation. The tree is installation-specific; the checked-in workspace tree is not a portable package artifact. |
-| Asset presence | App migrations and public assets are present. The email `src/emails/static` symlink is absent after packing. The repository-root schema Markdown used by the MCP description and ClickHouse test resources are absent. Migration execution was not exercised in this experiment. |
+Composition cleanup (2026-10-19): both application typechecks, 30 focused app
+tests, 28 focused cloud tests, and import enforcement plus its regression test
+passed. Manual verification was attempted at `http://localhost:5173`, but startup
+failed during the migration creating `public.alert_delivery_state`, before page
+rendering. No database repair was attempted. The branch-status command failed
+with no active CLI session, so remote status remains unverified. Production
+builds and full suites were not rerun for this cleanup.
 
-Additional source inspection found sibling-directory CSS scanning paths for UI
-and telemetry-explorer. These need package-aware resolution; styling has not
-been verified in the standalone environment.
+These are historical results from the preceding handoff, not fresh verification
+of the current HEAD. The latest recorded full cloud run passed 459 tests with
+Polar sandbox skipped. The last recorded full app run passed 2,110 tests before
+subsequent focused cleanups. Later checks included focused tests and both app
+typechecks. Earlier UI work passed both builds and signed-in browser checks;
+those results do not establish a fresh full pass after later changes.
 
-When the repository split resumes:
+Collector self-hosted, cloud, and self-hosted debug builds passed after manifest
+simplification. Normal binaries validated configuration and retained expected
+component inventories. Those checks did not include a fresh live-ingestion run.
+Standalone builds/tests remain unproven. Remote checks and Polar sandbox status
+must be established separately; the latest cleanup did not run the sandbox.
 
-1. Define versions and the package contents for the app and its internal
-   dependencies. Include required assets explicitly, without copying secrets or
-   relying on symlink preservation.
-2. Make exported build/test entry points loadable from installed packages and
-   declare their tooling dependencies or peer requirements. Consider a separate
-   development package only if it simplifies that contract.
-3. Correct the shared-source typecheck inputs and dependency resolution. Preserve
-   intentional shared integration suites without including every app test.
-4. Resolve external assets and CSS sources through package-owned resources.
-5. Establish when the installation-specific route tree is regenerated, then
-   repeat typechecking, production build, composed tests, asset verification,
-   and migration execution from fresh tarballs.
+Before release:
 
-Evidence is retained in `/tmp/standalone-{build-initial,build-runner,
-tests-initial,typecheck-initial,routes}.log`, with preparation script
-`/tmp/prepare-everr-standalone.cjs`. These are disposable local artifacts, not a
-committed packaging harness. The physical repository split is not yet proven.
+1. Exercise a fresh Compose lifecycle with real ingestion/querying, invitation
+   acceptance without SMTP, and operator recovery. Use the telemetry skill to
+   verify ingestion.
+2. Run relevant fresh suites/builds and inspect the pushed revision's remote
+   checks with the CI skill. Rehearse cloud upgrades on a representative disposable
+   database copy and coordinate old-instance replacement around column removal.
 
-## Database context to preserve
+Run production builds sequentially because they share inputs; run heavy app/cloud
+suites sequentially to avoid resource-contention timeouts. Prior local tests
+required `NODE_OPTIONS=--no-experimental-webstorage`. Local cloud builds used
+`EMAIL_DSN=smtp://localhost:1025` and `EMAIL_FROM=review@example.com`.
 
-The shared application uses the naming from main: `packages/app/drizzle` and
-`drizzle.__drizzle_migrations`. Do not rename these to "core" or create a second
-shared history for cloud.
-
-| History | Directory | Tracking table |
-| --- | --- | --- |
-| Shared application | `packages/app/drizzle` | `drizzle.__drizzle_migrations` |
-| Cloud additions | `packages/cloud/src/drizzle` | `drizzle.__everr_cloud_migrations` |
-| Original upgrade history | `packages/cloud/src/drizzle-legacy` | Existing `drizzle.__drizzle_migrations` history |
-
-Cloud upgrades legacy databases when necessary, then runs shared migrations,
-then cloud migrations under the startup lock. App runs shared migrations only.
-Billing fields now live in cloud-owned tables.
-
-Legacy adoption preserves history rows and records pinned baseline markers;
-it must not mark later migrations as applied. The shared baseline timestamp
-follows the legacy chain. Tracking tables record execution, not SQL isolation.
-
-Local switching reuses the shared history. Cloud adds tables; returning to app
-leaves them intact. Old mixed databases must first run cloud's upgrade. A
-multi-workspace database still does not satisfy the single-workspace requirement.
-Remove `drizzle-legacy` only after supported databases transition and an
-intermediate upgrade path is documented for old installations and backups.
-See `DATABASE-MIGRATIONS.md` for the exercise history and upgrade procedure.
-
-## Test-pruning pass
-
-Removed 12 cases and 129 net lines from six test files, without runtime changes:
-
-- Removed the self-hosted collaboration helper assertion. Real invitation
-  creation and acceptance remain covered with SMTP enabled and disabled. Kept
-  the separate organization creation/deletion restriction test.
-- Removed mocked account-page forwarding tests. Actual deletion behavior remains
-  covered by the account-deletion suite; the removed tests asserted synthetic
-  markup supplied by their own mocks.
-- Removed basic member-page selection cases. The retained refresh/isolation test
-  renders both allowed and restricted states across organizations and revisits.
-- Removed the setup-screen test for absent old controls and its unused auth mock.
-  Pending/error UI, completion, revoked access, and retry behavior remain covered.
-- Removed the hook-level fast-completion timer case. The real-router onboarding
-  test already checks 2,499 ms versus 2,500 ms, navigation, and session refresh.
-  Kept readiness loss, prolonged waiting, and immediate recovery cases. Removed
-  unused query providers from those hook tests.
-- Removed four duplicate unsafe-URL cases from the cloud setup route suite. The
-  shared return-destination suite covers those inputs; cloud retains its extra
-  setup/chooser loop cases and local destination preservation.
-- Removed the runtime test that only compared a returned endpoint literal.
-  Receiver selection and credential behavior remain tested separately.
-
-Verification: 15 affected cloud tests and 11 app tests passed, including the
-stronger tests retained in place of the removed cases. Both typechecks, boundary
-lint, and Fallow passed. The last full cloud-suite result below predates these
-deletions.
-
-### Deeper cleanup
-
-Moved personal-organization naming and slug helpers to cloud's existing
-`common/organization-name` module, along with their name/fallback tests. App
-keeps its private sole-membership selector, which auth/session lookup still
-uses. Removed the `lib/auto-org` public export: no cloud consumer remains.
-
-Removed `shouldCreateAutomaticOrganization`, a one-caller boolean wrapper. Its
-caller already returns for existing memberships, so the remaining decision is
-simply whether a pending invitation exists. The existing real signup tests
-cover automatic creation, selection, invited users, and enqueue failure.
-
-Consolidated overlapping automatic-signup tests into the session-hook test:
-creation still happens once under overlapping sign-ins, both sessions select
-the organization, and only the creator receives the continuation callback.
-Kept the creation-failure/lock-release and multiple-membership cases. Merged
-retry eligibility assertions into the existing retry action test. This pass
-removes 82 net code/test lines across ten files and four net test cases.
-
-Verification: all 461 remaining cloud tests passed (Polar sandbox skipped),
-along with 12 focused app selection/session tests, both typechecks, boundary
-lint, and Fallow.
-
-### Independent scan follow-up
-
-Moved the ownership-lock helper and organization-activation hook into cloud,
-where all their production consumers live. Updated callers and test mocks and
-removed both app exports. Their locking and activation behavior is unchanged.
-
-Removed the duplicate null-organization setup case and the redundant Home
-navigation assertion. Folded worker memoization into the existing cloud
-runner/pool ownership test, retaining the assertion that repeated startup creates no additional
-runners or pools. Keep the cloud alerting-schema assertion in cloud; do not add
-cloud-specific conditions to shared app tests to consolidate it.
-
-Verification: all 459 cloud tests passed (Polar sandbox skipped), along with
-the two remaining navigation tests, both typechecks, boundary lint, and Fallow.
-
-### Collector layout and final test cleanup
-
-Restored the three usage component directories from `collector/cloud` to their
-original connector, extension, and processor locations. Their existing Go
-module identities never changed. Binary separation comes from the explicit self-hosted and cloud manifests
-and build targets; keep those. Preserved the usage-test
-clock fix and updated Makefile includes, manifest replacements, and smoke SQL
-fixture paths for the restored layout.
-
-Both collector variants build and validate their configuration. Component
-inventories verify all three usage components appear only in cloud. All three
-component test suites pass. This checks build/configuration separation, not a
-fresh live-ingestion exercise.
-
-Removed duplicate breadcrumb renders, preserving separator assertions in the
-existing one-, two-, and three-crumb cases. Removed the test-owned callback
-fallback case and the tiny sole-membership helper suite, which is covered by
-real database session recovery tests. Made six unused type exports private.
-The 18 focused breadcrumb/session tests and both app typechecks pass.
-
-## Verification and next steps
-
-Membership/UI cleanup verification: all 472 cloud tests passed, with the Polar
-sandbox test skipped. Both typechecks and boundary lint passed. Seven endpoint
-tests replace the three membership-helper tests, and the menu now exercises
-real consent settings. No runtime implementation changed.
-
-Storage cleanup verification: 12 app client/telemetry tests and eight cloud
-storage/provisioning tests passed. Both typechecks and boundary lint passed.
-This change moves test coverage and removes a test-only public export; it does
-not change runtime behavior. No live ingestion or browser exercise was run.
-
-Latest worker checkpoint: 14 focused app worker tests and all 472 cloud tests
-passed, with the external Polar sandbox test skipped. Both typechecks, boundary
-lint, and Fallow passed. Commit hooks passed for `7e7f8fd1b`.
-
-The UI checkpoint passed both production builds, focused UI/routing tests, and
-signed-in browser checks for member pages, account confirmation dialogs, menus,
-welcome screens, and switching organizations. The last full app suite after the
-shared alerting test move passed 2,110 tests; subsequent app changes used focused
-checks, not a fresh full-app run. Generated route trees stayed unchanged through
-the UI/export/worker cleanup. The standalone packaging experiment above adds failure evidence and a route
-generation probe, not a passing standalone runtime check.
-
-Polar sandbox is opt-in via `pnpm --filter @everr/app-cloud test:billing:sandbox`.
-It loads cloud's `.env`, requires `POLAR_SERVER=sandbox`, and enables
-`EVERR_POLAR_SANDBOX_TEST=1`. It makes real sandbox calls, creates customers and
-checkout sessions, tests membership/token behavior, and deletes its customers.
-It has not been run during the latest cleanup.
-
-Next work, in order:
-
-Membership endpoint coverage and the remaining UI test-interface review are
-complete. Keep the remaining deliberate test interfaces; do not add mocks or
-rename barrels solely to reduce the export count.
-
-1. Before release, run a complete fresh Compose lifecycle with real ingestion and
-   querying, invitation acceptance without SMTP, and operator recovery. Use the
-   required telemetry skill to verify ingestion.
-2. Verify the pushed revision's remote checks using the CI skill. Remote status
-   is not established by these local results. Rehearse deployed cloud upgrades
-   against a representative disposable database copy and coordinate old-instance
-   replacement around column removal. Previous main-history exercises were local.
-
-Run production builds sequentially because they share build inputs. Run heavy
-app/cloud suites sequentially to avoid startup timeouts from resource contention.
-Local cloud builds used `EMAIL_DSN=smtp://localhost:1025` and
-`EMAIL_FROM=review@example.com`. Local tests need
-`NODE_OPTIONS=--no-experimental-webstorage` with the current Node version.
-
-Worktree: `/Users/gio/.herdr/worktrees/everr/self-host`. Main worktree:
-`/Users/gio/workspace/everr-labs/everr`. Browser-test credentials are in the main
-worktree's `.auth`; never copy secrets into documentation or commits. Temporary
-servers and databases from the latest checks were stopped. Recheck local state
-rather than relying on old ports. Physical repository extraction, published
-packages/images, and release automation remain future work.
-
-Collector manifest simplification: both
-`collector/config/manifest.self-hosted.yaml` and `manifest.cloud.yaml` are complete
-builder manifests. The Go manifest generator is removed. Make selects the
-manifest directly and uses the builder's native environment overrides for
-output directory and debug compilation. Local replacement paths are relative
-to the generated module directories under `collector/build/`, including debug
-builds. Keep shared component versions aligned when editing the two manifests.
-
-Verification: self-hosted, cloud, and self-hosted debug builds pass. Both normal
-binaries validate their configurations and report exactly the same component
-inventories as before this change. No ingestion behavior changed.
+Manual app checks use `.auth` in the main worktree at
+`/Users/gio/workspace/everr-labs/everr`; never copy credentials into documentation.
+Recheck running services and ports rather than relying on previous session state.

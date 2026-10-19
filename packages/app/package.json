@@ -148,7 +148,6 @@
     "./tsconfig": "./tsconfig.json",
     "./migrations/journal": "./drizzle/meta/_journal.json",
     "./testing/routes": "./src/testing/routes.ts",
-    "./product/client": "./src/product/client.ts",
     "./telemetry/config": "./src/telemetry/config.ts",
     "./members": "./src/components/users-management/members-page.tsx",
     "./account-settings": "./src/components/account-settings/account-settings.tsx",

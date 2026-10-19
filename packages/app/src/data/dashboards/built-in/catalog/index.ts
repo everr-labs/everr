@@ -1,7 +1,9 @@
 import { dashboards } from "@composition/dashboards";
 
 import { parse } from "yaml";
+import { BUILTIN_MANIFEST } from "../manifest";
 import type { BuiltinDashboard } from "../types";
+import { assembleBuiltinCatalog } from "./assemble";
 
 const { additionalBuiltinDashboards } = dashboards;
 
@@ -18,44 +20,15 @@ const sources = import.meta.glob("./*/*.yaml", {
   eager: true,
 }) as Record<string, string>;
 
-/**
- * Display order of the list, category shelf by category shelf. A new YAML file
- * is not picked up until it is placed here, which is deliberate: the order on
- * the shelf is an editorial decision, not an accident of the filesystem.
- */
-const builtins: BuiltinDashboard[] = [
-  ...Object.values(sources).map((source) => parse(source) as BuiltinDashboard),
-  ...additionalBuiltinDashboards,
-];
-
-const ORDER = [
-  "http-endpoints",
-  "rpc-services",
-  "server-functions",
-  "serverless-functions",
-  "log-overview",
-  "traces-overview",
-  "metric-overview",
-  "jvm-runtime",
-  "nodejs-runtime",
-  "postgres-overview",
-  "mysql-overview",
-  "redis-overview",
-  "mongodb-overview",
-  "kubernetes-workloads",
-  ...additionalBuiltinDashboards.map(({ id }) => id),
-  "web-vitals",
-  "product-analytics",
-];
-
-export const BUILTIN_DASHBOARDS: BuiltinDashboard[] = builtins
-  .map((builtin) => {
-    if (!ORDER.includes(builtin.id)) {
-      throw new Error(`Builtin ${builtin.id} is missing from ORDER`);
-    }
-    return builtin;
-  })
-  .sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
+export const BUILTIN_DASHBOARDS: BuiltinDashboard[] = assembleBuiltinCatalog(
+  BUILTIN_MANIFEST,
+  [
+    ...Object.values(sources).map(
+      (source) => parse(source) as BuiltinDashboard,
+    ),
+    ...additionalBuiltinDashboards,
+  ],
+);
 
 const BY_ID = new Map(BUILTIN_DASHBOARDS.map((t) => [t.id, t]));
 

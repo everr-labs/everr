@@ -56,7 +56,7 @@ test("Oxlint enforces package boundaries across import syntaxes without general 
       add(
         cloud,
         `public-${syntaxIndex}`,
-        syntax('"@everr/app/product/client"'),
+        syntax('"@everr/app/composition"'),
         false,
       );
       add(app, `alias-${syntaxIndex}`, syntax('"#app/product/client.ts"'), false);
