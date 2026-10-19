@@ -1,9 +1,9 @@
+import { env } from "@everr/app/env";
+import { serverLogger } from "@everr/app/telemetry/logger";
 import { Polar } from "@polar-sh/sdk";
 import { ResourceNotFound } from "@polar-sh/sdk/models/errors/resourcenotfound";
 import { z } from "zod";
 import { appEnv as cloudEnv } from "../app/env";
-import { env } from "@everr/app/env";
-import { serverLogger } from "@everr/app/telemetry/logger";
 import { polarProductIdForPlan } from "./catalog.server";
 import { BillingError, type PolarGateway } from "./types";
 

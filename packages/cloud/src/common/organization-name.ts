@@ -1,5 +1,5 @@
-import * as z from "zod";
 import { returnToSchema } from "@everr/app/common/return-to";
+import * as z from "zod";
 
 export const CreateOrganizationInputSchema = z.object({
   plan: z.enum(["hobby", "pro"]).optional(),

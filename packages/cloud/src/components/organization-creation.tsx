@@ -5,11 +5,11 @@ import { Link, useRouter } from "@tanstack/react-router";
 import { Check, Sparkles, UserRound } from "lucide-react";
 import { type SubmitEvent, useEffect, useRef, useState } from "react";
 import { CreateOrganizationInputSchema } from "../common/organization-name";
+import { createOrganization } from "../data/organizations";
 import { OrganizationProvisioning } from "./organization-provisioning";
 import { OrganizationProvisioningContent } from "./organization-provisioning-content";
-import { ORGANIZATION_SETUP_MINIMUM_MS } from "./use-organization-setup-completion";
-import { createOrganization } from "../data/organizations";
 import { useOrganizationActivation } from "./use-organization-activation";
+import { ORGANIZATION_SETUP_MINIMUM_MS } from "./use-organization-setup-completion";
 
 export function OrganizationCreation({
   canCreateHobby,

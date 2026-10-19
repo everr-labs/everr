@@ -1,12 +1,13 @@
 // @vitest-environment node
-import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
+
 import type { DbExecutor } from "@everr/app/db/client";
 import { organization } from "@everr/app/db/schema";
 import {
   createTestDatabase,
   type TestDatabase,
 } from "@everr/app/server/alerting/testing/pglite-database";
+import { sql } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined }));
 

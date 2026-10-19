@@ -1,5 +1,3 @@
-import type { GenericEndpointContext } from "better-auth";
-import { and, eq, gt, sql } from "drizzle-orm";
 import { type Database, db } from "@everr/app/db/client";
 import {
   invitation,
@@ -7,9 +5,11 @@ import {
   session as sessionTable,
   user,
 } from "@everr/app/db/schema";
+import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
+import type { GenericEndpointContext } from "better-auth";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { deriveOrgName, generateOrgSlug } from "./common/organization-name";
 import { lockOrganizationOwnership } from "./organization-lock.server";
-import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
 
 type CreateAutomaticOrganization = (body: {
   name: string;

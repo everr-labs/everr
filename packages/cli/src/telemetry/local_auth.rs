@@ -225,6 +225,66 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn project_without_a_matching_profile_can_start_sign_in() {
+        let mut server = mockito::Server::new_async().await;
+        let code = code(&mut server, 60).await;
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::profiles::ProfileStore::at(dir.path());
+        for name in ["personal", "another"] {
+            store
+                .save(
+                    name,
+                    crate::profiles::Profile {
+                        target: crate::profiles::Target {
+                            url: server.url(),
+                            organization_id: format!("org-{name}"),
+                        },
+                        user_id: format!("user-{name}"),
+                        email: format!("{name}@example.test"),
+                        organization_name: name.into(),
+                    },
+                    crate::state::Session {
+                        api_base_url: server.url(),
+                        token: format!("token-{name}"),
+                    },
+                )
+                .unwrap();
+        }
+        let login = LoginContext::new(
+            store.clone(),
+            crate::profiles::Project {
+                root: None,
+                target: Some(crate::profiles::Target {
+                    url: server.url(),
+                    organization_id: "org-work".into(),
+                }),
+            },
+            None,
+            None,
+        )
+        .unwrap();
+        let auth = LocalAuth::new(login, reqwest::Client::new());
+        assert!(matches!(
+            auth.status().await.unwrap(),
+            AuthResponse::SignedOut { .. }
+        ));
+        assert!(auth.user_profile().await.unwrap().is_none());
+        let started = serde_json::to_value(auth.start_sign_in().await.unwrap()).unwrap();
+        assert_eq!(started["status"], "pending");
+        assert_eq!(
+            started["verification_url"],
+            "http://example.test/verify?organization_id=org-work"
+        );
+        for name in ["personal", "another"] {
+            assert_eq!(
+                store.session(name).unwrap().unwrap().token,
+                format!("token-{name}")
+            );
+        }
+        code.assert_async().await;
+    }
+
+    #[tokio::test]
     async fn device_flow_preserves_wire_contract_and_shares_profile_credentials_with_the_cli() {
         let mut server = mockito::Server::new_async().await;
         let code = code(&mut server, 60).await;

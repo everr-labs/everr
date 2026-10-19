@@ -1,9 +1,9 @@
-import { getCookie } from "@tanstack/react-start/server";
 import type { ApplicationEntry } from "@everr/app/composition";
+import { env } from "@everr/app/env";
+import { getCookie } from "@tanstack/react-start/server";
 import type { GenericEndpointContext } from "better-auth";
 import { symmetricDecrypt, symmetricEncrypt } from "better-auth/crypto";
 import { z } from "zod";
-import { env } from "@everr/app/env";
 
 export const ORGANIZATION_CREATION_COOKIE = "everr.organization-creation";
 const MAX_AGE_SECONDS = 600;

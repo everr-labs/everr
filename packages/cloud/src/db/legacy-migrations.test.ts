@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url";
 // @vitest-environment node
 import {
   cpSync,
@@ -9,16 +8,19 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
+import type { Database } from "@everr/app/db/client";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { expect, it } from "vitest";
-import type { Database } from "@everr/app/db/client";
 import { upgradeLegacyCloudDatabase } from "./legacy-migrations";
 
 const folders = {
   legacyMigrationsFolder: resolve(import.meta.dirname, "../drizzle-legacy"),
-  appMigrationsFolder: fileURLToPath(new URL("../", import.meta.resolve("@everr/app/migrations/journal"))),
+  appMigrationsFolder: fileURLToPath(
+    new URL("../", import.meta.resolve("@everr/app/migrations/journal")),
+  ),
   cloudMigrationsFolder: resolve(import.meta.dirname, "../drizzle"),
 };
 
@@ -118,7 +120,10 @@ it("preserves existing billing data and adopts only the baselines before running
   }
 }, 30_000);
 
-it.each([true, false])("supports app/cloud switching with an existing app database: %s", async (appFirst) => {
+it.each([
+  true,
+  false,
+])("supports app/cloud switching with an existing app database: %s", async (appFirst) => {
   const client = new PGlite();
   const db = drizzle(client);
   const appConfig = { migrationsFolder: folders.appMigrationsFolder };
@@ -141,9 +146,27 @@ it.each([true, false])("supports app/cloud switching with an existing app databa
     await upgradeLegacyCloudDatabase(db as unknown as Database, folders);
     await migrate(db, appConfig);
     await migrate(db, cloudConfig);
-    expect((await client.query("SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations")).rows).toEqual([{ count: 1 }]);
-    expect((await client.query("SELECT count(*)::int AS count FROM drizzle.__everr_cloud_migrations")).rows).toEqual([{ count: 1 }]);
-    expect((await client.query("SELECT org_id, plan, polar_customer_id FROM organization_billing")).rows).toEqual([
+    expect(
+      (
+        await client.query(
+          "SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations",
+        )
+      ).rows,
+    ).toEqual([{ count: 1 }]);
+    expect(
+      (
+        await client.query(
+          "SELECT count(*)::int AS count FROM drizzle.__everr_cloud_migrations",
+        )
+      ).rows,
+    ).toEqual([{ count: 1 }]);
+    expect(
+      (
+        await client.query(
+          "SELECT org_id, plan, polar_customer_id FROM organization_billing",
+        )
+      ).rows,
+    ).toEqual([
       { org_id: "switch", plan: "pro", polar_customer_id: "customer-switch" },
     ]);
   } finally {

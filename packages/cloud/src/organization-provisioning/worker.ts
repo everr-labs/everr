@@ -1,12 +1,12 @@
 import { EventEmitter } from "node:events";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { run, type WorkerEvents } from "graphile-worker";
-import { Pool } from "pg";
 import { databasePoolConfig } from "@everr/app/db/client";
 import * as schema from "@everr/app/db/schema";
 import { attachGraphileWorkerEventLogging } from "@everr/app/server/worker/events";
 import { managedWorker } from "@everr/app/server/worker/managed-worker";
 import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { run, type WorkerEvents } from "graphile-worker";
+import { Pool } from "pg";
 import { attachOrganizationRetryPolicy } from "./retries";
 import {
   createOrganizationTaskList,

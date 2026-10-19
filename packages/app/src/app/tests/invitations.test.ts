@@ -54,6 +54,87 @@ const input = {
 };
 
 it.each([
+  { role: "member", visibleRoles: [] },
+  { role: "admin", visibleRoles: ["admin", "member", "owner"] },
+  { role: "owner", visibleRoles: ["admin", "member", "owner"] },
+])("limits invitation visibility for $role", async ({ role, visibleRoles }) => {
+  const auth = createAuth();
+  const { organizationId } = await setupWorkspace(input, database);
+  const owner = await auth.api.signInEmail({ body: input, asResponse: true });
+  const ownerHeaders = new Headers({
+    cookie: owner.headers.get("set-cookie") ?? "",
+  });
+  const recipient = {
+    name: "Member",
+    email: "member@example.test",
+    password: "long-member-password",
+  };
+  const memberInvite = await auth.api.createInvitation({
+    headers: ownerHeaders,
+    body: { email: recipient.email, role, organizationId },
+  });
+  const signup = await auth.api.signUpEmail({
+    body: { ...recipient, callbackURL: `/invite/${memberInvite.id}` },
+    asResponse: true,
+  });
+  const headers = new Headers({
+    cookie: signup.headers.get("set-cookie") ?? "",
+  });
+  await auth.api.acceptInvitation({
+    headers,
+    body: { invitationId: memberInvite.id },
+  });
+  for (const invitedRole of ["member", "admin", "owner"]) {
+    await auth.api.createInvitation({
+      headers: ownerHeaders,
+      body: {
+        email: `${invitedRole}@future.example.test`,
+        role: invitedRole,
+        organizationId,
+      },
+    });
+  }
+  for (const query of [
+    "",
+    `?organizationId=${organizationId}`,
+    "?organizationSlug=workspace",
+  ]) {
+    const response = await auth.handler(
+      new Request(
+        `http://localhost:3000/api/auth/organization/get-full-organization${query}`,
+        { headers },
+      ),
+    );
+    expect(response.status).toBe(200);
+    const organization = await response.json();
+    expect(organization.id).toBe(organizationId);
+    expect(organization.members).toHaveLength(2);
+    expect(
+      organization.invitations
+        .filter((invite: { status: string }) => invite.status === "pending")
+        .map((invite: { role: string }) => invite.role)
+        .sort(),
+    ).toEqual(visibleRoles);
+  }
+  for (const query of ["", `?organizationId=${organizationId}`]) {
+    const response = await auth.handler(
+      new Request(
+        `http://localhost:3000/api/auth/organization/list-invitations${query}`,
+        { headers },
+      ),
+    );
+    expect(response.status).toBe(200);
+    const invitations = await response.json();
+    expect(
+      invitations
+        .filter((invite: { status: string }) => invite.status === "pending")
+        .map((invite: { role: string }) => invite.role)
+        .sort(),
+    ).toEqual(visibleRoles);
+  }
+});
+
+it.each([
   false,
   true,
 ])("replaces invitations and enforces signup and verification with email enabled: %s", async (emailEnabled) => {

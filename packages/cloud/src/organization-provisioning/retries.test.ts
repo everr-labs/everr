@@ -1,5 +1,10 @@
 // @vitest-environment node
 import { EventEmitter } from "node:events";
+import {
+  createTestDatabase,
+  type TestDatabase,
+} from "@everr/app/server/alerting/testing/pglite-database";
+import { addWorkerJob } from "@everr/app/server/worker/jobs";
 import { sql } from "drizzle-orm";
 import type { WorkerEvents } from "graphile-worker";
 import type { Pool } from "pg";
@@ -12,11 +17,6 @@ import {
   it,
   vi,
 } from "vitest";
-import {
-  createTestDatabase,
-  type TestDatabase,
-} from "@everr/app/server/alerting/testing/pglite-database";
-import { addWorkerJob } from "@everr/app/server/worker/jobs";
 
 const mocks = vi.hoisted(() => ({ database: undefined as unknown }));
 vi.mock("@everr/app/db/client", () => ({

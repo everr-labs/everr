@@ -52,6 +52,7 @@ import {
 } from "#app/telemetry/auth-identity.ts";
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import { createAccountLifecycle } from "./account";
+import { invitationVisibilityPlugin } from "./invitations";
 
 async function getMarkedDeviceOrganizationId(
   db: Database,
@@ -315,6 +316,7 @@ export function createApplicationAuth(
         auth.api.getSession({ headers, returnHeaders: true }),
     ),
     plugins: [
+      invitationVisibilityPlugin(),
       cliDeviceOrganizationPlugin({
         onError: (stage, error) => {
           serverLogger.error(

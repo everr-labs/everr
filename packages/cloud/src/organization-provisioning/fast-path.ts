@@ -1,6 +1,3 @@
-import { SpanStatusCode, trace } from "@opentelemetry/api";
-import { eq } from "drizzle-orm";
-import { isOrganizationProvisioned } from "./metadata";
 import { type Database, db } from "@everr/app/db/client";
 import { organization } from "@everr/app/db/schema";
 import {
@@ -8,6 +5,9 @@ import {
   withTelemetryIdentityScope,
 } from "@everr/app/telemetry/identity";
 import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
+import { eq } from "drizzle-orm";
+import { isOrganizationProvisioned } from "./metadata";
 
 const SIGNUP_WAIT_MS = 5000;
 const POLL_INTERVAL_MS = 100;

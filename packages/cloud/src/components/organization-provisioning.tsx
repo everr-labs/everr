@@ -2,11 +2,11 @@ import { productClient } from "@composition/client";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { getOrganizationProvisioningStatus } from "../organization-provisioning/actions";
+import { ORGANIZATION_SETUP_DELAY_NOTICE_MS } from "../organization-provisioning/metadata";
 import { OrganizationProvisioningContent } from "./organization-provisioning-content";
 import { OrganizationProvisioningRetry } from "./organization-provisioning-retry";
 import { useOrganizationSetupCompletion } from "./use-organization-setup-completion";
-import { getOrganizationProvisioningStatus } from "../organization-provisioning/actions";
-import { ORGANIZATION_SETUP_DELAY_NOTICE_MS } from "../organization-provisioning/metadata";
 
 export function OrganizationProvisioning({
   organizationId,

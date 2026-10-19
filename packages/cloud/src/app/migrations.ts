@@ -1,13 +1,13 @@
-import { resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import {
+  type MigrationDatabase,
+  migrateDatabase as migrateAppDatabase,
+  migrationConfig,
+} from "@everr/app/db/migrations";
 import type { MigrationConfig } from "drizzle-orm/migrator";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { upgradeLegacyCloudDatabase } from "../db/legacy-migrations";
-import {
-  migrationConfig,
-  type MigrationDatabase,
-  migrateDatabase as migrateAppDatabase,
-} from "@everr/app/db/migrations";
 
 // Source paths are used by Vite development; the image ships only SQL/journals.
 function migrationFolder(name: "cloud" | "legacy") {

@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
 import type { ProductUI } from "@everr/app/composition";
+import { Link } from "@tanstack/react-router";
 export const productUI: ProductUI = {
   SignInFooter: ({ redirect, email }) => (
     <p className="text-center text-sm text-muted-foreground">

@@ -1,3 +1,4 @@
+import { organization } from "@everr/app/db/schema";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -6,7 +7,6 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { organization } from "@everr/app/db/schema";
 
 export const organizationBilling = pgTable("organization_billing", {
   orgId: text("org_id")

@@ -1,11 +1,11 @@
 import { returnToSchema } from "@everr/app/common/return-to";
-import { useOrganizationActivation } from "../../../components/use-organization-activation";
 import { Button } from "@everr/ui/components/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ReactElement } from "react";
 import * as z from "zod";
 import { OrganizationProvisioningContent } from "../../../components/organization-provisioning-content";
+import { useOrganizationActivation } from "../../../components/use-organization-activation";
 import { completeProOrganizationCheckout } from "../../../data/organization-checkout";
 
 const SearchSchema = z.object({

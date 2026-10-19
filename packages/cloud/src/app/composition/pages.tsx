@@ -1,12 +1,12 @@
 import { AccountSettings } from "@everr/app/account-settings";
-import { AccountDeletion } from "../../components/account-deletion";
-import { OrganizationMembersPage } from "@everr/app/members";
-import { getActiveOrgPolicy } from "@everr/app/data/product";
 import type {
   ApplicationPages,
   OrganizationPageProps,
 } from "@everr/app/composition";
+import { getActiveOrgPolicy } from "@everr/app/data/product";
+import { OrganizationMembersPage } from "@everr/app/members";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { AccountDeletion } from "../../components/account-deletion";
 import { MembersUnavailable } from "../../components/members-unavailable";
 
 function membersPolicy(organizationId: string) {

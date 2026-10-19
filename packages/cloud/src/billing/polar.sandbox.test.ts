@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
+import { env } from "@everr/app/env";
 import { expect, it } from "vitest";
 import { appEnv as cloudEnv } from "../app/env";
-import { env } from "@everr/app/env";
 import { createPolarGateway, polarClient } from "./polar.server";
 
 it.skipIf(process.env.EVERR_POLAR_SANDBOX_TEST !== "1")(

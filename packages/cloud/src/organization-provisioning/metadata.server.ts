@@ -1,6 +1,6 @@
+import { organization } from "@everr/app/db/schema";
 import { sql } from "drizzle-orm";
 import { parseOrganizationMetadata } from "./metadata";
-import { organization } from "@everr/app/db/schema";
 
 export const organizationProvisioningPending = sql<boolean>`
   ${organization.metadata}::jsonb -> 'clickhouseReady' = 'false'::jsonb

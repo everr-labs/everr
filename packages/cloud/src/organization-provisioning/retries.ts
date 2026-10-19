@@ -1,6 +1,6 @@
+import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
 import type { WorkerEvents } from "graphile-worker";
 import type { Pool } from "pg";
-import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
 import {
   DEPROVISION_ORGANIZATION_TASK,
   ORGANIZATION_MAX_ATTEMPTS,

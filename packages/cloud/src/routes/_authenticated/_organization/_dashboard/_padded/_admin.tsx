@@ -1,14 +1,14 @@
 import {
+  ensureOrganizationAdmin,
+  NotOrganizationAdminError,
+} from "@everr/app/data/organization-admin";
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import {
-  ensureOrganizationAdmin,
-  NotOrganizationAdminError,
-} from "@everr/app/data/organization-admin";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_padded/_admin",

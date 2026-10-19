@@ -1,20 +1,5 @@
 // @vitest-environment node
-import { type BetterAuthOptions, betterAuth } from "better-auth";
-import { organization as organizationPlugin } from "better-auth/plugins";
-import { sql } from "drizzle-orm";
-import { PgTransaction } from "drizzle-orm/pg-core";
-import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { createAutomaticOrganizationSessionHook } from "../auto-org.server";
-import {
-  beforeCreateCheckoutOrganization,
-  withOrganizationCreationId,
-} from "../billing/organization-context.server";
-import * as billingSchema from "../db/schema";
-import {
-  isOrganizationProvisioned,
-  parseOrganizationMetadata,
-} from "./metadata";
-import { cloudTestMigrations } from "../testing/migrations";
+
 import type { Database, DbExecutor, Transaction } from "@everr/app/db/client";
 import {
   dashboards,
@@ -27,6 +12,22 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from "@everr/app/server/alerting/testing/pglite-database";
+import { type BetterAuthOptions, betterAuth } from "better-auth";
+import { organization as organizationPlugin } from "better-auth/plugins";
+import { sql } from "drizzle-orm";
+import { PgTransaction } from "drizzle-orm/pg-core";
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { createAutomaticOrganizationSessionHook } from "../auto-org.server";
+import {
+  beforeCreateCheckoutOrganization,
+  withOrganizationCreationId,
+} from "../billing/organization-context.server";
+import * as billingSchema from "../db/schema";
+import { cloudTestMigrations } from "../testing/migrations";
+import {
+  isOrganizationProvisioned,
+  parseOrganizationMetadata,
+} from "./metadata";
 
 vi.mock("@everr/app/db/client", () => ({
   db: undefined,

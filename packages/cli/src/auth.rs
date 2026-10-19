@@ -107,10 +107,13 @@ impl LoginContext {
             {
                 selected
             } else {
-                let mut matching = config
-                    .profiles
-                    .into_iter()
-                    .filter(|(_, p)| p.target.url == self.config.api_base_url);
+                let mut matching = config.profiles.into_iter().filter(|(_, p)| {
+                    p.target.url == self.config.api_base_url
+                        && self
+                            .expected
+                            .as_ref()
+                            .is_none_or(|target| target == &p.target)
+                });
                 let first = matching.next();
                 if matching.next().is_some() {
                     bail!(

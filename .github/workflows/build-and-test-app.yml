@@ -77,16 +77,19 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm exec biome check packages/app packages/datemath
+        run: pnpm exec biome check packages/app packages/cloud packages/datemath
 
       - name: Check package boundaries
         run: pnpm check:boundaries
 
       - name: Typecheck
-        run: pnpm -r --filter @everr/app... typecheck
+        run: pnpm -r --filter @everr/app-cloud... typecheck
 
       - name: Test
         run: pnpm -r --filter @everr/app... test:ci
+
+      - name: Test Cloud
+        run: pnpm --filter @everr/app-cloud test --maxWorkers=2
 
       - name: Generate migrations
         run: |
@@ -102,3 +105,10 @@ jobs:
           fi
       - name: Build
         run: pnpm -r --filter @everr/app build
+
+      - name: Build Cloud
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          BETTER_AUTH_URL: http://localhost:3000
+          BETTER_AUTH_SECRET: ci-prerender-only-not-a-runtime-secret
+        run: pnpm --filter @everr/app-cloud build

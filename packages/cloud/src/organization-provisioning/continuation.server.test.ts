@@ -2,10 +2,10 @@
 import type { GenericEndpointContext } from "better-auth";
 import { afterEach, expect, it, vi } from "vitest";
 import {
+  getOrganizationEntryRedirect,
   markOrganizationCreated,
   ORGANIZATION_CREATION_COOKIE,
   readCreatedOrganizationId,
-  getOrganizationEntryRedirect,
 } from "./continuation.server";
 
 const state = vi.hoisted(() => ({ cookie: undefined as string | undefined }));

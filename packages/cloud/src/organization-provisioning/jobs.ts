@@ -1,6 +1,6 @@
-import { sql } from "drizzle-orm";
 import { type DbExecutor, db } from "@everr/app/db/client";
 import { addWorkerJobUsing } from "@everr/app/server/worker/jobs";
+import { sql } from "drizzle-orm";
 
 export const ORGANIZATION_MAX_ATTEMPTS = 1_000;
 

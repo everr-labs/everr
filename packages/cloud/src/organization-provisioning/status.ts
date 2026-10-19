@@ -1,10 +1,10 @@
-import { sql } from "drizzle-orm";
-import { isOrganizationProvisioned } from "./metadata";
 import { type DbExecutor, db } from "@everr/app/db/client";
+import { sql } from "drizzle-orm";
 import {
   organizationLifecycleJobKey,
   PROVISION_ORGANIZATION_TASK,
 } from "./jobs";
+import { isOrganizationProvisioned } from "./metadata";
 
 export async function readOrganizationProvisioningStatus(
   organization: { id: string; metadata?: unknown },

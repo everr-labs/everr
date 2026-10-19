@@ -7,10 +7,7 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  changeOrgBillingOwner,
-  getOrgBillingSettings,
-} from "../data/billing";
+import { changeOrgBillingOwner, getOrgBillingSettings } from "../data/billing";
 
 export function BillingOwnerCard({ orgId }: { orgId: string }) {
   const client = useQueryClient();

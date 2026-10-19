@@ -1,4 +1,10 @@
 // @vitest-environment node
+
+import { organization } from "@everr/app/db/schema";
+import {
+  createTestDatabase,
+  type TestDatabase,
+} from "@everr/app/server/alerting/testing/pglite-database";
 import { eq, sql } from "drizzle-orm";
 import {
   afterAll,
@@ -10,11 +16,6 @@ import {
   vi,
 } from "vitest";
 import { isOrganizationProvisioned } from "./metadata";
-import { organization } from "@everr/app/db/schema";
-import {
-  createTestDatabase,
-  type TestDatabase,
-} from "@everr/app/server/alerting/testing/pglite-database";
 
 const mocks = vi.hoisted(() => ({
   database: undefined as unknown,
@@ -43,8 +44,8 @@ vi.mock("../clickhouse/provisioning", () => ({
   deprovisionSqlApiOrgUser: mocks.deprovision,
 }));
 
-import type { TaskList } from "graphile-worker";
 import type { Database } from "@everr/app/db/client";
+import type { TaskList } from "graphile-worker";
 import {
   DEPROVISION_ORGANIZATION_TASK,
   enqueueOrganizationDeprovisioning,

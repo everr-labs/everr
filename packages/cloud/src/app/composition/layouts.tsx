@@ -3,8 +3,8 @@ import { UserMenu } from "@everr/app/user-menu";
 import { WelcomeLayout } from "@everr/app/welcome";
 import {
   OrganizationMenuItems,
-  WorkspaceMenu,
   WelcomeActions,
+  WorkspaceMenu,
 } from "../navigation";
 
 export const layouts: ApplicationLayouts = {

@@ -12,6 +12,7 @@ vi.mock("../../components/members-unavailable", () => ({
 }));
 
 import { pages } from "./pages";
+
 const Members = pages.members.component;
 
 beforeEach(() => policy.mockReset());
