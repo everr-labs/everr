@@ -40,7 +40,12 @@ vi.mock("#app/db/client.ts", () => ({
 
 import { db } from "#app/db/client.ts";
 import { ApplyValidationError } from "./errors";
-import { applyResources } from "./registry";
+import { applyResources as applyWithSql } from "./registry";
+
+const sql = { queryWithMeta: vi.fn() };
+const applyResources = (
+  opts: Omit<Parameters<typeof applyWithSql>[0], "sql">,
+) => applyWithSql({ ...opts, sql });
 
 const empty = {
   created: [],
@@ -97,7 +102,10 @@ describe("applyResources", () => {
       expect.objectContaining({ namespace: liveNs, resources: [runbook] }),
     );
     expect(alertReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({ namespace: liveNs, resources: [alert] }),
+      expect.objectContaining({ namespace: liveNs, resources: [alert], sql }),
+    );
+    expect(alertReconciler.mock.calls.every(([args]) => args.sql === sql)).toBe(
+      true,
     );
     // The write pass (the last call; the first is validation) hands every
     // reconciler the shared transaction executor, so a failing kind rolls

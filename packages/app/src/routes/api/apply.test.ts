@@ -29,6 +29,7 @@ const POST = (
             session: { session: { activeOrganizationId: string } };
             organization: { id: string; name: string };
             applyActions: readonly string[] | null;
+            sql: { queryWithMeta: ReturnType<typeof vi.fn> };
           };
         }) => Promise<Response>;
       };
@@ -42,6 +43,7 @@ const ctx = {
   session: { session: { activeOrganizationId: "org-1" } },
   organization: { id: "org-1", name: "Acme" },
   applyActions: null,
+  sql: { queryWithMeta: vi.fn() },
 };
 const req = (body: unknown) =>
   new Request("http://x/api/apply", {
@@ -99,6 +101,7 @@ describe("POST /api/apply", () => {
     });
     expect(applyResources).toHaveBeenCalledWith({
       orgId: "org-1",
+      sql: ctx.sql,
       repoid: "repo-1",
       state: {
         dashboards: [

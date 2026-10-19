@@ -16,3 +16,6 @@ export function createOrganizationSql(
       previewSqlApi(sql, organizationId, maxRows),
   };
 }
+
+/** Organization-bound SQL capabilities backed by ready storage. */
+export type OrganizationSql = ReturnType<typeof createOrganizationSql>;

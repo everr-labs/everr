@@ -12,8 +12,6 @@ vi.mock("#app/data/alerting/delivery/repository.ts", () => ({
   listChannels: vi.fn(),
 }));
 
-vi.mock("#app/lib/clickhouse.ts", () => ({ querySqlApiWithMeta: vi.fn() }));
-
 // The reconciler builds absolute notification links from the app origin; tests
 // must not depend on real (validated) server env.
 vi.mock("#app/env/auth.ts", () => ({
@@ -25,14 +23,16 @@ import { AlertingError } from "#app/data/alerting/errors.ts";
 import * as alerting from "#app/data/alerting/rules/repository.ts";
 import { ApplyValidationError } from "#app/data/as-code/errors.ts";
 import type { DbExecutor } from "#app/db/client.ts";
-import { querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
-import { applyAlertSpecs } from "./apply.server";
+import { applyAlertSpecs as reconcileAlerts } from "./apply.server";
 
 // The repository is mocked, so the executor's identity is all that matters:
 // the reconciler must hand this exact object to every mutation.
 const db = {} as unknown as DbExecutor;
 
-const ch = vi.mocked(querySqlApiWithMeta);
+const ch = vi.fn();
+const applyAlertSpecs = (
+  opts: Omit<Parameters<typeof reconcileAlerts>[0], "sql">,
+) => reconcileAlerts({ ...opts, sql: { queryWithMeta: ch } });
 const mockedListRules = alerting.listAllRules as ReturnType<typeof vi.fn>;
 const mockedListChannels = listChannels as ReturnType<typeof vi.fn>;
 const mockedCreateRule = alerting.createRule as ReturnType<typeof vi.fn>;

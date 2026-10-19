@@ -1,5 +1,3 @@
-import { server } from "@composition/server";
-
 import { createMiddleware } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
@@ -13,14 +11,18 @@ import {
   organizationTargetErrorResponse,
 } from "#app/lib/cli-target.ts";
 import { createClickhouseQuery } from "#app/lib/clickhouse.ts";
+import {
+  createOrganizationSql,
+  type OrganizationSql,
+} from "#app/lib/organization-sql.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
-
-const { assertStorageReady } = server;
 
 export interface ApplyAuth {
   organizationId: string;
   organizationName: string;
+  /** SQL access for the authenticated organization, after its readiness check. */
+  sql: OrganizationSql;
   /** Audit principal, e.g. "apikey:<keyId>" or "user:<userId>". */
   principalId: string;
   /**
@@ -61,19 +63,20 @@ export function extractBearerKey(headers: Headers): string | null {
 }
 
 /**
- * Look up the org's display name directly from the DB. This avoids the
- * session-gated `getFullOrganization` endpoint, so it works on the API key
- * path (which has no session) too. Check readiness at the same boundary.
+ * Organization identity and ready SQL access shared by API key and session auth.
+ * The direct DB lookup also supports API keys without a user session.
  */
-async function organizationName(organizationId: string): Promise<string> {
+async function resolveOrganization(organizationId: string) {
   const [row] = await db
     .select({ name: organization.name, metadata: organization.metadata })
     .from(organization)
     .where(eq(organization.id, organizationId))
     .limit(1);
   if (!row) throw new Error("Organization not found");
-  assertStorageReady(row.metadata);
-  return row.name;
+  return {
+    organizationName: row.name,
+    sql: createOrganizationSql(organizationId, row.metadata),
+  };
 }
 
 /**
@@ -104,7 +107,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
     mergeTelemetryIdentity({ organizationId });
     return {
       organizationId,
-      organizationName: await organizationName(organizationId),
+      ...(await resolveOrganization(organizationId)),
       principalId: `apikey:${result.key.id}`,
       applyActions: result.key.permissions?.apply ?? [],
     };
@@ -121,7 +124,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
   assertOrganizationTarget(headers, organizationId);
   return {
     organizationId,
-    organizationName: await organizationName(organizationId),
+    ...(await resolveOrganization(organizationId)),
     principalId: `user:${session.user.id}`,
     applyActions: null,
   };
@@ -149,6 +152,7 @@ export function buildApplyContext(apiAuth: ApplyAuth) {
       name: apiAuth.organizationName,
     },
     applyActions: apiAuth.applyActions,
+    sql: apiAuth.sql,
     clickhouse: { query: createClickhouseQuery(apiAuth.organizationId) },
   };
 }

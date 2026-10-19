@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `10b2232d3`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `3f5f252cb`.
 
 ## Direction and next architecture work
 
@@ -177,17 +177,31 @@ not a supported harness or a prerequisite for resuming the work.
 
 ## Verification status and release work
 
-SQL access: CLI and MCP use `createOrganizationSql` to check readiness and bind
-the organization once. The dashboard follow-up provides this access
-as `context.sql` through authenticated data middleware. Dashboard handlers use
-`context.sql.query(sql, params)`; application-owned queries retain their separate
-credentials. Membership and readiness ordering, admin access during provisioning,
-and CLI/MCP validation and responses are preserved. The alert worker follow-up
-constructs the same access inside its existing failure scope and
-passes only `queryWithMeta` to the evaluator. Pending storage still records failure
-history and reschedules without issuing SQL. Both typechecks, 41 focused app tests,
-18 cloud integration tests, import boundaries, and dead-code checks passed. Manual verification remains
-blocked by the existing `alert_delivery_state` startup migration failure.
+SQL access: `createOrganizationSql` binds the organization after checking storage
+readiness. CLI, MCP, dashboard middleware, and the alert worker use this boundary;
+application-owned queries retain separate credentials. The apply auth boundary
+now provides the same access through the registry to alert validation, which
+receives only `queryWithMeta`. Permissions, readiness ordering, error responses,
+and the validation cache shared by dry-run and write passes are preserved.
+The worker still records failure history and reschedules when storage is pending.
+Both typechecks, 91 focused apply tests, import boundaries, and dead-code checks
+passed. The prior worker change also passed 18 cloud integration tests. Startup verification now reaches the sign-in page. The local database retained
+the earlier `__everr_core_migrations` ledger; its baseline hash matched the current
+SQL exactly. Recording that baseline with its current journal timestamp in
+`__drizzle_migrations` and restarting Vite resolved the duplicate-type failure
+without changing schema or application data.
+
+Live self-hosted checks after repair: sign-in, session resolution, and organization
+listing returned 200. Authenticated dashboard RPCs returned an empty dashboard
+list, panel rows for `SELECT 1 AS value`, and the expected variable option.
+CLI SQL returned 200 for valid SQL and 400 for an unknown column. Apply dry runs
+returned a successful alert plan for valid SQL and a file-specific 400 for invalid
+SQL. Cookie-only apply returned 401 as expected because apply requires a bearer
+credential. Browser navigation to `/setup` redirected through `/` to sign-in.
+No alert rules or dashboards were created. These were live HTTP checks except
+for browser routing; signed-in visual rendering, a real worker evaluation,
+MCP OAuth, cloud runtime, and end-to-end ingestion remain unverified. The local
+collector is running, but the freshness check showed CLI traces only.
 
 Entry routing follow-up: `getEntryRedirect(pathname)` replaces
 `getAppEntry`. Self-hosted composition owns installation redirects; cloud retains
@@ -196,8 +210,7 @@ state. Both `to` and `href` use the selected application's generated route types
 filtered with TanStack's `ResolveParams` to exclude parameterized destinations.
 Navigation semantics remain unchanged. Temporary type probes reject unknown
 paths, dynamic routes, external URLs, and use of `/setup` in cloud. Both typechecks,
-13 focused tests, import enforcement, and dead-code checks passed. Manual `/setup` verification
-remains blocked by the existing `alert_delivery_state` startup migration failure.
+13 focused tests, import enforcement, and dead-code checks passed. Live self-hosted `/setup` redirect verification passed after the ledger repair.
 
 Telemetry tenancy follow-up: one `telemetryTenantId` mapping replaces
 row-decoration, ingestion-response, and forwarding-header hooks. The shared writer
@@ -205,28 +218,27 @@ requires organization context through its row type and owns stored tenant column
 It adds no runtime rejection for missing context. Best-effort history logs failures,
 while strict lifecycle projection retries. Query access policies remain separate.
 Both typechecks, 62 focused app tests, 28 cloud tests, import enforcement and
-dead-code checks passed. Browser startup still fails at `alert_delivery_state`;
-live ingestion remains unverified. The local Everr collector is stopped.
+dead-code checks passed. Browser startup now succeeds; live ingestion remains unverified.
 
 Identity factory follow-up: both typechecks passed, including temporary negative
 probes for the four reserved organization hooks. All 23 focused app tests and
 37 focused cloud tests passed. New HTTP endpoint coverage verifies lock lifetime
 through successful member removal and last-owner denial. Import enforcement and
-dead-code checks passed. Manual sign-in verification still fails at the existing
-`alert_delivery_state` startup migration; the CLI still has no active session
-for remote status. Identity changes are committed at `b22391b4a`.
+dead-code checks passed. Live HTTP sign-in passed after the ledger repair. The CLI still has no active
+session for remote status. Identity changes are committed at `b22391b4a`.
 
 Dashboard typing follow-up: seven focused app tests and the actual catalog/home
 check under cloud composition passed. Both typechecks include temporary negative
 probes for unknown and undeclared home dashboard IDs; the probes are removed
 after verification. Import enforcement passed. YAML and panel queries are
-unchanged. The manual startup blocker below still limits browser verification.
+unchanged. Live panel and variable-option RPC checks passed after the ledger repair;
+signed-in visual rendering remains unverified.
 
 Composition cleanup (2026-10-19): both application typechecks, 30 focused app
 tests, 28 focused cloud tests, and import enforcement plus its regression test
 passed. Manual verification was attempted at `http://localhost:5173`, but startup
 failed during the migration creating `public.alert_delivery_state`, before page
-rendering. No database repair was attempted. The branch-status command failed
+rendering. That blocker was subsequently repaired as recorded above. The branch-status command failed
 with no active CLI session, so remote status remains unverified. Production
 builds and full suites were not rerun for this cleanup.
 
