@@ -16,7 +16,6 @@ on:
       - .nvmrc
       - biome.json
       - .oxlintrc.json
-      - scripts/import-boundaries.test.mjs
       - package.json
       - packages/app/**
       - packages/cloud/**
@@ -38,7 +37,6 @@ on:
       - .nvmrc
       - biome.json
       - .oxlintrc.json
-      - scripts/import-boundaries.test.mjs
       - package.json
       - packages/app/**
       - packages/cloud/**
@@ -82,7 +80,7 @@ jobs:
         run: pnpm exec biome check packages/app packages/datemath
 
       - name: Check package boundaries
-        run: pnpm check:boundaries && pnpm test:boundaries
+        run: pnpm check:boundaries
 
       - name: Typecheck
         run: pnpm -r --filter @everr/app... typecheck

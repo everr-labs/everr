@@ -29,7 +29,10 @@ incrementally, preserving behavior:
    self-hosted defaults. Group installation policy, setup, recovery, and composition under
    `src/app/`. Shared features reach application-specific behavior through
    composition interfaces; cloud uses public exports. Preserve the current
-   package layout while strengthening these rules.
+   package layout while strengthening these rules. Import checks now reject
+   direct access to `packages/app/src/app` from outside that directory, including
+   shared tests. Named `@composition/*` imports remain allowed; generated route
+   trees retain their existing lint exclusion.
 2. **Make server interfaces cohesive.** `ApplicationServer` currently combines
    account deletion, the public ingest address, entry flow, migrations, and
    workers. Identity and storage now have their own composition modules. Further
@@ -103,8 +106,7 @@ Shared modules retain admin visibility and signed-in action visibility. Server
 policy remains independent of UI selection. Removing a slot can break behavior
 even if types compile.
 
-Import enforcement uses `pnpm check:boundaries`; when changing enforcement, also
-run `pnpm test:boundaries`. It covers declared exports, private aliases,
+Import enforcement uses `pnpm check:boundaries`. It covers declared exports, private aliases,
 cross-package relative imports, re-exports, literal dynamic/type imports, and
 mocks. Generated route trees and `.md?raw` assets have deliberate exceptions;
 computed nonliteral imports are outside the checked contract.

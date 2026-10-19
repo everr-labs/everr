@@ -115,6 +115,21 @@
                 "message": "Use a named composition module, not a directory alias."
               },
               {
+                "from": {
+                  "file": {
+                    "path": "!packages/app/src/app/**"
+                  }
+                },
+                "disallow": {
+                  "to": {
+                    "file": {
+                      "path": "packages/app/src/app/**"
+                    }
+                  }
+                },
+                "message": "Access self-hosted implementation through @composition/* from shared code."
+              },
+              {
                 "allow": {
                   "dependency": {
                     "source": "@composition/+([a-z])"

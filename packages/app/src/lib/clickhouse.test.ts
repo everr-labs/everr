@@ -24,10 +24,13 @@ vi.mock("@clickhouse/client", () => ({
   })),
 }));
 
-vi.mock("#app/app/env.ts", () => ({
-  appEnv: {
-    CLICKHOUSE_SQL_API_USERNAME: "sql_api",
-    CLICKHOUSE_SQL_API_PASSWORD: "password",
+vi.mock("@composition/storage", () => ({
+  storage: {
+    appQuerySettings: (_organizationId: string, settings: unknown) => settings,
+    sqlApiAccess: () => ({
+      auth: { username: "sql_api", password: "password" },
+    }),
+    telemetryTenantId: () => undefined,
   },
 }));
 
