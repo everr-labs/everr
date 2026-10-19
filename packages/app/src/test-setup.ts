@@ -97,11 +97,11 @@ vi.mock("#app/lib/clickhouse.ts", () => {
 // ---------------------------------------------------------------------------
 
 vi.mock("#app/lib/serverFn.ts", async () => {
-  const { query } = await import("#app/lib/clickhouse.ts");
+  const { query, querySqlApi } = await import("#app/lib/clickhouse.ts");
   const { auth } = await import("#app/lib/auth.server.ts");
 
   // requireOrgMiddleware: active org guaranteed + ClickHouse bound to it.
-  const makeAuthChain = () =>
+  const makeAuthChain = (withSql = false) =>
     makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
       return fn({
         data: opts?.data,
@@ -119,6 +119,14 @@ vi.mock("#app/lib/serverFn.ts", async () => {
               image: null,
             },
           },
+          ...(withSql
+            ? {
+                sql: {
+                  query: <T>(sql: string, params?: Record<string, unknown>) =>
+                    querySqlApi<T>(sql, "test_org", params),
+                },
+              }
+            : {}),
           clickhouse: {
             query: <T>(sql: string, params?: Record<string, unknown>) =>
               query<T>(sql, "42", params),
@@ -147,8 +155,8 @@ vi.mock("#app/lib/serverFn.ts", async () => {
 
   return {
     requireOrgMiddleware: { __handler: vi.fn() },
-    createAuthenticatedServerFn: vi.fn(makeAuthChain),
-    createOrganizationAdminServerFn: vi.fn(makeAuthChain),
+    createAuthenticatedServerFn: vi.fn(() => makeAuthChain(true)),
+    createOrganizationAdminServerFn: vi.fn(() => makeAuthChain()),
     createPartiallyAuthenticatedServerFn: vi.fn(makePartialAuthChain),
   };
 });

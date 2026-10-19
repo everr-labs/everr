@@ -20,7 +20,6 @@ import {
 } from "#app/data/previews/scope.ts";
 import { db } from "#app/db/client.ts";
 import { dashboards, previews } from "#app/db/schema/index.ts";
-import { querySqlApi } from "#app/lib/clickhouse.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import {
   buildCapabilitiesQuery,
@@ -214,9 +213,8 @@ export const getTelemetryCapabilities = createAuthenticatedServerFn({
   .inputValidator(z.object({ from: z.string(), to: z.string() }))
   .handler(async ({ data: { from, to }, context }) => {
     const { fromISO, toISO } = resolveTimeRange({ from, to });
-    const rows = await querySqlApi<CapabilityRow>(
+    const rows = await context.sql.query<CapabilityRow>(
       buildCapabilitiesQuery(),
-      context.session.session.activeOrganizationId,
       { from: fromISO, to: toISO },
     );
     return decodeCapabilityRows(rows);
@@ -277,9 +275,8 @@ export const runPanelQuery = createAuthenticatedServerFn({
       // User-supplied SQL: run it through the per-org SQL API user, whose tenant
       // filter is a row policy bound to the user — not a `SETTINGS`-based filter
       // a malicious query could override to read another tenant's rows.
-      const rows = await querySqlApi<QueryRow>(
+      const rows = await context.sql.query<QueryRow>(
         interpolated,
-        context.session.session.activeOrganizationId,
         dashboardQueryParams({ from, to }),
       );
       return { rows };
@@ -320,9 +317,8 @@ export const runVariableOptionsQuery = createAuthenticatedServerFn({
     // result overflow — capping after the fetch would never run for large sets.
     // Bind the same parameters as a panel query (including `{step}`) so an
     // options query can reference any of them without erroring.
-    const rows = await querySqlApi<Record<string, unknown>>(
+    const rows = await context.sql.query<Record<string, unknown>>(
       withRowLimit(query, VARIABLE_OPTIONS_LIMIT),
-      context.session.session.activeOrganizationId,
       dashboardQueryParams({ from, to }),
     );
 

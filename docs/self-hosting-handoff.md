@@ -1,6 +1,6 @@
 # Self-hosting and cloud separation handoff
 
-Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `ded3eb387`.
+Updated 2026-10-19. Branch: `self-host`. Source checkpoint: `b2dc6c609`.
 
 ## Direction and next architecture work
 
@@ -177,12 +177,14 @@ not a supported harness or a prerequisite for resuming the work.
 
 ## Verification status and release work
 
-SQL readiness follow-up: CLI and MCP use `createOrganizationSql`
-to check readiness and bind the organization once. Empty-SQL validation remains
-before readiness; response formatting and errors remain with each caller. Other
-readiness consumers are unchanged. Both typechecks, 22 focused tests, import
-boundaries, and dead-code checks passed. Manual verification remains blocked by
-the existing `alert_delivery_state` startup migration failure.
+SQL access: CLI and MCP use `createOrganizationSql` to check readiness and bind
+the organization once. The dashboard follow-up provides this access
+as `context.sql` through authenticated data middleware. Dashboard handlers use
+`context.sql.query(sql, params)`; application-owned queries retain their separate
+credentials. Membership and readiness ordering, admin access during provisioning,
+and CLI/MCP validation and responses are preserved. Both typechecks, 57 focused
+tests, import boundaries, and dead-code checks passed. Manual verification remains
+blocked by the existing `alert_delivery_state` startup migration failure.
 
 Entry routing follow-up: `getEntryRedirect(pathname)` replaces
 `getAppEntry`. Self-hosted composition owns installation redirects; cloud retains

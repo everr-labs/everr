@@ -1,5 +1,3 @@
-import { server } from "@composition/server";
-
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { db } from "#app/db/client.ts";
 import {
@@ -8,10 +6,9 @@ import {
 } from "#app/lib/cli-target.ts";
 import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
+import { createOrganizationSql } from "#app/lib/organization-sql.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { createClickhouseQuery } from "./clickhouse";
-
-const { assertStorageReady } = server;
 
 const authMiddleware = createMiddleware().server(async ({ request, next }) => {
   const session = await getSession({
@@ -71,8 +68,11 @@ export const requireOrgMiddleware = createMiddleware()
 const requireStorageReadyMiddleware = createMiddleware()
   .middleware([requireOrgMiddleware])
   .server(({ next, context: { organization } }) => {
-    assertStorageReady(organization.metadata);
-    return next();
+    return next({
+      context: {
+        sql: createOrganizationSql(organization.id, organization.metadata),
+      },
+    });
   });
 
 export const createAuthenticatedServerFn = createServerFn().middleware([

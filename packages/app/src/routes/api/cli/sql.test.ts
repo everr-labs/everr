@@ -94,7 +94,11 @@ describe("/api/cli/sql", () => {
     expect(response.headers.get("content-type")).toContain(
       "application/x-ndjson",
     );
-    expect(mockedQuerySqlApi).toHaveBeenCalledWith("SELECT 1 AS ok", "org-42");
+    expect(mockedQuerySqlApi).toHaveBeenCalledWith(
+      "SELECT 1 AS ok",
+      "org-42",
+      undefined,
+    );
     expect(await response.text()).toBe('{"ok":1}\n');
   });
 
@@ -136,7 +140,7 @@ describe("/api/cli/sql", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(mockedQuerySqlApi).toHaveBeenCalledWith(sql, "org-42");
+    expect(mockedQuerySqlApi).toHaveBeenCalledWith(sql, "org-42", undefined);
   });
 
   it("returns 400 when ClickHouse rejects the SQL", async () => {

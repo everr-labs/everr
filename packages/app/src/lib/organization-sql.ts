@@ -8,7 +8,8 @@ export function createOrganizationSql(
 ) {
   server.assertStorageReady(metadata);
   return {
-    query: <T>(sql: string) => querySqlApi<T>(sql, organizationId),
+    query: <T>(sql: string, params?: Record<string, unknown>) =>
+      querySqlApi<T>(sql, organizationId, params),
     preview: (sql: string, maxRows: number) =>
       previewSqlApi(sql, organizationId, maxRows),
   };

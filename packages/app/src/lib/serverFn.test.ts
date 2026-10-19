@@ -47,6 +47,7 @@ function getRequireOrgHandler(): FunctionMiddlewareHandler {
 
 beforeEach(() => {
   vi.resetModules();
+  vi.mocked(assertStorageReady).mockReset();
   mocked.handler = null;
   mocked.middlewareDefinition = null;
   mocked.allDefinitions = [];
@@ -300,12 +301,21 @@ describe("organization readiness boundary", () => {
     });
     expect(next).toHaveBeenCalledOnce();
     expect(mocked.getOrganization).toHaveBeenCalledOnce();
+    expect(assertStorageReady).toHaveBeenCalledWith(metadata);
+    const { context } = next.mock.calls[0][0];
+    const { querySqlApi } = await import("./clickhouse");
+    await context.sql.query("SELECT {value:UInt8}", { value: 1 });
+    expect(querySqlApi).toHaveBeenLastCalledWith(
+      "SELECT {value:UInt8}",
+      "org",
+      { value: 1 },
+    );
   });
   it("blocks pending data functions while allowing organization access", async () => {
+    await loadModule();
     vi.mocked(assertStorageReady).mockImplementationOnce(() => {
       throw new StorageNotReadyError();
     });
-    await loadModule();
     mocked.getSession.mockResolvedValue({
       user: { id: "u" },
       session: { activeOrganizationId: "org" },
