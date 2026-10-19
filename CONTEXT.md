@@ -150,8 +150,28 @@ The browser SDK mode entered after explicit consent: persistent Visitor id, dura
 _Avoid_: identified mode, cookie mode
 
 **Recording**:
-The captured screen history of one Session: what the page showed and how the person interacted with it. A Session has zero or one Recording; in Cookieless mode a reload starts a new Session, so it starts a new Recording too.
+The captured screen history of one Session: what the page showed and how the person interacted with it. A Session has zero or one Recording; in Cookieless mode a reload starts a new Session, so it starts a new Recording too. A Recording is one or more Streams.
 _Avoid_: session replay (for the data), video, capture
+
+**Mask**:
+Text in a Recording replaced with asterisks of the same length. The element stays.
+_Avoid_: redact, scrub
+
+**Block**:
+An element in a Recording replaced by an empty placeholder of the same size.
+_Avoid_: omit, delete
+
+**Ignore**:
+Input events inside an element left out of a Recording. The element stays.
+_Avoid_: skip
+
+**Stream**:
+The part of a Recording that one document captured: one page load in one tab. A hard navigation or a reload starts a new Stream. Two tabs that share a Session give two Streams at the same time.
+_Avoid_: tab recording, track
+
+**Segment**:
+One contiguous slice of a Stream. A long Stream is a sequence of Segments.
+_Avoid_: chunk, batch, blob
 
 **Replay**:
 Watching a Recording, with that Session's Traces, Logs, and errors on the same timeline.
