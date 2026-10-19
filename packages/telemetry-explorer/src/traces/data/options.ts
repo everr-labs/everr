@@ -9,7 +9,6 @@ import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { TracesRepositoryLike } from "./repository";
 import type { SpanStatusFilter } from "./schemas";
 import type { TraceSummary } from "./types";
-import type { DetailWindow } from "./window";
 
 export type TraceSearchOptionsInput = {
   repo: TracesRepositoryLike;
@@ -75,25 +74,16 @@ export function tracesSearchInfiniteOptions(input: TraceSearchOptionsInput) {
 export type GetTraceOptionsInput = {
   repo: TracesRepositoryLike;
   traceId: string;
-  window: DetailWindow;
   refresh: string;
 };
 
 export function getTraceOptions(input: GetTraceOptionsInput) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
   return queryOptions({
-    queryKey: [
-      "traces",
-      "get",
-      input.traceId,
-      input.window.fromTs,
-      input.window.toTs,
-    ] as const,
+    queryKey: ["traces", "get", input.traceId] as const,
     queryFn: () =>
       input.repo.getTrace({
         traceId: input.traceId,
-        fromTs: input.window.fromTs,
-        toTs: input.window.toTs,
       }),
     enabled: input.traceId.length > 0,
     refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,

@@ -1,5 +1,4 @@
 import {
-  computeDetailWindow,
   getTraceOptions,
   type TraceDetailParams,
   toTraceListSearch,
@@ -17,10 +16,6 @@ import { remoteTracesRepo } from "@/data/traces/remote-repo";
 
 export function getTraceDetailLoaderDeps(search: TraceDetailParams) {
   return {
-    start: search.start,
-    end: search.end,
-    from: search.from,
-    to: search.to,
     refresh: search.refresh,
   };
 }
@@ -38,11 +33,6 @@ export async function ensureTraceDetailData({
     getTraceOptions({
       repo: remoteTracesRepo,
       traceId,
-      window: computeDetailWindow({
-        start: deps.start,
-        end: deps.end,
-        timeRange: { from: deps.from, to: deps.to },
-      }),
       refresh: deps.refresh ?? "off",
     }),
   );

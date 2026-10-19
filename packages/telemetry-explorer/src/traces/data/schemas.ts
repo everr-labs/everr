@@ -60,8 +60,6 @@ export type SearchTracesInput = z.infer<typeof SearchTracesInputSchema>;
 
 export const GetTraceInputSchema = z.object({
   traceId: z.string().min(1),
-  fromTs: z.string().min(1),
-  toTs: z.string().min(1),
 });
 export type GetTraceInput = z.infer<typeof GetTraceInputSchema>;
 
