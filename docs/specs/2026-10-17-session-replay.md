@@ -1,19 +1,19 @@
-# Incident Replay
+# Session Replay
 
 **Date:** 2026-10-17
 **Labels:** ready-for-agent
 
 ## Problem Statement
 
-During an incident, a developer looks at a failing Trace or an error in Everr and has to guess what the person on the page did and saw. The Traces, Logs, and errors show what the system did. They do not show the screen: which button was clicked, what the page looked like, whether a spinner stayed forever, whether the error was even visible. The developer asks the reporter for screenshots, tries to reproduce the issue by hand, and often cannot.
+When something goes wrong in a web app, a developer looks at a failing Trace or an error in Everr and has to guess what the person on the page did and saw. The Traces, Logs, and errors show what the system did. They do not show the screen: which button was clicked, what the page looked like, whether a spinner stayed forever, whether the error was even visible. The developer asks the reporter for screenshots, tries to reproduce the issue by hand, and often cannot.
 
-Agents have the same gap. An Agent investigating an incident can read Logs and Traces, but it cannot tell what the person did between them.
+Agents have the same gap. An Agent investigating a problem can read Logs and Traces, but it cannot tell what the person did between them.
 
 ## Solution
 
 The WebSDK gets a replay Instrumentation, `recording()`, that records the DOM of a Session with rrweb. A Recording is sent as OTLP Logs, routed by the collector into its own ClickHouse table, and stored with the Plan retention, both in the Cloud and in the local Collector.
 
-During an incident, a developer opens a Trace or an error. If that Trace has a Session, a Replay player sits at the top of the view, opened at the matching moment. Under it is the existing trace view. Clicking a Span seeks the player to that moment; while the player plays, the Span under the clock is selected. Logs and errors are span events on the same waterfall, so the screen, the Traces, the Logs, and the errors read as one timeline.
+A developer debugging a problem opens a Trace or an error. If that Trace has a Session, a Replay player sits at the top of the view, opened at the matching moment. Under it is the existing trace view. Clicking a Span seeks the player to that moment; while the player plays, the Span under the clock is selected. Logs and errors are span events on the same waterfall, so the screen, the Traces, the Logs, and the errors read as one timeline.
 
 Production builds record only around errors by default: the recorder keeps the last 30 to 60 seconds in memory and sends them when an error or a failed request happens, then keeps recording. Dev builds record every Session. Privacy defaults match Sentry: in production all text and inputs are Masked and media is Blocked, and integrators can tune this with options and markers.
 
@@ -21,9 +21,9 @@ Agents use the `query` tool they already have. They read the Session's Logs and 
 
 ## User Stories
 
-### Developer during an incident
+### Developer debugging a Session
 
-1. As a developer investigating an incident, I want to open a Trace and see the Recording of the Session that produced it, so that I can see what the person did and saw.
+1. As a developer debugging a problem, I want to open a Trace and see the Recording of the Session that produced it, so that I can see what the person did and saw.
 2. As a developer, I want the player to open at the moment of the Span I came from, so that I do not have to scrub through the Recording.
 3. As a developer, I want to open an error and see the Recording at the moment of the Span that carries that error, so that I can see the screen when it failed.
 4. As a developer, I want the error's stack to remain visible as that Span's exception event, so that the Replay adds to the error view instead of replacing it.
@@ -31,7 +31,7 @@ Agents use the `query` tool they already have. They read the Session's Logs and 
 6. As a developer, I want to click a Span and have the player seek to it, so that I can jump between what the system did and what the screen showed.
 7. As a developer, I want the selected Span to follow the player clock while it plays, so that I can see which request belongs to which screen change.
 8. As a developer, I want Logs and errors shown as span events on the waterfall, so that I have one timeline instead of two.
-9. As a developer, I want a backend Trace (a server function, a same-origin API call, a cross-origin call that sends `traceparent`) to open the Recording of the browser Session that caused it, so that backend incidents also get a Replay.
+9. As a developer, I want a backend Trace (a server function, a same-origin API call, a cross-origin call that sends `traceparent`) to open the Recording of the browser Session that caused it, so that backend problems also get a Replay.
 10. As a developer, I want the player area to say the Session has no Recording when it was not sampled, so that I know the absence is expected and not a bug.
 11. As a developer, I want no player at all on a Trace with no Session (cron, webhooks, a full page load document request), so that the view stays clean when Replay cannot apply.
 12. As a developer, I want the player to show only the Stream of the page view I came from, so that a second tab in the same Session does not confuse the Replay.
@@ -90,7 +90,7 @@ Agents use the `query` tool they already have. They read the Session's Logs and 
 
 ### Agent
 
-56. As an Agent, I want to read a Session's timeline from Logs and Traces with the existing `query` tool, so that I need no new tool to understand an incident.
+56. As an Agent, I want to read a Session's timeline from Logs and Traces with the existing `query` tool, so that I need no new tool to understand a problem.
 57. As an Agent, I want to find a Recording by filtering `traces` for `SpanName = 'recording'` and `session.id`, so that I can tell a developer a Replay exists.
 58. As an Agent, I want `everr.recording.trigger` on the `recording` span, so that I know why the Stream was recorded.
 59. As an Agent, I want the telemetry skill to tell me the recordings table holds rrweb and is the wrong payload, so that I do not waste tokens on it.
