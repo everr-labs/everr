@@ -1,0 +1,264 @@
+#!/usr/bin/env bash
+# verify-everr: launch, inspect, drive, and tear down an ISOLATED everr-dev
+# local instance (collector + chDB + local UI) for verification runs.
+#
+#   verify-everr build                  # pnpm dev:cli (local UI + Go collector + chDB + debug CLI)
+#   verify-everr launch [RUN_ID]        # start an isolated detached instance, wait until queryable
+#   verify-everr doctor                 # read-only: is this run's instance worth driving?
+#   verify-everr env                    # print the export lines for the current run
+#   verify-everr cli <label> -- ARGS... # run everr-dev ARGS in the run's env, record evidence
+#   verify-everr cli-until <label> <text> -- ARGS... # retry a read until stdout has text
+#   verify-everr ui-get <path>          # GET a path on this run's local UI (correct Host header)
+#   verify-everr ui-cmd <command> [json]# POST /api/commands/<command> like the browser does
+#   verify-everr ui-shot <label> <path> [text] # headless Chrome: wait for text, save screenshot/DOM/innerText
+#   verify-everr cleanup                # stop this run's instance, delete scratch, KEEP evidence
+#
+# State: the current run id lives in $REPO/.verify-everr/current.
+# Scratch (deleted by cleanup):  ${EVERR_VERIFY_SCRATCH:-/tmp/verify-everr}/<RUN_ID>/
+# Evidence (never deleted):      $REPO/.verify-everr/artifacts/<RUN_ID>/
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+BIN="$REPO/target/debug/everr-dev"
+STATE_DIR="$REPO/.verify-everr"
+SCRATCH_ROOT="${EVERR_VERIFY_SCRATCH:-/tmp/verify-everr}"
+
+die() { echo "verify-everr: $*" >&2; exit 1; }
+
+current_run() {
+  [[ -f "$STATE_DIR/current" ]] || die "no current run; run 'verify-everr launch' first"
+  cat "$STATE_DIR/current"
+}
+
+load_run() {
+  RUN_ID="${RUN_ID:-$(current_run)}"
+  RUN_DIR="$SCRATCH_ROOT/$RUN_ID"
+  ART_DIR="$STATE_DIR/artifacts/$RUN_ID"
+  [[ -f "$RUN_DIR/env" ]] || die "run $RUN_ID has no env file at $RUN_DIR/env (already cleaned up?)"
+  # shellcheck disable=SC1091
+  source "$RUN_DIR/env"
+}
+
+free_port() {
+  python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()'
+}
+
+port_of() { local o="$1"; echo "${o##*:}"; }
+
+# PIDs listening on a TCP port (empty if none). Needs ss from iproute2.
+port_pids() {
+  ss -Hltnp "sport = :$1" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u | tr '\n' ' '
+}
+
+cmd_build() {
+  command -v make >/dev/null || die "make is missing (collector build-local needs it)"
+  command -v go >/dev/null || die "go is missing (collector needs Go >= go.mod version)"
+  local node_major; node_major="$(node -p 'process.versions.node.split(".")[0]')"
+  (( node_major >= 23 )) || die "node $(node --version) is too old; repo pins $(cat "$REPO/.nvmrc") (.nvmrc). Put Node 24 first on PATH"
+  ( cd "$REPO" && [[ -d node_modules ]] || pnpm install --frozen-lockfile )
+  ( cd "$REPO" && pnpm dev:cli )
+  [[ -x "$BIN" ]] || die "build finished but $BIN is missing"
+  "$BIN" --version
+}
+
+cmd_launch() {
+  [[ -x "$BIN" ]] || die "$BIN missing; run 'verify-everr build' first"
+  if [[ -f "$STATE_DIR/current" ]] && [[ -f "$SCRATCH_ROOT/$(cat "$STATE_DIR/current")/env" ]]; then
+    die "run $(cat "$STATE_DIR/current") is still live; run 'verify-everr cleanup' first (one instance per checkout)"
+  fi
+  RUN_ID="${1:-$(date +%Y%m%d-%H%M%S)-$$}"
+  RUN_DIR="$SCRATCH_ROOT/$RUN_ID"
+  ART_DIR="$STATE_DIR/artifacts/$RUN_ID"
+  mkdir -p "$RUN_DIR"/{home,telemetry,logs,config,data,cache,state} "$ART_DIR"
+  local sql otlp ui
+  sql="http://127.0.0.1:$(free_port)"; otlp="http://127.0.0.1:$(free_port)"; ui="http://127.0.0.1:$(free_port)"
+  cat > "$RUN_DIR/env" <<ENV
+export RUN_ID='$RUN_ID'
+export EVERR_SQL_HTTP_ORIGIN='$sql'
+export EVERR_OTLP_HTTP_ORIGIN='$otlp'
+export EVERR_LOCAL_UI_ORIGIN='$ui'
+export EVERR_TELEMETRY_DIR='$RUN_DIR/telemetry'
+export EVERR_LOCAL_LOG_DIR='$RUN_DIR/logs'
+export EVERR_INTERNAL_TELEMETRY_ENDPOINT='$otlp'
+export HOME='$RUN_DIR/home'
+export XDG_CONFIG_HOME='$RUN_DIR/config'
+export XDG_DATA_HOME='$RUN_DIR/data'
+export XDG_CACHE_HOME='$RUN_DIR/cache'
+export XDG_STATE_HOME='$RUN_DIR/state'
+ENV
+  mkdir -p "$STATE_DIR"; echo "$RUN_ID" > "$STATE_DIR/current"
+  cp "$RUN_DIR/env" "$ART_DIR/run.env"
+  {
+    echo "run_id: $RUN_ID"
+    echo "git_head: $(git -C "$REPO" rev-parse HEAD)"
+    echo "git_branch: $(git -C "$REPO" rev-parse --abbrev-ref HEAD)"
+    echo "binary: $BIN"
+    echo "binary_version: $("$BIN" --version)"
+    echo "binary_mtime: $(date -r "$BIN" '+%F %T %Z')"
+    echo "launched_at: $(date '+%F %T %Z')"
+  } > "$ART_DIR/run.txt"
+  load_run
+  echo "launching run $RUN_ID (scratch $RUN_DIR, evidence $ART_DIR)"
+  set +e
+  ( source "$RUN_DIR/env"; "$BIN" local start --detach --no-open ) >"$ART_DIR/launch.stdout" 2>"$ART_DIR/launch.stderr"
+  local rc=$?
+  set -e
+  echo "$rc" > "$ART_DIR/launch.exit"
+  cat "$ART_DIR/launch.stdout"
+  if (( rc != 0 )); then cat "$ART_DIR/launch.stderr" >&2; die "local start exited $rc (see $RUN_DIR/logs/local.log); run 'verify-everr cleanup'"; fi
+  # Ready means queryable, not just listening: wait until SQL over the tables answers.
+  local deadline=$((SECONDS + 60))
+  until ( source "$RUN_DIR/env"; "$BIN" local query "SELECT count() AS c FROM logs" --format ndjson ) >/dev/null 2>&1; do
+    (( SECONDS < deadline )) || die "instance never answered SQL within 60s; see $RUN_DIR/logs/local.log"
+    sleep 0.5
+  done
+  # Record the PIDs that own our ports so cleanup can kill exactly what we started.
+  {
+    echo "sql_pids=$(port_pids "$(port_of "$EVERR_SQL_HTTP_ORIGIN")")"
+    echo "otlp_pids=$(port_pids "$(port_of "$EVERR_OTLP_HTTP_ORIGIN")")"
+    echo "ui_pids=$(port_pids "$(port_of "$EVERR_LOCAL_UI_ORIGIN")")"
+  } > "$RUN_DIR/pids"
+  cp "$RUN_DIR/pids" "$ART_DIR/pids.txt"
+  echo "READY run=$RUN_ID ui=$EVERR_LOCAL_UI_ORIGIN sql=$EVERR_SQL_HTTP_ORIGIN otlp=$EVERR_OTLP_HTTP_ORIGIN"
+}
+
+cmd_doctor() {
+  load_run
+  local ok=1
+  check() { if eval "$2" >/dev/null 2>&1; then echo "ok   $1"; else echo "FAIL $1"; ok=0; fi; }
+  echo "run: $RUN_ID"
+  echo "binary: $("$BIN" --version 2>/dev/null || echo missing)  head: $(git -C "$REPO" rev-parse --short HEAD)"
+  local stale
+  stale="$(find "$REPO/packages/cli/src" "$REPO/packages/local-app/src" "$REPO/collector/cmd" -newer "$BIN" -type f 2>/dev/null | head -3)"
+  if [[ -n "$stale" ]]; then echo "WARN sources newer than binary (rebuild with 'verify-everr build'):"; echo "$stale" | sed 's/^/       /'; fi
+  check "binary is a debug build" "'$BIN' --version | grep -q 'debug build'"
+  check "local status exits 0 (collector+ui same instance)" "( source '$RUN_DIR/env'; '$BIN' local status )"
+  local cid uid
+  cid="$(curl -fsS "$EVERR_SQL_HTTP_ORIGIN/health" | jq -r .instance_id 2>/dev/null || true)"
+  uid="$(curl -fsS -H "Host: ${EVERR_LOCAL_UI_ORIGIN#http://}" "$EVERR_LOCAL_UI_ORIGIN/health" | jq -r .instance_id 2>/dev/null || true)"
+  check "collector /health and ui /health share instance_id ($cid)" "[[ -n '$cid' && '$cid' == '$uid' ]]"
+  check "collector service identity" "curl -fsS '$EVERR_SQL_HTTP_ORIGIN/health' | jq -e '.service==\"everr-local-collector\"'"
+  local p; for p in sql otlp ui; do
+    local origin_var; case $p in sql) origin_var=$EVERR_SQL_HTTP_ORIGIN;; otlp) origin_var=$EVERR_OTLP_HTTP_ORIGIN;; ui) origin_var=$EVERR_LOCAL_UI_ORIGIN;; esac
+    local want now; want="$(grep "^${p}_pids=" "$RUN_DIR/pids" | cut -d= -f2)"; now="$(port_pids "$(port_of "$origin_var")")"
+    check "$p port $(port_of "$origin_var") owned by recorded pids [$want]" "[[ -n '$want' && '$want' == '$now' ]]"
+  done
+  check "SQL answers (SELECT count() FROM logs)" "( source '$RUN_DIR/env'; '$BIN' local query 'SELECT count() AS c FROM logs' --format ndjson )"
+  (( ok )) && echo "DOCTOR OK" || { echo "DOCTOR FAILED"; return 1; }
+}
+
+cmd_env() { load_run; cat "$RUN_DIR/env"; }
+
+# verify-everr cli <label> -- everr args...
+cmd_cli() {
+  load_run
+  local label="${1:?label required}"; shift
+  [[ "${1:-}" == "--" ]] && shift
+  local out="$ART_DIR/cli/$label"; mkdir -p "$out"
+  printf '%q ' everr "$@" > "$out/command.txt"; echo >> "$out/command.txt"
+  set +e
+  ( source "$RUN_DIR/env"; cd "${VERIFY_CWD:-$REPO}"; "$BIN" "$@" ) >"$out/stdout" 2>"$out/stderr"
+  local rc=$?
+  set -e
+  echo "$rc" > "$out/exit_code"
+  date '+%F %T %Z' > "$out/at.txt"
+  echo "\$ $(cat "$out/command.txt")"
+  cat "$out/stdout"
+  [[ -s "$out/stderr" ]] && { echo "--- stderr"; cat "$out/stderr"; }
+  echo "--- exit $rc  (evidence: $out)"
+  return $rc
+}
+
+# verify-everr cli-until <label> <text> -- everr args...
+# Re-run a read-only CLI command until stdout contains <text> (ingestion is async), max $UNTIL_S (15s).
+cmd_cli_until() {
+  local label="${1:?label required}" want="${2:?expected text required}"; shift 2
+  [[ "${1:-}" == "--" ]] && shift
+  local deadline=$((SECONDS + ${UNTIL_S:-15})) start=$SECONDS tries=0
+  while :; do
+    tries=$((tries + 1))
+    if cmd_cli "$label" "$@" >/dev/null 2>&1 && grep -qF -- "$want" "$ART_DIR/cli/$label/stdout"; then
+      echo "found '$want' after ${tries} tries ($((SECONDS - start))s)" | tee "$ART_DIR/cli/$label/until.txt"
+      cat "$ART_DIR/cli/$label/stdout"; return 0
+    fi
+    (( SECONDS < deadline )) || break
+    sleep 0.5
+  done
+  echo "NOT FOUND '$want' after ${tries} tries ($((SECONDS - start))s)" | tee "$ART_DIR/cli/$label/until.txt"
+  cat "$ART_DIR/cli/$label/stdout" "$ART_DIR/cli/$label/stderr"; return 1
+}
+
+cmd_ui_get() {
+  load_run
+  curl -sS -H "Host: ${EVERR_LOCAL_UI_ORIGIN#http://}" "$EVERR_LOCAL_UI_ORIGIN${1:-/}"
+}
+
+cmd_ui_cmd() {
+  load_run
+  curl -sS -X POST -H "Host: ${EVERR_LOCAL_UI_ORIGIN#http://}" -H "Origin: $EVERR_LOCAL_UI_ORIGIN" \
+    -H "X-Everr-Local: 1" -H "Content-Type: application/json" \
+    --data "${2:-{\}}" "$EVERR_LOCAL_UI_ORIGIN/api/commands/${1:?command required}"
+}
+
+# verify-everr ui-shot <label> <path> [wait-for-text]: render a local UI route in headless
+# Chrome (CDP, scripts/ui-shot.mjs), wait until the text is visible, save screenshot/DOM/innerText.
+cmd_ui_shot() {
+  load_run
+  local label="${1:?label required}" path="${2:-/}" wait_for="${3:-}" chrome
+  chrome="${CHROME:-$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)}"
+  [[ -n "$chrome" ]] || die "no Chrome/Chromium on PATH (set CHROME=/path/to/chrome)"
+  local out="$ART_DIR/ui/$label"
+  CHROME="$chrome" SCRATCH_DIR="$RUN_DIR" node "$SCRIPT_DIR/ui-shot.mjs" \
+    "$EVERR_LOCAL_UI_ORIGIN$path" "$out" "$wait_for" "${UI_WAIT_MS:-20000}"
+  local rc=$?
+  echo "ui evidence: $out/{screenshot.png,dom.html,text.txt,result.json}"
+  return $rc
+}
+
+cmd_cleanup() {
+  RUN_ID="${RUN_ID:-$(cat "$STATE_DIR/current" 2>/dev/null || true)}"
+  [[ -n "$RUN_ID" ]] || { echo "nothing to clean up"; return 0; }
+  RUN_DIR="$SCRATCH_ROOT/$RUN_ID"; ART_DIR="$STATE_DIR/artifacts/$RUN_ID"
+  if [[ -f "$RUN_DIR/env" ]]; then
+    # shellcheck disable=SC1091
+    source "$RUN_DIR/env"
+    ( source "$RUN_DIR/env"; "$BIN" local stop ) >"$ART_DIR/cleanup.stop.txt" 2>&1 || true
+    local deadline=$((SECONDS + 15)) p
+    for p in "$EVERR_SQL_HTTP_ORIGIN" "$EVERR_OTLP_HTTP_ORIGIN" "$EVERR_LOCAL_UI_ORIGIN"; do
+      while [[ -n "$(port_pids "$(port_of "$p")")" ]] && (( SECONDS < deadline )); do sleep 0.3; done
+    done
+    # Fallback: kill only the PIDs recorded at launch, and only if they still hold our ports.
+    if [[ -f "$RUN_DIR/pids" ]]; then
+      local pid
+      for pid in $(cut -d= -f2 "$RUN_DIR/pids" | tr ' ' '\n' | sort -u); do
+        [[ -n "$pid" ]] || continue
+        if [[ " $(port_pids "$(port_of "$EVERR_SQL_HTTP_ORIGIN")") $(port_pids "$(port_of "$EVERR_OTLP_HTTP_ORIGIN")") $(port_pids "$(port_of "$EVERR_LOCAL_UI_ORIGIN")") " == *" $pid "* ]]; then
+          echo "force-killing recorded pid $pid" | tee -a "$ART_DIR/cleanup.stop.txt"; kill "$pid" 2>/dev/null || true
+        fi
+      done
+    fi
+    for p in "$EVERR_SQL_HTTP_ORIGIN" "$EVERR_OTLP_HTTP_ORIGIN" "$EVERR_LOCAL_UI_ORIGIN"; do
+      [[ -z "$(port_pids "$(port_of "$p")")" ]] || echo "WARN $p still listening" | tee -a "$ART_DIR/cleanup.stop.txt"
+    done
+    [[ -f "$RUN_DIR/logs/local.log" ]] && cp "$RUN_DIR/logs/local.log" "$ART_DIR/local.log" || true
+  fi
+  rm -rf "$RUN_DIR"
+  rm -f "$STATE_DIR/current"
+  echo "cleaned up run $RUN_ID; evidence kept at $ART_DIR"
+  ls "$ART_DIR"
+}
+
+case "${1:-}" in
+  build) shift; cmd_build "$@" ;;
+  launch) shift; cmd_launch "$@" ;;
+  doctor) shift; cmd_doctor "$@" ;;
+  env) shift; cmd_env "$@" ;;
+  cli) shift; cmd_cli "$@" ;;
+  cli-until) shift; load_run; cmd_cli_until "$@" ;;
+  ui-get) shift; cmd_ui_get "$@" ;;
+  ui-cmd) shift; cmd_ui_cmd "$@" ;;
+  ui-shot) shift; cmd_ui_shot "$@" ;;
+  cleanup) shift; cmd_cleanup "$@" ;;
+  *) sed -n '2,/^set -euo/p' "$0" | grep '^#'; exit 2 ;;
+esac
