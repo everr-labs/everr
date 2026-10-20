@@ -10,7 +10,10 @@
     "restriction": "off",
     "nursery": "off"
   },
-  "jsPlugins": ["eslint-plugin-boundaries"],
+  "jsPlugins": [
+    "eslint-plugin-boundaries",
+    { "name": "eslint-js", "specifier": "oxlint-plugin-eslint" }
+  ],
   "ignorePatterns": [
     "**/routeTree.gen.ts",
     "**/dist/**",
@@ -53,6 +56,34 @@
     }
   },
   "overrides": [
+    {
+      "files": ["packages/app/src/composition/**/*.{ts,tsx}"],
+      "rules": {
+        "eslint-js/no-restricted-syntax": [
+          "error",
+          {
+            "selector": "Program > :not(TSInterfaceDeclaration):not(TSTypeAliasDeclaration):not(EmptyStatement):not(ImportDeclaration):not(ExportNamedDeclaration):not(ExportAllDeclaration):not(ExportDefaultDeclaration)",
+            "message": "Composition contracts may contain only type declarations and type-only imports/exports."
+          },
+          {
+            "selector": "ImportDeclaration[importKind!='type']:matches([specifiers.length=0], :has(> ImportDefaultSpecifier), :has(> ImportNamespaceSpecifier), :has(> ImportSpecifier[importKind!='type']))",
+            "message": "Composition contracts must use type-only imports."
+          },
+          {
+            "selector": "ExportNamedDeclaration[declaration]:not([declaration.type='TSInterfaceDeclaration']):not([declaration.type='TSTypeAliasDeclaration'])",
+            "message": "Composition contracts may export only type declarations."
+          },
+          {
+            "selector": "ExportNamedDeclaration[declaration=null][exportKind!='type']:matches([specifiers.length=0], :has(> ExportSpecifier[exportKind!='type'])), ExportAllDeclaration[exportKind!='type']",
+            "message": "Composition contracts must use type-only exports."
+          },
+          {
+            "selector": "ExportDefaultDeclaration:not([declaration.type='TSInterfaceDeclaration'])",
+            "message": "Composition contracts may export only type declarations."
+          }
+        ]
+      }
+    },
     {
       "files": ["packages/app/**/*", "packages/cloud/**/*"],
       "rules": {

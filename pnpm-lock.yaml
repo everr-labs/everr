@@ -89,6 +89,9 @@ importers:
       oxlint:
         specifier: ^1.88.0
         version: 1.88.0
+      oxlint-plugin-eslint:
+        specifier: ^1.88.0
+        version: 1.88.0
       turbo:
         specifier: ^2.9.12
         version: 2.9.12
@@ -8525,6 +8528,10 @@ packages:
 
   outdent@0.5.0:
     resolution: {integrity: sha512-/jHxFIzoMXdqPzTaCpFzAAWhpkSjZPF4Vsn6jAfNpmbH/ymsmd7Qc6VE9BGn0L6YMj6uwpQLxCECpus4ukKS9Q==}
+
+  oxlint-plugin-eslint@1.88.0:
+    resolution: {integrity: sha512-S67hB1/w+sRb8Qa7EBU9nSoopjZ8a/vY1pqHYBYm9rFm9H60ovpGodxPdqxI/p/OGpmPUY2ARLKPx43l5BxwGg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
 
   oxlint@1.88.0:
     resolution: {integrity: sha512-uIcFgw8BmqvFRGzH5+r7d2zJMEexwNSrEmM6WQNnGh3VkO0XYTEFoyxyNE6tjKMUib9Cue4XJA2DoWruO5D6aw==}
@@ -18157,6 +18164,8 @@ snapshots:
       word-wrap: 1.2.5
 
   outdent@0.5.0: {}
+
+  oxlint-plugin-eslint@1.88.0: {}
 
   oxlint@1.88.0:
     optionalDependencies:
