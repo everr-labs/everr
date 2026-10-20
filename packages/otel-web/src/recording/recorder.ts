@@ -5,6 +5,8 @@
 
 import { record } from "@rrweb/record";
 import type { AttrValue } from "../pipeline/emitter.js";
+import type { RecordingOptions } from "../recording.js";
+import { recordPrivacy, resolvePrivacy, rewriteEvent } from "./privacy.js";
 
 const FULL_SNAPSHOT = 2;
 const META = 4;
@@ -21,6 +23,8 @@ type RrwebEvent = {
 };
 
 export type RecordingHost = {
+  dev: boolean;
+  options?: RecordingOptions;
   newId(): string;
   setStreamId(id: string | null): void;
   emitSegment(
@@ -111,6 +115,7 @@ export function startRecorder(host: RecordingHost): {
   let stopped = false;
   let paused = false;
   let stopRecord: (() => void) | undefined;
+  const privacy = resolvePrivacy(host.dev, host.options);
 
   // pause stops rrweb, so a paused screen never enters the buffer. resume
   // calls record() again. That start takes a full snapshot, the same one
@@ -119,8 +124,11 @@ export function startRecorder(host: RecordingHost): {
   const arm = (): void => {
     stopRecord = record({
       checkoutEveryNms: CHECKOUT_MS,
+      ...recordPrivacy(privacy),
       emit: (event) => {
         if (stopped || paused) return;
+        // Attribute masking has no rrweb hook. Rewrite before the buffer.
+        rewriteEvent(event, privacy);
         trim(events, marks, Date.now());
         events.push(event as RrwebEvent);
       },

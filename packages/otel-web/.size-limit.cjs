@@ -92,8 +92,10 @@ module.exports = [
     // The stub imports the live SDK and loads the recorder with import().
     // Neither belongs in this number. mark, pause, and resume stay here:
     // the mark log is sent when the recorder chunk is not loaded.
+    // Raised so the stub can pass dev and the recording options into the
+    // recorder. The privacy rules stay in the recorder chunk.
     ignore: ["@everr/otel-web", "./recording/recorder.js"],
-    limit: "0.8 KB",
+    limit: "0.85 KB",
   },
   {
     // @rrweb/record bundled into the chunk the stub loads with import().

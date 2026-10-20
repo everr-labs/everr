@@ -18,6 +18,29 @@ const STREAM_ID = "everr.recording.stream.id";
 export type RecordingOptions = {
   /** Fraction of Sessions that load the recorder. The default is 1. */
   sampleRate?: number;
+  /** Mask every text node. The default is on when `dev` is not true. */
+  maskAllText?: boolean;
+  /** Mask input values. The default is on when `dev` is not true. */
+  maskAllInputs?: boolean;
+  /** Block media. The default is on when `dev` is not true. */
+  blockAllMedia?: boolean;
+  /** Selectors to Mask, added to the markers. */
+  mask?: string[];
+  /** Selectors that win over Mask. */
+  unmask?: string[];
+  /** Selectors to Block, added to the markers. */
+  block?: string[];
+  /** Selectors that win over Block. */
+  unblock?: string[];
+  /** Selectors to Ignore, added to the markers. File inputs stay ignored. */
+  ignore?: string[];
+  /** Replaces the asterisk substitution. */
+  maskFn?: (text: string) => string;
+  /**
+   * Attributes to Mask. When omitted and `dev` is not true, the default is
+   * title, placeholder, and aria-label.
+   */
+  maskAttributes?: string[];
 };
 
 // `last` and `since` are exclusive. With neither, the Clip is the whole buffer.
@@ -101,6 +124,8 @@ export function recording(options?: RecordingOptions): Instrumentation {
     void import("./recording/recorder.js").then((mod) => {
       if (stopped) return;
       current = mod.startRecorder({
+        dev: ctx.dev,
+        options,
         newId,
         setStreamId: (id) => {
           setAttributes({ [STREAM_ID]: id });
