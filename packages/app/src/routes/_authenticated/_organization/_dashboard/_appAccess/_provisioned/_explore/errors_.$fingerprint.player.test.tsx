@@ -336,6 +336,57 @@ describe("error replay player", () => {
     });
   });
 
+  it("asks for the Clip once under a relative time range", async () => {
+    db.occurrences = [
+      occurrence({
+        spanId: "click",
+        attributes: {
+          "session.id": "sess-1",
+          "everr.recording.stream.id": "stream-1",
+        },
+      }),
+    ];
+    db.spans = [
+      rawSpan({
+        spanId: "click",
+        serviceName: "shop-web",
+        timestampMs: ROOT_MS + 4_000,
+        durationMs: 500,
+      }),
+    ];
+    db.covering = [
+      recordingRow({
+        clipId: "clip-1",
+        startMs: ROOT_MS - 2_000,
+        durationMs: 20_000,
+      }),
+    ];
+    db.segments = [
+      {
+        segmentIndex: "0",
+        body: JSON.stringify([
+          { type: 2, timestamp: FIRST_EVENT_MS, data: {} },
+        ]),
+      },
+    ];
+    // The error list's default range. Resolving it against the clock on
+    // every render gave the replay query a new key each time.
+    renderError({ from: "now-7d", to: "now" });
+
+    await waitFor(() => expect(replays.length).toBeGreaterThan(0));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const choice = calls.filter((call) =>
+      call.sql.includes("everr.recording.stream.id"),
+    );
+    expect(choice).toHaveLength(1);
+    expect(choice[0]?.params).toMatchObject({
+      entryTs: "2026-10-17 12:00:04.000",
+      fromTs: "2026-10-17 11:00:04.000",
+      toTs: "2026-10-17 13:00:04.000",
+    });
+  });
+
   it("opens at the log timestamp when the exception log has no span id", async () => {
     db.occurrences = [
       occurrence({

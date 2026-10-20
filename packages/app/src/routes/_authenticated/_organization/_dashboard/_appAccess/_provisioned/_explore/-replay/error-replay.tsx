@@ -1,13 +1,12 @@
 import type { ErrorOccurrence } from "@everr/telemetry-explorer/errors";
 import { getTraceOptions } from "@everr/telemetry-explorer/traces";
-import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { getTraceReplay } from "@/data/replay/server";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
 import { ReplayPanel } from "./player-panel";
 import { sourceFromAttributes, sourceFromClientSpans } from "./source";
 import { EMPTY_SPANS, usePlayback } from "./use-playback";
-import { computeDetailWindow } from "./window";
+import { windowAround } from "./window";
 
 /**
  * The player on the error view. A browser error log carries its own Session.
@@ -18,10 +17,8 @@ import { computeDetailWindow } from "./window";
  */
 export function ErrorReplayPlayer({
   occurrence,
-  timeRange,
 }: {
   occurrence: ErrorOccurrence;
-  timeRange: TimeRange;
 }) {
   const logSource = sourceFromAttributes(
     occurrence.logAttributes,
@@ -44,11 +41,10 @@ export function ErrorReplayPlayer({
     : undefined;
   const entryTs = entrySpan?.timestamp ?? occurrence.timestamp;
   const entryReady = !needsTrace || traceQuery.isFetched;
-  const window = computeDetailWindow({
-    start: undefined,
-    end: undefined,
-    timeRange,
-  });
+  // Anchored to the entry, as on the trace view. A relative list range
+  // ("now-7d") resolves against the clock, so it changed the query key on
+  // every render and refetched without end.
+  const window = windowAround(entryTs);
 
   const replay = useQuery({
     queryKey: [

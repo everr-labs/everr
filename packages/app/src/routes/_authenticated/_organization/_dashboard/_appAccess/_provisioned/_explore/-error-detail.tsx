@@ -66,7 +66,6 @@ export function ErrorDetailRouteContent({
         <ErrorReplayPlayer
           key={getErrorOccurrenceKey(occurrence)}
           occurrence={occurrence}
-          timeRange={timeRange}
         />
       )}
     />
