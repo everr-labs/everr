@@ -49,40 +49,58 @@ const proc = spawn(chrome, [
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let stderr = "";
-const wsUrl = await new Promise((resolve, reject) => {
-  const t = setTimeout(() => reject(new Error(`chrome did not expose DevTools: ${stderr}`)), 15000);
-  proc.stderr.on("data", (d) => {
-    stderr += d;
-    const m = stderr.match(/DevTools listening on (ws:\/\/\S+)/);
-    if (m) { clearTimeout(t); resolve(m[1]); }
-  });
-});
-const port = new URL(wsUrl).port;
-const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-const page = targets.find((t) => t.type === "page");
-const ws = new WebSocket(page.webSocketDebuggerUrl);
-await new Promise((r) => ws.addEventListener("open", r, { once: true }));
+let spawnError = null;
+proc.on("error", (e) => { spawnError = e; });
+let wsUrl = null;
+let ws = null;
 let id = 0;
 const pending = new Map();
 const consoleLog = path.join(outDir, "console.log");
-ws.addEventListener("message", (e) => {
-  const msg = JSON.parse(e.data);
-  if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); return; }
-  if (!stepsMode) return;
-  if (msg.method === "Runtime.consoleAPICalled") {
-    const text = msg.params.args.map((a) => a.value ?? a.description ?? "").join(" ");
-    appendFileSync(consoleLog, `[${msg.params.type}] ${text}\n`);
-  } else if (msg.method === "Runtime.exceptionThrown") {
-    const d = msg.params.exceptionDetails;
-    appendFileSync(consoleLog, `[exception] ${d.exception?.description ?? d.text}\n`);
-  }
-});
 const send = (method, params = {}) => new Promise((resolve) => {
   const n = ++id; pending.set(n, resolve); ws.send(JSON.stringify({ id: n, method, params }));
 });
 const evaluate = async (expression) =>
   (await send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true })).result?.result?.value;
 const innerText = async () => (await evaluate("document.body ? document.body.innerText : ''")) || "";
+// Page.navigate reports failures (DNS, connection refused, ...) in result.errorText, not as a CDP error.
+const navigate = async (url) => {
+  const res = await send("Page.navigate", { url });
+  return res.error?.message ?? res.result?.errorText ?? null;
+};
+
+async function connect() {
+  wsUrl = await new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`chrome did not expose DevTools: ${stderr}`)), 15000);
+    proc.once("error", (e) => { clearTimeout(t); reject(new Error(`could not start ${chrome}: ${e.message}`)); });
+    proc.once("exit", (code, sig) => { clearTimeout(t); reject(new Error(`chrome exited (${code ?? sig}) before DevTools: ${stderr}`)); });
+    proc.stderr.on("data", (d) => {
+      stderr += d;
+      const m = stderr.match(/DevTools listening on (ws:\/\/\S+)/);
+      if (m) { clearTimeout(t); resolve(m[1]); }
+    });
+  });
+  const port = new URL(wsUrl).port;
+  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+  const page = targets.find((t) => t.type === "page");
+  if (!page?.webSocketDebuggerUrl) throw new Error("chrome has no page target to drive");
+  ws = new WebSocket(page.webSocketDebuggerUrl);
+  await new Promise((r, j) => {
+    ws.addEventListener("open", r, { once: true });
+    ws.addEventListener("error", () => j(new Error("could not open the page DevTools socket")), { once: true });
+  });
+  ws.addEventListener("message", (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); return; }
+    if (!stepsMode) return;
+    if (msg.method === "Runtime.consoleAPICalled") {
+      const text = msg.params.args.map((a) => a.value ?? a.description ?? "").join(" ");
+      appendFileSync(consoleLog, `[${msg.params.type}] ${text}\n`);
+    } else if (msg.method === "Runtime.exceptionThrown") {
+      const d = msg.params.exceptionDetails;
+      appendFileSync(consoleLog, `[exception] ${d.exception?.description ?? d.text}\n`);
+    }
+  });
+}
 
 async function until(check, timeout) {
   const deadline = Date.now() + timeout;
@@ -115,7 +133,8 @@ async function mouseClick({ x, y }) {
 async function runStep(step, baseUrl) {
   const timeout = step.timeout ?? 20000;
   if (step.goto) {
-    await send("Page.navigate", { url: new URL(step.goto, baseUrl).toString() });
+    const navError = await navigate(new URL(step.goto, baseUrl).toString());
+    if (navError) { console.error(`navigation failed: ${navError}`); return false; }
     return until(async () => (await evaluate("document.readyState")) === "complete", timeout);
   }
   if (step.waitText) return until(async () => (await innerText()).includes(step.waitText), timeout);
@@ -160,6 +179,7 @@ async function runStep(step, baseUrl) {
 
 let exitCode = 0;
 try {
+  await connect();
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -187,8 +207,8 @@ try {
     writeFileSync(path.join(outDir, "result.json"), JSON.stringify({ baseUrl, ok: exitCode === 0, results, at: new Date().toISOString() }, null, 2));
   } else {
     const [url, , waitFor = "", timeoutArg = "20000"] = argv;
-    await send("Page.navigate", { url });
-    const found = await until(async () => (waitFor
+    const navError = await navigate(url);
+    const found = !navError && await until(async () => (waitFor
       ? (await innerText()).includes(waitFor)
       : (await evaluate("document.readyState")) === "complete"), Number(timeoutArg));
     await sleep(500); // let the final paint settle
@@ -197,15 +217,21 @@ try {
     writeFileSync(path.join(outDir, "dom.html"), (await evaluate("document.documentElement.outerHTML")) || "");
     writeFileSync(path.join(outDir, "text.txt"), await innerText());
     writeFileSync(path.join(outDir, "url.txt"), `${url}\n`);
-    writeFileSync(path.join(outDir, "result.json"), JSON.stringify({ url, waitFor, found, at: new Date().toISOString() }, null, 2));
-    if (!found) { console.error(`waitFor text not found within ${timeoutArg}ms: ${waitFor}`); exitCode = 1; }
+    writeFileSync(path.join(outDir, "result.json"), JSON.stringify({ url, waitFor, found, navError, at: new Date().toISOString() }, null, 2));
+    if (navError) { console.error(`navigation to ${url} failed: ${navError}`); exitCode = 1; }
+    else if (!found) { console.error(`waitFor text not found within ${timeoutArg}ms: ${waitFor}`); exitCode = 1; }
   }
+} catch (e) {
+  console.error(`ui-shot: ${e.message}`);
+  exitCode = 1;
 } finally {
-  ws.close();
+  ws?.close();
   // Close Chrome through CDP so it flushes cookies (the session) to the profile;
   // a plain SIGTERM can drop cookies written in the last seconds.
-  const exited = new Promise((r) => proc.once("exit", r));
+  const running = !spawnError && proc.exitCode === null && proc.signalCode === null;
+  const exited = running ? new Promise((r) => proc.once("exit", r)) : Promise.resolve();
   try {
+    if (!wsUrl) throw new Error("no DevTools endpoint");
     const browser = new WebSocket(wsUrl);
     await new Promise((r, j) => { browser.addEventListener("open", r, { once: true }); browser.addEventListener("error", j, { once: true }); });
     browser.send(JSON.stringify({ id: 1, method: "Browser.close" }));

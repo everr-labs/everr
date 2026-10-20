@@ -32,14 +32,14 @@ V=.agents/skills/verify-everr/scripts/verify-everr
 
 ### A. CLI + local stack
 
-1. Toolchain (once per machine). The build needs: Node >= 23 (repo pins `.nvmrc` = 24; Node 20 cannot run the `.ts` build scripts), pnpm 11 via corepack (`packageManager`), stable Rust (CI uses `dtolnay/rust-toolchain@stable`), Go >= the `collector/go.mod` version (1.26), `make`, a C toolchain, `curl`, `tar`. Runtime helpers need `python3`, `ss` (iproute2), `jq`, `curl`, and Chrome/Chromium for UI shots.
+1. Toolchain (once per machine). The build needs: Node >= 23 (repo pins `.nvmrc` = 24; Node 20 cannot run the `.ts` build scripts), pnpm 11 via corepack (`packageManager`), stable Rust (CI uses `dtolnay/rust-toolchain@stable`), Go >= the `collector/go.mod` version (1.26), `make`, a C toolchain, `curl`, `tar`. Runtime helpers need `python3`, `ss` (iproute2), `jq`, `curl`, `realpath` (coreutils), and Chrome/Chromium for UI shots. Linux only: `launch`, `doctor` and `cleanup` find the PIDs that own the run ports with `ss -ltnp`, which macOS does not have; the skill is untested on macOS.
 2. Build (once per source change). This is the repo's own `pnpm dev:cli`: builds `packages/local-app` (Vite), `make -C collector build-local` (Go), downloads the pinned chDB release into `target/chdb/`, gzips both into `target/cli-embedded-assets/`, then `cargo build` of the debug CLI with them embedded.
 
    ```bash
    $V build      # cold: ~2m40s on 8 cores (vite + go + chDB download + cargo); warm: much faster
    ```
 
-   The line `Build telemetry export to http://127.0.0.1:54318/v1/traces failed` is harmless: the build tries to report itself to a default dev collector.
+   The build reports its own spans over OTLP (`packages/cli/scripts/build-telemetry.ts`), by default to `127.0.0.1:54318`, which may be your own collector. `$V build` sets `OTEL_EXPORTER_OTLP_ENDPOINT` to the dead port `http://127.0.0.1:9` (or `VERIFY_BUILD_OTLP_ENDPOINT` if set), so the line `Build telemetry export to http://127.0.0.1:9/v1/traces failed` is expected and harmless.
 3. Start an isolated instance:
 
    ```bash
@@ -145,7 +145,7 @@ Pick the feature file from [`features/README.md`](features/README.md) and follow
   $V ui-shot <label> '/logs?q=<text>' '<text that must be visible>'
   ```
 
-  Exit 1 if the text never appears (artifacts are still written so you can see what rendered instead). Assert on `text.txt`, not `dom.html`: search highlighting splits matched text across `<mark>`-style spans.
+  Exit 1 if navigation fails (`navError` in `result.json`, for example `net::ERR_CONNECTION_REFUSED`) or the text never appears (artifacts are still written so you can see what rendered instead). Assert on `text.txt`, not `dom.html`: search highlighting splits matched text across `<mark>`-style spans.
 - Raw env for anything else (OTLP exporters, curl): `eval "$($V env)"` in a subshell, then point the exporter at `$EVERR_OTLP_HTTP_ORIGIN` (OTLP/HTTP, e.g. `/v1/logs`).
 
 Web app primitives (surface B):
@@ -204,13 +204,13 @@ $V cleanup        # surface A
 $V web-cleanup    # surface B
 ```
 
-`cleanup` runs `everr local stop` for this run (stops UI + collector via the supervisor), waits for the 3 run ports to close, and if any are still held, kills only the PIDs recorded at launch that still own those ports. Never kill by process name: other agents and the user may run their own `everr-local-collector`. It copies `local.log` into the evidence dir, deletes `/tmp/verify-everr/<RUN_ID>/` (data, throwaway HOME, extracted assets) and `.verify-everr/current`, then lists the evidence that survived. Run it after every attempt, including failed ones. Also remove any scratch dirs a feature recipe created (they say so).
+`cleanup` runs `everr local stop` for this run (stops UI + collector via the supervisor), waits for the 3 run ports to close, and if any are still held, kills only the PIDs recorded at launch that still own those ports. Never kill by process name: other agents and the user may run their own `everr-local-collector`. It copies `local.log` into the evidence dir, deletes `/tmp/verify-everr/<RUN_ID>/` (data, throwaway HOME, extracted assets) and `.verify-everr/current` if it names this run, then lists the evidence that survived. Run it after every attempt, including failed ones. Also remove any scratch dirs a feature recipe created (they say so).
 
 `web-cleanup` sends SIGTERM (then SIGKILL) to the dev server's recorded process group, waits for the web port to close, copies `web.log` and `compose logs`, then runs `docker compose -p <this run's project> ... down -v --remove-orphans`, which removes only this project's containers, network and named volumes, and warns about any container still labeled with the project. It deletes `/tmp/verify-everr/web-<id>/` (env with secrets, Chrome profile) and `.verify-everr/current-web`, and lists the surviving evidence. Never `docker compose down` without `-p`, never `docker rm` by name: the developer's stack (project `everr`) may be running on the same host.
 
 ## Helpers
 
-- `scripts/verify-everr` (executable bash). Subcommands: `build`, `launch [RUN_ID]`, `doctor`, `env`, `cli <label> -- ARGS`, `cli-until <label> <text> -- ARGS`, `ui-get <path>`, `ui-cmd <command> [json]`, `ui-shot <label> <path> [text]`, `cleanup`, and `web-launch [RUN_ID]`, `web-doctor`, `web-env`, `web-steps <label> <journey>`, `web-http <label> <METHOD> <path> [curl args]`, `web-webhook <label> <event> <payload>`, `web-psql <label> <SQL>`, `web-ch <label> <SQL>`, `web-cleanup`. Run it with no args for usage. Env knobs: `EVERR_VERIFY_SCRATCH` (scratch root, default `/tmp/verify-everr`), `VERIFY_CWD` (cwd for `cli`), `UNTIL_S`, `CHROME` (browser binary), `UI_WAIT_MS`. Needs `node` (>= 22) on PATH for `ui-shot`.
+- `scripts/verify-everr` (executable bash). Subcommands: `build`, `launch [RUN_ID]`, `doctor`, `env`, `cli <label> -- ARGS`, `cli-until <label> <text> -- ARGS`, `ui-get <path>`, `ui-cmd <command> [json]`, `ui-shot <label> <path> [text]`, `cleanup`, and `web-launch [RUN_ID]`, `web-doctor`, `web-env`, `web-steps <label> <journey>`, `web-http <label> <METHOD> <path> [curl args]`, `web-webhook <label> <event> <payload>`, `web-psql <label> <SQL>`, `web-ch <label> <SQL>`, `web-cleanup`. Run it with no args for usage. Env knobs: `EVERR_VERIFY_SCRATCH` (scratch root, default `/tmp/verify-everr`), `VERIFY_BUILD_OTLP_ENDPOINT` (where `build` sends its own spans, default the dead port `http://127.0.0.1:9`), `VERIFY_CWD` (cwd for `cli`), `UNTIL_S`, `CHROME` (browser binary), `UI_WAIT_MS`. Needs `node` (>= 22) on PATH for `ui-shot`.
 - `scripts/ui-shot.mjs` (executable Node, no npm deps). Shot mode `ui-shot.mjs <url> <outDir> [waitForText] [timeoutMs]` (used by `ui-shot`); steps mode `PROFILE_DIR=<dir> ui-shot.mjs steps <baseUrl> <outDir> <steps.json>` (used by `web-steps`). The step format is documented at the top of the file.
 - `scripts/web.sh` (sourced by `verify-everr`, not run directly): the `web-*` subcommands. Env knobs: `CHROME`, `EVERR_VERIFY_SCRATCH`.
 - `scripts/compose.verify.yaml`: the per-run compose override (ports, volumes, ClickHouse image tag).

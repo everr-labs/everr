@@ -27,7 +27,7 @@ Preconditions:
 - **ndjson.** Run `$V cli-until query-ndjson "$M" -- local query "SELECT Body FROM logs WHERE Body LIKE '$M%' ORDER BY Timestamp LIMIT 10" --format ndjson`. One `{"Body":...}` line per marker row.
 - **json.** Run `$V cli query-json -- local query "SELECT 1 AS one" --format json`. Stdout is `[\n  {\n    "one": 1\n  }\n]`.
 - **table.** Run `$V cli query-table -- local query "SELECT 1 AS one" --format table`. Stdout is `one` then `1`.
-- **Error.** Run `$V cli query-error -- local query "SELEC nope" --format ndjson`. Exit `1`, stderr starts `Error: query failed` and contains `UNKNOWN_IDENTIFIER`.
+- **Error.** Run `$V cli query-error -- local query "SELECT nope FROM logs" --format ndjson`. Exit `1`, stderr starts `Error: query failed` and contains `UNKNOWN_IDENTIFIER` (`Unknown expression identifier \`nope\``).
 - **Read-only.** Run `$V cli query-insert -- local query "INSERT INTO logs (Body) VALUES ('$M-insert')"`, then `$V cli query-insert-check -- local query "SELECT count() AS c FROM logs WHERE Body = '$M-insert'" --format ndjson`. The check prints `{"c":0}`.
 - **Proof.** The `cli/query-*` folders.
 

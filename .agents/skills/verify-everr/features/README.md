@@ -6,6 +6,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 
 Surface A (CLI):
 
+- Linux host: the helper uses `ss` (iproute2) to map run ports to PIDs. macOS is untested and lacks `ss`.
 - The debug CLI is built from this checkout with `$V build` (`pnpm dev:cli`), and `$V doctor` shows no "sources newer than binary" warning.
 - One isolated instance per run, started with `$V launch`: random ports, `EVERR_TELEMETRY_DIR` and `EVERR_LOCAL_LOG_DIR` under `/tmp/verify-everr/<RUN_ID>/`, throwaway `HOME`/`XDG_*`.
 - `$V doctor` ends with `DOCTOR OK` before any recipe.

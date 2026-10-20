@@ -23,6 +23,7 @@ docker_cmd() {
 web_load() {
   WEB_RUN_ID="${WEB_RUN_ID:-$(cat "$WEB_STATE" 2>/dev/null || true)}"
   [[ -n "$WEB_RUN_ID" ]] || die "no current web run; run 'verify-everr web-launch' first"
+  check_run_id "$WEB_RUN_ID"
   WEB_DIR="$SCRATCH_ROOT/web-$WEB_RUN_ID"
   WEB_ART="$STATE_DIR/artifacts/web-$WEB_RUN_ID"
   [[ -f "$WEB_DIR/run.env" ]] || die "web run $WEB_RUN_ID has no $WEB_DIR/run.env (already cleaned up?)"
@@ -54,6 +55,7 @@ cmd_web_launch() {
     || die "need Node >= 23 on PATH (repo pins $(cat "$REPO/.nvmrc"))"
   [[ -d "$REPO/node_modules" ]] || ( cd "$REPO" && pnpm install --frozen-lockfile )
   WEB_RUN_ID="${1:-$(date +%Y%m%d-%H%M%S)-$$}"
+  check_run_id "$WEB_RUN_ID"
   WEB_DIR="$SCRATCH_ROOT/web-$WEB_RUN_ID"
   WEB_ART="$STATE_DIR/artifacts/web-$WEB_RUN_ID"
   mkdir -p "$WEB_DIR" "$WEB_ART"
@@ -239,6 +241,7 @@ cmd_web_ch() {
 cmd_web_cleanup() {
   WEB_RUN_ID="${WEB_RUN_ID:-$(cat "$WEB_STATE" 2>/dev/null || true)}"
   [[ -n "$WEB_RUN_ID" ]] || { echo "no web run to clean up"; return 0; }
+  check_run_id "$WEB_RUN_ID"
   WEB_DIR="$SCRATCH_ROOT/web-$WEB_RUN_ID"; WEB_ART="$STATE_DIR/artifacts/web-$WEB_RUN_ID"
   mkdir -p "$WEB_ART"
   if [[ -f "$WEB_DIR/run.env" ]]; then
@@ -261,7 +264,7 @@ cmd_web_cleanup() {
     $DOCKER ps -a --filter "label=com.docker.compose.project=$WEB_PROJECT" --format '{{.Names}}' | sed 's/^/WARN leftover container: /' | tee -a "$WEB_ART/cleanup.txt"
   fi
   rm -rf "$WEB_DIR"
-  rm -f "$WEB_STATE"
+  if [[ "$(cat "$WEB_STATE" 2>/dev/null || true)" == "$WEB_RUN_ID" ]]; then rm -f "$WEB_STATE"; fi
   echo "cleaned up web run $WEB_RUN_ID; evidence kept at $WEB_ART"
   ls "$WEB_ART"
 }

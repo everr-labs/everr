@@ -27,6 +27,11 @@ SCRATCH_ROOT="${EVERR_VERIFY_SCRATCH:-/tmp/verify-everr}"
 
 die() { echo "verify-everr: $*" >&2; exit 1; }
 
+# Run ids name scratch dirs that cleanup deletes: allow only a safe charset, no "/" or "..".
+check_run_id() {
+  [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$1" != *..* ]] || die "invalid run id '$1' (use letters, digits, '.', '_', '-')"
+}
+
 current_run() {
   [[ -f "$STATE_DIR/current" ]] || die "no current run; run 'verify-everr launch' first"
   cat "$STATE_DIR/current"
@@ -34,6 +39,7 @@ current_run() {
 
 load_run() {
   RUN_ID="${RUN_ID:-$(current_run)}"
+  check_run_id "$RUN_ID"
   RUN_DIR="$SCRATCH_ROOT/$RUN_ID"
   ART_DIR="$STATE_DIR/artifacts/$RUN_ID"
   [[ -f "$RUN_DIR/env" ]] || die "run $RUN_ID has no env file at $RUN_DIR/env (already cleaned up?)"
@@ -58,7 +64,10 @@ cmd_build() {
   local node_major; node_major="$(node -p 'process.versions.node.split(".")[0]')"
   (( node_major >= 23 )) || die "node $(node --version) is too old; repo pins $(cat "$REPO/.nvmrc") (.nvmrc). Put Node 24 first on PATH"
   ( cd "$REPO" && [[ -d node_modules ]] || pnpm install --frozen-lockfile )
-  ( cd "$REPO" && pnpm dev:cli )
+  # The build reports its own spans over OTLP (packages/cli/scripts/build-telemetry.ts), by default
+  # to 127.0.0.1:54318, which may be a real local collector. OTEL_EXPORTER_OTLP_ENDPOINT is the only
+  # knob outside CI; point it at a dead port unless VERIFY_BUILD_OTLP_ENDPOINT names a sink.
+  ( cd "$REPO" && OTEL_EXPORTER_OTLP_ENDPOINT="${VERIFY_BUILD_OTLP_ENDPOINT:-http://127.0.0.1:9}" pnpm dev:cli )
   [[ -x "$BIN" ]] || die "build finished but $BIN is missing"
   "$BIN" --version
 }
@@ -69,6 +78,7 @@ cmd_launch() {
     die "run $(cat "$STATE_DIR/current") is still live; run 'verify-everr cleanup' first (one instance per checkout)"
   fi
   RUN_ID="${1:-$(date +%Y%m%d-%H%M%S)-$$}"
+  check_run_id "$RUN_ID"
   RUN_DIR="$SCRATCH_ROOT/$RUN_ID"
   ART_DIR="$STATE_DIR/artifacts/$RUN_ID"
   mkdir -p "$RUN_DIR"/{home,telemetry,logs,config,data,cache,state} "$ART_DIR"
@@ -220,7 +230,12 @@ cmd_ui_shot() {
 cmd_cleanup() {
   RUN_ID="${RUN_ID:-$(cat "$STATE_DIR/current" 2>/dev/null || true)}"
   [[ -n "$RUN_ID" ]] || { echo "nothing to clean up"; return 0; }
+  check_run_id "$RUN_ID"
   RUN_DIR="$SCRATCH_ROOT/$RUN_ID"; ART_DIR="$STATE_DIR/artifacts/$RUN_ID"
+  local root_real run_real
+  root_real="$(realpath -m "$SCRATCH_ROOT")"; run_real="$(realpath -m "$RUN_DIR")"
+  [[ "$run_real" == "$root_real/"?* ]] || die "refusing to delete $RUN_DIR: not inside $SCRATCH_ROOT"
+  mkdir -p "$ART_DIR"
   if [[ -f "$RUN_DIR/env" ]]; then
     # shellcheck disable=SC1091
     source "$RUN_DIR/env"
@@ -244,8 +259,9 @@ cmd_cleanup() {
     done
     [[ -f "$RUN_DIR/logs/local.log" ]] && cp "$RUN_DIR/logs/local.log" "$ART_DIR/local.log" || true
   fi
-  rm -rf "$RUN_DIR"
-  rm -f "$STATE_DIR/current"
+  rm -rf "$run_real"
+  # Only drop the current pointer if it names the run we just cleaned.
+  if [[ "$(cat "$STATE_DIR/current" 2>/dev/null || true)" == "$RUN_ID" ]]; then rm -f "$STATE_DIR/current"; fi
   echo "cleaned up run $RUN_ID; evidence kept at $ART_DIR"
   ls "$ART_DIR"
 }
