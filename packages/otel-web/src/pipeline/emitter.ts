@@ -32,7 +32,8 @@ export type EventName =
   | "everr.browser.page_view"
   | "everr.browser.page_leave"
   | "everr.browser.interaction.click"
-  | "everr.browser.interaction.submit";
+  | "everr.browser.interaction.submit"
+  | "everr.browser.recording.segment";
 
 type AnyValue =
   | { stringValue: string }
@@ -209,6 +210,11 @@ type Emitter = [
    */
   exitFlush: () => void,
   emitSpan: EmitSpan,
+  /**
+   * Sends one log as its own request. It does not enter the shared logs queue
+   * and it does not attach the active span.
+   */
+  emitNow: Emit,
 ];
 
 // These values are the same as the values in the browser telemetry client of
@@ -437,19 +443,23 @@ export function createEmitter(
     }
   };
 
-  const emit: Emit = (
-    eventName,
-    attributes,
-    time,
-    severityNumber = 9, // INFO
-    body = eventName,
+  // `immediate` posts one log on its own request. A recording Segment uses
+  // this path: it must not share the logs queue, and a Clip carries no span
+  // ids, so the active span is not attached.
+  const emitLog = (
+    eventName: Parameters<Emit>[0],
+    attributes: Parameters<Emit>[1],
+    time: Parameters<Emit>[2],
+    severityNumber: number,
+    body: string,
+    immediate: boolean,
   ) => {
     // Read the time before the hook. The default is the instant emit was
     // called, even when a host hook does synchronous work before the item is
     // queued. A log with an earlier timestamp takes the span that was already
     // active at that time, and not a span that became active after it.
     const timestamp = unixNano(time ?? Date.now());
-    const span = activeSpan?.(time);
+    const span = immediate ? undefined : activeSpan?.(time);
     const item = applyBeforeSend({
       kind: "log",
       eventName,
@@ -461,7 +471,7 @@ export function createEmitter(
     // is the narrowing that the union needs, and it is not a check on the type
     // at run time.
     if (item?.kind !== "log") return;
-    queue.push({
+    const record: OtlpLogRecord = {
       timeUnixNano: timestamp,
       severityNumber: item.severityNumber,
       eventName: item.eventName,
@@ -470,8 +480,33 @@ export function createEmitter(
       ...(span
         ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags }
         : {}),
-    });
+    };
+    if (immediate) {
+      void post("logs", build("Logs", "logRecords", [record]));
+      return;
+    }
+    queue.push(record);
     schedule();
+  };
+
+  const emit: Emit = (
+    eventName,
+    attributes,
+    time,
+    severityNumber = 9, // INFO
+    body = eventName,
+  ) => {
+    emitLog(eventName, attributes, time, severityNumber, body, false);
+  };
+
+  const emitNow: Emit = (
+    eventName,
+    attributes,
+    time,
+    severityNumber = 9,
+    body = eventName,
+  ) => {
+    emitLog(eventName, attributes, time, severityNumber, body, true);
   };
 
   const emitSpan: EmitSpan = (
@@ -524,5 +559,5 @@ export function createEmitter(
     schedule();
   };
 
-  return [emit, flush, exitFlush, emitSpan];
+  return [emit, flush, exitFlush, emitSpan, emitNow];
 }

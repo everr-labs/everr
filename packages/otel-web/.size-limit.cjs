@@ -80,4 +80,25 @@ module.exports = [
     // Includes XHR lifecycle tracking alongside fetch.
     limit: "10 KB",
   },
+  {
+    // The recording entry without the recorder chunk. webpack is off so the
+    // dynamic import of the chunk, and the external @everr/otel-web import,
+    // stay out of this number. The hash helper is the shared sampled chunk.
+    name: "recording stub",
+    path: "dist/recording.js",
+    import: "{ recording, emitRecording }",
+    gzip: true,
+    // The stub imports the live SDK and loads the recorder with import().
+    // Neither belongs in this number.
+    ignore: ["@everr/otel-web", "./recording/recorder.js"],
+    limit: "0.75 KB",
+  },
+  {
+    // @rrweb/record bundled into the chunk the stub loads with import().
+    // size-limit minifies the chunk. The raw file is about 32 KB gzipped.
+    name: "recording recorder chunk",
+    path: "dist/recording/recorder.js",
+    gzip: true,
+    limit: "25 KB",
+  },
 ];

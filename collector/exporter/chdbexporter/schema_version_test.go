@@ -32,6 +32,9 @@ func TestSchemaTemplatesMatchVersion(t *testing.T) {
 	for _, template := range []string{
 		sqltemplates.LogsCreateTable,
 		sqltemplates.LogsJSONCreateTable,
+		// recordings_json_table.sql is omitted. The table is new, and CREATE
+		// TABLE IF NOT EXISTS adds it without discarding the store. A later
+		// change to that DDL belongs in this list, with a version bump.
 		sqltemplates.TracesCreateTable,
 		sqltemplates.TracesJSONCreateTable,
 		sqltemplates.TracesCreateTsTable,
@@ -61,7 +64,7 @@ func TestRebuildDropsTablesOfEveryLayout(t *testing.T) {
 	names := staleTableNames(cfg)
 
 	// The names this config writes to.
-	require.Subset(t, names, []string{"logs", "traces", "metrics_gauge"})
+	require.Subset(t, names, []string{"logs", "traces", "metrics_gauge", "recordings"})
 	// The names a store from before the rename still holds. Nothing else drops
 	// them once the store stops writing to them.
 	require.Subset(t, names, []string{"otel_logs", "otel_traces", "otel_metrics_gauge"})

@@ -4,8 +4,9 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 
 ## Where Browser Data Lands
 
-- Everything except requests is a **log record** in `logs` with the event name in the `EventName` column. A log emitted during `startActiveSpan`, until `end()`, carries that span's `TraceId`, `SpanId`, and `TraceFlags`. Clicks, submits, and web vitals use the time of the event, so they join only a span that was already active then. Any log joins whichever span is active, including a span from another interaction.
-- Browser `fetch` and XHR requests are **CLIENT spans** in `traces`. Slow interactions are **INTERNAL spans**. Custom spans from the exported `tracer` are INTERNAL by default; `options.kind` can set another kind.
+- Page views, clicks, submits, web vitals, and exceptions are **log records** in `logs` with the event name in the `EventName` column. A log emitted during `startActiveSpan`, until `end()`, carries that span's `TraceId`, `SpanId`, and `TraceFlags`. Clicks, submits, and web vitals use the time of the event, so they join only a span that was already active then. Any log joins whichever span is active, including a span from another interaction.
+- A recording Segment is a log record named `everr.browser.recording.segment`, sent as its own request and stored apart from `logs`. It carries no span ids. The body is rrweb JSON. Find the Clip from the `recording` span.
+- Browser `fetch` and XHR requests are **CLIENT spans** in `traces`. Slow interactions are **INTERNAL spans**. Custom spans from the exported `tracer` are INTERNAL by default; `options.kind` can set another kind. A manual `tracer.startSpan()` is a span.
 - Every record (logs and spans) carries the context envelope in its attributes map, so any signal can slice by page and join by session.
 
 ## The Context Envelope (on every record)
@@ -20,6 +21,7 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 | `everr.referrer.url` | The page's referrer |
 | `user.id`, `user.*` | Set by `identify()`; flat traits like `user.plan` |
 | ambient `everr.*` keys | Set by the host app via `setAttributes()` |
+| `everr.recording.stream.id` | Present on every record while a recording Stream is buffering. Same set as `setAttributes`. Cleared when the Stream ends |
 
 ## Resource Attributes (in `ResourceAttributes`)
 
@@ -35,6 +37,7 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 | `everr.browser.interaction.submit` | Form submit, targeted at the submit button | element attrs |
 | `browser.web_vital` | One per metric (lcp, cls, ttfb, inp) per navigation | see below |
 | `exception` | Frontend error (unhandled, unhandled rejection, React boundary, or manual capture) | see below |
+| `everr.browser.recording.segment` | One piece of a Clip: a JSON array of rrweb events in the body. A Clip is one or more Segments, each its own request. Index starts at 0 | `everr.recording.clip.id`, `everr.recording.stream.id`, `everr.recording.segment.index` |
 
 Element attributes, shared by everything that names a DOM element: `everr.element.selector` (stable CSS path, the one spelling across all signals: nearest `#id` anchor, then per step a naming attribute (`aria-label`, `type`, `name`, `title`, `alt`) and digit-free classes on the tag, positional `:nth-of-type` only as a last resort), `everr.element.tag`, `everr.element.href`, `everr.viewport.width`/`height`. The SDK never captures element text or input values.
 
@@ -63,6 +66,7 @@ The INP vital does not use that prefix. It carries the same attribution as the `
 | Application-defined name (e.g. `prepare checkout`) | Manual span from `tracer.startSpan()` or `tracer.startActiveSpan()`. The latter stays active until `end()` in the browser; custom and built-in spans started during that time join the most recently active span's trace. Overlapping interactions share this stack, not isolated async contexts. `root: true` starts a new trace. On `startActiveSpan`, `root: true` still parents later spans until `end()`. `startSpan` does not join that stack | Context envelope plus caller-supplied attributes (a scalar or an array). Prefer bounded names and `everr.*` for custom attributes. `setStatus({ code: 2 })` marks failure (`StatusCode = 'Error'`, message kept). `setStatus({ code: 1 })` marks OK and sticks. Links carry the linked span's trace id, span id, and trace flags |
 | `<METHOD> <route>` (e.g. `GET /api/posts/{id}`) | One per browser `fetch` or XHR; the server spans parent to it, so `TraceId` joins frontend to backend. Each request is its own trace root | HTTP client semconv: `http.request.method`, `http.response.status_code`, `url.full` (query-stripped request URL), `url.template`, `server.address`; 4xx/5xx set `StatusCode = 'Error'` with `error.type` |
 | `slow_interaction` | Event Timing entry over threshold, from the same observer as INP | `everr.browser.interaction.*`: `id`, `name` (event name, e.g. `click`), `type` (`pointer` or `keyboard`), `input_delay`, `processing_duration`, `presentation_delay`, `total_script_duration`, `total_style_and_layout_duration`, `total_paint_duration`, `total_unattributed_duration`, `script.source_url`, `script.function_name`, `script.invoker_type`, `script.duration` (the longest script; script and total attrs need Chrome 123+ LoAF); plus element attrs |
+| `recording` | One per Clip, from `emitRecording()`. `root: true`, so later records do not join its trace. Start is the requested start. End is the Clip end | `everr.recording.clip.id`, `everr.recording.stream.id`, `everr.recording.trigger` (`manual`), `everr.recording.clip.truncated` (present when the Clip starts later than requested) |
 
 XHR spans start at `send()` and end on completion, timeout, network failure, or cancellation. Network failures set `error.type = NetworkError`; timeouts set `error.type = TimeoutError`. Explicit aborts and requests replaced by `open()` end without an error status. A missing HTTP response has no `http.response.status_code`. Shutdown detaches listeners and discards unfinished XHR observations without aborting application requests. Everr owns XHR trace propagation. Caller-supplied `traceparent` headers are not detected; setting one alongside `network()` causes XHR to append the SDK value, producing an invalid trace header.
 
@@ -109,6 +113,20 @@ WHERE Timestamp > now() - INTERVAL 24 HOUR
 GROUP BY route
 ORDER BY errors DESC
 LIMIT 20
+```
+
+Clips in a session, from the recording span:
+
+```sql
+SELECT Timestamp,
+  toString(SpanAttributes.`everr.recording.clip.id`) AS clip,
+  toString(SpanAttributes.`everr.recording.trigger`) AS trigger
+FROM traces
+WHERE Timestamp > now() - INTERVAL 24 HOUR
+  AND SpanName = 'recording'
+  AND toString(SpanAttributes.`session.id`) = '<session-id>'
+ORDER BY Timestamp ASC
+LIMIT 50
 ```
 
 What one user session did, in order (events and requests interleaved):

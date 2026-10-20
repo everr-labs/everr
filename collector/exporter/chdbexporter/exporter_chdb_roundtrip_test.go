@@ -161,6 +161,56 @@ func TestChDBRoundTripStoresTypedJSONAttributes(t *testing.T) {
 	require.Equal(t, float64(1), rows[0]["hasRoute"])
 }
 
+func TestChDBRoundTripSplitsRecordingSegments(t *testing.T) {
+	handle := openRealChDB(t)
+	cfg := withDefaultConfig(func(c *Config) {
+		c.JSON = true
+		c.LogsTableName = "logs"
+	})
+	exp := newLogsJSONExporter(zaptest.NewLogger(t), cfg, handle)
+	require.NoError(t, exp.start(t.Context(), nil))
+	t.Cleanup(func() { _ = exp.shutdown(context.Background()) })
+
+	ld := plog.NewLogs()
+	scope := ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty()
+	segment := scope.LogRecords().AppendEmpty()
+	segment.SetTimestamp(pcommon.NewTimestampFromTime(roundTripTime))
+	segment.SetEventName(recordingSegmentEventName)
+	segment.Body().SetStr("[]")
+	segment.Attributes().PutStr("session.id", "sess-1")
+	segment.Attributes().PutStr("everr.recording.stream.id", "stream-1")
+	segment.Attributes().PutStr("everr.recording.clip.id", "clip-1")
+
+	mark := scope.LogRecords().AppendEmpty()
+	mark.SetTimestamp(pcommon.NewTimestampFromTime(roundTripTime))
+	mark.SetEventName("everr.browser.recording.mark")
+	mark.Body().SetStr("mark")
+
+	ordinary := scope.LogRecords().AppendEmpty()
+	ordinary.SetTimestamp(pcommon.NewTimestampFromTime(roundTripTime))
+	ordinary.Body().SetStr("ordinary")
+
+	require.NoError(t, exp.pushLogsData(t.Context(), ld))
+
+	db := cfg.database()
+	recordings := queryJSONRows(t, handle,
+		`SELECT session_id, stream_id, clip_id, EventName, Body FROM "`+db+`"."recordings"`)
+	require.Len(t, recordings, 1)
+	require.Equal(t, "sess-1", recordings[0]["session_id"])
+	require.Equal(t, "stream-1", recordings[0]["stream_id"])
+	require.Equal(t, "clip-1", recordings[0]["clip_id"])
+	require.Equal(t, recordingSegmentEventName, recordings[0]["EventName"])
+
+	logs := queryJSONRows(t, handle,
+		`SELECT Body, EventName FROM "`+db+`"."logs" ORDER BY Body`)
+	require.Len(t, logs, 2)
+	bodies := []any{logs[0]["Body"], logs[1]["Body"]}
+	require.ElementsMatch(t, []any{"mark", "ordinary"}, bodies)
+	for _, row := range logs {
+		require.NotEqual(t, recordingSegmentEventName, row["EventName"])
+	}
+}
+
 func TestChDBRoundTripKeepsSpanTimestampNanoseconds(t *testing.T) {
 	handle := openRealChDB(t)
 	cfg := withDefaultConfig()

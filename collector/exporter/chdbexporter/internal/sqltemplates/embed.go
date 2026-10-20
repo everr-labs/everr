@@ -44,12 +44,20 @@ var LogsJSONCreateTable string
 //go:embed logs_json_insert.sql
 var LogsJSONInsert string
 
+//go:embed recordings_json_table.sql
+var RecordingsJSONCreateTable string
+
+//go:embed recordings_json_insert.sql
+var RecordingsJSONInsert string
+
 // Parsed templates for logs (text/template).
 var (
-	LogsCreateTableTmpl     = newTemplate("logs_table", LogsCreateTable)
-	LogsInsertTmpl          = newTemplate("logs_insert", LogsInsert)
-	LogsJSONCreateTableTmpl = newTemplate("logs_json_table", LogsJSONCreateTable)
-	LogsJSONInsertTmpl      = newTemplate("logs_json_insert", LogsJSONInsert)
+	LogsCreateTableTmpl           = newTemplate("logs_table", LogsCreateTable)
+	LogsInsertTmpl                = newTemplate("logs_insert", LogsInsert)
+	LogsJSONCreateTableTmpl       = newTemplate("logs_json_table", LogsJSONCreateTable)
+	LogsJSONInsertTmpl            = newTemplate("logs_json_insert", LogsJSONInsert)
+	RecordingsJSONCreateTableTmpl = newTemplate("recordings_json_table", RecordingsJSONCreateTable)
+	RecordingsJSONInsertTmpl      = newTemplate("recordings_json_insert", RecordingsJSONInsert)
 )
 
 // CreateTableData contains the template parameters for creating a logs table.

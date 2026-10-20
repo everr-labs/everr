@@ -29,6 +29,14 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   (`internal.CreateErrorFingerprintFunction`), so `everr local query` and the
   local browser UI group Errors the way the cloud does. Kept in step with
   `clickhouse/init/04-create-error-fingerprint-function.sql`.
+- The JSON logs exporter writes `everr.browser.recording.segment` logs to a
+  `recordings` table and leaves every other log in `logs`. The local collector
+  has no routing connector, so the split is on the event name. The table has
+  the JSON logs payload columns plus `session_id`, `stream_id`, and `clip_id`,
+  each with a bloom filter. `recordings` is dropped on a schema rebuild. Its
+  DDL is not in `shapedTemplatesDigest`: `CREATE TABLE IF NOT EXISTS` adds the
+  table to a store already on this version, so the version was not bumped. A
+  later change to that DDL has to join the digest and bump `localSchemaVersion`.
 - Rebuilds the local store when its schema version changes
   (`schema_version.go`). The store carries the version it was built at in an
   `_everr_schema` table; when that differs from `localSchemaVersion` in the

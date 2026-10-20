@@ -149,6 +149,16 @@ export function setAttributes(
   _attributes: Record<string, AttrValue | null>,
 ): void {}
 
+/** Does nothing on the server. The browser recording entry sends one log as
+ * its own request through the browser binding of the same name. */
+export function emitLogNow(
+  _eventName: Parameters<Emit>[0],
+  _attributes?: Parameters<Emit>[1],
+  _timestamp?: Parameters<Emit>[2],
+  _severityNumber?: Parameters<Emit>[3],
+  _body?: Parameters<Emit>[4],
+): void {}
+
 /** Does nothing on the server. The persistence belongs to the browser. */
 export function setPersistence(_persistence: Persistence | undefined): void {}
 

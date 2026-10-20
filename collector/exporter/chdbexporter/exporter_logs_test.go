@@ -109,3 +109,22 @@ func TestRenderCreateLogsJSONTableSQL(t *testing.T) {
 	require.Contains(t, sql, "TYPE bloom_filter")
 	require.NotContains(t, sql, "TYPE text(")
 }
+
+func TestRenderCreateRecordingsTableSQL(t *testing.T) {
+	cfg := withDefaultConfig(func(c *Config) {
+		c.Database = "test_db"
+		c.TTL = 72 * time.Hour
+	})
+
+	sql, err := renderCreateRecordingsTableSQL(cfg)
+	require.NoError(t, err)
+	require.Contains(t, sql, "`test_db`.`recordings`")
+	require.Contains(t, sql, "`session_id` String")
+	require.Contains(t, sql, "`stream_id` String")
+	require.Contains(t, sql, "`clip_id` String")
+	require.Contains(t, sql, "INDEX idx_session_id session_id TYPE bloom_filter(0.001)")
+	require.Contains(t, sql, "INDEX idx_stream_id stream_id TYPE bloom_filter(0.001)")
+	require.Contains(t, sql, "INDEX idx_clip_id clip_id TYPE bloom_filter(0.001)")
+	require.Contains(t, sql, "ORDER BY (ServiceName, Timestamp)")
+	require.NotContains(t, sql, "SQL_everr_tenant_id")
+}

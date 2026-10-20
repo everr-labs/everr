@@ -108,6 +108,97 @@ func TestSQLHTTPRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRecordingSegmentsLandInRecordings(t *testing.T) {
+	binary := resolveCollectorBinary(t)
+	if _, err := os.Stat(binary); err != nil {
+		t.Skipf("collector binary not built: %v", err)
+	}
+
+	otlpPort := freeTCPPort(t)
+	sqlPort := freeTCPPort(t)
+	chdbDir := filepath.Join(t.TempDir(), "chdb")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, binary, gatewayArgs(chdbDir, otlpPort, sqlPort)...)
+	withChDBLibEnv(t, cmd)
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start collector: %v", err)
+	}
+	t.Cleanup(func() {
+		cancel()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+
+	waitForHTTP(t, fmt.Sprintf("http://127.0.0.1:%d/health", sqlPort), 10*time.Second)
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	deadline := time.Now().Add(15 * time.Second)
+	var posted bool
+	for time.Now().Before(deadline) {
+		if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+			t.Fatalf("collector exited early:\n%s", output.String())
+		}
+		resp, err := client.Post(
+			fmt.Sprintf("http://127.0.0.1:%d/v1/logs", otlpPort),
+			"application/json",
+			bytes.NewReader([]byte(recordingSplitPayload())),
+		)
+		if err == nil && resp != nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				posted = true
+				break
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !posted {
+		_ = cmd.Process.Kill()
+		t.Fatalf("collector never accepted the recording batch:\n%s", output.String())
+	}
+
+	sqlURL := fmt.Sprintf("http://127.0.0.1:%d/sql", sqlPort)
+	waitForSQLResponse(t, sqlURL,
+		`SELECT count() AS c FROM recordings WHERE session_id = 'sess-1' AND stream_id = 'stream-1' AND clip_id = 'clip-1'`,
+		10*time.Second,
+		func(body string) bool { return strings.Contains(body, `"c":1`) },
+	)
+	waitForSQLResponse(t, sqlURL,
+		`SELECT count() AS c FROM logs WHERE EventName = 'everr.browser.recording.segment'`,
+		10*time.Second,
+		func(body string) bool { return strings.Contains(body, `"c":0`) },
+	)
+	waitForSQLResponse(t, sqlURL,
+		`SELECT count() AS c FROM logs WHERE Body IN ('mark', 'ordinary')`,
+		10*time.Second,
+		func(body string) bool { return strings.Contains(body, `"c":2`) },
+	)
+	waitForSQLResponse(t, sqlURL,
+		`SELECT count() AS c FROM recordings WHERE Body IN ('mark', 'ordinary')`,
+		10*time.Second,
+		func(body string) bool { return strings.Contains(body, `"c":0`) },
+	)
+}
+
+func recordingSplitPayload() string {
+	now := time.Now().UnixNano()
+	return fmt.Sprintf(
+		`{"resourceLogs":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"smoke"}}]},"scopeLogs":[{"logRecords":[`+
+			`{"timeUnixNano":"%d","eventName":"everr.browser.recording.segment","body":{"stringValue":"[]"},"attributes":[{"key":"session.id","value":{"stringValue":"sess-1"}},{"key":"everr.recording.stream.id","value":{"stringValue":"stream-1"}},{"key":"everr.recording.clip.id","value":{"stringValue":"clip-1"}}]},`+
+			`{"timeUnixNano":"%d","eventName":"everr.browser.recording.mark","body":{"stringValue":"mark"}},`+
+			`{"timeUnixNano":"%d","severityText":"INFO","body":{"stringValue":"ordinary"}}`+
+			`]}]}]}`,
+		now, now, now,
+	)
+}
+
 func TestSQLHTTPParameterizedRoundTrip(t *testing.T) {
 	binary := resolveCollectorBinary(t)
 	if _, err := os.Stat(binary); err != nil {
