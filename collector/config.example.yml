@@ -200,7 +200,8 @@ service:
       processors: [resource, resource/retention_traces, everr_usage]
       exporters: [clickhouse, everr_usage_connector]
 
-    # Self-hosted override for optional app GitHub event replay:
+    # Production self-hosted override for optional app GitHub event replay:
+    # Development uses this shared Cloud configuration unchanged.
     # The self-hosted app sends the retention headers but no tenant header.
     # Use traces: [resource/retention_traces], metrics:
     # [filter/reserved_everr, resource/retention_metrics], and logs:

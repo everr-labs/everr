@@ -14,5 +14,7 @@ export const storage: ApplicationStorage = {
     };
   },
   assertStorageReady() {},
-  telemetryTenantId: () => undefined,
+  // Development shares Cloud's collector and database so data survives switching apps.
+  telemetryTenantId: (organizationId) =>
+    import.meta.env.DEV ? organizationId : undefined,
 };

@@ -1,5 +1,7 @@
-FROM clickhouse/clickhouse-server:26.5
-ARG EVERR_BUILD_TARGET=cloud
+FROM clickhouse/clickhouse-server:26.5 AS base
 COPY init/ /docker-entrypoint-initdb.d/
-COPY ${EVERR_BUILD_TARGET}/ /docker-entrypoint-initdb.d/
-RUN chmod +x /docker-entrypoint-initdb.d/*.sh
+
+FROM base AS self-hosted
+COPY --chmod=755 self-hosted/99-configure-access.sh /docker-entrypoint-initdb.d/
+
+FROM base AS cloud

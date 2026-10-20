@@ -29,6 +29,16 @@ it("publishes the configured public ingestion endpoint", async () => {
 });
 
 it.each([
+  true,
+  false,
+])("stamps self-hosted telemetry only in development (%s)", async (dev) => {
+  vi.resetModules();
+  vi.stubEnv("DEV", dev);
+  const { storage } = await import("@composition/storage");
+  expect(storage.telemetryTenantId("org_42")).toBe(dev ? "org_42" : undefined);
+});
+
+it.each([
   "ftp://telemetry.example.test",
   "https://user:secret@telemetry.example.test",
   "https://telemetry.example.test?key=secret",

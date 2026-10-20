@@ -4,20 +4,38 @@ Updated 2026-10-20. Branch: `self-host`. PR: [#522](https://github.com/everr-lab
 PR review is ongoing. Both products now use the shared plain-SQL ClickHouse schema
 described below.
 
-## Open problem: development switching and worktrees
+## Development switching and worktrees
 
 Cloud and self-hosted use the original tenant-aware physical ClickHouse schema.
 The plain SQL in `clickhouse/init` defines the same tables, materialized views,
-sorting keys, and retention for both. Self-hosted telemetry omits the tenant stamp;
-its tenant columns default to an empty value and queries do not filter by tenant.
+sorting keys, and retention for both. Production self-hosted telemetry omits the
+tenant stamp; its tenant columns default to an empty value and queries do not
+filter by tenant.
 Cloud keeps tenant stamping, row policies, and per-organization SQL credentials.
-Only access initialization varies with the image build target.
+Cloud runs the original initialization scripts. The self-hosted image adds one
+final access script that removes tenant filters, restricts the app writer, and
+configures the installation SQL user and quota.
 
-The root development Compose file still provides separate ClickHouse and
-collector services for self-hosted, with different ports and persistent storage
-from Cloud. Switching applications still requires matching credentials and the
-collector configuration. The physical schema no longer needs a separate variant;
-the remaining development workflow can be simplified separately.
+Development uses one ClickHouse and collector stack for both applications. The
+self-hosted Vite dev server returns the workspace ID during key verification,
+so the shared collector stamps telemetry just as it does for Cloud. Self-hosted
+reads remain unfiltered through dedicated development users; Cloud's row policies,
+users, and quotas stay intact. Production self-hosted still omits tenant stamps.
+The development access script is mounted only by the root Compose file and is
+not copied into either production image. Existing volumes need its additive setup
+once, as described in the [app README](../packages/app/README.md#local-development).
+
+Use one app process at a time on the port configured by the collector's verification
+URL. Worktrees can reuse the services and data with their own app environment
+files. Sharing Postgres still requires a single organization for self-hosted.
+
+Follow-up: allow self-hosted development against a Postgres database containing
+multiple organizations, without separate databases or depending on Cloud's
+workspace selection. Consider an explicit self-hosted workspace setting such as
+`EVERR_WORKSPACE_ID`, with automatic discovery for ordinary single-workspace
+installations. This is not implemented. Workspace selection must apply consistently
+to sessions, invitations, resource access, and background work; removing the
+startup guard alone is insufficient.
 
 Initialization runs only on fresh storage. Existing Cloud databases already have
 this physical schema. Earlier tenant-free self-hosted databases need a migration
@@ -87,12 +105,11 @@ stage executable SQL and journals under `.output/drizzle`, including Cloud and
 legacy histories where needed, so ordinary Node startup and containers both work.
 See [DATABASE-MIGRATIONS.md](../DATABASE-MIGRATIONS.md) for switching and upgrades.
 
-ClickHouse uses shared plain SQL in `clickhouse/init`. The Dockerfile copies it
-alongside `clickhouse/cloud` or `clickhouse/self-hosted` access scripts. There is
-no renderer, template expansion, or Node build stage. The default target is Cloud;
-deployment Compose explicitly selects self-hosted. Cloud default-deny SQL policies
-are installed before SELECT grants, and self-hosted SQL access retains the same
-read-only profile and quotas without tenant filters.
+ClickHouse uses the original plain SQL in `clickhouse/init`, unchanged from main.
+The Dockerfile defaults to the `cloud` stage. Deployment Compose selects the
+`self-hosted` stage, which adds `99-configure-access.sh` after the common scripts.
+There is no renderer, template expansion, or Node build stage. Self-hosted SQL
+access retains the shared read-only profile and quotas without tenant filters.
 
 Collectors use complete `manifest.cloud.yaml` and `manifest.self-hosted.yaml`
 files and explicit build targets. Cloud usage components retain their module
@@ -130,6 +147,13 @@ Previous sessions passed both application typechecks and production builds,
 full app/Cloud suites, import/contract enforcement, and dead-code checks. Later
 focused checks covered identity, storage, worker lifecycle, and routing. These
 results span several revisions; they are not a fresh full run of current HEAD.
+
+The shared development stack passed fresh authenticated logs, traces, and metrics
+ingestion, queried through the Everr CLI and checked in the logs UI. Disposable
+ClickHouse checks confirmed unfiltered self-hosted dev reads, Cloud tenant
+isolation, SQL restrictions, and repeatable access setup. Both app typechecks,
+focused configuration tests, import boundaries, and Compose validation passed.
+The original eight ClickHouse init files still match main byte for byte.
 
 The latest fixes passed production migration staging checks, disposable fresh and
 legacy database upgrade exercises, and CLI session regression tests. Local UI

@@ -177,12 +177,50 @@ deployment, or recovery procedures, update the
 
 ## Local development
 
-From the repository root, install dependencies and start the self-hosted app:
+Follow the [service setup](../../CONTRIBUTING.md#start-the-local-services-postgres-clickhouse-collector-mail)
+and copy `.env.example` to `.env`, then start the self-hosted app:
 
 ```sh
 pnpm install
 pnpm --filter @everr/app dev
 ```
+
+App and Cloud share the root Compose collector and ClickHouse on port 8123.
+The app's example environment uses `self_hosted_app_ro` and
+`self_hosted_sql_api`, development-only users that read across tenants while
+Cloud keeps its tenant policies and per-organization SQL users. New databases
+create these users automatically. For an existing development database, apply
+the additive setup once from the Compose worktree that owns the running services:
+
+```sh
+docker compose exec -T clickhouse clickhouse-client --user default --password everr --multiquery < clickhouse/dev/99-configure-access.sql
+```
+
+Use the app's example ClickHouse credentials and `EVERR_PUBLIC_INGEST_URL` in
+existing `.env` files too.
+Start one application at a time on the port configured by `INGEST_VERIFY_URL`
+in `collector/config.yml` (5173 by default). Keep `INGEST_VERIFY_SHARED_SECRET`
+the same in both apps and the collector. Stop app and run
+`pnpm --filter @everr/app-cloud dev` to switch to Cloud; configure its own `.env`
+from `packages/cloud/.env.example`. Worktrees can point at the same services
+without changing their initialization. Use the same Postgres connection and
+`BETTER_AUTH_SECRET` in both apps to retain workspace identity and sessions.
+Sharing Postgres requires a single organization for self-hosted; see
+[database switching](../../DATABASE-MIGRATIONS.md#switching-locally).
+
+### Telemetry
+
+In development, the app's key-verification endpoint returns the workspace ID,
+and the shared collector stamps `everr.tenant.id` from that authenticated value.
+Send OTLP to the collector's public receiver (HTTP port 4318) with an ingest key
+created in the application. The same telemetry remains available when switching
+to Cloud with that organization. Self-hosted reads do not filter by tenant.
+
+Production self-hosted does not return or stamp a tenant ID. Its separate
+[deployment stack](../../deploy/README.md#send-telemetry) uses installation-wide
+credentials and the self-hosted collector configuration. Configure exporters with
+the installation's public ingestion URL and an ingest key; the development access
+script and its users are not included in production images.
 
 Useful package commands include `pnpm --filter @everr/app build`,
 `pnpm --filter @everr/app typecheck`, and

@@ -2,7 +2,21 @@ import {
   resolveBrowserTelemetryConfig,
   resolveTelemetryConfig,
 } from "@everr/app/telemetry/config";
-import { expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
+
+afterEach(() => vi.unstubAllEnvs());
+
+it.each([
+  true,
+  false,
+])("advertises the shared collector only in development (%s)", async (dev) => {
+  vi.resetModules();
+  vi.stubEnv("DEV", dev);
+  const { deployment } = await import("@composition/deployment");
+  expect(deployment.ingestEndpoint).toBe(
+    dev ? "http://localhost:4318" : "https://ingest.everr.dev/",
+  );
+});
 
 it("uses the hosted receiver when an ingest key is configured", () => {
   expect(

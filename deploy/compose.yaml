@@ -64,8 +64,7 @@ services:
   clickhouse:
     build:
       context: ../clickhouse
-      args:
-        EVERR_BUILD_TARGET: self-hosted
+      target: self-hosted
     restart: unless-stopped
     environment:
       CLICKHOUSE_USER: default
