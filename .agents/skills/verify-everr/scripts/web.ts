@@ -22,6 +22,7 @@ import {
   SCRATCH_ROOT,
   SCRIPT_DIR,
   STATE_DIR,
+  type Proc,
   type RunId,
   agentBrowserVersion,
   basicAuth,
@@ -33,6 +34,7 @@ import {
   hhmmss,
   http,
   isAlive,
+  isRecord,
   listDir,
   parseRunId,
   portOf,
@@ -56,7 +58,8 @@ import {
 
 export const WEB_USAGE = `# Web app (packages/app) commands:
 #
-#   verify-everr web-launch [RUN_ID]     compose ClickHouse+Postgres+OTLP collector (own project/ports/volumes) + pnpm dev:web
+#   verify-everr web-launch [RUN_ID] [--ignore-memory]   compose ClickHouse+Postgres+OTLP collector (own project/ports/
+#                                        volumes) + pnpm dev:web; refuses when free memory cannot fit a run
 #   verify-everr web-doctor              read-only health of this web run
 #   verify-everr web-env                 print the app env of this web run
 #   verify-everr web-browser-env         export lines for agent-browser: AGENT_BROWSER_SESSION, WEB, SHOTS,
@@ -65,7 +68,14 @@ export const WEB_USAGE = `# Web app (packages/app) commands:
 #   verify-everr web-webhook <label> <event> <payload.json>  signed GitHub webhook (run's own secret)
 #   verify-everr web-psql <label> "<SQL>"          read-only psql in this run's Postgres, recorded
 #   verify-everr web-ch <label> "<SQL>"            ClickHouse SQL (default user) in this run, recorded
-#   verify-everr web-key-save <name>     read text containing an ek_ key on stdin, keep it in the run's scratch dir
+#   verify-everr web-key-save <name>     read text containing a full ek_ key on stdin, keep it in the run's scratch dir
+#   verify-everr web-key <name>          print a saved full key (never the truncated ek_xxx... list prefix)
+#   verify-everr web-onboard             finish the Home onboarding in the run's browser (banner-safe), recorded
+#   verify-everr web-apply <body.json> [--key-name N] [--dry-run]   POST /api/apply with a Manage-as-code key, recorded
+#   verify-everr web-net <label> <seconds> [--reload]   clear the browser's network log, (reload,) wait, save
+#                                        it, count /_serverFn/ calls per function and new page errors
+#   verify-everr web-report [RUN_ID]     write <evidence>/report.md: every video and screenshot with its caption
+#   verify-everr web-images [--prune]    list this skill's per-tree verify images; --prune removes stale ones
 #   verify-everr web-seed [--key-name N | --key-file F]   send fixed logs/spans/error over OTLP with a saved
 #                                        key (default name: secret), wait until they land
 #   verify-everr web-collector-restart   regenerate the collector config from collector/config.example.yml, recreate it
@@ -247,7 +257,50 @@ function parseDotenv(text: string): Record<string, string> {
   return vars;
 }
 
-async function cmdWebLaunch([arg]: string[]): Promise<number> {
+const SCHEMA_ERROR_RE = /\bschema detection failed\b/;
+
+/** Measured on 2026-10-20: a web run takes about 2.5 GiB right after launch (ClickHouse ~0.9,
+ * dev server ~1.2, Postgres + collector ~0.3) and grows past 3 GiB once pages compile and queries
+ * run. Hosts without swap get OOM kills instead of slowdowns, so keep this headroom. */
+const WEB_RUN_MIB = 3584;
+const WEB_DOCTOR_LOW_MIB = 1024;
+
+function meminfo(): { availMiB: number; totalMiB: number; swapMiB: number } {
+  const text = readText("/proc/meminfo") ?? "";
+  const kb = (k: string) => Number(new RegExp(`^${k}:\\s+(\\d+)`, "m").exec(text)?.[1] ?? Number.NaN);
+  return { availMiB: Math.floor(kb("MemAvailable") / 1024), totalMiB: Math.floor(kb("MemTotal") / 1024), swapMiB: Math.floor(kb("SwapTotal") / 1024) };
+}
+
+/** MiB used by this run: its compose containers plus the dev server's process group. */
+function runMemoryMiB(w: WebRun): { containers: number; devServer: number } {
+  const toMiB = (s: string) => {
+    const m = /^([\d.]+)\s*([KMG]i?B)/.exec(s.trim());
+    if (!m) return 0;
+    const n = Number(m[1]);
+    return m[2].startsWith("G") ? n * 1024 : m[2].startsWith("K") ? n / 1024 : n;
+  };
+  const stats = docker(w, ["stats", "--no-stream", "--format", "{{.Name}}\t{{.MemUsage}}"]).stdout.split("\n");
+  let containers = 0;
+  for (const line of stats) {
+    const [name, usage] = line.split("\t");
+    if (name?.startsWith(`${w.project}-`) && usage) containers += toMiB(usage.split("/")[0]);
+  }
+  const pgid = readPointer(path.join(w.dir, "web.pgid"));
+  const rss = pgid ? run("ps", ["-o", "rss=", "-g", pgid]).stdout.split("\n").reduce((s, l) => s + (Number(l.trim()) || 0), 0) : 0;
+  return { containers: Math.round(containers), devServer: Math.round(rss / 1024) };
+}
+
+async function cmdWebLaunch(argv: string[]): Promise<number> {
+  const ignoreMemory = argv.includes("--ignore-memory");
+  const arg = argv.find((a) => !a.startsWith("--"));
+  const mem = meminfo();
+  const memLine = `${mem.availMiB} MiB available of ${mem.totalMiB} MiB, swap ${mem.swapMiB} MiB; a web run needs about ${WEB_RUN_MIB} MiB`;
+  if (mem.availMiB < WEB_RUN_MIB) {
+    console.log(`MEMORY: this run will not fit: ${memLine}. Other stacks on this host (see 'docker ps') hold the rest.`);
+    if (!ignoreMemory) die("refusing to launch (an OOM kill mid-run corrupts the proof); free memory or pass --ignore-memory");
+  } else {
+    console.log(`memory: ${memLine}`);
+  }
   const live = readPointer(WEB_STATE);
   if (live && existsSync(path.join(webDir(live), "run.env"))) {
     die(`web run ${live} is still live; run 'verify-everr web-cleanup' first`);
@@ -450,21 +503,22 @@ async function cmdWebDoctor(): Promise<number> {
   }
   check(`collector container of project ${w.project} is running`, compose(w, ["ps", "--format", "{{.Service}} {{.State}}"]).stdout.split("\n").includes("collector running"));
   check(`collector OTLP/HTTP on :${portOf(w.otlp)} rejects a request without a key (401)`, (await otlpUnauthStatus(w)) === 401);
-  // Schema detection runs once at collector start; a failure there silently drops columns.
+  // Schema detection runs once at collector start; a failure there silently drops columns. The
+  // ClickHouse exporter logs exactly `schema detection failed` (with the cause, e.g. connection reset).
   const collectorLog = compose(w, ["logs", "--no-color", "collector"]);
-  const schemaErrors = `${collectorLog.stdout}${collectorLog.stderr}`.split("\n").filter((l) => /schema detection failed|connection reset/i.test(l));
+  const schemaErrors = `${collectorLog.stdout}${collectorLog.stderr}`.split("\n").filter((l) => SCHEMA_ERROR_RE.test(l));
   check(`collector log has no ClickHouse schema-detection errors (${schemaErrors.length} found)`, schemaErrors.length === 0);
   if (schemaErrors.length) console.log(`     ${schemaErrors[0].slice(0, 200)}\n     the collector started before ClickHouse was ready: run '$V web-collector-restart'`);
   // The running config must be what collector/config.example.yml generates now (else: web-collector-restart).
   const fresh = generateCollectorConfig(collectorPorts(w));
-  const used = readText(path.join(w.dir, "collector-config.yaml")) ?? "";
+  const usedConfig = readText(path.join(w.dir, "collector-config.yaml")) ?? "";
   const kept = Object.values(fresh.pipelines);
   const exporters = [...new Set(kept.flatMap((p) => p.exporters))].filter((e) => fresh.exporters.includes(e)).sort();
   check(
     `collector config matches collector/config.example.yml (pipelines ${Object.keys(fresh.pipelines).length}, exporters ${exporters.join(", ")})`,
-    used === fresh.text,
+    usedConfig === fresh.text,
   );
-  if (used !== fresh.text) console.log("     the example changed since launch (or the file was edited): run '$V web-collector-restart'");
+  if (usedConfig !== fresh.text) console.log("     the example changed since launch (or the file was edited): run '$V web-collector-restart'");
   if (fresh.corsHeaders.length) {
     const pre = await corsPreflight(w, fresh);
     check(
@@ -489,6 +543,11 @@ async function cmdWebDoctor(): Promise<number> {
   check('GET /api/health is {"ok":true}', health.ok && health.text.includes('"ok":true'));
   const signIn = await http(`${w.origin}/auth/sign-in`);
   check("GET /auth/sign-in serves the app shell", signIn.ok && signIn.text.includes("<html"));
+  const mem = meminfo();
+  const used = runMemoryMiB(w);
+  const memMsg = `host memory: ${mem.availMiB} MiB available of ${mem.totalMiB} MiB (swap ${mem.swapMiB} MiB); this run uses ~${used.containers + used.devServer} MiB (containers ${used.containers}, dev server ${used.devServer})`;
+  if (mem.availMiB < WEB_DOCTOR_LOW_MIB) console.log(`WARN ${memMsg}: below ${WEB_DOCTOR_LOW_MIB} MiB, expect OOM kills${mem.swapMiB ? "" : " (no swap)"}`);
+  else console.log(`ok   ${memMsg}`);
   const others = docker(w, ["ps", "--format", "{{.Names}}"]).stdout.split("\n").filter((n) => n && !n.startsWith(`${w.project}-`));
   if (others.length) console.log(`info other containers exist on this host (not ours, never touched): ${others.join(" ")} `);
   const ab = agentBrowserVersion();
@@ -662,6 +721,7 @@ function seedPayloads(): { traceId: string; traces: unknown; logs: unknown } {
 
 /** Seed Explore through the real public ingest path: OTLP/HTTP into this run's collector with an
  * `ek_` key created in the UI, verified by the app, tenant-stamped, written via the otel.* views. */
+// A full key. The /api-keys list shows only `ek_` plus a few characters and `...`; {20,} never matches that.
 const KEY_RE = /\bek_[A-Za-z0-9_-]{20,}/;
 
 /** Keep an issued key out of the evidence: read text containing it on stdin (for example
@@ -874,6 +934,315 @@ function cmdWebRecord(args: string[]): number {
   return r.status ?? 1;
 }
 
+/** Print a saved full key, for `-H "Authorization: Bearer $($V web-key secret)"` style use. */
+function cmdWebKey([name]: string[]): number {
+  const w = webLoad();
+  process.stdout.write(`${readKey(w, ["--key-name", required(name, "key name")])}\n`);
+  return 0;
+}
+
+/** agent-browser in this run's session, captured. */
+function ab(w: WebRun, args: string[]): Proc {
+  return run("agent-browser", args, {
+    env: { ...process.env, AGENT_BROWSER_SESSION: browserSession(`web-${w.id}`), AGENT_BROWSER_DEFAULT_TIMEOUT: "90000" },
+  });
+}
+
+function abOk(w: WebRun, args: string[], what: string): string {
+  const r = ab(w, args);
+  if (r.status !== 0) die(`${what} failed: agent-browser ${args.join(" ")}: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
+  return r.stdout;
+}
+
+/** Same files as the recipes' `ab_save`: <evidence>/web/<label>.{png,url,txt}. */
+function abSave(w: WebRun, label: string, caption?: string): void {
+  const base = path.join(w.art, "web", label);
+  mkdirSync(path.dirname(base), { recursive: true });
+  if (caption) writeFileSync(`${base}.caption`, `${caption}\n`);
+  run("sleep", ["0.7"]); // let the compositor paint the new DOM (see printBrowserEnv)
+  abOk(w, ["screenshot", `${base}.png`], `screenshot ${label}`);
+  writeFileSync(`${base}.url`, ab(w, ["get", "url"]).stdout);
+  writeFileSync(`${base}.txt`, ab(w, ["get", "text", "body"]).stdout);
+}
+
+/** Focus a button by its visible text and press Enter: the consent banner covers some buttons, so a
+ * pointer click is refused. */
+function abPressButton(w: WebRun, text: string): void {
+  const js = `(() => { const b = [...document.querySelectorAll("button")].find((x) => x.textContent.trim().startsWith(${JSON.stringify(text)}) && !x.disabled); if (!b) return "missing"; b.focus(); return "focused"; })()`;
+  const out = abOk(w, ["eval", js], `focus '${text}'`);
+  if (!out.includes("focused")) die(`no enabled button '${text}' on ${ab(w, ["get", "url"]).stdout.trim()}`);
+  abOk(w, ["press", "Enter"], `press Enter on '${text}'`);
+}
+
+export const VIEWPORT = { width: 1280, height: 800 };
+const BANNER_TEXT = "We use analytics";
+
+/** Screenshots must not be half-covered by the consent banner: answer it with `Deny` (no analytics
+ * storage, the least side effect), once per browser session (the choice is kept in its storage). */
+function dismissBanner(w: WebRun): boolean {
+  if (!ab(w, ["get", "text", "body"]).stdout.includes(BANNER_TEXT)) return false;
+  abOk(w, ["find", "role", "button", "click", "--name", "Deny"], "click Deny on the consent banner");
+  abOk(w, ["wait", "--fn", `!document.body.innerText.includes(${JSON.stringify(BANNER_TEXT)})`], "wait for the banner to close");
+  return true;
+}
+
+/** Finish Home onboarding (4 steps) the way a user does, so later recipes see the Home dashboard.
+ * Also sets the evidence viewport and dismisses the consent banner for the rest of the session. */
+function cmdWebOnboard(): number {
+  const w = webLoad();
+  abOk(w, ["set", "viewport", String(VIEWPORT.width), String(VIEWPORT.height)], "set viewport");
+  abOk(w, ["open", `${w.origin}/`], "open /");
+  abOk(w, ["wait", "--text", "Home"], "wait for the app shell");
+  if (dismissBanner(w)) console.log("consent banner: answered Deny");
+  const body = () => ab(w, ["get", "text", "body"]).stdout;
+  abOk(w, ["wait", "--fn", "document.body.innerText.includes('Welcome to Everr') || document.body.innerText.includes('Usage by signal')"], "wait for Home");
+  if (!body().includes("Welcome to Everr")) {
+    abSave(w, "onboard-00-already-done");
+    console.log("ONBOARDED already (Home shows the usage dashboard)");
+    return 0;
+  }
+  const steps: [string, string][] = [
+    ["Continue", "Step 2 of 4"],
+    ["Check my telemetry", "Step 3 of 4"],
+    ["I can see my local telemetry", "Step 4 of 4"],
+    ["Finish onboarding", "Usage by signal"],
+  ];
+  abSave(w, "onboard-01-step-1", "Home onboarding, step 1 of 4 (Install Everr), banner dismissed");
+  steps.forEach(([button, next], i) => {
+    abPressButton(w, button);
+    abOk(w, ["wait", "--text", next], `wait for '${next}' after '${button}'`);
+    const last = i === steps.length - 1;
+    abSave(
+      w,
+      `onboard-0${i + 2}-${last ? "done" : `step-${i + 2}`}`,
+      last ? "Onboarding finished: Home shows the usage dashboard" : `After '${button}': onboarding ${next}`,
+    );
+  });
+  const [cmd, psqlArgs] = composeArgs(w, [
+    "exec", "-T", "postgres", "psql", "-U", "postgres", "-tA", "-c",
+    "select count(*) from organization where metadata::jsonb ->> 'onboardingCompleted' = 'true'",
+  ]);
+  const done = run(cmd, psqlArgs).stdout.trim();
+  writeFileSync(path.join(w.art, "web", "onboard-db.txt"), `organizations with onboardingCompleted=true: ${done}\n`);
+  if (done === "0" || done === "") die("Home shows the dashboard but no organization has onboardingCompleted=true");
+  console.log(`ONBOARDED orgs_completed=${done} (evidence web/onboard-*)`);
+  return 0;
+}
+
+/** POST an as-code body to /api/apply with a saved key that has Manage as code. */
+async function cmdWebApply(args: string[]): Promise<number> {
+  const w = webLoad();
+  const bodyFile = path.resolve(required(args[0], "body.json"));
+  const rest = args.slice(1);
+  const dryRun = rest.includes("--dry-run");
+  const key = readKey(w, rest.filter((a) => a !== "--dry-run"));
+  let body: unknown;
+  try {
+    body = JSON.parse(readFileSync(bodyFile, "utf8"));
+  } catch (e) {
+    die(`${bodyFile}: not JSON (${(e as Error).message})`);
+  }
+  if (!isRecord(body) || typeof body.repoid !== "string" || !isRecord(body.state)) die(`${bodyFile}: need {"repoid": ..., "state": {"dashboards": [], "runbooks": [], "alerts": []}}`);
+  if (dryRun) body.dryRun = true;
+  const label = `apply-${path.basename(bodyFile).replace(/\.json$/, "")}${dryRun ? "-dry-run" : ""}`;
+  const out = freshDir(path.join(w.art, "http", label));
+  writeFileSync(path.join(out, "request.json"), `${JSON.stringify(body, null, 2)}\n`);
+  writeFileSync(path.join(out, "command.txt"), `POST ${w.origin}/api/apply  Authorization: Bearer ${key.slice(0, 7)}... (redacted)  body: request.json\n`);
+  const res = await fetch(`${w.origin}/api/apply`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(120000),
+  });
+  const text = await res.text();
+  writeFileSync(path.join(out, "status"), `${res.status}\n`);
+  writeFileSync(path.join(out, "body"), text);
+  console.log(`POST /api/apply (${path.basename(bodyFile)}${dryRun ? ", dry run" : ""}) -> ${res.status}`);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = undefined;
+  }
+  const results = isRecord(parsed) && Array.isArray(parsed.results) ? parsed.results : [];
+  for (const r of results) {
+    if (!isRecord(r)) continue;
+    const list = (k: string) => (Array.isArray(r[k]) ? (r[k] as unknown[]).join(",") : "");
+    console.log(`  ${String(r.kind)}: created [${list("created")}] updated [${list("updated")}] deleted [${list("deleted")}]`);
+  }
+  if (res.status !== 200) {
+    console.log(text.slice(0, 600));
+    console.log(`evidence: ${out}`);
+    return 1;
+  }
+  console.log(`APPLIED status=200 evidence=${path.relative(REPO, out)}`);
+  return 0;
+}
+
+/** `/_serverFn/<id>`: id is base64url JSON {file, export}; the export ends in _createServerFn_handler. */
+function serverFnName(url: string): string | undefined {
+  const id = /\/_serverFn\/([^?/#]+)/.exec(url)?.[1];
+  if (!id) return undefined;
+  try {
+    const decoded: unknown = JSON.parse(Buffer.from(id, "base64url").toString("utf8"));
+    if (isRecord(decoded) && typeof decoded.export === "string") return decoded.export.replace(/_createServerFn_handler$/, "");
+  } catch {}
+  return `undecodable:${id.slice(0, 12)}`;
+}
+
+/** Page errors of this session. Plain `agent-browser errors` prints bare "✗" lines in 0.39.1; the
+ * JSON form carries the text. The list only grows (`errors --clear` does not clear it). */
+function pageErrors(w: WebRun): string[] {
+  try {
+    const parsed: unknown = JSON.parse(ab(w, ["--json", "errors"]).stdout);
+    const list = isRecord(parsed) && isRecord(parsed.data) && Array.isArray(parsed.data.errors) ? parsed.data.errors : [];
+    return list.map((e) => (isRecord(e) && typeof e.text === "string" ? e.text.split("\n")[0] : String(e)));
+  } catch {
+    return [];
+  }
+}
+
+// React's site-wide SSR mismatch, present on every page of the app at e138f4d (see SKILL.md Browser).
+const HYDRATION_RE = /^Error: Hydration failed because the server rendered HTML didn't match the client/;
+
+/** Measure what the current page does on its own for N seconds: requests, server functions, errors. */
+async function cmdWebNet(args: string[]): Promise<number> {
+  const w = webLoad();
+  const reload = args.includes("--reload");
+  const [label, secondsArg] = args.filter((a) => a !== "--reload");
+  const name = required(label, "label");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) die(`invalid label '${name}'`);
+  const seconds = Number(required(secondsArg, "seconds"));
+  if (!(seconds > 0 && seconds <= 600)) die("seconds must be in (0, 600]");
+  const out = path.join(w.art, "net");
+  mkdirSync(out, { recursive: true });
+  const page = ab(w, ["get", "url"]).stdout.trim();
+  // `errors --clear` does not clear in agent-browser 0.39.1: compare counts instead.
+  const errorsBefore = pageErrors(w).length;
+  abOk(w, ["network", "requests", "--clear"], "clear network log");
+  if (reload) abOk(w, ["reload"], "reload");
+  await sleep(seconds * 1000);
+  const requests = abOk(w, ["network", "requests"], "read network log");
+  const added = pageErrors(w).slice(errorsBefore);
+  const newErrors = added.length;
+  const hydration = added.filter((e) => HYDRATION_RE.test(e)).length;
+  writeFileSync(path.join(out, `${name}.requests.txt`), requests);
+  const counts = new Map<string, number>();
+  let total = 0;
+  for (const line of requests.split("\n")) {
+    const m = /\]\s+([A-Z]+)\s+(\S+)/.exec(line);
+    if (!m) continue;
+    total++;
+    const fn = serverFnName(m[2]);
+    if (fn) counts.set(`${m[1]} ${fn}`, (counts.get(`${m[1]} ${fn}`) ?? 0) + 1);
+  }
+  const fnTotal = [...counts.values()].reduce((a, b) => a + b, 0);
+  const lines = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${String(n).padStart(5)}  ${k}`);
+  const summary = [
+    `page: ${page}`,
+    `window: ${seconds}s${reload ? " (from a reload)" : " (page left as is)"}`,
+    `requests: ${total}`,
+    `serverFn calls: ${fnTotal}`,
+    ...lines,
+    `new page errors: ${newErrors}, of which known site-wide hydration mismatch: ${hydration}`,
+    "",
+  ].join("\n");
+  writeFileSync(path.join(out, `${name}.serverfn.txt`), summary);
+  writeFileSync(path.join(out, `${name}.errors.txt`), added.map((e) => `${e}\n`).join(""));
+  process.stdout.write(summary);
+  console.log(`NET label=${name} seconds=${seconds} requests=${total} serverfn=${fnTotal} new_errors=${newErrors} hydration=${hydration} evidence=${path.relative(REPO, out)}/${name}.*`);
+  return 0;
+}
+
+const VERIFY_IMAGE_REPOS = ["everr-verify-clickhouse", "everr-verify-collector"] as const;
+// Tags web-launch creates: a 16-hex git tree hash or dirty-<16 hex>. Other tags (`local`, hand-made
+// ones such as `pr528`) are not ours to remove, even under these repository names.
+const OWN_TAG_RE = /^(?:dirty-)?[0-9a-f]{16}$/;
+
+/** List, and with --prune remove, this skill's per-tree images that nothing uses. Keeps the current
+ * tree's tags and any tag a container (running or stopped, any project) was created from. */
+function cmdWebImages(args: string[]): number {
+  const prune = args.includes("--prune");
+  const dockerBin = requireDocker();
+  const dk = (a: string[]) => run(dockerBin[0], [...dockerBin.slice(1), ...a]);
+  const current = new Set([`everr-verify-clickhouse:${sourceTag("clickhouse").tag}`, `everr-verify-collector:${sourceTag("collector").tag}`]);
+  const used = new Set(dk(["ps", "-a", "--format", "{{.Image}}"]).stdout.split("\n").filter(Boolean));
+  let removed = 0;
+  let kept = 0;
+  for (const repo of VERIFY_IMAGE_REPOS) {
+    const rows = dk(["images", repo, "--format", "{{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}"]).stdout.split("\n").filter(Boolean);
+    for (const row of rows) {
+      const [ref, size, created] = row.split("\t");
+      const tag = ref.slice(repo.length + 1);
+      let verdict: string;
+      if (!OWN_TAG_RE.test(tag)) verdict = "keep (not a tag this skill creates)";
+      else if (current.has(ref)) verdict = "keep (this checkout's current tree)";
+      else if (used.has(ref)) verdict = "keep (a container uses it)";
+      else verdict = prune ? "remove" : "stale (removed by --prune)";
+      if (verdict === "remove") {
+        const r = dk(["image", "rm", ref]);
+        verdict = r.status === 0 ? "removed" : `remove failed: ${r.stderr.trim().slice(0, 120)}`;
+        if (r.status === 0) removed++;
+      } else kept++;
+      console.log(`${ref.padEnd(48)} ${String(size).padStart(9)}  ${String(created).padEnd(16)} ${verdict}`);
+    }
+  }
+  console.log(`IMAGES ${prune ? `pruned=${removed}` : "listed"} kept=${kept}${prune ? "" : " (run with --prune to remove the stale ones)"}`);
+  return 0;
+}
+
+/** One markdown file with every image and video of the run, captioned, linked relatively:
+ * <evidence>/report.md. Captions come from <label>.caption (ab_save's 2nd argument), else the URL. */
+function cmdWebReport(args: string[]): number {
+  const id = args[0] ? parseRunId(args[0]) : readPointer(WEB_STATE) || die("no web run (pass a run id to report on a cleaned-up run)");
+  const art = webArt(id);
+  if (!existsSync(art)) die(`no evidence dir ${art}`);
+  const lines: string[] = [`# verify-everr web run ${id}`, ""];
+  const runTxt = readText(path.join(art, "run.txt"));
+  if (runTxt) lines.push("```", runTxt.trim(), "```", "");
+  const rel = (f: string) => path.relative(art, f).split(path.sep).map(encodeURIComponent).join("/");
+  const videoDir = path.join(art, "video");
+  const videos = existsSync(videoDir) ? readdirSync(videoDir).filter((f) => f.endsWith(".mp4")).sort() : [];
+  if (videos.length) {
+    lines.push("## Videos", "");
+    for (const v of videos) {
+      const stem = v.replace(/\.mp4$/, "");
+      const probe = readText(path.join(videoDir, `${stem}.probe.txt`)) ?? "";
+      const dur = /duration=([\d.]+)/.exec(probe)?.[1];
+      lines.push(`### ${stem}`, "", `[${v}](${rel(path.join(videoDir, v))})${dur ? ` (${Number(dur).toFixed(1)}s)` : ""}`, "");
+      const timeline = readText(path.join(videoDir, `${stem}.timeline.txt`));
+      if (timeline) lines.push("```", timeline.trim(), "```", "");
+      for (const f of readdirSync(videoDir).filter((x) => x.startsWith(`${stem}-`) && x.endsWith(".png")).sort()) {
+        lines.push(`![${f}](${rel(path.join(videoDir, f))})`, "", `*${f.slice(stem.length + 1, -4)}*`, "");
+      }
+    }
+  }
+  const shotsDir = path.join(art, "web");
+  const shots = existsSync(shotsDir) ? readdirSync(shotsDir).filter((f) => f.endsWith(".png")).sort() : [];
+  let uncaptioned = 0;
+  if (shots.length) {
+    lines.push("## Screenshots", "");
+    for (const s of shots) {
+      const label = s.slice(0, -4);
+      const caption = (readText(path.join(shotsDir, `${label}.caption`)) ?? "").trim();
+      const url = (readText(path.join(shotsDir, `${label}.url`)) ?? "").trim();
+      if (!caption) uncaptioned++;
+      lines.push(`### ${label}`, "", caption || "*(no caption: add one with `ab_save <label> \"<claim>\"`)*", "", url ? `\`${url}\`` : "", "", `![${label}](${rel(path.join(shotsDir, s))})`, "");
+    }
+  }
+  lines.push(
+    "## Checklist",
+    "",
+    "- [ ] Each image above was opened and shows what its caption claims (data rendered, no banner over it).",
+    "- [ ] Every UI claim in the report points at one of these images or the video; claims without one are marked unverified.",
+    "",
+  );
+  const out = path.join(art, "report.md");
+  writeFileSync(out, `${lines.join("\n")}\n`);
+  console.log(`REPORT ${path.relative(REPO, out)} videos=${videos.length} screenshots=${shots.length} uncaptioned=${uncaptioned}`);
+  return 0;
+}
+
 async function cmdWebCleanup(): Promise<number> {
   const id = process.env.WEB_RUN_ID || readPointer(WEB_STATE);
   if (!id) {
@@ -932,6 +1301,12 @@ export const WEB_COMMANDS: Record<string, (args: string[]) => number | Promise<n
   "web-ch": cmdWebCh,
   "web-seed": cmdWebSeed,
   "web-key-save": cmdWebKeySave,
+  "web-key": cmdWebKey,
+  "web-onboard": cmdWebOnboard,
+  "web-apply": cmdWebApply,
+  "web-net": cmdWebNet,
+  "web-images": cmdWebImages,
+  "web-report": cmdWebReport,
   "web-collector-restart": cmdWebCollectorRestart,
   "web-sdk-page": cmdWebSdkPage,
   "web-record": cmdWebRecord,

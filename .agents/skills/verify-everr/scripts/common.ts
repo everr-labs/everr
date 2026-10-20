@@ -168,12 +168,15 @@ export async function closeBrowser(session: string, log: string): Promise<void> 
   if (listed()) console.error(`warn: agent-browser session ${session} still open; run: agent-browser --session ${session} close`);
 }
 
-/** Shell lines for driving a run's browser: session, origin, evidence dir (created), and `ab_save <label>`. */
+/** Shell lines for driving a run's browser: session, origin, evidence dir (created), and
+ * `ab_save <label> [caption]` (the caption, the claim the screenshot backs, goes to <label>.caption for web-report).
+ * The short sleep lets the compositor paint: right after a client-side navigation the DOM (and get text)
+ * is already new while a screenshot still shows the previous frame. */
 export function printBrowserEnv(vars: Record<string, string>, shots: string): number {
   mkdirSync(shots, { recursive: true });
   for (const [k, v] of Object.entries({ ...vars, SHOTS: shots })) console.log(`export ${k}='${v}'`);
   console.log(
-    'ab_save() { agent-browser screenshot "$SHOTS/$1.png" >/dev/null && agent-browser get url >"$SHOTS/$1.url" && agent-browser get text body >"$SHOTS/$1.txt" && echo "saved $SHOTS/$1.{png,url,txt}"; }',
+    'ab_save() { sleep 0.7; agent-browser screenshot "$SHOTS/$1.png" >/dev/null && agent-browser get url >"$SHOTS/$1.url" && agent-browser get text body >"$SHOTS/$1.txt" && { [ -z "${2:-}" ] || printf "%s\\n" "$2" >"$SHOTS/$1.caption"; } && echo "saved $SHOTS/$1.{png,url,txt}"; }',
   );
   return 0;
 }

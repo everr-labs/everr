@@ -30,13 +30,15 @@ Preconditions:
 - **Sign up.** Run:
 
   ```bash
-  agent-browser open "$WEB/auth/sign-up" && agent-browser wait --text "Create your account" && ab_save sign-up-01-form
+  agent-browser set viewport 1280 800
+  agent-browser open "$WEB/auth/sign-up" && agent-browser wait --text "Create your account" && ab_save sign-up-01-form "Sign-up form: Create your account"
   agent-browser fill "#name" "$VERIFY_NAME" && agent-browser fill "#email" "$VERIFY_EMAIL" && agent-browser fill "#password" "$VERIFY_PASSWORD" && agent-browser press Enter
-  agent-browser wait --text "Setting up your organization" && ab_save sign-up-02-organization-setup
-  agent-browser wait --fn "location.pathname === '/'" && agent-browser wait --text "Welcome to Everr" && ab_save sign-up-03-home
+  agent-browser wait --text "Setting up your organization" && ab_save sign-up-02-organization-setup "After submit: Setting up your organization"
+  agent-browser wait --fn "location.pathname === '/'" && agent-browser wait --text "Welcome to Everr" && ab_save sign-up-03-home "Sign-up lands on Home onboarding (Welcome to Everr, Step 1 of 4); the analytics banner is still up until web-onboard answers it"
   ```
 
   Every command exits `0`; `sign-up-02-organization-setup.url` is `/organization-setup?returnTo=%2F`; `sign-up-03-home.url` is the web origin `/` and `sign-up-03-home.txt` contains `Welcome to Everr`, `Step 1 of 4` and `$VERIFY_NAME` (`auth-sign-up`, `auth-org-setup`, `auth-home`).
+- **Finish onboarding (most later recipes).** Run `$V web-onboard`. Exit `0`, prints `ONBOARDED orgs_completed=1`; `web/onboard-05-done.png` shows Home's usage dashboard with no consent banner. It answers the banner with `Deny` and clicks `Continue`, `Check my telemetry`, `I can see my local telemetry`, `Finish onboarding` with focus + Enter (the banner covers `Continue` for a pointer click). Skip it only when the recipe is about onboarding itself (`auth-home` needs `Welcome to Everr`, so run it after the Sign up assertions).
 - **Check the stored user and org.** Run `$V web-psql signup-rows "select u.email, u.email_verified, o.name, o.metadata from \"user\" u join member m on m.user_id = u.id join organization o on o.id = m.organization_id where u.email = '$VERIFY_EMAIL'"`. One row, `email_verified` `f`, org name `Verify's projects`, metadata `{"clickhouseReady": true}`.
 - **Log out, guard, wrong password, sign back in.** Run:
 
@@ -62,4 +64,4 @@ Preconditions:
 - Sign-up always tries to send a verification email to the hardcoded dev SMTP `localhost:1025`. Nothing in the flow needs it. Failures are logged only through the app's OTel logger (pointed at a dead port by default), not in `web.log`. Do not depend on reading that email; on a shared host port 1025 may belong to someone else's mailpit.
 - `Sign in with Google` renders but only works with `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (see SKILL.md boundary). Report it as skipped.
 - `Forgot password?` relies on the same email delivery and is not scripted.
-- The cookie-consent banner ("We use analytics") overlays the bottom right. It covers the sign-in/sign-up submit button, so submit with `agent-browser press Enter`; do not click `Accept all`, it changes telemetry persistence for the session.
+- The cookie-consent banner ("We use analytics") overlays the bottom right. It covers the sign-in/sign-up submit button, so submit with `agent-browser press Enter`; never click `Accept all` (it turns on analytics storage). `web-onboard` answers it with `Deny`, after which screenshots are clean.

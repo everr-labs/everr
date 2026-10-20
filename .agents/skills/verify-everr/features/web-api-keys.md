@@ -9,6 +9,7 @@ An organization admin creates organization-scoped `ek_` keys on `/api-keys`, cho
 - `keys-create` creating a key shows `Copy your key now` with the full `ek_...` value exactly once.
 - `keys-list` after `Done` the table lists the key name with a truncated `ek_...` prefix.
 - `keys-persist` the key is still listed after a reload, and Postgres `apikey` has the row with the chosen permissions.
+- `keys-manage-as-code` with `Manage as code` also on, the stored permissions are `{"ingest":["write"],"apply":["read","write","delete"]}` and the key works for `/api/apply` (`web-dashboards.md`).
 - `keys-public` `New public key` with a name and allowed origins shows `Copy your key now`; the list shows the key with its origin, and Postgres stores `metadata` `{"public":true,"allowedOrigins":[...]}` with `ingest` write only.
 
 ## How to get to it (user POV)
@@ -23,21 +24,25 @@ Preconditions:
 - `WEB DOCTOR OK`, `eval "$($V web-browser-env)"` in the driving shell, and this run's browser is signed in (`web-auth.md` Sign up, or Fresh sign-in, ran in this web run).
 - The user is the organization owner (true for the sign-up user).
 - `VERIFY_KEY_NAME` exported and unique.
+- Optional: `VERIFY_KEY_MANAGE=1` to also turn on `Manage as code` (needed by `web-apply`, `web-dashboards.md`).
 
 - **Create, list, reload.** Run:
 
   ```bash
-  agent-browser open "$WEB/api-keys" && agent-browser wait --text "No organization keys yet" && ab_save api-keys-01-empty
+  agent-browser open "$WEB/api-keys" && agent-browser wait --text "No organization keys yet" && ab_save api-keys-01-empty "API keys page before any key: No organization keys yet"
   agent-browser find role button click --name "New key" && agent-browser wait --text "Send telemetry"
-  agent-browser fill "#api-key-name" "$VERIFY_KEY_NAME" && agent-browser find role switch click --name "Send telemetry" && ab_save api-keys-02-form
-  agent-browser find role button click --name "Create key" && agent-browser wait --text "Copy your key now" && ab_save api-keys-03-issued
+  agent-browser fill "#api-key-name" "$VERIFY_KEY_NAME" && agent-browser find role switch click --name "Send telemetry"
+  [ "${VERIFY_KEY_MANAGE:-0}" = 1 ] && agent-browser find role switch click --name "Manage as code"
+  ab_save api-keys-02-form "New key form: name filled, Send telemetry on${VERIFY_KEY_MANAGE:+, Manage as code on}"
+  agent-browser find role button click --name "Create key" && agent-browser wait --text "Copy your key now" && ab_save api-keys-03-issued "Key issued once: Copy your key now with the full ek_ value"
   agent-browser get text body | $V web-key-save secret
-  agent-browser find role button click --name "Done" && agent-browser wait --text "$VERIFY_KEY_NAME" && ab_save api-keys-04-listed
-  agent-browser reload && agent-browser wait --text "$VERIFY_KEY_NAME" && ab_save api-keys-05-after-reload
+  K=$($V web-key secret); echo "full key ${K:0:7}... length ${#K}"
+  agent-browser find role button click --name "Done" && agent-browser wait --text "$VERIFY_KEY_NAME" && ab_save api-keys-04-listed "Key listed with its truncated prefix"
+  agent-browser reload && agent-browser wait --text "$VERIFY_KEY_NAME" && ab_save api-keys-05-after-reload "Key still listed after a reload"
   ```
 
-  Every command exits `0`: `api-keys-01-empty.txt` has `No organization keys yet`; `api-keys-02-form.png` shows the name filled and `Send telemetry` on; `api-keys-03-issued.txt` has `Copy your key now` and an `ek_` value; `web-key-save` prints `saved key 'secret' (ek_...)`; `api-keys-04-listed.txt` and `api-keys-05-after-reload.txt` contain `$VERIFY_KEY_NAME` and not `No organization keys yet` (`keys-empty`, `keys-create`, `keys-list`, `keys-persist`).
-- **Stored row.** Run `$V web-psql api-key-row "select k.name, k.prefix, k.enabled, k.permissions, o.name as org from apikey k join organization o on o.id = k.reference_id where k.name = '$VERIFY_KEY_NAME'"`. One row: prefix `ek_`, enabled `t`, permissions `{"ingest":["write"]}`, org `Verify's projects`.
+  Every command exits `0`: `api-keys-01-empty.txt` has `No organization keys yet`; `api-keys-02-form.png` shows the name filled and `Send telemetry` on; `api-keys-03-issued.txt` has `Copy your key now` and an `ek_` value; `web-key-save` prints `saved key 'secret' (ek_...)` and the `web-key` line shows a length above 60 (a full key, not the list's 6-character `ek_xxx` prefix); `api-keys-04-listed.txt` and `api-keys-05-after-reload.txt` contain `$VERIFY_KEY_NAME` and not `No organization keys yet` (`keys-empty`, `keys-create`, `keys-list`, `keys-persist`).
+- **Stored row.** Run `$V web-psql api-key-row "select k.name, k.prefix, k.enabled, k.permissions, o.name as org from apikey k join organization o on o.id = k.reference_id where k.name = '$VERIFY_KEY_NAME'"`. One row: prefix `ek_`, enabled `t`, permissions `{"ingest":["write"]}` (with `VERIFY_KEY_MANAGE=1`: `{"ingest":["write"],"apply":["read","write","delete"]}`, `keys-manage-as-code`), org `Verify's projects`. Keep `db/api-key-row/` as the record of the stored permissions.
 - **Capability required.** Run:
 
   ```bash

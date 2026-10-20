@@ -16,7 +16,7 @@ Surface A (CLI):
 Surface B (web app):
 
 - Docker works (`docker` or `sudo -n docker`), and `$V web-launch` printed `WEB READY`; `$V web-doctor` ends with `WEB DOCTOR OK`.
-- The database starts empty. The first browser recipe is always `web-auth.md` Sign up with a unique `VERIFY_EMAIL`; later recipes reuse that session (this run's `agent-browser` session keeps its cookies until cleanup).
+- The database starts empty. The first browser recipe is always `web-auth.md` Sign up with a unique `VERIFY_EMAIL`, then `$V web-onboard` unless the recipe is about onboarding; later recipes reuse that session (this run's `agent-browser` session keeps its cookies until cleanup).
 - `VERIFY_NAME`, `VERIFY_EMAIL`, `VERIFY_PASSWORD`, `VERIFY_KEY_NAME` exported (SKILL.md Drive).
 - Never drive or stop the developer's own stack (compose project `everr`, ports 5173/5432/8123/8080/4317/4318/1025/8025).
 
@@ -37,6 +37,7 @@ Surface B (web app):
 - Ingestion proof: the producing command plus a read-only `local query` that returns the marker rows.
 - UI proof: `ui/<label>.png` plus `ui/<label>.txt` containing the marker (`ab_save`).
 - Web proof: every recipe command exited `0`, the end-state `web/<label>.{png,txt,url}`, and a second view (reload, other route, or a `db/` row).
+- UI changes: every UI claim has a screenshot (`ab_save <label> "<claim>"`, taken after the asserted text rendered, banner dismissed, 1280x800) or a `web-record` video; each image was opened and matches its caption; `$V web-report` wrote `report.md`. A UI claim without an image is reported as unverified.
 - Record the feature ID (sub-feature IDs below) with each artifact label.
 - Report an unreachable path with the attempted command and the unmet precondition. Do not report a skipped entry point as verified through a different path.
 - Cloud-backed CLI commands (`cloud`, `ci`, `apply`, `resources`) are out of scope for this map; report them as skipped with "needs Everr Cloud session".
@@ -59,6 +60,7 @@ Web app (surface B):
 - [Web sign-up, sign-in and session](./web-auth.md): sign-up, organization setup, home, log out, route guard, wrong password, sign back in.
 - [Web API keys](./web-api-keys.md): create, list and persist `ek_` keys on `/api-keys`, and public keys with allowed origins.
 - [Web Explore and Runs pages](./web-explore.md): `/logs`, `/traces`, `/errors`, `/runs` empty for a fresh org, then logs, traces and an error seeded over OTLP with the run's key (`web-seed`).
+- [Web dashboards and runbooks](./web-dashboards.md): `/api/apply` with a Manage-as-code key, grid with a static-list variable, panel pages carrying variables, runbook embed, built-ins, 404s.
 - [Web browser SDK](./web-browser-sdk.md): `@everr/otel-web` on a test page with a public key: CORS preflight, errors, failed requests, recordings into `app.recordings`, and the local endpoint without a key.
 - [Web session replay player](./web-replay.md): Replay on error and trace detail pages, Play, gap labels, default relative range vs absolute range, request-count check.
 - [Web GitHub connection and webhook ingress](./web-github.md): `/github`, install start, webhook signature checks, signed delivery, and the GitHub App boundary.
@@ -81,4 +83,5 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 | `clickhouse/init/**`, `clickhouse/manual/**` | Web Launch + Doctor (row policies), `web-explore.md` seeded, `web-replay.md` if `recordings` changed |
 | `packages/app/drizzle/**` | Web Launch + Doctor (migrations), `web-auth.md` |
 | `packages/app/src/**/github*`, `/webhook/github` | `web-github.md` |
+| `packages/app/src/**/dashboards/**`, `src/components/dashboards/**`, `**/runbooks/**`, `src/data/as-code/**`, `/api/apply` | `web-dashboards.md` (needs `web-api-keys.md` with `VERIFY_KEY_MANAGE=1`, `web-seed`) |
 | `packages/app/src/routes/**/runs*` | `web-explore.md` empty `/runs` (rest is behind the GitHub boundary) |

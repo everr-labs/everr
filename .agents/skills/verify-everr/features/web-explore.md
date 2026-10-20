@@ -32,7 +32,7 @@ Preconditions:
   agent-browser open "$WEB/logs" && agent-browser wait --text "Log volume" && agent-browser wait --text "Severity" && ab_save explore-01-logs
   agent-browser open "$WEB/traces" && agent-browser wait --text "Traces" && ab_save explore-02-traces
   agent-browser open "$WEB/errors" && agent-browser wait --text "Errors" && ab_save explore-03-errors
-  agent-browser open "$WEB/runs" && agent-browser wait --timeout 180000 --text "No workflow runs match the current filters." && ab_save explore-04-runs
+  agent-browser eval "location.assign('$WEB/runs')" && agent-browser wait --timeout 180000 --text "No workflow runs match the current filters." && ab_save explore-04-runs
   ```
 
   Every command exits `0`: `explore-01-logs.txt` contains `Log volume` and `Severity` with every count `0`; `explore-02-traces.txt`, `explore-03-errors.txt` render their titles; `explore-04-runs.txt` contains `No workflow runs match the current filters.` (`explore-logs`, `explore-traces`, `explore-errors`, `explore-runs`).
@@ -61,7 +61,7 @@ Preconditions:
 
 - Empty is the expected state until `web-seed` runs: only this run's key can write into this run's ClickHouse. Data on the empty-state recipe means it ran after seeding, or the app points at another database (`$V web-env`).
 - `web-seed` refuses a second call in the same run: the count assertions (`3 matching events`, `1 matching traces`) assume exactly one seed. Relaunch for a clean count. The counts are filtered to service `verify-seed-api`, so other telemetry in the same run (the SDK page's `verify-sdk-web`, replay segments) does not change them; the `.url` evidence must still contain `service=%5B%22verify-seed-api%22%5D`.
-- The first visit to `/runs` compiles a large route tree in the dev server and has taken 57s and more on a busy host, so the recipe waits up to 180s. A timeout there is a slow compile until `web.log` says otherwise.
+- The first visit to `/runs` compiles a large route tree in the dev server and has taken 57s and more on a busy host, so the recipe waits up to 180s. `agent-browser open` has its own fixed navigation timeout that can expire before that wait starts, so the recipe navigates with `eval "location.assign(...)"` (returns at once) and lets `wait` do the waiting. A timeout there is a slow compile until `web.log` says otherwise.
 - Never seed with `web-ch` inserts. It skips the key check and tenant stamping, and `app_ro` reads go through row policies that a hand-written `tenant_id` can satisfy by accident.
 - The traces list renders the root span as a `POST` badge plus `/checkout`, so wait on `verify-seed-api`, not `POST /checkout`. The logs table does not show the service name; assert it on `/traces` and `/errors`.
 - The collector container uses `network_mode: host` (it must reach the dev server on 127.0.0.1, and the app binds loopback only). Fine on Linux; on Docker Desktop (macOS) host networking behaves differently and this is untested.

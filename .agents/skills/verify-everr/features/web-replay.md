@@ -65,4 +65,4 @@ Preconditions:
 - `_serverFn` URLs carry the function as base64url JSON (`.../_serverFn/eyJmaWxl...`); decode one with `echo <id> | base64 -d` (pad with `=`) to confirm it is `getTraceReplay`.
 - The trace list hides recording root spans by design; reach the player through the failed request's trace, not a recording span.
 - When the error and the failed request share a clip, the trace page shows `ERROR TRIGGER`; assert on `TRIGGER`.
-- Do not click `Accept all` on the consent banner; the Play button is above it.
+- Never click `Accept all` on the consent banner; run `$V web-onboard` (answers `Deny`) before screenshots. The Play button is above the banner either way.
