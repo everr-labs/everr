@@ -130,10 +130,14 @@ Changing the definition after release requires a billing migration.
 ## Configuration
 
 See [config.example.yml](../../config.example.yml) for complete wiring. Enable
-the usage and file-storage extensions. Place the usage processor directly before
-one persistent exporter, with fsync, queue-admission acknowledgment
-(`wait_for_result: false`), and unlimited retries. Startup validation checks this
-immediate boundary and requires the matching usage connector beside that exporter.
+the usage and file-storage extensions. Place the usage processor last on the
+admission pipeline. It feeds one persistent exporter, or a routing connector
+whose receiving pipelines each export to one persistent exporter. Those
+exporters need fsync, queue-admission acknowledgment (`wait_for_result: false`),
+and unlimited retries. A pipeline that receives the routing connector must not
+run the usage processor again, so a split segment is counted once. Startup
+validation checks this immediate boundary and requires the matching usage
+connector beside that exporter or routing connector.
 It also checks the publication graph: one cumulative conversion before fanout,
 no downstream metering or second conversion, and dedicated usage exporters with
 persistent fsync-enabled queues, blocking admission, and unlimited retries.

@@ -72,6 +72,33 @@ CREATE TABLE IF NOT EXISTS otel.otel_logs (
     EventName String
 ) ENGINE = Null;
 
+-- Session replay segments. The collector routes event name
+-- everr.browser.recording.segment here after the usage processor.
+-- app.recordings_mv reads this table. It is not attached to otel.otel_logs.
+-- Existing clusters apply clickhouse/manual/recordings.sql. Fresh servers
+-- get these objects from init/. The image does not run manual/.
+CREATE TABLE IF NOT EXISTS otel.otel_recordings (
+    Timestamp DateTime64(9),
+    TraceId String,
+    SpanId String,
+    TraceFlags UInt8,
+    SeverityText LowCardinality(String),
+    SeverityNumber UInt8,
+    ServiceName LowCardinality(String),
+    Body String,
+    ResourceSchemaUrl LowCardinality(String),
+    ResourceAttributes JSON(max_dynamic_paths = 256),
+    ResourceAttributesKeys Array(LowCardinality(String)),
+    ScopeSchemaUrl LowCardinality(String),
+    ScopeName String,
+    ScopeVersion LowCardinality(String),
+    ScopeAttributes JSON(max_dynamic_paths = 256),
+    ScopeAttributesKeys Array(LowCardinality(String)),
+    LogAttributes JSON(max_dynamic_paths = 256),
+    LogAttributesKeys Array(LowCardinality(String)),
+    EventName String
+) ENGINE = Null;
+
 CREATE TABLE IF NOT EXISTS otel.otel_metrics_gauge (
     ResourceAttributes Map(LowCardinality(String), String),
     ResourceSchemaUrl String,
