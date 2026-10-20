@@ -2,7 +2,8 @@
 // main entry does not carry it. `recording()` decides the sample, then loads
 // the recorder chunk with import() only for a sampled Session. `emitRecording()`
 // sends a Clip. Before the chunk has loaded, and in an unsampled Session, it
-// does nothing.
+// does nothing. `markRecording()` still emits its mark log in those cases:
+// the named point is only stored once a recorder is running.
 //
 // One recorder per page. A second `recording()` while the first is installed
 // does nothing. Shutdown of the first releases the page, so a later WebSDK
@@ -19,22 +20,44 @@ export type RecordingOptions = {
   sampleRate?: number;
 };
 
-export type EmitRecordingOptions = {
-  /** Milliseconds before the call. Without it, the Clip is the whole buffer. */
-  last?: number;
-};
+// `last` and `since` are exclusive. With neither, the Clip is the whole buffer.
+// `since` is a mark name or an epoch-millisecond timestamp.
+export type EmitRecordingOptions =
+  | { last: number; since?: never }
+  | { since: string | number; last?: never };
 
 type Recorder = {
-  emit(options?: EmitRecordingOptions): void;
+  emit(options?: { last?: number; since?: string | number }): void;
+  mark(name: string, timestamp: number): void;
+  pause(): void;
+  resume(): void;
   stop(): void;
 };
 
 let claimed = false;
 let current: Recorder | undefined;
+let emitMark: ((name: string, timestamp: number) => void) | undefined;
 
 /** Sends a Clip from the current Stream. Does nothing when no recorder is running. */
 export function emitRecording(options?: EmitRecordingOptions): void {
   current?.emit(options);
+}
+
+/** Names a point in the current Stream. The same name replaces the earlier mark. */
+export function markRecording(name: string): void {
+  const timestamp = Date.now();
+  emitMark?.(name, timestamp);
+  current?.mark(name, timestamp);
+}
+
+/** Stops the recorder. Nothing is buffered while it is paused. */
+export function pauseRecording(): void {
+  current?.pause();
+}
+
+/** Starts the recorder again. The new start takes a full snapshot. */
+export function resumeRecording(): void {
+  current?.resume();
 }
 
 /**
@@ -51,8 +74,16 @@ export function recording(options?: RecordingOptions): Instrumentation {
   return function recording(ctx) {
     if (claimed) return;
     claimed = true;
+    emitMark = (name, timestamp) => {
+      ctx.emit(
+        "everr.browser.recording.mark",
+        { "everr.recording.mark.name": name },
+        timestamp,
+      );
+    };
     const release = () => {
       claimed = false;
+      emitMark = undefined;
     };
 
     const rate = options?.sampleRate ?? 1;

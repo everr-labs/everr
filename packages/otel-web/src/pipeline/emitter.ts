@@ -33,7 +33,8 @@ export type EventName =
   | "everr.browser.page_leave"
   | "everr.browser.interaction.click"
   | "everr.browser.interaction.submit"
-  | "everr.browser.recording.segment";
+  | "everr.browser.recording.segment"
+  | "everr.browser.recording.mark";
 
 type AnyValue =
   | { stringValue: string }

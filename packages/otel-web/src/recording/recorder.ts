@@ -33,11 +33,19 @@ export type RecordingHost = {
 
 const byteLength = (value: string): number => new Blob([value]).size;
 
-function trim(events: RrwebEvent[], now: number): void {
+function trim(
+  events: RrwebEvent[],
+  marks: Map<string, number>,
+  now: number,
+): void {
   const cutoff = now - BUFFER_MS;
   let drop = 0;
   while (drop < events.length && events[drop].timestamp < cutoff) drop++;
   if (drop > 0) events.splice(0, drop);
+  // A mark leaves with the events at its time. The cutoff is the same one.
+  for (const [name, timestamp] of marks) {
+    if (timestamp < cutoff) marks.delete(name);
+  }
 }
 
 // rrweb plays from a full snapshot. The Meta event emitted with that snapshot
@@ -90,60 +98,112 @@ function segmentsOf(events: RrwebEvent[]): RrwebEvent[][] {
 }
 
 export function startRecorder(host: RecordingHost): {
-  emit(options?: { last?: number }): void;
+  emit(options?: { last?: number; since?: string | number }): void;
+  mark(name: string, timestamp: number): void;
+  pause(): void;
+  resume(): void;
   stop(): void;
 } {
   const streamId = host.newId();
   host.setStreamId(streamId);
   const events: RrwebEvent[] = [];
+  const marks = new Map<string, number>();
   let stopped = false;
+  let paused = false;
+  let stopRecord: (() => void) | undefined;
 
-  const stopRecord = record({
-    checkoutEveryNms: CHECKOUT_MS,
-    emit: (event) => {
-      if (stopped) return;
-      const stamped = event as RrwebEvent;
-      trim(events, Date.now());
-      events.push(stamped);
-    },
-  });
+  // pause stops rrweb, so a paused screen never enters the buffer. resume
+  // calls record() again. That start takes a full snapshot, the same one
+  // record.takeFullSnapshot emits, so a Clip can play across the gap.
+  // Calling takeFullSnapshot again would store a second snapshot.
+  const arm = (): void => {
+    stopRecord = record({
+      checkoutEveryNms: CHECKOUT_MS,
+      emit: (event) => {
+        if (stopped || paused) return;
+        trim(events, marks, Date.now());
+        events.push(event as RrwebEvent);
+      },
+    });
+  };
+  arm();
+
+  const requestedStart = (
+    options: { last?: number; since?: string | number } | undefined,
+    now: number,
+  ): { start: number; markMissing: boolean } => {
+    if (options?.last != null) {
+      return { start: now - options.last, markMissing: false };
+    }
+    if (typeof options?.since === "number") {
+      return { start: options.since, markMissing: false };
+    }
+    if (typeof options?.since === "string") {
+      const marked = marks.get(options.since);
+      if (marked == null) {
+        return { start: events[0].timestamp, markMissing: true };
+      }
+      return { start: marked, markMissing: false };
+    }
+    return { start: events[0].timestamp, markMissing: false };
+  };
 
   return {
+    mark(name, timestamp) {
+      if (stopped) return;
+      marks.set(name, timestamp);
+    },
+    pause() {
+      if (stopped || paused) return;
+      paused = true;
+      stopRecord?.();
+      stopRecord = undefined;
+    },
+    resume() {
+      if (stopped || !paused) return;
+      paused = false;
+      arm();
+    },
     emit(options) {
       if (stopped) return;
       const now = Date.now();
-      trim(events, now);
+      trim(events, marks, now);
       if (events.length === 0) return;
-      const requestedStart =
-        options?.last == null ? events[0].timestamp : now - options.last;
-      const clip = clipFrom(events, requestedStart);
+      const requested = requestedStart(options, now);
+      const clip = clipFrom(events, requested.start);
+      if (requested.markMissing) clip.truncated = true;
       if (clip.events.length === 0) return;
       const clipId = host.newId();
       const groups = segmentsOf(clip.events);
+      const base: Record<string, AttrValue> = {
+        "everr.recording.clip.id": clipId,
+        "everr.recording.stream.id": streamId,
+      };
+      if (clip.truncated) base["everr.recording.clip.truncated"] = true;
       for (let index = 0; index < groups.length; index++) {
         const group = groups[index];
         host.emitSegment(
           JSON.stringify(group),
           {
-            "everr.recording.clip.id": clipId,
-            "everr.recording.stream.id": streamId,
+            ...base,
             "everr.recording.segment.index": index,
           },
           group[group.length - 1].timestamp,
         );
       }
-      host.span(requestedStart, now, {
-        "everr.recording.clip.id": clipId,
-        "everr.recording.stream.id": streamId,
+      host.span(requested.start, now, {
+        ...base,
         "everr.recording.trigger": "manual",
-        ...(clip.truncated ? { "everr.recording.clip.truncated": true } : {}),
       });
     },
     stop() {
       if (stopped) return;
       stopped = true;
+      paused = false;
       stopRecord?.();
+      stopRecord = undefined;
       events.splice(0, events.length);
+      marks.clear();
       host.setStreamId(null);
     },
   };
