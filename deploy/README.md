@@ -40,6 +40,9 @@ exists, and concurrent attempts cannot create another workspace.
 The self-hosted app applies the application PostgreSQL migration history during
 startup. The image contains only that history. ClickHouse initializes
 its schema and access roles on the first start with an empty data volume.
+Both products use the same tenant-aware table definitions. Self-hosted telemetry
+does not stamp a tenant, and self-hosted queries do not filter by tenant. Only the
+access setup differs from Cloud.
 Workers run inside the app; no separate worker service is needed.
 
 ## Remote access

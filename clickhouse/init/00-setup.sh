@@ -19,6 +19,4 @@ GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;
 
 -- App reads only curated read-model tables.
 GRANT SELECT ON app.* TO app_ro;
-
-
 SQL

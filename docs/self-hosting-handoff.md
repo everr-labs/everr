@@ -1,27 +1,28 @@
 # Self-hosting and Cloud separation handoff
 
 Updated 2026-10-20. Branch: `self-host`. PR: [#522](https://github.com/everr-labs/everr/pull/522).
-Implementation through `7d461fb95` is committed and pushed. PR review is ongoing.
-This handoff update does not implement further runtime changes.
+PR review is ongoing. Both products now use the shared plain-SQL ClickHouse schema
+described below.
 
 ## Open problem: development switching and worktrees
 
-Cloud and self-hosted currently require different physical ClickHouse schemas.
-Cloud has tenant columns, tenant-prefixed sorting keys, row policies, and per-org
-SQL credentials. Self-hosted omits tenant storage and uses one restricted SQL user.
-The renderer selects the schema when building the ClickHouse image; changing the
-application process or rebuilding against an existing data volume does not convert
-that database to the other variant.
+Cloud and self-hosted use the original tenant-aware physical ClickHouse schema.
+The plain SQL in `clickhouse/init` defines the same tables, materialized views,
+sorting keys, and retention for both. Self-hosted telemetry omits the tenant stamp;
+its tenant columns default to an empty value and queries do not filter by tenant.
+Cloud keeps tenant stamping, row policies, and per-organization SQL credentials.
+Only access initialization varies with the image build target.
 
-The root development Compose file currently provides separate ClickHouse and
+The root development Compose file still provides separate ClickHouse and
 collector services for self-hosted, with different ports and persistent storage
-from Cloud. Switching applications requires matching the application configuration,
-ClickHouse instance, and collector. This is awkward when developing both products,
-particularly across worktrees.
+from Cloud. Switching applications still requires matching credentials and the
+collector configuration. The physical schema no longer needs a separate variant;
+the remaining development workflow can be simplified separately.
 
-The development workflow needs improvement while preserving product separation
-and existing developer data. No approach has been agreed. Resolve the design
-with the user before implementing a replacement.
+Initialization runs only on fresh storage. Existing Cloud databases already have
+this physical schema. Earlier tenant-free self-hosted databases need a migration
+or fresh storage; rebuilding the image does not convert existing tables or rerun
+access setup. Preserve existing developer data.
 
 ## Product boundaries
 
@@ -86,11 +87,12 @@ stage executable SQL and journals under `.output/drizzle`, including Cloud and
 legacy histories where needed, so ordinary Node startup and containers both work.
 See [DATABASE-MIGRATIONS.md](../DATABASE-MIGRATIONS.md) for switching and upgrades.
 
-ClickHouse uses shared templates in `clickhouse/schema` and target-specific
-fragments/access scripts. `clickhouse/render.mjs` emits ordinary initialization
-files during image build. The Dockerfile defaults to Cloud; deployment Compose
-explicitly selects self-hosted. These initialize fresh storage and are not an
-upgrade mechanism for existing databases.
+ClickHouse uses shared plain SQL in `clickhouse/init`. The Dockerfile copies it
+alongside `clickhouse/cloud` or `clickhouse/self-hosted` access scripts. There is
+no renderer, template expansion, or Node build stage. The default target is Cloud;
+deployment Compose explicitly selects self-hosted. Cloud default-deny SQL policies
+are installed before SELECT grants, and self-hosted SQL access retains the same
+read-only profile and quotas without tenant filters.
 
 Collectors use complete `manifest.cloud.yaml` and `manifest.self-hosted.yaml`
 files and explicit build targets. Cloud usage components retain their module

@@ -3,7 +3,7 @@
 -- one tenant's rows per query. Defense in depth: if provisioning ever skips
 -- the per-org policy step, the user sees zero rows rather than all rows.
 --
--- They come before every grant below, and the order is load-bearing:
+-- These run before 17-grant-sql-api-access.sql; the order is load-bearing:
 -- ClickHouse returns every row when no row policy applies to a user for a
 -- table, so a grant that stands without its policy is a cross-tenant read for
 -- as long as it stands. In this order a run that stops part way leaves the

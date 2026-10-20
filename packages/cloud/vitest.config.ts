@@ -16,7 +16,6 @@ config.test = {
   include: [...configDefaults.include, ...alertingIntegrationTests],
   provide: {
     alertingMigrations: cloudTestMigrations,
-    alertingSchemaTarget: "cloud",
   },
   exclude: configDefaults.exclude,
 };

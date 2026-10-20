@@ -4,21 +4,21 @@
 --
 -- Metrics stamp retention before replacing ResourceAttributes, avoiding alias
 -- shadowing. JSON columns strip retention through SKIP; their views filter the
--- keys array.
+-- keys array. everr.tenant.id remains in both attributes and keys.
 
--- Traces: read table + MV
+-- Traces: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.traces
 ENGINE = MergeTree
 PARTITION BY (toDate(Timestamp), retention_days)
--- Put Timestamp directly after the service filters so time ranges
+-- Put Timestamp directly after the tenant and service filters so time ranges
 -- can prune without an equality filter on SpanName.
-ORDER BY ({{keyPrefix}}ServiceName, Timestamp)
+ORDER BY (tenant_id, ServiceName, Timestamp)
 TTL toDate(Timestamp) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  {{jsonProjection}}
+  toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_traces
 WHERE 1 = 0;
@@ -58,7 +58,8 @@ ALTER TABLE app.traces
   MODIFY COLUMN `Links.TraceId` CODEC(ZSTD(1)),
   MODIFY COLUMN `Links.SpanId` CODEC(ZSTD(1)),
   MODIFY COLUMN `Links.TraceState` CODEC(ZSTD(1)),
-  MODIFY COLUMN `Links.Attributes` CODEC(ZSTD(1)){{tenantCodec}};
+  MODIFY COLUMN `Links.Attributes` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_mv
 TO app.traces
@@ -70,7 +71,7 @@ FROM
 (
   SELECT
     *,
-    {{jsonProjection}}
+    toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
     everrRetentionDaysJson(ResourceAttributes) AS retention_days
   FROM otel.otel_traces
 );
@@ -81,7 +82,7 @@ FROM
 -- expiry can retain these lookup rows up to a month beyond their spans.
 CREATE TABLE IF NOT EXISTS app.traces_trace_id_ts
 (
-  {{lookupColumn}}
+  tenant_id LowCardinality(String) CODEC(ZSTD(1)),
   TraceId String CODEC(ZSTD(1)),
   Start DateTime CODEC(Delta(4), ZSTD(1)),
   End DateTime CODEC(Delta(4), ZSTD(1)),
@@ -89,7 +90,7 @@ CREATE TABLE IF NOT EXISTS app.traces_trace_id_ts
 )
 ENGINE = MergeTree
 PARTITION BY (toStartOfMonth(Start), retention_days)
-ORDER BY ({{keyPrefix}}TraceId, Start)
+ORDER BY (tenant_id, TraceId, Start)
 TTL toDate(Start) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 256, ttl_only_drop_parts = 1;
 
@@ -99,28 +100,28 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS app.traces_trace_id_ts_mv
 TO app.traces_trace_id_ts
 AS
 SELECT
-  {{jsonProjection}}
+  toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
   TraceId,
   min(Timestamp) AS Start,
   max(Timestamp) AS End,
   everrRetentionDaysJson(ResourceAttributes) AS retention_days
 FROM otel.otel_traces
 WHERE TraceId != ''
-GROUP BY {{keyPrefix}}retention_days, TraceId;
+GROUP BY tenant_id, retention_days, TraceId;
 
--- Logs: read table + MV
+-- Logs: tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.logs
 ENGINE = MergeTree
 PARTITION BY (toDate(Timestamp), retention_days)
 -- Keep Timestamp directly after ServiceName so the explorer time predicate
 -- prunes without an additional bucket predicate.
-ORDER BY ({{keyPrefix}}ServiceName, Timestamp)
+ORDER BY (tenant_id, ServiceName, Timestamp)
 TTL toDate(Timestamp) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  {{jsonProjection}}
+  toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_logs
 WHERE 1 = 0;
@@ -167,7 +168,8 @@ ALTER TABLE app.logs
   MODIFY COLUMN `ScopeAttributesKeys` CODEC(ZSTD(1)),
   MODIFY COLUMN `LogAttributes` JSON(max_dynamic_paths = 256) CODEC(ZSTD(1)),
   MODIFY COLUMN `LogAttributesKeys` CODEC(ZSTD(1)),
-  MODIFY COLUMN `EventName` CODEC(ZSTD(1)){{tenantCodec}};
+  MODIFY COLUMN `EventName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.logs_mv
 TO app.logs
@@ -179,7 +181,7 @@ FROM
 (
   SELECT
     *,
-    {{jsonProjection}}
+    toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
     everrRetentionDaysJson(ResourceAttributes) AS retention_days
   FROM otel.otel_logs
 );
@@ -191,13 +193,13 @@ FROM
 CREATE TABLE IF NOT EXISTS app.metrics_gauge
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY ({{keyPrefix}}ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  {{mapSchemaProjection}}
+  toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_metrics_gauge
 WHERE 1 = 0;
@@ -234,7 +236,8 @@ ALTER TABLE app.metrics_gauge
   MODIFY COLUMN `Exemplars.TimeUnix` CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.Value` CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.SpanId` CODEC(ZSTD(1)),
-  MODIFY COLUMN `Exemplars.TraceId` CODEC(ZSTD(1)){{tenantCodec}};
+  MODIFY COLUMN `Exemplars.TraceId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_gauge_mv
 TO app.metrics_gauge
@@ -246,22 +249,22 @@ FROM
 (
   SELECT
     *,
-    {{mapProjection}}
+    toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_gauge
 );
 
--- Metrics (Sum): read table + MV
+-- Metrics (Sum): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_sum
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY ({{keyPrefix}}ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  {{mapSchemaProjection}}
+  toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_metrics_sum
 WHERE 1 = 0;
@@ -300,7 +303,8 @@ ALTER TABLE app.metrics_sum
   MODIFY COLUMN `Exemplars.SpanId` CODEC(ZSTD(1)),
   MODIFY COLUMN `Exemplars.TraceId` CODEC(ZSTD(1)),
   MODIFY COLUMN `AggregationTemporality` CODEC(ZSTD(1)),
-  MODIFY COLUMN `IsMonotonic` CODEC(Delta(1), ZSTD(1)){{tenantCodec}};
+  MODIFY COLUMN `IsMonotonic` CODEC(Delta(1), ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_sum_mv
 TO app.metrics_sum
@@ -312,22 +316,22 @@ FROM
 (
   SELECT
     *,
-    {{mapProjection}}
+    toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_sum
 );
 
--- Metrics (Histogram): read table + MV
+-- Metrics (Histogram): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_histogram
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY ({{keyPrefix}}ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  {{mapSchemaProjection}}
+  toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_metrics_histogram
 WHERE 1 = 0;
@@ -370,7 +374,8 @@ ALTER TABLE app.metrics_histogram
   MODIFY COLUMN `Flags` CODEC(ZSTD(1)),
   MODIFY COLUMN `Min` CODEC(ZSTD(1)),
   MODIFY COLUMN `Max` CODEC(ZSTD(1)),
-  MODIFY COLUMN `AggregationTemporality` CODEC(ZSTD(1)){{tenantCodec}};
+  MODIFY COLUMN `AggregationTemporality` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_histogram_mv
 TO app.metrics_histogram
@@ -382,22 +387,22 @@ FROM
 (
   SELECT
     *,
-    {{mapProjection}}
+    toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_histogram
 );
 
--- Metrics (Exponential Histogram): read table + MV
+-- Metrics (Exponential Histogram): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_exponential_histogram
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY ({{keyPrefix}}ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  {{mapSchemaProjection}}
+  toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_metrics_exponential_histogram
 WHERE 1 = 0;
@@ -444,7 +449,8 @@ ALTER TABLE app.metrics_exponential_histogram
   MODIFY COLUMN `Flags` CODEC(ZSTD(1)),
   MODIFY COLUMN `Min` CODEC(ZSTD(1)),
   MODIFY COLUMN `Max` CODEC(ZSTD(1)),
-  MODIFY COLUMN `AggregationTemporality` CODEC(ZSTD(1)){{tenantCodec}};
+  MODIFY COLUMN `AggregationTemporality` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_exponential_histogram_mv
 TO app.metrics_exponential_histogram
@@ -456,22 +462,22 @@ FROM
 (
   SELECT
     *,
-    {{mapProjection}}
+    toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_exponential_histogram
 );
 
--- Metrics (Summary): read table + MV
+-- Metrics (Summary): tenant-enriched read table + MV
 CREATE TABLE IF NOT EXISTS app.metrics_summary
 ENGINE = MergeTree
 PARTITION BY (toDate(TimeUnix), retention_days)
-ORDER BY ({{keyPrefix}}ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
+ORDER BY (tenant_id, ServiceName, MetricName, toStartOfHour(TimeUnix), cityHash64(Attributes), TimeUnix)
 TTL toDate(TimeUnix) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 AS
 SELECT
   *,
-  {{mapSchemaProjection}}
+  toLowCardinality(CAST(ResourceAttributes['everr.tenant.id'] AS String)) AS tenant_id,
   toUInt16(0) AS retention_days
 FROM otel.otel_metrics_summary
 WHERE 1 = 0;
@@ -506,7 +512,8 @@ ALTER TABLE app.metrics_summary
   MODIFY COLUMN `Sum` CODEC(ZSTD(1)),
   MODIFY COLUMN `ValueAtQuantiles.Quantile` CODEC(ZSTD(1)),
   MODIFY COLUMN `ValueAtQuantiles.Value` CODEC(ZSTD(1)),
-  MODIFY COLUMN `Flags` CODEC(ZSTD(1)){{tenantCodec}};
+  MODIFY COLUMN `Flags` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1));
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS app.metrics_summary_mv
 TO app.metrics_summary
@@ -518,7 +525,7 @@ FROM
 (
   SELECT
     *,
-    {{mapProjection}}
+    toLowCardinality(ResourceAttributes['everr.tenant.id']) AS tenant_id,
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_summary
 );

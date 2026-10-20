@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   -- One continuous breach of an instance: the pending or fired event's id,
   -- carried on every lifecycle row of that episode. Zero elsewhere.
   episode_id UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'),
-  {{alertColumn}}
+  tenant_id LowCardinality(String),
   alert_definition_id UUID,
   repoid LowCardinality(String),
   -- The rule's full path, `project/slug`, as formatResourceName writes it.
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   -- fan-out that reached several notifications in one message reads as one
   -- message. Empty off delivery rows.
   delivery_dedup_key String DEFAULT '',
-  -- Written by the app from the configured retention policy.
+  -- Written by the app from the tenant's plan (packages/app/src/lib/retention.server.ts).
   -- The app.* views get the same guarantee from the retention functions in
   -- init/05; this table is written directly, so the constraint stands in for
   -- them. Without one, an insert that omits the field stamps 0 and the row is
@@ -103,7 +103,7 @@ ENGINE = MergeTree
 -- The event day and retention_days make every row in a partition expire on the
 -- same day, so ttl_only_drop_parts drops the partition whole.
 PARTITION BY (toDate(event_time), event_type IN ('evaluation_succeeded', 'evaluation_failed'), retention_days)
--- Dominant read: per-alert history by slug over a time range.
+-- Dominant read: per-alert history by tenant + slug over a time range.
 -- ORDER BY is immutable, so this intentionally prioritizes alert filters over
 -- date-only scans.
 --
@@ -128,8 +128,11 @@ PARTITION BY (toDate(event_time), event_type IN ('evaluation_succeeded', 'evalua
 -- sorting key, so two writes of one row that disagree on event_time stay two
 -- rows. Convergence is a write-side property here; see Idempotence in the
 -- surface design doc.
-ORDER BY ({{keyPrefix}}slug, event_type, event_time, event_id)
--- Retention is a write-time snapshot, so policy changes affect future rows.
+ORDER BY (tenant_id, slug, event_type, event_time, event_id)
+-- The writer stamps the plan's event-class entitlement into retention_days:
+-- Free keeps evaluation and lifecycle history for 14 days; Pro keeps
+-- evaluations for 30 days and lifecycle history for 365 days. The TTL applies
+-- that write-time snapshot directly, including after a tenant changes plans.
 TTL toDate(event_time) + toIntervalDay(retention_days)
 -- Both writers in server/alerting/history/clickhouse.ts set
 -- insert_deduplication_token from the sorted row ids, which dedups under

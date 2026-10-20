@@ -1,11 +1,9 @@
 import "./alerting-context";
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Session } from "chdb";
-import { inject } from "vitest";
 
 import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 
@@ -17,19 +15,6 @@ function clickhouseRoot(): string {
     dirname(fileURLToPath(import.meta.url)),
     "../../../../clickhouse",
   );
-}
-
-function renderInitDir(outputDir: string): string {
-  execFileSync(
-    process.execPath,
-    [
-      join(clickhouseRoot(), "render.mjs"),
-      inject("alertingSchemaTarget") ?? "self-hosted",
-      outputDir,
-    ],
-    { stdio: "pipe" },
-  );
-  return outputDir;
 }
 
 // Strip line comments before splitting statements: comments can contain semicolons.
@@ -123,13 +108,7 @@ export function createChdbDatabase(): ChdbDatabase {
   const host = globalThis as unknown as ChdbHost;
   const existing = host[ACTIVE_KEY];
   if (existing) return existing;
-  const initDir = mkdtempSync(join(tmpdir(), "everr-chdb-init-"));
-  try {
-    renderInitDir(initDir);
-  } catch (error) {
-    rmSync(initDir, { recursive: true, force: true });
-    throw error;
-  }
+  const initDir = join(clickhouseRoot(), "init");
   const dataDir = mkdtempSync(join(tmpdir(), "everr-chdb-"));
   const session = new Session(dataDir);
 
@@ -277,7 +256,6 @@ export function createChdbDatabase(): ChdbDatabase {
     close() {
       session.cleanup();
       rmSync(dataDir, { recursive: true, force: true });
-      rmSync(initDir, { recursive: true, force: true });
       host[ACTIVE_KEY] = undefined;
     },
   };

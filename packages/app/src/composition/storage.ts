@@ -16,6 +16,6 @@ export interface ApplicationStorage {
   };
   /** Organization storage-readiness policy, based on application-owned provisioning metadata. */
   assertStorageReady(metadata: unknown): void;
-  /** Storage and collector tenant identity; undefined denotes unpartitioned self-hosted storage. */
+  /** Storage and collector tenant identity; undefined omits the tenant stamp for self-hosted storage. */
   telemetryTenantId(organizationId: string): string | undefined;
 }
