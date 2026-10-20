@@ -1,6 +1,6 @@
 # Query local telemetry
 
-`everr local query "<SQL>"` runs SQL against the local chDB store behind the collector and prints rows as a table on a TTY, or `json`/`ndjson` on request. Tables are `logs`, `traces`, and the `metrics_*` family. Bad SQL fails with the ClickHouse error and exit 1.
+`everr local query "<SQL>"` runs SQL against the local chDB store behind the collector and prints rows as a table on a TTY, or `json`/`ndjson` on request. Tables are `logs`, `traces`, the `metrics_*` family, and, in checkouts with session replay (PR #527 and later; `SHOW TABLES` tells), `recordings`. Bad SQL fails with the ClickHouse error and exit 1.
 
 ## Sub-features
 
@@ -10,6 +10,7 @@
 - `query-schema` `SHOW TABLES` and `DESCRIBE TABLE logs` expose the schema.
 - `query-error` invalid SQL exits 1 with `Error: query failed` and the `DB::Exception`.
 - `query-readonly` non-SELECT statements do not change data.
+- `query-recordings` browser recording segments (log event `everr.browser.recording.segment`) land in `recordings`, not `logs`.
 
 ## How to get to it (user POV)
 
@@ -29,6 +30,7 @@ Preconditions:
 - **table.** Run `$V cli query-table -- local query "SELECT 1 AS one" --format table`. Stdout is `one` then `1`.
 - **Error.** Run `$V cli query-error -- local query "SELECT nope FROM logs" --format ndjson`. Exit `1`, stderr starts `Error: query failed` and contains `UNKNOWN_IDENTIFIER` (`Unknown expression identifier \`nope\``).
 - **Read-only.** Run `$V cli query-insert -- local query "INSERT INTO logs (Body) VALUES ('$M-insert')"`, then `$V cli query-insert-check -- local query "SELECT count() AS c FROM logs WHERE Body = '$M-insert'" --format ndjson`. The check prints `{"c":0}`.
+- **Recordings (when the table exists).** After the SDK page sent a recording to this run (`web-browser-sdk.md` "Local endpoint", with recording on), run `$V cli-until query-recordings '"segments"' -- local query "SELECT count() AS segments, uniq(LogAttributes.everr.recording.clip.id) AS clips, any(ServiceName) AS svc FROM recordings WHERE ServiceName = 'verify-sdk-web'" --format ndjson`. One row with `segments` >= 1, `clips` >= 1, `svc` `verify-sdk-web`; `SELECT count() FROM logs WHERE EventName = 'everr.browser.recording.segment'` is `0` (routed away from `logs`).
 - **Proof.** The `cli/query-*` folders.
 
 ## Gotchas
@@ -37,3 +39,4 @@ Preconditions:
 - Without `--format`, output depends on whether stdout is a TTY; the helper captures to files, so the default there is ndjson.
 - Include `LIMIT` yourself; the CLI does not add one.
 - JSON attribute columns use dot paths (`LogAttributes.everr.wrap.stream`), not map subscripts.
+- `recordings` is the local counterpart of the web app's `app.recordings` (`web-replay.md`); the web side routes segments with a `routing` connector in `collector/config.example.yml`.

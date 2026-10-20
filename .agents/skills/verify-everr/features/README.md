@@ -57,6 +57,28 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 Web app (surface B):
 
 - [Web sign-up, sign-in and session](./web-auth.md): sign-up, organization setup, home, log out, route guard, wrong password, sign back in.
-- [Web API keys](./web-api-keys.md): create, list and persist `ek_` keys on `/api-keys`.
+- [Web API keys](./web-api-keys.md): create, list and persist `ek_` keys on `/api-keys`, and public keys with allowed origins.
 - [Web Explore and Runs pages](./web-explore.md): `/logs`, `/traces`, `/errors`, `/runs` empty for a fresh org, then logs, traces and an error seeded over OTLP with the run's key (`web-seed`).
+- [Web browser SDK](./web-browser-sdk.md): `@everr/otel-web` on a test page with a public key: CORS preflight, errors, failed requests, recordings into `app.recordings`, and the local endpoint without a key.
+- [Web session replay player](./web-replay.md): Replay on error and trace detail pages, Play, gap labels, default relative range vs absolute range, request-count check.
 - [Web GitHub connection and webhook ingress](./web-github.md): `/github`, install start, webhook signature checks, signed delivery, and the GitHub App boundary.
+
+## Changed path -> features
+
+Pick recipes from the paths a change touches (`git diff --name-only origin/main...`). Always run the surface's Launch and Doctor first.
+
+| Changed path | Run |
+| --- | --- |
+| `packages/cli/**`, `collector/cmd/everr-local-collector/**` | `local-lifecycle.md`, `wrap.md`, `local-query.md` |
+| `packages/local-app/**`, `packages/telemetry-explorer/**` | `local-ui-logs.md` (+ `local-query.md`) |
+| `packages/cli/skills/**`, skills commands | `skills.md` |
+| `packages/app/src/routes/auth/**`, `src/lib/auth*`, organization setup | `web-auth.md` |
+| `packages/app/src/**/api-keys*`, `verify-key`, apikey schema | `web-api-keys.md`, then `web-explore.md` Seed |
+| `packages/app/src/routes/**/logs*`, `traces*`, `errors*`, `src/data/**` (Explore queries) | `web-explore.md` (empty + seeded) |
+| `packages/app/src/**/replay*`, `src/data/replay/**` | `web-browser-sdk.md`, `web-replay.md` |
+| `packages/otel-web/**` | `web-browser-sdk.md` (+ `web-replay.md` when `src/recording*` changed) |
+| `collector/config.example.yml`, `collector/**` (public edge, processors, exporters) | Web Launch + Doctor (CORS and config checks), `web-explore.md` Seed, `web-browser-sdk.md` |
+| `clickhouse/init/**`, `clickhouse/manual/**` | Web Launch + Doctor (row policies), `web-explore.md` seeded, `web-replay.md` if `recordings` changed |
+| `packages/app/drizzle/**` | Web Launch + Doctor (migrations), `web-auth.md` |
+| `packages/app/src/**/github*`, `/webhook/github` | `web-github.md` |
+| `packages/app/src/routes/**/runs*` | `web-explore.md` empty `/runs` (rest is behind the GitHub boundary) |

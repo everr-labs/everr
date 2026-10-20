@@ -1,7 +1,7 @@
 // Web app (packages/app) commands for verify-everr: compose ClickHouse+Postgres in a per-run
 // project with its own ports and volumes, run `pnpm dev:web` against it, drive and record it.
-import { spawn } from "node:child_process";
-import { createHmac, randomBytes } from "node:crypto";
+import { spawn, spawnSync } from "node:child_process";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import {
   closeSync,
   copyFileSync,
@@ -15,6 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
+import { type CollectorPorts, EXAMPLE_CONFIG, type GeneratedConfig, generateCollectorConfig } from "./collector-config.ts";
 import {
   AGENT_BROWSER_HINT,
   REPO,
@@ -58,13 +59,20 @@ export const WEB_USAGE = `# Web app (packages/app) commands:
 #   verify-everr web-launch [RUN_ID]     compose ClickHouse+Postgres+OTLP collector (own project/ports/volumes) + pnpm dev:web
 #   verify-everr web-doctor              read-only health of this web run
 #   verify-everr web-env                 print the app env of this web run
-#   verify-everr web-browser-env         export lines for agent-browser: AGENT_BROWSER_SESSION, WEB, SHOTS
+#   verify-everr web-browser-env         export lines for agent-browser: AGENT_BROWSER_SESSION, WEB, SHOTS,
+#                                        SDK_PAGE_ORIGIN, and SDK_URL once web-sdk-page ran
 #   verify-everr web-http <label> <METHOD> <path> [curl args...]   HTTP against the app, recorded
 #   verify-everr web-webhook <label> <event> <payload.json>  signed GitHub webhook (run's own secret)
 #   verify-everr web-psql <label> "<SQL>"          read-only psql in this run's Postgres, recorded
 #   verify-everr web-ch <label> "<SQL>"            ClickHouse SQL (default user) in this run, recorded
-#   verify-everr web-seed [key-file]     send fixed logs/spans/error over OTLP with the run's ek_ key (default:
-#                                        the key shown in web/api-keys-03-issued.txt), wait until they land
+#   verify-everr web-key-save <name>     read text containing an ek_ key on stdin, keep it in the run's scratch dir
+#   verify-everr web-seed [--key-name N | --key-file F]   send fixed logs/spans/error over OTLP with a saved
+#                                        key (default name: secret), wait until they land
+#   verify-everr web-collector-restart   regenerate the collector config from collector/config.example.yml, recreate it
+#   verify-everr web-record --steps F [record.ts args]   record a scripted journey as mp4 + key frames into
+#                                        <evidence>/video/ (base URL and the run browser's session filled in)
+#   verify-everr web-sdk-page [--local]  bundle packages/otel-web/src into a test page, serve it on SDK_PAGE_ORIGIN
+#                                        with the saved 'public' key (or the CLI run's collector, no key, with --local)
 #   verify-everr web-cleanup             stop dev server + compose down -v (this project only), KEEP evidence`;
 
 const WEB_STATE = path.join(STATE_DIR, "current-web");
@@ -133,6 +141,71 @@ const composeToFile = (w: WebRun, args: string[], file: string, append = false) 
 
 const docker = (w: WebRun, args: string[]) => run(w.docker[0], [...w.docker.slice(1), ...args]);
 
+/** Image tag for a source dir: its git tree hash, or `dirty-<hash>` of the working copy when it has
+ * local changes. Checkouts with different sources never share (and race on) a tag. */
+function sourceTag(dir: string): { tag: string; dirty: boolean } {
+  const tree = run("git", ["-C", REPO, "rev-parse", `HEAD:${dir}`]).stdout.trim();
+  const status = run("git", ["-C", REPO, "status", "--porcelain", "--", dir]).stdout;
+  if (!status.trim()) return { tag: tree.slice(0, 16) || "untracked", dirty: false };
+  const h = createHash("sha256").update(tree).update(run("git", ["-C", REPO, "diff", "HEAD", "--binary", "--", dir]).stdout);
+  for (const f of run("git", ["-C", REPO, "ls-files", "--others", "--exclude-standard", "--", dir]).stdout.split("\n").filter(Boolean)) {
+    h.update(f).update(readFileSync(path.join(REPO, f)));
+  }
+  return { tag: `dirty-${h.digest("hex").slice(0, 16)}`, dirty: true };
+}
+
+const collectorPorts = (w: WebRun): CollectorPorts => ({
+  otlpHttp: portOf(w.otlp),
+  otlpGrpc: w.vars.OTLP_GRPC_PORT ?? die(`${w.dir}/run.env has no OTLP_GRPC_PORT`),
+  clickhouse: portOf(w.clickhouse),
+  web: `http://127.0.0.1:${w.port}`,
+});
+
+/** Write the run's collector config (scratch, mounted by compose) and a copy in the evidence dir. */
+function writeCollectorConfig(w: WebRun): GeneratedConfig {
+  const g = generateCollectorConfig(collectorPorts(w));
+  writeFileSync(path.join(w.dir, "collector-config.yaml"), g.text);
+  writeFileSync(path.join(w.art, "collector-config.yaml"), g.text);
+  const summary = Object.entries(g.pipelines).map(([n, p]) => `${n}: ${p.receivers.join(",")} -> ${p.exporters.join(",")}`);
+  console.log(`collector config from ${path.relative(REPO, EXAMPLE_CONFIG)}: dropped pipelines [${g.removedPipelines.join(", ")}]; CORS headers [${g.corsHeaders.join(", ") || "none"}]`);
+  for (const s of summary) console.log(`  ${s}`);
+  return g;
+}
+
+/** CORS preflight a browser sends before an OTLP export: status and Access-Control-Allow-Origin. */
+async function corsPreflight(w: WebRun, g: GeneratedConfig): Promise<{ status: number; allowOrigin: string }> {
+  const origin = g.corsOrigins.find((o) => o !== "*") ?? "http://127.0.0.1:1";
+  try {
+    const res = await fetch(`${w.otlp}/v1/logs`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: origin,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": // Browsers send these lowercased and sorted; the collector's CORS library rejects other orders.
+        g.corsHeaders.map((h) => h.toLowerCase()).sort().join(","),
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    return { status: res.status, allowOrigin: res.headers.get("access-control-allow-origin") ?? "" };
+  } catch {
+    return { status: 0, allowOrigin: "" };
+  }
+}
+
+async function waitCollector(w: WebRun): Promise<void> {
+  // The collector has no healthcheck: ready = its OTLP/HTTP receiver answers and rejects a request without a key.
+  const deadline = Date.now() + 60000;
+  while ((await otlpUnauthStatus(w)) !== 401) {
+    if (Date.now() >= deadline) die("collector OTLP receiver never answered 401 without a key; see 'compose logs collector'");
+    await sleep(1000);
+  }
+}
+
+const keyFile = (w: WebRun, name: string) => {
+  if (!/^[a-z0-9-]+$/.test(name)) die(`key name must match [a-z0-9-]+: ${name}`);
+  return path.join(w.dir, "keys", name);
+};
+
 /** ClickHouse SQL as the default user (`curl -fsS -u default:everr --data-binary`). */
 async function chSql(clickhouse: string, sql: string): Promise<{ ok: boolean; text: string }> {
   const r = await http(`${clickhouse}/`, { method: "POST", body: sql, headers: { Authorization: basicAuth("default", "everr") } });
@@ -140,7 +213,8 @@ async function chSql(clickhouse: string, sql: string): Promise<{ ok: boolean; te
 }
 
 const rowPolicies = async (clickhouse: string) =>
-  (await chSql(clickhouse, "SELECT count() FROM system.row_policies")).text.trim();
+  // Per-organization policies (sql_api_org_*) appear when the app provisions an org; count the init ones.
+  (await chSql(clickhouse, "SELECT count() FROM system.row_policies WHERE short_name NOT LIKE 'sql_api_org_%'")).text.trim();
 
 function expectedRowPolicies(): string {
   const dir = path.join(REPO, "clickhouse/init");
@@ -193,6 +267,7 @@ async function cmdWebLaunch([arg]: string[]): Promise<number> {
   const web = await freePort();
   const otlpHttp = await freePort();
   const otlpGrpc = await freePort();
+  const sdkPage = await freePort();
   const project = `verify-everr-${id.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
   // App telemetry: into this checkout's live CLI verification run if there is one, else a dead port,
   // so it never lands in someone else's collector (the app defaults to 127.0.0.1:54318).
@@ -214,12 +289,14 @@ async function cmdWebLaunch([arg]: string[]): Promise<number> {
   const secrets = Object.entries(secretValues).map(([k, v]) => `${k}=${v}`);
   // Compose interpolation for compose.verify.yaml. The collector shares the app's per-run
   // INGEST_VERIFY_SHARED_SECRET, which guards /api/internal/verify-key.
+  const chImage = sourceTag("clickhouse");
+  const colImage = sourceTag("collector");
   writeFileSync(
     path.join(dir, "compose.env"),
     [
-      `VERIFY_CH_PORT=${ch}`, `VERIFY_PG_PORT=${pg}`, `VERIFY_WEB_PORT=${web}`,
-      `VERIFY_OTLP_HTTP_PORT=${otlpHttp}`, `VERIFY_OTLP_GRPC_PORT=${otlpGrpc}`,
-      `VERIFY_COLLECTOR_CONFIG=${path.join(SCRIPT_DIR, "collector-config.verify.yaml")}`,
+      `VERIFY_CH_PORT=${ch}`, `VERIFY_PG_PORT=${pg}`,
+      `VERIFY_COLLECTOR_CONFIG=${path.join(dir, "collector-config.yaml")}`,
+      `VERIFY_CLICKHOUSE_TAG=${chImage.tag}`, `VERIFY_COLLECTOR_TAG=${colImage.tag}`,
       `INGEST_VERIFY_SHARED_SECRET=${secretValues.INGEST_VERIFY_SHARED_SECRET}`, "",
     ].join("\n"),
   );
@@ -246,6 +323,7 @@ async function cmdWebLaunch([arg]: string[]): Promise<number> {
     PG_PORT: String(pg),
     OTLP_HTTP_ORIGIN: `http://127.0.0.1:${otlpHttp}`,
     OTLP_GRPC_PORT: String(otlpGrpc),
+    SDK_PAGE_ORIGIN: `http://127.0.0.1:${sdkPage}`,
   });
   writeFileSync(WEB_STATE, `${id}\n`);
   const w = parseWebRun(id, dockerBin);
@@ -260,22 +338,39 @@ async function cmdWebLaunch([arg]: string[]): Promise<number> {
       `git_head: ${run("git", ["-C", REPO, "rev-parse", "HEAD"]).stdout.trim()}`,
       `git_branch: ${run("git", ["-C", REPO, "rev-parse", "--abbrev-ref", "HEAD"]).stdout.trim()}`,
       `docker: ${dockerBin.join(" ")} (${docker(w, ["version", "--format", "{{.Server.Version}}"]).stdout.trim()})`,
+      `images: everr-verify-clickhouse:${chImage.tag} everr-verify-collector:${colImage.tag}`,
       `launched_at: ${stamp()}`,
       "",
     ].join("\n"),
   );
-  console.log(`launching web run ${id} (project ${project}, ch :${ch}, pg :${pg}, web :${web}, otlp http :${otlpHttp} grpc :${otlpGrpc})`);
+  console.log(`launching web run ${id} (project ${project}, ch :${ch}, pg :${pg}, web :${web}, otlp http :${otlpHttp} grpc :${otlpGrpc}, sdk page :${sdkPage})`);
+  writeCollectorConfig(w);
 
   const t0 = Date.now();
   const secs = () => Math.floor((Date.now() - t0) / 1000);
   const buildLog = path.join(art, "compose-build.log");
-  // Both images are tagged once (everr-verify-*:local) and reused from cache by later runs.
-  if (composeToFile(w, ["build", "clickhouse", "collector"], buildLog) !== 0) {
-    tail(buildLog, 20);
-    die("clickhouse/collector image build failed");
+  // Build only what this source tree has no image for yet (a dirty tree always rebuilds).
+  const toBuild = [
+    ["clickhouse", "everr-verify-clickhouse", chImage],
+    ["collector", "everr-verify-collector", colImage],
+  ] as const;
+  const services = toBuild
+    .filter(([, repo, img]) => img.dirty || docker(w, ["image", "inspect", `${repo}:${img.tag}`]).status !== 0)
+    .map(([svc]) => svc);
+  if (services.length) {
+    console.log(`building ${services.join(" + ")} image(s) for this source tree (cold collector build ~80s)`);
+    if (composeToFile(w, ["build", ...services], buildLog) !== 0) {
+      tail(buildLog, 20);
+      die(`${services.join("/")} image build failed`);
+    }
+  } else {
+    writeFileSync(buildLog, `images for this source tree already exist: everr-verify-clickhouse:${chImage.tag} everr-verify-collector:${colImage.tag}\n`);
   }
   const upLog = path.join(art, "compose-up.log");
-  if (composeToFile(w, ["up", "-d", "--wait", "clickhouse", "postgres", "collector"], upLog) !== 0) {
+  // The collector is NOT started here: its ClickHouse exporters detect the table schema once at
+  // startup, and against a half-initialized ClickHouse that fails ("connection reset") and the
+  // collector then writes logs without the attribute-key columns (/errors shows nothing).
+  if (composeToFile(w, ["up", "-d", "--wait", "clickhouse", "postgres"], upLog) !== 0) {
     tail(upLog, 20);
     die("compose up failed; run 'verify-everr web-cleanup'");
   }
@@ -286,12 +381,12 @@ async function cmdWebLaunch([arg]: string[]): Promise<number> {
     if (Date.now() >= deadline) die(`ClickHouse init never created ${wantRp} row policies; see 'compose logs clickhouse'`);
     await sleep(1000);
   }
-  // The collector has no healthcheck: ready = its OTLP/HTTP receiver answers and rejects a request without a key.
-  deadline = Date.now() + 60000;
-  while ((await otlpUnauthStatus(w)) !== 401) {
-    if (Date.now() >= deadline) die("collector OTLP receiver never answered 401 without a key; see 'compose logs collector'");
-    await sleep(1000);
+  // ClickHouse init is complete (every row policy exists): only now start the collector.
+  if (composeToFile(w, ["up", "-d", "--no-deps", "collector"], upLog, true) !== 0) {
+    tail(upLog, 20);
+    die("collector start failed; run 'verify-everr web-cleanup'");
   }
+  await waitCollector(w);
   console.log(`stack ready in ${secs()}s (ClickHouse ${wantRp} row policies, Postgres healthy, collector OTLP on :${otlpHttp})`);
 
   // Start the repo's own dev command in its own session/process group (detached = setsid), bound to loopback.
@@ -355,6 +450,30 @@ async function cmdWebDoctor(): Promise<number> {
   }
   check(`collector container of project ${w.project} is running`, compose(w, ["ps", "--format", "{{.Service}} {{.State}}"]).stdout.split("\n").includes("collector running"));
   check(`collector OTLP/HTTP on :${portOf(w.otlp)} rejects a request without a key (401)`, (await otlpUnauthStatus(w)) === 401);
+  // Schema detection runs once at collector start; a failure there silently drops columns.
+  const collectorLog = compose(w, ["logs", "--no-color", "collector"]);
+  const schemaErrors = `${collectorLog.stdout}${collectorLog.stderr}`.split("\n").filter((l) => /schema detection failed|connection reset/i.test(l));
+  check(`collector log has no ClickHouse schema-detection errors (${schemaErrors.length} found)`, schemaErrors.length === 0);
+  if (schemaErrors.length) console.log(`     ${schemaErrors[0].slice(0, 200)}\n     the collector started before ClickHouse was ready: run '$V web-collector-restart'`);
+  // The running config must be what collector/config.example.yml generates now (else: web-collector-restart).
+  const fresh = generateCollectorConfig(collectorPorts(w));
+  const used = readText(path.join(w.dir, "collector-config.yaml")) ?? "";
+  const kept = Object.values(fresh.pipelines);
+  const exporters = [...new Set(kept.flatMap((p) => p.exporters))].filter((e) => fresh.exporters.includes(e)).sort();
+  check(
+    `collector config matches collector/config.example.yml (pipelines ${Object.keys(fresh.pipelines).length}, exporters ${exporters.join(", ")})`,
+    used === fresh.text,
+  );
+  if (used !== fresh.text) console.log("     the example changed since launch (or the file was edited): run '$V web-collector-restart'");
+  if (fresh.corsHeaders.length) {
+    const pre = await corsPreflight(w, fresh);
+    check(
+      `CORS preflight with the example's allowed_headers [${fresh.corsHeaders.join(", ")}] -> ${pre.status} (want 204 + Access-Control-Allow-Origin)`,
+      pre.status === 204 && pre.allowOrigin !== "",
+    );
+  } else {
+    console.log("info collector/config.example.yml sets no CORS on the public OTLP/HTTP receiver; browser ingest is not expected to work");
+  }
   const appRo = await http(`${w.clickhouse}/?query=SELECT%201`, { headers: { Authorization: basicAuth("app_ro", "app-dev") } });
   check(`ClickHouse on :${w.clickhouse.slice(w.clickhouse.lastIndexOf(":") + 1)} answers as app_ro (app-dev)`, appRo.ok);
   const wantRp = expectedRowPolicies();
@@ -404,6 +523,8 @@ function cmdWebBrowserEnv(): number {
     // The dev server compiles a route on its first visit, which can outlast agent-browser's 25s default.
     AGENT_BROWSER_DEFAULT_TIMEOUT: "90000",
     WEB: w.origin,
+    SDK_PAGE_ORIGIN: w.vars.SDK_PAGE_ORIGIN ?? "",
+    ...(existsSync(path.join(w.dir, "sdk-page.url")) ? { SDK_URL: (readText(path.join(w.dir, "sdk-page.url")) ?? "").trim() } : {}),
   };
   return printBrowserEnv(vars, path.join(w.art, "web"));
 }
@@ -541,13 +662,35 @@ function seedPayloads(): { traceId: string; traces: unknown; logs: unknown } {
 
 /** Seed Explore through the real public ingest path: OTLP/HTTP into this run's collector with an
  * `ek_` key created in the UI, verified by the app, tenant-stamped, written via the otel.* views. */
-async function cmdWebSeed([keyArg]: string[]): Promise<number> {
+const KEY_RE = /\bek_[A-Za-z0-9_-]{20,}/;
+
+/** Keep an issued key out of the evidence: read text containing it on stdin (for example
+ * `agent-browser get text body` on the "Copy your key now" dialog), store it in the scratch dir. */
+function cmdWebKeySave([name]: string[]): number {
+  const w = webLoad();
+  const file = keyFile(w, required(name, "key name"));
+  const key = readFileSync(0, "utf8").match(KEY_RE)?.[0] ?? die("no ek_ key on stdin");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `${key}\n`, { mode: 0o600 });
+  console.log(`saved key '${name}' (${key.slice(0, 7)}...) to ${file}`);
+  return 0;
+}
+
+function readKey(w: WebRun, args: string[]): string {
+  let file = keyFile(w, "secret");
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--key-name") file = keyFile(w, required(args[++i], "--key-name value"));
+    else if (args[i] === "--key-file") file = required(args[++i], "--key-file value");
+    else die(`unknown argument ${args[i]}`);
+  }
+  return (readText(file) ?? "").match(KEY_RE)?.[0] ?? die(`no ek_ key in ${file}; save one with 'agent-browser get text body | $V web-key-save <name>' (web-api-keys.md)`);
+}
+
+async function cmdWebSeed(args: string[]): Promise<number> {
   const w = webLoad();
   const out = path.join(w.art, "seed");
   if (existsSync(path.join(out, "seed.txt"))) die(`this run is already seeded (${out}); the recipe's counts assume one seed per run`);
-  const keyFile = keyArg || path.join(w.art, "web", "api-keys-03-issued.txt");
-  const key = (readText(keyFile) ?? "").match(/\bek_[A-Za-z0-9_-]{20,}/)?.[0];
-  if (!key) die(`no ek_ key in ${keyFile}; run the web-api-keys.md "Create, list, reload" recipe first`);
+  const key = readKey(w, args);
   mkdirSync(out, { recursive: true });
   const summary = path.join(out, "seed.txt");
   const { traceId, traces, logs } = seedPayloads();
@@ -589,13 +732,13 @@ async function cmdWebSeed([keyArg]: string[]): Promise<number> {
   }
   writeFileSync(path.join(out, "rows.json"), `${JSON.stringify(rows, null, 2)}\n`);
   // The key's organization (better-auth apikey.reference_id) is the tenant every row must carry.
-  const [cmd, args] = composeArgs(w, [
+  const [cmd, psqlArgs] = composeArgs(w, [
     "exec", "-T", "postgres", "psql", "-U", "postgres", "-tA", "-c",
     // better-auth stores the key hashed plus its first characters in `start`; the key matched
     // /ek_[A-Za-z0-9_-]+/ above, so it is safe to inline.
     `select reference_id from apikey where start <> '' and strpos('${key}', start) = 1 order by created_at desc limit 1`,
   ]);
-  const org = run(cmd, args).stdout.trim();
+  const org = run(cmd, psqlArgs).stdout.trim();
   const tenants = [...new Set(rows.map((r) => r.tenant_id))];
   const tenantOk = tenants.length === 1 && tenants[0] === org && org !== SEED.spoofTenant;
   teeAppend(summary, `rows after ${Math.round((Date.now() - t0) / 1000)}s: ${rows.map((r) => `${r.signal}=${r.n} (${r.signal === "logs" ? "severity >= 17" : "status Error"}: ${r.errors})`).join(", ")}`);
@@ -605,6 +748,130 @@ async function cmdWebSeed([keyArg]: string[]): Promise<number> {
   writeFileSync(path.join(out, "trace_id"), `${traceId}\n`);
   teeAppend(summary, line);
   return 0;
+}
+
+async function cmdWebCollectorRestart(): Promise<number> {
+  const w = webLoad();
+  writeCollectorConfig(w);
+  const log = path.join(w.art, "compose-collector-restart.log");
+  if (composeToFile(w, ["up", "-d", "--force-recreate", "--no-deps", "collector"], log, true) !== 0) {
+    tail(log, 20);
+    die("collector recreate failed");
+  }
+  await waitCollector(w);
+  console.log(`COLLECTOR READY otlp=${w.otlp}`);
+  return 0;
+}
+
+function esbuildBin(): string {
+  const pnpmDir = path.join(REPO, "node_modules/.pnpm");
+  const versions = (existsSync(pnpmDir) ? readdirSync(pnpmDir) : [])
+    .filter((d) => /^esbuild@\d/.test(d))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  for (const d of versions.reverse()) {
+    const bin = path.join(pnpmDir, d, "node_modules/esbuild/bin/esbuild");
+    if (existsSync(bin)) return bin;
+  }
+  return die("no esbuild in node_modules/.pnpm (it comes with the repo's Vite toolchain); run 'pnpm install'");
+}
+
+function stopGroup(pgidFile: string): void {
+  const pgid = Number(readPointer(pgidFile));
+  if (pgid > 0) {
+    try {
+      process.kill(-pgid, "SIGTERM");
+    } catch {}
+  }
+  rmSync(pgidFile, { force: true });
+}
+
+/** A minimal integrator page for @everr/otel-web built from this checkout's source. */
+async function cmdWebSdkPage(args: string[]): Promise<number> {
+  const w = webLoad();
+  const local = args.includes("--local");
+  const src = path.join(REPO, "packages/otel-web/src");
+  if (!existsSync(path.join(src, "index.ts"))) die(`no ${src}/index.ts in this checkout`);
+  const recordingSrc = path.join(src, "recording.ts");
+  const recordingOn = existsSync(recordingSrc);
+  const pageOrigin = w.vars.SDK_PAGE_ORIGIN || die(`${w.dir}/run.env has no SDK_PAGE_ORIGIN (relaunch)`);
+  let otlp = w.otlp;
+  let key = "";
+  if (local) {
+    const cliRun = readPointer(path.join(STATE_DIR, "current"));
+    const cliEnv = cliRun ? path.join(SCRATCH_ROOT, cliRun, "env") : "";
+    otlp = (cliEnv && readEnvFile(cliEnv).EVERR_OTLP_HTTP_ORIGIN) || die("--local needs a live CLI run ('verify-everr launch')");
+  } else {
+    key = readKey(w, ["--key-name", "public"]);
+  }
+  const dir = path.join(w.dir, "sdk-page");
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  const template = readFileSync(path.join(SCRIPT_DIR, "sdk-page/entry.template.ts"), "utf8");
+  const entry = template
+    .replace("__OTEL_WEB_INDEX__", path.join(src, "index.ts"))
+    .replace(
+      "__RECORDING_IMPORT__",
+      recordingOn
+        ? `import { emitRecording, recording } from ${JSON.stringify(recordingSrc)};`
+        : "const recording: any = undefined;\nconst emitRecording: any = undefined;",
+    );
+  writeFileSync(path.join(dir, "entry.ts"), entry);
+  copyFileSync(path.join(SCRIPT_DIR, "sdk-page/index.html"), path.join(dir, "index.html"));
+  const out = freshDir(path.join(w.art, "sdk-page"));
+  const build = runToFiles(esbuildBin(), [path.join(dir, "entry.ts"), "--bundle", "--format=esm", "--splitting", `--outdir=${dir}`, "--target=es2022"], {
+    stdout: path.join(out, "build.log"),
+  }, { cwd: path.join(REPO, "packages/otel-web") });
+  if (build !== 0) {
+    tail(path.join(out, "build.log"), 20);
+    die("esbuild failed");
+  }
+  copyFileSync(path.join(dir, "entry.ts"), path.join(out, "entry.ts"));
+  copyFileSync(path.join(dir, "index.html"), path.join(out, "index.html"));
+  const pgidFile = path.join(w.dir, "sdk-page.pgid");
+  stopGroup(pgidFile);
+  const port = portOf(pageOrigin);
+  const deadlineFree = Date.now() + 5000;
+  while (portPids(port) && Date.now() < deadlineFree) await sleep(200);
+  const logFd = openSync(path.join(w.dir, "sdk-page.log"), "w");
+  const server = spawn(process.execPath, [path.join(SCRIPT_DIR, "sdk-page/serve.ts"), dir, port], { detached: true, stdio: ["ignore", logFd, logFd] });
+  closeSync(logFd);
+  writeFileSync(pgidFile, `${server.pid ?? die("could not start the SDK page server")}\n`);
+  server.unref();
+  const deadline = Date.now() + 10000;
+  while (!(await http(`${pageOrigin}/index.html`, { timeoutMs: 2000 })).ok) {
+    if (Date.now() >= deadline) die(`SDK page server did not answer on ${pageOrigin}; see ${w.dir}/sdk-page.log`);
+    await sleep(200);
+  }
+  const query = new URLSearchParams({ otlp, ...(key ? { key } : {}) });
+  writeFileSync(path.join(w.dir, "sdk-page.url"), `${pageOrigin}/index.html?${query}\n`);
+  const chunks = readdirSync(dir).filter((f) => f.endsWith(".js"));
+  writeFileSync(path.join(out, "page.txt"), `origin: ${pageOrigin}\notlp: ${otlp}\nkey: ${key ? `${key.slice(0, 7)}... (public)` : "none (local collector)"}\nrecording: ${recordingOn ? "on" : "absent in this checkout"}\nchunks: ${chunks.join(" ")}\n`);
+  console.log(`SDK PAGE READY origin=${pageOrigin} otlp=${otlp} key=${key ? "public" : "none"} recording=${recordingOn ? "on" : "absent"} chunks=${chunks.length}`);
+  console.log("re-run: eval \"$($V web-browser-env)\" to get SDK_URL");
+  return 0;
+}
+
+/** Playwright video of a scripted journey (scripts/record.ts), defaulted from the current web run:
+ * --base-url = this run's app, --storage-state = this run's agent-browser session (so the signed-in
+ * user carries over), --out = <evidence>/video. Any record.ts argument given explicitly wins. */
+function cmdWebRecord(args: string[]): number {
+  const w = webLoad();
+  if (!args.includes("--steps")) die("web-record needs --steps <file> (example: scripts/record-examples/explore-seeded.ts)");
+  const extra: string[] = [];
+  if (!args.includes("--base-url")) extra.push("--base-url", w.origin);
+  if (!args.includes("--out")) extra.push("--out", path.join(w.art, "video"));
+  if (!args.includes("--storage-state") && !args.includes("--cookie")) {
+    const state = path.join(w.dir, "browser-state.json");
+    const saved = run("agent-browser", ["state", "save", state], {
+      env: { ...process.env, AGENT_BROWSER_SESSION: browserSession(`web-${w.id}`) },
+    });
+    if (saved.status !== 0 || !existsSync(state)) {
+      die(`could not save this run's browser session (${saved.stderr.trim() || saved.stdout.trim()}); sign up first (web-auth.md) or pass --storage-state/--cookie`);
+    }
+    extra.push("--storage-state", state);
+  }
+  const r = spawnSync(process.execPath, [path.join(SCRIPT_DIR, "record.ts"), ...extra, ...args], { stdio: "inherit" });
+  return r.status ?? 1;
 }
 
 async function cmdWebCleanup(): Promise<number> {
@@ -635,6 +902,7 @@ async function cmdWebCleanup(): Promise<number> {
       signal("SIGKILL");
       if (portPids(w.port)) teeAppend(cleanupLog, `WARN web port ${w.port} still listening`);
     }
+    stopGroup(path.join(dir, "sdk-page.pgid"));
     await closeBrowser(browserSession(`web-${runId}`), cleanupLog);
     const webLog = path.join(dir, "web.log");
     if (existsSync(webLog)) copyFileSync(webLog, path.join(art, "web.log"));
@@ -663,5 +931,9 @@ export const WEB_COMMANDS: Record<string, (args: string[]) => number | Promise<n
   "web-psql": cmdWebPsql,
   "web-ch": cmdWebCh,
   "web-seed": cmdWebSeed,
+  "web-key-save": cmdWebKeySave,
+  "web-collector-restart": cmdWebCollectorRestart,
+  "web-sdk-page": cmdWebSdkPage,
+  "web-record": cmdWebRecord,
   "web-cleanup": cmdWebCleanup,
 };
