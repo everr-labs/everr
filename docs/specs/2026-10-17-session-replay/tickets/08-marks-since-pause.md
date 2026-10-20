@@ -10,9 +10,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] `markRecording(name)`: a named point in the current Stream's buffer; the same name replaces the earlier mark; the mark leaves with the events at its time
-- [ ] Each mark emits a log `everr.browser.recording.mark` with `everr.recording.mark.name`, also in unsampled Sessions, stored in `logs`
-- [ ] `emitRecording({ since })` accepts a mark name or an epoch-ms timestamp; `last` and `since` are exclusive in the types
-- [ ] `everr.recording.clip.truncated = true` on Segments and span when the requested start is before the oldest buffered moment, with the Clip starting there
-- [ ] Pause: nothing buffered while paused; resume takes a full snapshot; a Clip across a pause has a gap
-- [ ] Catalog updated
+- [x] `markRecording(name)`: a named point in the current Stream's buffer; the same name replaces the earlier mark; the mark leaves with the events at its time
+- [x] Each mark emits a log `everr.browser.recording.mark` with `everr.recording.mark.name`, also in unsampled Sessions, stored in `logs`
+- [x] `emitRecording({ since })` accepts a mark name or an epoch-ms timestamp; `last` and `since` are exclusive in the types
+- [x] `everr.recording.clip.truncated = true` on Segments and span when the requested start is before the oldest buffered moment, with the Clip starting there
+- [x] Pause: nothing buffered while paused; resume takes a full snapshot; a Clip across a pause has a gap
+- [x] Catalog updated

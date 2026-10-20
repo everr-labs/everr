@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebSDK } from "./client.js";
 import { hashUnit } from "./instrumentations/sampled.js";
 import { logger } from "./logger.js";
-import { emitRecording, recording } from "./recording.js";
+import {
+  emitRecording,
+  markRecording,
+  pauseRecording,
+  recording,
+  resumeRecording,
+} from "./recording.js";
 import { clearIdentity } from "./state/session.js";
 import {
   attrs,
@@ -22,6 +28,7 @@ const clock = { now: realNow() };
 vi.spyOn(Date, "now").mockImplementation(() => clock.now);
 
 const SEGMENT = "everr.browser.recording.segment";
+const MARK = "everr.browser.recording.mark";
 const SEGMENT_BYTES = 950 * 1024;
 
 const clients: WebSDK[] = [];
@@ -103,6 +110,18 @@ function recordingSpan(batches: OtlpBatch[]): OtlpSpan | undefined {
   return batches
     .flatMap((batch) => batch.spans)
     .find((span) => span.name === "recording");
+}
+
+function recordingSpans(batches: OtlpBatch[]): OtlpSpan[] {
+  return batches
+    .flatMap((batch) => batch.spans)
+    .filter((span) => span.name === "recording");
+}
+
+function markLogs(batches: OtlpBatch[]): OtlpRecord[] {
+  return batches
+    .flatMap((batch) => batch.records)
+    .filter((record) => record.eventName === MARK);
 }
 
 function ms(nano: string): number {
@@ -310,14 +329,24 @@ describe("recording", () => {
     tick(1_000);
     emitRecording({ last: 60_000 });
     await sdk.flush();
-    const truncated = batches
-      .flatMap((batch) => batch.spans)
-      .filter((candidate) => candidate.name === "recording")
-      .at(-1);
+    const truncated = recordingSpans(batches).at(-1);
     expect(attrs(truncated!)["everr.recording.clip.truncated"]).toBe(true);
     expect(
       ms(truncated!.endTimeUnixNano) - ms(truncated!.startTimeUnixNano),
     ).toBe(60_000);
+    const clipId = attrs(truncated!)["everr.recording.clip.id"];
+    const truncatedSegments = segmentRecords(batches).filter(
+      (record) => attrs(record)["everr.recording.clip.id"] === clipId,
+    );
+    expect(truncatedSegments.length).toBeGreaterThan(0);
+    for (const segment of truncatedSegments) {
+      expect(attrs(segment)["everr.recording.clip.truncated"]).toBe(true);
+    }
+    const wholeId = attrs(span!)["everr.recording.clip.id"];
+    for (const segment of segmentRecords(batches)) {
+      if (attrs(segment)["everr.recording.clip.id"] !== wholeId) continue;
+      expect(attrs(segment)["everr.recording.clip.truncated"]).toBeUndefined();
+    }
   });
 
   it("closes a Segment near 950 KB, indexes from 0, and posts each Segment alone", async () => {
@@ -470,5 +499,256 @@ describe("recording", () => {
         .map((event) => event.timestamp),
     );
     expect(snapshots[0]?.[0]).toBe(snapshots[1]?.[0]);
+  });
+
+  it("writes a mark log in an unsampled Session and does not buffer a Clip", async () => {
+    const [sdk, batches] = startClient({
+      instrumentations: [recording({ sampleRate: 0 })],
+    });
+    track(sdk);
+    await recorderReady();
+    markRecording("cart-open");
+    logger.info("beside the mark");
+    emitRecording({ since: "cart-open" });
+    await sdk.flush();
+    expect(segmentRecords(batches)).toEqual([]);
+    expect(recordingSpans(batches)).toEqual([]);
+    const marks = markLogs(batches);
+    expect(marks).toHaveLength(1);
+    expect(attrs(marks[0]!)["everr.recording.mark.name"]).toBe("cart-open");
+    expect(attrs(marks[0]!)["everr.recording.stream.id"]).toBeUndefined();
+    const batch = batches.find((item) =>
+      item.records.some((record) => record.eventName === MARK),
+    );
+    expect(batch?.records.map((record) => record.eventName)).toEqual([
+      MARK,
+      "",
+    ]);
+    expect(batch?.records.some((record) => record.eventName === SEGMENT)).toBe(
+      false,
+    );
+  });
+
+  it("emits the mark log before the recorder chunk loads, without a buffer point", async () => {
+    const [sdk, batches] = startClient({ instrumentations: [recording()] });
+    track(sdk);
+    markRecording("early");
+    await recorderReady();
+    await addText("AFTER-LOAD");
+    emitRecording({ since: "early" });
+    await sdk.flush();
+    expect(attrs(markLogs(batches)[0]!)["everr.recording.mark.name"]).toBe(
+      "early",
+    );
+    const span = recordingSpan(batches);
+    const events = clipEvents(batches);
+    expect(attrs(span!)["everr.recording.clip.truncated"]).toBe(true);
+    expect(ms(span!.startTimeUnixNano)).toBe(events[0]?.timestamp);
+    expect(segmentRecords(batches).map(bodyText).join("\n")).toContain(
+      "AFTER-LOAD",
+    );
+    for (const segment of segmentRecords(batches)) {
+      expect(attrs(segment)["everr.recording.clip.truncated"]).toBe(true);
+    }
+  });
+
+  it("replaces a mark with the same name and starts the Clip at the later one", async () => {
+    const [sdk, batches] = startClient({ instrumentations: [recording()] });
+    track(sdk);
+    await recorderReady();
+    const early = await addText("EARLY-MARK");
+    markRecording("cart-open");
+    const firstMark = clock.now;
+    early.remove();
+    await settle();
+    tick(10_001);
+    await addText("LATE-MARK");
+    const checkoutAt = clock.now;
+    tick(100);
+    markRecording("cart-open");
+    const secondMark = clock.now;
+    tick(50);
+    emitRecording({ since: "cart-open" });
+    await sdk.flush();
+    const events = clipEvents(batches);
+    const snapshots = events.filter((event) => event.type === 2);
+    expect(snapshots[0]?.timestamp).toBe(checkoutAt);
+    expect(snapshots[0]?.timestamp).toBeLessThanOrEqual(secondMark);
+    const body = segmentRecords(batches).map(bodyText).join("\n");
+    expect(body).not.toContain("EARLY-MARK");
+    expect(body).toContain("LATE-MARK");
+    const span = recordingSpan(batches);
+    expect(ms(span!.startTimeUnixNano)).toBe(secondMark);
+    expect(ms(span!.startTimeUnixNano)).not.toBe(firstMark);
+    expect(attrs(span!)["everr.recording.clip.truncated"]).toBeUndefined();
+    expect(markLogs(batches)).toHaveLength(2);
+    const streamId = attrs(segmentRecords(batches)[0]!)[
+      "everr.recording.stream.id"
+    ];
+    expect(attrs(markLogs(batches)[0]!)["everr.recording.stream.id"]).toBe(
+      streamId,
+    );
+  });
+
+  it("accepts an epoch timestamp for since and truncates a start before the buffer", async () => {
+    const [sdk, batches] = startClient({ instrumentations: [recording()] });
+    track(sdk);
+    await recorderReady();
+    const before = await addText("BEFORE-SINCE");
+    before.remove();
+    await settle();
+    tick(10_001);
+    await addText("AFTER-SINCE");
+    const checkoutAt = clock.now;
+    tick(2_000);
+    const since = clock.now - 500;
+    emitRecording({ since });
+    await sdk.flush();
+    const inside = clipEvents(batches);
+    expect(inside.filter((event) => event.type === 2)[0]?.timestamp).toBe(
+      checkoutAt,
+    );
+    const insideSpan = recordingSpan(batches);
+    expect(ms(insideSpan!.startTimeUnixNano)).toBe(since);
+    expect(
+      ms(insideSpan!.endTimeUnixNano) - ms(insideSpan!.startTimeUnixNano),
+    ).toBe(500);
+    expect(
+      attrs(insideSpan!)["everr.recording.clip.truncated"],
+    ).toBeUndefined();
+    const insideBody = segmentRecords(batches).map(bodyText).join("\n");
+    expect(insideBody).not.toContain("BEFORE-SINCE");
+    expect(insideBody).toContain("AFTER-SINCE");
+
+    const early = clock.now - 60_000;
+    emitRecording({ since: early });
+    await sdk.flush();
+    const truncated = recordingSpans(batches).at(-1);
+    const events = clipEvents(
+      batches.filter((batch) =>
+        batch.records.some(
+          (record) =>
+            attrs(record)["everr.recording.clip.id"] ===
+            attrs(truncated!)["everr.recording.clip.id"],
+        ),
+      ),
+    );
+    expect(attrs(truncated!)["everr.recording.clip.truncated"]).toBe(true);
+    expect(ms(truncated!.startTimeUnixNano)).toBe(early);
+    expect(
+      ms(truncated!.endTimeUnixNano) - ms(truncated!.startTimeUnixNano),
+    ).toBe(60_000);
+    expect(events[0]?.timestamp).toBeGreaterThan(early);
+    const clipId = attrs(truncated!)["everr.recording.clip.id"];
+    const segments = segmentRecords(batches).filter(
+      (record) => attrs(record)["everr.recording.clip.id"] === clipId,
+    );
+    expect(segments.length).toBeGreaterThan(0);
+    for (const segment of segments) {
+      expect(attrs(segment)["everr.recording.clip.truncated"]).toBe(true);
+    }
+  });
+
+  it("drops a mark when the events at its time leave the buffer", async () => {
+    const [sdk, batches] = startClient({ instrumentations: [recording()] });
+    track(sdk);
+    await recorderReady();
+    markRecording("cart-open");
+    const markedAt = clock.now;
+    const old = await addText("AGED-MARK");
+    old.remove();
+    await settle();
+    tick(5 * 60 * 1000 + 1);
+    await addText("FRESH-MARK");
+    emitRecording({ since: "cart-open" });
+    await sdk.flush();
+    const events = clipEvents(batches);
+    const body = segmentRecords(batches).map(bodyText).join("\n");
+    expect(body).not.toContain("AGED-MARK");
+    expect(body).toContain("FRESH-MARK");
+    const span = recordingSpan(batches);
+    expect(attrs(span!)["everr.recording.clip.truncated"]).toBe(true);
+    expect(ms(span!.startTimeUnixNano)).toBe(events[0]?.timestamp);
+    expect(ms(span!.startTimeUnixNano)).toBeGreaterThan(markedAt);
+    for (const segment of segmentRecords(batches)) {
+      expect(attrs(segment)["everr.recording.clip.truncated"]).toBe(true);
+    }
+  });
+
+  it("keeps a mark that is still inside the buffer when older events leave", async () => {
+    const [sdk, batches] = startClient({ instrumentations: [recording()] });
+    track(sdk);
+    await recorderReady();
+    const old = await addText("OLD-KEEP");
+    old.remove();
+    await settle();
+    tick(60_000);
+    markRecording("kept");
+    const keptAt = clock.now;
+    await addText("KEPT-MARK");
+    tick(5 * 60 * 1000 - 30_000);
+    emitRecording({ since: "kept" });
+    await sdk.flush();
+    const body = segmentRecords(batches).map(bodyText).join("\n");
+    expect(body).not.toContain("OLD-KEEP");
+    expect(body).toContain("KEPT-MARK");
+    const span = recordingSpan(batches);
+    expect(ms(span!.startTimeUnixNano)).toBe(keptAt);
+    expect(attrs(span!)["everr.recording.clip.truncated"]).toBeUndefined();
+  });
+
+  it("buffers nothing while paused, then takes a full snapshot on resume", async () => {
+    const [sdk, batches] = startClient({ instrumentations: [recording()] });
+    track(sdk);
+    await recorderReady();
+    await addText("BEFORE-PAUSE");
+    pauseRecording();
+    pauseRecording();
+    const pauseAt = clock.now;
+    tick(1_000);
+    const secret = await addText("SECRET-PAUSE");
+    secret.remove();
+    await settle();
+    const during = clock.now;
+    tick(2_000);
+    const resumeAt = clock.now;
+    resumeRecording();
+    await settle();
+    await addText("AFTER-RESUME");
+    emitRecording();
+    await sdk.flush();
+    const events = clipEvents(batches);
+    const body = segmentRecords(batches).map(bodyText).join("\n");
+    expect(body).toContain("BEFORE-PAUSE");
+    expect(body.split("AFTER-RESUME")).toHaveLength(2);
+    expect(body).not.toContain("SECRET-PAUSE");
+    expect(
+      events.filter(
+        (event) => event.type === 2 && event.timestamp === resumeAt,
+      ),
+    ).toHaveLength(1);
+    expect(events.some((event) => event.timestamp === during)).toBe(false);
+    expect(
+      events.some(
+        (event) => event.timestamp > pauseAt && event.timestamp < resumeAt,
+      ),
+    ).toBe(false);
+    expect(events.some((event) => event.timestamp <= pauseAt)).toBe(true);
+    expect(events.some((event) => event.timestamp >= resumeAt)).toBe(true);
+  });
+});
+
+function lastAndSinceAreExclusive(): void {
+  emitRecording();
+  emitRecording({ last: 1_000 });
+  emitRecording({ since: "cart-open" });
+  emitRecording({ since: 1_700_000_000_000 });
+  // @ts-expect-error - last and since cannot be used together
+  emitRecording({ last: 1_000, since: "cart-open" });
+}
+
+describe("emitRecording options", () => {
+  it("rejects last and since together", () => {
+    expect(lastAndSinceAreExclusive).toBeTypeOf("function");
   });
 });

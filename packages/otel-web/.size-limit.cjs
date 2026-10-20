@@ -87,12 +87,15 @@ module.exports = [
     // stay out of this number. The hash helper is the shared sampled chunk.
     name: "recording stub",
     path: "dist/recording.js",
-    import: "{ recording, emitRecording }",
+    import: "{ recording, emitRecording, markRecording, pauseRecording, resumeRecording }",
     gzip: true,
     // The stub imports the live SDK and loads the recorder with import().
-    // Neither belongs in this number.
+    // Neither belongs in this number. mark, pause, and resume stay here:
+    // the mark log is sent when the recorder chunk is not loaded.
+    // Raised so the stub can pass dev and the recording options into the
+    // recorder. The privacy rules stay in the recorder chunk.
     ignore: ["@everr/otel-web", "./recording/recorder.js"],
-    limit: "0.75 KB",
+    limit: "0.85 KB",
   },
   {
     // @rrweb/record bundled into the chunk the stub loads with import().

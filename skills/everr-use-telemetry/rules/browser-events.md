@@ -6,6 +6,7 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 
 - Page views, clicks, submits, web vitals, and exceptions are **log records** in `logs` with the event name in the `EventName` column. A log emitted during `startActiveSpan`, until `end()`, carries that span's `TraceId`, `SpanId`, and `TraceFlags`. Clicks, submits, and web vitals use the time of the event, so they join only a span that was already active then. Any log joins whichever span is active, including a span from another interaction.
 - A recording Segment is a log record named `everr.browser.recording.segment`, sent as its own request and stored apart from `logs`. It carries no span ids. The body is rrweb JSON. Find the Clip from the `recording` span.
+- A recording mark is an ordinary log named `everr.browser.recording.mark` in `logs`, including Sessions that were not sampled for recording. It is not a Segment. The collector leaves it in `logs` because only the `.segment` event name is routed to recordings.
 - Browser `fetch` and XHR requests are **CLIENT spans** in `traces`. Slow interactions are **INTERNAL spans**. Custom spans from the exported `tracer` are INTERNAL by default; `options.kind` can set another kind. A manual `tracer.startSpan()` is a span.
 - Every record (logs and spans) carries the context envelope in its attributes map, so any signal can slice by page and join by session.
 
@@ -37,7 +38,8 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 | `everr.browser.interaction.submit` | Form submit, targeted at the submit button | element attrs |
 | `browser.web_vital` | One per metric (lcp, cls, ttfb, inp) per navigation | see below |
 | `exception` | Frontend error (unhandled, unhandled rejection, React boundary, or manual capture) | see below |
-| `everr.browser.recording.segment` | One piece of a Clip: a JSON array of rrweb events in the body. A Clip is one or more Segments, each its own request. Index starts at 0 | `everr.recording.clip.id`, `everr.recording.stream.id`, `everr.recording.segment.index` |
+| `everr.browser.recording.segment` | One piece of a Clip: a JSON array of rrweb events in the body. A Clip is one or more Segments, each its own request. Index starts at 0 | `everr.recording.clip.id`, `everr.recording.stream.id`, `everr.recording.segment.index`, `everr.recording.clip.truncated` (present when the Clip starts later than requested) |
+| `everr.browser.recording.mark` | One per `markRecording()` call, including Sessions that were not sampled. Stored in `logs`, not as a Segment | `everr.recording.mark.name` |
 
 Element attributes, shared by everything that names a DOM element: `everr.element.selector` (stable CSS path, the one spelling across all signals: nearest `#id` anchor, then per step a naming attribute (`aria-label`, `type`, `name`, `title`, `alt`) and digit-free classes on the tag, positional `:nth-of-type` only as a last resort), `everr.element.tag`, `everr.element.href`, `everr.viewport.width`/`height`. The SDK never captures element text or input values.
 
