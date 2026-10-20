@@ -105,6 +105,11 @@ func staleTableNames(cfg *Config) []string {
 		cfg.TracesTableName + "_trace_id_ts",
 		"otel_traces_trace_id_ts",
 		cfg.LogsTableName,
+		// The recordings table is created beside logs. It is not part of the
+		// shaped template digest: CREATE TABLE IF NOT EXISTS adds it to a
+		// store that is already on this version. A later change to its DDL
+		// has to join that digest and bump localSchemaVersion.
+		recordingsTableName,
 		cfg.TracesTableName,
 		cfg.ProfilesTableName,
 		cfg.MetricsTables.Gauge.Name,

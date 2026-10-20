@@ -186,6 +186,77 @@ FROM
   FROM otel.otel_logs
 );
 
+-- Recordings: session replay segments from otel.otel_recordings.
+-- Columns match app.logs plus session_id, stream_id, and clip_id (String).
+-- ORDER BY (tenant_id, ServiceName, Timestamp) matches the player prefix.
+-- Partition by day and retention, ttl_only_drop_parts, same TTL as app.logs.
+-- Bloom filters on the three ids. Body and the ids use ZSTD.
+-- The view is not attached to otel.otel_logs.
+-- Existing clusters apply clickhouse/manual/recordings.sql. This image does
+-- not run that file.
+CREATE TABLE IF NOT EXISTS app.recordings
+ENGINE = MergeTree
+PARTITION BY (toDate(Timestamp), retention_days)
+ORDER BY (tenant_id, ServiceName, Timestamp)
+TTL toDate(Timestamp) + toIntervalDay(retention_days)
+SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
+AS
+SELECT
+  *,
+  toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
+  toUInt16(0) AS retention_days,
+  toString(getSubcolumn(LogAttributes, 'session.id')) AS session_id,
+  toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')) AS stream_id,
+  toString(getSubcolumn(LogAttributes, 'everr.recording.clip.id')) AS clip_id
+FROM otel.otel_recordings
+WHERE 1 = 0;
+
+ALTER TABLE app.recordings
+  ADD INDEX IF NOT EXISTS idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_stream_id stream_id TYPE bloom_filter(0.001) GRANULARITY 1,
+  ADD INDEX IF NOT EXISTS idx_clip_id clip_id TYPE bloom_filter(0.001) GRANULARITY 1;
+
+ALTER TABLE app.recordings
+  MODIFY COLUMN `Timestamp` CODEC(Delta(8), ZSTD(1)),
+  MODIFY COLUMN `TraceId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `SpanId` CODEC(ZSTD(1)),
+  MODIFY COLUMN `SeverityText` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ServiceName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `Body` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceAttributes` JSON(max_dynamic_paths = 256, SKIP `everr.retention.days`) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ResourceAttributesKeys` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeSchemaUrl` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeVersion` CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributes` JSON(max_dynamic_paths = 256) CODEC(ZSTD(1)),
+  MODIFY COLUMN `ScopeAttributesKeys` CODEC(ZSTD(1)),
+  MODIFY COLUMN `LogAttributes` JSON(max_dynamic_paths = 256) CODEC(ZSTD(1)),
+  MODIFY COLUMN `LogAttributesKeys` CODEC(ZSTD(1)),
+  MODIFY COLUMN `EventName` CODEC(ZSTD(1)),
+  MODIFY COLUMN `tenant_id` CODEC(ZSTD(1)),
+  MODIFY COLUMN `session_id` CODEC(ZSTD(1)),
+  MODIFY COLUMN `stream_id` CODEC(ZSTD(1)),
+  MODIFY COLUMN `clip_id` CODEC(ZSTD(1));
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS app.recordings_mv
+TO app.recordings
+AS
+SELECT
+  * EXCEPT (ResourceAttributesKeys),
+  everrStripRetentionKeys(ResourceAttributesKeys) AS ResourceAttributesKeys,
+  toString(getSubcolumn(LogAttributes, 'session.id')) AS session_id,
+  toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')) AS stream_id,
+  toString(getSubcolumn(LogAttributes, 'everr.recording.clip.id')) AS clip_id
+FROM
+(
+  SELECT
+    *,
+    toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))) AS tenant_id,
+    everrRetentionDaysJson(ResourceAttributes) AS retention_days
+  FROM otel.otel_recordings
+);
+
 -- Metrics group series within each hour. Hashing attributes keeps the primary
 -- index compact while preserving series locality for compression.
 -- Keep idx_time_minmax: the trailing TimeUnix key alone does not reliably prune
