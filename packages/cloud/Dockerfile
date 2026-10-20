@@ -40,6 +40,18 @@ RUN SKIP_ENV_VALIDATION=true \
     pnpm --filter @everr/app-cloud build && \
     test -s packages/cloud/.output/public/_shell.html
 
+# Require all three migration histories in the output so Cloud can upgrade existing databases.
+RUN set -eu; \
+    for history in \
+      packages/app/drizzle:packages/cloud/.output/drizzle \
+      packages/cloud/src/drizzle:packages/cloud/.output/drizzle/cloud \
+      packages/cloud/src/drizzle-legacy:packages/cloud/.output/drizzle/legacy; do \
+      migration_source=${history%:*}; migration_output=${history#*:}; \
+      for file in "$migration_source"/*.sql "$migration_source"/meta/_journal.json; do \
+        test -s "$migration_output/${file#"$migration_source"/}"; \
+      done; \
+    done
+
 # Stage 3: production
 # Node 24.21.0, keep in sync with the builder and .nvmrc.
 FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:bb6b03d81066993293a10feda7250e8e1cc034035fe9b61cfceededa7c8bf04d AS runner

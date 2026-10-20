@@ -38,6 +38,12 @@ RUN SKIP_ENV_VALIDATION=true \
     pnpm --filter @everr/app build && \
     test -s packages/app/.output/public/_shell.html
 
+# Require every source SQL file and journal in the output so startup can migrate.
+RUN set -eu; \
+    for file in packages/app/drizzle/*.sql packages/app/drizzle/meta/_journal.json; do \
+      test -s "packages/app/.output/drizzle/${file#packages/app/drizzle/}"; \
+    done
+
 # Stage 3: production
 # Node 24.21.0, keep in sync with the builder and .nvmrc.
 FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:bb6b03d81066993293a10feda7250e8e1cc034035fe9b61cfceededa7c8bf04d AS runner
