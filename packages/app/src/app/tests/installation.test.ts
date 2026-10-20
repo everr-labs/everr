@@ -9,7 +9,7 @@ import {
   getInstallation,
   setupWorkspace,
 } from "#app/app/installation.server.ts";
-import { recoverAccount } from "#app/app/recovery.server.ts";
+import { createRecoveryLink } from "#app/app/recovery.server.ts";
 import * as schema from "#app/db/schema/index.ts";
 import { createAuthTestDatabase } from "#app/identity/testing/database.ts";
 
@@ -140,33 +140,30 @@ it("rejects replay after a committed setup without changing the workspace or own
   expect(await database.select().from(schema.member)).toHaveLength(1);
 });
 
-it("recovers a local password without changing identity and invalidates sessions and reset links", async () => {
+it("issues a recovery link without changing credentials or identity and invalidates sessions and old links", async () => {
   await setupWorkspace(input, database);
   const [owner] = await database.select().from(schema.user);
+  const credentials = await database.select().from(schema.account);
   await database.insert(schema.session).values({
     id: "old-session",
     userId: owner.id,
     token: "old-token",
     expiresAt: new Date(Date.now() + 60_000),
   });
-  const link = await recoverAccount(database, input.email, {
-    kind: "link",
-    baseUrl: "https://everr.example",
-  });
-  expect(link.kind).toBe("link");
-  await recoverAccount(database, input.email.toUpperCase(), {
-    kind: "password",
-    password: "replacement-password",
-  });
-  const [credential] = await database.select().from(schema.account);
-  expect(
-    await verifyPassword({
-      hash: credential.password ?? "",
-      password: "replacement-password",
-    }),
-  ).toBe(true);
+  await createRecoveryLink(database, input.email, "https://everr.example");
+  const link = await createRecoveryLink(
+    database,
+    input.email.toUpperCase(),
+    "https://everr.example",
+  );
+  expect(await database.select().from(schema.account)).toEqual(credentials);
   expect(await database.select().from(schema.session)).toEqual([]);
-  expect(await database.select().from(schema.verification)).toEqual([]);
+  expect(await database.select().from(schema.verification)).toEqual([
+    expect.objectContaining({
+      identifier: `reset-password:${new URL(link.url).searchParams.get("token")}`,
+      value: owner.id,
+    }),
+  ]);
   expect((await database.select().from(schema.user))[0]).toEqual(owner);
   expect((await database.select().from(schema.member))[0].role).toBe("owner");
 });
@@ -179,16 +176,16 @@ it("issues expiring links consumable once by Better Auth and replaces previous l
     database: drizzleAdapter(database, { provider: "pg", schema }),
     emailAndPassword: { enabled: true, revokeSessionsOnPasswordReset: true },
   });
-  const first = await recoverAccount(database, input.email, {
-    kind: "link",
-    baseUrl: "https://everr.example",
-  });
-  const second = await recoverAccount(database, input.email, {
-    kind: "link",
-    baseUrl: "https://everr.example",
-  });
-  if (first.kind !== "link" || second.kind !== "link")
-    throw new Error("Expected links");
+  const first = await createRecoveryLink(
+    database,
+    input.email,
+    "https://everr.example",
+  );
+  const second = await createRecoveryLink(
+    database,
+    input.email,
+    "https://everr.example",
+  );
   expect(second.expiresAt.getTime() - Date.now()).toBeGreaterThan(14 * 60_000);
   expect(second.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(
     15 * 60_000,
@@ -214,31 +211,25 @@ it("issues expiring links consumable once by Better Auth and replaces previous l
   expect((await database.select().from(schema.user))[0].emailVerified).toBe(
     false,
   );
-  const expired = await recoverAccount(database, input.email, {
-    kind: "link",
-    baseUrl: "https://everr.example",
-  });
-  if (expired.kind !== "link") throw new Error("Expected link");
+  const expired = await createRecoveryLink(
+    database,
+    input.email,
+    "https://everr.example",
+  );
   await database.update(schema.verification).set({ expiresAt: new Date(0) });
   await expect(reset(expired.url)).rejects.toThrow();
 });
 
 it("refuses recovery for missing or external-only accounts without creating credentials", async () => {
   await expect(
-    recoverAccount(database, input.email, {
-      kind: "password",
-      password: "replacement-password",
-    }),
+    createRecoveryLink(database, input.email, "https://everr.example"),
   ).rejects.toThrow("No account");
   await setupWorkspace(input, database);
   await database
     .update(schema.account)
     .set({ providerId: "google", password: null });
   await expect(
-    recoverAccount(database, input.email, {
-      kind: "link",
-      baseUrl: "https://everr.example",
-    }),
+    createRecoveryLink(database, input.email, "https://everr.example"),
   ).rejects.toThrow("no local password");
   expect(await database.select().from(schema.verification)).toEqual([]);
   expect((await database.select().from(schema.account))[0].password).toBeNull();

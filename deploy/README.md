@@ -139,7 +139,7 @@ start it with `docker compose up -d postgres`.
 To generate a one-time password reset link:
 
 ```sh
-docker compose run --rm --no-deps app .output/server/recovery.mjs link --email admin@example.com
+docker compose run --rm --no-deps app .output/server/recovery.mjs --email admin@example.com
 ```
 
 The link expires after 15 minutes and opens the existing password reset page.
@@ -147,25 +147,13 @@ The link expires after 15 minutes and opens the existing password reset page.
 be running when the user opens the link. Share the link privately with the
 account holder.
 
-To set a password directly, including when the web app cannot start:
-
-```sh
-docker compose run --rm --no-deps app .output/server/recovery.mjs password --email admin@example.com
-```
-
-Enter the password twice at the hidden prompts. Use an interactive terminal
-(do not pass `-T`); passwords are never supplied as command-line arguments.
-Passwords must contain 8 to 128 characters. Ctrl+C cancels without changing
-the account.
-
-Both commands operate only on existing accounts with local passwords. They
-immediately invalidate the account's sessions and previous password reset
+The command operates only on existing accounts with local passwords. It
+immediately invalidates the account's sessions and previous password reset
 links, without changing workspace membership, role, or email-verification
 status. Completing a reset link also invalidates sessions created since the
 link was issued. Accounts that only use an external identity provider must
 be recovered through that provider.
 
-The command is built alongside the self-hosted server by
-`pnpm build`. Direct password recovery needs only database
-configuration; link generation also needs `BETTER_AUTH_URL`. It does not start
-the web server or workers, and requires neither SMTP nor ClickHouse.
+The command is built alongside the self-hosted server by `pnpm build`. It needs
+database configuration and `BETTER_AUTH_URL`. It does not start the web server
+or workers, and requires neither SMTP nor ClickHouse.

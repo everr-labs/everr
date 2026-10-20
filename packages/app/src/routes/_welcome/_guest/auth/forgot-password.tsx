@@ -26,29 +26,21 @@ function OperatorRecovery() {
       />
       <p className="text-sm text-muted-foreground">
         Email delivery is not configured. Your administrator can give you a
-        recovery link or reset your password.
+        recovery link to reset your password.
       </p>
       <details className="space-y-3 text-sm">
         <summary className="cursor-pointer font-medium">
           Manage this installation?
         </summary>
         <p>
-          Run one of these commands from your Compose directory on the server.
-          Replace user@example.com with the account email.
+          Run this command from your Compose directory on the server. Replace
+          user@example.com with the account email.
         </p>
         <p>Generate a recovery link:</p>
         <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
           <code>
             {
-              "docker compose run --rm --no-deps app .output/server/recovery.mjs link --email user@example.com"
-            }
-          </code>
-        </pre>
-        <p>Or set a password at hidden prompts:</p>
-        <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-          <code>
-            {
-              "docker compose run --rm --no-deps app .output/server/recovery.mjs password --email user@example.com"
+              "docker compose run --rm --no-deps app .output/server/recovery.mjs --email user@example.com"
             }
           </code>
         </pre>

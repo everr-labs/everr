@@ -29,8 +29,7 @@ it("offers operator recovery without submitting an email request when SMTP is un
   ).toBeVisible();
   expect(screen.queryByRole("button", { name: "Send reset link" })).toBeNull();
   await userEvent.click(screen.getByText("Manage this installation?"));
-  expect(screen.getByText(/recovery.mjs link --email/)).toBeVisible();
-  expect(screen.getByText(/recovery.mjs password --email/)).toBeVisible();
+  expect(screen.getByText(/recovery.mjs --email/)).toBeVisible();
   expect(state.request).not.toHaveBeenCalled();
 });
 
