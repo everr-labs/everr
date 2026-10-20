@@ -9,6 +9,8 @@ require (
 	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.66.0
+	go.opentelemetry.io/collector/component/componenttest v0.160.0
+	go.opentelemetry.io/collector/config/confighttp v0.160.0
 	go.opentelemetry.io/collector/confmap v1.66.0
 	go.opentelemetry.io/collector/exporter v1.66.0
 	go.opentelemetry.io/collector/otelcol v0.160.0
@@ -83,11 +85,9 @@ require (
 	go.opentelemetry.io/collector v0.160.0 // indirect
 	go.opentelemetry.io/collector/client v1.66.0 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.160.0 // indirect
-	go.opentelemetry.io/collector/component/componenttest v0.160.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v1.66.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.66.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v1.66.0 // indirect
-	go.opentelemetry.io/collector/config/confighttp v0.160.0 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.66.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v1.66.0 // indirect
 	go.opentelemetry.io/collector/config/configopaque v1.66.0 // indirect

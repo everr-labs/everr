@@ -62,6 +62,11 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 						"endpoint": cfg.OTLPListenAddress,
 						"cors": map[string]any{
 							"allowed_origins": []any{"*"},
+							// The browser SDK gzips every export except the exit
+							// flush. Content-Encoding is not a CORS-safelisted
+							// request header, so a cross-origin page needs it in
+							// the preflight answer.
+							"allowed_headers": []any{"Content-Type", "Content-Encoding"},
 						},
 					},
 				},

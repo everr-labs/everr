@@ -159,16 +159,16 @@ describe("OTLP attribute mapping", () => {
     fc.constant(undefined),
   );
 
-  it("types every value into its OTLP arm and drops the nullish", () => {
+  it("types every value into its OTLP arm and drops the nullish", async () => {
     vi.useFakeTimers();
-    fc.assert(
-      fc.property(
+    await fc.assert(
+      fc.asyncProperty(
         fc.dictionary(fc.string({ minLength: 1 }), attrValue, { maxKeys: 12 }),
-        (record) => {
+        async (record) => {
           const { sent, emitter } = makeEmitter();
           const [emit, flush] = emitter;
           emit("probe", record);
-          void flush();
+          await flush();
           const wire = new Map(
             sent[0].attributes.map(({ key, value }) => [key, value]),
           );

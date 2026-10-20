@@ -78,7 +78,8 @@ module.exports = [
       "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "10 KB",
+    // Raised for gzip on the shared transport.
+    limit: "10.15 KB",
   },
   {
     // The recording entry without the recorder chunk. webpack is off so the

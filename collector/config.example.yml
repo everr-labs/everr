@@ -42,7 +42,9 @@ receivers:
         # their allowlisted origins.
         cors:
           allowed_origins: ["*"]
-          allowed_headers: ["Authorization", "Content-Type"]
+          # Content-Encoding carries gzip for the browser SDK. It is not a
+          # CORS-safelisted header, so a cross-origin export needs it here.
+          allowed_headers: ["Authorization", "Content-Type", "Content-Encoding"]
         # confighttp's default (20 MiB), made explicit for the public edge.
         max_request_body_size: 20971520
       grpc:

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startNetwork } from "../instrumentations/network/network.js";
+import { readOtlpBody } from "../test-fetch.js";
 import { createTracer } from "./tracer.js";
 
 let resolveTransport: typeof import("./transport.js").resolveTransport;
@@ -62,11 +63,11 @@ describe("export self-tracing", () => {
 });
 
 describe("resolveTransport: endpoint resolution", () => {
-  it("sends to the hosted ingest with a Bearer header when a key is set", () => {
+  it("sends to the hosted ingest with a Bearer header when a key is set", async () => {
     const [send, truncateAtExit] =
       resolveTransport({ ingestKey: "pub_abc" }) ?? [];
-    send?.("logs", "{}");
-    send?.("traces", "{}");
+    await send?.("logs", "{}");
+    await send?.("traces", "{}");
 
     expect(truncateAtExit).toBe(true);
     expect(posted.map((p) => p.url)).toEqual([
@@ -79,8 +80,8 @@ describe("resolveTransport: endpoint resolution", () => {
     });
   });
 
-  it("prefers an explicit endpoint override, appending the OTLP path and keeping the key's header", () => {
-    resolveTransport({
+  it("prefers an explicit endpoint override, appending the OTLP path and keeping the key's header", async () => {
+    await resolveTransport({
       ingestKey: "pub_abc",
       endpoint: "https://collector.example/",
     })?.[0]("logs", "{}");
@@ -91,8 +92,8 @@ describe("resolveTransport: endpoint resolution", () => {
     });
   });
 
-  it("carries no Authorization header without a key", () => {
-    resolveTransport({ endpoint: "https://collector.example" })?.[0](
+  it("carries no Authorization header without a key", async () => {
+    await resolveTransport({ endpoint: "https://collector.example" })?.[0](
       "traces",
       "{}",
     );
@@ -101,16 +102,86 @@ describe("resolveTransport: endpoint resolution", () => {
     expect(posted[0].init?.headers).not.toHaveProperty("Authorization");
   });
 
-  it("falls back to the local collector in dev with no key", () => {
-    resolveTransport({ dev: true })?.[0]("logs", "{}");
+  it("falls back to the local collector in dev with no key", async () => {
+    await resolveTransport({ dev: true })?.[0]("logs", "{}");
 
     expect(posted[0].url).toBe("http://127.0.0.1:54418/v1/logs");
   });
 
-  it("forwards keepalive on the exit path", () => {
-    resolveTransport({ dev: true })?.[0]("logs", "{}", true);
+  it("forwards keepalive on the exit path", async () => {
+    await resolveTransport({ dev: true })?.[0]("logs", "{}", true);
 
     expect(posted[0].init?.keepalive).toBe(true);
+  });
+
+  it("gzips a normal send and keeps the OTLP payload", async () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      (
+        globalThis as typeof globalThis & {
+          __testCompressionStream: typeof CompressionStream;
+        }
+      ).__testCompressionStream,
+    );
+    const body = '{"resourceLogs":[{"resource":{}}]}';
+    await resolveTransport({ dev: true })?.[0]("logs", body);
+
+    expect(new Headers(posted[0].init?.headers).get("Content-Encoding")).toBe(
+      "gzip",
+    );
+    expect(await readOtlpBody(posted[0].init)).toBe(body);
+  });
+
+  it("sends plain JSON when CompressionStream is absent", async () => {
+    vi.stubGlobal("CompressionStream", undefined);
+    const body = '{"resourceLogs":[]}';
+    await resolveTransport({ dev: true })?.[0]("logs", body);
+
+    expect(new Headers(posted[0].init?.headers).has("Content-Encoding")).toBe(
+      false,
+    );
+    expect(posted[0].init?.body).toBe(body);
+  });
+
+  it("sends plain JSON when compression throws", async () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      class {
+        constructor() {
+          throw new Error("no gzip here");
+        }
+      },
+    );
+    const body = '{"resourceLogs":[]}';
+    await resolveTransport({ dev: true })?.[0]("logs", body);
+
+    expect(new Headers(posted[0].init?.headers).has("Content-Encoding")).toBe(
+      false,
+    );
+    expect(posted[0].init?.body).toBe(body);
+  });
+
+  it("keeps exit requests plain JSON when gzip exists", () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      (
+        globalThis as typeof globalThis & {
+          __testCompressionStream?: typeof CompressionStream;
+        }
+      ).__testCompressionStream,
+    );
+    const body = '{"resourceLogs":[]}';
+    const pending = resolveTransport({ dev: true })?.[0]("logs", body, true);
+
+    // The page-hide handler cannot wait. The fetch has to start with the
+    // plain string before this function yields.
+    expect(posted).toHaveLength(1);
+    expect(new Headers(posted[0].init?.headers).has("Content-Encoding")).toBe(
+      false,
+    );
+    expect(posted[0].init?.body).toBe(body);
+    expect(posted[0].init?.keepalive).toBe(true);
+    return pending;
   });
 
   it("resolves to null (structural no-op) for a keyless production build", () => {
@@ -159,5 +230,22 @@ describe("resolveTransport: caller-supplied send", () => {
     resolveTransport({ send })?.[0]("logs", "{}", true);
 
     expect(send).toHaveBeenCalledWith("logs", "{}");
+  });
+
+  it("gives the host the plain JSON string when gzip exists", () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      (
+        globalThis as typeof globalThis & {
+          __testCompressionStream?: typeof CompressionStream;
+        }
+      ).__testCompressionStream,
+    );
+    const send = vi.fn();
+    const body = '{"resourceLogs":[{"resource":{}}]}';
+    resolveTransport({ send })?.[0]("logs", body);
+
+    expect(send).toHaveBeenCalledWith("logs", body);
+    expect(posted).toHaveLength(0);
   });
 });
