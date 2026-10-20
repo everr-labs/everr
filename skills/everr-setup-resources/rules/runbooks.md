@@ -17,7 +17,7 @@ Runbooks reuse the exact same panel, variable, and query model as dashboards, a 
 
 The `.md` source on disk is the canonical artifact. **There is no fetch/get command**, agents run on the user's machine and read the source files directly with the normal file tools. To investigate with a runbook, open its `.md` file(s).
 
-Each ```panel fence contains a runnable panel whose query is **ClickHouse SQL**. To use a runbook's panel during an investigation, extract the `query:` from the fence (or from the panel it `ref:`s in the YAML) and run or adapt it, via `everr query "<sql>"` or the **`everr-use-telemetry`** skill. Queries use `{from:String}`/`{to:String}`/`{step:UInt32}` time params and `$variable` tokens; substitute concrete values when running ad hoc.
+Each ```panel fence contains a runnable panel whose query is **ClickHouse SQL**. To use a runbook's panel during an investigation, extract the `query:` from the fence (or from the panel it `ref:`s in the YAML) and run or adapt it, via `everr cloud query "<sql>"` or the **`everr-use-telemetry`** skill. Queries use `{from:String}`/`{to:String}`/`{step:UInt32}` time params and `$variable` tokens; substitute concrete values when running ad hoc.
 
 ## The Runbook YAML schema
 

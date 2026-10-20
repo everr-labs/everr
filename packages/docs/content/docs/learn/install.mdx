@@ -40,14 +40,14 @@ Prefer to configure OpenTelemetry yourself? Continue with the manual path in [In
 
 ## Connect to an installation
 
-From your repository, run `everr login` to connect to [Everr Cloud](https://app.everr.dev/). For a self-hosted installation, supply its app URL:
+From your repository, run `everr cloud login` to connect to [Everr Cloud](https://app.everr.dev/). For a self-hosted installation, supply its app URL:
 
 ```sh
-everr login --url https://observability.acme.com
+everr cloud login --url https://observability.acme.com
 ```
 
-Approve the login in your browser and choose your organization. The CLI saves a profile named after the organization and creates `.everr/config.yaml` with the repository's installation URL and organization ID when no target is configured. Credentials stay in your user configuration directory.
+Approve the login in your browser and choose your organization. The CLI saves one session in your user configuration directory. A later successful login replaces that session.
 
-Run `everr whoami` to check the selected connection. Use `everr profiles list`, `everr profiles use <name>`, and `everr profiles remove <name>` to inspect profiles, change the global default, or remove a saved connection. Repository targets take precedence over the global default. See [Profiles](/docs/reference/cli#profiles) for selection rules and per-command overrides.
+Run `everr cloud status` to check the current installation, account, organization, and ingestion endpoint. To switch installations, run `everr cloud login --url <app-url>` again. See [Authentication](/docs/reference/cli#authentication-and-remote-queries) for session storage and login options.
 
 Local telemetry and the local UI work without a remote login.

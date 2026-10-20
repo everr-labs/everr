@@ -15,10 +15,12 @@ fn root_help_lists_main_commands() {
         .stdout(contains(
             "Query telemetry, inspect CI, and manage resources as code in Everr",
         ))
-        .stdout(contains("Usage: everr [OPTIONS] <COMMAND>"))
+        .stdout(contains("Usage: everr <COMMAND>"))
         .stdout(predicates::str::contains("\n  install").not())
-        .stdout(contains("\n  login"))
-        .stdout(contains("\n  logout"))
+        .stdout(contains("\n  login").not())
+        .stdout(contains("\n  logout").not())
+        .stdout(contains("\n  profiles").not())
+        .stdout(contains("--profile").not())
         .stdout(predicates::str::contains("setup-assistant").not())
         .stdout(predicates::str::contains("\n  setup").not())
         .stdout(predicates::str::contains("\n  init").not())
@@ -40,7 +42,9 @@ fn root_help_lists_main_commands() {
         .stdout(contains("upgrade"))
         .stdout(contains("apply"))
         .stdout(contains("resources"))
-        .stdout(contains("Authenticate with and query Everr Cloud"))
+        .stdout(contains(
+            "Authenticate with and query a remote Everr installation",
+        ))
         .stdout(contains("Run and query the local telemetry Collector"))
         .stdout(contains("Reconcile a directory of as-code resources"));
 }
@@ -74,7 +78,7 @@ fn cloud_help_lists_cloud_subcommands() {
         .stdout(contains("logout"))
         .stdout(contains("query"))
         .stdout(contains(
-            "Show the current Everr Cloud user, organization, and session URL",
+            "Show the current identity, installation URL, and ingestion endpoint",
         ))
         .stdout(predicates::str::contains("\n  grep").not())
         .stdout(predicates::str::contains("\n  logs").not());
@@ -89,7 +93,7 @@ fn cloud_query_help_lists_format_option() {
         .assert()
         .success()
         .stdout(contains(
-            "Run read-only SQL against CI and Production telemetry",
+            "Run read-only SQL against telemetry in the remote installation",
         ))
         .stdout(contains("<SQL>"))
         .stdout(contains("--format <FORMAT>"));
@@ -163,7 +167,8 @@ fn cloud_status_has_help() {
         .args(["cloud", "status", "--help"])
         .assert()
         .success()
-        .stdout(contains("Usage: everr cloud status"));
+        .stdout(contains("Usage: everr cloud status"))
+        .stdout(contains("--json"));
 }
 
 #[test]
@@ -246,6 +251,7 @@ fn auth_login_help_does_not_list_removed_config_flags() {
         .args(["cloud", "login", "--help"])
         .assert()
         .success()
+        .stdout(contains("--url"))
         .stdout(predicates::str::contains("--token").not());
 }
 

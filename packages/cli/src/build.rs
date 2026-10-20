@@ -22,6 +22,16 @@ pub const DEFAULT_DOCS_BASE_URL: &str = "http://localhost:3000";
 #[cfg(not(debug_assertions))]
 pub const DEFAULT_DOCS_BASE_URL: &str = "https://everr.dev";
 
+#[cfg(debug_assertions)]
+pub const DEFAULT_SESSION_FILE_NAME: &str = "session-dev.json";
+
+#[cfg(not(debug_assertions))]
+pub const DEFAULT_SESSION_FILE_NAME: &str = "session.json";
+
+pub const fn default_session_file_name() -> &'static str {
+    DEFAULT_SESSION_FILE_NAME
+}
+
 pub const fn build_type_label() -> &'static str {
     BUILD_TYPE_LABEL
 }

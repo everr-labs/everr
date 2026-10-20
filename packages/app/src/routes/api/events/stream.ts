@@ -2,10 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import { z } from "zod";
 import { subscribe, subscribeAuthor, subscribeTenant } from "#app/db/hub.ts";
-import {
-  assertOrganizationTarget,
-  organizationTargetErrorResponse,
-} from "#app/lib/cli-target.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { createSSEStream } from "#app/lib/sse.ts";
 
@@ -54,14 +50,6 @@ export const Route = createFileRoute("/api/events/stream")({
     handlers: {
       GET: async ({ request, context }) => {
         const { session } = context;
-        try {
-          assertOrganizationTarget(request.headers, session.organizationId);
-        } catch (error) {
-          const response = organizationTargetErrorResponse(error);
-          if (response) return response;
-          throw error;
-        }
-
         const url = new URL(request.url);
         const parsed = StreamQuerySchema.safeParse({
           scope: url.searchParams.get("scope") ?? undefined,

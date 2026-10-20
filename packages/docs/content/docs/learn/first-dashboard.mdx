@@ -12,10 +12,10 @@ This guide uses [telemetry sent to Everr Cloud](/docs/learn/production-telemetry
 Run this once and select the organization receiving your app's telemetry:
 
 ```sh
-everr login
+everr cloud login
 ```
 
-Your saved profile lets the CLI query telemetry and publish resources. Run `everr whoami` to check the selected installation and organization; `--profile <name>` overrides the selection for one command. See [Profiles](/docs/reference/cli#profiles) for selection rules and [Publishing resources](/docs/guides/publishing-resources) for automation.
+Your saved session lets the CLI query telemetry and publish resources. Run `everr cloud status` to check the installation and organization. To switch installations, run `everr cloud login --url <app-url>`. See [Authentication](/docs/reference/cli#authentication-and-remote-queries) for session details and [Publishing resources](/docs/guides/publishing-resources) for automation.
 
 ## Use your coding agent
 
@@ -34,7 +34,7 @@ Create `everr/` if it doesn't exist. Keep all resources for this repository in t
 Check the trace schema:
 
 ```sh
-everr query "DESCRIBE TABLE traces"
+everr cloud query "DESCRIBE TABLE traces"
 ```
 
 Save this as `everr/api-latency.dashboard.yaml`. Replace `my-service` with your app's `service.name`. The example uses server spans from the `production` environment and excludes failed requests so fast failures don't lower the latency signal.

@@ -96,7 +96,7 @@ Each visualization has its own option set and behaviors. **Load the rule file fo
 
 ## Test every query before applying
 
-Run every panel query with `everr query` before applying, substituting concrete values for `{from:String}`, `{to:String}`, and `{step:UInt32}`. Test each query over several time ranges, at least a short one (1h) and a long one (7d or 30d), because a query that behaves at 1h can explode at 7d.
+Run every panel query with `everr cloud query` before applying, substituting concrete values for `{from:String}`, `{to:String}`, and `{step:UInt32}`. Test each query over several time ranges, at least a short one (1h) and a long one (7d or 30d), because a query that behaves at 1h can explode at 7d.
 
 On every range, the result must stay **far below 1,000 rows**. If it gets anywhere close, the query is wrong for a panel: tighten the bucketing (use `{step:UInt32}`), aggregate harder, or add a `LIMIT`. High-cardinality pivots (a `GROUP BY ts, SomeLabel` with many label values) are the usual culprit.
 
@@ -105,8 +105,8 @@ On every range, the result must stay **far below 1,000 rows**. If it gets anywhe
 Row count is what the panel gets. Read volume is what the panel costs. Once a query returns the right rows, check how much data it reads over the **long** range:
 
 ```sh
-everr query "EXPLAIN indexes = 1 SELECT ... WHERE Timestamp >= now() - INTERVAL 7 DAY ..."
-everr query "EXPLAIN ESTIMATE SELECT ... WHERE Timestamp >= now() - INTERVAL 7 DAY ..."
+everr cloud query "EXPLAIN indexes = 1 SELECT ... WHERE Timestamp >= now() - INTERVAL 7 DAY ..."
+everr cloud query "EXPLAIN ESTIMATE SELECT ... WHERE Timestamp >= now() - INTERVAL 7 DAY ..."
 ```
 
 - `EXPLAIN indexes = 1` prints `Parts: x/y` and `Granules: x/y` for each index. The `PrimaryKey` block shows how much of the table the sort key lets the query skip. When its selected granules stay close to the total, the query is scanning the range rather than seeking.
@@ -115,7 +115,7 @@ everr query "EXPLAIN ESTIMATE SELECT ... WHERE Timestamp >= now() - INTERVAL 7 D
 To cut the read, filter on the leading sort-key columns. The `PrimaryKey` block lists them under `Keys:`, or read the `ORDER BY` of the table:
 
 ```sh
-everr query "SHOW CREATE TABLE traces"
+everr cloud query "SHOW CREATE TABLE traces"
 ```
 
 `traces` and `logs` sort by `ServiceName, Timestamp`. The `metrics_*` tables sort by `ServiceName, MetricName, ..., TimeUnix`.
@@ -172,6 +172,6 @@ For `allowAllValue`, "All" expands to every loaded option as a quoted list; set 
 | `PrometheusLabelValuesVariable` or other variable plugins | Only `StaticListVariable` and `ClickHouseSQLVariable`. |
 | Single `ClickHouseSQL` in the query block | Both the query `kind` and the inner `plugin.kind` are `ClickHouseSQL`. |
 | `Duration` treated as ms/seconds | It's **nanoseconds**, divide by `1e6` (ms) or `1e9` (s). |
-| Applying without running the queries | Test every query with `everr query` over both a short and a long time range. |
+| Applying without running the queries | Test every query with `everr cloud query` over both a short and a long time range. |
 | Result sets approaching 1,000 rows on any range | Bucket with `{step:UInt32}`, aggregate harder, or `LIMIT`, panels must stay far below 1k rows. |
 | Small result, but the query reads most of the table | Run `EXPLAIN indexes = 1` over the long range and filter on the sort-key columns (`ServiceName`, `MetricName`) until the `PrimaryKey` granules drop. |

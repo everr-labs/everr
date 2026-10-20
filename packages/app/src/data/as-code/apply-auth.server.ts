@@ -6,10 +6,6 @@ import { db } from "#app/db/client.ts";
 import { organization } from "#app/db/schema/index.ts";
 import { auth } from "#app/identity/server.ts";
 import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
-import {
-  assertOrganizationTarget,
-  organizationTargetErrorResponse,
-} from "#app/lib/cli-target.ts";
 import { createClickhouseQuery } from "#app/lib/clickhouse.ts";
 import {
   createOrganizationSql,
@@ -103,7 +99,6 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
       throw new Error("API key is not authorized to apply resources");
     }
     const organizationId = result.key.referenceId;
-    assertOrganizationTarget(headers, organizationId);
     mergeTelemetryIdentity({ organizationId });
     return {
       organizationId,
@@ -121,7 +116,6 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
   if (!organizationId) {
     throw new Error("No active organization");
   }
-  assertOrganizationTarget(headers, organizationId);
   return {
     organizationId,
     ...(await resolveOrganization(organizationId)),
@@ -176,8 +170,6 @@ const AUTH_ERROR_STATUS: Record<string, number> = {
 };
 
 export function applyAuthErrorResponse(error: unknown): Response | null {
-  const targetErrorResponse = organizationTargetErrorResponse(error);
-  if (targetErrorResponse) return targetErrorResponse;
   if (error instanceof StorageNotReadyError)
     return Response.json(
       { error: error.message },

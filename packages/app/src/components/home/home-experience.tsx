@@ -177,7 +177,7 @@ function HomeContent({
   const view = homeView(status, setupRequested);
   const busy = complete.isPending;
   const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
-  const loginCommand = `everr login --url ${shellQuote(status.appUrl)} --organization-id ${shellQuote(organizationId)}`;
+  const loginCommand = `everr cloud login --url ${shellQuote(status.appUrl)}`;
 
   async function finish() {
     try {
@@ -450,17 +450,14 @@ function HomeContent({
             should be sent to this workspace.
           </p>
           <div className="space-y-2">
-            <h3 className="text-sm font-medium">Connect your repository</h3>
+            <h3 className="text-sm font-medium">Connect the CLI</h3>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Run this from your project root and approve the login in your
-              browser. The CLI saves this workspace as the repository's target
-              for future queries and agent sessions. Exporters use a separate
-              ingestion key.
+              Run this command and approve the login in your browser. The CLI
+              saves one session for future queries and agent sessions. Logging
+              in again replaces the previous connection. Exporters use a
+              separate ingestion key.
             </p>
-            <CopyBlock
-              text={loginCommand}
-              label="Copy workspace login command"
-            />
+            <CopyBlock text={loginCommand} label="Copy CLI login command" />
           </div>
           <div className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">

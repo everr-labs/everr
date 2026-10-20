@@ -614,16 +614,16 @@ it("keeps verification explicit and offers recovery without marking onboarding c
   ).toHaveAttribute("aria-pressed", "true");
 });
 
-it("copies the installation and workspace login command and shows its ingestion endpoint", async () => {
+it("copies the installation login command and shows its ingestion endpoint", async () => {
   persisted.appUrl = "https://observability.example.test";
   persisted.ingestEndpoint = "https://telemetry.example.test/otlp";
   seedProgress("production");
   const { user } = mount();
   const command =
-    "everr login --url 'https://observability.example.test' --organization-id 'one'";
+    "everr cloud login --url 'https://observability.example.test'";
   expect(screen.getByText(command)).toBeVisible();
   await user.click(
-    screen.getByRole("button", { name: "Copy workspace login command" }),
+    screen.getByRole("button", { name: "Copy CLI login command" }),
   );
   expect(await navigator.clipboard.readText()).toBe(command);
   expect(screen.getByText(persisted.ingestEndpoint)).toBeVisible();

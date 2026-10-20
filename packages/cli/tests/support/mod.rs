@@ -41,7 +41,6 @@ impl CliTestEnv {
         let mut cmd = Command::new(binary);
         cmd.current_dir(&self.home_dir);
         cmd.env_remove("EVERR_CONFIG_DIR");
-        cmd.env_remove("EVERR_PROFILE");
         cmd.env_remove("EVERR_API_KEY");
         cmd.env_remove("EVERR_API_TOKEN");
         cmd.env_remove("EVERR_API_URL");
@@ -77,29 +76,21 @@ impl CliTestEnv {
             .join("telemetry-dev")
     }
 
-    pub fn profile_store(&self) -> everr_cli::profiles::ProfileStore {
-        everr_cli::profiles::ProfileStore::at(self.config_dir.join(build::session_namespace()))
+    pub fn session_store(&self) -> everr_cli::state::SessionStore {
+        everr_cli::state::SessionStore::at(self.config_dir.join(build::session_namespace()))
     }
 
-    pub fn write_profile_session(&self, api_base_url: &str, token: &str) {
-        self.profile_store()
-            .save(
-                "default",
-                everr_cli::profiles::Profile {
-                    target: everr_cli::profiles::Target {
-                        url: api_base_url.trim_end_matches('/').to_owned(),
-                        organization_id: "org-test".to_owned(),
-                    },
-                    user_id: "user-test".to_owned(),
-                    email: "tests@example.test".to_owned(),
-                    organization_name: "Test".to_owned(),
-                },
-                everr_cli::state::Session {
-                    api_base_url: api_base_url.to_owned(),
-                    token: token.to_owned(),
-                },
-            )
-            .expect("save test profile");
+    pub fn session_path(&self) -> PathBuf {
+        self.session_store().session_file_path()
+    }
+
+    pub fn write_session(&self, api_base_url: &str, token: &str) {
+        self.session_store()
+            .save_session(&everr_cli::state::Session {
+                api_base_url: api_base_url.to_owned(),
+                token: token.to_owned(),
+            })
+            .expect("save test session");
     }
 
     pub fn init_git_repo(&self, relative_dir: &str, branch: &str, remote: &str) -> PathBuf {

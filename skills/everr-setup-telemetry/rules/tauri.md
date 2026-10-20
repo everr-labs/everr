@@ -67,7 +67,7 @@ Remote export (Everr Cloud or self-hosted):
 Resolve the remote endpoint during setup using [Remote setup](../references/remote-setup.md) and persist the actual value in application configuration.
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-whoami>
+OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-cloud-status>
 EVERR_INGEST_KEY=<secret-manager-reference>
 ```
 

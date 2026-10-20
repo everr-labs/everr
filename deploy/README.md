@@ -84,27 +84,23 @@ set `EVERR_RETENTION_DAYS` to a supported window in `.env` to change it.
 
 ### Connect the CLI
 
-From your application's Git repository, run:
+Run:
 
 ```sh
-everr login --profile self-hosted --url http://localhost:3000
+everr cloud login --url http://localhost:3000
 ```
 
 Use the installation's reachable app URL for remote access. After device approval,
-login saves the URL and workspace ID to `.everr/config.yaml` at the repository
-root if the file is absent. Commit that file to share the target with teammates;
-each person authenticates separately, and credentials stay in their global CLI
-configuration. Subsequent `everr login`, `everr query`, `everr resources`, and
-`everr apply` commands use the project target. `--profile` overrides it for one
-command. See [CLI profiles](../packages/cli/README.md#installations-organizations-and-profiles)
-for managing multiple installations, organizations, and accounts.
+the CLI saves one session with the API URL and token in your user configuration
+directory. Subsequent query and resource commands use that session. A successful
+login to another installation or account replaces it. See [CLI sessions](../packages/cli/README.md#installations-and-sessions).
 
-Onboarding can copy a command that also includes `--organization-id` to pin the
-workspace during approval. For instrumentation setup, `everr whoami --json`
+Select the intended organization when approving the login in your browser.
+For instrumentation setup, `everr cloud status --json`
 advertises the configured `EVERR_PUBLIC_INGEST_URL` as `ingestEndpoint`. Save that
 endpoint in the application's exporter configuration, with an ingestion key for
-the same workspace. The repository target and credentials persist across agent
-sessions; ordinary queries do not require endpoint discovery.
+the same workspace. It is fetched live rather than stored in the CLI session.
+Ordinary queries do not require endpoint discovery.
 
 ### Manage the stack
 

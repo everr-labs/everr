@@ -17,7 +17,7 @@ If the user wants to setup alerting rules on that telemetry (and dashboards or r
 1. Honor the requested destination. Default development and test work to the local collector; use the repository's selected remote installation for requested production setup or an explicit remote choice. If both environments are requested, configure and validate each separately.
 2. Ensure the `everr` CLI is installed and accessible.
 3. For local export, run `everr local status`. If stopped, run `everr local start -d --no-open` and check status again. Use the returned `otlp:` and `ui:` URLs. If the collector cannot start, resolve the reported problem or ask the user whether to repair it or switch to a remote installation. Switch only when the user has chosen that destination.
-4. For remote setup or connection troubleshooting, follow [Remote setup](references/remote-setup.md) to resolve the saved target and `ingestEndpoint` with `everr whoami --json`. Persist the exporter settings and telemetry documentation for later sessions. A local collector is not required for this branch.
+4. For remote setup or connection troubleshooting, follow [Remote setup](references/remote-setup.md) to resolve the saved target and `ingestEndpoint` with `everr cloud status --json`. Persist the exporter settings and telemetry documentation for later sessions. A local collector is not required for this branch.
 
 
 ### Step 1 - Plan the instrumentation
@@ -51,7 +51,7 @@ Preserve working signals and existing destinations outside the task. Add another
 1. Read the guidance selected by the table below before editing instrumentation. Resolve the required service identity, environment, endpoint, and authentication values before applying the plan.
 2. Apply the plan for the selected services, signals, environments, and destination. Adapt runtime examples to that scope; their production configuration is conditional on a production request.
 3. Gate local-only exporters so local collector URLs do not ship in production bundles. For a local-only task, preserve existing production export configuration and do not add remote ingest or require production credentials. For remote export, follow [Remote setup](references/remote-setup.md).
-4. Exercise the instrumented path and complete [Validation](rules/validation.md) against the selected destination. Use `everr local query` for local export and `everr query` for remote export.
+4. Exercise the instrumented path and complete [Validation](rules/validation.md) against the selected destination. Use `everr local query` for local export and `everr cloud query` for remote export.
 5. Run the project's production build (or its typecheck when no build exists). Dev servers skip strict type checking, so telemetry that flows in dev can still break the build. Running this check does not require configuring or deploying production telemetry.
 6. Claim success only for environments where fresh query results prove ingestion from the exercised path and the build check passes. If deployment or credentials are unavailable, report the configuration as prepared and identify the remaining validation.
 7. Update the project's README under **Telemetry**, following [Telemetry documentation](references/telemetry-documentation.md). Include configuration for the local collector and the selected remote installation, even when only one destination was exercised. Check the documented variables and activation steps against the implementation before handing off.
@@ -134,9 +134,9 @@ When ongoing monitoring fits the user's goal and remote telemetry is available, 
 | Start the CLI collector | `everr local start` |
 | Get the local OTLP/HTTP endpoint | `everr local status` |
 | Verify local telemetry arrived | `everr local query "<SQL>"` |
-| Discover a remote connection during setup or troubleshooting | `everr whoami --json` |
-| Authenticate remote query access when needed | The CLI's profile-specific login hint or the installation's onboarding login command |
-| Verify remote telemetry arrived | `everr query "<SQL>"` |
+| Discover a remote connection during setup or troubleshooting | `everr cloud status --json` |
+| Authenticate remote query access when needed | The CLI's login hint or the installation's onboarding login command |
+| Verify remote telemetry arrived | `everr cloud query "<SQL>"` |
 | Capture build/lint output | `everr wrap -- <command>` |
 
 For local export, keep the endpoint as `<otlp-url-from-status>` in plans and example commands until you have actual status output.
@@ -161,6 +161,6 @@ Do not optimize local debug telemetry for storage cost. Rich local evidence is u
 | Naming a likely collector URL such as a default localhost port before reading status | Use `<otlp-url-from-status>` in plans and examples until `everr local status` returns the actual endpoint. |
 | Adding a run, request, or test marker but querying only by service and time | Filter the query by the marker too, or do not claim the marker proved freshness. |
 | Mirroring every `console.*` call into logs | Prefer targeted OTel logs or the app's structured logger; any bridge must be temporary, gated, redacted, and bounded. |
-| Verifying by UI visibility or absence of exporter errors | Query the selected destination with `everr local query` or `everr query` and show rows from the exercised path. |
+| Verifying by UI visibility or absence of exporter errors | Query the selected destination with `everr local query` or `everr cloud query` and show rows from the exercised path. |
 | Validating only against the dev server | Run the production build too; strict type checking is skipped in dev, and OTLP exporter `headers` options are a common casualty (a conditional headers value uses `undefined` for the keyless branch, never `{}`). |
 | Exposing `EVERR_INGEST_KEY` to the browser | Browsers use a public origin-bound ingest key (`rules/browser.md`); secret keys stay server-side. |

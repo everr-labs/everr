@@ -7,73 +7,35 @@ The Everr CLI queries local telemetry and remote Cloud or self-hosted installati
 
 ## Authentication and remote queries
 
-- `everr login`: authenticate in your browser and save a connection profile
-  - `--url <app-url>`: connect to a self-hosted installation or another app URL. Without this flag, login uses the selected profile or repository target, falling back to `https://app.everr.dev`.
-  - `--organization-id <id>`: require approval for a specific organization. It must agree with an existing target.
-  - `--profile <name>`: save the login under a custom name or reauthenticate that profile
-  - `--no-open`: print the authorization URL without opening a browser
-- `everr logout [--profile <name>]`: revoke the selected session and remove its saved credentials, keeping the profile's connection settings
-- `everr whoami [--json]`: show the effective profile, selection source, installation URL, account, organization, and advertised ingestion endpoint
-- `everr query "<SQL>"`: run read-only SQL against the selected installation
-  - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
+Authenticate with `everr cloud login` and sign out with `everr cloud logout`. See [Cloud](#cloud) for login options and remote commands.
 
-CLI sessions authenticate queries and resource management. Application exporters use separate ingestion keys. During exporter setup, `everr whoami --json` returns `ingestEndpoint`, the installation's OTLP/HTTP base URL. Save that URL in your exporter configuration. A null endpoint means the server has not advertised one; app and ingestion URLs can differ.
-
-## Profiles
-
-A profile names an installation, organization, and account. Keep multiple profiles to use different installations, organizations, or accounts without replacing other logins.
-
-| Command | Purpose |
-| --- | --- |
-| `everr profiles list` | List saved profiles, marking the global default with `*` |
-| `everr profiles show <name>` | Show one profile's connection metadata without credentials |
-| `everr profiles use <name>` | Set the global default profile |
-| `everr profiles remove <name>` | Delete a profile and its saved credentials locally |
-
-Profile management commands operate on local files. A listed profile's `authenticated` status means credentials are saved; it does not check whether the server still accepts them. To revoke a session before removing a profile, run `everr logout --profile <name>`. There is currently no profile rename command.
-
-Unless you supply `--profile` during login, names come from the organization name: `Everr Labs` becomes `everr-labs`. Collisions with another installation add the hostname; remaining collisions add `-2`, `-3`, and so on. Logging into the same installation, organization, and account reuses an existing profile. Existing profile names are preserved. The first saved profile becomes the global default; its name does not determine which profile is the default.
-
-Remote commands select a profile in this order:
-
-1. `--profile <name>` for this command.
-2. The `EVERR_PROFILE` environment variable.
-3. A profile matching the repository's `.everr/config.yaml` installation URL and organization ID.
-4. The global default, when no repository target is configured.
-
-For example:
+The CLI keeps one session. A successful login replaces it; a failed login preserves the previous session. To switch installations or accounts, log in again:
 
 ```sh
-everr login --url https://observability.acme.com
-everr profiles list
-everr profiles use acme
-everr --profile staging resources list
+everr cloud login --url https://observability.acme.com
+everr cloud status
+everr cloud logout
 ```
 
-Use the names printed by login or `profiles list`. Profile names may contain letters, numbers, dots, underscores, and hyphens. Changing the global default does not override a repository target. If a repository has no matching profile, or several profiles match, the command fails rather than selecting another target. Use `--profile` to resolve an ambiguous selection. Logged-out or expired credentials require login for that profile.
+The session file contains only the API URL and token. It is stored at `~/Library/Application Support/everr/session.json` on macOS or `${XDG_CONFIG_HOME:-~/.config}/everr/session.json` on Linux. `EVERR_CONFIG_DIR` overrides the directory and must be an absolute path. Debug builds use `session-dev.json` and default to `http://localhost:5173` when no session is saved. Login does not create repository configuration.
 
-### Repository targets and credential storage
-
-Successful login from a Git repository creates `.everr/config.yaml` at its root when no project configuration exists:
-
-```yaml
-version: 1
-url: https://observability.acme.com
-organizationId: org_123
-```
-
-This file records the shared remote destination without credentials or a profile name, so it can be committed for teammates using their own accounts. Login preserves existing project configuration. Lookup walks from the current directory to the nearest Git root, including worktrees, and uses the nearest configuration file. Outside a Git repository, login saves only the user profile. The `.everr/` target directory is separate from the conventional `everr/` resource directory used by `apply`.
-
-User profiles are stored in `config.yaml` and session credentials in `credentials.json`, under `~/Library/Application Support/everr` on macOS or `${XDG_CONFIG_HOME:-~/.config}/everr` on Linux. `EVERR_CONFIG_DIR` overrides this directory and must be an absolute path. Debug builds use `config-dev.yaml` and `credentials-dev.json` and default to `http://localhost:5173` when no login target is configured.
+CLI sessions authenticate queries and resource management. Application exporters use separate ingestion keys and an explicitly configured ingestion endpoint.
 
 ## Cloud
 
-- `everr cloud login`: compatibility command for `everr login`, using the same profile selection
-- `everr cloud logout`: compatibility command for `everr logout`
-- `everr cloud status`: check the current session and print the user's name, email, organization, and Cloud URL
-  - Prints `Name:`, `Email:`, `Organization:`, and `Cloud:` rows. Missing or expired sessions and request failures produce an error without changing the saved session.
-- `everr cloud query "<SQL>"`: compatibility command for `everr query`, targeting the selected installation
+These commands also work with the self-hosted installation selected by the saved session:
+
+- `everr cloud login`: authenticate in your browser and save one session
+  - `--url <app-url>`: select another installation. Without this flag, login reuses the saved session's URL or the build default.
+  - `--no-open`: print the authorization URL without opening a browser
+- `everr cloud logout`: revoke the saved session and remove the local session file
+- `everr cloud status [--json]`: check the saved session and show the current identity, app URL, and ingestion endpoint
+  - Prints `Name:`, `Email:`, `Organization:`, `Installation:`, and `Ingestion endpoint:` rows. Missing or expired sessions and request failures produce an error without changing the saved session.
+  - `--json`: return `url`, account and organization identity, and `ingestEndpoint`, without the token
+- `everr cloud query "<SQL>"`: run read-only SQL against the saved session's installation
   - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
+
+During exporter setup, use `everr cloud status --json` to discover `ingestEndpoint`, the installation's OTLP/HTTP base URL. Save that URL in your exporter's configuration. It is fetched from the server when status is called and is not cached in the session file. A null endpoint means the server has not advertised one; app and ingestion URLs can differ.
 
 ## Maintenance
 
@@ -125,7 +87,7 @@ The `--agent` option can be repeated. With no Agent filter, a command targets al
 
 ## Local telemetry
 
-Local commands and the local browser UI operate independently of remote profiles. They do not read repository targets or profile credentials, ignore `EVERR_PROFILE`, and reject an explicit `--profile`. The local UI has no remote account or sign-in controls.
+Local commands and the local browser UI work without a remote login and do not read the session file. The local UI has no remote account or sign-in controls.
 
 - `everr local start`: start the local collector and browser UI in the foreground
   - `-d`, `--detach`: run in the background and return once ready. The instance survives closing the terminal; stop it with `everr local stop`. Detached mode does not start at boot or automatically restart a crashed supervisor.
@@ -166,7 +128,7 @@ The Repoid is inferred from the repository's `origin` remote and normalized to `
 - `--yes`, `-y`: skip confirmation for a live apply (required in non-interactive contexts)
 - `--adopt`: adopt resources in the applied directory that another Repoid currently owns. Use `--dry-run` first to review the ownership changes.
 
-Apply uses the selected profile's saved session by default. For unattended runs, set `EVERR_API_KEY` to an Organization API Key with the `apply` capability; `EVERR_API_TOKEN` remains a deprecated alias. The URL comes from the selected profile, repository target, or an explicit `EVERR_API_URL`. An explicit URL must agree with an explicitly selected profile or repository target. Without either, an explicit URL targets that installation independently of the global default.
+Apply uses the saved login session by default. For unattended runs, set `EVERR_API_KEY` to an Organization API Key with the `apply` capability; `EVERR_API_TOKEN` remains a deprecated alias. With a key, `EVERR_API_URL` selects the installation, falling back to the URL in the saved session when omitted. A runner without a saved session must supply `EVERR_API_URL`.
 
 ### Inspect and manage live resources
 
@@ -175,4 +137,4 @@ Apply uses the selected profile's saved session by default. For unattended runs,
 - `everr resources delete <kind> <slug> [--project <name>]`: delete a live resource immediately, without prompting
 - `everr resources adopt <kind> <slug> [--project <name>] [--yes]`: adopt a live resource into the current repository's Repoid. Interactive terminals prompt for confirmation; non-interactive contexts require `--yes`.
 
-`--project` defaults to `default`. These commands require the selected profile's saved session and do not accept `EVERR_API_KEY`.
+`--project` defaults to `default`. These commands require the saved login session and do not accept `EVERR_API_KEY`.

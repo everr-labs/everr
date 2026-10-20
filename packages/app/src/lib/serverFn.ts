@@ -1,9 +1,5 @@
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
 import { db } from "#app/db/client.ts";
-import {
-  assertOrganizationTarget,
-  organizationTargetErrorResponse,
-} from "#app/lib/cli-target.ts";
 import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import { createOrganizationSql } from "#app/lib/organization-sql.ts";
@@ -28,15 +24,10 @@ const authMiddleware = createMiddleware().server(async ({ request, next }) => {
 
 export const requireOrgMiddleware = createMiddleware()
   .middleware([authMiddleware])
-  .server(async ({ request, next, context: { session } }) => {
+  .server(async ({ next, context: { session } }) => {
     const activeOrgId = session.session.activeOrganizationId;
     if (!activeOrgId) {
       throw new Error("No active organization");
-    }
-    try {
-      assertOrganizationTarget(request.headers, activeOrgId);
-    } catch (error) {
-      throw organizationTargetErrorResponse(error) ?? error;
     }
 
     const membership = await findOrganizationForMember(

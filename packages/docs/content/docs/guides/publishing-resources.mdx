@@ -42,9 +42,9 @@ Apply each repo independently with `everr apply ./everr`, once per repo; each st
 
 ## If you apply from CI
 
-Install the CLI with `everr-action` (CI runners don't include it), then set `EVERR_API_KEY` to an org API key with the `apply` scope: the same `ek_` keys you mint for ingest; the Capabilities column shows what each key can do (the legacy `EVERR_API_TOKEN` is still accepted). Outside CI, `everr apply` uses the [selected profile](/docs/reference/cli#profiles) saved by `everr login` and prints the destination org before writing.
+Install the CLI with `everr-action` (CI runners don't include it), then set `EVERR_API_KEY` to an org API key with the `apply` scope: the same `ek_` keys you mint for ingest; the Capabilities column shows what each key can do (the legacy `EVERR_API_TOKEN` is still accepted). Outside CI, `everr apply` uses the session saved by `everr cloud login` and prints the destination org before writing.
 
-With an API key, the installation URL comes from the selected profile, repository target, or `EVERR_API_URL`. If you set `EVERR_API_URL`, it must agree with an explicitly selected profile or repository target. A committed `.everr/config.yaml` can supply the target in CI without storing credentials in the repository.
+With an API key, `EVERR_API_URL` selects the installation. If omitted, the CLI uses the URL in its saved session. CI runners without a saved session must supply both `EVERR_API_KEY` and `EVERR_API_URL`; see [Apply](/docs/reference/cli#apply).
 
 ```yaml
 # .github/workflows/dashboards.yml

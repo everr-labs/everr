@@ -220,40 +220,6 @@ describe("resolveApplyAuth", () => {
     expect(verifyApiKey).not.toHaveBeenCalled();
   });
 
-  it.each([
-    "key",
-    "session",
-  ])("rejects a profile mismatch for %s authentication before resolving data access", async (kind) => {
-    if (kind === "key") {
-      verifyApiKey.mockResolvedValueOnce({
-        valid: true,
-        key: {
-          id: "k1",
-          referenceId: "org-1",
-          permissions: { apply: ["write"] },
-        },
-      });
-    } else {
-      getSession.mockResolvedValueOnce({
-        user: { id: "u1" },
-        session: { activeOrganizationId: "org-1" },
-      });
-    }
-    orgRows = [{ name: "Acme" }];
-    try {
-      await resolveApplyAuth(
-        headers({
-          authorization: `Bearer ${kind === "key" ? "ek_abc" : "session_token"}`,
-          "x-everr-organization-id": "org-other",
-        }),
-      );
-      throw new Error("Expected target mismatch");
-    } catch (error) {
-      const response = applyAuthErrorResponse(error);
-      expect(response?.status).toBe(409);
-    }
-  });
-
   it("throws when the session has no active org", async () => {
     getSession.mockResolvedValueOnce({
       user: { id: "u1" },

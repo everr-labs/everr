@@ -7,7 +7,7 @@ Validate against the store receiving the instrumented app's telemetry:
 | Export destination | Query command | Prerequisite |
 | --- | --- | --- |
 | Local collector | `everr local query "<SQL>"` | Collector running; endpoint from `everr local status` |
-| Remote installation | `everr query "<SQL>"` | CLI query access and app ingest credentials for the same organization; see [Remote setup](../references/remote-setup.md) |
+| Remote installation | `everr cloud query "<SQL>"` | CLI query access and app ingest credentials for the same organization; see [Remote setup](../references/remote-setup.md) |
 
 The SQL examples below apply to either store. Adapt the service, environment, and marker filters to the exercised path. A local collector is unnecessary for remote validation, including a development run sent to a remote installation. When both local and production setup are requested, verify each independently; local ingestion does not prove production ingestion.
 
@@ -19,7 +19,7 @@ Before querying the backend, verify:
 - Instrumentation is loaded before framework, HTTP, database, or queue modules.
 - Local collector is running when exporting locally.
 
-For local export, use `everr local status` and the returned `otlp:` URL. For remote export, verify the discovered endpoint and key configuration, including origin restrictions for browser keys, and use `everr query`.
+For local export, use `everr local status` and the returned `otlp:` URL. For remote export, verify the discovered endpoint and key configuration, including origin restrictions for browser keys, and use `everr cloud query`.
 
 ## Repair Validation Gate
 

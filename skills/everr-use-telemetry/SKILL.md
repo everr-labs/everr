@@ -5,7 +5,7 @@ description: Use when investigating production or local behavior with logs, trac
 
 ## Startup Access
 
-Use the CLI's saved project target and global profiles. Run commands with the access already available; request scoped access if the sandbox blocks the selected installation, local collector, or CLI configuration directory. The CLI manages credentials. Keep credential contents out of tool output and project files.
+Use the CLI's saved login session. Run commands with the access already available; request scoped access if the sandbox blocks the selected installation, local collector, or CLI configuration directory. The CLI manages credentials. Keep credential contents out of tool output and project files.
 
 # Use Telemetry With Everr
 
@@ -13,21 +13,21 @@ Use Everr telemetry before guessing when real traces, logs, metrics, or captured
 
 ## Critical: Only Raw SQL
 
-Use `everr query "<SQL>"` for the selected installation or `everr local query "<SQL>"` for the local collector. `--format` accepts `table`, `json`, or `ndjson`; `--profile <alias>` selects a saved remote profile.
+Use `everr cloud query "<SQL>"` for the selected installation or `everr local query "<SQL>"` for the local collector. `--format` accepts `table`, `json`, or `ndjson`. Remote queries use the saved login session.
 
 ## Saved connection
 
-Run remote queries from the repository so the CLI resolves `.everr/config.yaml` and the matching global credentials. Selection is `--profile`, `EVERR_PROFILE`, the project target, then the global default. A new agent session reuses that connection directly.
+Remote queries use the API URL and token in the saved session, independently of the current directory. A new agent session reuses that login. Switch installations or accounts by authenticating again with `everr cloud login --url <app-url>`.
 
-Use `everr whoami --json` when diagnosing a connection or resolving the remote UI URL. It returns the effective `url`, `organizationId`, profile, and `ingestEndpoint`. Follow the CLI's profile-specific login instructions when authentication expires; preserve the configured target. Discovery is not a prerequisite for every query.
+Use `everr cloud status --json` when diagnosing a connection or resolving the remote UI URL and ingestion endpoint. It fetches `url`, account and organization identity, and `ingestEndpoint` from the server. Follow the CLI's login instructions when authentication expires. Discovery is not a prerequisite for every query.
 
 ## Choose The Source
 
 | Question | Use |
 | --- | --- |
-| Production, deployed services, customer reports, remote CI history | `everr query "<SQL>"` |
+| Production, deployed services, customer reports, remote CI history | `everr cloud query "<SQL>"` |
 | Local app, dev server, local tests, wrapped command output | `everr local query "<SQL>"` |
-| What alerts fired, why, and whether the notification went out | Read `rules/alert-history.md`, then `everr query "<SQL>"` |
+| What alerts fired, why, and whether the notification went out | Read `rules/alert-history.md`, then `everr cloud query "<SQL>"` |
 | Current CI run, branch status, failed jobs, workflow logs | Use the `everr-working-with-ci` skill |
 | Browser or web-app behavior: page views, clicks, web vitals, frontend errors | Read `rules/browser-events.md` for the event and attribute catalog, then query as usual |
 | Missing or stale local telemetry | Use the `everr-setup-telemetry` skill |
@@ -60,7 +60,7 @@ Remote queries time out after 30 seconds and fail past 25,000 result rows or 4 M
 | `can't reach the telemetry collector because local network access is blocked` | Allow local network access for the tool or run the command outside the sandbox |
 | `telemetry collector is busy` | Wait a moment and retry |
 | Missing credentials | Follow the CLI login hint for the selected target. For a new installation, use its onboarding login command. |
-| `Session expired` | Run the profile-specific login command from the error, then retry. |
+| `Session expired` | Run the login command from the error, then retry. |
 
 When a local query fails, always run `everr local status` to diagnose the collector state before trying workarounds.
 
@@ -68,7 +68,7 @@ When a local query fails, always run `everr local status` to diagnose the collec
 
 | Mistake | Fix |
 | --- | --- |
-| Inventing subcommands or flags (`query traces`, `--filter`, `--window`) | Only `everr query "<SQL>"` or `everr local query "<SQL>"` with `--format` and, for remote queries, `--profile`. Express query filters in SQL. |
+| Inventing subcommands or flags (`query traces`, `--filter`, `--window`) | Only `everr cloud query "<SQL>"` or `everr local query "<SQL>"` with `--format`. Express query filters in SQL. |
 | Writing queries without a time window | Always add `WHERE Timestamp > now() - INTERVAL N HOUR/MINUTE`. |
 | Writing remote queries without LIMIT | Remote queries fail past their result cap (see Schema And Queries). Always include `LIMIT`. |
 | Assuming attribute names without discovering them | List the keys first (see `rules/schema.md`). Conventions vary. |

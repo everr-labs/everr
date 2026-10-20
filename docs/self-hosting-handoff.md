@@ -104,31 +104,21 @@ changes reach `main`; PR branch pushes do not publish it.
 
 ## CLI and local UI state
 
-Remote CLI profiles select an installation, organization, and account. Repository
-`.everr/config.yaml` records the URL and organization; credentials remain global.
-Pending CLI changes remove legacy-session migration; users with old sessions
-authenticate again.
+The CLI uses one saved session (`session.json`, or `session-dev.json` for debug
+builds) containing only the API URL and token. `cloud login` accepts `--url`;
+organization selection happens during browser approval. A successful login
+replaces the previous session; failed logins preserve it. Existing session files
+remain readable. Profiles and repository
+`.everr/config.yaml` targeting have been removed; the CLI does not create or read
+that directory. Existing local configuration files are left untouched.
 
-The purpose of `.everr/config.yaml` is to pin remote commands run in a repository
-to an installation and workspace, independently of each developer's profile names
-and global default. Login creates it at the Git root only when project configuration
-is absent. It contains `version`, `url`, and `organizationId`, with no credentials
-or account identity, so it can be committed and shared. Lookup stays within the
-nearest Git root, including worktrees. `--profile` and `EVERR_PROFILE` override it;
-otherwise the CLI requires a matching saved profile rather than falling back to
-another target. This directory does not select the local collector's organization
-or configure application exporters.
+`cloud status --json` fetches the current identity, installation URL, and
+advertised ingestion endpoint from the server. The endpoint is not cached in the
+session file; exporter configuration remains explicit.
 
-Open design question: the user is still unsure whether this repository directory
-and its automatic creation are useful. Its intended benefit is a shared remote
-target, but it adds configuration and selection precedence alongside global
-profiles. Revisit that tradeoff before treating the current design as settled;
-no replacement approach has been agreed.
-
-Local commands are independent of remote connection settings: they do not read
-repository targets or profile credentials, ignore `EVERR_PROFILE`, and reject
-explicit `--profile`. The local UI backend no longer exposes account/auth commands
-or constructs remote login state. Loopback and request-origin guards remain.
+Local commands and the local UI are independent of remote sessions. The local UI
+backend exposes no remote account/auth commands and constructs no remote login
+state. Loopback and request-origin guards remain.
 See the [CLI README](../packages/cli/README.md) and
 [local UI README](../packages/local-app/README.md) for commands and telemetry.
 
@@ -140,7 +130,7 @@ focused checks covered identity, storage, worker lifecycle, and routing. These
 results span several revisions; they are not a fresh full run of current HEAD.
 
 The latest fixes passed production migration staging checks, disposable fresh and
-legacy database upgrade exercises, and CLI profile regression tests. Local UI
+legacy database upgrade exercises, and CLI session regression tests. Local UI
 cleanup passed 22 frontend tests, typecheck/build, relevant Rust suites, and six
 asset-backed lifecycle tests, including real ingestion/querying and startup with
 unusable remote settings. Browser verification confirmed collector-only settings

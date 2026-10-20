@@ -12,7 +12,6 @@ pub mod datemath;
 pub mod device_auth;
 pub mod git;
 mod internal_telemetry;
-pub mod profiles;
 pub mod skill_store;
 mod skills;
 pub mod state;

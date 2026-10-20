@@ -246,22 +246,6 @@ fn start_reuses_ready_instance_without_starting_a_new_process() {
 }
 
 #[test]
-fn local_commands_reject_remote_profile_overrides() {
-    let env = CliTestEnv::new();
-    for args in [
-        vec!["--profile", "work", "local", "status"],
-        vec!["local", "start", "--profile", "work", "--no-open"],
-        vec!["local", "query", "SELECT 1", "--profile", "work"],
-    ] {
-        env.command()
-            .args(args)
-            .assert()
-            .failure()
-            .stderr(contains("--profile applies to remote commands"));
-    }
-}
-
-#[test]
 fn partial_instance_is_reported_and_start_refuses_to_replace_it() {
     let env = CliTestEnv::new();
     let collector = health_server("everr-local-collector", "one", false);

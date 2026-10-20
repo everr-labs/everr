@@ -19,7 +19,7 @@ fn status_command_sends_commit_query_to_runs_endpoint() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-123");
+    env.write_session(&server.url(), "token-123");
 
     let mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -54,7 +54,7 @@ fn status_uses_explicit_commit_when_provided() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-123");
+    env.write_session(&server.url(), "token-123");
 
     let mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -83,7 +83,7 @@ fn status_uses_run_id_without_commit() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let mock = server
         .mock("GET", "/api/cli/runs/status")
@@ -120,7 +120,7 @@ fn runs_list_sends_filter_query_params() {
     );
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let mock = server
         .mock("GET", "/api/cli/runs")
@@ -177,7 +177,7 @@ fn runs_list_does_not_default_branch_without_current_branch_flag() {
     );
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let mock = server
         .mock("GET", "/api/cli/runs")
@@ -211,7 +211,7 @@ fn runs_list_uses_current_branch_when_flag_is_passed() {
     );
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let mock = server
         .mock("GET", "/api/cli/runs")
@@ -241,7 +241,7 @@ fn runs_show_calls_trace_id_endpoint() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let mock = server
         .mock("GET", "/api/cli/runs/trace-123")
@@ -264,7 +264,7 @@ fn runs_logs_prints_plain_text() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let mock = server
         .mock("GET", "/api/cli/runs/trace-123/logs")
@@ -303,7 +303,7 @@ fn runs_logs_offset_without_limit_uses_tail_mode() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let mock = server
         .mock("GET", "/api/cli/runs/trace-123/logs")
@@ -343,7 +343,7 @@ fn runs_logs_prints_more_logs_footer_when_page_is_truncated() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let mock = server
         .mock("GET", "/api/cli/runs/trace-123/logs")
@@ -387,7 +387,7 @@ fn runs_logs_egrep_passes_pattern_as_query_param() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let mock = server
         .mock("GET", "/api/cli/runs/trace-123/logs")
@@ -426,7 +426,7 @@ fn runs_logs_egrep_exits_one_when_no_lines_match() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     server
         .mock("GET", "/api/cli/runs/trace-123/logs")
@@ -457,7 +457,7 @@ fn cloud_query_posts_sql_and_renders_ndjson_rows() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-sql");
+    env.write_session(&server.url(), "token-sql");
 
     let mock = server
         .mock("POST", "/api/cli/sql")
@@ -484,7 +484,7 @@ fn cloud_query_surfaces_error_envelope() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-sql");
+    env.write_session(&server.url(), "token-sql");
 
     let mock = server
         .mock("POST", "/api/cli/sql")
@@ -506,7 +506,7 @@ fn api_errors_are_reported_to_the_user() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let mock = server
         .mock("GET", "/api/cli/runs/trace-123")
@@ -535,7 +535,7 @@ fn watch_prints_job_and_run_event_lines_until_completion() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     // Initial status: running. trace-1 is active with one job; trace-2 is already completed.
     let initial_body = format!(
@@ -614,7 +614,7 @@ fn watch_shows_waiting_for_after_initial_backfill_when_runs_active() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     // Initial status: one completed (Lint), one still active (CI).
     let initial_body = format!(
@@ -690,7 +690,7 @@ fn watch_exits_immediately_when_already_completed() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let status_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"52","traceId":"trace-3","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":61,"activeJobs":[]}]}"#;
 
@@ -727,7 +727,7 @@ fn watch_polls_status_on_stream_close_to_handle_race() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{"runId":"62","traceId":"trace-4","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
     let final_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"completed","active":[],"completed":[{"runId":"62","traceId":"trace-4","workflowName":"CI","conclusion":"success","startedAt":"2026-03-06T10:00:00Z","durationSeconds":46,"activeJobs":[]}]}"#;
@@ -790,7 +790,7 @@ fn watch_uses_explicit_commit_when_provided() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{"runId":"77","traceId":"trace-5","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
 
@@ -860,7 +860,7 @@ fn watch_resolves_short_commit_sha_to_full() {
     let short_sha = &head_sha[..7];
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{"runId":"88","traceId":"trace-6","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
 
@@ -921,7 +921,7 @@ fn watch_uses_run_id_without_commit() {
     let env = CliTestEnv::new();
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let initial_body = r#"{"repo":"everr-labs/everr","branch":"feature/from-run-id","commit":"abc123","state":"running","active":[{"runId":"4242","traceId":"trace-run-id","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
 
@@ -988,7 +988,7 @@ fn watch_exits_non_zero_when_run_fails() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{"runId":"99","traceId":"trace-7","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
 
@@ -1060,7 +1060,7 @@ fn watch_fail_fast_exits_immediately_on_first_failed_run() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     // Two active runs — fail-fast should exit after the first failure without waiting for the second
     let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[{"runId":"11","traceId":"trace-a","workflowName":"CI","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]},{"runId":"12","traceId":"trace-b","workflowName":"Deploy","conclusion":null,"startedAt":"2026-03-06T10:00:00Z","durationSeconds":null,"activeJobs":[]}],"completed":[]}"#;
@@ -1119,7 +1119,7 @@ fn watch_fails_on_sse_connection_error() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"running","active":[],"completed":[]}"#;
 
@@ -1169,7 +1169,7 @@ fn watch_waits_for_first_run_when_initial_state_is_pending() {
     let head_sha = git_head_sha(&repo_dir);
     let mut server = mock_api_server();
 
-    env.write_profile_session(&server.url(), "token-abc");
+    env.write_session(&server.url(), "token-abc");
 
     // Initial status: pending — no runs yet
     let initial_body = r#"{"repo":"test-repo","branch":"main","commit":"abc123","state":"pending","active":[],"completed":[]}"#;
@@ -1253,7 +1253,5 @@ fn commands_require_existing_session() {
         .args(["ci", "runs"])
         .assert()
         .failure()
-        .stderr(contains(
-            "No authenticated profile for this target. Run `everr login`.",
-        ));
+        .stderr(contains("No active session. Run `everr cloud login`."));
 }

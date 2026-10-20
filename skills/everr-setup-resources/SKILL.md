@@ -5,13 +5,13 @@ description: Use when creating, editing, applying, or inspecting Everr as-code r
 
 ## Startup Access
 
-Use the CLI's saved project target and global profiles. Run commands with the access already available; request scoped access if the sandbox blocks the selected installation, local collector, or CLI configuration directory. The CLI manages credentials. Keep credential contents out of tool output and project files.
+Use the CLI's saved login session. Run commands with the access already available; request scoped access if the sandbox blocks the selected installation, local collector, or CLI configuration directory. The CLI manages credentials. Keep credential contents out of tool output and project files.
 
-Run commands from the repository so the CLI selects its `.everr/config.yaml` target and matching global credentials. `--profile <alias>` overrides that selection. A new agent session reuses the saved target; use `everr whoami --json` for connection troubleshooting or to obtain the effective UI URL.
+Remote commands use the API URL and token in the saved session. A new agent session reuses that login. Use `everr cloud status --json` to confirm the installation and account or obtain the UI URL; switch installations with `everr cloud login --url <app-url>`.
 
-`everr apply` uses the saved login or `EVERR_API_KEY` for unattended application (`EVERR_API_TOKEN` remains an alias). `everr resources` and `everr query` use the login. Follow the CLI's profile-specific reauthentication hint, or use the installation's onboarding login command for first setup.
+`everr apply` uses the saved login or `EVERR_API_KEY` for unattended application (`EVERR_API_TOKEN` remains an alias). `everr resources` and `everr cloud query` use the login. Follow the CLI's reauthentication hint, or use the installation's onboarding login command for first setup.
 
-Discover real query columns with `everr query "DESCRIBE TABLE traces"` or the `everr-use-telemetry` skill before authoring resource queries.
+Discover real query columns with `everr cloud query "DESCRIBE TABLE traces"` or the `everr-use-telemetry` skill before authoring resource queries.
 
 # Setting Up Everr Resources
 
@@ -70,7 +70,7 @@ In CI, set `EVERR_API_KEY` and pass `--yes`. Only deploy to production when the 
 
 ## Inspecting Live Resources
 
-`everr resources` reads and manages what is live in the org. It requires an `everr login` session (API keys are not accepted):
+`everr resources` reads and manages what is live in the org. It requires an `everr cloud login` session (API keys are not accepted):
 
 ```sh
 everr resources list [--kind dashboard|runbook|alert] [--repoid <id>] [--json]
@@ -107,6 +107,6 @@ Never stage changes with a scratch repoid or a second apply directory; `--previe
 | Empty `repoid` or reusing across repos | Use one stable id per repository; a UUID is a good default for new repos |
 | `everr dashboard apply -f file.yaml` or applying a single file | The command is `everr apply <dir>` against a directory |
 | Splitting one repoid across two apply directories | One tree per repoid; apply prunes everything not in the tree, across all kinds |
-| Inventing metric/label/column names | Discover real columns with `everr query "DESCRIBE TABLE traces"` or the `everr-use-telemetry` skill |
+| Inventing metric/label/column names | Discover real columns with `everr cloud query "DESCRIBE TABLE traces"` or the `everr-use-telemetry` skill |
 | Staging unreviewed changes via a scratch repoid, or sharing them with only `--dry-run` output | `everr apply --preview` deploys a viewable copy into the UI without touching live |
 | Trying to delete or clean up a preview | Previews expire on their own after the retention window; just stop applying them |

@@ -51,7 +51,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=<otlp-url-from-status>
 Remote ingest, only for environments selected for remote export:
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-whoami>
+OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-cloud-status>
 EVERR_INGEST_KEY=<secret-manager-reference>
 ```
 
@@ -338,4 +338,4 @@ Prefer explicit safe fields and source-level redaction.
 | Duplicate logs | Both app logger and bridge emit the same event more than once |
 | Missing shutdown data | Provider handles dropped early or graceful shutdown path does not call `shutdown()` |
 
-After changes, run the instrumented path and follow [Validation](validation.md) using `everr local query` or `everr query` for the selected destination. Filter by `ServiceName`, the expected environment, a recent time window, and a run/request/test marker when practical.
+After changes, run the instrumented path and follow [Validation](validation.md) using `everr local query` or `everr cloud query` for the selected destination. Filter by `ServiceName`, the expected environment, a recent time window, and a run/request/test marker when practical.

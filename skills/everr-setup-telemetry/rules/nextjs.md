@@ -66,7 +66,7 @@ Use this only for environments selected for remote ingest. Local-only setup requ
 Set these in the deployment platform environment, or the local environment for development remote export, not in source code:
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-whoami>
+OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-cloud-status>
 EVERR_INGEST_KEY=<secret-manager-reference>
 ```
 

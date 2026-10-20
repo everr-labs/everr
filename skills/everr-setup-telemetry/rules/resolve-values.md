@@ -64,7 +64,7 @@ Generate automatically; do not ask the user.
 
 For the local collector destination, run `everr local status` and use the returned `otlp:` URL. Do not guess a localhost port.
 
-For a remote destination, follow [Remote setup](../references/remote-setup.md): use `ingestEndpoint` from `everr whoami --json` during setup, then persist it in the application configuration. Keep the destination separate from `deployment.environment.name` and preserve configuration outside the task.
+For a remote destination, follow [Remote setup](../references/remote-setup.md): use `ingestEndpoint` from `everr cloud status --json` during setup, then persist it in the application configuration. Keep the destination separate from `deployment.environment.name` and preserve configuration outside the task.
 
 ## Authentication
 

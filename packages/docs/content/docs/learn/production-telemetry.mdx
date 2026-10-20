@@ -34,7 +34,7 @@ Rebuild, redeploy, or restart as required by your runtime. If you already run yo
 
 ## Verify Cloud ingestion
 
-Trigger a request or job covered by your production instrumentation. Run `everr login` if needed, then `everr whoami` to confirm the selected organization owns the ingestion key. Use `--profile <name>` to select another saved connection; see [Profiles](/docs/reference/cli#profiles).
+Trigger a request or job covered by your production instrumentation. Run `everr cloud login` if needed, then `everr cloud status` to confirm the saved session's organization owns the ingestion key. To use another installation or account, log in again; see [Authentication](/docs/reference/cli#authentication-and-remote-queries).
 
 Then, you can ask your AI agent:
 
@@ -45,7 +45,7 @@ Then, you can ask your AI agent:
 Or, use the CLI manually, replacing `my-service` with your service name:
 
 ```sh
-everr query "$(cat <<'SQL'
+everr cloud query "$(cat <<'SQL'
 SELECT Timestamp, ServiceName, SpanName, Duration / 1e6 AS duration_ms, TraceId
 FROM traces
 WHERE ServiceName = 'my-service'

@@ -71,7 +71,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=<otlp-url-from-status>
 Remote ingest, for the selected installation and requested environments:
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-whoami>
+OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-cloud-status>
 EVERR_INGEST_KEY=<secret-manager-reference>
 ```
 
@@ -323,4 +323,4 @@ The division of ownership stays as above:
 | Logs silently absent with no errors | Two `@opentelemetry/api-logs` versions in the tree (check with the package manager's why/ls command): the global logger registry is per-version, so the SDK registers on one copy and the app emits into the other. Align the direct OTel package versions with what `@everr/otel-errors` resolves |
 | Each error captured twice | `@everr/otel-errors` running alongside leftover hand-rolled `uncaughtException`/`unhandledRejection` handlers: remove the hand-rolled ones |
 
-After changes, run the instrumented path and follow [Validation](validation.md) using `everr local query` or `everr query` for the selected destination. Filter by `ServiceName`, the expected environment, a recent time window, and a run/request/test marker when practical.
+After changes, run the instrumented path and follow [Validation](validation.md) using `everr local query` or `everr cloud query` for the selected destination. Filter by `ServiceName`, the expected environment, a recent time window, and a run/request/test marker when practical.

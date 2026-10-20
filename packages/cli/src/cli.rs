@@ -17,30 +17,17 @@ pub const MAX_LOG_PAGE_SIZE: u32 = 5000;
     about = "Query telemetry, inspect CI, and manage resources as code in Everr"
 )]
 pub struct Cli {
-    /// Select a saved installation, organization, and account for remote commands
-    #[arg(long, global = true)]
-    pub profile: Option<String>,
     #[command(subcommand)]
     pub command: Commands,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Authenticate with an installation and configure this project
-    Login(LoginArgs),
-    /// Sign out of the selected profile
-    Logout,
-    /// Show the effective installation, account, and organization
-    Whoami(WhoamiArgs),
-    /// Run read-only SQL against the selected installation
-    Query(TelemetryQueryArgs),
-    /// Manage saved connection profiles
-    Profiles(ProfilesArgs),
     /// Remove local Everr state and globally installed skills
     Uninstall,
     /// Upgrade the Everr CLI and bundled local UI to the latest version
     Upgrade,
-    /// Authenticate with and query Everr Cloud
+    /// Authenticate with and query a remote Everr installation
     Cloud(CloudArgs),
     /// Inspect GitHub Actions CI runs
     Ci(CiArgs),
@@ -66,9 +53,6 @@ impl Cli {
 impl Commands {
     fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
         match self {
-            Commands::Login(_) | Commands::Logout | Commands::Profiles(_) => true,
-            Commands::Whoami(args) => !args.json,
-            Commands::Query(args) => telemetry_query_prints_human_stdout(args, stdout_is_terminal),
             Commands::Uninstall => true,
             Commands::Upgrade => true,
             Commands::Cloud(args) => args.command.prints_human_stdout(stdout_is_terminal),
@@ -90,20 +74,21 @@ pub struct CloudArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum CloudSubcommand {
-    /// Authenticate with Everr Cloud and save the session
+    /// Authenticate with a remote installation and save the session
     Login(LoginArgs),
-    /// Clear the saved Everr Cloud session
+    /// Revoke the saved session and sign out
     Logout,
-    /// Show the current Everr Cloud user, organization, and session URL
-    Status,
-    /// Run read-only SQL against CI and Production telemetry in Everr Cloud
+    /// Show the current identity, installation URL, and ingestion endpoint
+    Status(CloudStatusArgs),
+    /// Run read-only SQL against telemetry in the remote installation
     Query(TelemetryQueryArgs),
 }
 
 impl CloudSubcommand {
     fn prints_human_stdout(&self, stdout_is_terminal: bool) -> bool {
         match self {
-            CloudSubcommand::Login(_) | CloudSubcommand::Logout | CloudSubcommand::Status => true,
+            CloudSubcommand::Login(_) | CloudSubcommand::Logout => true,
+            CloudSubcommand::Status(args) => !args.json,
             CloudSubcommand::Query(args) => {
                 telemetry_query_prints_human_stdout(args, stdout_is_terminal)
             }
@@ -335,40 +320,19 @@ fn telemetry_query_prints_human_stdout(
 
 #[derive(Args, Debug, Default)]
 pub struct LoginArgs {
-    /// Installation URL (defaults to the project target or Everr Cloud)
+    /// Installation URL (defaults to the saved session or build default)
     #[arg(long)]
     pub url: Option<String>,
-    /// Require approval for this organization (must agree with existing configuration)
-    #[arg(long)]
-    pub organization_id: Option<String>,
     /// Print the authorization URL without opening a browser
     #[arg(long)]
     pub no_open: bool,
 }
 
 #[derive(Args, Debug)]
-pub struct WhoamiArgs {
-    /// Print connection metadata as JSON
+pub struct CloudStatusArgs {
+    /// Print connection details, including the ingestion endpoint, as JSON
     #[arg(long)]
     pub json: bool,
-}
-
-#[derive(Args, Debug)]
-pub struct ProfilesArgs {
-    #[command(subcommand)]
-    pub command: ProfilesSubcommand,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum ProfilesSubcommand {
-    /// List profiles without revealing credentials
-    List,
-    /// Show a profile without revealing credentials
-    Show { name: String },
-    /// Set the default profile used outside configured projects
-    Use { name: String },
-    /// Remove a profile and its saved credentials
-    Remove { name: String },
 }
 
 #[derive(Args, Debug, Default)]
@@ -660,6 +624,10 @@ mod tests {
             vec!["workflows"],
             vec!["setup"],
             vec!["init"],
+            vec!["query"],
+            vec!["login"],
+            vec!["logout"],
+            vec!["whoami"],
         ] {
             let error =
                 Cli::try_parse_from(std::iter::once("everr").chain(command.iter().copied()))
@@ -728,11 +696,12 @@ mod tests {
         assert!(matches!(
             cli.command,
             Commands::Cloud(super::CloudArgs {
-                command: CloudSubcommand::Status
+                command: CloudSubcommand::Status(_)
             })
         ));
         assert!(Cli::try_parse_from(args.into_iter().chain(["extra"])).is_err());
-        assert!(Cli::try_parse_from(args.into_iter().chain(["--json"])).is_err());
+        let json = Cli::try_parse_from(args.into_iter().chain(["--json"])).unwrap();
+        assert!(!json.prints_human_stdout(true));
     }
 
     #[test]
@@ -1131,8 +1100,6 @@ mod tests {
 
     #[test]
     fn update_notice_is_skipped_for_stream_and_json_commands() {
-        let cli = Cli::try_parse_from(["everr", "whoami", "--json"]).expect("whoami JSON command");
-        assert!(!cli.prints_human_stdout(true));
         let cli =
             Cli::try_parse_from(["everr", "wrap", "--", "echo", "hello"]).expect("wrap command");
         assert!(!cli.prints_human_stdout(true));

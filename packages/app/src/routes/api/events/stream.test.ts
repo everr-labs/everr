@@ -60,16 +60,6 @@ beforeEach(() => {
 });
 
 describe("GET /api/events/stream", () => {
-  it("rejects an organization mismatch before opening a subscription", async () => {
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/events/stream?scope=tenant", {
-        headers: { "x-everr-organization-id": "org-other" },
-      }),
-      context: { session: mockSession },
-    });
-    expect(response.status).toBe(409);
-    expect(mockedSubscribeTenant).not.toHaveBeenCalled();
-  });
   it("returns 400 for invalid scope", async () => {
     const response = await getHandler()({
       request: new Request("http://localhost/api/events/stream?scope=invalid"),

@@ -33,6 +33,7 @@ impl Instance {
             .env("EVERR_SQL_HTTP_ORIGIN", &self.origins[0])
             .env("EVERR_OTLP_HTTP_ORIGIN", &self.origins[1])
             .env("EVERR_LOCAL_UI_ORIGIN", &self.origins[2])
+            .env("EVERR_CONFIG_DIR", self.data.path().join("remote-config"))
             .env("EVERR_TELEMETRY_DIR", self.data.path())
             .env("EVERR_LOCAL_LOG_DIR", self.data.path().join("logs"))
             .env("EVERR_INTERNAL_TELEMETRY_ENDPOINT", &self.origins[1]);
@@ -110,6 +111,14 @@ impl Drop for Foreground {
 #[test]
 fn detached_and_foreground_instances_share_the_full_lifecycle() {
     let instance = Instance::new();
+    // Local commands must work even with an unusable remote session.
+    let config = instance.data.path().join("remote-config");
+    std::fs::create_dir(&config).unwrap();
+    std::fs::write(
+        config.join(everr_cli::build::default_session_file_name()),
+        "invalid",
+    )
+    .unwrap();
     let log_dir = instance.data.path().join("logs");
     std::fs::create_dir(&log_dir).unwrap();
     // Force rotation from real supervisor output, without restarting it.
@@ -203,41 +212,6 @@ fn detached_and_foreground_instances_share_the_full_lifecycle() {
             .len()
             > 0
     );
-}
-
-#[test]
-fn local_start_runs_with_unusable_remote_connection_settings() {
-    let instance = Instance::new();
-    let config = instance.data.path().join("unused-remote-config");
-    std::fs::create_dir(&config).unwrap();
-    std::fs::write(config.join("config-dev.yaml"), "invalid: [").unwrap();
-    std::fs::write(config.join("credentials-dev.json"), "invalid").unwrap();
-    let repo = instance.data.path().join("repo");
-    std::fs::create_dir_all(repo.join(".git")).unwrap();
-    std::fs::create_dir(repo.join(".everr")).unwrap();
-    std::fs::write(repo.join(".everr/config.yaml"), "invalid: [").unwrap();
-
-    let _foreground = Foreground(
-        instance
-            .command()
-            .current_dir(repo)
-            .env("EVERR_CONFIG_DIR", config)
-            .env("EVERR_PROFILE", "unavailable-remote-profile")
-            .args(["local", "start", "--quiet", "--no-open"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap(),
-    );
-    instance.wait_ready();
-    assert_eq!(instance.identity()["status"], "ok");
-    let rows = instance.run(&["local", "query", "SELECT 1 AS value", "--format", "ndjson"]);
-    assert_eq!(
-        serde_json::from_str::<Value>(rows.trim()).unwrap()["value"],
-        1
-    );
-    instance.run(&["local", "stop"]);
-    instance.assert_stopped();
 }
 
 #[test]
