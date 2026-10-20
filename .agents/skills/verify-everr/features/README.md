@@ -1,6 +1,6 @@
 # Everr verification map
 
-This directory is the maintained source for verifying the user-facing behavior of the Everr CLI with its local stack (surface A) and the hosted web app `packages/app` (surface B). Read the index before driving, then use the matching feature file as the recipe. `V` below is `.agents/skills/verify-everr/scripts/verify-everr`.
+This directory is the maintained source for verifying the user-facing behavior of the Everr CLI with its local stack (surface A) and the hosted web app `packages/app` (surface B). Read the index before driving, then use the matching feature file as the recipe. `V` below is `.agents/skills/verify-everr/scripts/verify-everr.ts`.
 
 ## Baseline preconditions
 
