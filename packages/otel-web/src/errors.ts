@@ -1,3 +1,4 @@
+import { notifyRecordingTrigger } from "./state/clip-trigger.js";
 import { currentEmit } from "./state/emit.js";
 import { currentErrorFilter } from "./state/error-filter.js";
 
@@ -126,6 +127,9 @@ export const captureError = (
       17,
       message ? `${type}: ${message}` : type,
     );
+    // After ignore, denyUrls, and the rate limit. A discarded error does not
+    // open a Clip. The listener no-ops until recording() is installed.
+    notifyRecordingTrigger("error");
   } catch {
     // The code ignores this error, and this is correct.
   }

@@ -10,6 +10,7 @@
 // because minification keeps the property names but it does not keep the tuple
 // indexes.
 import type { SpanContext } from "@opentelemetry/api";
+import { passiveSession } from "../state/session.js";
 import type { Send, Signal } from "./transport.js";
 
 export type AttrValue =
@@ -32,7 +33,9 @@ export type EventName =
   | "everr.browser.page_view"
   | "everr.browser.page_leave"
   | "everr.browser.interaction.click"
-  | "everr.browser.interaction.submit";
+  | "everr.browser.interaction.submit"
+  | "everr.browser.recording.segment"
+  | "everr.browser.recording.mark";
 
 type AnyValue =
   | { stringValue: string }
@@ -209,6 +212,18 @@ type Emitter = [
    */
   exitFlush: () => void,
   emitSpan: EmitSpan,
+  /**
+   * Sends one log as its own request. It does not enter the shared logs queue
+   * and it does not attach the active span. While the exit path is open (from
+   * beginExit to exitFlush), the record waits for that flush instead: a
+   * Segment must share the keepalive budget with the Spans and Logs.
+   */
+  emitNow: Emit,
+  /**
+   * Marks the start of the exit path. The hide listeners run between this call
+   * and exitFlush. A Segment that they emit waits for that flush.
+   */
+  beginExit: () => void,
 ];
 
 // These values are the same as the values in the browser telemetry client of
@@ -222,6 +237,9 @@ const SCHEDULED_DELAY_MS = 5_000;
 // the bytes, because an attribute value with multibyte characters has more
 // bytes than the length of the string.
 const EXIT_BUDGET = 64_000;
+// A Segment is one request of its own. At exit it gets what the Spans and Logs
+// leave, and never more than this even when they leave more room.
+const EXIT_SEGMENT_BUDGET = 32_000;
 
 export const noop = () => Promise.resolve();
 
@@ -276,6 +294,11 @@ export function createEmitter(
   let spanQueue: OtlpSpan[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let exitScheduled = false;
+  // True while the hide listeners run. A Segment that they emit is held here
+  // until exitFlush, which fits it in the room that the Spans and Logs leave.
+  // Posting it at once would spend keepalive room outside the budget.
+  let exiting = false;
+  let pendingSegments: string[] = [];
   const applyBeforeSend = createBeforeSendGuard(beforeSend);
 
   // One function makes the OTLP envelope for the two signals. The three keys
@@ -373,9 +396,10 @@ export function createEmitter(
   };
 
   const exitFlush = (): void => {
-    // Remove full records, the oldest record first, until the two keepalive
+    // Remove full records, the oldest record first, until the keepalive
     // payloads together are less than the limit. The spans get a maximum of one
-    // quarter of the limit, and the log records get the remainder.
+    // quarter of the limit, the log records get the remainder, and a Segment
+    // gets only what the log records leave.
     //
     // The sequence is from the front, because the records of the exit are the
     // most recent records in the queue. The hide handler of an instrumentation
@@ -387,6 +411,8 @@ export function createEmitter(
     //
     // The code does not do this when the host sends the data. The limit is a
     // constraint of fetch only. Thus the code discards no record.
+    let spanBytes = 0;
+    let logBytes = 0;
     if (truncateAtExit) {
       spanQueue = spanQueue.slice(
         firstFitting(
@@ -395,7 +421,7 @@ export function createEmitter(
           EXIT_BUDGET / 4,
         ),
       );
-      const spanBytes = fittedBytes;
+      spanBytes = fittedBytes;
       queue = queue.slice(
         firstFitting(
           queue,
@@ -403,8 +429,32 @@ export function createEmitter(
           EXIT_BUDGET - spanBytes,
         ),
       );
+      logBytes = fittedBytes;
     }
+    // This call makes the posts for the Spans and the Logs before the code
+    // makes the posts for the Segments. Thus a Segment never takes their room,
+    // and it goes on the wire after them.
     void flush(true);
+    // The logs never exceed the room that the spans leave, so the subtraction
+    // is not negative. A host sends the data itself, and the keepalive limit is
+    // a constraint of fetch only. Thus a host gets every Segment in full.
+    let remaining = truncateAtExit
+      ? Math.min(EXIT_BUDGET - spanBytes - logBytes, EXIT_SEGMENT_BUDGET)
+      : Infinity;
+    for (const body of pendingSegments) {
+      const size = bytes(body);
+      // A Segment goes whole or not at all. A gap in
+      // everr.recording.segment.index is how the loss shows.
+      if (size > remaining) continue;
+      remaining -= size;
+      void post("logs", body, true);
+    }
+    pendingSegments = [];
+    exiting = false;
+  };
+
+  const beginExit = (): void => {
+    exiting = true;
   };
 
   // The common batch code for the two queues. The SDK can send a record while
@@ -437,23 +487,37 @@ export function createEmitter(
     }
   };
 
-  const emit: Emit = (
-    eventName,
-    attributes,
-    time,
-    severityNumber = 9, // INFO
-    body = eventName,
+  // A recording Segment, a mark log, and the recording span read the Session
+  // without sliding its activity. Any other record keeps the Session alive.
+  const passiveLog = (eventName: string): boolean =>
+    eventName === "everr.browser.recording.segment" ||
+    eventName === "everr.browser.recording.mark";
+  const context = (
+    passive: boolean,
+  ): Record<string, AttrValue | null | undefined> =>
+    passive ? passiveSession(envelope) : envelope();
+
+  // `immediate` posts one log on its own request. A recording Segment uses
+  // this path: it must not share the logs queue, and a Clip carries no span
+  // ids, so the active span is not attached.
+  const emitLog = (
+    eventName: Parameters<Emit>[0],
+    attributes: Parameters<Emit>[1],
+    time: Parameters<Emit>[2],
+    severityNumber: number,
+    body: string,
+    immediate: boolean,
   ) => {
     // Read the time before the hook. The default is the instant emit was
     // called, even when a host hook does synchronous work before the item is
     // queued. A log with an earlier timestamp takes the span that was already
     // active at that time, and not a span that became active after it.
     const timestamp = unixNano(time ?? Date.now());
-    const span = activeSpan?.(time);
+    const span = immediate ? undefined : activeSpan?.(time);
     const item = applyBeforeSend({
       kind: "log",
       eventName,
-      attributes: { ...envelope(), ...attributes },
+      attributes: { ...context(passiveLog(eventName)), ...attributes },
       severityNumber,
       body,
     });
@@ -461,7 +525,7 @@ export function createEmitter(
     // is the narrowing that the union needs, and it is not a check on the type
     // at run time.
     if (item?.kind !== "log") return;
-    queue.push({
+    const record: OtlpLogRecord = {
       timeUnixNano: timestamp,
       severityNumber: item.severityNumber,
       eventName: item.eventName,
@@ -470,8 +534,35 @@ export function createEmitter(
       ...(span
         ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags }
         : {}),
-    });
+    };
+    if (immediate) {
+      const body = build("Logs", "logRecords", [record]);
+      if (exiting) pendingSegments.push(body);
+      else void post("logs", body);
+      return;
+    }
+    queue.push(record);
     schedule();
+  };
+
+  const emit: Emit = (
+    eventName,
+    attributes,
+    time,
+    severityNumber = 9, // INFO
+    body = eventName,
+  ) => {
+    emitLog(eventName, attributes, time, severityNumber, body, false);
+  };
+
+  const emitNow: Emit = (
+    eventName,
+    attributes,
+    time,
+    severityNumber = 9,
+    body = eventName,
+  ) => {
+    emitLog(eventName, attributes, time, severityNumber, body, true);
   };
 
   const emitSpan: EmitSpan = (
@@ -494,7 +585,12 @@ export function createEmitter(
     const item = applyBeforeSend({
       kind: "span",
       name,
-      attributes: { ...envelope(), ...attributes },
+      attributes: {
+        ...context(
+          name === "recording" && attributes["everr.recording.clip.id"] != null,
+        ),
+        ...attributes,
+      },
       status,
       links,
     });
@@ -524,5 +620,5 @@ export function createEmitter(
     schedule();
   };
 
-  return [emit, flush, exitFlush, emitSpan];
+  return [emit, flush, exitFlush, emitSpan, emitNow, beginExit];
 }

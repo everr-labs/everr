@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { WebSDK } from "./client.js";
+import { readOtlpBody } from "./test-fetch.js";
 import type { OtlpSpan } from "./test-kit.js";
 
 let clients: WebSDK[] = [];
@@ -19,14 +20,16 @@ it.each([
   vi.resetModules();
   const spans: OtlpSpan[] = [];
   const exports: RequestInit[] = [];
-  const nativeFetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
-    if (init?.body) {
-      exports.push(init);
-      const payload = JSON.parse(String(init.body));
-      spans.push(...(payload.resourceSpans?.[0].scopeSpans[0].spans ?? []));
-    }
-    return Promise.resolve(new Response(null, { status: 200 }));
-  });
+  const nativeFetch = vi.fn(
+    async (_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.body) {
+        exports.push(init);
+        const payload = JSON.parse(await readOtlpBody(init));
+        spans.push(...(payload.resourceSpans?.[0].scopeSpans[0].spans ?? []));
+      }
+      return new Response(null, { status: 200 });
+    },
+  );
   vi.stubGlobal("fetch", nativeFetch);
   const { WebSDK } = await import("./client.js");
   const { network } = await import("./instrumentations/network/index.js");

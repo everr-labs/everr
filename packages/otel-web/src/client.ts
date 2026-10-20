@@ -7,7 +7,7 @@ import { createEnvelope } from "./pipeline/envelope.js";
 import { createTracer } from "./pipeline/tracer.js";
 import { resolveTransport } from "./pipeline/transport.js";
 import { SDK_NAME, SDK_VERSION } from "./pipeline/version.js";
-import { bindEmit } from "./state/emit.js";
+import { bindEmit, bindEmitNow } from "./state/emit.js";
 import { routePattern } from "./state/route.js";
 import {
   createSessionContext,
@@ -66,7 +66,7 @@ export class WebSDK {
 
     let activeSpan: (time?: number) => SpanContext | undefined = () =>
       undefined;
-    const [emit, flush, exitFlush, emitSpan] = createEmitter(
+    const emitter = createEmitter(
       ...transport,
       // The resource does not contain the viewport, and this is correct. The
       // viewport changes when the user changes the window size. Thus each
@@ -99,10 +99,12 @@ export class WebSDK {
       options.beforeSend,
       (time) => activeSpan(time),
     );
+    const [emit, flush, exitFlush, emitSpan, emitNow, beginExit] = emitter;
     // This is the only connection of the package functions, logger and
     // captureError, to this pipeline. Each call reads the pipeline from
     // current.ts.
     const unbindEmit = bindEmit(emit);
+    const unbindEmitNow = bindEmitNow(emitNow);
     const sdkTracer = createTracer(emitSpan);
     activeSpan = (time) => sdkTracer.activeSpanContext(time);
     const unbindTracer = bindTracer(sdkTracer);
@@ -158,6 +160,9 @@ export class WebSDK {
     // hidden state. It does not use beforeunload, because beforeunload does not
     // occur on a mobile device and it prevents the bfcache.
     const onHide = () => {
+      // A Segment that a hide listener emits waits for the exit flush. It may
+      // use only the keepalive room that the Spans and Logs leave.
+      beginExit();
       for (const listener of hideListeners) listener();
       // The write of the activity of the session is on a delay. Thus the code
       // writes it now, while the page can still use the store.
@@ -177,6 +182,7 @@ export class WebSDK {
       // The opposite sequence to the setup, before the pipeline disconnects.
       for (let i = teardowns.length - 1; i >= 0; i--) teardowns[i]?.();
       unbindEmit();
+      unbindEmitNow();
       unbindTracer();
       stopWatching();
       return flush();
