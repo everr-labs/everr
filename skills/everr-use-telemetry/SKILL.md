@@ -29,10 +29,10 @@ The ONLY query command is `everr cloud query "<SQL>"` or `everr local query "<SQ
 | Local app, dev server, local tests, wrapped command output | `everr local query "<SQL>"` |
 | What alerts fired, why, and whether the notification went out | Read `rules/alert-history.md`, then `everr cloud query "<SQL>"` |
 | Current CI run, branch status, failed jobs, workflow logs | Use the `everr-working-with-ci` skill |
-| Browser or web-app behavior: page views, clicks, web vitals, frontend errors | Read `rules/browser-events.md` for the event and attribute catalog, then query as usual |
+| Browser or web-app behavior: page views, clicks, web vitals, frontend errors, Recordings, Clips, marks | Read `rules/browser-events.md` for the event and attribute catalog, then query as usual |
 | Missing or stale local telemetry | Use the `everr-setup-telemetry` skill |
 
-If an Everr command fails, investigate why: collector stopped, stale app, wrong repo, missing auth, missing import, bad query, or CLI bug. **Follow the error message literally** — if it says run `everr local start`, run that. Do not invent alternative explanations for the error or silently replace real telemetry with guesses.
+If an Everr command fails, investigate why: collector stopped, stale app, wrong repo, missing auth, missing import, bad query, or CLI bug. **Follow the error message literally**: if it says run `everr local start`, run that. Do not invent alternative explanations for the error or silently replace real telemetry with guesses.
 
 ## Default Workflow
 
@@ -74,6 +74,7 @@ When a local query fails, always run `everr local status` to diagnose the collec
 | Assuming attribute names without discovering them | List the keys first (see `rules/schema.md`). Conventions vary. |
 | Getting "collector isn't running" but not running `everr local start` | Follow the error message literally. |
 | Diagnosing without checking freshness | Query `max(Timestamp)` first. If data is hours old, it's stale. |
+| Reading the recordings table or rrweb bodies to understand a browser Session | The recordings table holds rrweb and is the wrong payload for an Agent. Find Clips in `traces` with `SpanName = 'recording'` and marks in `logs` with `EventName = 'everr.browser.recording.mark'`. Read `rules/browser-events.md`. |
 
 ## Integrated Examples
 

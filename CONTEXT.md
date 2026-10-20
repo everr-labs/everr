@@ -149,6 +149,38 @@ _Avoid_: anonymous mode, bannerless mode
 The browser SDK mode entered after explicit consent: persistent Visitor id, durable Sessions, and identify() stamping `user.*` attributes on subsequent events. Upgrading from Cookieless is a one-way door; revoking consent deletes the stored ids.
 _Avoid_: identified mode, cookie mode
 
+**Recording**:
+The captured screen history of one Session: what the page showed and how the person interacted with it. A Recording is all the Clips of that Session, so it can have gaps between them. A Session has zero or one Recording; in Cookieless mode a reload starts a new Session, so it starts a new Recording too.
+_Avoid_: session replay (for the data), video, capture
+
+**Mask**:
+Text in a Recording replaced, by default with asterisks of the same length. The element stays.
+_Avoid_: redact, scrub
+
+**Block**:
+An element in a Recording replaced by an empty placeholder of the same size.
+_Avoid_: omit, delete
+
+**Ignore**:
+Input events inside an element left out of a Recording. The element stays. This is not the `errors()` `ignore` option, which drops an error by message.
+_Avoid_: skip
+
+**Stream**:
+The in-memory buffer of one document in one Session: one page load in one tab, holding the last 5 minutes. A hard navigation or a reload starts a new Stream. When the Session changes during a page, the current Stream ends and a new one starts. Two tabs that share a Session give two Streams at the same time. Nothing in a Stream is stored until a Clip is emitted from it.
+_Avoid_: tab recording, track
+
+**Clip**:
+One time range of a Stream's buffer, sent by `emitRecording()` or by an error or failed request, and stored as one or more Segments. Clips are independent: two Clips may overlap and both hold the shared events. The player shows one Clip.
+_Avoid_: snippet, excerpt, emit (for the data)
+
+**Segment**:
+One contiguous slice of a Clip, stored as one OTLP log of rrweb events. A long Clip is a sequence of Segments. A Segment is not a Span.
+_Avoid_: chunk, batch, blob
+
+**Replay**:
+Watching a Clip of a Recording, with that Session's Traces, Logs, and errors on the same timeline.
+_Avoid_: playback, session replay (for the data)
+
 ### CI
 
 **CI run**:
