@@ -1,5 +1,5 @@
 # verify-everr: per-run override for the repo's docker-compose.yaml.
-# Used as: docker compose -p <project> -f docker-compose.yaml -f <this> up -d clickhouse postgres
+# Used as: docker compose -p <project> -f docker-compose.yaml -f <this> up -d clickhouse postgres collector
 # Rebinds ports to per-run values and swaps the ./volumes bind mounts for
 # project-scoped named volumes, so a verification run never shares ports or
 # data with the developer's own stack (project "everr") or another run.
@@ -15,6 +15,26 @@ services:
       - "127.0.0.1:${VERIFY_PG_PORT:?}:5432"
     volumes: !override
       - postgres-data:/var/lib/postgresql
+
+  # Public OTLP ingest only (collector-config.verify.yaml): no GitHub receiver, so no
+  # collector/config.yml or .pem. Host networking so it can reach the dev server's
+  # /api/internal/verify-key on 127.0.0.1 (the app binds loopback only) and the run's ClickHouse;
+  # it listens on the run's own loopback OTLP ports, never on 4317/4318/8080.
+  collector:
+    image: everr-verify-collector:local
+    network_mode: host
+    stop_grace_period: 20s
+    ports: !reset []
+    extra_hosts: !reset []
+    environment:
+      VERIFY_WEB_PORT: ${VERIFY_WEB_PORT:?}
+      VERIFY_CH_PORT: ${VERIFY_CH_PORT:?}
+      VERIFY_OTLP_HTTP_PORT: ${VERIFY_OTLP_HTTP_PORT:?}
+      VERIFY_OTLP_GRPC_PORT: ${VERIFY_OTLP_GRPC_PORT:?}
+      INGEST_VERIFY_SHARED_SECRET: ${INGEST_VERIFY_SHARED_SECRET:?}
+    volumes: !override
+      - collector-queue:/var/lib/everr/queue
+      - ${VERIFY_COLLECTOR_CONFIG:?}:/etc/everr-collector/config.yaml:ro
 
 volumes:
   clickhouse-data:

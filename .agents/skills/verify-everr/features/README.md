@@ -58,5 +58,5 @@ Web app (surface B):
 
 - [Web sign-up, sign-in and session](./web-auth.md): sign-up, organization setup, home, log out, route guard, wrong password, sign back in.
 - [Web API keys](./web-api-keys.md): create, list and persist `ek_` keys on `/api-keys`.
-- [Web Explore and Runs pages](./web-explore.md): `/logs`, `/traces`, `/errors`, `/runs` for a fresh provisioned org.
+- [Web Explore and Runs pages](./web-explore.md): `/logs`, `/traces`, `/errors`, `/runs` empty for a fresh org, then logs, traces and an error seeded over OTLP with the run's key (`web-seed`).
 - [Web GitHub connection and webhook ingress](./web-github.md): `/github`, install start, webhook signature checks, signed delivery, and the GitHub App boundary.

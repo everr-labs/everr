@@ -34,6 +34,7 @@ import {
   isAlive,
   listDir,
   parseRunId,
+  portOf,
   portPids,
   printBrowserEnv,
   readEnvFile,
@@ -54,7 +55,7 @@ import {
 
 export const WEB_USAGE = `# Web app (packages/app) commands:
 #
-#   verify-everr web-launch [RUN_ID]     compose ClickHouse+Postgres (own project/ports/volumes) + pnpm dev:web
+#   verify-everr web-launch [RUN_ID]     compose ClickHouse+Postgres+OTLP collector (own project/ports/volumes) + pnpm dev:web
 #   verify-everr web-doctor              read-only health of this web run
 #   verify-everr web-env                 print the app env of this web run
 #   verify-everr web-browser-env         export lines for agent-browser: AGENT_BROWSER_SESSION, WEB, SHOTS
@@ -62,6 +63,8 @@ export const WEB_USAGE = `# Web app (packages/app) commands:
 #   verify-everr web-webhook <label> <event> <payload.json>  signed GitHub webhook (run's own secret)
 #   verify-everr web-psql <label> "<SQL>"          read-only psql in this run's Postgres, recorded
 #   verify-everr web-ch <label> "<SQL>"            ClickHouse SQL (default user) in this run, recorded
+#   verify-everr web-seed [key-file]     send fixed logs/spans/error over OTLP with the run's ek_ key (default:
+#                                        the key shown in web/api-keys-03-issued.txt), wait until they land
 #   verify-everr web-cleanup             stop dev server + compose down -v (this project only), KEEP evidence`;
 
 const WEB_STATE = path.join(STATE_DIR, "current-web");
@@ -80,6 +83,7 @@ type WebRun = {
   origin: string;
   port: string;
   clickhouse: string;
+  otlp: string;
 };
 
 /** `docker`, or `sudo -n docker` when the user is not in the docker group. */
@@ -96,9 +100,9 @@ function requireDocker(): string[] {
 function parseWebRun(id: RunId, docker: string[]): WebRun {
   const dir = webDir(id);
   const vars = readEnvFile(path.join(dir, "run.env"));
-  const { WEB_PROJECT: project, WEB_ORIGIN: origin, WEB_PORT: port, CLICKHOUSE_URL: clickhouse } = vars;
-  if (!project || !origin || !port || !clickhouse) die(`${dir}/run.env is missing the run's settings`);
-  return { id, dir, art: webArt(id), docker, vars, project, origin, port, clickhouse };
+  const { WEB_PROJECT: project, WEB_ORIGIN: origin, WEB_PORT: port, CLICKHOUSE_URL: clickhouse, OTLP_HTTP_ORIGIN: otlp } = vars;
+  if (!project || !origin || !port || !clickhouse || !otlp) die(`${dir}/run.env is missing the run's settings`);
+  return { id, dir, art: webArt(id), docker, vars, project, origin, port, clickhouse, otlp };
 }
 
 function webLoad(): WebRun {
@@ -150,6 +154,10 @@ function expectedRowPolicies(): string {
 const expectedMigrations = () =>
   String(readdirSync(path.join(REPO, "packages/app/drizzle"), { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith(".sql")).length);
 
+/** HTTP status of an empty OTLP/HTTP logs export without Authorization (401 = receiver up, auth on). */
+const otlpUnauthStatus = async (w: WebRun) =>
+  (await http(`${w.otlp}/v1/logs`, { method: "POST", body: "{}", headers: { "content-type": "application/json" }, timeoutMs: 5000 })).status;
+
 const appliedMigrations = (w: WebRun) =>
   compose(w, ["exec", "-T", "postgres", "psql", "-U", "postgres", "-tAc", "select count(*) from drizzle.__drizzle_migrations"]).stdout.replace(/\s/g, "");
 
@@ -183,8 +191,9 @@ async function cmdWebLaunch([arg]: string[]): Promise<number> {
   const ch = await freePort();
   const pg = await freePort();
   const web = await freePort();
+  const otlpHttp = await freePort();
+  const otlpGrpc = await freePort();
   const project = `verify-everr-${id.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
-  writeFileSync(path.join(dir, "compose.env"), `VERIFY_CH_PORT=${ch}\nVERIFY_PG_PORT=${pg}\n`);
   // App telemetry: into this checkout's live CLI verification run if there is one, else a dead port,
   // so it never lands in someone else's collector (the app defaults to 127.0.0.1:54318).
   let otlp = "http://127.0.0.1:9";
@@ -196,10 +205,24 @@ async function cmdWebLaunch([arg]: string[]): Promise<number> {
   const example = (readText(path.join(REPO, "packages/app/.env.example")) ?? "")
     .split("\n")
     .filter((l) => /^[A-Z_][A-Z0-9_]*=/.test(l));
-  const secrets = [
-    "BETTER_AUTH_SECRET", "CLICKHOUSE_SQL_API_MASTER_KEY", "GITHUB_APP_STATE_SECRET",
-    "GITHUB_APP_WEBHOOK_SECRET", "POLAR_WEBHOOK_SECRET", "INGEST_VERIFY_SHARED_SECRET",
-  ].map((s) => `${s}=${randomBytes(24).toString("hex")}`);
+  const secretValues = Object.fromEntries(
+    [
+      "BETTER_AUTH_SECRET", "CLICKHOUSE_SQL_API_MASTER_KEY", "GITHUB_APP_STATE_SECRET",
+      "GITHUB_APP_WEBHOOK_SECRET", "POLAR_WEBHOOK_SECRET", "INGEST_VERIFY_SHARED_SECRET",
+    ].map((s) => [s, randomBytes(24).toString("hex")]),
+  );
+  const secrets = Object.entries(secretValues).map(([k, v]) => `${k}=${v}`);
+  // Compose interpolation for compose.verify.yaml. The collector shares the app's per-run
+  // INGEST_VERIFY_SHARED_SECRET, which guards /api/internal/verify-key.
+  writeFileSync(
+    path.join(dir, "compose.env"),
+    [
+      `VERIFY_CH_PORT=${ch}`, `VERIFY_PG_PORT=${pg}`, `VERIFY_WEB_PORT=${web}`,
+      `VERIFY_OTLP_HTTP_PORT=${otlpHttp}`, `VERIFY_OTLP_GRPC_PORT=${otlpGrpc}`,
+      `VERIFY_COLLECTOR_CONFIG=${path.join(SCRIPT_DIR, "collector-config.verify.yaml")}`,
+      `INGEST_VERIFY_SHARED_SECRET=${secretValues.INGEST_VERIFY_SHARED_SECRET}`, "",
+    ].join("\n"),
+  );
   const appEnv = [
     ...example,
     "DATABASE_HOST=127.0.0.1",
@@ -221,6 +244,8 @@ async function cmdWebLaunch([arg]: string[]): Promise<number> {
     WEB_PORT: String(web),
     CLICKHOUSE_URL: `http://127.0.0.1:${ch}`,
     PG_PORT: String(pg),
+    OTLP_HTTP_ORIGIN: `http://127.0.0.1:${otlpHttp}`,
+    OTLP_GRPC_PORT: String(otlpGrpc),
   });
   writeFileSync(WEB_STATE, `${id}\n`);
   const w = parseWebRun(id, dockerBin);
@@ -239,17 +264,18 @@ async function cmdWebLaunch([arg]: string[]): Promise<number> {
       "",
     ].join("\n"),
   );
-  console.log(`launching web run ${id} (project ${project}, ch :${ch}, pg :${pg}, web :${web})`);
+  console.log(`launching web run ${id} (project ${project}, ch :${ch}, pg :${pg}, web :${web}, otlp http :${otlpHttp} grpc :${otlpGrpc})`);
 
   const t0 = Date.now();
   const secs = () => Math.floor((Date.now() - t0) / 1000);
   const buildLog = path.join(art, "compose-build.log");
-  if (composeToFile(w, ["build", "clickhouse"], buildLog) !== 0) {
+  // Both images are tagged once (everr-verify-*:local) and reused from cache by later runs.
+  if (composeToFile(w, ["build", "clickhouse", "collector"], buildLog) !== 0) {
     tail(buildLog, 20);
-    die("clickhouse image build failed");
+    die("clickhouse/collector image build failed");
   }
   const upLog = path.join(art, "compose-up.log");
-  if (composeToFile(w, ["up", "-d", "--wait", "clickhouse", "postgres"], upLog) !== 0) {
+  if (composeToFile(w, ["up", "-d", "--wait", "clickhouse", "postgres", "collector"], upLog) !== 0) {
     tail(upLog, 20);
     die("compose up failed; run 'verify-everr web-cleanup'");
   }
@@ -260,7 +286,13 @@ async function cmdWebLaunch([arg]: string[]): Promise<number> {
     if (Date.now() >= deadline) die(`ClickHouse init never created ${wantRp} row policies; see 'compose logs clickhouse'`);
     await sleep(1000);
   }
-  console.log(`stack ready in ${secs()}s (ClickHouse ${wantRp} row policies, Postgres healthy)`);
+  // The collector has no healthcheck: ready = its OTLP/HTTP receiver answers and rejects a request without a key.
+  deadline = Date.now() + 60000;
+  while ((await otlpUnauthStatus(w)) !== 401) {
+    if (Date.now() >= deadline) die("collector OTLP receiver never answered 401 without a key; see 'compose logs collector'");
+    await sleep(1000);
+  }
+  console.log(`stack ready in ${secs()}s (ClickHouse ${wantRp} row policies, Postgres healthy, collector OTLP on :${otlpHttp})`);
 
   // Start the repo's own dev command in its own session/process group (detached = setsid), bound to loopback.
   const webLog = path.join(dir, "web.log");
@@ -321,6 +353,8 @@ async function cmdWebDoctor(): Promise<number> {
   for (const svc of ["clickhouse", "postgres"]) {
     check(`${svc} container of project ${w.project} is healthy`, ps.includes(`${svc} healthy`));
   }
+  check(`collector container of project ${w.project} is running`, compose(w, ["ps", "--format", "{{.Service}} {{.State}}"]).stdout.split("\n").includes("collector running"));
+  check(`collector OTLP/HTTP on :${portOf(w.otlp)} rejects a request without a key (401)`, (await otlpUnauthStatus(w)) === 401);
   const appRo = await http(`${w.clickhouse}/?query=SELECT%201`, { headers: { Authorization: basicAuth("app_ro", "app-dev") } });
   check(`ClickHouse on :${w.clickhouse.slice(w.clickhouse.lastIndexOf(":") + 1)} answers as app_ro (app-dev)`, appRo.ok);
   const wantRp = expectedRowPolicies();
@@ -448,6 +482,131 @@ async function cmdWebCh([label, sql]: string[]): Promise<number> {
   return printDbResult(out, r.ok ? 0 : 1);
 }
 
+// Seed data for web-seed. Every value the explore-seeded recipe asserts on is fixed here
+// (features/web-explore.md): change both together.
+export const SEED = {
+  service: "verify-seed-api",
+  logs: ["verify-seed: checkout started", "verify-seed: payment provider slow", "verify-seed: charge failed"],
+  exceptionType: "VerifySeedPaymentError",
+  exceptionMessage: "card declined by verify-seed provider",
+  rootSpan: "POST /checkout",
+  spans: 3,
+  // Sent as a resource attribute; the public pipeline must replace it with the key's org.
+  spoofTenant: "spoofed-by-client",
+};
+
+function seedPayloads(): { traceId: string; traces: unknown; logs: unknown } {
+  const hex = (n: number) => randomBytes(n).toString("hex");
+  const now = BigInt(Date.now()) * 1000000n;
+  const ago = (ms: number) => String(now - BigInt(ms) * 1000000n);
+  const str = (key: string, value: string) => ({ key, value: { stringValue: value } });
+  const resource = {
+    attributes: [str("service.name", SEED.service), str("deployment.environment", "verify"), str("everr.tenant.id", SEED.spoofTenant)],
+  };
+  const scope = { name: "verify-everr-seed" };
+  const traceId = hex(16);
+  const [root, db, charge] = [hex(8), hex(8), hex(8)];
+  const span = (spanId: string, parentSpanId: string, name: string, startAgo: number, endAgo: number, error: boolean) => ({
+    traceId, spanId, parentSpanId, name, kind: parentSpanId ? 3 : 2,
+    startTimeUnixNano: ago(startAgo), endTimeUnixNano: ago(endAgo),
+    attributes: [str("verify.seed", "1")],
+    status: error ? { code: 2, message: SEED.exceptionMessage } : { code: 1 },
+  });
+  const spans = [
+    span(root, "", SEED.rootSpan, 1000, 0, true),
+    span(db, root, "SELECT orders", 950, 800, false),
+    span(charge, root, "charge card", 780, 50, true),
+  ];
+  const [started, slow, failed] = SEED.logs;
+  const log = (msAgo: number, severityNumber: number, severityText: string, body: string, spanId: string, attributes: unknown[] = []) => ({
+    timeUnixNano: ago(msAgo), observedTimeUnixNano: ago(0), severityNumber, severityText,
+    body: { stringValue: body }, attributes, traceId, spanId,
+  });
+  const records = [
+    log(900, 9, "INFO", started, root),
+    log(600, 13, "WARN", slow, root),
+    // Errors = logs with severity >= 17 and exception.* attributes (telemetry-explorer errors/sql/fingerprint.ts).
+    log(300, 17, "ERROR", failed, charge, [
+      str("exception.type", SEED.exceptionType),
+      str("exception.message", SEED.exceptionMessage),
+      str("exception.stacktrace", `${SEED.exceptionType}: ${SEED.exceptionMessage}\n    at charge (checkout.ts:42)`),
+    ]),
+  ];
+  return {
+    traceId,
+    traces: { resourceSpans: [{ resource, scopeSpans: [{ scope, spans }] }] },
+    logs: { resourceLogs: [{ resource, scopeLogs: [{ scope, logRecords: records }] }] },
+  };
+}
+
+/** Seed Explore through the real public ingest path: OTLP/HTTP into this run's collector with an
+ * `ek_` key created in the UI, verified by the app, tenant-stamped, written via the otel.* views. */
+async function cmdWebSeed([keyArg]: string[]): Promise<number> {
+  const w = webLoad();
+  const out = path.join(w.art, "seed");
+  if (existsSync(path.join(out, "seed.txt"))) die(`this run is already seeded (${out}); the recipe's counts assume one seed per run`);
+  const keyFile = keyArg || path.join(w.art, "web", "api-keys-03-issued.txt");
+  const key = (readText(keyFile) ?? "").match(/\bek_[A-Za-z0-9_-]{20,}/)?.[0];
+  if (!key) die(`no ek_ key in ${keyFile}; run the web-api-keys.md "Create, list, reload" recipe first`);
+  mkdirSync(out, { recursive: true });
+  const summary = path.join(out, "seed.txt");
+  const { traceId, traces, logs } = seedPayloads();
+  let ok = true;
+  const send = async (signal: string, body: unknown, auth: string) => {
+    const r = await http(`${w.otlp}/v1/${signal}`, {
+      method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json", authorization: auth },
+    });
+    return `${r.status} ${r.text.trim() || r.error || ""}`.trim();
+  };
+  for (const [signal, body] of [["traces", traces], ["logs", logs]] as const) {
+    writeFileSync(path.join(out, `${signal}.json`), `${JSON.stringify(body, null, 2)}\n`);
+    const res = await send(signal, body, `Bearer ${key}`);
+    teeAppend(summary, `POST ${w.otlp}/v1/${signal} (run key ${key.slice(0, 7)}...) -> ${res}`);
+    if (!res.startsWith("200")) ok = false;
+  }
+  const bad = await send("logs", logs, "Bearer ek_verify_invalid_key_000000000000");
+  teeAppend(summary, `POST ${w.otlp}/v1/logs (invalid key) -> ${bad}`);
+  if (!bad.startsWith("401")) ok = false;
+  if (!ok) die(`ingest did not answer as expected; see ${summary} and 'compose logs collector'`);
+
+  // Ingest is asynchronous (exporter queue + materialized views): wait for every row.
+  const sql = `SELECT 'logs' AS signal, tenant_id, count() AS n, countIf(SeverityNumber >= 17) AS errors FROM app.logs WHERE ServiceName = '${SEED.service}' GROUP BY tenant_id
+    UNION ALL SELECT 'traces', tenant_id, count(), countIf(StatusCode = 'Error') FROM app.traces WHERE ServiceName = '${SEED.service}' GROUP BY tenant_id FORMAT JSONEachRow`;
+  type Row = { signal: string; tenant_id: string; n: string; errors: string };
+  let rows: Row[] = [];
+  const deadline = Date.now() + 60000;
+  const t0 = Date.now();
+  for (;;) {
+    const r = await chSql(w.clickhouse, sql);
+    rows = r.ok ? r.text.split("\n").filter(Boolean).map((l) => JSON.parse(l) as Row) : [];
+    const count = (s: string) => rows.filter((x) => x.signal === s).reduce((a, x) => a + Number(x.n), 0);
+    if (count("logs") >= SEED.logs.length && count("traces") >= SEED.spans) break;
+    if (Date.now() >= deadline) {
+      writeFileSync(path.join(out, "rows.json"), `${JSON.stringify(rows, null, 2)}\n`);
+      die(`seeded rows not in ClickHouse after 60s (got ${JSON.stringify(rows)}); see 'compose logs collector'`);
+    }
+    await sleep(1000);
+  }
+  writeFileSync(path.join(out, "rows.json"), `${JSON.stringify(rows, null, 2)}\n`);
+  // The key's organization (better-auth apikey.reference_id) is the tenant every row must carry.
+  const [cmd, args] = composeArgs(w, [
+    "exec", "-T", "postgres", "psql", "-U", "postgres", "-tA", "-c",
+    // better-auth stores the key hashed plus its first characters in `start`; the key matched
+    // /ek_[A-Za-z0-9_-]+/ above, so it is safe to inline.
+    `select reference_id from apikey where start <> '' and strpos('${key}', start) = 1 order by created_at desc limit 1`,
+  ]);
+  const org = run(cmd, args).stdout.trim();
+  const tenants = [...new Set(rows.map((r) => r.tenant_id))];
+  const tenantOk = tenants.length === 1 && tenants[0] === org && org !== SEED.spoofTenant;
+  teeAppend(summary, `rows after ${Math.round((Date.now() - t0) / 1000)}s: ${rows.map((r) => `${r.signal}=${r.n} (${r.signal === "logs" ? "severity >= 17" : "status Error"}: ${r.errors})`).join(", ")}`);
+  teeAppend(summary, `tenant_id ${tenants.join(",")} ${tenantOk ? "==" : "!="} key organization ${org} (client sent everr.tenant.id=${SEED.spoofTenant})`);
+  if (!tenantOk) die("seeded rows are not scoped to the key's organization");
+  const line = `SEEDED run=${w.id} service=${SEED.service} logs=${SEED.logs.length} errors=1 spans=${SEED.spans} traces=1 trace=${traceId} tenant=${org}`;
+  writeFileSync(path.join(out, "trace_id"), `${traceId}\n`);
+  teeAppend(summary, line);
+  return 0;
+}
+
 async function cmdWebCleanup(): Promise<number> {
   const id = process.env.WEB_RUN_ID || readPointer(WEB_STATE);
   if (!id) {
@@ -503,5 +662,6 @@ export const WEB_COMMANDS: Record<string, (args: string[]) => number | Promise<n
   "web-webhook": cmdWebWebhook,
   "web-psql": cmdWebPsql,
   "web-ch": cmdWebCh,
+  "web-seed": cmdWebSeed,
   "web-cleanup": cmdWebCleanup,
 };

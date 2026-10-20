@@ -53,5 +53,5 @@ Preconditions:
 
 - Both capability switches start off in this build; `Create key` is disabled until one is on. If the switch click did not land, `find role button click --name "Create key"` fails on a disabled button; check `api-keys-02-form.png`.
 - `api-keys-03-issued.*` contains the real key. It only works against this run's database, which `web-cleanup` deletes, but do not paste it anywhere.
-- Using the key (OTLP ingest on 4318 or `everr apply`) needs the collector service, which is blocked (SKILL.md boundary). Prove creation and storage only.
+- Using the key for OTLP ingest is `web-seed` in `web-explore.md` (it reads `api-keys-03-issued.txt`, so keep that label). `everr apply` with the key is not covered.
 - Labels in the table come from the key name; use a unique `VERIFY_KEY_NAME` so an earlier key can't satisfy the check.
