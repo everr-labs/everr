@@ -106,8 +106,24 @@ changes reach `main`; PR branch pushes do not publish it.
 
 Remote CLI profiles select an installation, organization, and account. Repository
 `.everr/config.yaml` records the URL and organization; credentials remain global.
-Legacy sessions are merged into existing profile configuration without replacing
-newer credentials or the selected default.
+Pending CLI changes remove legacy-session migration; users with old sessions
+authenticate again.
+
+The purpose of `.everr/config.yaml` is to pin remote commands run in a repository
+to an installation and workspace, independently of each developer's profile names
+and global default. Login creates it at the Git root only when project configuration
+is absent. It contains `version`, `url`, and `organizationId`, with no credentials
+or account identity, so it can be committed and shared. Lookup stays within the
+nearest Git root, including worktrees. `--profile` and `EVERR_PROFILE` override it;
+otherwise the CLI requires a matching saved profile rather than falling back to
+another target. This directory does not select the local collector's organization
+or configure application exporters.
+
+Open design question: the user is still unsure whether this repository directory
+and its automatic creation are useful. Its intended benefit is a shared remote
+target, but it adds configuration and selection precedence alongside global
+profiles. Revisit that tradeoff before treating the current design as settled;
+no replacement approach has been agreed.
 
 Local commands are independent of remote connection settings: they do not read
 repository targets or profile credentials, ignore `EVERR_PROFILE`, and reject

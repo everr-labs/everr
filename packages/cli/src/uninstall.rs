@@ -10,7 +10,6 @@ pub fn run_uninstall() -> Result<()> {
     print_uninstall_effects(&cli_path);
     wait_for_enter()?;
 
-    crate::state::LegacySessionStore::user()?.wipe()?;
     crate::profiles::ProfileStore::user()?.wipe()?;
 
     // Best-effort: removing skills must not block wiping the rest of the state.

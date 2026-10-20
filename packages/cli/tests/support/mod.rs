@@ -63,12 +63,6 @@ impl CliTestEnv {
         cmd
     }
 
-    pub fn session_path(&self) -> PathBuf {
-        self.config_dir
-            .join(build::session_namespace())
-            .join(build::default_session_file_name())
-    }
-
     pub fn update_cache_path(&self) -> PathBuf {
         platform_data_local_dir(&self.home_dir)
             .join(build::session_namespace())
@@ -81,29 +75,6 @@ impl CliTestEnv {
             .join("Application Support")
             .join("everr")
             .join("telemetry-dev")
-    }
-
-    pub fn write_legacy_session(&self, api_base_url: &str, token: &str) {
-        let session_path = self.session_path();
-        if let Some(parent) = session_path.parent() {
-            fs::create_dir_all(parent).expect("create session parent dir");
-        }
-
-        let body = serde_json::json!({
-            "session": {
-                "api_base_url": api_base_url,
-                "token": token,
-            },
-            "settings": {
-                "completed_base_url": null,
-                "wizard_completed": false,
-            },
-        });
-        fs::write(
-            session_path,
-            serde_json::to_string_pretty(&body).expect("serialize session"),
-        )
-        .expect("write session file");
     }
 
     pub fn profile_store(&self) -> everr_cli::profiles::ProfileStore {

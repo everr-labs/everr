@@ -3,7 +3,7 @@ use crate::build;
 use crate::cli::{LoginArgs, WhoamiArgs};
 use crate::device_auth::{AuthConfig, authorize_with_prompt};
 use crate::profiles::{Profile, ProfileStore, Project, Target, explicit_profile, normalize_url};
-use crate::state::{LegacySessionStore, Session};
+use crate::state::Session;
 use anyhow::{Context, Result, anyhow, bail};
 
 const API_BASE_URL_OVERRIDE_ENV: &str = "EVERR_API_BASE_URL_FOR_TESTS";
@@ -62,10 +62,7 @@ impl LoginContext {
         let url = normalize_url(
             &match url.or_else(|| expected.as_ref().map(|t| t.url.clone())) {
                 Some(url) => url,
-                None => store
-                    .legacy_session()?
-                    .map(|s| s.api_base_url)
-                    .unwrap_or(current_api_base_url()?),
+                None => current_api_base_url()?,
             },
         )?;
         if expected.as_ref().is_some_and(|target| target.url != url) {
@@ -113,36 +110,14 @@ impl LoginContext {
             let _ = client.logout().await;
             bail!("The approved account differs from this profile. Choose another profile name.");
         }
-        let config = self.store.load()?;
-        let name = self.name.clone().unwrap_or_else(|| {
-            if !config.profiles.contains_key("default") {
-                "default".to_owned()
-            } else {
-                let url = reqwest::Url::parse(&identity.target.url).unwrap();
-                let host: String = url
-                    .host_str()
-                    .unwrap()
-                    .chars()
-                    .map(|c| {
-                        if c.is_ascii_alphanumeric() || c == '.' {
-                            c
-                        } else {
-                            '-'
-                        }
-                    })
-                    .collect();
-                format!("{host}-{}", identity.target.organization_id)
-            }
-        });
-        self.store.save(&name, identity.clone(), session)?;
+        let name = self
+            .store
+            .save_login(self.name.as_deref(), identity.clone(), session)?;
         Ok((name, identity))
     }
 }
 
 pub async fn login(args: LoginArgs, profile: Option<&str>) -> Result<()> {
-    if let Err(error) = ProfileStore::user()?.migrate_legacy().await {
-        eprintln!("Previous login could not be migrated: {error}. Its credentials were preserved.");
-    }
     let mut login = LoginContext::user(profile, args.url)?;
     if let Some(organization_id) = args.organization_id {
         let organization_id = organization_id.trim();
@@ -235,9 +210,6 @@ pub async fn whoami(args: WhoamiArgs, profile: Option<&str>) -> Result<()> {
 pub async fn profiles(command: crate::cli::ProfilesSubcommand) -> Result<()> {
     use crate::cli::ProfilesSubcommand as P;
     let store = ProfileStore::user()?;
-    if let Err(error) = store.migrate_legacy().await {
-        eprintln!("Previous login could not be migrated: {error}. Its credentials were preserved.");
-    }
     match command {
         P::List => {
             let config = store.load()?;
@@ -316,20 +288,7 @@ pub async fn logout(profile: Option<&str>) -> Result<()> {
     let explicit = explicit_profile(profile);
     let config = store.load()?;
     let Some((name, selected)) = config.select(explicit.as_deref(), &project)? else {
-        // Preserve logout support for the session format used before profiles.
-        let removed = if project.target.is_none() && config.profiles.is_empty() {
-            LegacySessionStore::user()?.clear_session()?
-        } else {
-            false
-        };
-        println!(
-            "{}",
-            if removed {
-                "Logged out."
-            } else {
-                "No active session."
-            }
-        );
+        println!("No active session.");
         return Ok(());
     };
     if let Some(session) = store.session(&name)? {

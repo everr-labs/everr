@@ -69,8 +69,6 @@ fn login_from_subdirectory_creates_project_target_and_global_profile_after_authe
         .current_dir(&nested)
         .args([
             "login",
-            "--profile",
-            "acme",
             "--url",
             &server.url(),
             "--organization-id",
@@ -79,7 +77,7 @@ fn login_from_subdirectory_creates_project_target_and_global_profile_after_authe
         ])
         .assert()
         .success()
-        .stdout(contains("Profile: acme"))
+        .stdout(contains("Profile: org-acme"))
         .stdout(contains("organization_id=org-acme"));
     for request in requests {
         request.assert();
@@ -93,9 +91,14 @@ fn login_from_subdirectory_creates_project_target_and_global_profile_after_authe
     );
     assert!(!nested.join(".everr").exists());
     let saved = env.profile_store().load().unwrap();
-    assert_eq!(saved.profiles["acme"].user_id, "alice");
+    assert_eq!(saved.profiles["org-acme"].user_id, "alice");
+    assert_eq!(saved.current_profile.as_deref(), Some("org-acme"));
     assert_eq!(
-        env.profile_store().session("acme").unwrap().unwrap().token,
+        env.profile_store()
+            .session("org-acme")
+            .unwrap()
+            .unwrap()
+            .token,
         "new-token"
     );
     let identity = server.mock("GET", "/api/cli/me")
@@ -113,7 +116,7 @@ fn login_from_subdirectory_creates_project_target_and_global_profile_after_authe
         .stdout
         .clone();
     let connection: serde_json::Value = serde_json::from_slice(&output).unwrap();
-    assert_eq!(connection["profile"], "acme");
+    assert_eq!(connection["profile"], "org-acme");
     assert_eq!(connection["selectionSource"], "project configuration");
     assert_eq!(connection["url"], server.url());
     assert_eq!(connection["organizationId"], "org-acme");
@@ -450,175 +453,59 @@ fn profiles_are_inspectable_without_secrets_and_logout_only_revokes_the_selected
 }
 
 #[test]
-fn legacy_session_is_migrated_using_authenticated_server_identity() {
+fn old_session_files_are_ignored_by_profile_commands_and_login() {
     let env = CliTestEnv::new();
+    let mut old_server = Server::new();
+    let old_identity = old_server.mock("GET", "/api/cli/me").expect(0).create();
+    let old_session = env
+        .profile_store()
+        .credentials_path()
+        .parent()
+        .unwrap()
+        .join("session-dev.json");
+    std::fs::create_dir_all(old_session.parent().unwrap()).unwrap();
+    let old_contents = serde_json::json!({
+        "session": { "api_base_url": old_server.url(), "token": "old-token" }
+    })
+    .to_string();
+    std::fs::write(&old_session, &old_contents).unwrap();
+
+    env.command()
+        .args(["resources", "list"])
+        .assert()
+        .failure()
+        .stderr(contains(
+            "No authenticated profile for this target. Run `everr login`",
+        ));
+    env.command()
+        .args(["logout"])
+        .assert()
+        .success()
+        .stdout(contains("No active session."));
+
+    save(&env, "work", &old_server.url(), "org-work", "alice");
+    for args in [
+        vec!["profiles", "list"],
+        vec!["profiles", "show", "work"],
+        vec!["profiles", "use", "work"],
+        vec!["profiles", "remove", "work"],
+    ] {
+        env.command().args(args).assert().success().stderr("");
+    }
+
     let mut server = Server::new();
-    env.write_legacy_session(&server.url(), "legacy-token");
-    let me = server.mock("GET", "/api/cli/me").match_header("authorization", "Bearer legacy-token")
-        .with_body(r#"{"email":"alice@example.test","name":"Alice","userId":"alice","organizationId":"org-work","organizationName":"Work"}"#).expect(2).create();
-    let resources = server
-        .mock("GET", "/api/cli/resources")
-        .match_query(Matcher::Any)
-        .match_header("authorization", "Bearer legacy-token")
-        .match_header("x-everr-organization-id", "org-work")
-        .with_body("[]")
-        .create();
-    env.command().args(["resources", "list"]).assert().success();
-    resources.assert();
-    assert_eq!(
-        env.profile_store().load().unwrap().profiles["default"]
-            .target
-            .organization_id,
-        "org-work"
-    );
-    assert!(!env.session_path().exists());
-    let output = env
-        .command()
-        .args(["whoami", "--json"])
+    let requests = login_server(&mut server, "org-new", "new", 200);
+    env.command_with_api_base_url(&server.url())
+        .args(["login", "--profile", "selfhost", "--no-open"])
         .assert()
         .success()
-        .get_output()
-        .stdout
-        .clone();
-    let connection: serde_json::Value = serde_json::from_slice(&output).unwrap();
-    assert_eq!(connection["profile"], "default");
-    assert!(connection["ingestEndpoint"].is_null());
-    assert!(
-        connection
-            .as_object()
-            .unwrap()
-            .contains_key("ingestEndpoint")
-    );
-    me.assert();
-}
-
-#[test]
-fn login_preserves_the_legacy_account_before_adding_an_installation() {
-    let env = CliTestEnv::new();
-    let mut legacy = Server::new();
-    let mut selfhost = Server::new();
-    env.write_legacy_session(&legacy.url(), "legacy-token");
-    let identity = legacy.mock("GET", "/api/cli/me")
-        .match_header("authorization", "Bearer legacy-token")
-        .with_body(r#"{"email":"old@example.test","name":"Old","userId":"old","organizationId":"org-old","organizationName":"Old"}"#)
-        .expect(1).create();
-    let requests = login_server(&mut selfhost, "org-new", "new", 200);
-    env.command()
-        .args([
-            "login",
-            "--profile",
-            "selfhost",
-            "--url",
-            &selfhost.url(),
-            "--no-open",
-        ])
-        .assert()
-        .success();
-    identity.assert();
+        .stderr("");
     for request in requests {
         request.assert();
     }
-    assert_eq!(env.profile_store().load().unwrap().profiles.len(), 2);
-    assert_eq!(
-        env.profile_store()
-            .session("default")
-            .unwrap()
-            .unwrap()
-            .token,
-        "legacy-token"
-    );
-    assert_eq!(
-        env.profile_store()
-            .session("selfhost")
-            .unwrap()
-            .unwrap()
-            .token,
-        "new-token"
-    );
-    assert!(!env.session_path().exists());
-}
-
-#[test]
-fn legacy_migration_merges_existing_profiles_without_replacing_credentials_or_default() {
-    for same_account in [false, true] {
-        let env = CliTestEnv::new();
-        let mut server = Server::new();
-        save(&env, "default", &server.url(), "org-current", "current");
-        env.write_legacy_session(&server.url(), "legacy-token");
-        let (organization, user) = if same_account {
-            ("org-current", "current")
-        } else {
-            ("org-old", "old")
-        };
-        let identity = server.mock("GET", "/api/cli/me")
-            .match_header("authorization", "Bearer legacy-token")
-            .with_body(serde_json::json!({"email":format!("{user}@example.test"),"name":user,"userId":user,"organizationId":organization,"organizationName":organization}).to_string())
-            .expect(1).create();
-        env.command().args(["profiles", "list"]).assert().success();
-        identity.assert();
-        assert_eq!(
-            env.profile_store()
-                .session("default")
-                .unwrap()
-                .unwrap()
-                .token,
-            "token-default"
-        );
-        let config = env.profile_store().load().unwrap();
-        assert_eq!(config.current_profile.as_deref(), Some("default"));
-        assert_eq!(config.profiles.len(), if same_account { 1 } else { 2 });
-        if !same_account {
-            assert_eq!(
-                env.profile_store()
-                    .session("legacy-1")
-                    .unwrap()
-                    .unwrap()
-                    .token,
-                "legacy-token"
-            );
-        }
-        assert!(!env.session_path().exists());
-    }
-}
-
-#[test]
-fn expired_legacy_session_does_not_block_a_new_login_or_its_requests() {
-    let env = CliTestEnv::new();
-    let mut legacy = Server::new();
-    let mut selfhost = Server::new();
-    env.write_legacy_session(&legacy.url(), "expired-token");
-    let expired = legacy
-        .mock("GET", "/api/cli/me")
-        .with_status(401)
-        .expect(1)
-        .create();
-    let requests = login_server(&mut selfhost, "org-new", "new", 200);
-    env.command()
-        .args([
-            "login",
-            "--profile",
-            "selfhost",
-            "--url",
-            &selfhost.url(),
-            "--no-open",
-        ])
-        .assert()
-        .success()
-        .stderr(contains("credentials were preserved"));
-    for request in requests {
-        request.assert();
-    }
-    let identity = selfhost.mock("GET", "/api/cli/me")
-        .match_header("authorization", "Bearer new-token")
-        .match_header("x-everr-organization-id", "org-new")
-        .with_body(r#"{"email":"new@example.test","name":"New","userId":"new","organizationId":"org-new","organizationName":"New"}"#).create();
-    env.command()
-        .args(["whoami", "--profile", "selfhost"])
-        .assert()
-        .success();
-    expired.assert();
-    identity.assert();
-    assert!(env.session_path().exists());
+    old_identity.assert();
+    assert_eq!(env.profile_store().load().unwrap().profiles.len(), 1);
+    assert_eq!(std::fs::read_to_string(old_session).unwrap(), old_contents);
 }
 
 #[test]

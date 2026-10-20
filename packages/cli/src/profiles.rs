@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use fs2::FileExt;
@@ -10,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     api::ApiClient,
-    state::{LegacySessionStore, Session, user_config_directory},
+    state::{Session, user_config_directory},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +81,34 @@ impl Default for Config {
 }
 
 impl Config {
+    fn name_for(&self, profile: &Profile) -> Result<String> {
+        if let Some((name, _)) = self.profiles.iter().find(|(_, existing)| {
+            existing.target == profile.target && existing.user_id == profile.user_id
+        }) {
+            return Ok(name.clone());
+        }
+        let mut base = slug(&profile.organization_name);
+        if base.is_empty() {
+            base = "organization".to_owned();
+        }
+        if self
+            .profiles
+            .get(&base)
+            .is_some_and(|existing| existing.target.url != profile.target.url)
+        {
+            let url = reqwest::Url::parse(&profile.target.url)?;
+            let host = slug(url.host_str().context("Installation URL has no hostname")?);
+            base = format!("{base}-{host}");
+        }
+        let mut name = base.clone();
+        let mut suffix = 2;
+        while self.profiles.contains_key(&name) {
+            name = format!("{base}-{suffix}");
+            suffix += 1;
+        }
+        Ok(name)
+    }
+
     pub fn select(
         &self,
         explicit: Option<&str>,
@@ -273,12 +300,16 @@ impl ProfileStore {
     }
 
     pub fn save(&self, name: &str, profile: Profile, session: Session) -> Result<()> {
-        let _lock = self.lock()?;
-        self.save_locked(name, profile, session)
+        self.save_login(Some(name), profile, session).map(|_| ())
     }
 
-    fn save_locked(&self, name: &str, mut profile: Profile, session: Session) -> Result<()> {
-        validate_name(name)?;
+    pub fn save_login(
+        &self,
+        name: Option<&str>,
+        mut profile: Profile,
+        session: Session,
+    ) -> Result<String> {
+        let _lock = self.lock()?;
         profile.target.validate()?;
         if normalize_url(&session.api_base_url)? != profile.target.url {
             bail!("Credentials belong to a different installation");
@@ -287,7 +318,12 @@ impl ProfileStore {
             bail!("Profile is missing account identity");
         }
         let mut config = self.load()?;
-        if let Some(existing) = config.profiles.get(name) {
+        let name = match name {
+            Some(name) => name.to_owned(),
+            None => config.name_for(&profile)?,
+        };
+        validate_name(&name)?;
+        if let Some(existing) = config.profiles.get(&name) {
             if existing.target != profile.target || existing.user_id != profile.user_id {
                 bail!(
                     "Profile '{name}' belongs to a different installation, organization, or account. Choose another profile name."
@@ -295,13 +331,14 @@ impl ProfileStore {
             }
         }
         let mut credentials = self.credentials()?;
-        credentials.insert(name.to_owned(), session);
+        credentials.insert(name.clone(), session);
         self.write_credentials(&credentials)?;
-        config.profiles.insert(name.to_owned(), profile);
+        config.profiles.insert(name.clone(), profile);
         if config.current_profile.is_none() {
-            config.current_profile = Some(name.to_owned());
+            config.current_profile = Some(name.clone());
         }
-        self.write_config(&config)
+        self.write_config(&config)?;
+        Ok(name)
     }
 
     fn write_credentials(&self, credentials: &BTreeMap<String, Session>) -> Result<()> {
@@ -359,37 +396,6 @@ impl ProfileStore {
                 fs::remove_file(path)?;
             }
         }
-        Ok(())
-    }
-
-    pub fn legacy_session(&self) -> Result<Option<Session>> {
-        LegacySessionStore::at(&self.directory).load_session()
-    }
-
-    pub async fn migrate_legacy(&self) -> Result<()> {
-        let Some(session) = self.legacy_session()? else {
-            return Ok(());
-        };
-        let client = ApiClient::from_session(&session)?;
-        let me = tokio::time::timeout(Duration::from_secs(5), client.get_me())
-            .await
-            .context("The previous login server did not respond within five seconds")??;
-        let profile = Profile::from_identity(&session.api_base_url, &me)?;
-        let _lock = self.lock()?;
-        let config = self.load()?;
-        // A newer login or explicit logout for the same account takes precedence.
-        if !config.profiles.values().any(|existing| {
-            existing.target == profile.target && existing.user_id == profile.user_id
-        }) {
-            let mut name = "default".to_owned();
-            let mut suffix = 1;
-            while config.profiles.contains_key(&name) {
-                name = format!("legacy-{suffix}");
-                suffix += 1;
-            }
-            self.save_locked(&name, profile, session)?;
-        }
-        LegacySessionStore::at(&self.directory).clear_session()?;
         Ok(())
     }
 }
@@ -459,13 +465,6 @@ pub async fn client(profile: Option<&str>, allow_api_key: bool) -> Result<ApiCli
             };
         }
     }
-    // A stale legacy login must not prevent use of an already configured profile.
-    if !matches!(
-        store.load()?.select(explicit.as_deref(), &project),
-        Ok(Some(_))
-    ) {
-        store.migrate_legacy().await?;
-    }
     let (name, selected) = store
         .load()?
         .select(explicit.as_deref(), &project)?
@@ -484,6 +483,15 @@ pub async fn client(profile: Option<&str>, allow_api_key: bool) -> Result<ApiCli
         .target
         .client(&session)?
         .with_profile(&name, source))
+}
+
+fn slug(value: &str) -> String {
+    value
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|part| !part.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 pub fn validate_name(name: &str) -> Result<()> {
@@ -530,6 +538,83 @@ mod tests {
             email: "alice@example.test".into(),
             organization_name: organization.into(),
         }
+    }
+
+    #[test]
+    fn automatic_names_distinguish_installations_and_accounts_without_changing_the_default() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = ProfileStore::at(directory.path());
+        for (url, user, organization_name, expected) in [
+            (
+                "https://example.test",
+                "alice",
+                " Everr Labs! ",
+                "everr-labs",
+            ),
+            ("https://example.test", "bob", "Everr Labs", "everr-labs-2"),
+            (
+                "https://example.test",
+                "charlie",
+                "Everr Labs",
+                "everr-labs-3",
+            ),
+            (
+                "http://localhost:5173",
+                "alice",
+                "Everr Labs",
+                "everr-labs-localhost",
+            ),
+            (
+                "http://localhost:5174",
+                "alice",
+                "Everr Labs",
+                "everr-labs-localhost-2",
+            ),
+            ("https://example.test", "alice", "你好", "organization"),
+        ] {
+            let mut identity = profile(organization_name);
+            identity.target.url = url.to_owned();
+            identity.user_id = user.to_owned();
+            identity.organization_name = organization_name.to_owned();
+            let session = Session {
+                api_base_url: url.to_owned(),
+                token: format!("token-{expected}"),
+            };
+            let name = store.save_login(None, identity, session.clone()).unwrap();
+            assert_eq!(name, expected);
+            assert_eq!(store.session(&name).unwrap(), Some(session));
+        }
+        let config = store.load().unwrap();
+        assert_eq!(config.profiles.len(), 6);
+        assert_eq!(config.current_profile.as_deref(), Some("everr-labs"));
+    }
+
+    #[test]
+    fn automatic_login_reuses_custom_profile_names_after_an_organization_is_renamed() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = ProfileStore::at(directory.path());
+        let mut identity = profile("org-work");
+        let mut session = Session {
+            api_base_url: identity.target.url.clone(),
+            token: "original-token".to_owned(),
+        };
+        store
+            .save("work", identity.clone(), session.clone())
+            .unwrap();
+        identity.organization_name = "A different display name".to_owned();
+        session.token = "new-token".to_owned();
+        assert_eq!(
+            store.save_login(None, identity, session.clone()).unwrap(),
+            "work"
+        );
+        let config = store.load().unwrap();
+        assert_eq!(config.profiles.len(), 1);
+        assert_eq!(config.current_profile.as_deref(), Some("work"));
+        assert_eq!(store.session("work").unwrap(), Some(session));
+        assert_eq!(
+            config.profiles["work"].organization_name,
+            "A different display name"
+        );
     }
 
     #[test]
