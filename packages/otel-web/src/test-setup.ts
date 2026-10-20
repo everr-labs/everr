@@ -4,6 +4,23 @@ stubTransportFetch(() => {
   throw new Error("Unexpected fetch: configure the test transport first");
 });
 
+// jsdom exposes no compression stream, and the Node global that Vitest leaks
+// into the environment is not the one a browser page has. The tests take the
+// plain JSON path of an old browser by default; the gzip test opts into
+// CompressionStream itself, and these saved implementations drive it and read
+// the body back.
+const runtime = globalThis as typeof globalThis & {
+  __testCompressionStream?: typeof CompressionStream;
+  __testDecompressionStream?: typeof DecompressionStream;
+};
+runtime.__testCompressionStream = runtime.CompressionStream;
+runtime.__testDecompressionStream = runtime.DecompressionStream;
+Object.defineProperty(globalThis, "CompressionStream", {
+  value: undefined,
+  writable: true,
+  configurable: true,
+});
+
 // jsdom declares no CSS namespace, so the tests get the escape function of the
 // CSSOM specification. It is the same algorithm as the browsers use:
 // https://drafts.csswg.org/cssom/#the-css.escape()-method

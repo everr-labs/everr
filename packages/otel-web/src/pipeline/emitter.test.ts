@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { stubTransportFetch } from "../test-fetch.js";
+import { readOtlpBody, stubTransportFetch } from "../test-fetch.js";
 import type { OtlpSpan } from "../test-kit.js";
 import {
   type BeforeSend,
@@ -43,15 +43,18 @@ function makeEmitter(
 ) {
   sent = [];
   stubTransportFetch(
-    vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+    vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      // Read the exit body synchronously: exitFlush does not await its posts.
+      const body =
+        typeof init?.body === "string" ? init.body : await readOtlpBody(init);
       sent.push({
         url: String(url),
         headers: (init?.headers ?? {}) as Record<string, string>,
         keepalive: init?.keepalive,
-        bodyLength: String(init?.body).length,
-        payload: JSON.parse(String(init?.body)),
+        bodyLength: body.length,
+        payload: JSON.parse(body),
       });
-      return Promise.resolve(new Response(null, { status: 200 }));
+      return new Response(null, { status: 200 });
     }),
   );
   return createEmitter(
@@ -92,8 +95,9 @@ describe("createEmitter", () => {
     expect(sentRecords()).toHaveLength(2);
   });
 
-  it("flushes immediately when the batch size is reached", () => {
+  it("flushes immediately when the batch size is reached", async () => {
     for (let i = 0; i < 32; i++) emit("everr.browser.page_view");
+    await vi.advanceTimersByTimeAsync(0);
     expect(sent).toHaveLength(1);
     expect(sentRecords()).toHaveLength(32);
   });
@@ -215,6 +219,34 @@ describe("createEmitter", () => {
     // The records of the exit are the most recent records, and thus they stay.
     // The code removes the interactions at the front of the queue, which had
     // the full delay of the batch to go out on a usual flush.
+    expect(names.at(-1)).toBe("everr.browser.page_leave");
+    expect(names.at(-2)).toBe("browser.web_vital");
+  });
+
+  it("keeps the exit flush plain JSON inside the keepalive budget when gzip exists", () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      (
+        globalThis as typeof globalThis & {
+          __testCompressionStream?: typeof CompressionStream;
+        }
+      ).__testCompressionStream,
+    );
+    const filler = "x".repeat(3000);
+    for (let i = 0; i < 29; i++)
+      emit("everr.browser.interaction.click", { filler });
+    emit("browser.web_vital", { filler });
+    emit("everr.browser.page_leave", { filler });
+    exitFlush();
+
+    // exitFlush does not await. A gzipped body would still be in flight, so
+    // the request has to be on the wire already, as the plain JSON string the
+    // budget was measured against.
+    expect(sent).toHaveLength(1);
+    expect(sent[0].keepalive).toBe(true);
+    expect(sent[0].headers["Content-Encoding"]).toBeUndefined();
+    expect(sent[0].bodyLength).toBeLessThanOrEqual(64_000);
+    const names = sentRecords().map((r) => r.eventName);
     expect(names.at(-1)).toBe("everr.browser.page_leave");
     expect(names.at(-2)).toBe("browser.web_vital");
   });

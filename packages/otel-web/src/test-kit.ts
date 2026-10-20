@@ -6,7 +6,7 @@ import { network } from "./instrumentations/network/index.js";
 import { pageviews } from "./instrumentations/pageviews/index.js";
 import { performance as performanceInstrumentation } from "./instrumentations/performance/index.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
-import { stubTransportFetch } from "./test-fetch.js";
+import { readOtlpBody, stubTransportFetch } from "./test-fetch.js";
 import type { WebSDKOptions } from "./types.js";
 
 /** All the built-in instrumentations. The tests use this set by default. */
@@ -65,8 +65,10 @@ export type OtlpBatch = {
 function stubOtlpFetch(): OtlpBatch[] {
   const batches: OtlpBatch[] = [];
   stubTransportFetch(
-    vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const payload = JSON.parse(String(init?.body));
+    vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const body =
+        typeof init?.body === "string" ? init.body : await readOtlpBody(init);
+      const payload = JSON.parse(body);
       const resourceLog = payload.resourceLogs?.[0];
       const resourceSpan = payload.resourceSpans?.[0];
       batches.push({
