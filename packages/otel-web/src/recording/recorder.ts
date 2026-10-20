@@ -5,6 +5,8 @@
 
 import { record } from "@rrweb/record";
 import type { AttrValue } from "../pipeline/emitter.js";
+import type { RecordingOptions } from "../recording.js";
+import { recordPrivacy, resolvePrivacy, rewriteEvent } from "./privacy.js";
 
 const FULL_SNAPSHOT = 2;
 const META = 4;
@@ -21,6 +23,8 @@ type RrwebEvent = {
 };
 
 export type RecordingHost = {
+  dev: boolean;
+  options?: RecordingOptions;
   newId(): string;
   setStreamId(id: string | null): void;
   emitSegment(
@@ -97,11 +101,15 @@ export function startRecorder(host: RecordingHost): {
   host.setStreamId(streamId);
   const events: RrwebEvent[] = [];
   let stopped = false;
+  const privacy = resolvePrivacy(host.dev, host.options);
 
   const stopRecord = record({
     checkoutEveryNms: CHECKOUT_MS,
+    ...recordPrivacy(privacy),
     emit: (event) => {
       if (stopped) return;
+      // Attribute masking has no rrweb hook. Rewrite before the buffer.
+      rewriteEvent(event, privacy);
       const stamped = event as RrwebEvent;
       trim(events, Date.now());
       events.push(stamped);
