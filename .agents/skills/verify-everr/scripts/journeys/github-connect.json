@@ -1,0 +1,6 @@
+[
+  {"goto": "/github"},
+  {"waitText": "Connect the Everr GitHub App", "timeout": 60000},
+  {"assertText": "Install GitHub App"},
+  {"shot": "01-github"}
+]

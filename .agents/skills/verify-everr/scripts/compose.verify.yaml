@@ -1,0 +1,21 @@
+# verify-everr: per-run override for the repo's docker-compose.yaml.
+# Used as: docker compose -p <project> -f docker-compose.yaml -f <this> up -d clickhouse postgres
+# Rebinds ports to per-run values and swaps the ./volumes bind mounts for
+# project-scoped named volumes, so a verification run never shares ports or
+# data with the developer's own stack (project "everr") or another run.
+services:
+  clickhouse:
+    image: everr-verify-clickhouse:local
+    ports: !override
+      - "127.0.0.1:${VERIFY_CH_PORT:?}:8123"
+    volumes: !override
+      - clickhouse-data:/var/lib/clickhouse
+  postgres:
+    ports: !override
+      - "127.0.0.1:${VERIFY_PG_PORT:?}:5432"
+    volumes: !override
+      - postgres-data:/var/lib/postgresql
+
+volumes:
+  clickhouse-data:
+  postgres-data:

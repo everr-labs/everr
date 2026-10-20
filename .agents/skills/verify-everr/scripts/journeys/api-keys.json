@@ -1,0 +1,19 @@
+[
+  {"goto": "/api-keys"},
+  {"waitText": "No organization keys yet", "timeout": 60000},
+  {"shot": "01-empty"},
+  {"clickText": "New key", "within": "button"},
+  {"fill": "#api-key-name", "value": "${VERIFY_KEY_NAME}"},
+  {"clickRole": "switch", "name": "Send telemetry"},
+  {"shot": "02-form"},
+  {"clickText": "Create key", "within": "button[type=submit]"},
+  {"waitText": "Copy your key now", "timeout": 15000},
+  {"shot": "03-issued"},
+  {"clickText": "Done", "within": "button"},
+  {"waitText": "${VERIFY_KEY_NAME}", "timeout": 15000},
+  {"assertNoText": "No organization keys yet"},
+  {"shot": "04-listed"},
+  {"goto": "/api-keys"},
+  {"waitText": "${VERIFY_KEY_NAME}", "timeout": 30000},
+  {"shot": "05-after-reload"}
+]

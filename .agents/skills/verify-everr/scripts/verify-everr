@@ -12,6 +12,7 @@
 #   verify-everr ui-cmd <command> [json]# POST /api/commands/<command> like the browser does
 #   verify-everr ui-shot <label> <path> [text] # headless Chrome: wait for text, save screenshot/DOM/innerText
 #   verify-everr cleanup                # stop this run's instance, delete scratch, KEEP evidence
+#   verify-everr web-*                  # web app (packages/app) commands: see scripts/web.sh
 #
 # State: the current run id lives in $REPO/.verify-everr/current.
 # Scratch (deleted by cleanup):  ${EVERR_VERIFY_SCRATCH:-/tmp/verify-everr}/<RUN_ID>/
@@ -249,6 +250,10 @@ cmd_cleanup() {
   ls "$ART_DIR"
 }
 
+# Web app commands (web-*) live in web.sh.
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/web.sh"
+
 case "${1:-}" in
   build) shift; cmd_build "$@" ;;
   launch) shift; cmd_launch "$@" ;;
@@ -260,5 +265,14 @@ case "${1:-}" in
   ui-cmd) shift; cmd_ui_cmd "$@" ;;
   ui-shot) shift; cmd_ui_shot "$@" ;;
   cleanup) shift; cmd_cleanup "$@" ;;
-  *) sed -n '2,/^set -euo/p' "$0" | grep '^#'; exit 2 ;;
+  web-launch) shift; cmd_web_launch "$@" ;;
+  web-doctor) shift; cmd_web_doctor "$@" ;;
+  web-env) shift; cmd_web_env "$@" ;;
+  web-steps) shift; cmd_web_steps "$@" ;;
+  web-http) shift; cmd_web_http "$@" ;;
+  web-webhook) shift; cmd_web_webhook "$@" ;;
+  web-psql) shift; cmd_web_psql "$@" ;;
+  web-ch) shift; cmd_web_ch "$@" ;;
+  web-cleanup) shift; cmd_web_cleanup "$@" ;;
+  *) sed -n '2,/^set -euo/p' "$0" | grep '^#'; sed -n '2,/^$/p' "$SCRIPT_DIR/web.sh" | grep '^#'; exit 2 ;;
 esac

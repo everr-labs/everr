@@ -1,0 +1,10 @@
+[
+  {"goto": "/auth/sign-in"},
+  {"waitText": "Sign in to Everr", "timeout": 60000},
+  {"fill": "#email", "value": "${VERIFY_EMAIL}"},
+  {"fill": "#password", "value": "${VERIFY_PASSWORD}"},
+  {"click": "button[type=submit]"},
+  {"waitUrl": "^/$", "timeout": 30000},
+  {"waitText": "Welcome to Everr", "timeout": 30000},
+  {"shot": "01-home"}
+]

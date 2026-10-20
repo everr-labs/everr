@@ -1,0 +1,15 @@
+[
+  {"goto": "/logs"},
+  {"waitText": "Log volume", "timeout": 60000},
+  {"assertText": "Severity"},
+  {"shot": "01-logs"},
+  {"goto": "/traces"},
+  {"waitText": "Traces", "timeout": 60000},
+  {"shot": "02-traces"},
+  {"goto": "/errors"},
+  {"waitText": "Errors", "timeout": 60000},
+  {"shot": "03-errors"},
+  {"goto": "/runs"},
+  {"waitText": "No workflow runs match the current filters.", "timeout": 60000},
+  {"shot": "04-runs"}
+]

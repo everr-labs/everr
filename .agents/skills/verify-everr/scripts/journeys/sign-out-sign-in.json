@@ -1,0 +1,22 @@
+[
+  {"goto": "/"},
+  {"waitText": "Welcome to Everr", "timeout": 60000},
+  {"click": "button", "hasText": "${VERIFY_NAME}"},
+  {"clickRole": "menuitem", "name": "Log out"},
+  {"waitUrl": "^/auth/sign-in", "timeout": 30000},
+  {"waitText": "Sign in", "timeout": 30000},
+  {"shot": "01-signed-out"},
+  {"goto": "/api-keys"},
+  {"waitUrl": "^/auth/sign-in", "timeout": 30000},
+  {"shot": "02-guard-redirect"},
+  {"fill": "#email", "value": "${VERIFY_EMAIL}"},
+  {"fill": "#password", "value": "wrong-password-123"},
+  {"click": "button[type=submit]"},
+  {"waitText": "Invalid email or password", "timeout": 15000},
+  {"shot": "03-wrong-password"},
+  {"fill": "#password", "value": "${VERIFY_PASSWORD}"},
+  {"click": "button[type=submit]"},
+  {"waitUrl": "^/api-keys$", "timeout": 30000},
+  {"waitText": "API keys", "timeout": 30000},
+  {"shot": "04-signed-in-back"}
+]
