@@ -80,6 +80,16 @@ func validateTopology(conf *confmap.Conf) error {
 		}
 	}
 	for name, p := range cfg.Service.Pipelines {
+		for _, id := range p.Receivers {
+			if componentType(id) != "routing" {
+				continue
+			}
+			for _, proc := range p.Processors {
+				if componentType(proc) == Type {
+					return fmt.Errorf("pipeline %s: routed admission must not meter again", name)
+				}
+			}
+		}
 		meters, publishers := 0, 0
 		for _, id := range p.Processors {
 			if componentType(id) == Type {
@@ -115,10 +125,6 @@ func validateTopology(conf *confmap.Conf) error {
 		if len(storageExporters) != 1 || len(anchors) > 1 {
 			return fmt.Errorf("pipeline %s: admission metering requires one exporter", name)
 		}
-		_, ok := cfg.Exporters[storageExporters[0]]
-		if !ok {
-			return fmt.Errorf("pipeline %s: usage must feed an exporter directly", name)
-		}
 		for _, id := range p.Processors {
 			if componentType(id) != Type {
 				continue
@@ -131,11 +137,75 @@ func validateTopology(conf *confmap.Conf) error {
 		if meters != 1 || componentType(p.Processors[len(p.Processors)-1]) != Type {
 			return fmt.Errorf("pipeline %s: one usage processor must directly precede the exporter", name)
 		}
-		if err := cfg.validateQueue(storageExporters[0]); err != nil {
+		storageID := storageExporters[0]
+		if _, ok := cfg.Exporters[storageID]; ok {
+			if err := cfg.validateQueue(storageID); err != nil {
+				return fmt.Errorf("pipeline %s: %w", name, err)
+			}
+			continue
+		}
+		if _, ok := cfg.Connectors[storageID]; ok {
+			if err := cfg.validateRoutedAdmission(storageID); err != nil {
+				return fmt.Errorf("pipeline %s: %w", name, err)
+			}
+			continue
+		}
+		return fmt.Errorf("pipeline %s: usage must feed an exporter directly", name)
+	}
+	return cfg.validatePublication()
+}
+
+// Logs may split after the usage processor. The routing connector takes the
+// exporter seat, and each pipeline that receives it stores through one
+// queue-validated exporter. Those pipelines must not meter again, so a segment
+// is counted once on the way in and not again after the split.
+func (cfg topologyConfig) validateRoutedAdmission(connectorID string) error {
+	if componentType(connectorID) != "routing" {
+		return fmt.Errorf("usage must feed an exporter directly")
+	}
+	downstream := cfg.pipelinesReceiving(connectorID)
+	if len(downstream) == 0 {
+		return fmt.Errorf("connector %s: routed admission has no downstream pipeline", connectorID)
+	}
+	for _, name := range downstream {
+		p := cfg.Service.Pipelines[name]
+		for _, id := range p.Processors {
+			if componentType(id) == Type {
+				return fmt.Errorf("pipeline %s: routed admission must not meter again", name)
+			}
+		}
+		storage := []string{}
+		for _, id := range p.Exporters {
+			if componentType(id) == Type+"_connector" {
+				return fmt.Errorf("pipeline %s: routed admission must not publish usage", name)
+			}
+			if _, ok := cfg.Connectors[id]; ok {
+				return fmt.Errorf("pipeline %s: routed admission must feed an exporter directly", name)
+			}
+			storage = append(storage, id)
+		}
+		if len(storage) != 1 {
+			return fmt.Errorf("pipeline %s: routed admission requires one exporter", name)
+		}
+		if _, ok := cfg.Exporters[storage[0]]; !ok {
+			return fmt.Errorf("pipeline %s: usage must feed an exporter directly", name)
+		}
+		if err := cfg.validateQueue(storage[0]); err != nil {
 			return fmt.Errorf("pipeline %s: %w", name, err)
 		}
 	}
-	return cfg.validatePublication()
+	return nil
+}
+
+func (cfg topologyConfig) pipelinesReceiving(id string) []string {
+	names := []string{}
+	for name, p := range cfg.Service.Pipelines {
+		if slices.Contains(p.Receivers, id) {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 func componentType(id string) string { kind, _, _ := strings.Cut(id, "/"); return kind }
