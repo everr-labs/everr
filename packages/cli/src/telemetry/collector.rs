@@ -48,7 +48,6 @@ pub struct ExtractedAssets {
 pub async fn run_start(
     args: TelemetryStartArgs,
     lifetime: &mut local_lifecycle::SupervisorLifetime,
-    profile: Option<&str>,
 ) -> Result<()> {
     ensure_supported_platform()?;
 
@@ -62,7 +61,7 @@ pub async fn run_start(
     }
     status.require_stopped()?;
     if args.detach {
-        local_lifecycle::start_detached(profile).await?;
+        local_lifecycle::start_detached().await?;
         if !args.quiet {
             let log_path = super::local_log::path()?;
             print_startup();
@@ -79,8 +78,7 @@ pub async fn run_start(
         .unwrap_or(local_lifecycle::new_instance_id()?);
 
     let (supervisor_tx, mut supervisor_rx) = tokio::sync::mpsc::channel(1);
-    let ui =
-        super::local_server::LocalServer::bind(supervisor_tx, instance_id.clone(), profile).await?;
+    let ui = super::local_server::LocalServer::bind(supervisor_tx, instance_id.clone()).await?;
     let assets = extract_embedded_assets().context("extract embedded collector assets")?;
 
     let child = start_collector(&assets, &telemetry_dir, &instance_id).await?;

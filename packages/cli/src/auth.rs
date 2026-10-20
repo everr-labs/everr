@@ -8,19 +8,18 @@ use anyhow::{Context, Result, anyhow, bail};
 
 const API_BASE_URL_OVERRIDE_ENV: &str = "EVERR_API_BASE_URL_FOR_TESTS";
 
-// Both terminal and local UI device flows use this target and credential store.
-// Creating a project file remains an explicit part of the terminal login command.
-pub(crate) struct LoginContext {
-    pub store: ProfileStore,
-    pub project: Project,
-    pub config: AuthConfig,
+// Resolve terminal login targets while preserving their account and organization.
+struct LoginContext {
+    store: ProfileStore,
+    project: Project,
+    config: AuthConfig,
     name: Option<String>,
     expected: Option<Target>,
     user_id: Option<String>,
 }
 
 impl LoginContext {
-    pub fn user(profile: Option<&str>, url: Option<String>) -> Result<Self> {
+    fn user(profile: Option<&str>, url: Option<String>) -> Result<Self> {
         Self::new(
             ProfileStore::user()?,
             Project::discover(&std::env::current_dir()?)?,
@@ -29,7 +28,7 @@ impl LoginContext {
         )
     }
 
-    pub fn new(
+    fn new(
         store: ProfileStore,
         project: Project,
         explicit: Option<String>,
@@ -84,7 +83,7 @@ impl LoginContext {
         })
     }
 
-    pub fn verification_url(&self, mut url: reqwest::Url) -> reqwest::Url {
+    fn verification_url(&self, mut url: reqwest::Url) -> reqwest::Url {
         if let Some(target) = &self.expected {
             url.query_pairs_mut()
                 .append_pair("organization_id", &target.organization_id);
@@ -92,61 +91,7 @@ impl LoginContext {
         url
     }
 
-    pub fn session(&self) -> Result<Option<(String, Profile, Session)>> {
-        let config = self.store.load()?;
-        let selected = if let Some(name) = &self.name {
-            config
-                .profiles
-                .get(name)
-                .map(|profile| (name.clone(), profile.clone()))
-        } else {
-            let selected = config.select(None, &self.project)?;
-            if selected
-                .as_ref()
-                .is_some_and(|(_, p)| p.target.url == self.config.api_base_url)
-            {
-                selected
-            } else {
-                let mut matching = config.profiles.into_iter().filter(|(_, p)| {
-                    p.target.url == self.config.api_base_url
-                        && self
-                            .expected
-                            .as_ref()
-                            .is_none_or(|target| target == &p.target)
-                });
-                let first = matching.next();
-                if matching.next().is_some() {
-                    bail!(
-                        "Multiple profiles match this installation. Select one with EVERR_PROFILE and restart Everr Local."
-                    );
-                }
-                first
-            }
-        };
-        let Some((name, profile)) = selected else {
-            return Ok(None);
-        };
-        if profile.target.url != self.config.api_base_url {
-            return Ok(None);
-        }
-        if self
-            .expected
-            .as_ref()
-            .is_some_and(|target| target != &profile.target)
-            || self
-                .user_id
-                .as_ref()
-                .is_some_and(|user| user != &profile.user_id)
-        {
-            bail!("The selected profile changed its organization or account. Restart the login.");
-        }
-        Ok(self
-            .store
-            .session(&name)?
-            .map(|session| (name, profile, session)))
-    }
-
-    pub async fn save(&self, session: Session) -> Result<(String, Profile)> {
+    async fn save(&self, session: Session) -> Result<(String, Profile)> {
         let client = ApiClient::from_session(&session)?;
         let identity = Profile::from_identity(&self.config.api_base_url, &client.get_me().await?)?;
         if self

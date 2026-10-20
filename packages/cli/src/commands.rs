@@ -35,7 +35,14 @@ pub async fn run_command(cli: Cli, lifetime: &mut telemetry::SupervisorLifetime)
                 core::runs_logs(args, client(profile, false).await?).await?
             }
         },
-        Commands::Local(args) => telemetry::commands::run(args, lifetime, profile).await?,
+        Commands::Local(args) => {
+            if profile.is_some() {
+                anyhow::bail!(
+                    "--profile applies to remote commands. Local commands do not use profiles."
+                );
+            }
+            telemetry::commands::run(args, lifetime).await?
+        }
         Commands::Wrap(args) => wrap::run(args).await?,
         Commands::Skills(args) => skills::run(args)?,
         Commands::Apply(args) => core::run_apply(args, client(profile, true).await?).await?,

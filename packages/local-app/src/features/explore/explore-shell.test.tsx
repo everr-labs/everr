@@ -49,17 +49,17 @@ function QueryProbe({
 }
 
 describe("Explore refresh", () => {
-  it("refreshes telemetry without including background account polling", async () => {
+  it("refreshes telemetry without including background collector status polling", async () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    const accountKey = ["local-app", "auth-status"];
-    client.setQueryData(accountKey, "signed out");
-    let finishAccount = () => {};
-    const pendingAccount = new Promise<string>((resolve) => {
-      finishAccount = () => resolve("signed out");
+    const statusKey = ["local-app", "collector-status"];
+    client.setQueryData(statusKey, "running");
+    let finishStatus = () => {};
+    const pendingStatus = new Promise<string>((resolve) => {
+      finishStatus = () => resolve("running");
     });
-    const account = vi.fn(() => pendingAccount);
+    const status = vi.fn(() => pendingStatus);
     const telemetry = vi.fn().mockResolvedValue("fresh telemetry");
     const view = render(
       <QueryClientProvider client={client}>
@@ -71,18 +71,18 @@ describe("Explore refresh", () => {
           onRefreshChange={vi.fn()}
         >
           <QueryProbe queryKey={["logs", "explorer"]} queryFn={telemetry} />
-          <QueryProbe queryKey={accountKey} queryFn={account} />
+          <QueryProbe queryKey={statusKey} queryFn={status} />
         </ExploreShell>
       </QueryClientProvider>,
     );
     const refresh = screen.getByRole("button", { name: "Refresh" });
-    await waitFor(() => expect(account).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(status).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(refresh).toHaveAttribute("aria-busy", "false"));
     fireEvent.click(refresh);
     await waitFor(() => expect(telemetry).toHaveBeenCalledTimes(2));
-    expect(account).toHaveBeenCalledTimes(1);
+    expect(status).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveAttribute("aria-busy", "false");
-    await act(async () => finishAccount());
+    await act(async () => finishStatus());
     view.unmount();
     client.clear();
   });

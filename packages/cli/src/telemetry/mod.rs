@@ -6,7 +6,6 @@ pub mod client;
 pub mod collector;
 pub mod commands;
 
-mod local_auth;
 mod local_lifecycle;
 pub use local_lifecycle::SupervisorLifetime;
 mod local_log;

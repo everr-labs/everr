@@ -17,7 +17,7 @@ pub const MAX_LOG_PAGE_SIZE: u32 = 5000;
     about = "Query telemetry, inspect CI, and manage resources as code in Everr"
 )]
 pub struct Cli {
-    /// Select a saved installation, organization, and account
+    /// Select a saved installation, organization, and account for remote commands
     #[arg(long, global = true)]
     pub profile: Option<String>,
     #[command(subcommand)]

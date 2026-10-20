@@ -11,7 +11,3 @@ export async function invokeCommand<TResult>(
   if (!response.ok) throw new Error(result.error ?? "Local request failed");
   return result as TResult;
 }
-
-export function toErrorMessageText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

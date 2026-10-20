@@ -42,20 +42,3 @@ export function SettingsSection({
     </section>
   );
 }
-
-export function FeatureErrorText({
-  message,
-  action,
-}: {
-  message: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="grid gap-3">
-      <p className="m-0 text-sm leading-6 text-[var(--settings-text-muted)]">
-        {message}
-      </p>
-      {action ? <div>{action}</div> : null}
-    </div>
-  );
-}

@@ -206,6 +206,41 @@ fn detached_and_foreground_instances_share_the_full_lifecycle() {
 }
 
 #[test]
+fn local_start_runs_with_unusable_remote_connection_settings() {
+    let instance = Instance::new();
+    let config = instance.data.path().join("unused-remote-config");
+    std::fs::create_dir(&config).unwrap();
+    std::fs::write(config.join("config-dev.yaml"), "invalid: [").unwrap();
+    std::fs::write(config.join("credentials-dev.json"), "invalid").unwrap();
+    let repo = instance.data.path().join("repo");
+    std::fs::create_dir_all(repo.join(".git")).unwrap();
+    std::fs::create_dir(repo.join(".everr")).unwrap();
+    std::fs::write(repo.join(".everr/config.yaml"), "invalid: [").unwrap();
+
+    let _foreground = Foreground(
+        instance
+            .command()
+            .current_dir(repo)
+            .env("EVERR_CONFIG_DIR", config)
+            .env("EVERR_PROFILE", "unavailable-remote-profile")
+            .args(["local", "start", "--quiet", "--no-open"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    instance.wait_ready();
+    assert_eq!(instance.identity()["status"], "ok");
+    let rows = instance.run(&["local", "query", "SELECT 1 AS value", "--format", "ndjson"]);
+    assert_eq!(
+        serde_json::from_str::<Value>(rows.trim()).unwrap()["value"],
+        1
+    );
+    instance.run(&["local", "stop"]);
+    instance.assert_stopped();
+}
+
+#[test]
 fn unavailable_log_directory_does_not_start_a_supervisor() {
     let instance = Instance::new();
     let blocker = instance.data.path().join("not-a-directory");

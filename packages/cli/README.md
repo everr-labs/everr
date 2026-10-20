@@ -52,9 +52,10 @@ global current profile. A project matches profiles by URL and organization ID,
 independently of their aliases. Multiple matches require an explicit profile.
 Missing, logged-out, or expired credentials produce an error for that target.
 `whoami` shows the effective target and selection source. Local telemetry commands
-continue to query the local collector. The local UI shares profile credentials
-with terminal commands; `everr local start --profile acme` selects its remote
-connection, including when started with `--detach`.
+continue to query the local collector. The local UI manages local telemetry
+without remote account or sign-in controls. Local commands do not read repository
+targets or profile credentials. Repository targets and `EVERR_PROFILE` affect
+remote commands only; local commands do not accept `--profile`.
 
 During exporter setup or connection troubleshooting, run `everr whoami --json`.
 It returns the effective `profile`, `selectionSource`, `url`, account and
