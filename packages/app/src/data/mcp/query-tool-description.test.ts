@@ -6,4 +6,9 @@ describe("QUERY_TOOL_DESCRIPTION", () => {
   it.each(SQL_API_TENANT_TABLES)("documents the readable table %s", (table) => {
     expect(QUERY_TOOL_DESCRIPTION).toMatch(new RegExp(`\\b${table}\\b`));
   });
+
+  it("does not offer recordings", () => {
+    expect(SQL_API_TENANT_TABLES).not.toContain("recordings");
+    expect(QUERY_TOOL_DESCRIPTION).not.toMatch(/\brecordings\b/);
+  });
 });

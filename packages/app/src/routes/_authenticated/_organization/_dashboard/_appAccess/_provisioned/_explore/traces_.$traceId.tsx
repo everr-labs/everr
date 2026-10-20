@@ -1,7 +1,6 @@
 import {
   getTraceOptions,
   TraceDetailParamsSchema,
-  TraceExplorer,
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
 import { Button } from "@everr/ui/components/button";
@@ -17,6 +16,7 @@ import {
   Link,
 } from "@tanstack/react-router";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
+import { TraceStage } from "./-replay/stage";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId",
@@ -47,8 +47,7 @@ function TraceDetailRoute() {
   const navigate = Route.useNavigate();
 
   return (
-    <TraceExplorer
-      repo={remoteTracesRepo}
+    <TraceStage
       traceId={traceId}
       search={search}
       onBack={() =>
