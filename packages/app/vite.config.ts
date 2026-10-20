@@ -6,7 +6,7 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
 import svgr from "vite-plugin-svgr";
-import { stageMigrationHistories } from "./build/migrations.ts";
+import { migrationAssets } from "./build/migrations.ts";
 import {
   type AppComposition,
   appAliases,
@@ -101,16 +101,14 @@ export function createAppConfig(
           },
           router: appRoutes(composition),
         }),
+        migrationAssets({
+          ".": resolve(appDirectory, "drizzle"),
+          ...composition.migrationHistories,
+        }),
         nitro({
           output: { dir: outputDirectory },
           traceDeps: ["tslib*"],
           hooks: {
-            compiled: async (nitro) => {
-              await stageMigrationHistories(nitro.options.output.dir, {
-                ".": resolve(appDirectory, "drizzle"),
-                ...composition.migrationHistories,
-              });
-            },
             "rollup:before": (nitro, config) => {
               if (!composition.serverEntries || nitro.options.dev) return;
               config.input = {
