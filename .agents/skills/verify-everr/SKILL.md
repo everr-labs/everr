@@ -10,8 +10,8 @@ metadata:
 
 This skill covers two surfaces. Each has its own Launch, Doctor, Drive and Cleanup, and both write evidence under `.verify-everr/artifacts/`. They are independent: run either alone, or both at once.
 
-- **A. CLI + local stack** (`launch`, `doctor`, `cli`, `ui-*`, `cleanup`).
-- **B. Web app `packages/app`** (`web-launch`, `web-doctor`, `web-steps`, `web-http`, `web-webhook`, `web-psql`, `web-ch`, `web-cleanup`). Implemented in `scripts/web.ts`.
+- **A. CLI + local stack** (`launch`, `doctor`, `cli`, `ui-*`, `browser-env`, `cleanup`).
+- **B. Web app `packages/app`** (`web-launch`, `web-doctor`, `web-browser-env`, `web-http`, `web-webhook`, `web-psql`, `web-ch`, `web-cleanup`). Implemented in `scripts/web.ts`.
 
 Surface A: the `everr` CLI, in particular the local telemetry loop (`everr local start` boots a supervisor that serves the local UI and runs the embedded Go collector with in-process chDB; `everr wrap` and any OTLP exporter write into it; `everr local query` and the local UI read from it). Everything here runs offline with no auth.
 
@@ -32,7 +32,7 @@ V=.agents/skills/verify-everr/scripts/verify-everr.ts
 
 ### A. CLI + local stack
 
-1. Toolchain (once per machine). The build needs: Node >= 23 (repo pins `.nvmrc` = 24; Node 20 cannot run the `.ts` build scripts), pnpm 11 via corepack (`packageManager`), stable Rust (CI uses `dtolnay/rust-toolchain@stable`), Go >= the `collector/go.mod` version (1.26), `make`, a C toolchain, `curl`, `tar`. The helper itself runs on that Node and needs `ss` (iproute2), `curl` (`web-http`), and Chrome/Chromium for UI shots; some recipes also use `jq`. Linux only: `launch`, `doctor` and `cleanup` find the PIDs that own the run ports with `ss -ltnp`, which macOS does not have; the skill is untested on macOS.
+1. Toolchain (once per machine). The build needs: Node >= 23 (repo pins `.nvmrc` = 24; Node 20 cannot run the `.ts` build scripts), pnpm 11 via corepack (`packageManager`), stable Rust (CI uses `dtolnay/rust-toolchain@stable`), Go >= the `collector/go.mod` version (1.26), `make`, a C toolchain, `curl`, `tar`. The helper itself runs on that Node and needs `ss` (iproute2) and `curl` (`web-http`); some recipes also use `jq`. The browser is driven with the [`agent-browser`](https://www.npmjs.com/package/agent-browser) CLI (required for every UI step; `doctor` and `web-doctor` check it): `npm install -g agent-browser && agent-browser install` (downloads its Chrome; on a bare Linux host add `--with-deps`). Tested with 0.39.1. Linux only: `launch`, `doctor` and `cleanup` find the PIDs that own the run ports with `ss -ltnp`, which macOS does not have; the skill is untested on macOS.
 2. Build (once per source change). This is the repo's own `pnpm dev:cli`: builds `packages/local-app` (Vite), `make -C collector build-local` (Go), downloads the pinned chDB release into `target/chdb/`, gzips both into `target/cli-embedded-assets/`, then `cargo build` of the debug CLI with them embedded.
 
    ```bash
@@ -60,7 +60,7 @@ Teardown is `$V cleanup` (see Cleanup).
 
 ### B. Web app
 
-Prerequisites: a reachable Docker daemon with the Compose plugin (>= 2.24 for `!override`); the helper uses `docker`, or `sudo -n docker` when the user is not in the `docker` group. Node >= 23 and pnpm 11 as above (`pnpm install` runs if `node_modules` is missing), Chrome/Chromium.
+Prerequisites: a reachable Docker daemon with the Compose plugin (>= 2.24 for `!override`); the helper uses `docker`, or `sudo -n docker` when the user is not in the `docker` group. Node >= 23 and pnpm 11 as above (`pnpm install` runs if `node_modules` is missing), `agent-browser`.
 
 ```bash
 $V web-launch            # or: $V web-launch <RUN_ID>
@@ -102,7 +102,7 @@ Read-only. Run first, and whenever anything looks off:
 $V doctor
 ```
 
-Surface A. Checks: debug build and git HEAD, warns if `packages/cli/src`, `packages/local-app/src` or `collector/cmd` changed after the binary was built (then rebuild), `everr local status` exits 0, collector `/health` and UI `/health` report the same `instance_id`, each port is still owned by the PIDs recorded at launch, and SQL answers. Ends with `DOCTOR OK` or `DOCTOR FAILED`. On failure: `$V cleanup`, then `$V launch` again; read `/tmp/verify-everr/<RUN_ID>/logs/local.log` before cleanup if the cause is unclear.
+Surface A. Checks: debug build and git HEAD, warns if `packages/cli/src`, `packages/local-app/src` or `collector/cmd` changed after the binary was built (then rebuild), `everr local status` exits 0, collector `/health` and UI `/health` report the same `instance_id`, each port is still owned by the PIDs recorded at launch, `agent-browser` is on PATH, and SQL answers. Ends with `DOCTOR OK` or `DOCTOR FAILED`. On failure: `$V cleanup`, then `$V launch` again; read `/tmp/verify-everr/<RUN_ID>/logs/local.log` before cleanup if the cause is unclear.
 
 Surface B:
 
@@ -110,7 +110,7 @@ Surface B:
 $V web-doctor
 ```
 
-Checks: both containers of this run's project report `healthy`, ClickHouse answers as `app_ro`, the row-policy count equals the init scripts', all drizzle migrations applied, the dev server's process group is alive, the web port is still owned by the PIDs recorded at launch, `/api/health` is `{"ok":true}`, `/auth/sign-in` serves HTML. Lists other containers on the host as `info` (never touched). Ends with `WEB DOCTOR OK` or `WEB DOCTOR FAILED`. On failure read `/tmp/verify-everr/web-<id>/web.log`, then `$V web-cleanup` and relaunch.
+Checks: both containers of this run's project report `healthy`, ClickHouse answers as `app_ro`, the row-policy count equals the init scripts', all drizzle migrations applied, the dev server's process group is alive, the web port is still owned by the PIDs recorded at launch, `/api/health` is `{"ok":true}`, `/auth/sign-in` serves HTML, `agent-browser` is on PATH. Lists other containers on the host as `info` (never touched). Ends with `WEB DOCTOR OK` or `WEB DOCTOR FAILED`. On failure read `/tmp/verify-everr/web-<id>/web.log`, then `$V web-cleanup` and relaunch.
 
 ## Drive
 
@@ -139,28 +139,38 @@ Pick the feature file from [`features/README.md`](features/README.md) and follow
   $V ui-cmd get_collector_status
   $V ui-cmd telemetry_sql_query '{"sql":"SELECT count() AS c FROM logs WHERE ServiceName = {svc:String}","params":{"svc":"everr-wrap-sh"}}'
   ```
-- Local UI rendered in headless Chrome over CDP (`scripts/browser.ts`, no npm deps). Waits until the given text is in `document.body.innerText` (max `UI_WAIT_MS`, default 20000), then saves the screenshot, DOM and innerText:
-
-  ```bash
-  $V ui-shot <label> '/logs?q=<text>' '<text that must be visible>'
-  ```
-
-  Exit 1 if navigation fails (`navError` in `result.json`, for example `net::ERR_CONNECTION_REFUSED`) or the text never appears (artifacts are still written so you can see what rendered instead). Assert on `text.txt`, not `dom.html`: search highlighting splits matched text across `<mark>`-style spans.
+- Rendered UI: drive it with `agent-browser` (see "Browser" below) at `$UI` from `eval "$($V browser-env)"`.
 - Raw env for anything else (OTLP exporters, curl): `eval "$($V env)"` in a subshell, then point the exporter at `$EVERR_OTLP_HTTP_ORIGIN` (OTLP/HTTP, e.g. `/v1/logs`).
 
 Web app primitives (surface B):
 
-- Browser journeys: `$V web-steps <label> <journey.json>`. Runs the steps mode of `scripts/browser.ts` against the run's origin with a Chrome profile kept in the run's scratch dir, so a session from one journey carries into the next (Chrome is closed over CDP so cookies are flushed). Journeys live in `scripts/journeys/` and expand `${VARS}` from the environment. Export these before driving:
+- Rendered app: drive it with `agent-browser` (see "Browser" below) at `$WEB` from `eval "$($V web-browser-env)"`. Journeys sign up a throwaway user; export these first:
 
   ```bash
   export VERIFY_NAME="Verify Bot" VERIFY_EMAIL="verify-$(date +%s)@example.com" \
          VERIFY_PASSWORD="verify-password-123" VERIFY_KEY_NAME="verify-key-$(date +%s)"
   ```
-
-  Step types: `goto`, `waitText`, `waitUrl` (regex on pathname), `fill` (CSS selector, typed via CDP `Input.insertText`), `click` (+ optional `hasText`), `clickText` (+ `within`), `clickRole` (+ `name`, accessible-name prefix), `assertText`, `assertNoText`, `shot`. Clicks are real mouse events at the element's center. A failing step stops the journey, saves `failure.{png,txt,url}`, and exits 1.
 - HTTP: `$V web-http <label> <METHOD> <path> [curl args]` records command, status, headers, body.
 - GitHub webhooks: `$V web-webhook <label> <event> <payload.json>` signs the body with this run's `GITHUB_APP_WEBHOOK_SECRET` (`x-hub-signature-256`), as GitHub does for a configured App.
 - Side effects: `$V web-psql <label> "<SQL>"` (runs inside a read-only transaction in this run's Postgres container) and `$V web-ch <label> "<SQL>"` (ClickHouse default user, JSONEachRow).
+
+### Browser
+
+Every rendered-UI step uses the `agent-browser` CLI directly, in the run's own session:
+
+```bash
+eval "$($V browser-env)"       # surface A: AGENT_BROWSER_SESSION=verify-everr-<RUN_ID>, UI, SHOTS=<evidence>/ui, ab_save
+eval "$($V web-browser-env)"   # surface B: AGENT_BROWSER_SESSION=verify-everr-web-<id>, WEB, SHOTS=<evidence>/web, ab_save
+```
+
+Run the `eval` in the shell you drive from (not inside `eval "$($V env)"`, whose throwaway `HOME` hides agent-browser's installed Chrome). With `AGENT_BROWSER_SESSION` set, every `agent-browser` command targets this run's browser, never another agent's, and cookies persist across commands until cleanup closes the session. The commands the recipes use:
+
+- `agent-browser open <url>`: navigate. Exits 1 with `Navigation failed: net::ERR_...` when the origin is down.
+- `agent-browser wait --text "<text>" [--timeout <ms>]` (default 25000; `web-browser-env` raises it to 90000 via `AGENT_BROWSER_DEFAULT_TIMEOUT`, because the dev server compiles each route on its first visit), `wait --fn "location.pathname === '/'"`: exit 1 on timeout. Always wait for the text you expect before capturing; the UI renders query results after load.
+- `agent-browser fill "<css>" "<value>"` (replaces the value), `click "<css>"`, `find role <role> click --name "<accessible name>"` (substring match). After opening a menu or dialog, `wait --text` for its item before clicking it: it animates in, and `find` fails with `No element found` if it runs first.
+- `agent-browser snapshot -i`: interactive elements with `@eN` refs, to find a handle when a recipe's selector no longer matches.
+- `agent-browser press Enter`: submit the focused form. Prefer it to clicking submit: the analytics consent banner can cover the button, and `click` then refuses with `is covered by <p...>`. Do not click `Accept all` or `Deny`.
+- Evidence: `ab_save <label>` (defined by the `eval`) saves `$SHOTS/<label>.png` (`agent-browser screenshot`), `.url` (`get url`) and `.txt` (`get text body`). Labels are flat (`sign-up-01-form`): `screenshot` does not create directories. Assert on the `.txt`, not on the screenshot.
 
 Web stable handles (from source): sign-up inputs `#name`, `#email`, `#password`; sign-in `#email`, `#password`; submit `button[type=submit]`; user menu is the sidebar button containing the user's name, with menu item `Log out` (`role=menuitem`); API key dialog `#api-key-name`, switch `Send telemetry` / `Manage as code` (`role=switch`), buttons `New key`, `Create key`, `Done`. Route paths (pathless layouts stripped): `/auth/sign-up`, `/auth/sign-in`, `/organization-setup`, `/`, `/api-keys`, `/github`, `/logs`, `/traces`, `/errors`, `/runs`, `/dashboards`, `/runbooks`, `/alerts`, `/repos`, `/cost-analysis`, `/users-management`, `/billing`, `/account`; API `/api/health`, `/api/github/install/start`, `/webhook/github`.
 
@@ -173,18 +183,18 @@ Surface A location: `$REPO/.verify-everr/artifacts/<RUN_ID>/` (gitignored, outsi
 - `run.txt` (run id, git HEAD/branch, binary version and mtime, launch time), `run.env`, `pids.txt`, `launch.{stdout,stderr,exit}`
 - `cli/<label>/{command.txt,stdout,stderr,exit_code,at.txt}` per `$V cli` call
 - `cli/<label>/until.txt` for `$V cli-until` calls
-- `ui/<label>/{url.txt,screenshot.png,dom.html,text.txt,result.json}` per `$V ui-shot` call
+- `ui/<label>.{png,txt,url}` saved with `agent-browser` (see Browser)
 - `local.log` (supervisor + collector log, copied at cleanup), `cleanup.stop.txt`
 
 Surface B location: `$REPO/.verify-everr/artifacts/web-<RUN_ID>/`:
 
 - `run.txt` (run id, compose project, git HEAD/branch, docker version, launch seconds), `run.env`, `app.env.redacted` (no secrets), `pids.txt`, `compose-build.log`, `compose-up.log`
-- `web/<label>/` per journey: `steps.json` (expanded), `steps.log` (ok/FAIL per step with timing), `<shot>.{png,txt,url}`, `console.log` (browser console and exceptions), `result.json`; a rerun of the same label moves the old folder to `<label>.prev-<time>`
+- `web/<recipe>-<step>.{png,txt,url}` saved with `agent-browser` (see Browser)
 - `http/<label>/{command.txt,status,headers,body}` and `delivery.txt` for webhooks
 - `db/<label>/{query.sql,stdout,stderr,exit_code}`
 - `web.log` (dev server + workers) and `compose.log` (container logs), copied at cleanup; `cleanup.txt`
 
-Note: `web/api-keys/03-issued.*` contains the freshly issued `ek_` key. It is only valid against the run's database, which cleanup destroys.
+Note: `web/api-keys-03-issued.*` contains the freshly issued `ek_` key. It is only valid against the run's database, which cleanup destroys.
 
 Proof standards:
 
@@ -204,18 +214,17 @@ $V cleanup        # surface A
 $V web-cleanup    # surface B
 ```
 
-`cleanup` runs `everr local stop` for this run (stops UI + collector via the supervisor), waits for the 3 run ports to close, and if any are still held, kills only the PIDs recorded at launch that still own those ports. Never kill by process name: other agents and the user may run their own `everr-local-collector`. It copies `local.log` into the evidence dir, deletes `/tmp/verify-everr/<RUN_ID>/` (data, throwaway HOME, extracted assets) and `.verify-everr/current` if it names this run, then lists the evidence that survived. Run it after every attempt, including failed ones. Also remove any scratch dirs a feature recipe created (they say so).
+`cleanup` runs `everr local stop` for this run (stops UI + collector via the supervisor), waits for the 3 run ports to close, and if any are still held, kills only the PIDs recorded at launch that still own those ports. Never kill by process name: other agents and the user may run their own `everr-local-collector`. It closes this run's `agent-browser` session (its Chrome), copies `local.log` into the evidence dir, deletes `/tmp/verify-everr/<RUN_ID>/` (data, throwaway HOME, extracted assets) and `.verify-everr/current` if it names this run, then lists the evidence that survived. Run it after every attempt, including failed ones. Also remove any scratch dirs a feature recipe created (they say so).
 
-`web-cleanup` sends SIGTERM (then SIGKILL) to the dev server's recorded process group, waits for the web port to close, copies `web.log` and `compose logs`, then runs `docker compose -p <this run's project> ... down -v --remove-orphans`, which removes only this project's containers, network and named volumes, and warns about any container still labeled with the project. It deletes `/tmp/verify-everr/web-<id>/` (env with secrets, Chrome profile; refused unless it resolves inside the scratch root) and `.verify-everr/current-web` if it names this run, and lists the surviving evidence. Never `docker compose down` without `-p`, never `docker rm` by name: the developer's stack (project `everr`) may be running on the same host.
+`web-cleanup` sends SIGTERM (then SIGKILL) to the dev server's recorded process group, waits for the web port to close, closes this run's `agent-browser` session, copies `web.log` and `compose logs`, then runs `docker compose -p <this run's project> ... down -v --remove-orphans`, which removes only this project's containers, network and named volumes, and warns about any container still labeled with the project. It deletes `/tmp/verify-everr/web-<id>/` (env with secrets; refused unless it resolves inside the scratch root) and `.verify-everr/current-web` if it names this run, and lists the surviving evidence. Never `docker compose down` without `-p`, never `docker rm` by name: the developer's stack (project `everr`) may be running on the same host.
 
 ## Helpers
 
-- `scripts/verify-everr.ts` (executable TypeScript entry, run by Node). Subcommands: `build`, `launch [RUN_ID]`, `doctor`, `env`, `cli <label> -- ARGS`, `cli-until <label> <text> -- ARGS`, `ui-get <path>`, `ui-cmd <command> [json]`, `ui-shot <label> <path> [text]`, `cleanup`, and `web-launch [RUN_ID]`, `web-doctor`, `web-env`, `web-steps <label> <journey>`, `web-http <label> <METHOD> <path> [curl args]`, `web-webhook <label> <event> <payload>`, `web-psql <label> <SQL>`, `web-ch <label> <SQL>`, `web-cleanup`. Run it with no args for usage. Env knobs: `EVERR_VERIFY_SCRATCH` (scratch root, default `/tmp/verify-everr`), `VERIFY_BUILD_OTLP_ENDPOINT` (where `build` sends its own spans, default the dead port `http://127.0.0.1:9`), `VERIFY_CWD` (cwd for `cli`), `UNTIL_S`, `CHROME` (browser binary), `UI_WAIT_MS`, and `RUN_ID` / `WEB_RUN_ID` to target a run other than the current one.
+- `scripts/verify-everr.ts` (executable TypeScript entry, run by Node). Subcommands: `build`, `launch [RUN_ID]`, `doctor`, `env`, `cli <label> -- ARGS`, `cli-until <label> <text> -- ARGS`, `ui-get <path>`, `ui-cmd <command> [json]`, `browser-env`, `cleanup`, and `web-launch [RUN_ID]`, `web-doctor`, `web-env`, `web-browser-env`, `web-http <label> <METHOD> <path> [curl args]`, `web-webhook <label> <event> <payload>`, `web-psql <label> <SQL>`, `web-ch <label> <SQL>`, `web-cleanup`. Run it with no args for usage. Env knobs: `EVERR_VERIFY_SCRATCH` (scratch root, default `/tmp/verify-everr`), `VERIFY_BUILD_OTLP_ENDPOINT` (where `build` sends its own spans, default the dead port `http://127.0.0.1:9`), `VERIFY_CWD` (cwd for `cli`), `UNTIL_S`, and `RUN_ID` / `WEB_RUN_ID` to target a run other than the current one.
 - `scripts/common.ts`: paths, run-id validation, scratch-root containment, ports, process helpers.
 - `scripts/web.ts`: the `web-*` subcommands.
-- `scripts/browser.ts`: headless Chrome over CDP, shot mode (used by `ui-shot`) and steps mode (used by `web-steps`). The step format is documented at the top of the file.
 - `scripts/package.json`: only `"type": "module"`, so Node loads the `.ts` files as ES modules without a warning.
 - `scripts/compose.verify.yaml`: the per-run compose override (ports, volumes, ClickHouse image tag).
-- `scripts/journeys/*.json`: web journeys (`sign-up`, `sign-in`, `sign-out-sign-in`, `api-keys`, `api-keys-capability-required` (expected to fail at step 4), `explore-empty`, `github-connect`) and `workflow-run.webhook.json` (a minimal signed-webhook payload).
+- `scripts/workflow-run.webhook.json`: a minimal signed-webhook payload for `web-webhook`.
 
 Maintain the feature map with `/maintain-verification-skill` when commands, routes, or attributes change.

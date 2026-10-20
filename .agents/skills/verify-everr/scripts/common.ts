@@ -5,6 +5,7 @@ import {
   closeSync,
   constants,
   existsSync,
+  mkdirSync,
   openSync,
   readFileSync,
   readdirSync,
@@ -146,11 +147,35 @@ export function isExecutable(file: string): boolean {
   }
 }
 
-export function findChrome(): string {
-  const chrome =
-    process.env.CHROME || which("google-chrome") || which("chromium") || which("chromium-browser");
-  if (!chrome) die("no Chrome/Chromium on PATH (set CHROME=/path/to/chrome)");
-  return chrome;
+// The browser is driven with the agent-browser CLI, one session (one Chrome) per run.
+export const AGENT_BROWSER_HINT = "install it: npm install -g agent-browser && agent-browser install";
+
+export const browserSession = (id: string): string => `verify-everr-${id}`;
+
+/** `agent-browser --version`, or undefined if it is not on PATH. */
+export function agentBrowserVersion(): string | undefined {
+  const r = run("agent-browser", ["--version"]);
+  return r.status === 0 ? r.stdout.trim() : undefined;
+}
+
+/** Close a run's agent-browser session (its Chrome and daemon), appending the output to log. */
+export async function closeBrowser(session: string, log: string): Promise<void> {
+  if (!agentBrowserVersion()) return;
+  runToFiles("agent-browser", ["--session", session, "close"], { stdout: log, append: true });
+  const listed = () => run("agent-browser", ["session", "list"]).stdout.split("\n").some((l) => l.trim() === session);
+  const deadline = Date.now() + 5000;
+  while (listed() && Date.now() < deadline) await sleep(300);
+  if (listed()) console.error(`warn: agent-browser session ${session} still open; run: agent-browser --session ${session} close`);
+}
+
+/** Shell lines for driving a run's browser: session, origin, evidence dir (created), and `ab_save <label>`. */
+export function printBrowserEnv(vars: Record<string, string>, shots: string): number {
+  mkdirSync(shots, { recursive: true });
+  for (const [k, v] of Object.entries({ ...vars, SHOTS: shots })) console.log(`export ${k}='${v}'`);
+  console.log(
+    'ab_save() { agent-browser screenshot "$SHOTS/$1.png" >/dev/null && agent-browser get url >"$SHOTS/$1.url" && agent-browser get text body >"$SHOTS/$1.txt" && echo "saved $SHOTS/$1.{png,url,txt}"; }',
+  );
+  return 0;
 }
 
 /** A free loopback TCP port (bind to 0, read it back, close). */

@@ -4,16 +4,18 @@
 // Run directly (`./verify-everr.ts ...` or `node verify-everr.ts ...`); Node >= 23 strips the types.
 import { type Dirent, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { shot } from "./browser.ts";
 import {
+  AGENT_BROWSER_HINT,
   BIN,
   REPO,
   SCRATCH_ROOT,
   STATE_DIR,
   type RunId,
+  agentBrowserVersion,
+  browserSession,
+  closeBrowser,
   defaultRunId,
   die,
-  findChrome,
   freePort,
   http,
   isExecutable,
@@ -22,6 +24,7 @@ import {
   parseRunId,
   portOf,
   portPids,
+  printBrowserEnv,
   readEnvFile,
   readPointer,
   readText,
@@ -50,7 +53,7 @@ const USAGE = `# verify-everr: launch, inspect, drive, and tear down an ISOLATED
 #   verify-everr cli-until <label> <text> -- ARGS... # retry a read until stdout has text
 #   verify-everr ui-get <path>          # GET a path on this run's local UI
 #   verify-everr ui-cmd <command> [json]# POST /api/commands/<command> like the browser does
-#   verify-everr ui-shot <label> <path> [text] # headless Chrome: wait for text, save screenshot/DOM/innerText
+#   verify-everr browser-env            # export lines for agent-browser: AGENT_BROWSER_SESSION, UI, SHOTS
 #   verify-everr cleanup                # stop this run's instance, delete scratch, KEEP evidence
 #   verify-everr web-*                  # web app (packages/app) commands, below
 #
@@ -244,6 +247,8 @@ async function cmdDoctor(): Promise<number> {
     const now = portPids(portOf(origin));
     check(`${name} port ${portOf(origin)} owned by recorded pids [${want}]`, want !== "" && want === now);
   }
+  const ab = agentBrowserVersion();
+  check(ab ? `agent-browser on PATH (${ab})` : `agent-browser on PATH (missing; ${AGENT_BROWSER_HINT})`, Boolean(ab));
   check("SQL answers (SELECT count() FROM logs)", everr(r, ["local", "query", "SELECT count() AS c FROM logs", "--format", "ndjson"]).status === 0);
   if (ok) {
     console.log("DOCTOR OK");
@@ -337,22 +342,9 @@ function cmdUiCmd(command: string, json: string | undefined): Promise<number> {
   });
 }
 
-/** Render a local UI route in headless Chrome, wait until the text is visible, save screenshot/DOM/innerText. */
-async function cmdUiShot(label: string, urlPath: string | undefined, waitFor: string | undefined): Promise<number> {
+function cmdBrowserEnv(): number {
   const r = loadRun();
-  const chrome = findChrome();
-  const out = path.join(r.art, "ui", label);
-  const rc = await shot({
-    chrome,
-    env: envWith(r.vars),
-    scratchDir: r.dir,
-    url: `${r.ui}${urlPath || "/"}`,
-    outDir: out,
-    waitFor: waitFor ?? "",
-    timeoutMs: Number(process.env.UI_WAIT_MS || 20000),
-  });
-  console.log(`ui evidence: ${out}/{screenshot.png,dom.html,text.txt,result.json}`);
-  return rc;
+  return printBrowserEnv({ AGENT_BROWSER_SESSION: browserSession(r.id), UI: r.ui }, path.join(r.art, "ui"));
 }
 
 async function cmdCleanup(): Promise<number> {
@@ -395,6 +387,7 @@ async function cmdCleanup(): Promise<number> {
     for (const o of origins) {
       if (portPids(portOf(o))) teeAppend(stopLog, `WARN ${o} still listening`);
     }
+    await closeBrowser(browserSession(runId), stopLog);
     const log = path.join(dir, "logs", "local.log");
     if (existsSync(log)) copyFileSync(log, path.join(art, "local.log"));
   }
@@ -429,8 +422,8 @@ async function main(argv: string[]): Promise<number> {
       return cmdUiGet(args[0]);
     case "ui-cmd":
       return cmdUiCmd(required(args[0], "command"), args[1]);
-    case "ui-shot":
-      return cmdUiShot(required(args[0], "label"), args[1], args[2]);
+    case "browser-env":
+      return cmdBrowserEnv();
     case "cleanup":
       return cmdCleanup();
     default: {

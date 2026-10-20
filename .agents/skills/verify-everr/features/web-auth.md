@@ -25,17 +25,41 @@ Preconditions:
 - `$V web-launch` printed `WEB READY` and `$V web-doctor` ends with `WEB DOCTOR OK`.
 - `VERIFY_NAME`, `VERIFY_EMAIL` (unique per run), `VERIFY_PASSWORD` exported (see SKILL.md Drive).
 
-- **Sign up.** Run `$V web-steps sign-up sign-up.json`. Every step `ok`; `web/sign-up/02-organization-setup.txt` contains `Setting up your organization`; `03-home.url` is the web origin `/` and `03-home.txt` contains `Welcome to Everr`, `Step 1 of 4` and `$VERIFY_NAME` (`auth-sign-up`, `auth-org-setup`, `auth-home`).
+- The run's browser: `eval "$($V web-browser-env)"` in the driving shell (SKILL.md Browser). Evidence lands in `$SHOTS`.
+
+- **Sign up.** Run:
+
+  ```bash
+  agent-browser open "$WEB/auth/sign-up" && agent-browser wait --text "Create your account" && ab_save sign-up-01-form
+  agent-browser fill "#name" "$VERIFY_NAME" && agent-browser fill "#email" "$VERIFY_EMAIL" && agent-browser fill "#password" "$VERIFY_PASSWORD" && agent-browser press Enter
+  agent-browser wait --text "Setting up your organization" && ab_save sign-up-02-organization-setup
+  agent-browser wait --fn "location.pathname === '/'" && agent-browser wait --text "Welcome to Everr" && ab_save sign-up-03-home
+  ```
+
+  Every command exits `0`; `sign-up-02-organization-setup.url` is `/organization-setup?returnTo=%2F`; `sign-up-03-home.url` is the web origin `/` and `sign-up-03-home.txt` contains `Welcome to Everr`, `Step 1 of 4` and `$VERIFY_NAME` (`auth-sign-up`, `auth-org-setup`, `auth-home`).
 - **Check the stored user and org.** Run `$V web-psql signup-rows "select u.email, u.email_verified, o.name, o.metadata from \"user\" u join member m on m.user_id = u.id join organization o on o.id = m.organization_id where u.email = '$VERIFY_EMAIL'"`. One row, `email_verified` `f`, org name `Verify's projects`, metadata `{"clickhouseReady": true}`.
-- **Log out, guard, wrong password, sign back in.** Run `$V web-steps sign-out-sign-in sign-out-sign-in.json`. All 20 steps `ok`: `01-signed-out.url` is `/auth/sign-in?redirect=%2F`; `02-guard-redirect.url` is `/auth/sign-in?redirect=%2Fapi-keys`; `03-wrong-password.txt` contains `Invalid email or password`; `04-signed-in-back.url` is `/api-keys` (`auth-log-out`, `auth-guard`, `auth-wrong-password`, `auth-sign-in`).
-- **Fresh sign-in only.** When a later journey needs a session and the profile was reset, run `$V web-steps sign-in sign-in.json`; it ends on `/` with `Welcome to Everr`.
-- **Proof.** `web/sign-up/`, `web/sign-out-sign-in/`, `db/signup-rows/`.
+- **Log out, guard, wrong password, sign back in.** Run:
+
+  ```bash
+  agent-browser open "$WEB/" && agent-browser wait --text "Welcome to Everr"
+  agent-browser find role button click --name "$VERIFY_NAME" && agent-browser wait --text "Log out" && agent-browser find role menuitem click --name "Log out"
+  agent-browser wait --fn "location.pathname === '/auth/sign-in'" && agent-browser wait --text "Sign in to Everr" && ab_save session-01-signed-out
+  agent-browser open "$WEB/api-keys" && agent-browser wait --fn "location.pathname === '/auth/sign-in'" && agent-browser wait --text "Sign in to Everr" && ab_save session-02-guard-redirect
+  agent-browser fill "#email" "$VERIFY_EMAIL" && agent-browser fill "#password" "wrong-password-123" && agent-browser press Enter
+  agent-browser wait --text "Invalid email or password" && ab_save session-03-wrong-password
+  agent-browser fill "#password" "$VERIFY_PASSWORD" && agent-browser press Enter
+  agent-browser wait --fn "location.pathname === '/api-keys'" && agent-browser wait --text "API keys" && ab_save session-04-signed-in-back
+  ```
+
+  Every command exits `0`: `session-01-signed-out.url` ends `/auth/sign-in?redirect=%2F`; `session-02-guard-redirect.url` ends `/auth/sign-in?redirect=%2Fapi-keys`; `session-03-wrong-password.txt` contains `Invalid email or password`; `session-04-signed-in-back.url` ends `/api-keys` (`auth-log-out`, `auth-guard`, `auth-wrong-password`, `auth-sign-in`).
+- **Fresh sign-in only.** When a later recipe needs a session and this run's browser has none (it was closed): `agent-browser open "$WEB/auth/sign-in" && agent-browser wait --text "Sign in to Everr"`, fill `#email` and `#password`, `agent-browser press Enter`, then `agent-browser wait --text "Welcome to Everr"`.
+- **Proof.** `web/sign-up-*`, `web/session-*`, `db/signup-rows/`.
 
 ## Gotchas
 
-- The setup screen enforces a 2.5s minimum and navigates only while it stays open. Shooting it and immediately opening `/` in a new journey restarts the timer; let the journey wait (`waitUrl "^/$"`), as `sign-up.json` does.
-- `waitUrl` with a negative lookahead such as `^/(?!auth)` matches `/organization-setup`. Wait for an exact path plus text instead.
+- The setup screen enforces a 2.5s minimum and navigates only while it stays open. Opening `/` yourself while it shows restarts the timer; wait for it to navigate (`wait --fn "location.pathname === '/'"`), as the recipe does.
+- A loose URL wait such as `wait --url "**/"` or `!location.pathname.startsWith('/auth')` also matches `/organization-setup`. Wait for an exact path plus text instead.
 - Sign-up always tries to send a verification email to the hardcoded dev SMTP `localhost:1025`. Nothing in the flow needs it. Failures are logged only through the app's OTel logger (pointed at a dead port by default), not in `web.log`. Do not depend on reading that email; on a shared host port 1025 may belong to someone else's mailpit.
 - `Sign in with Google` renders but only works with `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (see SKILL.md boundary). Report it as skipped.
 - `Forgot password?` relies on the same email delivery and is not scripted.
-- The cookie-consent banner ("We use analytics") overlays the bottom right. It does not block the scripted clicks; do not click `Accept all`, it changes telemetry persistence for the profile.
+- The cookie-consent banner ("We use analytics") overlays the bottom right. It covers the sign-in/sign-up submit button, so submit with `agent-browser press Enter`; do not click `Accept all`, it changes telemetry persistence for the session.

@@ -23,14 +23,14 @@ Admins connect GitHub from `/github`: `Install GitHub App` opens `/api/github/in
 
 Preconditions:
 
-- `WEB DOCTOR OK`; for `gh-page` a signed-in admin session (`sign-up.json` ran).
+- `WEB DOCTOR OK`; for `gh-page`, `eval "$($V web-browser-env)"` in the driving shell and this run's browser signed in as the sign-up user (an admin).
 
-- **Page.** Run `$V web-steps github-connect github-connect.json`. `01-github.txt` contains `Connect the Everr GitHub App` and `Install GitHub App` (`gh-page`). Do not click the button: it opens github.com with the placeholder install URL.
+- **Page.** Run `agent-browser open "$WEB/github" && agent-browser wait --text "Install GitHub App" && ab_save github-01-page`. `github-01-page.txt` contains `Connect the Everr GitHub App` and `Install GitHub App` (`gh-page`). Do not click the button: it opens github.com with the placeholder install URL.
 - **Install start without a session.** Run `$V web-http install-start-anon GET /api/github/install/start`. Status `401`, body `unauthenticated` (`gh-install-start-anon`).
 - **Webhook rejections.** Run `$V web-http webhook-get GET /webhook/github` (expect `405`), `$V web-http webhook-unsigned POST /webhook/github -H 'content-type: application/json' --data '{}'` (expect `401 missing signature`), `$V web-http webhook-badsig POST /webhook/github -H 'content-type: application/json' -H 'x-hub-signature-256: sha256=00' --data '{}'` (expect `401 invalid signature`).
 - **Signed delivery.** Run `$V web-webhook webhook-signed workflow_run workflow-run.webhook.json`. Status `202`; `http/webhook-signed/delivery.txt` holds the delivery id. Within a few seconds `web.log` shows `Completed task <n> (github-events/status, ...) with success` and `... (github-events/collector, ...) with success` (`gh-webhook-accepted`).
 - **Dropped, not stored.** Run `$V web-psql workflow-runs "select count(*) from workflow_runs"`. `0`, because installation `424242` in the payload is not linked (`gh-webhook-unlinked-dropped`).
-- **Proof.** `web/github-connect/`, `http/*`, `db/workflow-runs/`, `web.log` after cleanup.
+- **Proof.** `web/github-01-page.*`, `http/*`, `db/workflow-runs/`, `web.log` after cleanup.
 
 ## Gotchas
 

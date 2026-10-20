@@ -23,9 +23,9 @@ Preconditions:
 
 - **Run wrapped command.** Run `$V cli wrap-run -- wrap sh -c "echo $M-out; echo $M-err >&2; exit 3"`. Stdout is `$M-out`, stderr is `$M-err`, exit code is `3` (`wrap-mirror`, `wrap-exit`).
 - **Read the ingested rows.** Run `$V cli-until wrap-query '"stream":"exit"' -- local query "SELECT ServiceName, SeverityText, Body, LogAttributes.everr.wrap.stream AS stream, LogAttributes.everr.wrap.exit_code AS exit_code FROM logs WHERE ServiceName = 'everr-wrap-sh' AND position(toString(LogAttributes.everr.wrap.command), '$M') > 0 ORDER BY Timestamp LIMIT 20" --format ndjson`. Exit `0`, three rows in order (scoped to this invocation: every row, including the exit row, carries the command line in `everr.wrap.command`, which contains `$M`): `{"Body":"$M-out","SeverityText":"INFO","stream":"stdout"}`, `{"Body":"$M-err","SeverityText":"ERROR","stream":"stderr"}`, `{"Body":"wrapped command exited with code 3","SeverityText":"ERROR","stream":"exit","exit_code":"3"}` (`wrap-ingest`, `wrap-exit-record`).
-- **See it in the UI.** Run `$V ui-shot wrap-ui "/logs?q=$M" "$M-err"`. Exit `0`; `ui/wrap-ui/text.txt` contains `$M-err`, `$M-out` and `Showing all 2 matching events` (the exit record does not contain the marker); the screenshot shows both rows, the stderr one with a red severity bar.
+- **See it in the UI.** After `eval "$($V browser-env)"`, run `agent-browser open "$UI/logs?q=$M" && agent-browser wait --text "$M-err" && agent-browser wait --text "matching events" && ab_save wrap-ui`. Exit `0`; `ui/wrap-ui.txt` contains `$M-err`, `$M-out` and `Showing all 2 matching events` (the exit record does not contain the marker); the screenshot shows both rows, the stderr one with a red severity bar.
 - **No collector.** Do this last, since it stops the instance. Run `$V cli life-stop -- local stop`, then `$V cli wrap-down -- wrap echo should-not-run`. Exit `2`, stderr contains `telemetry collector isn't running`, and stdout does not contain `should-not-run` (`wrap-no-collector`). Then `$V cleanup`.
-- **Proof.** `cli/wrap-run`, `cli/wrap-query`, `ui/wrap-ui`.
+- **Proof.** `cli/wrap-run`, `cli/wrap-query`, `ui/wrap-ui.{png,txt,url}`.
 
 ## Gotchas
 

@@ -15,17 +15,19 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import { steps } from "./browser.ts";
 import {
+  AGENT_BROWSER_HINT,
   REPO,
   SCRATCH_ROOT,
   SCRIPT_DIR,
   STATE_DIR,
   type RunId,
+  agentBrowserVersion,
   basicAuth,
+  browserSession,
+  closeBrowser,
   defaultRunId,
   die,
-  findChrome,
   freePort,
   hhmmss,
   http,
@@ -33,6 +35,7 @@ import {
   listDir,
   parseRunId,
   portPids,
+  printBrowserEnv,
   readEnvFile,
   readPointer,
   readText,
@@ -54,7 +57,7 @@ export const WEB_USAGE = `# Web app (packages/app) commands:
 #   verify-everr web-launch [RUN_ID]     compose ClickHouse+Postgres (own project/ports/volumes) + pnpm dev:web
 #   verify-everr web-doctor              read-only health of this web run
 #   verify-everr web-env                 print the app env of this web run
-#   verify-everr web-steps <label> <steps.json>   drive the browser (browser.ts steps), session kept per run
+#   verify-everr web-browser-env         export lines for agent-browser: AGENT_BROWSER_SESSION, WEB, SHOTS
 #   verify-everr web-http <label> <METHOD> <path> [curl args...]   HTTP against the app, recorded
 #   verify-everr web-webhook <label> <event> <payload.json>  signed GitHub webhook (run's own secret)
 #   verify-everr web-psql <label> "<SQL>"          read-only psql in this run's Postgres, recorded
@@ -62,7 +65,6 @@ export const WEB_USAGE = `# Web app (packages/app) commands:
 #   verify-everr web-cleanup             stop dev server + compose down -v (this project only), KEEP evidence`;
 
 const WEB_STATE = path.join(STATE_DIR, "current-web");
-const JOURNEYS = path.join(SCRIPT_DIR, "journeys");
 const SECRET_LINE = /SECRET|MASTER_KEY|PRIVATE_KEY|PASSWORD|TOKEN/;
 
 const webDir = (id: string) => path.join(SCRATCH_ROOT, `web-${id}`);
@@ -336,6 +338,8 @@ async function cmdWebDoctor(): Promise<number> {
   check("GET /auth/sign-in serves the app shell", signIn.ok && signIn.text.includes("<html"));
   const others = docker(w, ["ps", "--format", "{{.Names}}"]).stdout.split("\n").filter((n) => n && !n.startsWith(`${w.project}-`));
   if (others.length) console.log(`info other containers exist on this host (not ours, never touched): ${others.join(" ")} `);
+  const ab = agentBrowserVersion();
+  check(ab ? `agent-browser on PATH (${ab})` : `agent-browser on PATH (missing; ${AGENT_BROWSER_HINT})`, Boolean(ab));
   if (ok) {
     console.log("WEB DOCTOR OK");
     return 0;
@@ -359,27 +363,15 @@ function freshDir(out: string): string {
   return out;
 }
 
-/** A file given as a path, or by name from scripts/journeys/. */
-const journeyFile = (file: string) => (existsSync(file) ? file : path.join(JOURNEYS, file));
-
-async function cmdWebSteps([label, file]: string[]): Promise<number> {
+function cmdWebBrowserEnv(): number {
   const w = webLoad();
-  const name = required(label, "label");
-  const stepsFile = journeyFile(required(file, "steps.json"));
-  if (!existsSync(stepsFile)) die(`no steps file ${file} (looked in . and ${JOURNEYS})`);
-  const chrome = findChrome();
-  const out = freshDir(path.join(w.art, "web", name));
-  const rc = await steps({
-    chrome,
-    env: { ...process.env, ...w.vars },
-    scratchDir: w.dir,
-    profileDir: path.join(w.dir, "chrome-profile"),
-    baseUrl: w.origin,
-    outDir: out,
-    stepsFile,
-  });
-  console.log(`web evidence: ${out} (${readdirSync(out).sort().join(" ")} )`);
-  return rc;
+  const vars = {
+    AGENT_BROWSER_SESSION: browserSession(`web-${w.id}`),
+    // The dev server compiles a route on its first visit, which can outlast agent-browser's 25s default.
+    AGENT_BROWSER_DEFAULT_TIMEOUT: "90000",
+    WEB: w.origin,
+  };
+  return printBrowserEnv(vars, path.join(w.art, "web"));
 }
 
 function webHttp(w: WebRun, label: string, method: string, urlPath: string, curlArgs: string[]): number {
@@ -406,7 +398,8 @@ function cmdWebWebhook([label, event, payloadArg]: string[]): number {
   const w = webLoad();
   const name = required(label, "label");
   const ev = required(event, "event");
-  const payload = journeyFile(required(payloadArg, "payload file"));
+  const file = required(payloadArg, "payload file");
+  const payload = existsSync(file) ? file : path.join(SCRIPT_DIR, file);
   const secret = parseDotenv(readText(path.join(w.dir, "app.env")) ?? "").GITHUB_APP_WEBHOOK_SECRET ?? "";
   const sig = `sha256=${createHmac("sha256", secret).update(readFileSync(payload)).digest("hex")}`;
   const delivery = `verify-${Math.floor(Date.now() / 1000)}-${process.pid}`;
@@ -483,6 +476,7 @@ async function cmdWebCleanup(): Promise<number> {
       signal("SIGKILL");
       if (portPids(w.port)) teeAppend(cleanupLog, `WARN web port ${w.port} still listening`);
     }
+    await closeBrowser(browserSession(`web-${runId}`), cleanupLog);
     const webLog = path.join(dir, "web.log");
     if (existsSync(webLog)) copyFileSync(webLog, path.join(art, "web.log"));
     composeToFile(w, ["logs", "--no-color"], path.join(art, "compose.log"));
@@ -504,7 +498,7 @@ export const WEB_COMMANDS: Record<string, (args: string[]) => number | Promise<n
   "web-launch": cmdWebLaunch,
   "web-doctor": cmdWebDoctor,
   "web-env": cmdWebEnv,
-  "web-steps": cmdWebSteps,
+  "web-browser-env": cmdWebBrowserEnv,
   "web-http": cmdWebHttp,
   "web-webhook": cmdWebWebhook,
   "web-psql": cmdWebPsql,

@@ -16,15 +16,15 @@ Surface A (CLI):
 Surface B (web app):
 
 - Docker works (`docker` or `sudo -n docker`), and `$V web-launch` printed `WEB READY`; `$V web-doctor` ends with `WEB DOCTOR OK`.
-- The database starts empty. The first journey is always `sign-up.json` with a unique `VERIFY_EMAIL`; later journeys reuse that session (the Chrome profile lives in the run's scratch dir).
+- The database starts empty. The first browser recipe is always `web-auth.md` Sign up with a unique `VERIFY_EMAIL`; later recipes reuse that session (this run's `agent-browser` session keeps its cookies until cleanup).
 - `VERIFY_NAME`, `VERIFY_EMAIL`, `VERIFY_PASSWORD`, `VERIFY_KEY_NAME` exported (SKILL.md Drive).
 - Never drive or stop the developer's own stack (compose project `everr`, ports 5173/5432/8123/8080/4317/4318/1025/8025).
 
 ## Driving conventions
 
 - Run CLI actions through `$V cli <label> -- <args>`. Labels name the evidence folder, so keep them unique within a run.
-- Run local UI API calls through `$V ui-get` / `$V ui-cmd`, and rendered UI through `$V ui-shot`.
-- Run web journeys through `$V web-steps <label> <journey.json>`, web HTTP through `$V web-http`, signed GitHub deliveries through `$V web-webhook`, and side-effect reads through `$V web-psql` / `$V web-ch`.
+- Run local UI API calls through `$V ui-get` / `$V ui-cmd`, and rendered UI through `agent-browser` after `eval "$($V browser-env)"` (SKILL.md Browser).
+- Run web pages through `agent-browser` after `eval "$($V web-browser-env)"`, web HTTP through `$V web-http`, signed GitHub deliveries through `$V web-webhook`, and side-effect reads through `$V web-psql` / `$V web-ch`.
 - Web selectors come from source: element ids (`#email`), `role` + accessible name (`menuitem` `Log out`, `switch` `Send telemetry`), button text, route paths. No coordinates, no generated class names.
 - Use `--format ndjson` (or `json`) for assertions. `table` is for humans.
 - Filter every read by the run's marker and a recent time window (`Timestamp > now() - INTERVAL 10 MINUTE`).
@@ -35,8 +35,8 @@ Surface B (web app):
 
 - CLI proof: `cli/<label>/` with command, stdout, stderr, exit code.
 - Ingestion proof: the producing command plus a read-only `local query` that returns the marker rows.
-- UI proof: `ui/<label>/screenshot.png` plus `text.txt` containing the marker.
-- Web proof: the journey's `steps.log` (all `ok`), the end-state `<shot>.{png,txt,url}`, and a second view (reload, other route, or a `db/` row).
+- UI proof: `ui/<label>.png` plus `ui/<label>.txt` containing the marker (`ab_save`).
+- Web proof: every recipe command exited `0`, the end-state `web/<label>.{png,txt,url}`, and a second view (reload, other route, or a `db/` row).
 - Record the feature ID (sub-feature IDs below) with each artifact label.
 - Report an unreachable path with the attempted command and the unmet precondition. Do not report a skipped entry point as verified through a different path.
 - Cloud-backed CLI commands (`cloud`, `ci`, `apply`, `resources`) are out of scope for this map; report them as skipped with "needs Everr Cloud session".
