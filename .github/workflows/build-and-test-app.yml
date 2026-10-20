@@ -92,13 +92,18 @@ jobs:
         run: pnpm --filter @everr/app-cloud test --maxWorkers=2
 
       - name: Generate migrations
-        run: |
-          DATABASE_HOST="localhost", DATABASE_NAME="mock", DATABASE_PORT="5432", DATABASE_USER="postgres", DATABASE_PASSWORD="postgres" pnpm -r --filter @everr/app db:generate
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_NAME: mock
+          DATABASE_PORT: "5432"
+          DATABASE_USER: postgres
+          DATABASE_PASSWORD: postgres
+        run: pnpm -r --filter @everr/app --filter @everr/app-cloud db:generate
 
       - name: Ensure no unstaged/changed files
         run: |
           if [[ -n "$(git status --porcelain)" ]]; then
-            echo "❌ Uncommitted migrations. run 'pnpm db:generate' and commit the changes."
+            echo "❌ Uncommitted migrations. Run db:generate in packages/app and packages/cloud and commit the changes."
             git status --porcelain
             git diff
             exit 1
