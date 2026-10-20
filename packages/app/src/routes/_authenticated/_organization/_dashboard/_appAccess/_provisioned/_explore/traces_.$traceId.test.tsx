@@ -1,4 +1,5 @@
 import type { TraceExplorerProps } from "@everr/telemetry-explorer/traces";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -19,7 +20,15 @@ import { useRef } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { Route } from "./traces_.$traceId";
 
-vi.mock("@/data/traces/remote-repo", () => ({ remoteTracesRepo: {} }));
+vi.mock("@/data/traces/remote-repo", () => ({
+  remoteTracesRepo: {
+    getTrace: vi.fn(async () => []),
+    search: vi.fn(async () => []),
+    listServiceIdentities: vi.fn(async () => []),
+    attributeKeys: vi.fn(async () => []),
+    attributeValues: vi.fn(async () => []),
+  },
+}));
 vi.mock("./-trace-detail", () => ({
   ensureTraceDetailData: vi.fn(),
   getTraceDetailLoaderDeps: vi.fn(),
@@ -84,7 +93,14 @@ it("preserves the viewer's span scroll when a delayed URL update finishes", asyn
     history: createMemoryHistory({ initialEntries: ["/traces/trace-1"] }),
     scrollRestoration: true,
   });
-  render(<RouterProvider router={router} />);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
   const viewport = await screen.findByTestId("waterfall");
   viewport.scrollTop = 120;
   fireEvent.scroll(viewport);
