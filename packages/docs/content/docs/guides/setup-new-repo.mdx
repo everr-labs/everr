@@ -26,11 +26,11 @@ The page shows import progress. Once it reports **Import complete**, select **Vi
 Check recent runs in Everr Cloud, or use the CLI:
 
 ```sh
-everr cloud login
+everr login
 everr ci runs --repo owner/repo --limit 5
 ```
 
-Replace `owner/repo` with your GitHub repository. If you are already signed in to the intended organization, you can skip the login command.
+Replace `owner/repo` with your GitHub repository. If you are already signed in to the intended organization, you can skip login. Run `everr whoami` to check the effective target, or use `--profile <name>` to select another saved connection. See [Profiles](/docs/reference/cli#profiles) for repository target selection.
 
 For a new workflow execution, run this from the repository checkout to watch the current commit:
 

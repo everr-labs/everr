@@ -6,7 +6,7 @@ description: Install the CLI and give your coding agent the tools to work with t
 The Everr CLI is all you need for observability tasks. With a single command, you can:
 - Start a local collector and UI to explore local telemetry
 - Use specialized AI skills
-- Query local and cloud telemetry with SQL syntax—or let your agent do it
+- Query local and remote telemetry with SQL syntax, or let your agent do it
 - Preview and publish your dashboards, alerts, and other [Observability as code](/docs/concepts/observability-as-code) resources.
 
 
@@ -38,6 +38,16 @@ Use `--global` instead of `--project` if you want the skills available across pr
 
 Prefer to configure OpenTelemetry yourself? Continue with the manual path in [Instrument your app](/docs/learn/instrument-your-app).
 
-## Login to your cloud account
+## Connect to an installation
 
-If you have an [Everr Cloud account](https://app.everr.dev/), connect the CLI to it with `everr cloud login` to work with your cloud data, including querying telemetry and pushing dashboards.
+From your repository, run `everr login` to connect to [Everr Cloud](https://app.everr.dev/). For a self-hosted installation, supply its app URL:
+
+```sh
+everr login --url https://observability.acme.com
+```
+
+Approve the login in your browser and choose your organization. The CLI saves a profile named after the organization and creates `.everr/config.yaml` with the repository's installation URL and organization ID when no target is configured. Credentials stay in your user configuration directory.
+
+Run `everr whoami` to check the selected connection. Use `everr profiles list`, `everr profiles use <name>`, and `everr profiles remove <name>` to inspect profiles, change the global default, or remove a saved connection. Repository targets take precedence over the global default. See [Profiles](/docs/reference/cli#profiles) for selection rules and per-command overrides.
+
+Local telemetry and the local UI work without a remote login.
