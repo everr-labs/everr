@@ -3,7 +3,6 @@ import type { WebSDK } from "./client.js";
 import { captureError } from "./errors.js";
 import { errors } from "./instrumentations/errors/index.js";
 import { network } from "./instrumentations/network/index.js";
-import type { Instrumentation } from "./instrumentations/runtime.js";
 import { hashUnit } from "./instrumentations/sampled.js";
 import { logger } from "./logger.js";
 import {
@@ -171,13 +170,6 @@ function adoptSession(id: string): void {
   localStorage.setItem("everr.session", JSON.stringify({ id, t: Date.now() }));
   logger.info(`adopt ${id}`);
 }
-
-let emitMark: (() => void) | undefined;
-const markLog: Instrumentation = (ctx) => {
-  emitMark = () => {
-    ctx.emit(MARK, { "everr.recording.mark.name": "cart-open" });
-  };
-};
 
 function rawEventBytes(records: OtlpRecord[]): number {
   let total = 0;
@@ -748,47 +740,6 @@ describe("recording", () => {
     await sdk.flush();
     expect(segmentRecords(batches)).toEqual([]);
     expect(recordingSpans(batches)).toEqual([]);
-  });
-
-  it("does not keep a Session alive with Segments, the recording span, or mark logs", async () => {
-    const [sdk, batches] = startClient({
-      instrumentations: [recording(), markLog],
-    });
-    track(sdk);
-    await recorderReady();
-    logger.info("born");
-    await sdk.flush();
-    const born = batches
-      .flatMap((batch) => batch.records)
-      .find((record) => bodyText(record) === "born");
-    const id = attrs(born!)["session.id"];
-    expect(id).toEqual(expect.any(String));
-
-    tick(30 * MINUTE + 1);
-    emitMark?.();
-    await addText("still-here");
-    emitRecording();
-    await sdk.flush();
-
-    const mark = batches
-      .flatMap((batch) => batch.records)
-      .find((record) => record.eventName === MARK);
-    const segment = segmentRecords(batches).at(-1)!;
-    const span = batches
-      .flatMap((batch) => batch.spans)
-      .filter((candidate) => candidate.name === "recording")
-      .at(-1)!;
-    expect(attrs(mark!)["session.id"]).toBe(id);
-    expect(attrs(mark!)["everr.recording.mark.name"]).toBe("cart-open");
-    expect(attrs(segment)["session.id"]).toBe(id);
-    expect(attrs(span)["session.id"]).toBe(id);
-
-    logger.info("wake");
-    await sdk.flush();
-    const wake = batches
-      .flatMap((batch) => batch.records)
-      .find((record) => bodyText(record) === "wake");
-    expect(attrs(wake!)["session.id"]).not.toBe(id);
   });
 
   it("samples a share of Sessions that matches sampleRate", async () => {

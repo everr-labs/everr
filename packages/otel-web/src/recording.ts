@@ -14,7 +14,6 @@ import {
   claimAutomaticClip,
   emitLogNow,
   onSessionChange,
-  passiveSessionId,
   setAttributes,
   setRecordingTrigger,
 } from "@everr/otel-web";
@@ -81,6 +80,7 @@ type Recorder = {
 let claimed = false;
 let current: Recorder | undefined;
 let emitMark: ((name: string, timestamp: number) => void) | undefined;
+let readSession: (() => void) | undefined;
 
 /** Sends a Clip from the current Stream. Does nothing when no recorder is running. */
 export function emitRecording(options?: EmitRecordingOptions): void {
@@ -89,7 +89,7 @@ export function emitRecording(options?: EmitRecordingOptions): void {
   // Resolve a Session that changed since the last record before any Segment is
   // built. The listener ends the Stream and drops its buffer, so a Clip never
   // mixes two Sessions.
-  passiveSessionId();
+  readSession?.();
   recorder.emit(options);
 }
 
@@ -131,6 +131,9 @@ export function recording(options?: RecordingOptions): Instrumentation {
         timestamp,
       );
     };
+    readSession = () => {
+      ctx.ids();
+    };
     // The page hide runs before the exit flush of the SDK. Closing an open tail
     // here gives its unsent Segments and its recording span to that flush,
     // inside the keepalive budget.
@@ -141,6 +144,7 @@ export function recording(options?: RecordingOptions): Instrumentation {
       removeHide();
       claimed = false;
       emitMark = undefined;
+      readSession = undefined;
     };
 
     const rate = options?.sampleRate ?? 1;

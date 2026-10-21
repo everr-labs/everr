@@ -10,7 +10,6 @@
 // because minification keeps the property names but it does not keep the tuple
 // indexes.
 import type { SpanContext } from "@opentelemetry/api";
-import { passiveSession } from "../state/session.js";
 import type { Send, Signal } from "./transport.js";
 
 export type AttrValue =
@@ -487,16 +486,6 @@ export function createEmitter(
     }
   };
 
-  // A recording Segment, a mark log, and the recording span read the Session
-  // without sliding its activity. Any other record keeps the Session alive.
-  const passiveLog = (eventName: string): boolean =>
-    eventName === "everr.browser.recording.segment" ||
-    eventName === "everr.browser.recording.mark";
-  const context = (
-    passive: boolean,
-  ): Record<string, AttrValue | null | undefined> =>
-    passive ? passiveSession(envelope) : envelope();
-
   // `immediate` posts one log on its own request. A recording Segment uses
   // this path: it must not share the logs queue, and a Clip carries no span
   // ids, so the active span is not attached.
@@ -517,7 +506,7 @@ export function createEmitter(
     const item = applyBeforeSend({
       kind: "log",
       eventName,
-      attributes: { ...context(passiveLog(eventName)), ...attributes },
+      attributes: { ...envelope(), ...attributes },
       severityNumber,
       body,
     });
@@ -585,12 +574,7 @@ export function createEmitter(
     const item = applyBeforeSend({
       kind: "span",
       name,
-      attributes: {
-        ...context(
-          name === "recording" && attributes["everr.recording.clip.id"] != null,
-        ),
-        ...attributes,
-      },
+      attributes: { ...envelope(), ...attributes },
       status,
       links,
     });

@@ -61,7 +61,6 @@ export {
   clearIdentity,
   identify,
   onSessionChange,
-  passiveSessionId,
   revoke,
   setPersistence,
 } from "./state/session.js";

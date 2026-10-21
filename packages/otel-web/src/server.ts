@@ -152,11 +152,6 @@ export function onSessionChange(
   return () => {};
 }
 
-/** The server has no Session. */
-export function passiveSessionId(): string {
-  return "";
-}
-
 /** @deprecated Call `clearIdentity()` and then `setPersistence("memory")`. */
 export function revoke(): void {}
 
