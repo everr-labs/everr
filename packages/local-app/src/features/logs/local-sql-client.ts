@@ -1,6 +1,9 @@
 import type { SqlClient } from "@everr/telemetry-explorer/logs";
+import { z } from "zod";
 import { captureLocalSqlError } from "@/lib/internal-telemetry";
 import { invokeCommand } from "@/lib/local-api";
+
+const SqlRowsSchema = z.array(z.record(z.string(), z.json()));
 
 /**
  * Forwards SQL and `{name:Type}` parameters to the local command, which sends
@@ -10,7 +13,9 @@ import { invokeCommand } from "@/lib/local-api";
 export const localSqlClient: SqlClient = {
   execute: async <Row>(sql: string, params: Record<string, unknown>): Promise<Row[]> => {
     try {
-      return await invokeCommand<Row[]>("telemetry_sql_query", { sql, params });
+      const rows = await invokeCommand("telemetry_sql_query", SqlRowsSchema, { sql, params });
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SqlClient's query-specific Row is supplied by the repository; the transport validates JSON object rows, not each query's columns.
+      return rows as Row[];
     } catch (error) {
       captureLocalSqlError(error);
       throw error;

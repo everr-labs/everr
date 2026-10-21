@@ -1,7 +1,7 @@
 import { captureError, errors, interactions, performance, WebSDK } from "@everr/otel-web";
 import { z } from "zod";
 
-const TelemetryContextSchema = z.object({
+export const TelemetryContextSchema = z.object({
   serviceVersion: z.string(),
   telemetryEnabled: z.boolean(),
   deploymentEnvironment: z.enum(["development", "production"]),

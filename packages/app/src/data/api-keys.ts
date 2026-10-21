@@ -1,37 +1,12 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
-import type { ApiKeyRow } from "#app/db/schema/auth.ts";
 import { auth } from "#app/identity/server.ts";
-import {
-  ALL_API_KEY_SCOPES,
-  API_KEY_SCOPES,
-  type ApiKeyPermissions,
-  type ApiKeyScope,
-} from "#app/lib/api-key-scopes.ts";
-import {
-  buildPublicKeyMetadata,
-  type PublicKeyMetadata,
-  publicKeyInputError,
-} from "#app/lib/public-ingest-keys.ts";
+import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "#app/lib/api-key-scopes.ts";
+import { buildPublicKeyMetadata, publicKeyInputError } from "#app/lib/public-ingest-keys.ts";
 import { createOrganizationAdminServerFn } from "#app/lib/serverFn.ts";
+import { type ApiKey, ApiKeysResponseSchema, CreatedApiKeySchema } from "./api-key-schemas";
 
-/**
- * The shape of an `ek_` key as the UI receives it. Derived from the DB row
- * (`ApiKeyRow`) so column names stay in lock-step with the schema, but the
- * list endpoint transforms two groups of fields on the way out: JSON
- * serializes `timestamp` columns to ISO strings, and better-auth parses the
- * `permissions` text column into an object. Override exactly those fields.
- */
-export type ApiKey = Omit<
-  ApiKeyRow,
-  "createdAt" | "expiresAt" | "lastRequest" | "permissions" | "metadata"
-> & {
-  createdAt?: string | Date | null;
-  expiresAt?: string | Date | null;
-  lastRequest?: string | Date | null;
-  permissions?: ApiKeyPermissions;
-  metadata?: PublicKeyMetadata | string | null;
-};
+export type { ApiKey } from "./api-key-schemas";
 
 const SCOPE_INPUT = z.enum(ALL_API_KEY_SCOPES);
 
@@ -106,23 +81,18 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
       },
     });
 
-    const created: {
-      key?: string | null;
-      id?: string;
-      permissions?: Record<string, string[]> | null;
-    } | null = result;
-
     // The full key is only ever returned at creation; a missing/null one means
     // creation didn't actually succeed, so fail loudly rather than handing the
     // caller a null key.
-    if (!created || typeof created.key !== "string" || !created.id) {
-      throw new Error("Server did not return a key");
+    const created = CreatedApiKeySchema.safeParse(result);
+    if (!created.success) {
+      throw new Error("Server did not return a key", { cause: created.error });
     }
 
     return {
-      key: created.key,
-      id: created.id,
-      permissions: created.permissions ?? permissions,
+      key: created.data.key,
+      id: created.data.id,
+      permissions: created.data.permissions ?? permissions,
     };
   });
 
@@ -139,10 +109,12 @@ export const listApiKeys = createOrganizationAdminServerFn({
     },
     headers: getRequestHeaders(),
   });
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- better-auth's listApiKeys row type isn't structurally the app's ApiKey (this endpoint serializes timestamp columns to strings and parses `permissions` into an object); reconciled at runtime
-  const keys = (result?.apiKeys ?? []) as ApiKey[];
+  const parsed = ApiKeysResponseSchema.safeParse(result);
+  if (!parsed.success) {
+    throw new Error("Invalid API key response", { cause: parsed.error });
+  }
   // Defense-in-depth: the query already scopes to our configId, but pin it.
-  return keys.filter((k) => k.configId === API_KEY_CONFIG_ID);
+  return parsed.data.apiKeys.filter((key) => key.configId === API_KEY_CONFIG_ID);
 });
 
 export const ApiKeyCreateInputSchema = CreateApiKeyInput;

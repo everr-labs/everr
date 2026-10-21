@@ -27,10 +27,26 @@ vi.mock("#app/lib/serverFn.ts", () => ({
 import { Route } from "./api-keys";
 
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    {children}
+  </QueryClientProvider>
 );
 
 describe("/api-keys route", () => {
+  it("shows invalid list responses as retryable errors", async () => {
+    mocks.listApiKeys
+      .mockRejectedValueOnce(new Error("Invalid API key response"))
+      .mockResolvedValueOnce([]);
+    const Page = Route.options.component as React.ComponentType;
+    render(<Page />, { wrapper });
+    expect(await screen.findByText("Couldn't load API keys")).toBeInTheDocument();
+    expect(screen.getByText("Invalid API key response")).toBeInTheDocument();
+    expect(screen.queryByText("No organization keys yet")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("No organization keys yet")).toBeInTheDocument();
+    expect(screen.queryByText("Invalid API key response")).not.toBeInTheDocument();
+  });
+
   it("keeps the issued key on screen after the first key lands in the list", async () => {
     const keys: ApiKey[] = [];
     mocks.listApiKeys.mockImplementation(async () => [...keys]);

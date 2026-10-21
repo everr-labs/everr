@@ -222,8 +222,14 @@ export default defineConfig({
         // Validate external auth and telemetry data with Zod before using it.
         files: [
           "packages/app/src/components/users-management/*.{ts,tsx}",
+          "packages/app/src/data/api-keys.ts",
+          "packages/app/src/data/api-key-schemas.ts",
+          "packages/app/src/lib/public-ingest-keys.ts",
+          "packages/local-app/src/lib/local-api.ts",
           "packages/local-app/src/lib/internal-telemetry.ts",
           "packages/local-app/src/lib/telemetry.ts",
+          "packages/local-app/src/features/local-telemetry/collector-status.tsx",
+          "packages/local-app/src/features/logs/local-sql-client.ts",
         ],
         excludeFiles: ["**/*.test.{ts,tsx}"],
         rules: {

@@ -1,12 +1,22 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vite-plus/test";
 import { auth } from "#app/identity/server.ts";
-import { ApiKeyCreateInputSchema, createApiKey, permissionsForScopes } from "./api-keys";
+import {
+  ApiKeyCreateInputSchema,
+  createApiKey,
+  listApiKeys,
+  permissionsForScopes,
+} from "./api-keys";
 
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeaders: () => ({}),
 }));
 
+vi.mock("#app/identity/server.ts", () => ({
+  auth: { api: { createApiKey: vi.fn(), listApiKeys: vi.fn() } },
+}));
+
 const createApiKeyMock = auth.api.createApiKey as unknown as Mock;
+const listApiKeysMock = vi.mocked(auth.api.listApiKeys);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -206,6 +216,94 @@ describe("createApiKey (server fn)", () => {
     createApiKeyMock.mockResolvedValueOnce({ id: "ak_1", key: null });
     await expect(createApiKey({ data: { name: "prod", scopes: ["ingest"] } })).rejects.toThrow(
       /did not return a key/i,
+    );
+  });
+});
+
+describe("listApiKeys response validation", () => {
+  const key = {
+    id: "ak_1",
+    configId: "ingest",
+    name: "CI key",
+    start: "ek_masked",
+    createdAt: "2026-10-20T10:00:00Z",
+    expiresAt: null,
+    permissions: { ingest: ["write"], apply: ["read"] },
+    metadata: null,
+  };
+
+  it("returns validated UI fields and strips provider-only data", async () => {
+    listApiKeysMock.mockResolvedValueOnce({
+      apiKeys: [{ ...key, key: "provider-key-material", referenceId: "test_org" }],
+    } as never);
+    expect(await listApiKeys()).toEqual([key]);
+    expect(listApiKeysMock).toHaveBeenCalledWith({
+      query: { configId: "ingest", organizationId: "test_org" },
+      headers: {},
+    });
+  });
+
+  it.each([new Date("2026-10-20T10:00:00Z"), "2026-10-20T10:00:00+01:00"])(
+    "accepts provider dates and serialized dates: %s",
+    async (createdAt) => {
+      listApiKeysMock.mockResolvedValueOnce({ apiKeys: [{ ...key, createdAt }] } as never);
+      expect((await listApiKeys())[0].createdAt).toEqual(createdAt);
+    },
+  );
+
+  it.each([
+    { public: true, allowedOrigins: ["https://example.com"] },
+    JSON.stringify({ public: true, allowedOrigins: ["https://example.com"] }),
+  ])("validates public metadata from objects and JSON strings: %j", async (metadata) => {
+    listApiKeysMock.mockResolvedValueOnce({ apiKeys: [{ ...key, metadata }] } as never);
+    expect((await listApiKeys())[0].metadata).toEqual({
+      public: true,
+      allowedOrigins: ["https://example.com"],
+    });
+  });
+
+  it("retains unrelated JSON metadata on secret keys", async () => {
+    const metadata = { owner: "automation", options: [true, null, 42] };
+    listApiKeysMock.mockResolvedValueOnce({ apiKeys: [{ ...key, metadata }] } as never);
+    expect((await listApiKeys())[0].metadata).toEqual(metadata);
+  });
+
+  it("keeps empty lists and filters out other key configurations", async () => {
+    listApiKeysMock.mockResolvedValueOnce({ apiKeys: [] } as never);
+    expect(await listApiKeys()).toEqual([]);
+    listApiKeysMock.mockResolvedValueOnce({
+      apiKeys: [key, { ...key, id: "other", configId: "other" }],
+    } as never);
+    expect(await listApiKeys()).toEqual([key]);
+  });
+
+  it.each([
+    null,
+    {},
+    { apiKeys: null },
+    { apiKeys: [{}] },
+    { apiKeys: [{ ...key, id: "" }] },
+    { apiKeys: [{ ...key, createdAt: "not-a-date" }] },
+    { apiKeys: [{ ...key, permissions: { ingest: "write" } }] },
+    { apiKeys: [{ ...key, permissions: { ingest: [42] } }] },
+    { apiKeys: [{ ...key, metadata: "invalid-json" }] },
+    { apiKeys: [{ ...key, metadata: { public: true, allowedOrigins: [42] } }] },
+  ])("rejects a malformed list instead of presenting an empty list: %j", async (response) => {
+    listApiKeysMock.mockResolvedValueOnce(response as never);
+    await expect(listApiKeys()).rejects.toThrow("Invalid API key response");
+  });
+});
+
+describe("createApiKey response validation", () => {
+  it.each([
+    { id: "ak_1", key: "" },
+    { id: "", key: "ek_key" },
+    { id: "ak_1", key: "ek_key", permissions: { ingest: "write" } },
+    { id: "ak_1", key: "ek_key", permissions: { ingest: [42] } },
+  ])("rejects malformed creation results: %j", async (response) => {
+    createApiKeyMock.mockResolvedValueOnce(response);
+    await expect(createApiKey({ data: { name: "prod", scopes: ["ingest"] } })).rejects.toThrow(
+      "Server did not return a key",
     );
   });
 });
