@@ -62,11 +62,6 @@ export type RecordingHost = {
     timestamp: number,
   ): void;
   span(start: number, end: number, attributes: Record<string, AttrValue>): void;
-  /**
-   * Reserves one automatic Clip on the current Session. False when the
-   * Session is already at 5, so the Clip is not sent.
-   */
-  claimAutomaticClip(): boolean;
 };
 
 // A Clip whose tail is still open. The buffered part went out when it opened.
@@ -331,9 +326,6 @@ export function startRecorder(host: RecordingHost): {
     const clip = clipFrom(buffered(), options.requestedStart);
     if (options.markMissing) clip.truncated = true;
     if (clip.events.length === 0) return;
-    // The cap is claimed before the first Segment leaves, so a sixth automatic
-    // Clip in the Session sends nothing at all. Manual Clips never claim.
-    if (options.automatic && !host.claimAutomaticClip()) return;
     const clipId = host.newId();
     const groups = segmentsOf(clip.events);
     for (let index = 0; index < groups.length; index++) {

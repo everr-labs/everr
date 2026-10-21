@@ -1110,7 +1110,7 @@ function dispatchError(error: Error, filename?: string): void {
   }
 }
 
-function storedSession(): { id?: string; t?: number; autoClips?: number } {
+function storedSession(): { id?: string; t?: number } {
   return JSON.parse(localStorage.getItem("everr.session") ?? "null") ?? {};
 }
 
@@ -1307,62 +1307,41 @@ describe("automatic Clips and next", () => {
     expect(clipIdsOf(batches)).toHaveLength(3);
   });
 
-  it("keeps at most 5 automatic Clips on the Session, and manual Clips do not merge or count", async () => {
+  it("sends an automatic Clip for every trigger burst, with no per-Session limit", async () => {
+    // A stored session with a count from a build that capped Clips.
+    localStorage.setItem("everr.visitor.id", "visitor-recording");
+    localStorage.setItem(
+      "everr.session",
+      JSON.stringify({ id: "sess-old", t: Date.now(), autoClips: 5 }),
+    );
     const [sdk, batches] = startPersistentClient({
       instrumentations: [recording(), errors()],
     });
     track(sdk);
     await ready();
-    emitRecording();
-    emitRecording({ last: 1_000 });
-    await sdk.flush();
-    expect(recordingSpans(batches)).toHaveLength(2);
-    expect(storedSession().autoClips).toBeUndefined();
-
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
+      await mutate(`m-${i}`);
       captureError(new Error(`auto-${i}`));
-      await advance(10_000);
+      await advance(61_000);
     }
     await sdk.flush();
-    expect(recordingSpans(batches)).toHaveLength(7);
-    expect(storedSession().autoClips).toBe(5);
-    const sessionId = storedSession().id;
-    const blockedAt = segmentRecords(batches).length;
+    const spans = recordingSpans(batches);
+    expect(spans).toHaveLength(6);
+    for (const span of spans) {
+      expect(attrs(span)["everr.recording.trigger"]).toBe("error");
+      expect(attrs(span)["session.id"]).toBe("sess-old");
+    }
+  });
 
-    captureError(new Error("sixth"));
-    await advance(10_000);
-    await sdk.flush();
-    expect(segmentRecords(batches)).toHaveLength(blockedAt);
-    expect(recordingSpans(batches)).toHaveLength(7);
-    expect(storedSession().autoClips).toBe(5);
-
-    emitRecording();
-    await sdk.flush();
-    expect(recordingSpans(batches)).toHaveLength(8);
-    expect(
-      attrs(recordingSpans(batches).at(-1)!)["everr.recording.trigger"],
-    ).toBe("manual");
-    expect(storedSession().autoClips).toBe(5);
-
-    const raw = localStorage.getItem("everr.session");
-    const visitor = localStorage.getItem("everr.visitor.id");
-    await sdk.shutdown();
-    clients.pop();
-    clearIdentity();
-    localStorage.setItem("everr.visitor.id", visitor ?? "");
-    localStorage.setItem("everr.session", raw ?? "");
-
-    const [reloaded, reloadedBatches] = startPersistentClient({
+  it("opens the Clip of an error that starts a new Session in that Session", async () => {
+    const [sdk, batches] = startPersistentClient({
       instrumentations: [recording(), errors()],
     });
-    track(reloaded);
+    track(sdk);
     await ready();
-    captureError(new Error("after-reload"));
-    await advance(10_000);
-    await reloaded.flush();
-    expect(recordingSpans(reloadedBatches)).toHaveLength(0);
-    expect(storedSession().id).toBe(sessionId);
-    expect(storedSession().autoClips).toBe(5);
+    logger.info("first");
+    await sdk.flush();
+    const first = storedSession().id;
 
     // The buffer only keeps 5 minutes, so the idle gap drops it. A mutation
     // after the gap is what the new Session records.
@@ -1370,24 +1349,12 @@ describe("automatic Clips and next", () => {
     await mutate("FRESH");
     captureError(new Error("fresh-session"));
     await advance(10_000);
-    await reloaded.flush();
-    expect(recordingSpans(reloadedBatches)).toHaveLength(1);
-    expect(
-      attrs(recordingSpans(reloadedBatches)[0]!)["everr.recording.trigger"],
-    ).toBe("error");
-    expect(storedSession().id).not.toBe(sessionId);
-    expect(storedSession().autoClips).toBe(1);
-
-    localStorage.setItem(
-      "everr.session",
-      JSON.stringify({ ...storedSession(), autoClips: 5 }),
-    );
-    await advance(31_000);
-    captureError(new Error("other-tab-filled-the-cap"));
-    await advance(10_000);
-    await reloaded.flush();
-    expect(recordingSpans(reloadedBatches)).toHaveLength(1);
-    expect(storedSession().autoClips).toBe(5);
+    await sdk.flush();
+    const spans = recordingSpans(batches);
+    expect(spans).toHaveLength(1);
+    expect(attrs(spans[0]!)["everr.recording.trigger"]).toBe("error");
+    expect(storedSession().id).not.toBe(first);
+    expect(attrs(spans[0]!)["session.id"]).toBe(storedSession().id);
   });
 
   it("does not merge a manual Clip into an open tail", async () => {

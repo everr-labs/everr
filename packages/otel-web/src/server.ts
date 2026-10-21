@@ -179,12 +179,6 @@ export function setRecordingTrigger(
   return () => {};
 }
 
-/** Does nothing on the server. The automatic Clip count belongs to the browser
- * Session, so no Clip is ever claimed here. */
-export function claimAutomaticClip(): boolean {
-  return false;
-}
-
 /** Does nothing on the server. The persistence belongs to the browser. */
 export function setPersistence(_persistence: Persistence | undefined): void {}
 

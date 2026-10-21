@@ -11,7 +11,6 @@
 
 import {
   type AutomaticRecordingTrigger,
-  claimAutomaticClip,
   emitLogNow,
   onSessionChange,
   setAttributes,
@@ -186,15 +185,13 @@ export function recording(options?: RecordingOptions): Instrumentation {
     const startStream = () => {
       const generationAtStart = generation;
       // The chunk imports @rrweb/record. The host stays here, so the chunk does
-      // not carry a second copy of the SDK state. The Clip count is claimed
-      // through the main bundle too, because that is the identity store.
+      // not carry a second copy of the SDK state.
       void import("./recording/recorder.js").then((mod) => {
         if (stopped || generationAtStart !== generation) return;
         current = mod.startRecorder({
           dev: ctx.dev,
           options,
           newId,
-          claimAutomaticClip,
           setStreamId: (id) => {
             setAttributes({ [STREAM_ID]: id });
           },

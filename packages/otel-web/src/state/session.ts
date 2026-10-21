@@ -85,13 +85,6 @@ let session: SessionState | null = null;
 const STORAGE_WRITE_DELAY_MS = 30_000;
 let lastWrite = 0;
 
-// A Session emits at most this many automatic Clips. Manual Clips do not count.
-const AUTO_CLIP_CAP = 5;
-
-function clipCount(value: number | undefined): number {
-  return typeof value === "number" && value > 0 ? value : 0;
-}
-
 const sessionListeners = new Set<(id: string) => void>();
 
 /**
@@ -120,21 +113,10 @@ export function sessionId(): string {
   const base = store.readSession() ?? session;
   const now = Date.now();
   const previous = session?.id;
-  let next: SessionState;
-  if (base && now - base.t <= SESSION_TIMEOUT_MS) {
-    // The store wins across tabs. The memory copy covers a write that has not
-    // reached the store yet. A later write must not drop the higher count.
-    const remembered =
-      session?.id === base.id ? clipCount(session.autoClips) : 0;
-    const autoClips = Math.max(clipCount(base.autoClips), remembered);
-    next = {
-      id: base.id,
-      t: now,
-      ...(autoClips > 0 ? { autoClips } : {}),
-    };
-  } else {
-    next = { id: uniqueId(), t: now };
-  }
+  const next =
+    base && now - base.t <= SESSION_TIMEOUT_MS
+      ? { id: base.id, t: now }
+      : { id: uniqueId(), t: now };
   session = next;
   if (next.id !== base?.id || now - lastWrite >= STORAGE_WRITE_DELAY_MS) {
     lastWrite = now;
@@ -144,32 +126,6 @@ export function sessionId(): string {
     for (const listener of sessionListeners) listener(next.id);
   }
   return next.id;
-}
-
-/**
- * Reserves one automatic Clip for the current Session. Returns false when
- * this Session already has 5, or when no Session exists yet. The count is
- * written at once, not on the activity delay, so a reload sees it.
- */
-export function claimAutomaticClip(): boolean {
-  const store = currentStore();
-  const stored = store.readSession();
-  const base = stored ?? session;
-  if (!base) return false;
-  const memory = session?.id === base.id ? session : undefined;
-  const count = Math.max(
-    clipCount(base.autoClips),
-    clipCount(memory?.autoClips),
-  );
-  if (count >= AUTO_CLIP_CAP) return false;
-  const next: SessionState = {
-    id: base.id,
-    t: Math.max(base.t, memory?.t ?? 0),
-    autoClips: count + 1,
-  };
-  session = memory ? { ...memory, t: next.t, autoClips: next.autoClips } : next;
-  store.writeSession(next);
-  return true;
 }
 
 /**

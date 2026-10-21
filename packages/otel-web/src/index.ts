@@ -57,7 +57,6 @@ export {
   setRouteResolver,
 } from "./state/route.js";
 export {
-  claimAutomaticClip,
   clearIdentity,
   identify,
   onSessionChange,

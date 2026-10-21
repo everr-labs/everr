@@ -63,7 +63,7 @@ With `network()` installed, a request with a 5xx response or no response emits a
 
 An automatic Clip holds the last 60 seconds and stays open for the 10 seconds after its trigger. A burst of triggers extends the open tail to 10 seconds after the latest trigger, up to 60 seconds after the first trigger. A trigger after that opens a new automatic Clip.
 
-A Session has at most 5 automatic Clips, counted across every tab and reload. Manual Clips never merge and do not count toward that cap. Each automatic Clip has a `recording` root Span with `everr.recording.trigger` set to `error` or `network`, the Clip id, the Stream id, and the truncation attribute when the start left the buffer.
+Manual Clips never merge. Each automatic Clip has a `recording` root Span with `everr.recording.trigger` set to `error` or `network`, the Clip id, the Stream id, and the truncation attribute when the start left the buffer.
 
 ## Send a Clip by hand
 
