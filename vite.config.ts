@@ -40,7 +40,7 @@ export default defineConfig({
     extends: [boundaries],
     // JS plugins read settings from the entry config, including inherited policies.
     settings: boundaries.settings,
-    categories: { correctness: "warn" },
+    categories: { correctness: "error" },
     ignorePatterns,
     jsPlugins: [
       { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
@@ -111,9 +111,9 @@ export default defineConfig({
       "typescript/consistent-type-imports": "error",
       "typescript/no-import-type-side-effects": "error",
       // Import hygiene: no circular deps, no duplicate or self imports. The
-      // resolution-based rules (default/named/namespace/no-unresolved) stay off:
+      // Resolution-based rules (default/named/namespace/no-unresolved) stay off:
       // oxlint's import resolver mis-handles our path aliases and package subpath
-      // exports (same reason type-aware is off), so they false-positive.
+      // exports, so they false-positive.
       "import/no-cycle": "error",
       "import/no-duplicates": "error",
       "import/no-self-import": "error",
@@ -132,8 +132,8 @@ export default defineConfig({
       "promise/no-return-wrap": "error",
       "promise/valid-params": "error",
       "promise/param-names": "error",
-      // Promote these from oxlint's default warn to error so they can't silently
-      // accumulate; genuine intentional cases are inline-disabled with a reason.
+      // Keep these correctness checks explicit. Intentional cases are
+      // inline-disabled with a reason.
       "no-unused-vars": "error",
       "no-control-regex": "error",
       "unicorn/no-new-array": "error",
@@ -142,6 +142,7 @@ export default defineConfig({
       // no-floating-promises catches unhandled async; the rest catch
       // "[object Object]" stringification, un-awaited thenables, bad sorts, etc.
       "typescript/no-floating-promises": "error",
+      "typescript/switch-exhaustiveness-check": "error",
       "typescript/no-misused-promises": "error",
       "typescript/no-base-to-string": "error",
       "typescript/restrict-template-expressions": "error",
@@ -187,6 +188,16 @@ export default defineConfig({
       "jsx-a11y/no-static-element-interactions": "error",
       "jsx-a11y/no-noninteractive-element-interactions": "error",
       "jsx-a11y/interactive-supports-focus": "error",
+      // Test safety without requiring typed mocks, message matching, or inline
+      // assertions in every test (helpers and property tests also assert).
+      "vitest/no-focused-tests": "error",
+      "vitest/no-identical-title": "error",
+      "vitest/valid-expect": ["error", { maxArgs: 2 }],
+      "vitest/no-conditional-expect": "error",
+      "vitest/require-mock-type-parameters": "off",
+      "vitest/require-to-throw-message": "off",
+      "vitest/expect-expect": "off",
+      "vitest/valid-title": "off",
     },
     plugins: [
       "react",
@@ -197,6 +208,7 @@ export default defineConfig({
       "import",
       "promise",
       "jsx-a11y",
+      "vitest",
     ],
     overrides: [
       {
@@ -237,6 +249,10 @@ export default defineConfig({
     // and package subpath exports (false positives) , `tsc --noEmit` per package
     // remains the source of truth for types. The type-aware *rules* resolve types
     // fine within each package.
-    options: { typeAware: true, typeCheck: false },
+    options: {
+      typeAware: true,
+      typeCheck: false,
+      reportUnusedDisableDirectives: "error",
+    },
   },
 });

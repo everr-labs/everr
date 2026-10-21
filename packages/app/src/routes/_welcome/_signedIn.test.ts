@@ -16,20 +16,19 @@ const beforeLoad = Route.options.beforeLoad as unknown as (args: {
 }) => unknown;
 
 it("requires a session while preserving the onboarding destination through sign-in", () => {
-  try {
+  expect(() =>
     beforeLoad({
       context: { session: null },
       location: { href: "/access-required?returnTo=%2Flogs" },
-    });
-    expect.fail("Expected a sign-in redirect");
-  } catch (cause) {
-    expect(cause).toMatchObject({
-      options: {
+    }),
+  ).toThrow(
+    expect.objectContaining({
+      options: expect.objectContaining({
         to: "/auth/sign-in",
         search: { redirect: "/access-required?returnTo=%2Flogs" },
-      },
-    });
-  }
+      }),
+    }),
+  );
 });
 
 it("admits signed-in users without an active organization", () => {

@@ -227,17 +227,20 @@ describe("/account route", () => {
     expect(screen.getByText("Device other")).toBeVisible();
   });
 
-  it.each([true, false])("only links Google accounts when configured (%s)", async (enabled) => {
-    const user = userEvent.setup();
-    mocks.googleEnabled = enabled;
+  it("hides Google linking when unconfigured", async () => {
+    mocks.googleEnabled = false;
     renderPage();
     await screen.findByLabelText("Current password");
-    if (!enabled) {
-      expect(screen.queryByText("Google Connection")).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Connect Google" })).not.toBeInTheDocument();
-      expect(mocks.linkSocial).not.toHaveBeenCalled();
-      return;
-    }
+    expect(screen.queryByText("Google Connection")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Connect Google" })).not.toBeInTheDocument();
+    expect(mocks.linkSocial).not.toHaveBeenCalled();
+  });
+
+  it("links Google accounts when configured", async () => {
+    const user = userEvent.setup();
+    mocks.googleEnabled = true;
+    renderPage();
+    await screen.findByLabelText("Current password");
     await user.click(screen.getByRole("button", { name: "Connect Google" }));
     expect(mocks.linkSocial).toHaveBeenCalledWith({
       callbackURL: "/account",

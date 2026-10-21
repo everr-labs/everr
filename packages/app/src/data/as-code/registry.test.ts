@@ -147,21 +147,17 @@ describe("applyResources", () => {
     // exactly as buildDesiredRunbookSet would for a malformed document.
     runbookReconciler.mockRejectedValue(new ApplyValidationError("bad runbook"));
 
-    try {
-      await applyResources({
-        orgId: "org-1",
-        repoid: "repo-1",
-        state: {
-          dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
-          runbooks: [{ path: "n.yaml", resource: { kind: "Runbook" } }],
-          alerts: [],
-        },
-        dryRun: false,
-      });
-      expect.fail("expected the invalid runbook to fail the apply");
-    } catch (error) {
-      expect((error as Error).message).toMatch(/bad runbook/);
-    }
+    const attempt = applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: {
+        dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
+        runbooks: [{ path: "n.yaml", resource: { kind: "Runbook" } }],
+        alerts: [],
+      },
+      dryRun: false,
+    });
+    await expect(attempt).rejects.toThrow(/bad runbook/);
 
     // Dashboard was only ever validated (dryRun: true) — never applied for real,
     // so it cannot have pruned the repo before Runbook validation threw.
@@ -216,20 +212,19 @@ describe("applyResources", () => {
   });
 
   it("rejects resources placed under the wrong state key", async () => {
-    try {
-      await applyResources({
-        orgId: "org-1",
-        repoid: "repo-1",
-        state: {
-          dashboards: [{ path: "alert.yaml", resource: { kind: "AlertRule" } }],
-          runbooks: [],
-          alerts: [],
-        },
-      });
-      expect.fail("expected the misplaced resource to be rejected");
-    } catch (error) {
-      expect((error as Error).message).toBe('alert.yaml: expected kind "Dashboard"');
-    }
+    const attempt = applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: {
+        dashboards: [{ path: "alert.yaml", resource: { kind: "AlertRule" } }],
+        runbooks: [],
+        alerts: [],
+      },
+    });
+    await expect(attempt).rejects.toHaveProperty(
+      "message",
+      'alert.yaml: expected kind "Dashboard"',
+    );
 
     expect(dashboardReconciler).not.toHaveBeenCalled();
     expect(runbookReconciler).not.toHaveBeenCalled();
@@ -262,20 +257,16 @@ describe("applyResources", () => {
   );
 
   it("honors the Notebook alias only for runbooks — rejects it under dashboards", async () => {
-    try {
-      await applyResources({
-        orgId: "org-1",
-        repoid: "repo-1",
-        state: {
-          dashboards: [{ path: "nb.yaml", resource: { kind: "Notebook" } }],
-          runbooks: [],
-          alerts: [],
-        },
-      });
-      expect.fail("expected the Notebook alias to be rejected under dashboards");
-    } catch (error) {
-      expect((error as Error).message).toBe('nb.yaml: expected kind "Dashboard"');
-    }
+    const attempt = applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: {
+        dashboards: [{ path: "nb.yaml", resource: { kind: "Notebook" } }],
+        runbooks: [],
+        alerts: [],
+      },
+    });
+    await expect(attempt).rejects.toHaveProperty("message", 'nb.yaml: expected kind "Dashboard"');
 
     expect(dashboardReconciler).not.toHaveBeenCalled();
     expect(runbookReconciler).not.toHaveBeenCalled();
@@ -375,21 +366,17 @@ describe("applyResources", () => {
       adopted: [],
       conflicts: [{ project: "default", slug: "cpu", owner: "repo-2" }],
     });
-    try {
-      await applyResources({
-        orgId: "org-1",
-        repoid: "repo-1",
-        state: {
-          dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
-          runbooks: [],
-          alerts: [],
-        },
-        dryRun: false,
-      });
-      expect.fail("expected the ownership conflict to fail the apply");
-    } catch (error) {
-      expect((error as Error).message).toMatch(/default\/cpu \(owned by repo-2\)[\s\S]*--adopt/);
-    }
+    const attempt = applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: {
+        dashboards: [{ path: "d.yaml", resource: { kind: "Dashboard" } }],
+        runbooks: [],
+        alerts: [],
+      },
+      dryRun: false,
+    });
+    await expect(attempt).rejects.toThrow(/default\/cpu \(owned by repo-2\)[\s\S]*--adopt/);
     // Fail-fast: aborts in the validation pass, before the real apply's
     // transaction ever registers or writes.
     expect(upsertPreview).not.toHaveBeenCalled();

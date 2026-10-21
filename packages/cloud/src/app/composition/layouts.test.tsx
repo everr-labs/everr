@@ -128,8 +128,10 @@ describe("User menu", () => {
           organizationId: "pending",
         });
         expect(mocks.invalidate).toHaveBeenCalledOnce();
+        /* oxlint-disable vitest/no-conditional-expect -- The test table covers each readiness or visibility state, with shared layout assertions. */
         if (readiness === "ready")
           expect(queryClient.getQueryData(queryKey)).toEqual([{ value: 2 }]);
+        /* oxlint-enable vitest/no-conditional-expect */
       } finally {
         unsubscribe();
         queryClient.clear();
@@ -215,11 +217,13 @@ it.each([
       </QueryClientProvider>,
     );
     expect(screen.getByText("Welcome page content")).toBeVisible();
+    /* oxlint-disable vitest/no-conditional-expect -- The test table covers each readiness or visibility state, with shared layout assertions. */
     if (!visible) {
       expect(screen.queryByRole("button", { name: "Switch organization" })).not.toBeInTheDocument();
       expect(!!screen.queryByRole("button", { name: "Log out" })).toBe(signedIn);
       return;
     }
+    /* oxlint-enable vitest/no-conditional-expect */
     const user = userEvent.setup();
     const switcher = screen.getByRole("button", { name: "Switch organization" });
     expect(switcher).toHaveTextContent("Acme");

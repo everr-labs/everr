@@ -41,8 +41,8 @@ it.each([
     const emailOption = screen.getByRole("switch", {
       name: "Send invitation email",
     });
-    if (emailEnabled) expect(emailOption).toBeChecked();
-    else expect(emailOption).toHaveAttribute("aria-disabled", "true");
+    expect(emailOption).toHaveAttribute("aria-checked", String(emailEnabled));
+    expect(emailOption.getAttribute("aria-disabled") === "true").toBe(!emailEnabled);
     if (emailEnabled && !sendEmail) await user.click(emailOption);
     await user.click(screen.getByRole("button", { name: "Create invitation" }));
 

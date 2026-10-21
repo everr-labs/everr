@@ -183,17 +183,14 @@ export function buildTelemetryResourceAttributes(env: BuildTelemetryEnv) {
 
 function toOtlpAttributes(attributes: Record<string, SpanAttributeValue>) {
   return Object.entries(attributes).map(([key, value]) => {
-    switch (typeof value) {
-      case "boolean":
-        return { key, value: { boolValue: value } };
-      case "number":
-        return {
-          key,
-          value: Number.isInteger(value) ? { intValue: String(value) } : { doubleValue: value },
-        };
-      default:
-        return { key, value: { stringValue: value } };
+    if (typeof value === "boolean") return { key, value: { boolValue: value } };
+    if (typeof value === "number") {
+      return {
+        key,
+        value: Number.isInteger(value) ? { intValue: String(value) } : { doubleValue: value },
+      };
     }
+    return { key, value: { stringValue: value } };
   });
 }
 

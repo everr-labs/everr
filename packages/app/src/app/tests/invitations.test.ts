@@ -174,6 +174,7 @@ it.each([false, true])(
         body: { invitationId },
       });
     await expect(accept(first.id)).rejects.toThrow();
+    /* oxlint-disable vitest/no-conditional-expect -- The test table covers each auth mode or endpoint, with shared success and lock assertions afterward. */
     if (emailEnabled) {
       await expect(accept(replacement.id)).rejects.toThrow("verification");
       const token = new URL(state.verificationUrl).searchParams.get("token");
@@ -186,6 +187,7 @@ it.each([false, true])(
         cookie: verified.headers.get("set-cookie") ?? "",
       });
     }
+    /* oxlint-enable vitest/no-conditional-expect */
     await expect(accept(replacement.id)).resolves.toBeTruthy();
   },
 );
@@ -225,6 +227,7 @@ it.each([
     "content-type": "application/json",
     origin: "http://localhost:3000",
   };
+  /* oxlint-disable vitest/no-conditional-expect -- The test table covers each auth mode or endpoint, with shared success and lock assertions afterward. */
   if (path === "delete-user") {
     await expect(
       auth.api.createOrganization({
@@ -245,6 +248,7 @@ it.each([
     });
     expect((await client.query("SELECT id FROM organization")).rows).toHaveLength(1);
   }
+  /* oxlint-enable vitest/no-conditional-expect */
   state.lockQuery.mockClear();
   state.releaseLock.mockClear();
   let membersAtUnlock: number | undefined;
@@ -268,6 +272,7 @@ it.each([
   expect(membersAtUnlock).toBe(allowed ? 1 : 2);
   expect(state.lockQuery).toHaveBeenCalledTimes(2);
   expect(state.releaseLock).toHaveBeenCalledOnce();
+  /* oxlint-disable vitest/no-conditional-expect -- The test table covers each auth mode or endpoint, with shared success and lock assertions afterward. */
   if (path === "delete-user") {
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({
@@ -275,6 +280,7 @@ it.each([
     });
     expect((await client.query('SELECT id FROM "user"')).rows).toHaveLength(2);
   }
+  /* oxlint-enable vitest/no-conditional-expect */
 });
 
 it.each([false, true])(

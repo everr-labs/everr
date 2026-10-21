@@ -88,11 +88,9 @@ test.each(["owner", "admin", "member"])(
     expect(screen.queryByRole("button", { name: "Downgrade to Hobby" }) !== null).toBe(
       role === "owner",
     );
-    if (role === "member") {
-      expect(
-        screen.getByText("Contact an organization Owner or Admin to restore billing."),
-      ).toBeVisible();
-    }
+    expect(
+      screen.queryByText("Contact an organization Owner or Admin to restore billing.") !== null,
+    ).toBe(role === "member");
   },
 );
 

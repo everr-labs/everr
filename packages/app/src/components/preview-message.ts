@@ -12,6 +12,7 @@ export function previewMessage(preview: string, status?: PreviewStatus): string 
       return `Conflict in preview "${preview}" — its name is already owned by another repo, so applying it live needs --adopt.`;
     case "unchanged":
       return `Viewing preview "${preview}". This resource is unchanged from live.`;
+    case undefined:
     default:
       return `Previewing "${preview}" — applied resources are overlaid on live.`;
   }

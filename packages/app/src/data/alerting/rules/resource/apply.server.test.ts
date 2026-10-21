@@ -485,28 +485,24 @@ describe("applyAlertSpecs", () => {
   it("fails a preview apply whose template references a column the query does not return", async () => {
     // The result-dependent validation is not skipped for previews: a broken
     // config fails before the change is ever merged.
-    try {
-      await applyAlertSpecs({
-        namespace: preview("p1"),
-        db,
-        resources: [
-          {
-            path: "labels.yaml",
-            resource: alert("bad-ref", {
-              notificationMessage: { title: `\${nope} errors` },
-            }),
-          },
-        ],
-      });
-      expect.fail("expected preview validation to fail");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ApplyValidationError);
-      expect(error).toMatchObject({
-        message: expect.stringMatching(
-          /labels\.yaml: \$\{nope\} is not a column of the query result.*\(available: service, value\)/,
-        ),
-      });
-    }
+    const attempt = applyAlertSpecs({
+      namespace: preview("p1"),
+      db,
+      resources: [
+        {
+          path: "labels.yaml",
+          resource: alert("bad-ref", {
+            notificationMessage: { title: `\${nope} errors` },
+          }),
+        },
+      ],
+    });
+    await expect(attempt).rejects.toBeInstanceOf(ApplyValidationError);
+    await expect(attempt).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /labels\.yaml: \$\{nope\} is not a column of the query result.*\(available: service, value\)/,
+      ),
+    });
 
     expect(mockedCreateRule).not.toHaveBeenCalled();
   });
@@ -674,21 +670,17 @@ describe("applyAlertSpecs", () => {
       new AlertingError(409, "conflict", "rule version mismatch: expected 3, current 4"),
     );
 
-    try {
-      await applyAlertSpecs({
-        namespace: live,
-        db,
-        resources: [{ path: "a.yaml", resource: alert() }],
-      });
-      expect.fail("expected the version conflict to fail the apply");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ApplyValidationError);
-      expect(error).toMatchObject({
-        message: expect.stringMatching(
-          /a\.yaml: alert "default\/high-errors" was modified concurrently .* re-run apply/,
-        ),
-      });
-    }
+    const attempt = applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+    await expect(attempt).rejects.toBeInstanceOf(ApplyValidationError);
+    await expect(attempt).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /a\.yaml: alert "default\/high-errors" was modified concurrently .* re-run apply/,
+      ),
+    });
   });
 
   it("prunes this repo's rules absent from config, never other repos' rules", async () => {
@@ -789,20 +781,16 @@ describe("applyAlertSpecs", () => {
       new AlertingError(409, "conflict", "rule name already exists"),
     );
 
-    try {
-      await applyAlertSpecs({
-        namespace: live,
-        db,
-        resources: [{ path: "a.yaml", resource: alert() }],
-      });
-      expect.fail("expected the create race to fail as a validation error");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ApplyValidationError);
-      expect(error).not.toBeInstanceOf(AlertingError);
-      expect(error).toMatchObject({
-        message: expect.stringMatching(/a\.yaml:.*default\/high-errors/),
-      });
-    }
+    const attempt = applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+    await expect(attempt).rejects.toBeInstanceOf(ApplyValidationError);
+    await expect(attempt).rejects.not.toBeInstanceOf(AlertingError);
+    await expect(attempt).rejects.toMatchObject({
+      message: expect.stringMatching(/a\.yaml:.*default\/high-errors/),
+    });
   });
 
   it("keys duplicate detection on project/slug, rejecting dupes before querying ClickHouse", async () => {
@@ -831,22 +819,18 @@ describe("applyAlertSpecs", () => {
     expect(mockedCreateRule).toHaveBeenCalledTimes(2);
 
     vi.clearAllMocks();
-    try {
-      await applyAlertSpecs({
-        namespace: live,
-        db,
-        resources: [
-          { path: "a.yaml", resource: alert("same") },
-          { path: "b.yaml", resource: alert("same") },
-        ],
-      });
-      expect.fail("expected duplicate names to fail");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ApplyValidationError);
-      expect(error).toMatchObject({
-        message: expect.stringMatching(/duplicate alert "default\/same" \(a\.yaml and b\.yaml\)/),
-      });
-    }
+    const attempt = applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [
+        { path: "a.yaml", resource: alert("same") },
+        { path: "b.yaml", resource: alert("same") },
+      ],
+    });
+    await expect(attempt).rejects.toBeInstanceOf(ApplyValidationError);
+    await expect(attempt).rejects.toMatchObject({
+      message: expect.stringMatching(/duplicate alert "default\/same" \(a\.yaml and b\.yaml\)/),
+    });
     expect(ch).not.toHaveBeenCalled();
     expect(mockedCreateRule).not.toHaveBeenCalled();
   });
@@ -930,19 +914,15 @@ describe("applyAlertSpecs", () => {
           columnTypes: columns[1],
         });
       }
-      try {
-        await applyAlertSpecs({
-          namespace: live,
-          db,
-          resources: [{ path, resource }],
-        });
-        expect.fail(`expected ${path} to fail validation`);
-      } catch (error) {
-        expect(error).toBeInstanceOf(ApplyValidationError);
-        expect(error).toMatchObject({
-          message: expect.stringMatching(pattern),
-        });
-      }
+      const attempt = applyAlertSpecs({
+        namespace: live,
+        db,
+        resources: [{ path, resource }],
+      });
+      await expect(attempt).rejects.toBeInstanceOf(ApplyValidationError);
+      await expect(attempt).rejects.toMatchObject({
+        message: expect.stringMatching(pattern),
+      });
     }
 
     expect(mockedCreateRule).not.toHaveBeenCalled();

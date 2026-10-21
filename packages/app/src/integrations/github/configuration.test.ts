@@ -30,11 +30,9 @@ describe("GitHub integration configuration", () => {
     expect(() => resolveGithubConfiguration({ GITHUB_APP_PRIVATE_KEY: "secret-value" })).toThrow(
       "Invalid GitHub integration configuration",
     );
-    try {
-      resolveGithubConfiguration({ GITHUB_APP_PRIVATE_KEY: "secret-value" });
-    } catch (error) {
-      expect(String(error)).not.toContain("secret-value");
-    }
+    expect(() =>
+      resolveGithubConfiguration({ GITHUB_APP_PRIVATE_KEY: "secret-value" }),
+    ).not.toThrow("secret-value");
   });
   it("requires configuration when explicitly enabled", () => {
     expect(() => resolveGithubConfiguration({ EVERR_GITHUB_ENABLED: "true" })).toThrow(

@@ -151,6 +151,9 @@ function incrementBinCount(bin: LogVolumeBin, line: ParsedLogLine): void {
     case "command":
       bin.command++;
       break;
+    case "group":
+    case "endgroup":
+    case undefined:
     default:
       bin.info++;
   }

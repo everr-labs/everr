@@ -101,6 +101,7 @@ export function mergeRegions(
         return a.max;
       case "last":
         return a.last;
+      case "sum":
       default:
         return a.sum;
     }

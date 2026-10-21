@@ -17,7 +17,7 @@ function getHandler() {
 }
 
 describe("/everr-app/$", () => {
-  it("redirects known CLI release files", async () => {
+  it("redirects CLI release metadata", async () => {
     const response = await getHandler()({
       request: new Request("https://everr.dev/everr-app/release-metadata.json"),
     });
@@ -26,7 +26,7 @@ describe("/everr-app/$", () => {
     expect(response.headers.get("location")).toContain("/everr-app/release-metadata.json");
   });
 
-  it("redirects known CLI release files", async () => {
+  it("redirects CLI checksum files", async () => {
     const response = await getHandler()({
       request: new Request("https://everr.dev/everr-app/everr.sha256"),
     });

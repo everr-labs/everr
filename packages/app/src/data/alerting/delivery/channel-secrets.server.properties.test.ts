@@ -80,10 +80,11 @@ describe("a channel config's encrypted envelope", () => {
       fc.property(configArb, (stored) => {
         const sealed = encryptChannelConfig(ORG, ID, stored);
         const redacted = readRedactedChannelConfig(sealed);
-        expect(redacted.type).toBe(stored.type);
-        if (redacted.type === "telegram" && stored.type === "telegram") {
-          expect(redacted.chat_ids).toEqual(stored.chat_ids);
-        }
+        expect(redacted).toEqual(
+          stored.type === "telegram"
+            ? { ...stored, bot_token: REDACTED }
+            : { ...stored, url: REDACTED },
+        );
       }),
     );
   });

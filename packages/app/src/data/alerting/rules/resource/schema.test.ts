@@ -56,12 +56,10 @@ describe("AlertRuleYamlSchema", () => {
       evaluationInterval: "5m",
       maxInterval: "1m",
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const message = result.error.issues[0]?.message ?? "";
-      expect(message).toContain("1m");
-      expect(message).toContain("5m");
-    }
+    if (result.success) throw new Error("Expected schema validation to fail");
+    const message = result.error.issues[0]?.message ?? "";
+    expect(message).toContain("1m");
+    expect(message).toContain("5m");
   });
 
   it("rejects annotation keys reserved for generated sugar", () => {
@@ -74,10 +72,8 @@ describe("AlertRuleYamlSchema", () => {
       "link.runbook",
     ]) {
       const result = parseSpec({ annotations: { [key]: "x" } });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.issues[0]?.message ?? "").toContain(key);
-      }
+      if (result.success) throw new Error("Expected schema validation to fail");
+      expect(result.error.issues[0]?.message ?? "").toContain(key);
     }
   });
 });
@@ -99,9 +95,7 @@ describe("AlertRuleYamlSchema canonical fields", () => {
       ...valid,
       spec: specWithoutQuery,
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0]?.path).toEqual(["spec", "query"]);
-    }
+    if (result.success) throw new Error("Expected schema validation to fail");
+    expect(result.error.issues[0]?.path).toEqual(["spec", "query"]);
   });
 });

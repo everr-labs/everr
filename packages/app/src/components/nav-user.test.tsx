@@ -54,12 +54,10 @@ it.each(["owner", "member"])(
     );
     await user.click(screen.getByRole("button", { name: /Test User/ }));
     expect(await screen.findByRole("menuitem", { name: "General action" })).toBeVisible();
-    if (role === "owner") {
-      expect(screen.getByRole("menuitem", { name: "Admin action" })).toBeVisible();
-      expect(screen.getByRole("menuitem", { name: "Members" })).toBeVisible();
-    } else {
-      expect(screen.queryByRole("menuitem", { name: "Admin action" })).not.toBeInTheDocument();
-    }
+    expect(screen.queryByRole("menuitem", { name: "Admin action" }) !== null).toBe(
+      role === "owner",
+    );
+    expect(screen.queryByRole("menuitem", { name: "Members" }) !== null).toBe(role === "owner");
     expect(screen.getByRole("menuitem", { name: "Account settings" })).toBeVisible();
   },
 );

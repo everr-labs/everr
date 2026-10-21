@@ -64,9 +64,11 @@ function laws<T>(name: string, arb: fc.Arbitrary<T>, cmp: (a: T, b: T) => number
     it("carries through a chain of three", () => {
       fc.assert(
         fc.property(arb, arb, arb, (a, b, c) => {
+          /* oxlint-disable vitest/no-conditional-expect -- These comparator laws apply only when the generated inputs satisfy the stated premise. */
           if (cmp(a, b) <= 0 && cmp(b, c) <= 0) {
             expect(cmp(a, c)).toBeLessThanOrEqual(0);
           }
+          /* oxlint-enable vitest/no-conditional-expect */
         }),
       );
     });
@@ -74,9 +76,11 @@ function laws<T>(name: string, arb: fc.Arbitrary<T>, cmp: (a: T, b: T) => number
     it("treats two things it calls equal as interchangeable against a third", () => {
       fc.assert(
         fc.property(arb, arb, arb, (a, b, c) => {
+          /* oxlint-disable vitest/no-conditional-expect -- These comparator laws apply only when the generated inputs satisfy the stated premise. */
           if (cmp(a, b) === 0) {
             expect(sign(cmp(a, c))).toBe(sign(cmp(b, c)));
           }
+          /* oxlint-enable vitest/no-conditional-expect */
         }),
       );
     });

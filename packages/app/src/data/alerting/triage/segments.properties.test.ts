@@ -109,9 +109,11 @@ describe("the stretches the state chart paints", () => {
       fc.property(rowsArb, priorArb, (rows, prior) => {
         const segments = segmentsOf(rows, prior);
         for (let i = 1; i < segments.length; i++) {
+          /* oxlint-disable vitest/no-conditional-expect -- The adjacency invariant applies only to touching segments; other segment properties are checked separately. */
           if (segments[i - 1].to === segments[i].from) {
             expect(segments[i - 1].state).not.toBe(segments[i].state);
           }
+          /* oxlint-enable vitest/no-conditional-expect */
         }
       }),
     );

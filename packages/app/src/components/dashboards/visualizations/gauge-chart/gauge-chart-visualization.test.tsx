@@ -40,10 +40,7 @@ describe("GaugeChartVisualization", () => {
     );
 
     const unit = screen.getByText("ms");
-    if (variant === "horizontal") {
-      expect(unit).toHaveClass("ml-1");
-    } else {
-      expect(unit).toHaveAttribute("dx", "1.5");
-    }
+    expect(unit.classList.contains("ml-1")).toBe(variant === "horizontal");
+    expect(unit.getAttribute("dx")).toBe(variant === "arc" ? "1.5" : null);
   });
 });

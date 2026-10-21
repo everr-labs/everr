@@ -116,11 +116,7 @@ describe("parse", () => {
   });
 
   it("includes expression in error", () => {
-    try {
-      parse("now+1x");
-    } catch (e) {
-      expect(e).toBeInstanceOf(DateMathError);
-      expect((e as DateMathError).expression).toBe("now+1x");
-    }
+    expect(() => parse("now+1x")).toThrow(DateMathError);
+    expect(() => parse("now+1x")).toThrow(expect.objectContaining({ expression: "now+1x" }));
   });
 });

@@ -156,6 +156,7 @@ it.each([
     await user.click(await screen.findByRole("button", { name: "Create account" }));
     await screen.findByRole("heading", { name: "Create your account" });
     expect(screen.getByLabelText("Email")).toHaveValue("invited@example.com");
+    /* oxlint-disable vitest/no-conditional-expect -- The test table covers each signup and verification mode, with shared acceptance assertions afterward. */
     if (provider === "email") {
       expect(screen.queryByRole("button", { name: "Sign up with Google" })).toBeNull();
       expect(screen.queryByText("or")).toBeNull();
@@ -165,6 +166,8 @@ it.each([
     } else {
       await user.click(screen.getByRole("button", { name: "Sign up with Google" }));
     }
+    /* oxlint-enable vitest/no-conditional-expect */
+    /* oxlint-disable vitest/no-conditional-expect -- The test table covers each signup and verification mode, with shared acceptance assertions afterward. */
     if (emailEnabled) {
       await screen.findByRole("heading", { name: "Verify your email" });
       expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
@@ -178,6 +181,7 @@ it.each([
       mocks.session.user.emailVerified = true;
       await router.invalidate();
     }
+    /* oxlint-enable vitest/no-conditional-expect */
     expect(await screen.findByRole("button", { name: "Accept" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Decline" })).toBeVisible();
     expect(router.state.location.pathname).toBe("/invite/invitation-123");

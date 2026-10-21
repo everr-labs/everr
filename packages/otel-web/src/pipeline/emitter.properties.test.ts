@@ -89,15 +89,11 @@ describe("exit-flush budget", () => {
         // goes out of the payload also, and then the code sends no payload for
         // that signal. Such a payload alone is above the keepalive limit, and
         // thus fetch refuses it and the full batch is lost.
-        if (spans) {
-          expect(spans.bytes).toBeLessThanOrEqual(SPAN_BUDGET);
-        }
+        expect(spans?.bytes ?? 0).toBeLessThanOrEqual(SPAN_BUDGET);
         // The log records use the part of the limit that the spans did not
         // use. The same rule applies: one record that is alone above that part
         // also goes out of the payload.
-        if (logs) {
-          expect(logs.bytes).toBeLessThanOrEqual(EXIT_BUDGET - (spans?.bytes ?? 0));
-        }
+        expect(logs?.bytes ?? 0).toBeLessThanOrEqual(EXIT_BUDGET - (spans?.bytes ?? 0));
         // The records that stay are always the most recent records, in the
         // sequence that the SDK sent them. The records of the exit path go into
         // the queue last, and thus they must be the records that stay. A signal
@@ -159,17 +155,18 @@ describe("OTLP attribute mapping", () => {
           void flush();
           const wire = new Map(sent[0].attributes.map(({ key, value }) => [key, value]));
           for (const [key, value] of Object.entries(record)) {
-            if (value == null) {
-              expect(wire.has(key)).toBe(false);
-            } else if (typeof value === "string") {
-              expect(wire.get(key)).toEqual({ stringValue: value });
-            } else if (typeof value === "boolean") {
-              expect(wire.get(key)).toEqual({ boolValue: value });
-            } else if (Number.isInteger(value)) {
-              expect(wire.get(key)).toEqual({ intValue: String(value) });
-            } else {
-              expect(wire.get(key)).toEqual({ doubleValue: value });
-            }
+            const expected =
+              value == null
+                ? undefined
+                : typeof value === "string"
+                  ? { stringValue: value }
+                  : typeof value === "boolean"
+                    ? { boolValue: value }
+                    : Number.isInteger(value)
+                      ? { intValue: String(value) }
+                      : { doubleValue: value };
+            expect(wire.has(key)).toBe(value != null);
+            expect(wire.get(key)).toEqual(expected);
           }
         },
       ),

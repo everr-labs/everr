@@ -160,6 +160,7 @@ it.each(["hobby", "suspended", "pro"] as const)(
       auth.api.addMember({
         body: { organizationId: "org", userId: "recipient", role: "member" },
       });
+    /* oxlint-disable vitest/no-conditional-expect -- The test table explicitly covers both outcomes, each with its own assertions. */
     if (appState === "pro") {
       await expect(invite()).resolves.toMatchObject({ status: "pending" });
       await expect(add()).resolves.toBeTruthy();
@@ -179,6 +180,7 @@ it.each(["hobby", "suspended", "pro"] as const)(
       expect(await fixture.db.select().from(member)).toHaveLength(1);
       expect(state.beforeMembershipChange).not.toHaveBeenCalled();
     }
+    /* oxlint-enable vitest/no-conditional-expect */
     expect(state.readOrgEntitlement).toHaveBeenCalledWith("org");
   },
 );
@@ -201,6 +203,7 @@ it.each(["hobby", "suspended", "pro"] as const)(
         headers: recipientHeaders,
         body: { invitationId: pending.id },
       });
+    /* oxlint-disable vitest/no-conditional-expect -- The test table explicitly covers both outcomes, each with its own assertions. */
     if (appState === "pro") {
       await expect(accept()).resolves.toBeTruthy();
       expect(state.beforeMembershipChange).toHaveBeenCalledWith("org", "recipient", "member");
@@ -211,6 +214,7 @@ it.each(["hobby", "suspended", "pro"] as const)(
       });
       expect(state.beforeMembershipChange).not.toHaveBeenCalled();
     }
+    /* oxlint-enable vitest/no-conditional-expect */
     expect(await fixture.db.select().from(member)).toHaveLength(appState === "pro" ? 2 : 1);
     const [saved] = await fixture.db.select().from(invitation).where(eq(invitation.id, pending.id));
     expect(saved.status).toBe(appState === "pro" ? "accepted" : "pending");
@@ -304,13 +308,15 @@ it.each([
   async ({ mutation, error, denied }) => {
     await addRecipient();
     state.beforeMembershipChange.mockRejectedValueOnce(error);
-    const request = expect(mutations[mutation]());
+    const request = mutations[mutation]();
+    /* oxlint-disable vitest/no-conditional-expect -- The test table explicitly covers both outcomes, each with its own assertions. */
     if (denied)
-      await request.rejects.toMatchObject({
+      await expect(request).rejects.toMatchObject({
         status: "FORBIDDEN",
         message: error.message,
       });
-    else await request.rejects.toBe(error);
+    else await expect(request).rejects.toBe(error);
+    /* oxlint-enable vitest/no-conditional-expect */
     expect(state.beforeMembershipChange).toHaveBeenCalledWith(
       "org",
       "recipient",
@@ -396,6 +402,7 @@ describe("account deletion", () => {
       expect(await fixture.db.select().from(organization)).toHaveLength(
         first === "deletion" ? 1 : 2,
       );
+      /* oxlint-disable vitest/no-conditional-expect -- The test table explicitly covers both outcomes, each with its own assertions. */
       if (first === "creation") {
         await expect(remove()).rejects.toThrow("only owner");
         expect(
@@ -407,6 +414,7 @@ describe("account deletion", () => {
           0,
         );
       }
+      /* oxlint-enable vitest/no-conditional-expect */
     },
   );
 
@@ -537,15 +545,15 @@ describe("account deletion", () => {
       if (stage === "organization") state.assertDeletable.mockRejectedValueOnce(error);
       if (stage === "user") state.beforeUserDelete.mockRejectedValueOnce(error);
       if (stage === "entitlement") state.readOrgEntitlement.mockRejectedValueOnce(error);
-      const request = expect(
-        auth.deleteAccount({ headers: ownerHeaders, deleteOrganization: true }),
-      );
+      const request = auth.deleteAccount({ headers: ownerHeaders, deleteOrganization: true });
+      /* oxlint-disable vitest/no-conditional-expect -- The test table explicitly covers both outcomes, each with its own assertions. */
       if (stage === "user")
-        await request.rejects.toMatchObject({
+        await expect(request).rejects.toMatchObject({
           message: expect.stringContaining("organization was deleted"),
           cause: error,
         });
-      else await request.rejects.toBe(error);
+      else await expect(request).rejects.toBe(error);
+      /* oxlint-enable vitest/no-conditional-expect */
       expect(await fixture.db.select().from(organization)).toHaveLength(stage === "user" ? 0 : 1);
       expect(await fixture.db.select().from(user)).toHaveLength(2);
       expect(state.releaseLock).toHaveBeenCalledOnce();

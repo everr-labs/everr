@@ -50,6 +50,8 @@ export function rollupAlertState(
       return "firing";
     case "pending":
       return "pending";
+    case "resolved":
+    case "unknown":
     default:
       return "inactive";
   }

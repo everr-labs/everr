@@ -79,6 +79,7 @@ export class RealtimeSubscriptionMachine {
         }
         break;
 
+      case "disconnected":
       default:
         break;
     }

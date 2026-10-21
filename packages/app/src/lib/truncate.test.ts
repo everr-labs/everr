@@ -23,18 +23,9 @@ describe("truncateWithEllipsis", () => {
     const out = truncateWithEllipsis(input, 4096);
     expect(out).toBe(`${"x".repeat(4094)}…`);
     expect(out.length).toBe(4095);
-    // No lone surrogate: every charCode is either a complete scalar or part of
-    // a complete pair.
-    for (let i = 0; i < out.length; i++) {
-      const u = out.charCodeAt(i);
-      if (u >= 0xd800 && u <= 0xdbff) {
-        expect(out.charCodeAt(i + 1)).toBeGreaterThanOrEqual(0xdc00);
-        expect(out.charCodeAt(i + 1)).toBeLessThanOrEqual(0xdfff);
-        i++;
-      } else {
-        expect(u < 0xd800 || u > 0xdfff).toBe(true);
-      }
-    }
+    // Unicode mode treats valid pairs as one code point, so this matches only
+    // lone surrogate code points.
+    expect(out).not.toMatch(/[\uD800-\uDFFF]/u);
   });
 
   it("keeps a pair that ends exactly at the boundary", () => {

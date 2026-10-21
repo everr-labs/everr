@@ -399,12 +399,10 @@ it("returns a retryable setup response for a pending API-key organization", asyn
     key: { id: "key", referenceId: "org", permissions: { apply: ["*"] } },
   });
   orgRows = [{ name: "Pending", metadata: '{"clickhouseReady":false}' }];
-  try {
-    await resolveApplyAuth(headers({ authorization: "Bearer ek_pending" }));
-    throw new Error("Expected pending organization rejection");
-  } catch (error) {
-    const response = applyAuthErrorResponse(error);
-    expect(response?.status).toBe(503);
-    expect(response?.headers.get("Retry-After")).toBe("5");
-  }
+  const attempt = resolveApplyAuth(headers({ authorization: "Bearer ek_pending" }));
+  await expect(attempt).rejects.toBeInstanceOf(StorageNotReadyError);
+  const error: unknown = await attempt.catch((cause: unknown) => cause);
+  const response = applyAuthErrorResponse(error);
+  expect(response?.status).toBe(503);
+  expect(response?.headers.get("Retry-After")).toBe("5");
 });

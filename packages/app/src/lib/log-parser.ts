@@ -54,6 +54,9 @@ export function getMarkerClass(type: MarkerType | undefined): string {
       return "text-cyan-400";
     case "debug":
       return "text-muted-foreground/60";
+    case "group":
+    case "endgroup":
+    case undefined:
     default:
       return "";
   }
