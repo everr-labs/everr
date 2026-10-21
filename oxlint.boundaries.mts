@@ -1,6 +1,6 @@
-import { defineConfig } from "oxlint";
+import type { OxlintConfig } from "vite-plus/lint";
 
-export default defineConfig({
+export default {
   plugins: [],
   categories: {
     correctness: "off",
@@ -364,4 +364,4 @@ export default defineConfig({
       },
     },
   ],
-});
+} satisfies OxlintConfig;
