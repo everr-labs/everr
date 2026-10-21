@@ -1,22 +1,26 @@
+import { LogLevelSchema } from "../schemas";
+import { z } from "zod";
+import { SqlAttributesSchema, SqlCountSchema, SqlTimestampSchema } from "../../sql/row-schemas";
 import { flattenAttributes } from "../../sql/json-attributes";
-import type { LogDetail, LogIdentity, LogLevel } from "../schemas";
+import type { LogDetail, LogIdentity } from "../schemas";
 import { normalizeTimestampToUtc } from "../util/timestamp";
 import type { BuiltQuery } from "./explorer";
 import { LOG_LEVEL_EXPR } from "./level-expr";
 import { validateTableName } from "./table";
 
-export interface DetailRowRaw {
-  timestampRaw: string;
-  level: LogLevel;
-  severityText: string;
-  severityNumber: string | number;
-  serviceName: string;
-  traceId: string;
-  spanId: string;
-  resourceAttributes: unknown;
-  logAttributes: unknown;
-  scopeAttributes: unknown;
-}
+export const DetailRowRawSchema = z.object({
+  timestampRaw: SqlTimestampSchema,
+  level: LogLevelSchema,
+  severityText: z.string(),
+  severityNumber: SqlCountSchema,
+  serviceName: z.string(),
+  traceId: z.string(),
+  spanId: z.string(),
+  resourceAttributes: SqlAttributesSchema,
+  logAttributes: SqlAttributesSchema,
+  scopeAttributes: SqlAttributesSchema,
+});
+export type DetailRowRaw = z.infer<typeof DetailRowRawSchema>;
 
 export function buildDetailQuery(
   identity: LogIdentity,

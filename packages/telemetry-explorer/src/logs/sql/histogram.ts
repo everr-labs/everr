@@ -1,3 +1,6 @@
+import type { z } from "zod";
+import { SqlCountSchema, SqlTimestampSchema } from "../../sql/row-schemas";
+import { TotalsRowRawSchema } from "./totals";
 import { bucketSeconds } from "@everr/ui/lib/bucket";
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import type { LogHistogramBucket, LogHistogramInput } from "../schemas";
@@ -7,16 +10,11 @@ import { LOG_LEVEL_EXPR } from "./level-expr";
 import { validateTableName } from "./table";
 import { buildWhereClause } from "./where";
 
-export interface HistogramRowRaw {
-  bucket: string;
-  total: string | number;
-  error: string | number;
-  warning: string | number;
-  info: string | number;
-  debug: string | number;
-  trace: string | number;
-  unknown: string | number;
-}
+export const HistogramRowRawSchema = TotalsRowRawSchema.extend({
+  bucket: SqlTimestampSchema,
+  total: SqlCountSchema,
+});
+export type HistogramRowRaw = z.infer<typeof HistogramRowRawSchema>;
 
 export interface HistogramBuilt extends BuiltQuery {
   intervalSeconds: number;

@@ -230,6 +230,10 @@ export default defineConfig({
           "packages/local-app/src/lib/telemetry.ts",
           "packages/local-app/src/features/local-telemetry/collector-status.tsx",
           "packages/local-app/src/features/logs/local-sql-client.ts",
+          "packages/telemetry-explorer/src/sql/{client,row-schemas}.ts",
+          "packages/telemetry-explorer/src/{logs,errors,traces}/data/{repository,row-schemas}.ts",
+          "packages/telemetry-explorer/src/logs/sql/{explorer,detail,histogram,totals,filter-options}.ts",
+          "packages/telemetry-explorer/src/attribute-filter/sql/{keys,values}.ts",
         ],
         excludeFiles: ["**/*.test.{ts,tsx}"],
         rules: {

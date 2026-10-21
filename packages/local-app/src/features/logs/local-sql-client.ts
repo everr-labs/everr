@@ -11,11 +11,9 @@ const SqlRowsSchema = z.array(z.record(z.string(), z.json()));
  * Parameter substitution happens server-side using ClickHouse escape rules.
  */
 export const localSqlClient: SqlClient = {
-  execute: async <Row>(sql: string, params: Record<string, unknown>): Promise<Row[]> => {
+  execute: async (sql, params) => {
     try {
-      const rows = await invokeCommand("telemetry_sql_query", SqlRowsSchema, { sql, params });
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- SqlClient's query-specific Row is supplied by the repository; the transport validates JSON object rows, not each query's columns.
-      return rows as Row[];
+      return await invokeCommand("telemetry_sql_query", SqlRowsSchema, { sql, params });
     } catch (error) {
       captureLocalSqlError(error);
       throw error;

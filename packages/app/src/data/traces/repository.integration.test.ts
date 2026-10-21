@@ -52,13 +52,13 @@ afterAll(() => {
 function repo(tableName = "traces") {
   return new TracesRepository(
     {
-      async execute<T>(sql: string, params: Record<string, unknown> = {}) {
+      async execute(sql: string, params: Record<string, unknown> = {}) {
         for (const [key, value] of Object.entries(params)) {
           const text = String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
           run(`SET param_${key} = '${text}'`);
         }
         const rows = run(sql);
-        return (rows ? rows.split("\n").map((line) => JSON.parse(line)) : []) as T[];
+        return rows ? rows.split("\n").map((line): unknown => JSON.parse(line)) : [];
       },
     },
     { tableName },
@@ -81,6 +81,29 @@ function insert(table: string, traceId: string, spanId: string, timestamp: strin
 }
 
 describe("trace ID lookup against ClickHouse", () => {
+  it("validates real aggregate rows with quoted counts and default statuses", async () => {
+    insert("traces", "summary", "root", "2026-02-01 12:00:00.123456789");
+    const summaries = await repo().search({
+      fromTs: "2026-02-01 00:00:00",
+      toTs: "2026-02-02 00:00:00",
+      namespace: [],
+      service: [],
+      name: "",
+      status: "all",
+      attributes: [],
+      limit: 50,
+    });
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toMatchObject({
+      traceId: "summary",
+      rootStatus: "Unset",
+      spanCount: 1,
+      errorCount: 0,
+    });
+    expect(summaries[0]?.startTs).toContain(".123456789");
+    expect(summaries[0]?.durationNs).toBe("1000000");
+  });
+
   it("returns no spans for an unknown trace", async () => {
     expect(await repo().getTrace({ traceId: "missing" })).toEqual([]);
   });
@@ -93,6 +116,7 @@ describe("trace ID lookup against ClickHouse", () => {
     expect(spans.map((span) => span.spanId)).toEqual(["first", "last"]);
     expect(spans[1]?.timestampNs).toBe("1767441600999999999");
     expect(spans[0]?.spanAttributes).toEqual({ "http.route": "/test" });
+    expect(spans[0]?.statusCode).toBe("Unset");
   });
 
   it("resolves fresh bounds when more spans arrive", async () => {

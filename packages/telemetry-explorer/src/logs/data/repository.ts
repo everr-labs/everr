@@ -1,11 +1,12 @@
+import { queryRows } from "../../sql/client";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import {
-  type AttributeKeyRowRaw,
+  AttributeKeyRowRawSchema,
   buildAttributeKeysQuery,
   decodeAttributeKeyRows,
 } from "../../attribute-filter/sql/keys";
 import {
-  type AttributeValueRowRaw,
+  AttributeValueRowRawSchema,
   buildAttributeValuesQuery,
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
@@ -24,15 +25,15 @@ import type {
   LogsTotalsResult,
 } from "../schemas";
 import { LOGS_ATTRIBUTE_SOURCES, logsAttributeColumn } from "../sql/attribute-columns";
-import { buildDetailQuery, type DetailRowRaw, mapDetailRow } from "../sql/detail";
-import { buildExplorerQuery, type ExplorerRowRaw, mapExplorerRow } from "../sql/explorer";
+import { buildDetailQuery, DetailRowRawSchema, mapDetailRow } from "../sql/detail";
+import { buildExplorerQuery, ExplorerRowRawSchema, mapExplorerRow } from "../sql/explorer";
 import {
   buildFilterOptionsQuery,
   decodeFilterOptionsRows,
-  type FilterOptionsRowRaw,
+  FilterOptionsRowRawSchema,
 } from "../sql/filter-options";
-import { buildHistogramQuery, fillHistogramBuckets, type HistogramRowRaw } from "../sql/histogram";
-import { buildTotalsQuery, decodeTotalsRows, type TotalsRowRaw } from "../sql/totals";
+import { buildHistogramQuery, fillHistogramBuckets, HistogramRowRawSchema } from "../sql/histogram";
+import { buildTotalsQuery, decodeTotalsRows, TotalsRowRawSchema } from "../sql/totals";
 import type { SqlClient } from "./client";
 
 export interface LogsRepositoryOptions {
@@ -53,7 +54,7 @@ export class LogsRepository {
     const { sql, params } = buildExplorerQuery(input, {
       tableName: this.tableName,
     });
-    const rows = await this.client.execute<ExplorerRowRaw>(sql, params);
+    const rows = await queryRows(this.client, ExplorerRowRawSchema, sql, params);
     return { logs: rows.map(mapExplorerRow) };
   }
 
@@ -61,14 +62,13 @@ export class LogsRepository {
     const { sql, params } = buildTotalsQuery(input, {
       tableName: this.tableName,
     });
-    const rows = await this.client.execute<TotalsRowRaw>(sql, params);
+    const rows = await queryRows(this.client, TotalsRowRawSchema, sql, params);
     return decodeTotalsRows(rows, input.levels);
   }
 
-  // fallow-ignore-next-line unused-class-member
   async histogram(input: LogHistogramInput): Promise<LogHistogramBucket[]> {
     const built = buildHistogramQuery(input, { tableName: this.tableName });
-    const rows = await this.client.execute<HistogramRowRaw>(built.sql, built.params);
+    const rows = await queryRows(this.client, HistogramRowRawSchema, built.sql, built.params);
     return fillHistogramBuckets(rows, built.fromDate, built.toDate, built.intervalSeconds);
   }
 
@@ -76,7 +76,7 @@ export class LogsRepository {
     const { sql, params } = buildDetailQuery(identity, {
       tableName: this.tableName,
     });
-    const rows = await this.client.execute<DetailRowRaw>(sql, params);
+    const rows = await queryRows(this.client, DetailRowRawSchema, sql, params);
     const row = rows[0];
     if (!row) throw new Error("Log entry not found");
     return mapDetailRow(row);
@@ -87,7 +87,7 @@ export class LogsRepository {
     const { sql, params } = buildFilterOptionsQuery(input, {
       tableName: this.tableName,
     });
-    const rows = await this.client.execute<FilterOptionsRowRaw>(sql, params);
+    const rows = await queryRows(this.client, FilterOptionsRowRawSchema, sql, params);
     return decodeFilterOptionsRows(rows);
   }
 
@@ -97,7 +97,7 @@ export class LogsRepository {
       sources: LOGS_ATTRIBUTE_SOURCES,
       columnFor: logsAttributeColumn,
     });
-    const rows = await this.client.execute<AttributeKeyRowRaw>(sql, params);
+    const rows = await queryRows(this.client, AttributeKeyRowRawSchema, sql, params);
     return decodeAttributeKeyRows(rows);
   }
 
@@ -106,7 +106,7 @@ export class LogsRepository {
       tableName: this.tableName,
       columnFor: logsAttributeColumn,
     });
-    const rows = await this.client.execute<AttributeValueRowRaw>(sql, params);
+    const rows = await queryRows(this.client, AttributeValueRowRawSchema, sql, params);
     return decodeAttributeValueRows(rows);
   }
 }

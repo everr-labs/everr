@@ -1,11 +1,11 @@
+import { z } from "zod";
 import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
 import type { LogFilterOptions } from "../schemas";
 import type { BuiltQuery } from "./explorer";
 import { validateTableName } from "./table";
 
-export interface FilterOptionsRowRaw {
-  services: string[];
-}
+export const FilterOptionsRowRawSchema = z.object({ services: z.array(z.string()) });
+export type FilterOptionsRowRaw = z.infer<typeof FilterOptionsRowRawSchema>;
 
 export function buildFilterOptionsQuery(
   input: { timeRange: TimeRange },

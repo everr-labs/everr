@@ -1,3 +1,5 @@
+import { AttributeSourceSchema } from "../schemas";
+import { z } from "zod";
 import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
 import { attributeKeysColumn } from "../../sql/json-attributes";
 import { validateTableName } from "../../sql/table";
@@ -11,10 +13,11 @@ import type { BuiltQuery } from "./types";
 // scan, since it holds distinct key names rather than the attribute values.
 export const ATTRIBUTE_KEY_PER_SOURCE_LIMIT = 200;
 
-export interface AttributeKeyRowRaw {
-  key: string;
-  source: AttributeSource;
-}
+export const AttributeKeyRowRawSchema = z.object({
+  key: z.string(),
+  source: AttributeSourceSchema,
+});
+export type AttributeKeyRowRaw = z.infer<typeof AttributeKeyRowRawSchema>;
 
 export function buildAttributeKeysQuery(
   input: { timeRange: TimeRange },

@@ -342,7 +342,7 @@ describe("TracesRepository.getTrace", () => {
         spanAttributes: { "http.method": "GET" },
         resourceAttributes: { "service.namespace": "app" },
         eventNames: ["dns.lookup", "tls.handshake"],
-        eventTimestamps: ["1010", "1020"],
+        eventTimestamps: ["2026-05-20 12:00:00.000000010", "2026-05-20 12:00:00.000000020"],
         eventAttributes: [{ host: "example.com" }, { protocol: "tls1.3" }],
         linkTraceIds: ["linked-trace"],
         linkSpanIds: ["linked-span"],
@@ -364,12 +364,12 @@ describe("TracesRepository.getTrace", () => {
     expect(result[0]?.events).toEqual([
       {
         name: "dns.lookup",
-        timestamp: "1010",
+        timestamp: "2026-05-20 12:00:00.000000010",
         attributes: { host: "example.com" },
       },
       {
         name: "tls.handshake",
-        timestamp: "1020",
+        timestamp: "2026-05-20 12:00:00.000000020",
         attributes: { protocol: "tls1.3" },
       },
     ]);
@@ -399,7 +399,7 @@ describe("TracesRepository.getTrace", () => {
         spanAttributes: { http: { route: "/x" } },
         resourceAttributes: { service: { name: "api" } },
         eventNames: ["exception"],
-        eventTimestamps: ["1010"],
+        eventTimestamps: ["2026-05-20 12:00:00.000000010"],
         eventAttributes: [{ exception: { type: "E" } }],
         linkTraceIds: [],
         linkSpanIds: [],
