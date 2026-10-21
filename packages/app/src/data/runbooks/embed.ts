@@ -24,7 +24,7 @@ export function parsePanelEmbed(source: string): PanelEmbed {
   try {
     doc = parse(source);
   } catch (e) {
-    throw new Error(`invalid YAML: ${e instanceof Error ? e.message : String(e)}`);
+    throw new Error(`invalid YAML: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
   }
   if (!isRecord(doc)) {
     throw new Error("panel block must be a YAML mapping");

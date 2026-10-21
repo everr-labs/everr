@@ -165,6 +165,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
         permanent ? ALERT_DELIVERY_MAX_ATTEMPTS : sql`${alertDeliveries.attempts} + 1`,
       );
     } catch (bookkeepingError) {
+      // oxlint-disable-next-line preserve-caught-error -- The structured cause retains both sendError and bookkeepingError.
       throw new Error("alert delivery send failed, and recording it failed too", {
         cause: { sendError: cause, bookkeepingError },
       });

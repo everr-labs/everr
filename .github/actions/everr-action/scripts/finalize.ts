@@ -209,7 +209,9 @@ export async function loadSamples(samplesPath: string | undefined): Promise<Reso
       try {
         parsed = JSON.parse(line);
       } catch (error) {
-        throw new Error(`invalid NDJSON sample on line ${index + 1}: ${formatError(error)}`);
+        throw new Error(`invalid NDJSON sample on line ${index + 1}: ${formatError(error)}`, {
+          cause: error,
+        });
       }
 
       return sanitizeSample(parsed);

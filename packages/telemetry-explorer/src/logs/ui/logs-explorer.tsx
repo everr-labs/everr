@@ -102,39 +102,16 @@ function LogStream({
     [selectedLogKey, onSelect],
   );
 
-  const components = useMemo(
-    () => ({
-      ...virtuosoScrollAreaComponents,
-      Footer: () => (
-        <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
-          {isFetchingNextPage ? (
-            <span className="flex items-center gap-2">
-              <Skeleton className="size-2 rounded-full" />
-              Loading more events
-            </span>
-          ) : hasNextPage ? (
-            <span>
-              Showing {logs.length.toLocaleString()}
-              {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} events
-            </span>
-          ) : (
-            <span>Showing all {logs.length.toLocaleString()} matching events</span>
-          )}
-        </div>
-      ),
-    }),
-    [isFetchingNextPage, hasNextPage, totalCount, logs.length],
-  );
-
   return (
     <Virtuoso
+      context={{ count: logs.length, totalCount, hasNextPage, isFetchingNextPage }}
       data={logs}
       className="h-full min-h-0 bg-background"
       increaseViewportBy={isSelecting ? VIRTUOSO_OVERSCAN_SELECTING : VIRTUOSO_OVERSCAN_IDLE}
       endReached={endReached}
       computeItemKey={computeRowKey}
       itemContent={itemContent}
-      components={components}
+      components={logStreamComponents}
     />
   );
 }
@@ -163,6 +140,39 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton() {
     </div>
   );
 });
+
+type LogStreamContext = {
+  count: number;
+  totalCount?: number;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+};
+
+function LogStreamFooter({ context }: { context: LogStreamContext }) {
+  const { isFetchingNextPage, hasNextPage, totalCount, count } = context;
+  return (
+    <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
+      {isFetchingNextPage ? (
+        <span className="flex items-center gap-2">
+          <Skeleton className="size-2 rounded-full" />
+          Loading more events
+        </span>
+      ) : hasNextPage ? (
+        <span>
+          Showing {count.toLocaleString()}
+          {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} events
+        </span>
+      ) : (
+        <span>Showing all {count.toLocaleString()} matching events</span>
+      )}
+    </div>
+  );
+}
+
+const logStreamComponents = {
+  ...virtuosoScrollAreaComponents,
+  Footer: LogStreamFooter,
+};
 
 export function LogsExplorer({
   repo,

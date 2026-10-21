@@ -70,6 +70,7 @@ export async function startWorkerRuntime() {
     try {
       await stop();
     } catch (cleanupError) {
+      // oxlint-disable-next-line preserve-caught-error -- AggregateError.errors retains both the startup and cleanup errors.
       throw new AggregateError([error, cleanupError], "Worker startup and rollback failed");
     }
     throw error;

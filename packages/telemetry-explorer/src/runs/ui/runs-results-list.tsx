@@ -14,6 +14,8 @@ import { ConclusionIcon } from "./conclusion-icon";
 import { SenderCell } from "./sender-cell";
 
 const VIRTUOSO_OVERSCAN = 600;
+const runsListComponents = { ...virtuosoScrollAreaComponents, Footer: ResultsFooter };
+
 const SKELETON_DELAY_MS = 600;
 
 // Runs are timed to the second (and the live timer ticks every second), so
@@ -77,21 +79,6 @@ export function RunsResultsList({
     [renderRunLink, renderRowActions],
   );
 
-  const components = useMemo(
-    () => ({
-      ...virtuosoScrollAreaComponents,
-      Footer: () => (
-        <ResultsFooter
-          count={runs.length}
-          totalCount={totalCount}
-          hasMore={hasMore}
-          isLoadingMore={isLoadingMore}
-        />
-      ),
-    }),
-    [runs.length, totalCount, hasMore, isLoadingMore],
-  );
-
   const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
   if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
   // Only blank the view when there's nothing to show. A failed `fetchNextPage`
@@ -114,13 +101,14 @@ export function RunsResultsList({
     <div className="flex min-h-0 flex-1 flex-col">
       <ResultsHeader hasActions={Boolean(renderRowActions)} />
       <Virtuoso
+        context={{ count: runs.length, totalCount, hasMore, isLoadingMore }}
         className="min-h-0 flex-1"
         data={runs}
         increaseViewportBy={VIRTUOSO_OVERSCAN}
         endReached={endReached}
         computeItemKey={(_, run) => run.traceId}
         itemContent={itemContent}
-        components={components}
+        components={runsListComponents}
       />
     </div>
   );
@@ -234,17 +222,15 @@ function LiveDuration({ startedAt }: { startedAt: string }) {
   return <>{formatRunDuration(Math.max(0, now - startMs))}</>;
 }
 
-function ResultsFooter({
-  count,
-  totalCount,
-  hasMore,
-  isLoadingMore,
-}: {
+type ResultsFooterContext = {
   count: number;
   totalCount?: number;
   hasMore: boolean;
   isLoadingMore: boolean;
-}) {
+};
+
+function ResultsFooter({ context }: { context: ResultsFooterContext }) {
+  const { count, totalCount, hasMore, isLoadingMore } = context;
   return (
     <div className="text-muted-foreground flex h-10 items-center justify-center px-3 text-xs">
       {isLoadingMore ? (

@@ -9,10 +9,35 @@ import {
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { RefreshCw } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { ErrorIssueSummary } from "../data/types";
 import { ErrorIssueRow, type RenderErrorIssueLink } from "./error-issue-row";
+
+type ErrorListContext = { count: number; hasNextPage: boolean; isFetchingNextPage: boolean };
+
+function ErrorListFooter({ context }: { context: ErrorListContext }) {
+  const { isFetchingNextPage, hasNextPage, count } = context;
+  return (
+    <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
+      {isFetchingNextPage ? (
+        <span className="flex items-center gap-2">
+          <Skeleton className="size-2 rounded-full" />
+          Loading more errors
+        </span>
+      ) : hasNextPage ? (
+        <span>Showing {count.toLocaleString()} errors</span>
+      ) : (
+        <span>Showing all {count.toLocaleString()} matching errors</span>
+      )}
+    </div>
+  );
+}
+
+const errorListComponents = {
+  ...virtuosoScrollAreaComponents,
+  Footer: ErrorListFooter,
+};
 
 export function ErrorIssueList({
   issues,
@@ -36,27 +61,6 @@ export function ErrorIssueList({
   const endReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) onLoadMore();
   }, [hasNextPage, isFetchingNextPage, onLoadMore]);
-
-  const components = useMemo(
-    () => ({
-      ...virtuosoScrollAreaComponents,
-      Footer: () => (
-        <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
-          {isFetchingNextPage ? (
-            <span className="flex items-center gap-2">
-              <Skeleton className="size-2 rounded-full" />
-              Loading more errors
-            </span>
-          ) : hasNextPage ? (
-            <span>Showing {issues.length.toLocaleString()} errors</span>
-          ) : (
-            <span>Showing all {issues.length.toLocaleString()} matching errors</span>
-          )}
-        </div>
-      ),
-    }),
-    [isFetchingNextPage, hasNextPage, issues.length],
-  );
 
   if (isPending) {
     return (
@@ -108,10 +112,11 @@ export function ErrorIssueList({
 
   return (
     <Virtuoso
+      context={{ count: issues.length, hasNextPage, isFetchingNextPage }}
       className="min-h-0 min-w-0 flex-1"
       data={issues}
       endReached={endReached}
-      components={components}
+      components={errorListComponents}
       computeItemKey={(_, issue) => issue.fingerprint}
       itemContent={(_, issue) => <ErrorIssueRow issue={issue} renderIssueLink={renderIssueLink} />}
     />

@@ -55,11 +55,18 @@ export default defineConfig({
       { name: "router", specifier: "@tanstack/eslint-plugin-router" },
     ],
     rules: {
-      // Keep the original React rules; adopting React Compiler diagnostics is separate.
+      // Ref access, purity, and immutability diagnostics still need separate review.
       "react/refs": "off",
       "react/immutability": "off",
       "react/purity": "off",
-      "react/set-state-in-effect": "off",
+      "react/set-state-in-effect": "error",
+      // These APIs call render callbacks directly; they do not mount them as
+      // component types. Keep component slots such as Virtuoso's Footer checked.
+      "react/no-unstable-nested-components": [
+        "error",
+        { propNamePattern: "{render*,cell,formatter,tick,background,itemContent}" },
+      ],
+      "preserve-caught-error": "error",
       "vite-plus/prefer-vite-plus-imports": "error",
       "router/create-route-property-order": "error",
       "router/route-param-names": "error",

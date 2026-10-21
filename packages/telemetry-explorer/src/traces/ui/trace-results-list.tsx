@@ -21,6 +21,8 @@ import { DurationBar } from "./duration-bar";
 import { isSafeMethod, splitSpanName } from "./http-method";
 import { serviceColor } from "./shared/service-color";
 
+const traceListComponents = { ...virtuosoScrollAreaComponents, Footer: ResultsFooter };
+
 const SKELETON_DELAY_MS = 1000;
 const VIRTUOSO_OVERSCAN = 600;
 
@@ -75,16 +77,6 @@ export function TraceResultsList({
     [maxDuration, renderTraceLink],
   );
 
-  const components = useMemo(
-    () => ({
-      ...virtuosoScrollAreaComponents,
-      Footer: () => (
-        <ResultsFooter count={rows.length} hasMore={hasMore} isLoadingMore={isLoadingMore} />
-      ),
-    }),
-    [rows.length, hasMore, isLoadingMore],
-  );
-
   const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
   if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
   if (isError) {
@@ -104,13 +96,14 @@ export function TraceResultsList({
     <div className="flex min-h-0 flex-1 flex-col">
       <ResultsHeader />
       <Virtuoso
+        context={{ count: rows.length, hasMore, isLoadingMore }}
         className="min-h-0 flex-1"
         data={rows}
         increaseViewportBy={VIRTUOSO_OVERSCAN}
         endReached={endReached}
         computeItemKey={(_, row) => row.traceId}
         itemContent={itemContent}
-        components={components}
+        components={traceListComponents}
       />
     </div>
   );
@@ -302,15 +295,10 @@ function TraceIdBadge({ traceId }: { traceId: string }) {
   );
 }
 
-function ResultsFooter({
-  count,
-  hasMore,
-  isLoadingMore,
-}: {
-  count: number;
-  hasMore: boolean;
-  isLoadingMore: boolean;
-}) {
+type ResultsFooterContext = { count: number; hasMore: boolean; isLoadingMore: boolean };
+
+function ResultsFooter({ context }: { context: ResultsFooterContext }) {
+  const { count, hasMore, isLoadingMore } = context;
   return (
     <div className="text-muted-foreground flex h-10 items-center justify-center px-3 text-xs">
       {isLoadingMore ? (

@@ -15,6 +15,7 @@ export const completeSetup = createServerFn({ method: "POST" })
       if (error instanceof InstallationSetupError) throw error;
       throw new Error(
         "Setup could not be completed. Check the server configuration and try again.",
+        { cause: error },
       );
     }
   });

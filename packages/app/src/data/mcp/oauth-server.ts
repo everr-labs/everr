@@ -68,7 +68,7 @@ export async function setActiveOrg(incoming: Headers, organizationId: string): P
       body: { organizationId },
     });
   } catch (error) {
-    throw new Error(oauthFlowError(error, "Failed to switch organization"));
+    throw new Error(oauthFlowError(error, "Failed to switch organization"), { cause: error });
   }
 }
 
@@ -95,6 +95,6 @@ export async function submitConsent(
     }
     return { url: result.url };
   } catch (error) {
-    throw new Error(oauthFlowError(error, "Failed to record consent"));
+    throw new Error(oauthFlowError(error, "Failed to record consent"), { cause: error });
   }
 }
