@@ -24,9 +24,9 @@ const TraceReplayInputSchema = z.object({
   streamId: z.string(),
   serviceName: z.string(),
   entryTs: z.string().min(1),
-  fromTs: z.string().min(1),
-  toTs: z.string().min(1),
 });
+
+export type TraceReplayInput = z.infer<typeof TraceReplayInputSchema>;
 
 export type ClipReplayEvent = {
   type: number;
@@ -331,27 +331,26 @@ const SEGMENT_SQL = `
 
 async function loadTraceReplay(
   client: SqlClient,
-  input: z.infer<typeof TraceReplayInputSchema>,
+  input: TraceReplayInput,
 ): Promise<TraceReplay> {
-  const scan = {
-    sessionId: input.sessionId,
-    fromTs: input.fromTs,
-    toTs: input.toTs,
-    entryTs: input.entryTs,
-  };
   let chosen: RecordingSpanRow | undefined;
   if (input.streamId) {
+    // The entry anchors the scan: the Clip covering it started in the hour
+    // before it. No clock-relative range reaches this query.
     const covering = await client.execute<RecordingSpanRow>(
       `${RECORDING_SPAN_SQL}
       WHERE SpanName = 'recording'
         AND ${SESSION_ID} = {sessionId:String}
         AND ${STREAM_ID} = {streamId:String}
-        AND Timestamp BETWEEN parseDateTime64BestEffort({fromTs:String}, 9)
-                          AND parseDateTime64BestEffort({toTs:String}, 9)
-        AND Timestamp <= parseDateTime64BestEffort({entryTs:String}, 9)
+        AND Timestamp BETWEEN parseDateTime64BestEffort({entryTs:String}, 9) - INTERVAL 1 HOUR
+                          AND parseDateTime64BestEffort({entryTs:String}, 9)
         AND addNanoseconds(Timestamp, Duration) >= parseDateTime64BestEffort({entryTs:String}, 9)
       ORDER BY Timestamp ASC, SpanId ASC`,
-      { ...scan, streamId: input.streamId },
+      {
+        sessionId: input.sessionId,
+        streamId: input.streamId,
+        entryTs: input.entryTs,
+      },
     );
     chosen = earliestClip(covering);
   }

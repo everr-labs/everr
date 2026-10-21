@@ -380,10 +380,11 @@ describe("error replay player", () => {
       call.sql.includes("everr.recording.stream.id"),
     );
     expect(choice).toHaveLength(1);
-    expect(choice[0]?.params).toMatchObject({
+    // The server bounds the scan from the entry; no list range reaches it.
+    expect(choice[0]?.params).toEqual({
+      sessionId: "sess-1",
+      streamId: "stream-1",
       entryTs: "2026-10-17 12:00:04.000",
-      fromTs: "2026-10-17 11:00:04.000",
-      toTs: "2026-10-17 13:00:04.000",
     });
   });
 

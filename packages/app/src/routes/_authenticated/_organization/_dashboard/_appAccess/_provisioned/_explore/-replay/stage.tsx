@@ -6,17 +6,13 @@ import {
 } from "@everr/telemetry-explorer/traces";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import {
-  getTraceReplay,
-  type LoadedClip,
-  type SessionClipLink,
-} from "@/data/replay/server";
+import { replayQueryOptions } from "@/data/replay/options";
+import type { LoadedClip, SessionClipLink } from "@/data/replay/server";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
 import { getTraceLogs } from "@/data/traces/server";
 import { ReplayPanel } from "./player-panel";
 import { resolveReplaySource } from "./source";
 import { EMPTY_SPANS, usePlayback } from "./use-playback";
-import { windowAround } from "./window";
 
 type StageProps = Omit<TraceExplorerProps, "repo">;
 
@@ -102,31 +98,14 @@ export function TraceStage({
   const source = resolveReplaySource(entry, spans);
   const sessionId = source?.sessionId ?? "";
   const streamId = source?.streamId ?? "";
-  const replayWindow = entry ? windowAround(entry.timestamp) : null;
   const replay = useQuery({
-    queryKey: [
-      "replay",
-      "trace",
-      traceId,
+    ...replayQueryOptions({
       sessionId,
       streamId,
-      entry?.timestamp,
-      source?.serviceName,
-      replayWindow?.fromTs,
-      replayWindow?.toTs,
-    ],
-    queryFn: () =>
-      getTraceReplay({
-        data: {
-          sessionId,
-          streamId,
-          serviceName: source?.serviceName ?? "",
-          entryTs: entry?.timestamp ?? "",
-          fromTs: replayWindow?.fromTs ?? "",
-          toTs: replayWindow?.toTs ?? "",
-        },
-      }),
-    enabled: sessionId.length > 0 && Boolean(entry) && replayWindow !== null,
+      serviceName: source?.serviceName ?? "",
+      entryTs: entry?.timestamp ?? "",
+    }),
+    enabled: sessionId.length > 0 && Boolean(entry),
   });
 
   return (

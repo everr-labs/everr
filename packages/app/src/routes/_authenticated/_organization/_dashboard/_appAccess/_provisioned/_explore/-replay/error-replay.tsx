@@ -1,12 +1,11 @@
 import type { ErrorOccurrence } from "@everr/telemetry-explorer/errors";
 import { getTraceOptions } from "@everr/telemetry-explorer/traces";
 import { useQuery } from "@tanstack/react-query";
-import { getTraceReplay } from "@/data/replay/server";
+import { replayQueryOptions } from "@/data/replay/options";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
 import { ReplayPanel } from "./player-panel";
 import { sourceFromAttributes, sourceFromClientSpans } from "./source";
 import { EMPTY_SPANS, usePlayback } from "./use-playback";
-import { windowAround } from "./window";
 
 /**
  * The player on the error view. A browser error log carries its own Session.
@@ -41,37 +40,14 @@ export function ErrorReplayPlayer({
     : undefined;
   const entryTs = entrySpan?.timestamp ?? occurrence.timestamp;
   const entryReady = !needsTrace || traceQuery.isFetched;
-  // Anchored to the entry, as on the trace view. A relative list range
-  // ("now-7d") resolves against the clock, so it changed the query key on
-  // every render and refetched without end.
-  const window = windowAround(entryTs);
 
   const replay = useQuery({
-    queryKey: [
-      "replay",
-      "error",
-      occurrence.fingerprint,
-      occurrence.timestamp,
-      occurrence.traceId,
-      occurrence.spanId,
-      source?.sessionId,
-      source?.streamId,
+    ...replayQueryOptions({
+      sessionId: source?.sessionId ?? "",
+      streamId: source?.streamId ?? "",
+      serviceName: source?.serviceName ?? "",
       entryTs,
-      source?.serviceName,
-      window.fromTs,
-      window.toTs,
-    ],
-    queryFn: () =>
-      getTraceReplay({
-        data: {
-          sessionId: source?.sessionId ?? "",
-          streamId: source?.streamId ?? "",
-          serviceName: source?.serviceName ?? "",
-          entryTs,
-          fromTs: window.fromTs,
-          toTs: window.toTs,
-        },
-      }),
+    }),
     enabled: Boolean(source?.sessionId) && entryReady,
   });
 
