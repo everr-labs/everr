@@ -219,7 +219,7 @@ export function startRecorder(host: RecordingHost): {
   mark(name: string, timestamp: number): void;
   pause(): void;
   resume(): void;
-  automatic(trigger: AutomaticRecordingTrigger, at?: number): void;
+  automatic(trigger: AutomaticRecordingTrigger): void;
   hide(at: number): void;
   stop(): void;
 } {
@@ -323,7 +323,6 @@ export function startRecorder(host: RecordingHost): {
     trigger: RecordingTrigger;
     automatic: boolean;
     markMissing?: boolean;
-    openedAt?: number;
   }): void => {
     const now = Date.now();
     trim(buffer, marks, now, true);
@@ -340,9 +339,7 @@ export function startRecorder(host: RecordingHost): {
       send(clipId, index, groups[index], clip.truncated);
     }
     const next = clampNext(options.next);
-    // A deferred automatic trigger keeps its own time: its tail closes 10
-    // seconds after the trigger, not 10 seconds after the chunk loaded.
-    const openedAt = options.openedAt ?? now;
+    const openedAt = now;
     const tail: Tail = {
       clipId,
       trigger: options.trigger,
@@ -443,11 +440,9 @@ export function startRecorder(host: RecordingHost): {
         markMissing: requested.markMissing,
       });
     },
-    automatic(trigger, at) {
+    automatic(trigger) {
       if (stopped) return;
       const now = Date.now();
-      // A trigger that waited for a new Stream keeps the time it happened.
-      const triggerAt = at ?? now;
       // A timer that is already due has not closed yet. Close it before
       // deciding, so this trigger does not extend a tail that is over.
       for (const tail of tails.filter(
@@ -460,18 +455,17 @@ export function startRecorder(host: RecordingHost): {
         // 10 seconds after this trigger, and never past 60 seconds after
         // the first one. The trigger label stays the first trigger's.
         const extended = Math.min(
-          triggerAt + AUTO_NEXT_MS,
+          now + AUTO_NEXT_MS,
           open.openedAt + AUTO_CAP_MS,
         );
         if (extended > open.endAt) open.endAt = extended;
         return;
       }
       openClip({
-        requestedStart: triggerAt - AUTO_LAST_MS,
+        requestedStart: now - AUTO_LAST_MS,
         next: AUTO_NEXT_MS,
         trigger,
         automatic: true,
-        openedAt: triggerAt,
       });
     },
     // The page is going away, so an open tail can no longer wait. Its pending

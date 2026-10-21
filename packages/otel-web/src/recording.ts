@@ -72,7 +72,7 @@ type Recorder = {
   mark(name: string, timestamp: number): void;
   pause(): void;
   resume(): void;
-  automatic(trigger: AutomaticRecordingTrigger, at?: number): void;
+  automatic(trigger: AutomaticRecordingTrigger): void;
   /** Closes an open tail at page hide, so its Segments and span go at exit. */
   hide(at: number): void;
   stop(): void;
@@ -150,23 +150,17 @@ export function recording(options?: RecordingOptions): Instrumentation {
     let stopped = false;
     let activeId = "";
     let generation = 0;
-    // A trigger can arrive in the moment between stopping the old Stream and
-    // the new chunk starting, because a new Session ends the Stream inside the
-    // same record that reports the error. Hold it for the new Stream instead
-    // of losing the Clip.
-    let pendingTrigger:
-      | { trigger: AutomaticRecordingTrigger; at: number }
-      | undefined;
-    // True between a Session change and the new Stream's chunk starting. A
-    // trigger in that window belongs to the new Stream, not to the old buffer.
-    let restarting = false;
+    // The recorder chunk once it has loaded. A later Stream starts from it
+    // synchronously: a new Session ends the Stream inside the same record that
+    // reports the error, and the new Stream must already be running (with its
+    // first full snapshot) when that error's trigger arrives.
+    let chunk: typeof import("./recording/recorder.js") | undefined;
     // Automatic triggers come from the main bundle, next to captureError and
     // the network spans. This entry only registers the listener, and it
     // reaches the current Stream. Before the first chunk loads, current is
     // unset and a trigger does nothing.
     const removeTrigger = setRecordingTrigger((trigger) => {
-      if (current) current.automatic(trigger);
-      else if (restarting) pendingTrigger = { trigger, at: Date.now() };
+      current?.automatic(trigger);
     });
     // The same Session decides the same way in every tab. A new Session during
     // this page decides again: the old Stream ends and its buffer is dropped.
@@ -179,60 +173,56 @@ export function recording(options?: RecordingOptions): Instrumentation {
       current = undefined;
     };
 
+    // The chunk imports @rrweb/record. The host stays here, so the chunk does
+    // not carry a second copy of the SDK state. The Clip count is claimed
+    // through the main bundle too, because that is the identity store.
     const startStream = () => {
+      if (chunk) {
+        startFrom(chunk);
+        return;
+      }
       const generationAtStart = generation;
-      // The chunk imports @rrweb/record. The host stays here, so the chunk does
-      // not carry a second copy of the SDK state. The Clip count is claimed
-      // through the main bundle too, because that is the identity store.
       void import("./recording/recorder.js").then((mod) => {
+        chunk = mod;
         if (stopped || generationAtStart !== generation) return;
-        current = mod.startRecorder({
-          dev: ctx.dev,
-          options,
-          newId,
-          claimAutomaticClip,
-          setStreamId: (id) => {
-            setAttributes({ [STREAM_ID]: id });
-          },
-          emitSegment: (body, attributes, timestamp) => {
-            emitLogNow(
-              "everr.browser.recording.segment",
-              attributes,
-              timestamp,
-              undefined,
-              body,
-            );
-          },
-          span: (start, end, attributes) => {
-            const span = ctx.tracer.startSpan("recording", {
-              root: true,
-              startTime: start,
-              attributes,
-            });
-            span.end(end);
-          },
-        });
-        // The first full snapshot is already in the new buffer, so a trigger
-        // that arrived while the chunk loaded can open its Clip now.
-        restarting = false;
-        const pending = pendingTrigger;
-        pendingTrigger = undefined;
-        if (pending) current.automatic(pending.trigger, pending.at);
+        startFrom(mod);
+      });
+    };
+
+    const startFrom = (mod: NonNullable<typeof chunk>) => {
+      current = mod.startRecorder({
+        dev: ctx.dev,
+        options,
+        newId,
+        claimAutomaticClip,
+        setStreamId: (id) => {
+          setAttributes({ [STREAM_ID]: id });
+        },
+        emitSegment: (body, attributes, timestamp) => {
+          emitLogNow(
+            "everr.browser.recording.segment",
+            attributes,
+            timestamp,
+            undefined,
+            body,
+          );
+        },
+        span: (start, end, attributes) => {
+          const span = ctx.tracer.startSpan("recording", {
+            root: true,
+            startTime: start,
+            attributes,
+          });
+          span.end(end);
+        },
       });
     };
 
     const sync = (id: string) => {
       if (stopped || id === activeId) return;
-      // A session change from an active Stream restarts it; the first sync
-      // starts it for the first time.
-      restarting = activeId !== "";
       activeId = id;
       stopStream();
       if (keeps(id)) startStream();
-      else {
-        restarting = false;
-        pendingTrigger = undefined;
-      }
     };
 
     const unsubscribe = onSessionChange(sync);
@@ -240,8 +230,6 @@ export function recording(options?: RecordingOptions): Instrumentation {
 
     return () => {
       stopped = true;
-      restarting = false;
-      pendingTrigger = undefined;
       removeTrigger();
       unsubscribe();
       stopStream();
