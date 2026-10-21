@@ -158,7 +158,7 @@ with its plan update.
 
 Each application's `tsconfig.json` selects a complete set of named
 `@composition/*` modules. Vite and Vitest use the same selection. The root
-`pnpm check:boundaries` command checks package imports and composition contracts.
+`pnpm run check` command checks package imports and composition contracts.
 It also keeps identity policy free of authentication-provider dependencies,
 provider internals private, browser composition free of server implementations,
 and cloud request handlers free of direct database coordination. Browser pages
@@ -227,5 +227,5 @@ script and its users are not included in production images.
 
 Useful package commands include `pnpm --filter @everr/app build`,
 `pnpm --filter @everr/app typecheck`, and
-`pnpm --filter @everr/app test:ci`. Run `pnpm check:boundaries` from the
+`pnpm --filter @everr/app test:ci`. Run `pnpm run check` from the
 repository root to check package imports.

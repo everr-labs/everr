@@ -88,7 +88,7 @@ settings and production database instances.
 Keep shared routes' authentication and admin guards independent of UI composition.
 Applications register their additional routes explicitly. Both generated route
 trees are tracked; regenerate after route changes. Extend shared UI with props,
-children, or page composition. `pnpm check:boundaries` enforces exports, ownership,
+children, or page composition. `pnpm run check` enforces exports, ownership,
 contract purity, and restricted runtime/identity/SQL imports.
 
 ## Storage and deployment state

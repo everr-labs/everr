@@ -19,8 +19,7 @@
     "test:watch": "vp test --watch --ui",
     "dev:local": "pnpm --filter @everr/local-app dev",
     "dev:local:ui": "pnpm --filter @everr/local-app dev:ui",
-    "build:cli": "pnpm --filter @everr/cli build:release",
-    "check:boundaries": "oxlint -c oxlint.boundaries.mts packages/app packages/cloud"
+    "build:cli": "pnpm --filter @everr/cli build:release"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",

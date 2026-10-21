@@ -38,9 +38,6 @@ jobs:
           packages/otel-web packages/tanstack-start-otel
           packages/telemetry-explorer packages/ui
 
-      - name: Check package boundaries
-        run: pnpm check:boundaries
-
       - name: Typecheck
         run: pnpm -r --filter @everr/app-cloud... typecheck
 

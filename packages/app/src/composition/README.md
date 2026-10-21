@@ -32,8 +32,8 @@ const ingestEndpoint = deployment.ingestEndpoint;
 ```
 
 Type-only contracts belong here; functions, configured objects, and other runtime
-values belong in the implementation modules. `pnpm check:boundaries` enforces
-this distinction and the import boundaries in `.oxlintrc.json`.
+values belong in the implementation modules. `pnpm run check` enforces
+this distinction and the import boundaries defined in `oxlint.boundaries.mts` and included by `vite.config.ts`.
 
 ## Extending composition
 
