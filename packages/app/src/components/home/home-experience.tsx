@@ -373,14 +373,7 @@ function HomeContent({
               <h3 className="text-sm font-medium">
                 1. Open your local Everr UI
               </h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                You can find the local UI URL in the output using the command
-                below
-              </p>
-              <CopyBlock
-                text="everr local status"
-                label="Copy local status command"
-              />
+              <CopyBlock text="everr local ui" label="Copy command" />
             </li>
             <li className="space-y-2">
               <h3 className="text-sm font-medium">2. Use your app</h3>
