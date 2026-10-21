@@ -21,6 +21,13 @@ import {
 import type { Instrumentation } from "./instrumentations/runtime.js";
 import { hashUnit } from "./instrumentations/sampled.js";
 
+export {
+  RECORDING_AUTO_LAST_MS,
+  RECORDING_PAUSE_TAG,
+  RECORDING_RESUME_TAG,
+  RECORDING_TAIL_SLICE_MS,
+} from "./recording/format.js";
+
 const STREAM_ID = "everr.recording.stream.id";
 
 export type RecordingOptions = {

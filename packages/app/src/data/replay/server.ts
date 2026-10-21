@@ -1,3 +1,9 @@
+import {
+  RECORDING_AUTO_LAST_MS,
+  RECORDING_PAUSE_TAG,
+  RECORDING_RESUME_TAG,
+  RECORDING_TAIL_SLICE_MS,
+} from "@everr/otel-web/recording";
 import { attributeText } from "@everr/telemetry-explorer/sql";
 import type { SqlClient } from "@everr/telemetry-explorer/traces";
 import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
@@ -7,17 +13,9 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 
 const NS_PER_MS = 1_000_000n;
 const LEAD_IN_MS = 60_000n;
-// An automatic Clip covers the 60 seconds before its first trigger, so the
-// trigger sits exactly this far into the recording span's range.
-const AUTOMATIC_LOOKBACK_MS = 60_000;
-// The recorder closes a tail Segment on this cadence. A larger silence between
-// the last event and the end of the recording span is a tail gap.
-const TAIL_SLICE_MS = 5_000;
 // rrweb custom events mark a pause. They travel in the Segment body, so a
 // silent page is not mistaken for a paused recorder.
 const CUSTOM_EVENT = 5;
-const PAUSE_TAG = "everr.recording.pause";
-const RESUME_TAG = "everr.recording.resume";
 
 const TraceReplayInputSchema = z.object({
   sessionId: z.string().min(1),
@@ -243,11 +241,12 @@ function pauseGaps(
   let pausedAt: number | undefined;
   for (const event of events) {
     if (event.type !== CUSTOM_EVENT) continue;
-    if (event.data?.tag === PAUSE_TAG) {
+    if (event.data?.tag === RECORDING_PAUSE_TAG) {
       pausedAt ??= event.timestamp;
       continue;
     }
-    if (event.data?.tag !== RESUME_TAG || pausedAt === undefined) continue;
+    if (event.data?.tag !== RECORDING_RESUME_TAG || pausedAt === undefined)
+      continue;
     if (event.timestamp > pausedAt) {
       gaps.push({
         fromMs: pausedAt - firstMs,
@@ -277,7 +276,8 @@ function clipGaps(
     ...pauseGaps(events, firstMs, endMs),
   ];
   const lastMs = events[events.length - 1]?.timestamp;
-  if (lastMs != null && endMs - lastMs > TAIL_SLICE_MS) {
+  // A silence past the tail cadence before the span's end is a tail gap.
+  if (lastMs != null && endMs - lastMs > RECORDING_TAIL_SLICE_MS) {
     const fromMs = lastMs - firstMs;
     const toMs = endMs - firstMs;
     const paused = gaps.some(
@@ -309,7 +309,8 @@ function triggerOffsetMs(
 ): number | null {
   if (trigger !== "error" && trigger !== "network") return null;
   if (firstMs == null) return null;
-  const triggerMs = Number(startNs / NS_PER_MS) + AUTOMATIC_LOOKBACK_MS;
+  // An automatic Clip starts this far before its first trigger.
+  const triggerMs = Number(startNs / NS_PER_MS) + RECORDING_AUTO_LAST_MS;
   return Math.max(0, triggerMs - firstMs);
 }
 

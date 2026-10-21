@@ -10,14 +10,19 @@ import type {
   AutomaticRecordingTrigger,
   RecordingTrigger,
 } from "../state/clip-trigger.js";
+import {
+  RECORDING_AUTO_LAST_MS as AUTO_LAST_MS,
+  RECORDING_PAUSE_TAG as PAUSE_TAG,
+  RECORDING_RESUME_TAG as RESUME_TAG,
+  RECORDING_TAIL_SLICE_MS as TAIL_SLICE_MS,
+} from "./format.js";
 import { recordPrivacy, resolvePrivacy, rewriteEvent } from "./privacy.js";
 
 const FULL_SNAPSHOT = 2;
 const META = 4;
-// Pause and resume travel in the Segment body as rrweb custom events, so the
-// player can draw the paused range without guessing from event silence.
-const PAUSE_TAG = "everr.recording.pause";
-const RESUME_TAG = "everr.recording.resume";
+// Pause and resume travel in the Segment body as rrweb custom events
+// (PAUSE_TAG, RESUME_TAG), so the player can draw the paused range without
+// guessing from event silence.
 const BUFFER_MS = 5 * 60 * 1000;
 const CHECKOUT_MS = 10_000;
 // Raw rrweb JSON. Past this, the oldest events go first. One event that is
@@ -30,10 +35,7 @@ const SNAPSHOT_GAP_MS = 60_000;
 // A Segment closes before the JSON of its events passes this size. One event
 // that is already larger goes out alone.
 const SEGMENT_BYTES = 950 * 1024;
-// A tail closes its current Segment on this cadence, and sooner when it ends.
-const TAIL_SLICE_MS = 5_000;
 const MAX_NEXT_MS = 60_000;
-const AUTO_LAST_MS = 60_000;
 const AUTO_NEXT_MS = 10_000;
 // An automatic tail stays open at most this long after its first trigger.
 const AUTO_CAP_MS = 60_000;
