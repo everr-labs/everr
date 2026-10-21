@@ -5,8 +5,7 @@ import { sql } from "drizzle-orm";
 export const ORGANIZATION_MAX_ATTEMPTS = 1_000;
 
 export const PROVISION_ORGANIZATION_TASK = "clickhouse/provision-organization";
-export const DEPROVISION_ORGANIZATION_TASK =
-  "clickhouse/deprovision-organization";
+export const DEPROVISION_ORGANIZATION_TASK = "clickhouse/deprovision-organization";
 
 export function organizationLifecycleJobKey(
   organizationId: string,
@@ -15,10 +14,7 @@ export function organizationLifecycleJobKey(
   return `clickhouse-organization:${organizationId}:${action}`;
 }
 
-function lifecycleSpec(
-  organizationId: string,
-  action: "provision" | "deprovision",
-) {
+function lifecycleSpec(organizationId: string, action: "provision" | "deprovision") {
   return {
     queueName: `clickhouse-organization:${organizationId}`,
     jobKey: organizationLifecycleJobKey(organizationId, action),

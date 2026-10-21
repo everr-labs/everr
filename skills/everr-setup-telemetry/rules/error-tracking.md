@@ -3,6 +3,7 @@
 Use this rule when the stack has no `@everr` SDK owning error capture: languages beyond JS (Python, Go, Java, Ruby, ...) and any runtime without a dedicated rule file. The JS runtimes carry their own compact hints (`@everr/otel-errors` on Node, `errors()` in the browser), and `rust.md` has "Errors And Panics"; this rule is the generic contract those hints compress.
 
 Error tracking is the combination of:
+
 - Span status on the failed operation.
 - Structured exception logs with trace correlation.
 

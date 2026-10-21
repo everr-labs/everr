@@ -1,5 +1,5 @@
 import { storage } from "@composition/storage";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
 import { ALERT_EVALUATE_TASK } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
@@ -163,8 +163,8 @@ describe("evaluateAlert scheduling state", () => {
       throw new StorageNotReadyError();
     });
     mocks.metadata = { clickhouseReady: false };
-    mocks.transaction.mockImplementation(
-      (cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()),
+    mocks.transaction.mockImplementation((cb: (tx: unknown) => Promise<unknown>) =>
+      cb(recordingTx()),
     );
     await evaluateAlert(payload);
     expect(assertStorageReady).toHaveBeenCalledWith({ clickhouseReady: false });
@@ -198,15 +198,10 @@ describe("evaluateAlert scheduling state", () => {
     mocks.query.mockResolvedValue({ rows: [] });
     mocks.transaction
       .mockRejectedValueOnce(new Error("instance write blew up"))
-      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
-        cb(recordingTx()),
-      );
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()));
 
     await expect(evaluateAlert(payload)).resolves.toBeUndefined();
-    expect(mocks.query).toHaveBeenCalledWith(
-      definition.spec.sql,
-      definition.organizationId,
-    );
+    expect(mocks.query).toHaveBeenCalledWith(definition.spec.sql, definition.organizationId);
 
     expect(mocks.definitionUpdates).toContainEqual(
       expect.objectContaining({ degradedSince: expect.anything() }),
@@ -227,15 +222,11 @@ describe("evaluateAlert scheduling state", () => {
     mocks.query.mockResolvedValue({ rows: [] });
     mocks.transaction
       .mockRejectedValueOnce(new Error("instance write blew up"))
-      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
-        cb(recordingTx()),
-      );
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()));
 
     await evaluateAlert(payload);
 
-    const reschedule = mocks.definitionUpdates.find(
-      (update) => "nextEvaluationAt" in update,
-    );
+    const reschedule = mocks.definitionUpdates.find((update) => "nextEvaluationAt" in update);
     expect(reschedule).toBeDefined();
     expect(reschedule?.lastEnqueuedAt).toEqual(reschedule?.nextEvaluationAt);
   });
@@ -253,9 +244,7 @@ describe("evaluateAlert scheduling state", () => {
     };
     mocks.transaction
       .mockRejectedValueOnce(new Error("instance write blew up"))
-      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
-        cb(recordingTx()),
-      );
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()));
 
     await expect(evaluateAlert(payload)).resolves.toBeUndefined();
 
@@ -269,9 +258,7 @@ describe("evaluateAlert scheduling state", () => {
     mocks.freshDefinition = null;
     mocks.transaction
       .mockRejectedValueOnce(new Error("instance write blew up"))
-      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
-        cb(recordingTx()),
-      );
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()));
 
     await expect(evaluateAlert(payload)).resolves.toBeUndefined();
 
@@ -288,9 +275,7 @@ describe("evaluateAlert scheduling state", () => {
     };
     mocks.transaction
       .mockRejectedValueOnce(new Error("instance write blew up"))
-      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
-        cb(recordingTx()),
-      );
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()));
 
     await expect(evaluateAlert(payload)).resolves.toBeUndefined();
 
@@ -302,9 +287,7 @@ describe("evaluateAlert scheduling state", () => {
     mocks.query.mockResolvedValue({ rows: [] });
     mocks.transaction
       .mockRejectedValueOnce(new Error("instance write blew up"))
-      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
-        cb(recordingTx()),
-      );
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()));
 
     await evaluateAlert(payload);
 
@@ -341,18 +324,11 @@ const historyDef = {
   ruleMuted: false,
 };
 
-function transition(
-  event: AlertInstanceTransition["event"],
-): AlertInstanceTransition {
+function transition(event: AlertInstanceTransition["event"]): AlertInstanceTransition {
   return {
     next: {
       fingerprint: "api",
-      status:
-        event === "firing"
-          ? "firing"
-          : event === "pending"
-            ? "pending"
-            : "inactive",
+      status: event === "firing" ? "firing" : event === "pending" ? "pending" : "inactive",
       labels: { service: "api" },
       evidence: { value: 1 },
       value: 1,
@@ -411,9 +387,7 @@ describe("transitionEventRows episode stamping", () => {
   it("writes the zero sentinel when a resolve finds no open episode", () => {
     const [resolved] = episodeRows("resolved");
     expect(resolved?.outbox.episodeId).toBeNull();
-    expect(resolved?.history.episode_id).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
+    expect(resolved?.history.episode_id).toBe("00000000-0000-0000-0000-000000000000");
   });
 
   it("returns nothing when the evaluation caused no transition", () => {
@@ -438,9 +412,7 @@ describe("transitionEventRows episode stamping", () => {
     const [pending] = episodeRows("pending");
     expect(pending?.outbox.kind).toBe("state");
     expect(pending?.outbox.processedAt).toEqual(evaluatedAt);
-    expect(pending?.history.notification_event_id).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
+    expect(pending?.history.notification_event_id).toBe("00000000-0000-0000-0000-000000000000");
   });
 
   it("closes a cleared pending with instance_closed and its reason", () => {
@@ -455,9 +427,7 @@ describe("transitionEventRows episode stamping", () => {
     expect(closed?.outbox.episodeId).toBe(episodeId);
     expect(closed?.history.episode_id).toBe(episodeId);
     expect(closed?.history.reason).toBe("pending_cleared");
-    expect(closed?.history.notification_event_id).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
+    expect(closed?.history.notification_event_id).toBe("00000000-0000-0000-0000-000000000000");
     // The terminal closes the episode: the instance's open episode clears.
     expect(closed?.episodeUpdate).toBeNull();
   });
@@ -476,9 +446,7 @@ describe("transitionEventRows episode stamping", () => {
     const [fired] = episodeRows("firing", {
       bounded: { evidence: { injected: "marker" }, truncated: true },
     });
-    expect(fired?.history.evidence_json).toBe(
-      JSON.stringify({ injected: "marker" }),
-    );
+    expect(fired?.history.evidence_json).toBe(JSON.stringify({ injected: "marker" }));
     expect(fired?.history.evidence_truncated).toBe(true);
   });
 });
@@ -511,9 +479,7 @@ describe("isNoopInactiveTransition", () => {
   };
 
   it("is true for a row that stayed inactive with no event", () => {
-    expect(
-      isNoopInactiveTransition({ next: inactiveInstance, event: null }),
-    ).toBe(true);
+    expect(isNoopInactiveTransition({ next: inactiveInstance, event: null })).toBe(true);
   });
 
   it("is false once an event fires, even if the row lands inactive", () => {

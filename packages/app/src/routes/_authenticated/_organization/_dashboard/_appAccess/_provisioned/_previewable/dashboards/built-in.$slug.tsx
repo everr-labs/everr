@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
@@ -24,15 +25,6 @@ export const Route = createFileRoute(
       { label: match.loaderData?.name ?? "Built-in dashboard" },
     ],
   },
-  head: () => ({
-    meta: [{ title: "Everr - Built-in dashboard" }],
-    links: [
-      { rel: "stylesheet", href: gridLayoutCSS },
-      { rel: "stylesheet", href: gridLayoutOverridesCSS },
-    ],
-  }),
-  component: BuiltinDashboardPage,
-  notFoundComponent: DashboardNotFound,
   loader: ({ context: { session }, params: { slug }, preload }) => {
     const builtin = getBuiltinDashboard(slug);
     if (!builtin) throw notFound();
@@ -48,6 +40,15 @@ export const Route = createFileRoute(
       timeDefaults: dashboardTimeDefaults(builtin.document.spec),
     };
   },
+  component: BuiltinDashboardPage,
+  notFoundComponent: DashboardNotFound,
+  head: () => ({
+    meta: [{ title: "Everr - Built-in dashboard" }],
+    links: [
+      { rel: "stylesheet", href: gridLayoutCSS },
+      { rel: "stylesheet", href: gridLayoutOverridesCSS },
+    ],
+  }),
 });
 
 /**
@@ -63,17 +64,12 @@ function BuiltinDashboardPage() {
   // while the list files it under ready, or the other way around. The
   // on-screen range only affects what the panels draw.
   const capabilities = useQuery(
-    telemetryCapabilitiesOptions(
-      DEFAULT_TIME_RANGE.from,
-      DEFAULT_TIME_RANGE.to,
-    ),
+    telemetryCapabilitiesOptions(DEFAULT_TIME_RANGE.from, DEFAULT_TIME_RANGE.to),
   ).data;
   // The loader already 404s unknown slugs; this only narrows the type.
   if (!builtin) throw notFound();
 
-  const readiness = capabilities
-    ? evaluateBuiltin(builtin, capabilities)
-    : null;
+  const readiness = capabilities ? evaluateBuiltin(builtin, capabilities) : null;
   const needsSetup = readiness?.status === "needs-setup" ? readiness : null;
 
   const notice = needsSetup && (
@@ -84,10 +80,8 @@ function BuiltinDashboardPage() {
       <Info className="mt-px size-3.5 shrink-0 text-muted-foreground" />
       <p className="text-muted-foreground text-xs leading-relaxed">
         Nothing sent in the last 7 days:{" "}
-        <span className="font-mono text-foreground/90">
-          {needsSetup.missing.join(", ")}
-        </span>
-        . The panels fill in on their own once that telemetry arrives.
+        <span className="font-mono text-foreground/90">{needsSetup.missing.join(", ")}</span>. The
+        panels fill in on their own once that telemetry arrives.
       </p>
     </div>
   );
@@ -103,10 +97,7 @@ function BuiltinDashboardPage() {
           notice={notice}
           actions={
             needsSetup ? (
-              <InstrumentFromBuiltin
-                name={builtin.name}
-                missing={needsSetup.missing}
-              />
+              <InstrumentFromBuiltin name={builtin.name} missing={needsSetup.missing} />
             ) : (
               <CreateFromBuiltin slug={builtin.id} name={builtin.name} />
             )

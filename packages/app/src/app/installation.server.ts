@@ -2,13 +2,7 @@ import { hashPassword } from "better-auth/crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#app/db/database.ts";
-import {
-  account,
-  invitation,
-  member,
-  organization,
-  user,
-} from "#app/db/schema/index.ts";
+import { account, invitation, member, organization, user } from "#app/db/schema/index.ts";
 import { IdentityPolicyError } from "#app/identity/policy-error.ts";
 
 export class InstallationSetupError extends Error {}
@@ -21,10 +15,7 @@ export const SetupWorkspaceSchema = z.object({
 });
 
 export async function getInstallation(database: Database) {
-  const organizations = await database
-    .select({ id: organization.id })
-    .from(organization)
-    .limit(2);
+  const organizations = await database.select({ id: organization.id }).from(organization).limit(2);
   if (organizations.length > 1) {
     throw new Error(
       "This installation contains multiple organizations. Use the previous build until an operator has migrated it to a single workspace.",
@@ -39,9 +30,7 @@ export async function assertInvitedUser(
   database: Database,
 ) {
   if (!user.emailVerified && !invitationId) {
-    throw new IdentityPolicyError(
-      "Open your invitation link to create an account.",
-    );
+    throw new IdentityPolicyError("Open your invitation link to create an account.");
   }
   const workspace = await getInstallation(database);
   if (workspace) {
@@ -60,9 +49,7 @@ export async function assertInvitedUser(
       .limit(1);
     if (invite) return;
   }
-  throw new IdentityPolicyError(
-    "Contact your administrator for an invitation.",
-  );
+  throw new IdentityPolicyError("Contact your administrator for an invitation.");
 }
 
 export async function setupWorkspace(
@@ -74,14 +61,8 @@ export async function setupWorkspace(
   return database.transaction(async (tx) => {
     // One installation-wide lock, shared by concurrent setup requests and replicas.
     await tx.execute(sql`SELECT pg_advisory_xact_lock(1936028277, 1)`);
-    const [existing] = await tx
-      .select({ id: organization.id })
-      .from(organization)
-      .limit(1);
-    if (existing)
-      throw new InstallationSetupError(
-        "This installation is already configured.",
-      );
+    const [existing] = await tx.select({ id: organization.id }).from(organization).limit(1);
+    if (existing) throw new InstallationSetupError("This installation is already configured.");
     const userId = crypto.randomUUID();
     const organizationId = crypto.randomUUID();
     const now = new Date();

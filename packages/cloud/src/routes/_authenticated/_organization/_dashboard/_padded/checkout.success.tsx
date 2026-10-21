@@ -21,10 +21,10 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_padded/checkout/success",
 )({
   staticData: { breadcrumb: "Checkout", hideTimeRangePicker: true },
+  validateSearch: SearchSchema,
   head: () => ({
     meta: [{ title: "Everr - Checkout complete" }],
   }),
-  validateSearch: SearchSchema,
   component: CheckoutSuccessPage,
 });
 
@@ -46,8 +46,7 @@ function CheckoutSuccessPage(): ReactElement {
       return result;
     },
     refetchInterval: (query) =>
-      query.state.status === "error" ||
-      (query.state.data && query.state.data.status !== "pending")
+      query.state.status === "error" || (query.state.data && query.state.data.status !== "pending")
         ? false
         : 1_000,
     retry: 3,
@@ -82,9 +81,7 @@ function CheckoutSuccessPage(): ReactElement {
             <Loader2 className="text-primary size-10 animate-spin" />
           )}
           <CardTitle>{title}</CardTitle>
-          <CardDescription
-            role={billingConflict || unavailable ? "alert" : undefined}
-          >
+          <CardDescription role={billingConflict || unavailable ? "alert" : undefined}>
             {description}
           </CardDescription>
         </CardHeader>

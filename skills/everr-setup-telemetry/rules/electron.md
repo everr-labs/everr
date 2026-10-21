@@ -53,16 +53,16 @@ Create one telemetry context at startup, set up the main-process SDK + error cap
 
 ```ts
 // main/telemetry.ts
-import { randomUUID } from 'node:crypto';
-import { app, ipcMain, net } from 'electron';
-import { ErrorsInstrumentation } from '@everr/otel-errors';
+import { randomUUID } from "node:crypto";
+import { app, ipcMain, net } from "electron";
+import { ErrorsInstrumentation } from "@everr/otel-errors";
 // ... plus the NodeSDK setup from nodejs.md ...
 
-const SERVICE_NAME = '<service-name>';
+const SERVICE_NAME = "<service-name>";
 const MAX_OTLP_BODY_BYTES = 4 * 1024 * 1024;
 
 type TelemetryConfig = { endpoint: string; headers: Record<string, string> } | null;
-type ProcessType = 'main' | 'renderer';
+type ProcessType = "main" | "renderer";
 
 export type TelemetryContext = {
   serviceName: string;
@@ -77,52 +77,49 @@ export function setupMainTelemetry(): void {
     serviceName: SERVICE_NAME,
     serviceVersion: app.getVersion(),
     serviceInstanceId: randomUUID(),
-    deploymentEnvironment: app.isPackaged ? 'production' : 'development',
+    deploymentEnvironment: app.isPackaged ? "production" : "development",
   };
 
   // Main-process SDK uses the nodejs.md NodeSDK setup with SERVICE_NAME, and must
   // add process.type = main to its resource (nodejs.md does not add it by default).
   // Its `instrumentations` array carries `new ErrorsInstrumentation()` for the
   // main process's own crash handlers.
-  startMainSdk({ ...baseContext, processType: 'main' });
+  startMainSdk({ ...baseContext, processType: "main" });
 
   const rendererContext: TelemetryContext = {
     ...baseContext,
-    processType: 'renderer',
+    processType: "renderer",
   };
   registerTelemetryIpc(resolveTelemetryConfig(process.env), rendererContext);
 }
 
 function registerTelemetryIpc(config: TelemetryConfig, context: TelemetryContext) {
-  ipcMain.handle('everr:telemetry-context', () => context);
+  ipcMain.handle("everr:telemetry-context", () => context);
 
-  ipcMain.handle(
-    'everr:proxy-otlp',
-    async (_event, signal: 'logs' | 'traces', body: string) => {
-      if (!config) return; // telemetry disabled
-      // String length counts UTF-16 code units, not bytes; measure the UTF-8
-      // payload the proxy actually forwards.
-      const bytes = Buffer.byteLength(body, 'utf8');
-      if (bytes > MAX_OTLP_BODY_BYTES) {
-        throw new Error(`otlp payload too large: ${bytes} bytes`);
-      }
+  ipcMain.handle("everr:proxy-otlp", async (_event, signal: "logs" | "traces", body: string) => {
+    if (!config) return; // telemetry disabled
+    // String length counts UTF-16 code units, not bytes; measure the UTF-8
+    // payload the proxy actually forwards.
+    const bytes = Buffer.byteLength(body, "utf8");
+    if (bytes > MAX_OTLP_BODY_BYTES) {
+      throw new Error(`otlp payload too large: ${bytes} bytes`);
+    }
 
-      // net.fetch respects the app's proxy/cert configuration. OTLP/JSON is UTF-8
-      // text, so body is forwarded as-is with content-type application/json.
-      const response = await net.fetch(signalUrl(config.endpoint, signal), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', ...config.headers },
-        body,
-      });
-      if (!response.ok) {
-        throw new Error(`collector returned ${response.status}`);
-      }
-    },
-  );
+    // net.fetch respects the app's proxy/cert configuration. OTLP/JSON is UTF-8
+    // text, so body is forwarded as-is with content-type application/json.
+    const response = await net.fetch(signalUrl(config.endpoint, signal), {
+      method: "POST",
+      headers: { "content-type": "application/json", ...config.headers },
+      body,
+    });
+    if (!response.ok) {
+      throw new Error(`collector returned ${response.status}`);
+    }
+  });
 }
 
-function signalUrl(endpoint: string, signal: 'logs' | 'traces') {
-  return `${endpoint.replace(/\/+$/, '')}/v1/${signal}`;
+function signalUrl(endpoint: string, signal: "logs" | "traces") {
+  return `${endpoint.replace(/\/+$/, "")}/v1/${signal}`;
 }
 ```
 
@@ -134,12 +131,12 @@ With `contextIsolation: true` and `nodeIntegration: false` (required), expose on
 
 ```ts
 // preload.ts
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer } from "electron";
 
-contextBridge.exposeInMainWorld('everrTelemetry', {
-  getContext: () => ipcRenderer.invoke('everr:telemetry-context'),
-  proxyOtlp: (signal: 'logs' | 'traces', body: string) =>
-    ipcRenderer.invoke('everr:proxy-otlp', signal, body),
+contextBridge.exposeInMainWorld("everrTelemetry", {
+  getContext: () => ipcRenderer.invoke("everr:telemetry-context"),
+  proxyOtlp: (signal: "logs" | "traces", body: string) =>
+    ipcRenderer.invoke("everr:proxy-otlp", signal, body),
 });
 ```
 
@@ -149,7 +146,7 @@ declare global {
   interface Window {
     everrTelemetry: {
       getContext(): Promise<TelemetryContext>;
-      proxyOtlp(signal: 'logs' | 'traces', body: string): Promise<void>;
+      proxyOtlp(signal: "logs" | "traces", body: string): Promise<void>;
     };
   }
 }
@@ -161,7 +158,7 @@ declare global {
 
 ```ts
 // renderer, imported once before the app renders
-import { errors, WebSDK } from '@everr/otel-web';
+import { errors, WebSDK } from "@everr/otel-web";
 
 export async function initRendererTelemetry() {
   const context = await window.everrTelemetry.getContext();

@@ -8,9 +8,7 @@ export interface OrganizationPageProps {
 /** Page loading runs inside the application's existing access guards. */
 export interface OrganizationPage {
   component: ComponentType<OrganizationPageProps>;
-  load?: (
-    context: OrganizationPageProps & { queryClient: QueryClient },
-  ) => Promise<void>;
+  load?: (context: OrganizationPageProps & { queryClient: QueryClient }) => Promise<void>;
 }
 
 export interface AccountPageProps {

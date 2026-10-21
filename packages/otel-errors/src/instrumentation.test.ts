@@ -1,5 +1,5 @@
 import { diag } from "@opentelemetry/api";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { captureError, configure, resetSharedClient } from "./capture.js";
 import { ErrorsInstrumentation } from "./instrumentation.js";
 import { setupTestTelemetry } from "./test-utils.js";
@@ -8,9 +8,7 @@ import { PKG_NAME } from "./version.js";
 let otel: ReturnType<typeof setupTestTelemetry>;
 let instrumentation: ErrorsInstrumentation | null = null;
 
-function enable(
-  config: ConstructorParameters<typeof ErrorsInstrumentation>[0] = {},
-) {
+function enable(config: ConstructorParameters<typeof ErrorsInstrumentation>[0] = {}) {
   instrumentation = new ErrorsInstrumentation({
     onFatal: "continue",
     ...config,
@@ -167,9 +165,7 @@ describe("ErrorsInstrumentation capture", () => {
     process.emit("uncaughtException", new Error("crash"));
     const [record] = otel.records();
     expect(record.eventName).toBe("exception");
-    expect(record.attributes["everr.error.mechanism"]).toBe(
-      "uncaughtException",
-    );
+    expect(record.attributes["everr.error.mechanism"]).toBe("uncaughtException");
     expect(record.severityText).toBe("FATAL");
   });
 
@@ -177,9 +173,7 @@ describe("ErrorsInstrumentation capture", () => {
     enable();
     process.emit("unhandledRejection", "string reason", Promise.resolve());
     const [record] = otel.records();
-    expect(record.attributes["everr.error.mechanism"]).toBe(
-      "unhandledrejection",
-    );
+    expect(record.attributes["everr.error.mechanism"]).toBe("unhandledrejection");
     expect(record.attributes["exception.type"]).toBe("NonError");
   });
 

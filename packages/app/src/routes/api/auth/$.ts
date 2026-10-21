@@ -4,8 +4,7 @@ import { auth } from "#app/identity/server.ts";
 export const Route = createFileRoute("/api/auth/$")({
   server: {
     handlers: {
-      GET: ({ request }) =>
-        redirectAuthErrorPage(request) ?? auth.handler(request),
+      GET: ({ request }) => redirectAuthErrorPage(request) ?? auth.handler(request),
       POST: ({ request }) => auth.handler(request),
     },
   },

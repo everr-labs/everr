@@ -49,8 +49,12 @@ export function ExplorePersistentFilters() {
       timeRange={timeRange}
       service={service}
       environment={environment}
-      onServiceChange={onServiceChange}
-      onEnvironmentChange={onEnvironmentChange}
+      onServiceChange={(...args) => {
+        void onServiceChange?.(...args);
+      }}
+      onEnvironmentChange={(...args) => {
+        void onEnvironmentChange?.(...args);
+      }}
     />
   );
 }

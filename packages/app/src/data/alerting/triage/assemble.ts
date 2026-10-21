@@ -33,18 +33,9 @@ import {
 } from "#app/data/alerting/rules/read.ts";
 import { formatDurationSeconds } from "#app/data/alerting/rules/resource/window.ts";
 import type { SilenceRow } from "#app/data/alerting/silences/repository.ts";
-import type {
-  AlertingEvaluationSample,
-  AlertingSeverity,
-} from "#app/data/alerting/types.ts";
+import type { AlertingEvaluationSample, AlertingSeverity } from "#app/data/alerting/types.ts";
 import { ALERTING_SEVERITIES } from "#app/data/alerting/vocabulary.ts";
-import {
-  formatClock,
-  formatElapsed,
-  formatSince,
-  formatSincePhrase,
-  formatValue,
-} from "./format";
+import { formatClock, formatElapsed, formatSince, formatSincePhrase, formatValue } from "./format";
 import {
   type LifecycleEventRow,
   lifecycleLine,
@@ -58,12 +49,7 @@ import {
   notificationText,
 } from "./notifications";
 import { type LifecycleRow, ruleStateSegments } from "./segments";
-import {
-  type SilenceImpactCounts,
-  silenceFor,
-  silenceRecords,
-  silenceView,
-} from "./silences";
+import { type SilenceImpactCounts, silenceFor, silenceRecords, silenceView } from "./silences";
 import type { InstanceLanes, InstanceValues } from "./values";
 import type {
   AlertDetail,
@@ -99,10 +85,7 @@ export type DeliverySource = {
   defaultTiers: Set<AlertingDefaultTier>;
 };
 
-function deliveryFor(
-  row: AlertRuleRead,
-  source: DeliverySource,
-): DeliveryFacts {
+function deliveryFor(row: AlertRuleRead, source: DeliverySource): DeliveryFacts {
   return {
     latest: source.notifications.get(row.id),
     silence: silenceFor(row.id, row.spec.severity, source.silences, source.now),
@@ -140,9 +123,7 @@ function stateSince(
   }
 }
 
-function groupByDefinition(
-  instances: AlertInstanceRead[],
-): Map<string, AlertInstanceRead[]> {
+function groupByDefinition(instances: AlertInstanceRead[]): Map<string, AlertInstanceRead[]> {
   const byDefinition = new Map<string, AlertInstanceRead[]>();
   for (const instance of instances) {
     const list = byDefinition.get(instance.alertDefinitionId);
@@ -171,9 +152,8 @@ const BAND_RANK: Record<TriageStatus, number> = {
 /** Worst first, which is the vocabulary read backwards: `ALERTING_SEVERITIES`
  *  is ascending, and it is the list the Zod and Postgres enums are built from,
  *  so a severity added there cannot fall out of this sort. */
-const SEVERITY_RANK = Object.fromEntries(
-  [...ALERTING_SEVERITIES].reverse().map((severity, rank) => [severity, rank]),
-) as Record<AlertingSeverity, number>;
+const severityOrder = [...ALERTING_SEVERITIES].reverse();
+const severityRank = (severity: AlertingSeverity) => severityOrder.indexOf(severity);
 
 /** A silenced rule is still firing, so it stays in its own band, after the
  *  rest of it. Exiling it to the bottom would hide the fact that the thing
@@ -181,7 +161,7 @@ const SEVERITY_RANK = Object.fromEntries(
 export function byTriageOrder(a: TriageAlert, b: TriageAlert): number {
   return (
     BAND_RANK[a.status] - BAND_RANK[b.status] ||
-    SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
+    severityRank(a.severity) - severityRank(b.severity) ||
     Number(Boolean(a.silence)) - Number(Boolean(b.silence))
   );
 }
@@ -218,9 +198,7 @@ export function assembleTriage(input: TriageInput): AlertTriageData {
 
     const worst = worstInstance(own);
     const pendingFor = row.spec.for_secs * 1000;
-    const pendingElapsed = worst?.pendingSince
-      ? now.getTime() - worst.pendingSince.getTime()
-      : 0;
+    const pendingElapsed = worst?.pendingSince ? now.getTime() - worst.pendingSince.getTime() : 0;
 
     alerts.push({
       path,
@@ -236,16 +214,11 @@ export function assembleTriage(input: TriageInput): AlertTriageData {
         ? {
             pending: {
               total: formatDurationSeconds(row.spec.for_secs),
-              percent: Math.min(
-                100,
-                Math.round((pendingElapsed / pendingFor) * 100),
-              ),
+              percent: Math.min(100, Math.round((pendingElapsed / pendingFor) * 100)),
             },
           }
         : {}),
-      ...(row.lastError && status === "degraded"
-        ? { error: row.lastError }
-        : {}),
+      ...(row.lastError && status === "degraded" ? { error: row.lastError } : {}),
       ...(silence ? { silence: silenceView(silence, now, delivery.held) } : {}),
       instances: own.length,
       spark: {
@@ -272,9 +245,7 @@ export type RuleStateHistoryInput = {
   values: InstanceValues;
 };
 
-export function assembleRuleStateHistory(
-  input: RuleStateHistoryInput,
-): RuleStateHistoryData {
+export function assembleRuleStateHistory(input: RuleStateHistoryInput): RuleStateHistoryData {
   const windowFrom = input.window.from.getTime();
   const windowTo = input.window.to.getTime();
 
@@ -309,12 +280,7 @@ export function assembleRuleStateHistory(
   const rules: Record<string, RuleStateHistory> = {};
   for (const definition of input.definitions) {
     const path = rulePath(definition);
-    const silence = silenceFor(
-      definition.id,
-      definition.spec.severity,
-      input.silences,
-      input.now,
-    );
+    const silence = silenceFor(definition.id, definition.spec.severity, input.silences, input.now);
     rules[path] = {
       instances: (input.values.byPath.get(path) ?? NO_LANES).lanes,
       segments: ruleStateSegments({
@@ -364,10 +330,7 @@ function pauseTrail(definition: AlertRuleRead, now: Date): string {
  * readers ask about; a paused rule prints its trail instead, because nothing
  * about delivery is left to say.
  */
-function detailNotification(
-  status: RuleInventoryState,
-  delivery: string,
-): string {
+function detailNotification(status: RuleInventoryState, delivery: string): string {
   if (status === "silenced") return `${delivery} · rule keeps evaluating`;
   return delivery;
 }
@@ -403,15 +366,11 @@ export function assembleAlertDetail(input: AlertDetailInput): AlertDetail {
     since: formatSince(stateSince(status, definition, worst, silence), now),
     condition: conditionText(spec),
     description:
-      spec.annotations?.[ANN_DISPLAY_DESCRIPTION]?.trim() ||
-      "This rule declares no description.",
+      spec.annotations?.[ANN_DISPLAY_DESCRIPTION]?.trim() || "This rule declares no description.",
     notification:
       status === "paused"
         ? pauseTrail(definition, now)
-        : detailNotification(
-            status,
-            notificationText(definition, delivery, now),
-          ),
+        : detailNotification(status, notificationText(definition, delivery, now)),
     threshold: spec.condition.threshold,
     window: chartWindow(input.window),
     instanceValues: lanes.lanes,
@@ -423,24 +382,17 @@ export function assembleAlertDetail(input: AlertDetailInput): AlertDetail {
     definition: {
       repository: definition.repoid,
       project: definition.project,
-      runbook: runbookLink
-        ? { href: runbookLink, label: runbookLabel(runbookLink) }
-        : null,
+      runbook: runbookLink ? { href: runbookLink, label: runbookLabel(runbookLink) } : null,
       evaluationInterval: formatDurationSeconds(spec.interval_secs),
       notificationTitle: spec.annotations?.[ANN_ALERTING_SUMMARY] ?? "",
-      notificationDescription:
-        spec.annotations?.[ANN_ALERTING_DESCRIPTION] ?? "",
+      notificationDescription: spec.annotations?.[ANN_ALERTING_DESCRIPTION] ?? "",
       lastEvaluatedAt: definition.lastSeenAt?.toISOString() ?? null,
       query: spec.sql,
     },
     // The window read already selected on this rule, so the only id any of
     // these rows can name is this definition's.
-    silences: silenceRecords(
-      input.windowSilences,
-      now,
-      input.silenceImpacts,
-      (ruleId) =>
-        ruleId === definition.id ? { path, name: ruleTitle(definition) } : null,
+    silences: silenceRecords(input.windowSilences, now, input.silenceImpacts, (ruleId) =>
+      ruleId === definition.id ? { path, name: ruleTitle(definition) } : null,
     ),
     activeSilenceId: silence?.id ?? null,
     forClause: formatDurationSeconds(spec.for_secs),

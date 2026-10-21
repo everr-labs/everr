@@ -47,10 +47,7 @@ function AlertingNotificationsPage() {
 
   return (
     <>
-      <ScrollArea
-        className="h-full min-h-0"
-        viewportClassName="overscroll-y-contain pb-6"
-      >
+      <ScrollArea className="h-full min-h-0" viewportClassName="overscroll-y-contain pb-6">
         <NotificationsPage
           data={data}
           pending={controls.pending}

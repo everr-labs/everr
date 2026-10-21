@@ -32,9 +32,7 @@ export const Default: Story = {
   render: () => (
     <div className="flex min-h-80 items-start justify-center pt-4">
       <DropdownMenu defaultOpen>
-        <DropdownMenuTrigger render={<Button variant="outline" />}>
-          Actions
-        </DropdownMenuTrigger>
+        <DropdownMenuTrigger render={<Button variant="outline" />}>Actions</DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
           <DropdownMenuGroup>
             <DropdownMenuLabel>Rule</DropdownMenuLabel>
@@ -51,9 +49,7 @@ export const Default: Story = {
             <DropdownMenuItem disabled>Adopt rule</DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuLinkItem href="https://example.com/docs">
-            Open the docs
-          </DropdownMenuLinkItem>
+          <DropdownMenuLinkItem href="https://example.com/docs">Open the docs</DropdownMenuLinkItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive">
             <Trash2Icon />
@@ -69,9 +65,7 @@ export const WithSubmenu: Story = {
   render: () => (
     <div className="flex min-h-80 items-start justify-center pt-4">
       <DropdownMenu defaultOpen>
-        <DropdownMenuTrigger render={<Button variant="outline" />}>
-          Export
-        </DropdownMenuTrigger>
+        <DropdownMenuTrigger render={<Button variant="outline" />}>Export</DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
           <DropdownMenuItem>Export now</DropdownMenuItem>
           <DropdownMenuSub>
@@ -99,9 +93,7 @@ export const WithCheckboxItems: Story = {
     return (
       <div className="flex min-h-80 items-start justify-center pt-4">
         <DropdownMenu defaultOpen>
-          <DropdownMenuTrigger render={<Button variant="outline" />}>
-            Columns
-          </DropdownMenuTrigger>
+          <DropdownMenuTrigger render={<Button variant="outline" />}>Columns</DropdownMenuTrigger>
           <DropdownMenuContent className="w-56">
             <DropdownMenuGroup>
               <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
@@ -160,9 +152,7 @@ export const InsetItems: Story = {
   render: () => (
     <div className="flex min-h-80 items-start justify-center pt-4">
       <DropdownMenu defaultOpen>
-        <DropdownMenuTrigger render={<Button variant="outline" />}>
-          View
-        </DropdownMenuTrigger>
+        <DropdownMenuTrigger render={<Button variant="outline" />}>View</DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
           <DropdownMenuGroup>
             <DropdownMenuLabel inset>Layout</DropdownMenuLabel>

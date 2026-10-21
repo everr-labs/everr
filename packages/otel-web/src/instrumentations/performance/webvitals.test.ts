@@ -1,12 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebSDK } from "../../client.js";
 import type { Emit } from "../../pipeline/emitter.js";
-import {
-  attrs,
-  type OtlpBatch,
-  startClient,
-  UNIQUE_ID,
-} from "../../test-kit.js";
+import { attrs, type OtlpBatch, startClient, UNIQUE_ID } from "../../test-kit.js";
 import { startWebVitals } from "./webvitals.js";
 
 // The jsdom environment gives no PerformanceObserver entries. It also has no
@@ -31,8 +26,7 @@ const emit: Emit = (name, a, timestamp) => {
 const vitals = (name?: string) =>
   emitted.filter(
     (e) =>
-      e.name === "browser.web_vital" &&
-      (!name || e.attrs?.["browser.web_vital.name"] === name),
+      e.name === "browser.web_vital" && (!name || e.attrs?.["browser.web_vital.name"] === name),
   );
 
 // --- The test performance timeline. ---
@@ -76,23 +70,17 @@ function stubTiming() {
   inputListeners = new Map();
   const realAdd = window.addEventListener.bind(window);
   const realRemove = window.removeEventListener.bind(window);
-  vi.stubGlobal(
-    "addEventListener",
-    (type: string, fn: EventListener, opts?: unknown) => {
-      if (type === "click" || type === "keydown") {
-        if (!inputListeners.has(type)) inputListeners.set(type, new Set());
-        inputListeners.get(type)?.add(fn);
-      }
-      realAdd(type, fn, opts as AddEventListenerOptions);
-    },
-  );
-  vi.stubGlobal(
-    "removeEventListener",
-    (type: string, fn: EventListener, opts?: unknown) => {
-      inputListeners.get(type)?.delete(fn);
-      realRemove(type, fn, opts as EventListenerOptions);
-    },
-  );
+  vi.stubGlobal("addEventListener", (type: string, fn: EventListener, opts?: unknown) => {
+    if (type === "click" || type === "keydown") {
+      if (!inputListeners.has(type)) inputListeners.set(type, new Set());
+      inputListeners.get(type)?.add(fn);
+    }
+    realAdd(type, fn, opts as AddEventListenerOptions);
+  });
+  vi.stubGlobal("removeEventListener", (type: string, fn: EventListener, opts?: unknown) => {
+    inputListeners.get(type)?.delete(fn);
+    realRemove(type, fn, opts as EventListenerOptions);
+  });
   perfEntries = { navigation: [nav()] };
   nowMs = 10_000;
   class PO {
@@ -119,9 +107,7 @@ function stubTiming() {
     now: () => nowMs,
     getEntriesByType: (type: string) => perfEntries[type] ?? [],
   });
-  vi.stubGlobal("requestAnimationFrame", (cb: () => void) =>
-    setTimeout(cb, 16),
-  );
+  vi.stubGlobal("requestAnimationFrame", (cb: () => void) => setTimeout(cb, 16));
 }
 
 function fire(type: string, entries: unknown[]) {
@@ -159,7 +145,7 @@ function hide(at = 9_000) {
 }
 
 function click(trusted = true) {
-  for (const fn of [...(inputListeners.get("click") ?? [])]) {
+  for (const fn of inputListeners.get("click") ?? []) {
     fn({ isTrusted: trusted, type: "click" } as Event);
   }
   // The code completes the LCP in the idle period, which uses setTimeout here.
@@ -245,9 +231,7 @@ describe("ttfb", () => {
     perfEntries.navigation = [nav({ responseStart: 900 })];
     start();
     vi.advanceTimersByTime(0);
-    expect(vitals("ttfb")[0].attrs?.["everr.browser.web_vital.rating"]).toBe(
-      "needs-improvement",
-    );
+    expect(vitals("ttfb")[0].attrs?.["everr.browser.web_vital.rating"]).toBe("needs-improvement");
   });
 });
 
@@ -301,13 +285,9 @@ describe("lcp", () => {
   });
 
   it("names a removed element by its id when the node is already gone", () => {
-    fire("largest-contentful-paint", [
-      lcpEntry({ startTime: 700, id: "hero", element: null }),
-    ]);
+    fire("largest-contentful-paint", [lcpEntry({ startTime: 700, id: "hero", element: null })]);
     hide();
-    expect(vitals("lcp")[0].attrs?.["everr.browser.web_vital.lcp.target"]).toBe(
-      "#hero",
-    );
+    expect(vitals("lcp")[0].attrs?.["everr.browser.web_vital.lcp.target"]).toBe("#hero");
   });
 
   it("without a matching resource entry, the value is all render delay", () => {
@@ -338,9 +318,7 @@ describe("lcp", () => {
   it("rates by the 2500/4000 thresholds", () => {
     fire("largest-contentful-paint", [lcpEntry({ startTime: 4_500 })]);
     hide(5_000);
-    expect(vitals("lcp")[0].attrs?.["everr.browser.web_vital.rating"]).toBe(
-      "poor",
-    );
+    expect(vitals("lcp")[0].attrs?.["everr.browser.web_vital.rating"]).toBe("poor");
   });
 });
 
@@ -387,16 +365,12 @@ describe("cls", () => {
     // the length of 5 s ends that session.
     fire(
       "layout-shift",
-      Array.from({ length: 8 }, (_, i) =>
-        shift({ startTime: 1_000 + i * 900, value: 0.1 }),
-      ),
+      Array.from({ length: 8 }, (_, i) => shift({ startTime: 1_000 + i * 900, value: 0.1 })),
     );
     hide();
     // Six shifts are in the window of 5 s, from 0 ms to 4500 ms. The seventh
     // shift starts a new session.
-    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(
-      0.6,
-    );
+    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(0.6);
   });
 
   it("excludes shifts right after user input", () => {
@@ -412,9 +386,7 @@ describe("cls", () => {
     hide();
     const a = vitals("cls")[0].attrs ?? {};
     expect(a["browser.web_vital.value"]).toBe(0);
-    expect(a).not.toHaveProperty(
-      "everr.browser.web_vital.cls.largest_shift_value",
-    );
+    expect(a).not.toHaveProperty("everr.browser.web_vital.cls.largest_shift_value");
   });
 
   it("does not report without a first contentful paint before first hidden", () => {
@@ -445,9 +417,7 @@ describe("bfcache restore", () => {
     vi.advanceTimersByTime(50); // the double rAF
     const restoredTtfb = vitals("ttfb")[1].attrs ?? {};
     expect(restoredTtfb["browser.web_vital.value"]).toBe(0);
-    expect(restoredTtfb["everr.browser.web_vital.navigation_type"]).toBe(
-      "back-forward-cache",
-    );
+    expect(restoredTtfb["everr.browser.web_vital.navigation_type"]).toBe("back-forward-cache");
     expect(restoredTtfb["browser.web_vital.id"]).not.toBe(
       vitals("ttfb")[0].attrs?.["browser.web_vital.id"],
     );
@@ -526,7 +496,7 @@ describe("through the client pipeline", () => {
     [client, batches] = startClient();
     const landing = location.href;
     history.pushState(null, "", "/pricing");
-    await new Promise((r) => setTimeout(r)); // the deferred TTFB report
+    await new Promise((resolve) => setTimeout(resolve)); // the deferred TTFB report
     await client.flush();
     const records = batches
       .flatMap((b) => b.records)
@@ -623,9 +593,7 @@ describe("first-hidden and load-state edges", () => {
   });
 
   it("treats missing dom milestones as still-pending phases", () => {
-    perfEntries.navigation = [
-      nav({ domContentLoadedEventStart: 0, domComplete: 0 }),
-    ];
+    perfEntries.navigation = [nav({ domContentLoadedEventStart: 0, domComplete: 0 })];
     expect(largestShiftAt(350)).toBe("dom-interactive");
     perfEntries.navigation = [nav({ domComplete: 0 })];
     expect(largestShiftAt(450)).toBe("dom-content-loaded");
@@ -670,9 +638,7 @@ describe("first-hidden and load-state edges", () => {
       },
     ];
     start(["lcp"]);
-    fire("largest-contentful-paint", [
-      lcpEntry({ startTime: 1_000, url: "https://x/hero.png" }),
-    ]);
+    fire("largest-contentful-paint", [lcpEntry({ startTime: 1_000, url: "https://x/hero.png" })]);
     hide();
     const a = vitals("lcp")[0].attrs ?? {};
     expect(a["everr.browser.web_vital.lcp.resource_load_delay"]).toBe(100);
@@ -738,15 +704,11 @@ describe("threshold and window boundaries", () => {
     perfEntries.navigation = [nav({ responseStart: 800 })];
     start(["ttfb"]);
     vi.advanceTimersByTime(0);
-    expect(vitals("ttfb")[0].attrs?.["everr.browser.web_vital.rating"]).toBe(
-      "good",
-    );
+    expect(vitals("ttfb")[0].attrs?.["everr.browser.web_vital.rating"]).toBe("good");
     perfEntries.navigation = [nav({ responseStart: 1_800 })];
     start(["ttfb"]);
     vi.advanceTimersByTime(0);
-    expect(vitals("ttfb")[0].attrs?.["everr.browser.web_vital.rating"]).toBe(
-      "needs-improvement",
-    );
+    expect(vitals("ttfb")[0].attrs?.["everr.browser.web_vital.rating"]).toBe("needs-improvement");
   });
 
   it("rejects a navigation entry whose responseStart is exactly now", () => {
@@ -764,9 +726,7 @@ describe("threshold and window boundaries", () => {
       shift({ startTime: 2_000, value: 0.1 }), // gap exactly 1s: new session
     ]);
     hide();
-    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(
-      0.1,
-    );
+    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(0.1);
 
     setVisibility("visible");
     start(["cls"]);
@@ -775,9 +735,7 @@ describe("threshold and window boundaries", () => {
       shift({ startTime: 1_999, value: 0.1 }), // 999ms gap: same session
     ]);
     hide();
-    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(
-      0.2,
-    );
+    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(0.2);
   });
 
   it("ends a CLS session at exactly the 5s span", () => {
@@ -785,16 +743,13 @@ describe("threshold and window boundaries", () => {
     start(["cls"]);
     // Gaps of 900ms keep the chain alive; the shift at exactly first+5000
     // must start a new session.
-    fire("layout-shift", [
-      ...Array.from({ length: 6 }, (_, i) =>
-        shift({ startTime: 1_000 + i * 900, value: 0.1 }),
-      ), // 1000..5500 in 900ms steps: one session, 4500ms span
-    ]);
+    fire(
+      "layout-shift",
+      Array.from({ length: 6 }, (_, i) => shift({ startTime: 1_000 + i * 900, value: 0.1 })),
+    );
     fire("layout-shift", [shift({ startTime: 6_000, value: 0.1 })]); // span exactly 5000
     hide();
-    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(
-      0.6,
-    );
+    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(0.6);
   });
 
   it("keeps the first shift as largest on an exact value tie", () => {

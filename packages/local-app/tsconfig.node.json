@@ -6,7 +6,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ES2022",
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "emitDeclarationOnly": true
   },
   "include": ["vite.config.ts", "scripts/*.ts", "../cli/scripts/cli-build.ts"]
 }

@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
 import { Button } from "@everr/ui/components/button";
 import {
   Collapsible,
@@ -11,27 +12,13 @@ import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  Check,
-  ChevronDown,
-  Copy,
-  ExternalLink,
-  Loader2,
-} from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { type ReactNode, useRef } from "react";
 import { INSTALL_COMMAND } from "#app/common/install-command.ts";
 import { type HomeStatus, homeView } from "#app/common/onboarding.ts";
 import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
-import {
-  homeStatusQueryOptions,
-  useCompleteOnboarding,
-} from "#app/data/onboarding/options.ts";
-import {
-  type OnboardingStep,
-  onboardingProgressKey,
-  useSetupProgress,
-} from "./use-setup-progress";
+import { homeStatusQueryOptions, useCompleteOnboarding } from "#app/data/onboarding/options.ts";
+import { type OnboardingStep, onboardingProgressKey, useSetupProgress } from "./use-setup-progress";
 
 const LOCAL_GUIDE = "https://everr.dev/docs/learn/instrument-your-app";
 const PRODUCTION_GUIDE = "https://everr.dev/docs/guides/production-telemetry";
@@ -51,27 +38,15 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
         >
           {text}
         </code>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          aria-label={label}
-          onClick={copy}
-        >
+        <Button type="button" size="icon-sm" variant="ghost" aria-label={label} onClick={copy}>
           {state === "copied" ? <Check /> : <Copy />}
         </Button>
       </div>
-      <p
-        role="status"
-        className={cn(
-          "text-xs text-muted-foreground",
-          state !== "failed" && "sr-only",
-        )}
-      >
+      <output className={cn("text-xs text-muted-foreground", state !== "failed" && "sr-only")}>
         {state === "copied" && "Copied to clipboard."}
         {state === "failed" &&
           "Couldn't access the clipboard. The text is selected; copy it manually."}
-      </p>
+      </output>
     </div>
   );
 }
@@ -162,11 +137,7 @@ function HomeContent({
 }) {
   const navigate = useNavigate({ from: "/" });
   const complete = useCompleteOnboarding(userId, organizationId);
-  const progress = useSetupProgress(
-    userId,
-    organizationId,
-    status.onboardingCompleted,
-  );
+  const progress = useSetupProgress(userId, organizationId, status.onboardingCompleted);
   const { step, mode, selectMode } = progress;
 
   function advance(nextStep: OnboardingStep, nextMode = mode) {
@@ -205,16 +176,11 @@ function HomeContent({
       content: (
         <>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            <a
-              href="https://everr.dev/docs/reference/cli"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a href="https://everr.dev/docs/reference/cli" target="_blank" rel="noreferrer">
               Everr CLI
             </a>{" "}
-            is the fundamental tool to query local and production telemetry, and
-            manage resources such as dashboards, alerts, runbooks, and bundled
-            skills.
+            is the fundamental tool to query local and production telemetry, and manage resources
+            such as dashboards, alerts, runbooks, and bundled skills.
           </p>
           <CopyBlock text={INSTALL_COMMAND} label="Copy install command" />
         </>
@@ -234,13 +200,10 @@ function HomeContent({
           <p className="text-sm leading-relaxed text-muted-foreground">
             Instrumentation is the process of adding telemetry to your app.
             <br />
-            Collected data is stored and queried locally for faster development
-            feedback, and sent to this workspace when you deploy your app.
+            Collected data is stored and queried locally for faster development feedback, and sent
+            to this workspace when you deploy your app.
           </p>
-          <fieldset
-            className="grid gap-3 sm:grid-cols-2"
-            aria-label="Setup method"
-          >
+          <fieldset className="grid gap-3 sm:grid-cols-2" aria-label="Setup method">
             <Button
               aria-label="Use my coding agent"
               aria-pressed={mode === "agent"}
@@ -264,12 +227,9 @@ function HomeContent({
                 {mode === "agent" && <Check className="size-3" />}
               </span>
               <span className="space-y-1.5">
-                <span className="block text-sm font-medium">
-                  Use my coding agent
-                </span>
+                <span className="block text-sm font-medium">Use my coding agent</span>
                 <span className="block text-xs font-normal leading-relaxed text-muted-foreground">
-                  Install the skills and let your agent configure and verify
-                  telemetry.
+                  Install the skills and let your agent configure and verify telemetry.
                 </span>
               </span>
             </Button>
@@ -296,9 +256,7 @@ function HomeContent({
                 {mode === "manual" && <Check className="size-3" />}
               </span>
               <span className="space-y-1.5">
-                <span className="block text-sm font-medium">
-                  Set up manually
-                </span>
+                <span className="block text-sm font-medium">Set up manually</span>
                 <span className="block text-xs font-normal leading-relaxed text-muted-foreground">
                   Follow the guide and configure OpenTelemetry yourself.
                 </span>
@@ -308,13 +266,10 @@ function HomeContent({
           {mode === "agent" ? (
             <ol className="space-y-6">
               <li className="space-y-3">
-                <h3 className="text-sm font-medium">
-                  1. Install the Everr skills
-                </h3>
+                <h3 className="text-sm font-medium">1. Install the Everr skills</h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  Our skills are specialized capabilities that help AI agents
-                  handle observability tasks. Run the command below from the
-                  project root.
+                  Our skills are specialized capabilities that help AI agents handle observability
+                  tasks. Run the command below from the project root.
                 </p>
                 <CopyBlock
                   text="everr skills install --all --project"
@@ -322,32 +277,28 @@ function HomeContent({
                 />
               </li>
               <li className="space-y-3">
-                <h3 className="text-sm font-medium">
-                  2. Ask your agent to instrument the app
-                </h3>
+                <h3 className="text-sm font-medium">2. Ask your agent to instrument the app</h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  Run the skill in your coding agent. It will inspect your app,
-                  configure telemetry, and check that data arrives.
+                  Run the skill in your coding agent. It will inspect your app, configure telemetry,
+                  and check that data arrives.
                   <br />
                   Yes, it works in monorepo projects too.
                 </p>
                 <CopyBlock text={SETUP_COMMAND} label="Copy setup command" />
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  Follow the agent's instructions until the end. Part of the
-                  setup process continues there.
+                  Follow the agent&apos;s instructions until the end. Part of the setup process
+                  continues there.
                 </p>
               </li>
             </ol>
           ) : (
             <div className="space-y-4">
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Follow the guide for your language or framework. Reuse any
-                existing OpenTelemetry setup and point its exporter at your
-                local collector. No agent skills or ingestion key needed.
+                Follow the guide for your language or framework. Reuse any existing OpenTelemetry
+                setup and point its exporter at your local collector. No agent skills or ingestion
+                key needed.
               </p>
-              <GuideLink href={LOCAL_GUIDE}>
-                Open the instrumentation guide
-              </GuideLink>
+              <GuideLink href={LOCAL_GUIDE}>Open the instrumentation guide</GuideLink>
             </div>
           )}
         </>
@@ -365,38 +316,29 @@ function HomeContent({
       content: (
         <>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Check that you can see data from your running app before setting up
-            production. You can use local observability also for debugging
-            during development.
+            Check that you can see data from your running app before setting up production. You can
+            use local observability also for debugging during development.
           </p>
           <ol className="space-y-5">
             <li className="space-y-2">
-              <h3 className="text-sm font-medium">
-                1. Open your local Everr UI
-              </h3>
+              <h3 className="text-sm font-medium">1. Open your local Everr UI</h3>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                You can find the local UI URL in the output using the command
-                below
+                You can find the local UI URL in the output using the command below
               </p>
-              <CopyBlock
-                text="everr local status"
-                label="Copy local status command"
-              />
+              <CopyBlock text="everr local status" label="Copy local status command" />
             </li>
             <li className="space-y-2">
               <h3 className="text-sm font-medium">2. Use your app</h3>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Open a page, make a request, or run a job covered by your
-                instrumentation. Keep the app running while you check Everr.
+                Open a page, make a request, or run a job covered by your instrumentation. Keep the
+                app running while you check Everr.
               </p>
             </li>
             <li className="space-y-2">
-              <h3 className="text-sm font-medium">
-                3. Find the data from that action
-              </h3>
+              <h3 className="text-sm font-medium">3. Find the data from that action</h3>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Navigate the local UI and see your app's behavior throught logs,
-                traces, and dashboards.
+                Navigate the local UI and see your app&apos;s behavior throught logs, traces, and
+                dashboards.
               </p>
             </li>
           </ol>
@@ -410,20 +352,17 @@ function HomeContent({
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-3 px-4 pb-3 text-sm leading-relaxed text-muted-foreground">
               <p>
-                Check that the collector is running and your app's exporter uses
-                the <code>otlp:</code> URL from the status command. Restart the
-                app after changing its configuration, then try the action again.
+                Check that the collector is running and your app&apos;s exporter uses the{" "}
+                <code>otlp:</code> URL from the status command. Restart the app after changing its
+                configuration, then try the action again.
               </p>
               {mode === "agent" ? (
                 <p>
                   Ask your agent to check the missing local telemetry using{" "}
-                  <code>everr-setup-telemetry</code>, or go back to the
-                  instrumentation step.
+                  <code>everr-setup-telemetry</code>, or go back to the instrumentation step.
                 </p>
               ) : (
-                <GuideLink href={LOCAL_GUIDE}>
-                  Open the instrumentation guide
-                </GuideLink>
+                <GuideLink href={LOCAL_GUIDE}>Open the instrumentation guide</GuideLink>
               )}
             </CollapsibleContent>
           </Collapsible>
@@ -436,9 +375,7 @@ function HomeContent({
       keepMounted: true,
       footer: (
         <Button disabled={busy} onClick={() => void finish()}>
-          {complete.isPending && (
-            <Loader2 className="animate-spin" data-icon="inline-start" />
-          )}
+          {complete.isPending && <Loader2 className="animate-spin" data-icon="inline-start" />}
           Finish onboarding
           <Check data-icon="inline-end" />
         </Button>
@@ -446,25 +383,23 @@ function HomeContent({
       content: (
         <>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            While local telemetry is sent to Everr Local, production telemetry
-            should be sent to this workspace.
+            While local telemetry is sent to Everr Local, production telemetry should be sent to
+            this workspace.
           </p>
           <div className="space-y-2">
             <h3 className="text-sm font-medium">Connect the CLI</h3>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Run this command and approve the login in your browser. The CLI
-              saves one session for future queries and agent sessions. Logging
-              in again replaces the previous connection. Exporters use a
-              separate ingestion key.
+              Run this command and approve the login in your browser. The CLI saves one session for
+              future queries and agent sessions. Logging in again replaces the previous connection.
+              Exporters use a separate ingestion key.
             </p>
             <CopyBlock text={loginCommand} label="Copy CLI login command" />
           </div>
           <div className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Configure your production app's OpenTelemetry exporter with the
-              endpoint below and the appropriate ingestion key, then rebuild or
-              restart your deployment. Use the app and check for fresh traces or
-              logs in this workspace.
+              Configure your production app&apos;s OpenTelemetry exporter with the endpoint below
+              and the appropriate ingestion key, then rebuild or restart your deployment. Use the
+              app and check for fresh traces or logs in this workspace.
             </p>
           </div>
           {status.canCreateKeys ? (
@@ -473,8 +408,7 @@ function HomeContent({
                 <div className="flex-1 space-y-1.5">
                   <h3 className="text-sm font-medium">Server</h3>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    A secret ingestion key for your services. Store it in your
-                    secret manager.
+                    A secret ingestion key for your services. Store it in your secret manager.
                   </p>
                 </div>
                 <CreateApiKeyDialog
@@ -487,8 +421,7 @@ function HomeContent({
                 <div className="flex-1 space-y-1.5">
                   <h3 className="text-sm font-medium">Browser</h3>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    A public key restricted to your app's origins. Safe to use
-                    in the browser.
+                    A public key restricted to your app&apos;s origins. Safe to use in the browser.
                   </p>
                 </div>
                 <CreateApiKeyDialog
@@ -500,29 +433,24 @@ function HomeContent({
             </div>
           ) : (
             <p className="text-sm leading-relaxed text-muted-foreground">
-              An organization admin or owner needs to create the ingestion keys.
-              You can still finish onboarding and ask an admin for keys when
-              you're ready to deploy.
+              An organization admin or owner needs to create the ingestion keys. You can still
+              finish onboarding and ask an admin for keys when you&apos;re ready to deploy.
             </p>
           )}
           <div className="space-y-2">
             <p className="text-sm font-medium">Production OTLP/HTTP endpoint</p>
             {status.ingestEndpoint ? (
-              <CopyBlock
-                text={status.ingestEndpoint}
-                label="Copy production endpoint"
-              />
+              <CopyBlock text={status.ingestEndpoint} label="Copy production endpoint" />
             ) : (
               <p className="text-sm text-muted-foreground">
-                Ask your administrator to configure this installation's public
-                ingestion endpoint before connecting your app.
+                Ask your administrator to configure this installation&apos;s public ingestion
+                endpoint before connecting your app.
               </p>
             )}
           </div>
           <div className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Missing something? Ask to your AI Agent using the
-              /everr-setup-telemetry skill or open{" "}
+              Missing something? Ask to your AI Agent using the /everr-setup-telemetry skill or open{" "}
               <a href={PRODUCTION_GUIDE} target="_blank" rel="noreferrer">
                 the production guide
               </a>
@@ -553,12 +481,10 @@ function HomeContent({
         navigationLabel="Setup progress"
       >
         <div className="space-y-3">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Welcome to Everr
-          </h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Welcome to Everr</h1>
           <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Connect your app to see its traces, logs, and errors. We'll guide
-            you through the setup process.
+            Connect your app to see its traces, logs, and errors. We&apos;ll guide you through the
+            setup process.
           </p>
         </div>
       </MultiStep>

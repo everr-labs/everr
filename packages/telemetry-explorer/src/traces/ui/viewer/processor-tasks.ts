@@ -1,9 +1,6 @@
 import type { Span } from "../../data/types";
 import { buildTraceModel, type TraceModel } from "./model";
-import {
-  computeVisualLayout,
-  type VisualLayout,
-} from "./rendering/compute-visual-layout";
+import { computeVisualLayout, type VisualLayout } from "./rendering/compute-visual-layout";
 import type { FlamegraphSpan } from "./rendering/types";
 
 export type TraceTask =

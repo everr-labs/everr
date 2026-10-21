@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   ALL_VALUE,
   extractVariableTokens,
@@ -22,41 +22,35 @@ describe("interpolateVariables", () => {
   });
 
   it("supports ${name} braced syntax", () => {
-    expect(
-      interpolateVariables("WHERE s = ${service}", { service: "api" }),
-    ).toBe("WHERE s = 'api'");
+    expect(interpolateVariables("WHERE s = ${service}", { service: "api" })).toBe(
+      "WHERE s = 'api'",
+    );
   });
 
   it("treats $var_suffix as one token but ${var}_suffix as token plus suffix", () => {
     const values: VariableValues = { service: "api", service_suffix: "x" };
     expect(interpolateVariables("$service_suffix", values)).toBe("'x'");
-    expect(interpolateVariables("${service}_suffix", values)).toBe(
-      "'api'_suffix",
-    );
+    expect(interpolateVariables("${service}_suffix", values)).toBe("'api'_suffix");
   });
 
   it("substitutes ${name:raw} verbatim without escaping", () => {
-    expect(
-      interpolateVariables("ORDER BY ${col:raw}", { col: "time DESC" }),
-    ).toBe("ORDER BY time DESC");
+    expect(interpolateVariables("ORDER BY ${col:raw}", { col: "time DESC" })).toBe(
+      "ORDER BY time DESC",
+    );
   });
 
   it("joins array values with commas for :raw", () => {
-    expect(interpolateVariables("${cols:raw}", { cols: ["a", "b"] })).toBe(
-      "a,b",
-    );
+    expect(interpolateVariables("${cols:raw}", { cols: ["a", "b"] })).toBe("a,b");
   });
 
   it("renders arrays as parenthesized escaped lists", () => {
-    expect(
-      interpolateVariables("env IN $env", { env: ["prod", "stag'ing"] }),
-    ).toBe("env IN ('prod','stag\\'ing')");
+    expect(interpolateVariables("env IN $env", { env: ["prod", "stag'ing"] })).toBe(
+      "env IN ('prod','stag\\'ing')",
+    );
   });
 
   it("renders an empty array as (NULL)", () => {
-    expect(interpolateVariables("env IN $env", { env: [] })).toBe(
-      "env IN (NULL)",
-    );
+    expect(interpolateVariables("env IN $env", { env: [] })).toBe("env IN (NULL)");
   });
 
   it("expands the All sentinel to the loaded options list", () => {
@@ -70,23 +64,17 @@ describe("interpolateVariables", () => {
     const meta: VariableMeta = {
       env: { customAllValue: "%", options: ["prod"] },
     };
-    expect(
-      interpolateVariables("env LIKE $env", { env: ALL_VALUE }, meta),
-    ).toBe("env LIKE %");
+    expect(interpolateVariables("env LIKE $env", { env: ALL_VALUE }, meta)).toBe("env LIKE %");
   });
 
   it("expands All to (NULL) when the loaded options are empty", () => {
     const meta: VariableMeta = { env: { options: [] } };
-    expect(interpolateVariables("env IN $env", { env: ALL_VALUE }, meta)).toBe(
-      "env IN (NULL)",
-    );
+    expect(interpolateVariables("env IN $env", { env: ALL_VALUE }, meta)).toBe("env IN (NULL)");
   });
 
   it("treats the sentinel as a plain value for variables without All metadata", () => {
     // e.g. a text variable whose value is literally "__all"
-    expect(interpolateVariables("t = $t", { t: ALL_VALUE }, {})).toBe(
-      "t = '__all'",
-    );
+    expect(interpolateVariables("t = $t", { t: ALL_VALUE }, {})).toBe("t = '__all'");
   });
 
   it("leaves unknown tokens untouched", () => {
@@ -102,9 +90,7 @@ describe("interpolateVariables", () => {
 
 describe("extractVariableTokens", () => {
   it("returns unique token names in order of first appearance", () => {
-    expect(
-      extractVariableTokens("WHERE a = $x AND b = ${y} AND c = ${x:raw}"),
-    ).toEqual(["x", "y"]);
+    expect(extractVariableTokens("WHERE a = $x AND b = ${y} AND c = ${x:raw}")).toEqual(["x", "y"]);
   });
 
   it("returns an empty array when there are no tokens", () => {

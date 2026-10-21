@@ -45,21 +45,13 @@ function DetailRow({
   );
 }
 
-function AttributeRows({
-  title,
-  map,
-}: {
-  title: string;
-  map: Record<string, string>;
-}) {
+function AttributeRows({ title, map }: { title: string; map: Record<string, string> }) {
   const entries = Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   if (entries.length === 0) return null;
 
   return (
     <section>
-      <h4 className="mb-1 text-xs font-medium text-muted-foreground">
-        {title}
-      </h4>
+      <h4 className="mb-1 text-xs font-medium text-muted-foreground">{title}</h4>
       <DetailRows>
         {entries.map(([key, value]) => (
           <DetailRow key={key} label={key} value={value} mono />
@@ -69,11 +61,7 @@ function AttributeRows({
   );
 }
 
-export function ErrorLatestOccurrence({
-  occurrence,
-}: {
-  occurrence: ErrorOccurrence;
-}) {
+export function ErrorLatestOccurrence({ occurrence }: { occurrence: ErrorOccurrence }) {
   const hasAttributes =
     Object.keys(occurrence.resourceAttributes).length > 0 ||
     Object.keys(occurrence.logAttributes).length > 0 ||
@@ -86,27 +74,18 @@ export function ErrorLatestOccurrence({
           <h2 className="text-sm font-medium">Details</h2>
         </div>
         <p className="mt-1 truncate text-xs text-muted-foreground">
-          {occurrence.exceptionMessage ||
-            occurrence.body ||
-            occurrence.fingerprint}
+          {occurrence.exceptionMessage || occurrence.body || occurrence.fingerprint}
         </p>
       </div>
 
       <div className="grid xl:grid-cols-2">
         <section className="p-3">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="text-xs font-medium text-muted-foreground">
-              Occurrence
-            </h3>
+            <h3 className="text-xs font-medium text-muted-foreground">Occurrence</h3>
             <ErrorServiceBadge serviceName={occurrence.serviceName} />
           </div>
           <DetailRows>
-            <DetailRow
-              icon={<Clock3 />}
-              label="Timestamp"
-              value={occurrence.timestamp}
-              mono
-            />
+            <DetailRow icon={<Clock3 />} label="Timestamp" value={occurrence.timestamp} mono />
             <DetailRow
               icon={<Fingerprint />}
               label="Fingerprint"
@@ -120,9 +99,7 @@ export function ErrorLatestOccurrence({
 
         <section className="group min-w-0 border-t p-3 xl:border-l xl:border-t-0">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="text-xs font-medium text-muted-foreground">
-              Exception
-            </h3>
+            <h3 className="text-xs font-medium text-muted-foreground">Exception</h3>
             {occurrence.exceptionMessage ? (
               <CopyValueButton
                 value={occurrence.exceptionMessage}
@@ -139,22 +116,11 @@ export function ErrorLatestOccurrence({
 
       {hasAttributes ? (
         <div className="border-t p-3">
-          <h3 className="mb-3 text-xs font-medium text-muted-foreground">
-            Attributes
-          </h3>
+          <h3 className="mb-3 text-xs font-medium text-muted-foreground">Attributes</h3>
           <div className="grid gap-4">
-            <AttributeRows
-              title="Resource attributes"
-              map={occurrence.resourceAttributes}
-            />
-            <AttributeRows
-              title="Log attributes"
-              map={occurrence.logAttributes}
-            />
-            <AttributeRows
-              title="Scope attributes"
-              map={occurrence.scopeAttributes}
-            />
+            <AttributeRows title="Resource attributes" map={occurrence.resourceAttributes} />
+            <AttributeRows title="Log attributes" map={occurrence.logAttributes} />
+            <AttributeRows title="Scope attributes" map={occurrence.scopeAttributes} />
           </div>
         </div>
       ) : null}

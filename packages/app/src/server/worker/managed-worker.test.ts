@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 import { managedWorker } from "./managed-worker";
 
 const pending = () => new Promise<void>(() => {});
@@ -27,9 +27,9 @@ it("retries a failed startup and does not cache the rejected attempt", async () 
 
 it("restarts a failed running worker and releases its resources", async () => {
   vi.useFakeTimers();
-  let reject!: (error: Error) => void;
-  const crashed = new Promise<void>((_, fail) => {
-    reject = fail;
+  let rejectWorker!: (error: Error) => void;
+  const crashed = new Promise<void>((_resolve, reject) => {
+    rejectWorker = reject;
   });
   const stop = vi.fn().mockResolvedValue(undefined);
   const start = vi
@@ -43,7 +43,7 @@ it("restarts a failed running worker and releases its resources", async () => {
     retryDelayMs: 30,
   });
   await runtime.start();
-  reject(new Error("Worker crashed"));
+  rejectWorker(new Error("Worker crashed"));
   await vi.advanceTimersByTimeAsync(30);
   expect(start).toHaveBeenCalledTimes(2);
   expect(stop).toHaveBeenCalledOnce();

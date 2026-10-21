@@ -47,7 +47,7 @@ const localStorageStore: IdentityStore = {
         localStorage.getItem(SESSION_KEY) ?? "null",
       );
       if (typeof parsed?.id === "string" && typeof parsed.t === "number")
-        return parsed as SessionState;
+        return { id: parsed.id, t: parsed.t };
     } catch {
       // The store is not available, or the data is not correct.
     }

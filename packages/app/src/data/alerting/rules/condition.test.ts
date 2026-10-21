@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   alertingConditionMatches,
   alertingConditionOperatorLabel,
@@ -16,9 +16,7 @@ describe("alerting conditions", () => {
     ["eq", 10, 10, true],
     ["neq", 9, 10, true],
   ] as const)("%s compares %s against %s", (operator, value, threshold, expected) => {
-    expect(alertingConditionMatches({ value }, { operator, threshold })).toBe(
-      expected,
-    );
+    expect(alertingConditionMatches({ value }, { operator, threshold })).toBe(expected);
   });
 
   it("accepts ClickHouse numeric strings but treats missing and invalid values as non-matches", () => {

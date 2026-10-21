@@ -1,18 +1,15 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
-const docsRoot = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../content/docs",
-);
+const docsRoot = join(dirname(fileURLToPath(import.meta.url)), "../../content/docs");
 
 describe("docs content", () => {
   it("removes app, features, and the reference index while keeping reference subpages", () => {
-    const meta = JSON.parse(
-      readFileSync(join(docsRoot, "meta.json"), "utf8"),
-    ) as { pages: string[] };
+    const meta = JSON.parse(readFileSync(join(docsRoot, "meta.json"), "utf8")) as {
+      pages: string[];
+    };
     const index = readFileSync(join(docsRoot, "index.mdx"), "utf8");
     const referenceMeta = JSON.parse(
       readFileSync(join(docsRoot, "reference/meta.json"), "utf8"),
@@ -48,8 +45,7 @@ describe("docs content", () => {
     // content/docs is local tooling state (hook caches and the like), which is
     // untracked and must not read as an orphaned section.
     const isSection = (dir: string) =>
-      existsSync(join(dir, "meta.json")) ||
-      readdirSync(dir).some((n) => n.endsWith(".mdx"));
+      existsSync(join(dir, "meta.json")) || readdirSync(dir).some((n) => n.endsWith(".mdx"));
 
     const sections = readdirSync(docsRoot, { withFileTypes: true })
       .filter((e) => e.isDirectory() && !e.name.startsWith("."))
@@ -68,9 +64,7 @@ describe("docs content", () => {
         .filter(
           (e) =>
             !e.name.startsWith(".") &&
-            (e.isDirectory()
-              ? isSection(join(dir, e.name))
-              : e.name.endsWith(".mdx")),
+            (e.isDirectory() ? isSection(join(dir, e.name)) : e.name.endsWith(".mdx")),
         )
         .map((e) => e.name.replace(/\.mdx$/, ""))
         .filter((name) => name !== "index");
@@ -78,9 +72,7 @@ describe("docs content", () => {
       // Separators ("---Title---") and external links are listing-only. `index`
       // is the section's own landing page: listing it is optional, so it is not
       // evidence either way.
-      const listed = pages.filter(
-        (p) => !p.startsWith("---") && !p.includes("/") && p !== "index",
-      );
+      const listed = pages.filter((p) => !p.startsWith("---") && !p.includes("/") && p !== "index");
 
       expect(
         listed.filter((p) => !onDisk.includes(p)),

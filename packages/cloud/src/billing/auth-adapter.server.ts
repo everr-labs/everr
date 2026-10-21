@@ -5,9 +5,7 @@ import { billing } from "./server";
 
 // A database update carries the actual target predicate. Session-based hooks
 // cannot identify email-verification targets when the browser is signed out.
-export function billingIdentityAdapter(
-  factory: ReturnType<typeof drizzleAdapter>,
-) {
+export function billingIdentityAdapter(factory: ReturnType<typeof drizzleAdapter>) {
   return (options: Parameters<typeof factory>[0]) => {
     const adapter = factory(options);
     const update: typeof adapter.update = async <T>(

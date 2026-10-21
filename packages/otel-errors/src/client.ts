@@ -8,12 +8,7 @@ import {
 } from "@opentelemetry/api";
 import { type Logger, logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { type NormalizedError, normalizeError } from "./normalize.js";
-import type {
-  ClientOptions,
-  ErrorEvent,
-  ErrorSeverity,
-  Mechanism,
-} from "./types.js";
+import type { ClientOptions, ErrorEvent, ErrorSeverity, Mechanism } from "./types.js";
 import { PKG_NAME, PKG_VERSION } from "./version.js";
 
 export interface CaptureInput {
@@ -118,9 +113,7 @@ export class Client {
       error: input.error,
       message:
         input.message ??
-        (normalized.message
-          ? `${normalized.type}: ${normalized.message}`
-          : normalized.type),
+        (normalized.message ? `${normalized.type}: ${normalized.message}` : normalized.type),
       severity: input.severity ?? "error",
       mechanism: input.mechanism,
       context: input.context ?? {},
@@ -138,12 +131,8 @@ export class Client {
       ...event.context,
       "exception.type": event.exception.type,
       "exception.message": event.exception.message,
-      ...(event.exception.stacktrace
-        ? { "exception.stacktrace": event.exception.stacktrace }
-        : {}),
-      ...(event.mechanism != null
-        ? { "everr.error.mechanism": event.mechanism }
-        : {}),
+      ...(event.exception.stacktrace ? { "exception.stacktrace": event.exception.stacktrace } : {}),
+      ...(event.mechanism != null ? { "everr.error.mechanism": event.mechanism } : {}),
       "log.record.uid": generateErrorId(),
     };
     const activeSpan = trace.getActiveSpan();
@@ -201,12 +190,10 @@ function severityNumber(severity: ErrorSeverity): SeverityNumber {
 }
 
 function generateErrorId(): string {
-  const cryptoRef = globalThis.crypto as Crypto | undefined;
+  const cryptoRef: Crypto | undefined = globalThis.crypto;
   if (cryptoRef?.randomUUID) {
     return cryptoRef.randomUUID();
   }
 
-  return Array.from({ length: 32 }, () =>
-    Math.floor(Math.random() * 16).toString(16),
-  ).join("");
+  return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 }

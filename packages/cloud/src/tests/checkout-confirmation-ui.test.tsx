@@ -1,12 +1,13 @@
+import type * as ReactRouterTypes from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentType, ReactNode } from "react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({ confirm: vi.fn(), search: vi.fn() }));
 vi.mock("../data/billing", () => ({ confirmOrgCheckout: mocks.confirm }));
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  ...(await importOriginal<typeof ReactRouterTypes>()),
   Link: ({ children, to, ...props }: { children?: ReactNode; to: string }) => (
     <a href={to} {...props}>
       {children}
@@ -42,13 +43,12 @@ it("stops confirming and polling when a paid checkout belongs to a different cus
     await vi.advanceTimersByTimeAsync(50);
   });
   expect(screen.getByText("Billing association needs attention")).toBeVisible();
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "Do not repeat the purchase",
-  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Do not repeat the purchase");
   expect(screen.queryByText("Confirming payment")).not.toBeInTheDocument();
-  expect(
-    screen.getByRole("button", { name: "Back to billing" }),
-  ).toHaveAttribute("href", "/billing");
+  expect(screen.getByRole("button", { name: "Back to billing" })).toHaveAttribute(
+    "href",
+    "/billing",
+  );
   await act(async () => {
     await vi.advanceTimersByTimeAsync(5_000);
   });

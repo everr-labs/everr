@@ -1,9 +1,4 @@
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@everr/ui/components/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@everr/ui/components/tabs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ActivityIcon, ListIcon, WaypointsIcon } from "lucide-react";
 
@@ -18,15 +13,9 @@ type Story = StoryObj<typeof meta>;
 
 const panels = (
   <>
-    <TabsContent value="logs">
-      Structured log lines for the request.
-    </TabsContent>
-    <TabsContent value="traces">
-      The span waterfall for the request.
-    </TabsContent>
-    <TabsContent value="metrics">
-      Rate, errors, and duration series.
-    </TabsContent>
+    <TabsContent value="logs">Structured log lines for the request.</TabsContent>
+    <TabsContent value="traces">The span waterfall for the request.</TabsContent>
+    <TabsContent value="metrics">Rate, errors, and duration series.</TabsContent>
   </>
 );
 

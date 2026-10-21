@@ -7,10 +7,7 @@ import { organization } from "#app/db/schema/index.ts";
 import { auth } from "#app/identity/server.ts";
 import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { createClickhouseQuery } from "#app/lib/clickhouse.ts";
-import {
-  createOrganizationSql,
-  type OrganizationSql,
-} from "#app/lib/organization-sql.ts";
+import { createOrganizationSql, type OrganizationSql } from "#app/lib/organization-sql.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
@@ -40,9 +37,7 @@ const WILDCARD = "*";
  * unrestricted. API keys must hold `write` (or the wildcard) under the
  * `apply` scope — a `read`-only key can only run the plan pass.
  */
-export function canApplyMutate(
-  applyActions: readonly string[] | null,
-): boolean {
+export function canApplyMutate(applyActions: readonly string[] | null): boolean {
   if (applyActions === null) return true;
   return applyActions.includes(WILDCARD) || applyActions.includes("write");
 }
@@ -187,16 +182,14 @@ export function applyAuthErrorResponse(error: unknown): Response | null {
  * failures are returned as explicit 401/403 responses (thrown Responses are
  * sent by the server handler) rather than escaping as a generic 500.
  */
-export const requireOrgOrApiKeyMiddleware = createMiddleware().server(
-  async ({ request, next }) => {
-    let apiAuth: ApplyAuth;
-    try {
-      apiAuth = await resolveApplyAuth(request.headers);
-    } catch (error) {
-      const response = applyAuthErrorResponse(error);
-      if (response) throw response;
-      throw error;
-    }
-    return next({ context: buildApplyContext(apiAuth) });
-  },
-);
+export const requireOrgOrApiKeyMiddleware = createMiddleware().server(async ({ request, next }) => {
+  let apiAuth: ApplyAuth;
+  try {
+    apiAuth = await resolveApplyAuth(request.headers);
+  } catch (error) {
+    const response = applyAuthErrorResponse(error);
+    if (response) throw response;
+    throw error;
+  }
+  return next({ context: buildApplyContext(apiAuth) });
+});

@@ -85,7 +85,7 @@ export const CustomLinkRender: Story = {
     <Breadcrumb {...args}>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink render={<button type="button" />}>
+          <BreadcrumbLink render={<button type="button" aria-label="Open breadcrumb" />}>
             Workspace
           </BreadcrumbLink>
         </BreadcrumbItem>

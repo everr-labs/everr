@@ -5,17 +5,8 @@ import {
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
 import { Button } from "@everr/ui/components/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@everr/ui/components/empty";
-import {
-  createFileRoute,
-  type ErrorComponentProps,
-  Link,
-} from "@tanstack/react-router";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
+import { createFileRoute, type ErrorComponentProps, Link } from "@tanstack/react-router";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
 export const Route = createFileRoute(
@@ -26,7 +17,6 @@ export const Route = createFileRoute(
     hideExploreBar: true,
     hideTimeRangePicker: true,
   },
-  head: () => ({ meta: [{ title: "Everr - Trace" }] }),
   validateSearch: TraceDetailParamsSchema,
   loader: async ({ context: { queryClient }, params }) => {
     await queryClient.ensureQueryData(
@@ -37,6 +27,7 @@ export const Route = createFileRoute(
       }),
     );
   },
+  head: () => ({ meta: [{ title: "Everr - Trace" }] }),
   component: TraceDetailRoute,
   errorComponent: TraceDetailError,
 });
@@ -52,13 +43,13 @@ function TraceDetailRoute() {
       traceId={traceId}
       search={search}
       onBack={() =>
-        navigate({
+        void navigate({
           to: "/traces",
           search: toTraceListSearch(search),
         })
       }
       onSpanChange={(spanId) =>
-        navigate({
+        void navigate({
           to: "/traces/$traceId",
           params: { traceId },
           search: (prev) => ({ ...prev, span: spanId }),

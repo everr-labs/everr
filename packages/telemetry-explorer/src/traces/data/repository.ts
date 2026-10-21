@@ -14,32 +14,15 @@ import {
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
-import {
-  attributeText,
-  flattenAttributes,
-  type JsonAttributes,
-} from "../../sql/json-attributes";
-import {
-  resourceAttribute,
-  resourceAttributeKeyExists,
-} from "../../sql/resource-attributes";
-import {
-  TRACES_ATTRIBUTE_SOURCES,
-  tracesAttributeColumn,
-} from "../sql/attribute-columns";
+import { attributeText, flattenAttributes, type JsonAttributes } from "../../sql/json-attributes";
+import { resourceAttribute, resourceAttributeKeyExists } from "../../sql/resource-attributes";
+import { TRACES_ATTRIBUTE_SOURCES, tracesAttributeColumn } from "../sql/attribute-columns";
 import { validateTableName } from "../sql/table";
 import type { SqlClient } from "./client";
-import type {
-  GetTraceInput,
-  ListServiceIdentitiesInput,
-  SearchTracesInput,
-} from "./schemas";
+import type { GetTraceInput, ListServiceIdentitiesInput, SearchTracesInput } from "./schemas";
 import type { ServiceIdentity, Span, TraceSummary } from "./types";
 
-type SpanRow = Omit<
-  Span,
-  "events" | "links" | "spanAttributes" | "resourceAttributes"
-> & {
+type SpanRow = Omit<Span, "events" | "links" | "spanAttributes" | "resourceAttributes"> & {
   spanAttributes: JsonAttributes;
   resourceAttributes: JsonAttributes;
   eventNames: string[];
@@ -81,8 +64,7 @@ function rootSpanValueSql(expression: string): string {
 // Traces store Timestamp as DateTime64(9); attribute discovery must parse its
 // bounds the same way the search queries do, or sub-second rows near the upper
 // bound get dropped and the offered keys/values disagree with the results.
-const tracesTimeBound = (param: string) =>
-  `parseDateTime64BestEffort({${param}:String}, 9)`;
+const tracesTimeBound = (param: string) => `parseDateTime64BestEffort({${param}:String}, 9)`;
 
 export class TracesRepository {
   private readonly tableName: string;
@@ -216,10 +198,7 @@ export class TracesRepository {
     // Root election, JSON attribute reads, and service lists are then computed
     // for this page instead of every trace in the selected time window.
     const pageColumns = ["TraceId", "min(Timestamp) AS startTsRaw"];
-    if (
-      input.minDurationNs !== undefined ||
-      input.maxDurationNs !== undefined
-    ) {
+    if (input.minDurationNs !== undefined || input.maxDurationNs !== undefined) {
       pageColumns.push(`${TRACE_DURATION_SQL} AS durationNsRaw`);
     }
 
@@ -339,9 +318,7 @@ export class TracesRepository {
   }
 
   // fallow-ignore-next-line unused-class-member
-  async listServiceIdentities(
-    input: ListServiceIdentitiesInput,
-  ): Promise<ServiceIdentity[]> {
+  async listServiceIdentities(input: ListServiceIdentitiesInput): Promise<ServiceIdentity[]> {
     validateTableName(this.tableName);
     const sql = /* sql */ `
       SELECT DISTINCT
@@ -364,11 +341,7 @@ export interface TracesRepositoryOptions {
 
 export type TracesRepositoryLike = Pick<
   TracesRepository,
-  | "search"
-  | "getTrace"
-  | "listServiceIdentities"
-  | "attributeKeys"
-  | "attributeValues"
+  "search" | "getTrace" | "listServiceIdentities" | "attributeKeys" | "attributeValues"
 >;
 
 function rowToSpan(row: SpanRow): Span {

@@ -10,7 +10,7 @@
  * whether a flush carried the group out. The first is a LATERAL query, the
  * other two are a LEFT JOIN. All three are answerable only by a database.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { uuidv7 } from "#app/data/alerting/history/ids.ts";
 import {
   alertEvents,
@@ -24,12 +24,10 @@ import {
   insertSilence,
   TEST_ORG,
 } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -44,7 +42,7 @@ import {
   loadLatestNotifications,
 } from "#app/data/alerting/triage/notifications.ts";
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 const MINUTE = 60_000;
 
@@ -164,10 +162,7 @@ describe("what the Journal says delivery did", () => {
       title: "second rule",
     });
 
-    const latest = await loadLatestNotifications(TEST_ORG, [
-      first.id,
-      second.id,
-    ]);
+    const latest = await loadLatestNotifications(TEST_ORG, [first.id, second.id]);
 
     expect(latest.get(first.id)?.title).toBe("first rule");
     expect(latest.get(second.id)?.title).toBe("second rule");
@@ -208,10 +203,7 @@ describe("what the Journal says delivery did", () => {
       processedAt: minutesAgo(4),
     });
 
-    const latest = await loadLatestNotifications(TEST_ORG, [
-      carried.id,
-      ended.id,
-    ]);
+    const latest = await loadLatestNotifications(TEST_ORG, [carried.id, ended.id]);
 
     expect(latest.get(carried.id)).toMatchObject({
       grouped: true,
@@ -297,9 +289,7 @@ describe("the Default destination's tiers", () => {
       channelIds: [channel.id],
     });
 
-    expect(await loadDefaultTiers(TEST_ORG)).toEqual(
-      new Set(["critical", "warning"]),
-    );
+    expect(await loadDefaultTiers(TEST_ORG)).toEqual(new Set(["critical", "warning"]));
   });
 
   it("reports no tiers for an Organization with no Default destination", async () => {

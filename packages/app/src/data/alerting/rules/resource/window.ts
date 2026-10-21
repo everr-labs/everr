@@ -1,17 +1,11 @@
 const WINDOW_RE = /^(\d+)([smhd])$/;
 
-const UNIT_SECONDS = { s: 1, m: 60, h: 3600, d: 86400 } as const;
+const UNIT_SECONDS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
 
-function parseDurationSeconds(
-  value: string,
-  name: string,
-  minAmount: number,
-): number {
+function parseDurationSeconds(value: string, name: string, minAmount: number): number {
   const match = WINDOW_RE.exec(value);
   if (!match) {
-    throw new Error(
-      `invalid ${name} "${value}": expected <integer><s|m|h|d>, e.g. "5m"`,
-    );
+    throw new Error(`invalid ${name} "${value}": expected <integer><s|m|h|d>, e.g. "5m"`);
   }
 
   const amount = Number(match[1]);
@@ -21,7 +15,7 @@ function parseDurationSeconds(
     );
   }
 
-  const seconds = amount * UNIT_SECONDS[match[2] as keyof typeof UNIT_SECONDS];
+  const seconds = amount * UNIT_SECONDS[match[2]];
   if (!Number.isSafeInteger(seconds)) {
     throw new Error(`invalid ${name} "${value}": value is too large`);
   }
@@ -56,9 +50,7 @@ export function formatDurationSeconds(seconds: number): string {
 export function parseEvaluationInterval(value: string): number {
   const seconds = parseWindow(value);
   if (seconds < 60) {
-    throw new Error(
-      `invalid evaluationInterval "${value}": must be at least 1m`,
-    );
+    throw new Error(`invalid evaluationInterval "${value}": must be at least 1m`);
   }
   return seconds;
 }

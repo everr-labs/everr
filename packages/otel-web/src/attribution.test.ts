@@ -1,13 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { attributionAttributes } from "./attribution.js";
 
 describe("attributionAttributes", () => {
   it("stamps UTM params from the landing query string", () => {
-    expect(
-      attributionAttributes(
-        "?utm_source=news&utm_medium=email&utm_campaign=launch",
-      ),
-    ).toEqual({
+    expect(attributionAttributes("?utm_source=news&utm_medium=email&utm_campaign=launch")).toEqual({
       "everr.utm.source": "news",
       "everr.utm.medium": "email",
       "everr.utm.campaign": "launch",

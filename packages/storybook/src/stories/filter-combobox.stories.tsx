@@ -11,8 +11,7 @@ const services = [
   "session-store",
 ];
 
-const delay = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const fetchServices = async () => {
   await delay(300);
@@ -26,7 +25,7 @@ const fetchSlowly = async () => {
 
 const fetchNothing = async () => {
   await delay(300);
-  return [] as string[];
+  return [];
 };
 
 const ServiceFilter = FilterCombobox<string[]>;
@@ -56,7 +55,7 @@ const meta = {
       select: (data: string[]) => data,
     },
   },
-  render: ({ values, onChange, ...args }) => (
+  render: ({ values, onChange: _onChange, ...args }) => (
     <div className="h-72">
       <StatefulFilter {...args} initialValues={values} />
     </div>

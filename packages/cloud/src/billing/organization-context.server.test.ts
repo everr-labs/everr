@@ -2,7 +2,7 @@
 import { betterAuth, generateId } from "better-auth";
 import { type MemoryDB, memoryAdapter } from "better-auth/adapters/memory";
 import { organization } from "better-auth/plugins";
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 import {
   beforeCreateCheckoutOrganization,
   withOrganizationCreationId,
@@ -68,12 +68,10 @@ it("preserves the reserved ID through real Better Auth creation and its membersh
   expect(created?.id).toMatch(/^[a-zA-Z0-9]{32}$/);
   expect(other?.id).toMatch(/^[a-zA-Z0-9]{32}$/);
   await expect(
-    withOrganizationCreationId(
-      { id: "forged", ownerId: "other", slug: "bad" },
-      () =>
-        auth.api.createOrganization({
-          body: { name: "Bad", slug: "bad", userId: user.id },
-        }),
+    withOrganizationCreationId({ id: "forged", ownerId: "other", slug: "bad" }, () =>
+      auth.api.createOrganization({
+        body: { name: "Bad", slug: "bad", userId: user.id },
+      }),
     ),
   ).rejects.toThrow("context mismatch");
 });

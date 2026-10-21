@@ -12,10 +12,7 @@ import { BUILTIN_PROJECT } from "../schema";
  * under the reserved `built-in` project, so the copy is always the current
  * catalog version, not the one from when the prompt was written.
  */
-export function createFromBuiltinPrompt(input: {
-  slug: string;
-  name: string;
-}): string {
+export function createFromBuiltinPrompt(input: { slug: string; name: string }): string {
   return `/everr-setup-resources Create a new dashboard for this repository, starting from Everr's built-in "${input.name}" dashboard. Read it with \`everr resources show dashboard ${input.slug} --project ${BUILTIN_PROJECT}\`, save it as a new as-code dashboard file here under a slug and project of ours (not "${BUILTIN_PROJECT}"), adapt it to our telemetry, then run \`everr apply\`.
 
 What to change from the built-in: `;
@@ -27,10 +24,7 @@ What to change from the built-in: `;
  * telemetry arrives, so this prompt hands the Agent the exact requirement
  * list and asks it to investigate and set up the instrumentation.
  */
-export function instrumentMissingPrompt(input: {
-  name: string;
-  missing: string[];
-}): string {
+export function instrumentMissingPrompt(input: { name: string; missing: string[] }): string {
   const list = input.missing.map((m) => `- ${m}`).join("\n");
   return `/everr-setup-telemetry This repository's built-in "${input.name}" dashboard needs telemetry that isn't arriving yet:\n${list}\n\nCheck what instrumentation is needed to send this telemetry, and set it up.`;
 }

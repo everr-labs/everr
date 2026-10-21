@@ -13,9 +13,7 @@ const SearchSchema = z.object({
   returnTo: returnToSchema.default("/"),
 });
 
-export const Route = createFileRoute(
-  "/_welcome/_signedIn/organizations/checkout/success",
-)({
+export const Route = createFileRoute("/_welcome/_signedIn/organizations/checkout/success")({
   validateSearch: SearchSchema,
   head: () => ({ meta: [{ title: "Everr - Organization setup" }] }),
   component: ProOrganizationCheckoutSuccess,
@@ -38,14 +36,11 @@ function ProOrganizationCheckoutSuccess(): ReactElement {
       const result = await completeProOrganizationCheckout({
         data: { checkoutId: checkoutId ?? "" },
       });
-      if (result.status === "completed")
-        await activation.mutateAsync(result.organization.id);
+      if (result.status === "completed") await activation.mutateAsync(result.organization.id);
       return result;
     },
     refetchInterval: (query) =>
-      query.state.status === "error" || query.state.data?.status === "completed"
-        ? false
-        : 1_000,
+      query.state.status === "error" || query.state.data?.status === "completed" ? false : 1_000,
     retry: 3,
   });
   const error = activation.error ?? completion.error;
@@ -53,9 +48,7 @@ function ProOrganizationCheckoutSuccess(): ReactElement {
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-10 lg:min-h-screen lg:py-16">
       <div className="w-full max-w-sm space-y-8">
-        <OrganizationProvisioningContent
-          pending={Boolean(checkoutId) && !error}
-        >
+        <OrganizationProvisioningContent pending={Boolean(checkoutId) && !error}>
           {!checkoutId ? (
             <p role="alert" className="text-sm text-destructive">
               The checkout identifier is missing.

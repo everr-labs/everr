@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { reconcile } from "./reconcile";
 
 const doc = (n: number, slug = "d") => ({
@@ -47,10 +47,7 @@ describe("reconcile", () => {
       ],
     });
 
-    expect(diff.creates.map((c) => `${c.project}/${c.slug}`)).toEqual([
-      "b/d",
-      "a b/c",
-    ]);
+    expect(diff.creates.map((c) => `${c.project}/${c.slug}`)).toEqual(["b/d", "a b/c"]);
     expect(diff.deletes).toEqual([{ project: "a", slug: "b c" }]);
     expect(diff.updates).toEqual([]);
   });
@@ -91,11 +88,7 @@ describe("reconcile", () => {
       folderPath: "",
       document: { kind: "Dashboard", metadata: { name: "a" }, extra },
     });
-    expect(
-      reconcile({ existing: [make(null)], desired: [make(null)] }).updates,
-    ).toEqual([]);
-    expect(
-      reconcile({ existing: [make(null)], desired: [make(1)] }).updates,
-    ).toHaveLength(1);
+    expect(reconcile({ existing: [make(null)], desired: [make(null)] }).updates).toEqual([]);
+    expect(reconcile({ existing: [make(null)], desired: [make(1)] }).updates).toHaveLength(1);
   });
 });

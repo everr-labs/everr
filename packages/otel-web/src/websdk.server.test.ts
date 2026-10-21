@@ -20,7 +20,7 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   captureError,
   identify,
@@ -39,9 +39,7 @@ let tracerProvider: BasicTracerProvider;
 let client: WebSDK | undefined;
 
 function registerSdk(): void {
-  context.setGlobalContextManager(
-    new AsyncLocalStorageContextManager().enable(),
-  );
+  context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
   logExporter = new InMemoryLogRecordExporter();
   loggerProvider = new LoggerProvider({
     processors: [new SimpleLogRecordProcessor(logExporter)],
@@ -148,7 +146,7 @@ describe("init (server)", () => {
     const a = record.attributes;
     expect(a["exception.type"]).toBe("Error");
     expect(a["exception.message"]).toBe("ssr boom");
-    expect(String(a["exception.stacktrace"])).toContain("ssr boom");
+    expect(a["exception.stacktrace"]).toContain("ssr boom");
     // A manual capture carries no mechanism attribute. Its absence means
     // manual.
     expect(a["everr.error.mechanism"]).toBeUndefined();

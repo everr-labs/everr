@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { ApplyValidationError } from "#app/data/as-code/errors.ts";
 
 // A fake runbook row: identity plus the ownership/scope columns the real
@@ -100,21 +100,14 @@ vi.mock("#app/data/alerting/rules/repository.ts", () => ({
   listAllRules: vi.fn(() => Promise.resolve(alertingRules)),
 }));
 
-import {
-  collectOrphanWarnings,
-  validateRunbookLinks,
-} from "./runbook-links.server";
+import { collectOrphanWarnings, validateRunbookLinks } from "./runbook-links.server";
 
 const orgId = "org-nb-links";
 
 // A live namespace for the given repo.
 const live = (repoid: string) => ({ orgId, repoid, kind: "live" }) as const;
 
-const alertEntry = (opts: {
-  runbook?: string;
-  name?: string;
-  project?: string;
-}) => ({
+const alertEntry = (opts: { runbook?: string; name?: string; project?: string }) => ({
   path: `${opts.name ?? "a"}.yaml`,
   resource: {
     kind: "AlertRule",
@@ -141,9 +134,7 @@ const runbookEntry = (name: string) => ({
   },
 });
 
-function mockDbRunbookRows(
-  rows: { project: string; slug: string; owner: string }[],
-): void {
+function mockDbRunbookRows(rows: { project: string; slug: string; owner: string }[]): void {
   dbRunbooks = rows.map((r) => ({ ...r, previewId: null }));
 }
 
@@ -207,9 +198,7 @@ describe("validateRunbookLinks", () => {
   it("rejects a same-repo ref that is not in the batch even if a DB row exists", async () => {
     // The DB row belongs to THIS repo and is absent from the batch, so this
     // very apply would prune it: the ref must not resolve against it.
-    mockDbRunbookRows([
-      { project: "default", slug: "triage", owner: "repo-1" },
-    ]);
+    mockDbRunbookRows([{ project: "default", slug: "triage", owner: "repo-1" }]);
     await expect(
       validateRunbookLinks({
         namespace: live("repo-1"),
@@ -222,9 +211,7 @@ describe("validateRunbookLinks", () => {
   it("accepts a ref to another repo's live runbook, live and as a preview", async () => {
     // The same config must validate identically live and as a preview: a
     // foreign live runbook survives this repo's eventual live apply.
-    mockDbRunbookRows([
-      { project: "default", slug: "triage", owner: "repo-2" },
-    ]);
+    mockDbRunbookRows([{ project: "default", slug: "triage", owner: "repo-2" }]);
     await expect(
       validateRunbookLinks({
         namespace: live("repo-1"),
@@ -244,9 +231,7 @@ describe("validateRunbookLinks", () => {
   it("rejects a preview ref to this repo's own live runbook not in the batch", async () => {
     // Same prune reasoning as the live branch: merging this preview's config
     // would delete that runbook, so the ref must not resolve against it.
-    mockDbRunbookRows([
-      { project: "default", slug: "triage", owner: "repo-1" },
-    ]);
+    mockDbRunbookRows([{ project: "default", slug: "triage", owner: "repo-1" }]);
     await expect(
       validateRunbookLinks({
         namespace: { orgId, repoid: "repo-1", kind: "preview", id: "prev-1" },
@@ -261,9 +246,7 @@ describe("collectOrphanWarnings", () => {
   // This repo's live "triage" runbook, linked from another repo's alert: the
   // setup every case below varies one dimension of.
   beforeEach(() => {
-    mockDbRunbookRows([
-      { project: "default", slug: "triage", owner: "repo-1" },
-    ]);
+    mockDbRunbookRows([{ project: "default", slug: "triage", owner: "repo-1" }]);
     mockAlertingRules([
       foreignRule({
         name: "default/api-errors",
@@ -278,9 +261,7 @@ describe("collectOrphanWarnings", () => {
       namespace: live("repo-1"),
       runbooks: [], // batch no longer ships "triage": it will be pruned
     });
-    expect(warnings).toEqual([
-      expect.stringContaining('deleting runbook "default/triage"'),
-    ]);
+    expect(warnings).toEqual([expect.stringContaining('deleting runbook "default/triage"')]);
   });
 
   it("stays quiet for a preview, for a runbook still in the batch, and for the repo's own link", async () => {

@@ -28,18 +28,12 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <div className="space-y-0.5">
           <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
-            {Icon && (
-              <Icon aria-hidden className="size-5 text-muted-foreground" />
-            )}
+            {Icon && <Icon aria-hidden className="size-5 text-muted-foreground" />}
             {title}
           </h1>
-          {lede && (
-            <p className="max-w-prose text-sm text-muted-foreground">{lede}</p>
-          )}
+          {lede && <p className="max-w-prose text-sm text-muted-foreground">{lede}</p>}
         </div>
-        {actions && (
-          <div className="flex shrink-0 items-center gap-2">{actions}</div>
-        )}
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
       {docsHref && (
         <a

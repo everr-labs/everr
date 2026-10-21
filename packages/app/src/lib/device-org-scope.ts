@@ -1,9 +1,6 @@
 const DEVICE_ORG_SCOPE_PREFIX = "everr:org:";
 
-export function withDeviceOrgScope(
-  scope: string | null | undefined,
-  organizationId: string,
-) {
+export function withDeviceOrgScope(scope: string | null | undefined, organizationId: string) {
   const orgScope = `${DEVICE_ORG_SCOPE_PREFIX}${encodeURIComponent(organizationId)}`;
   const existingScopes = (scope ?? "")
     .split(/\s+/)
@@ -35,15 +32,14 @@ export function getDeviceOrgIdFromScope(scope: string | null | undefined) {
 }
 
 export function getActiveOrganizationIdFromAuthSession(session: unknown) {
-  const activeOrganizationId = (
-    session as {
-      session?: {
-        activeOrganizationId?: unknown;
-      };
-    } | null
-  )?.session?.activeOrganizationId;
-
-  return typeof activeOrganizationId === "string" && activeOrganizationId
-    ? activeOrganizationId
-    : null;
+  if (session && typeof session === "object" && "session" in session) {
+    const inner = session.session;
+    if (inner && typeof inner === "object" && "activeOrganizationId" in inner) {
+      const activeOrganizationId = inner.activeOrganizationId;
+      if (typeof activeOrganizationId === "string" && activeOrganizationId) {
+        return activeOrganizationId;
+      }
+    }
+  }
+  return null;
 }

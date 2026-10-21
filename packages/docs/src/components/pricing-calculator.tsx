@@ -8,10 +8,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { ArrowRight } from "lucide-react";
 import { motion, useInView } from "motion/react";
 import { useId, useMemo, useRef, useState } from "react";
-import {
-  calculateEverrCharges,
-  EVERR_PRICING,
-} from "@/components/pricing-calculator-model";
+import { calculateEverrCharges, EVERR_PRICING } from "@/components/pricing-calculator-model";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -62,11 +59,7 @@ type Provider = {
   rows: (v: Values) => Row[];
 };
 
-const seatsRow = (
-  teamSize: number,
-  providerPerSeat: number,
-  providerFreeSeats = 0,
-): Row => ({
+const seatsRow = (teamSize: number, providerPerSeat: number, providerFreeSeats = 0): Row => ({
   label: "Seats",
   control: "teamSize",
   everr: { amount: 0 },
@@ -83,10 +76,7 @@ const baseRow = (providerAmount: number): Row => ({
 
 function ingestionRow(v: Values, includeErrors = false): Row {
   const ingestionGb =
-    v.metricSeries +
-    v.logVolume +
-    v.traceVolume +
-    (includeErrors ? kEventsToGb(v.errorEvents) : 0);
+    v.metricSeries + v.logVolume + v.traceVolume + (includeErrors ? kEventsToGb(v.errorEvents) : 0);
   return {
     label: "Ingestion overage",
     everr: {
@@ -134,13 +124,7 @@ const PROVIDERS: Provider[] = [
   {
     id: "grafana",
     label: "Grafana Cloud",
-    controls: [
-      METRIC_SERIES(),
-      LOG_VOLUME(),
-      TRACE_VOLUME(),
-      TEAM_SIZE(),
-      UPTIME_MONITORS(),
-    ],
+    controls: [METRIC_SERIES(), LOG_VOLUME(), TRACE_VOLUME(), TEAM_SIZE(), UPTIME_MONITORS()],
     rows: (v) => [
       baseRow(19),
       ...dataRows([
@@ -233,11 +217,7 @@ const PROVIDERS: Provider[] = [
           control: "traceVolume",
           provider: {
             // Ingested spans beyond the 150 GB/APM-host allotment: $0.10/GB.
-            amount:
-              Math.max(
-                0,
-                v.traceVolume - v.apmHosts * DATADOG_SPAN_GB_PER_HOST,
-              ) * 0.1,
+            amount: Math.max(0, v.traceVolume - v.apmHosts * DATADOG_SPAN_GB_PER_HOST) * 0.1,
             trap: "Spans past the 150 GB/host allotment, plus indexed-span retention billed on top.",
           },
         },
@@ -247,10 +227,7 @@ const PROVIDERS: Provider[] = [
           provider: {
             // Custom metrics beyond the 100/host allotment: ~$0.05 each.
             amount:
-              Math.max(
-                0,
-                v.metricSeries * 1000 - v.infraHosts * DATADOG_METRICS_PER_HOST,
-              ) * 0.05,
+              Math.max(0, v.metricSeries * 1000 - v.infraHosts * DATADOG_METRICS_PER_HOST) * 0.05,
             trap: "Custom metrics past 100/host cost ~$0.05 each. High-cardinality tags multiply this fast.",
           },
         },
@@ -392,10 +369,7 @@ function eur(n: number): string {
 
 function initialValues(): Record<string, Values> {
   return Object.fromEntries(
-    PROVIDERS.map((p) => [
-      p.id,
-      Object.fromEntries(p.controls.map((c) => [c.key, c.default])),
-    ]),
+    PROVIDERS.map((p) => [p.id, Object.fromEntries(p.controls.map((c) => [c.key, c.default]))]),
   );
 }
 
@@ -406,8 +380,7 @@ function initialValues(): Record<string, Values> {
 export function PricingCalculator() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-10% 0px" });
-  const [byProvider, setByProvider] =
-    useState<Record<string, Values>>(initialValues);
+  const [byProvider, setByProvider] = useState<Record<string, Values>>(initialValues);
   const [providerId, setProviderId] = useState<string>("grafana");
   // Whether the user has taken manual control of the Datadog APM host slider.
   // Until then it auto-tracks the trace volume.
@@ -433,24 +406,15 @@ export function PricingCalculator() {
   // Rows without a control (Base) sort first.
   const orderedRows = useMemo(() => {
     const rank = (row: Row) =>
-      row.control
-        ? provider.controls.findIndex((c) => c.key === row.control)
-        : -1;
+      row.control ? provider.controls.findIndex((c) => c.key === row.control) : -1;
     return [...rows].sort((a, b) => rank(a) - rank(b));
   }, [rows, provider]);
-  const everrTotal = useMemo(
-    () => rows.reduce((s, r) => s + r.everr.amount, 0),
-    [rows],
-  );
-  const providerTotalUsd = useMemo(
-    () => rows.reduce((s, r) => s + r.provider.amount, 0),
-    [rows],
-  );
+  const everrTotal = useMemo(() => rows.reduce((s, r) => s + r.everr.amount, 0), [rows]);
+  const providerTotalUsd = useMemo(() => rows.reduce((s, r) => s + r.provider.amount, 0), [rows]);
   const providerTotalEur = providerTotalUsd / EUR_USD_REFERENCE_RATE;
 
   const savings = providerTotalEur - everrTotal;
-  const savingsPct =
-    providerTotalEur > 0 ? Math.round((savings / providerTotalEur) * 100) : 0;
+  const savingsPct = providerTotalEur > 0 ? Math.round((savings / providerTotalEur) * 100) : 0;
   const yearly = savings * 12;
 
   const setValue = (key: string, val: number) => {
@@ -537,9 +501,9 @@ export function PricingCalculator() {
               </div>
               {providerId === "datadog" && (
                 <p className="mt-6 font-mono text-[11px] leading-relaxed text-fd-muted-foreground/50">
-                  APM hosts auto-adjust to your trace volume (capped at your
-                  host count) until you set them. Custom metrics beyond 100/host
-                  and spans beyond 150 GB/host bill as overage.
+                  APM hosts auto-adjust to your trace volume (capped at your host count) until you
+                  set them. Custom metrics beyond 100/host and spans beyond 150 GB/host bill as
+                  overage.
                 </p>
               )}
             </div>
@@ -555,22 +519,15 @@ export function PricingCalculator() {
                   <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-foreground md:text-5xl">
                     {eur(everrTotal)}
                   </span>
-                  <span className="pb-1 font-mono text-sm text-fd-muted-foreground/70">
-                    / mo
-                  </span>
+                  <span className="pb-1 font-mono text-sm text-fd-muted-foreground/70">/ mo</span>
                 </div>
                 <p className="mt-2 font-mono text-[11px] text-fd-muted-foreground/60">
                   Pro plan, 300 GB ingestion and 10 uptime monitors included
                 </p>
                 <dl className="mt-6 space-y-3">
                   {orderedRows.map((row) => (
-                    <div
-                      key={row.label}
-                      className="flex items-baseline justify-between gap-4"
-                    >
-                      <dt className="text-sm text-fd-muted-foreground">
-                        {row.label}
-                      </dt>
+                    <div key={row.label} className="flex items-baseline justify-between gap-4">
+                      <dt className="text-sm text-fd-muted-foreground">{row.label}</dt>
                       <dd className="font-mono text-sm font-medium text-primary">
                         {eur(row.everr.amount)}
                       </dd>
@@ -588,22 +545,15 @@ export function PricingCalculator() {
                   <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-muted-foreground/70 md:text-5xl">
                     {eur(providerTotalEur)}
                   </span>
-                  <span className="pb-1 font-mono text-sm text-fd-muted-foreground/50">
-                    / mo
-                  </span>
+                  <span className="pb-1 font-mono text-sm text-fd-muted-foreground/50">/ mo</span>
                 </div>
                 <p className="mt-2 font-mono text-[11px] text-fd-muted-foreground/40">
                   Estimated, converted from USD
                 </p>
                 <dl className="mt-6 space-y-3">
                   {orderedRows.map((row) => (
-                    <div
-                      key={row.label}
-                      className="flex items-baseline justify-between gap-4"
-                    >
-                      <dt className="text-sm text-fd-muted-foreground">
-                        {row.label}
-                      </dt>
+                    <div key={row.label} className="flex items-baseline justify-between gap-4">
+                      <dt className="text-sm text-fd-muted-foreground">{row.label}</dt>
                       <dd className="font-mono text-sm">
                         {row.provider.display ? (
                           <span className="text-fd-muted-foreground/60">
@@ -612,9 +562,7 @@ export function PricingCalculator() {
                         ) : row.provider.trap ? (
                           <Tooltip>
                             <TooltipTrigger className="cursor-help rounded font-medium text-rose-400 underline decoration-rose-400/40 decoration-dotted underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50">
-                              {eur(
-                                row.provider.amount / EUR_USD_REFERENCE_RATE,
-                              )}
+                              {eur(row.provider.amount / EUR_USD_REFERENCE_RATE)}
                             </TooltipTrigger>
                             <TooltipContent className="max-w-xs text-left leading-relaxed">
                               {row.provider.trap}
@@ -631,8 +579,8 @@ export function PricingCalculator() {
                 </dl>
                 {orderedRows.some((row) => row.provider.trap) && (
                   <p className="mt-6 text-xs leading-relaxed text-fd-muted-foreground/60">
-                    <span className="text-rose-400">Highlighted</span> lines are
-                    hidden cost traps. Hover for why.
+                    <span className="text-rose-400">Highlighted</span> lines are hidden cost traps.
+                    Hover for why.
                   </p>
                 )}
               </div>
@@ -644,12 +592,11 @@ export function PricingCalculator() {
                 {savings > 0 ? (
                   <>
                     <p className="font-heading text-2xl font-bold tracking-tight text-fd-foreground md:text-3xl">
-                      Save{" "}
-                      <span className="text-primary">{eur(savings)}/month</span>
+                      Save <span className="text-primary">{eur(savings)}/month</span>
                     </p>
                     <p className="mt-1.5 text-sm text-fd-muted-foreground">
-                      That's {savingsPct}% less than {provider.label}, or{" "}
-                      {eur(yearly)}/year back in your budget.
+                      That&apos;s {savingsPct}% less than {provider.label}, or {eur(yearly)}/year
+                      back in your budget.
                     </p>
                   </>
                 ) : (
@@ -680,12 +627,10 @@ export function PricingCalculator() {
             >
               ECB reference rate
             </a>{" "}
-            for 23 September 2026 (€1 = $1.1411). Everr Pro includes 300 GB
-            pooled ingestion, then costs €0.10/GB, plus €1 for each uptime
-            monitor beyond 10. Users are unlimited. Query overage and provider
-            uptime monitoring are excluded because their prices are not
-            specified here. Actual provider costs vary by contract, volume, and
-            features.
+            for 23 September 2026 (€1 = $1.1411). Everr Pro includes 300 GB pooled ingestion, then
+            costs €0.10/GB, plus €1 for each uptime monitor beyond 10. Users are unlimited. Query
+            overage and provider uptime monitoring are excluded because their prices are not
+            specified here. Actual provider costs vary by contract, volume, and features.
           </p>
         </div>
       </section>

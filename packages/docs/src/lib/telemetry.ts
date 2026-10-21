@@ -1,11 +1,4 @@
-import {
-  errors,
-  interactions,
-  network,
-  pageviews,
-  performance,
-  WebSDK,
-} from "@everr/otel-web";
+import { errors, interactions, network, pageviews, performance, WebSDK } from "@everr/otel-web";
 import { env } from "@/env";
 
 // The browser telemetry of the docs site. It writes nothing to a store: it uses
@@ -36,11 +29,5 @@ new WebSDK({
   dev: import.meta.env.DEV,
   // The caller must select the capture. This site uses all the built-in
   // instrumentations.
-  instrumentations: [
-    errors(),
-    pageviews(),
-    interactions(),
-    performance(),
-    network(),
-  ],
+  instrumentations: [errors(), pageviews(), interactions(), performance(), network()],
 });

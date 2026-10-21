@@ -1,10 +1,4 @@
-import {
-  useDebugValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useSyncExternalStore,
-} from "react";
+import { useDebugValue, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 
 export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
   subscribe: (onStoreChange: () => void) => () => void,
@@ -13,9 +7,7 @@ export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
   selector: (snapshot: Snapshot) => Selection,
   isEqual?: (a: Selection, b: Selection) => boolean,
 ): Selection {
-  const instRef = useRef<{ hasValue: boolean; value: Selection | null } | null>(
-    null,
-  );
+  const instRef = useRef<{ hasValue: boolean; value: Selection | null } | null>(null);
   if (instRef.current === null) {
     instRef.current = { hasValue: false, value: null };
   }
@@ -32,6 +24,7 @@ export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
         memoizedSnapshot = nextSnapshot;
         const nextSelection = selector(nextSnapshot);
         if (isEqual !== undefined && inst.hasValue) {
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- faithful port of React's useSyncExternalStoreWithSelector shim: inst.value holds a Selection once inst.hasValue is true, but the null-initialized generic slot can't express that.
           const currentSelection = inst.value as Selection;
           if (isEqual(currentSelection, nextSelection)) {
             memoizedSelection = currentSelection;
@@ -64,17 +57,15 @@ export function useSyncExternalStoreWithSelector<Snapshot, Selection>(
         : () => memoizedSelector(getServerSnapshot());
 
     return [getSnap, getServerSnap];
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- faithful port of React's useSyncExternalStore shim; deps match upstream
   }, [getSnapshot, getServerSnapshot, selector, isEqual]);
 
-  const value = useSyncExternalStore(
-    subscribe,
-    getSelection,
-    getServerSelection,
-  );
+  const value = useSyncExternalStore(subscribe, getSelection, getServerSelection);
 
   useEffect(() => {
     inst.hasValue = true;
     inst.value = value;
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- faithful port of React's useSyncExternalStore shim; deps match upstream
   }, [value]);
 
   useDebugValue(value);

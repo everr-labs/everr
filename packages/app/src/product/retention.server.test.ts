@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { createProduct } from "./module";
 import { retentionForDays } from "./retention.test-fixtures";
 
@@ -25,9 +25,7 @@ describe("organization retention", () => {
     lookup.mockRejectedValueOnce(new Error("unavailable"));
     await expect(retentionForOrg("retry")).rejects.toThrow("unavailable");
     lookup.mockResolvedValueOnce({ retention: retentionForDays(14) });
-    await expect(retentionForOrg("retry")).resolves.toEqual(
-      retentionForDays(14),
-    );
+    await expect(retentionForOrg("retry")).resolves.toEqual(retentionForDays(14));
   });
   it("refreshes policy after the cache expires", async () => {
     vi.useFakeTimers();
@@ -35,9 +33,7 @@ describe("organization retention", () => {
     await retentionForOrg("expires");
     vi.advanceTimersByTime(30_001);
     lookup.mockResolvedValueOnce({ retention: retentionForDays(90) });
-    await expect(retentionForOrg("expires")).resolves.toEqual(
-      retentionForDays(90),
-    );
+    await expect(retentionForOrg("expires")).resolves.toEqual(retentionForDays(90));
   });
 });
 
@@ -56,12 +52,8 @@ it("does not share policy or cached retention across compositions", async () => 
       retention: retentionForDays(7),
     }),
   });
-  expect(await installation.retentionForOrg("same-id")).toEqual(
-    retentionForDays(30),
-  );
-  expect(await restricted.retentionForOrg("same-id")).toEqual(
-    retentionForDays(7),
-  );
+  expect(await installation.retentionForOrg("same-id")).toEqual(retentionForDays(30));
+  expect(await restricted.retentionForOrg("same-id")).toEqual(retentionForDays(7));
   expect(await installation.canInviteMembers("same-id")).toBe(true);
   expect(await restricted.canInviteMembers("same-id")).toBe(false);
 });

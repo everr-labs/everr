@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { AlertRuleYamlSchema } from "./schema";
 
 const valid = {
@@ -86,12 +86,7 @@ describe("AlertRuleYamlSchema canonical fields", () => {
   const { query: _query, ...specWithoutQuery } = valid.spec;
 
   it("rejects retired aliases", () => {
-    for (const alias of [
-      "notebook",
-      "sql",
-      "labelColumns",
-      "valueColumn",
-    ] as const) {
+    for (const alias of ["notebook", "sql", "labelColumns", "valueColumn"] as const) {
       const result = parseSpec({
         [alias]: alias === "labelColumns" ? ["route"] : "x",
       });

@@ -1,10 +1,7 @@
 import type { SeriesTooltipRow } from "@everr/ui/components/series-tooltip";
 import { useCallback, useState } from "react";
 import { formatValue } from "#app/data/alerting/triage/format.ts";
-import type {
-  InstanceValuePoint,
-  InstanceValueSeries,
-} from "#app/data/alerting/triage/view.ts";
+import type { InstanceValuePoint, InstanceValueSeries } from "#app/data/alerting/triage/view.ts";
 
 /** An evaluated value as the charts print it: the formatter's own rounding,
  *  falling back to the raw number when it has nothing to say about it. */
@@ -64,11 +61,7 @@ export function useChartScrub(windowMinutes: number) {
   const onMouseMove = useCallback(
     (event: React.MouseEvent) => {
       const box = event.currentTarget.getBoundingClientRect();
-      scrubTo(
-        (event.clientX - box.left) / box.width,
-        event.clientX,
-        event.clientY,
-      );
+      scrubTo((event.clientX - box.left) / box.width, event.clientX, event.clientY);
     },
     [scrubTo],
   );
@@ -156,12 +149,7 @@ export function instanceRowsAt(
   const bounded = Number.isFinite(tolerance);
   const rows: SeriesTooltipRow[] = [];
   for (const instance of instances) {
-    const nearest = pointNear(
-      instance.points,
-      minutesAgo,
-      tolerance,
-      windowMinutes,
-    );
+    const nearest = pointNear(instance.points, minutesAgo, tolerance, windowMinutes);
     if (bounded && !nearest) continue;
     rows.push({
       key: instance.fingerprint,

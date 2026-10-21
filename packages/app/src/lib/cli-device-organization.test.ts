@@ -2,7 +2,7 @@
 import { betterAuth } from "better-auth";
 import { type MemoryDB, memoryAdapter } from "better-auth/adapters/memory";
 import { deviceAuthorization, organization } from "better-auth/plugins";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -63,9 +63,7 @@ function makeTestAuth() {
   return { auth, db };
 }
 
-async function signUpWithHeaders(
-  auth: ReturnType<typeof makeTestAuth>["auth"],
-) {
+async function signUpWithHeaders(auth: ReturnType<typeof makeTestAuth>["auth"]) {
   const signUp = await auth.api.signUpEmail({
     body: {
       email: "cli-user@example.com",

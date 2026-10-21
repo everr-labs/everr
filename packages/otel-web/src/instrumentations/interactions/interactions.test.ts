@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import type { Emit } from "../../pipeline/emitter.js";
 import { startInteractions } from "./interactions.js";
 
@@ -23,15 +23,12 @@ function click(el: Element, at?: number) {
     clientX: 15,
     clientY: 25,
   });
-  if (at !== undefined)
-    Object.defineProperty(event, "timeStamp", { value: at });
+  if (at !== undefined) Object.defineProperty(event, "timeStamp", { value: at });
   el.dispatchEvent(event);
 }
 
 function clickAttrs() {
-  const clickRecord = emitted.find(
-    (event) => event.name === "everr.browser.interaction.click",
-  );
+  const clickRecord = emitted.find((event) => event.name === "everr.browser.interaction.click");
   return clickRecord?.attrs ?? {};
 }
 
@@ -70,9 +67,7 @@ describe("startInteractions", () => {
     it("timestamps a click at the DOM action", () => {
       document.body.innerHTML = "<button>Go</button>";
       click(document.querySelector("button") as Element, 123.5);
-      expect(emitted[0].timestamp).toBe(
-        Math.round(performance.timeOrigin + 123.5),
-      );
+      expect(emitted[0].timestamp).toBe(Math.round(performance.timeOrigin + 123.5));
     });
 
     it("clicks carry the full element payload (id, href)", () => {
@@ -87,8 +82,7 @@ describe("startInteractions", () => {
     });
 
     it("stops at the shortest path that matches one element", () => {
-      document.body.innerHTML =
-        "<div><p>one</p><p>two <span>deep</span></p></div>";
+      document.body.innerHTML = "<div><p>one</p><p>two <span>deep</span></p></div>";
       click(document.querySelector("span") as Element);
       expect(clickAttrs()["everr.element.selector"]).toBe("span");
     });
@@ -118,9 +112,7 @@ describe("startInteractions", () => {
         '<div class="toolbar"><button aria-label="Close" class="mx-2"></button>' +
         "<button>two</button></div>";
       click(document.querySelector("button") as Element);
-      expect(clickAttrs()["everr.element.selector"]).toBe(
-        'button[aria-label="Close"]',
-      );
+      expect(clickAttrs()["everr.element.selector"]).toBe('button[aria-label="Close"]');
     });
 
     it("skips a generated or non-identifier id as an anchor", () => {
@@ -128,12 +120,9 @@ describe("startInteractions", () => {
       // so it cannot anchor a selector. The same stability rule as the
       // classes rejects it, and the walk continues with the tag step.
       document.body.innerHTML =
-        '<button id="x1">a</button>' +
-        '<div id="_r_p_"><button aria-label="Go">b</button></div>';
+        '<button id="x1">a</button>' + '<div id="_r_p_"><button aria-label="Go">b</button></div>';
       click(document.querySelectorAll("button")[1] as Element);
-      expect(clickAttrs()["everr.element.selector"]).toBe(
-        'button[aria-label="Go"]',
-      );
+      expect(clickAttrs()["everr.element.selector"]).toBe('button[aria-label="Go"]');
     });
 
     it("skips clicks on password and hidden inputs", () => {
@@ -150,13 +139,10 @@ describe("startInteractions", () => {
     });
 
     it("does not capture textarea content as text, even via a wrapper's subtree", () => {
-      document.body.innerHTML =
-        '<div id="wrap"><textarea>prefilled secret</textarea></div>';
+      document.body.innerHTML = '<div id="wrap"><textarea>prefilled secret</textarea></div>';
       click(document.getElementById("wrap") as Element);
       expect(names()).toEqual(["everr.browser.interaction.click"]);
-      expect(JSON.stringify(emitted[0].attrs)).not.toContain(
-        "prefilled secret",
-      );
+      expect(JSON.stringify(emitted[0].attrs)).not.toContain("prefilled secret");
     });
 
     it("puts no content of the DOM on the record", () => {
@@ -196,9 +182,7 @@ describe("startInteractions", () => {
 
     it("skips submits with no submitter (e.g. form.requestSubmit())", () => {
       document.body.innerHTML = '<form id="f"><input></form>';
-      document
-        .getElementById("f")
-        ?.dispatchEvent(new Event("submit", { bubbles: true }));
+      document.getElementById("f")?.dispatchEvent(new Event("submit", { bubbles: true }));
       expect(emitted).toHaveLength(0);
     });
 

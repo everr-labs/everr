@@ -20,9 +20,7 @@ export function CodeBlock({
 }) {
   return (
     <ScrollArea orientation="both" className={className}>
-      <pre className={cn("p-3 text-xs leading-relaxed", codeClassName)}>
-        {children}
-      </pre>
+      <pre className={cn("p-3 text-xs leading-relaxed", codeClassName)}>{children}</pre>
     </ScrollArea>
   );
 }

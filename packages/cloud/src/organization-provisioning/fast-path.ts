@@ -1,9 +1,6 @@
 import { type Database, db } from "@everr/app/db/client";
 import { organization } from "@everr/app/db/schema";
-import {
-  mergeTelemetryIdentity,
-  withTelemetryIdentityScope,
-} from "@everr/app/telemetry/identity";
+import { mergeTelemetryIdentity, withTelemetryIdentityScope } from "@everr/app/telemetry/identity";
 import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { eq } from "drizzle-orm";
@@ -22,58 +19,53 @@ export function waitForOrganizationProvisioning(
 ): Promise<boolean> {
   return withTelemetryIdentityScope(() => {
     mergeTelemetryIdentity({ organizationId });
-    return tracer.startActiveSpan(
-      "clickhouse.organization.fast_path",
-      async (span) => {
-        let stopped = false;
-        let timeout: ReturnType<typeof setTimeout> | undefined;
-        const ready = async () => {
-          while (!stopped) {
-            const [org] = await database
-              .select({ metadata: organization.metadata })
-              .from(organization)
-              .where(eq(organization.id, organizationId));
-            if (stopped || !org) return false;
-            if (isOrganizationProvisioned(org.metadata)) return true;
-            await new Promise<void>((resolve) =>
-              setTimeout(resolve, POLL_INTERVAL_MS),
-            );
-          }
-          return false;
-        };
-        try {
-          // The deadline also bounds waiting for a slow/exhausted Postgres
-          // connection. A late read cannot restart the polling loop.
-          const result = await Promise.race([
-            ready(),
-            new Promise<boolean>((resolve) => {
-              timeout = setTimeout(() => resolve(false), SIGNUP_WAIT_MS);
-            }),
-          ]);
-          const outcome = result ? "ready" : "pending";
-          span.setAttribute("everr.provisioning.fast_path.outcome", outcome);
-          serverLogger.info(`clickhouse.organization.fast_path.${outcome}`, {
-            "everr.organization.id": organizationId,
-          });
-          return result;
-        } catch (error) {
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: error instanceof Error ? error.message : String(error),
-          });
-          span.setAttribute("everr.provisioning.fast_path.outcome", "error");
-          serverLogger.error("clickhouse.organization.fast_path.failed", {
-            ...exceptionAttributes(error),
-            "everr.organization.id": organizationId,
-          });
-          // Readiness observation is optional; the committed job still runs.
-          return false;
-        } finally {
-          stopped = true;
-          clearTimeout(timeout);
-          span.end();
+    return tracer.startActiveSpan("clickhouse.organization.fast_path", async (span) => {
+      let stopped = false;
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const ready = async () => {
+        while (!stopped) {
+          const [org] = await database
+            .select({ metadata: organization.metadata })
+            .from(organization)
+            .where(eq(organization.id, organizationId));
+          if (stopped || !org) return false;
+          if (isOrganizationProvisioned(org.metadata)) return true;
+          await new Promise<void>((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
         }
-      },
-    );
+        return false;
+      };
+      try {
+        // The deadline also bounds waiting for a slow/exhausted Postgres
+        // connection. A late read cannot restart the polling loop.
+        const result = await Promise.race([
+          ready(),
+          new Promise<boolean>((resolve) => {
+            timeout = setTimeout(() => resolve(false), SIGNUP_WAIT_MS);
+          }),
+        ]);
+        const outcome = result ? "ready" : "pending";
+        span.setAttribute("everr.provisioning.fast_path.outcome", outcome);
+        serverLogger.info(`clickhouse.organization.fast_path.${outcome}`, {
+          "everr.organization.id": organizationId,
+        });
+        return result;
+      } catch (error) {
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        span.setAttribute("everr.provisioning.fast_path.outcome", "error");
+        serverLogger.error("clickhouse.organization.fast_path.failed", {
+          ...exceptionAttributes(error),
+          "everr.organization.id": organizationId,
+        });
+        // Readiness observation is optional; the committed job still runs.
+        return false;
+      } finally {
+        stopped = true;
+        clearTimeout(timeout);
+        span.end();
+      }
+    });
   });
 }

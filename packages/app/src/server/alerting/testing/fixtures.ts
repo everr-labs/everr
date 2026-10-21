@@ -3,10 +3,7 @@ import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { encryptChannelConfig } from "#app/data/alerting/delivery/channel-secrets.server.ts";
 import { enqueueAlertEvaluationInTransaction } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
 import type { AlertingActor } from "#app/data/alerting/session.ts";
-import type {
-  AlertingMatcher,
-  AlertingRuleSpec,
-} from "#app/data/alerting/types.ts";
+import type { AlertingMatcher, AlertingRuleSpec } from "#app/data/alerting/types.ts";
 import type { DbExecutor } from "#app/db/client.ts";
 import type * as schema from "#app/db/schema/index.ts";
 import {
@@ -93,10 +90,7 @@ function ruleSpec(overrides: RuleOverrides): AlertingRuleSpec {
   };
 }
 
-export async function insertRule(
-  db: Db,
-  overrides: RuleOverrides = {},
-): Promise<RuleFixture> {
+export async function insertRule(db: Db, overrides: RuleOverrides = {}): Promise<RuleFixture> {
   // One transaction, mirroring createRule's own scheduleEvaluation
   // (repository.ts): the API enqueues the first evaluation in the same
   // transaction as the insert, so the job cannot outlive a rolled-back rule
@@ -294,8 +288,7 @@ export async function insertDirectRule(
   // collision structurally impossible rather than merely unlikely, whatever
   // two rules a test wires up in one org.
   const channelName =
-    overrides.channelName ??
-    `${overrides.slug ?? "checkout-latency"}-${randomUUID()}-channel`;
+    overrides.channelName ?? `${overrides.slug ?? "checkout-latency"}-${randomUUID()}-channel`;
   const rule = await insertRule(db, {
     ...overrides,
     notificationChannels: [channelName],
@@ -325,14 +318,10 @@ export async function insertSilence(
     .insert(alertSilences)
     .values({
       organizationId: overrides.organizationId ?? TEST_ORG,
-      matchers: overrides.matchers ?? [
-        { label: "service", op: "eq", value: "checkout" },
-      ],
+      matchers: overrides.matchers ?? [{ label: "service", op: "eq", value: "checkout" }],
       startsAt: overrides.startsAt ?? now,
       endsAt: overrides.endsAt ?? new Date(now.getTime() + 3_600_000),
-      ...(overrides.comment === undefined
-        ? {}
-        : { comment: overrides.comment }),
+      ...(overrides.comment === undefined ? {} : { comment: overrides.comment }),
     })
     .returning({ id: alertSilences.id });
   return silence;

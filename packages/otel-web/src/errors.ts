@@ -32,9 +32,7 @@ import { currentErrorFilter } from "./state/error-filter.js";
 
 const safeString = (value: unknown): string => {
   try {
-    return typeof value === "string"
-      ? value
-      : (JSON.stringify(value) ?? String(value));
+    return typeof value === "string" ? value : (JSON.stringify(value) ?? String(value));
   } catch {
     return "[unserializable]";
   }
@@ -46,10 +44,7 @@ const safeString = (value: unknown): string => {
  * puts "everr.error.mechanism" here. A record without that attribute is a
  * manual report.
  */
-export type ErrorContext = Record<
-  string,
-  string | number | boolean | undefined
->;
+export type ErrorContext = Record<string, string | number | boolean | undefined>;
 
 // The script URL of the top stack frame. It is the `url:line:col` part of the
 // first line that has the structure of a frame. The code accepts the Chrome
@@ -83,11 +78,7 @@ const hits = new Map<string, number[]>();
  * it. It comes from ErrorEvent.filename, and only the denyUrls filter reads
  * it.
  */
-export const captureError = (
-  error: unknown,
-  context?: ErrorContext,
-  fileName?: string,
-): void => {
+export const captureError = (error: unknown, context?: ErrorContext, fileName?: string): void => {
   const emit = currentEmit();
   if (!emit) return;
   // The telemetry must never cause a failure of the page. Thus the code tries
@@ -96,9 +87,7 @@ export const captureError = (
     const isError = error instanceof Error;
     const type = errorTypeOf(error);
     const message = isError ? error.message : safeString(error);
-    const stack = isError
-      ? (error.stack ?? `${error.name}: ${error.message}`)
-      : undefined;
+    const stack = isError ? (error.stack ?? `${error.name}: ${error.message}`) : undefined;
 
     if (currentErrorFilter()?.(message, frameUrl(stack) ?? fileName)) return;
 

@@ -48,9 +48,7 @@ export function AsciiLogo() {
     const styles = getComputedStyle(canvas);
     const foreground = styles.color;
     const primary = styles.getPropertyValue("--primary").trim();
-    const motionPreference = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    );
+    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
     let reducedMotion = motionPreference.matches;
     let intersecting = true;
     let bounds = canvas.getBoundingClientRect();
@@ -83,8 +81,7 @@ export function AsciiLogo() {
     }
 
     function paint(now: number) {
-      if (!canvas || !context || !sampleContext || width === 0 || height === 0)
-        return;
+      if (!canvas || !context || !sampleContext || width === 0 || height === 0) return;
 
       const delta = clamp((now - lastTime) / 1000, 0, 0.1);
       lastTime = now;
@@ -103,9 +100,7 @@ export function AsciiLogo() {
       gazeX += (targetX - gazeX) * easing;
       gazeY += (targetY - gazeY) * easing;
 
-      const reaction = reducedMotion
-        ? 0
-        : Math.sin(clamp((time - clickAt) / 0.8, 0, 1) * Math.PI);
+      const reaction = reducedMotion ? 0 : Math.sin(clamp((time - clickAt) / 0.8, 0, 1) * Math.PI);
       const bob = reducedMotion ? 0 : Math.sin(time * 1.5) * 5 - reaction * 10;
       const tilt = reducedMotion
         ? 0
@@ -125,19 +120,10 @@ export function AsciiLogo() {
       sampleContext.fillStyle = primary;
       sampleContext.fill(paths.rays, "evenodd");
       const blink = reducedMotion ? 1 : eyelid(time, blinkAt, 0.24);
-      drawEye(
-        paths.leftEye,
-        280,
-        Math.min(blink, reducedMotion ? 1 : eyelid(time, winkAt, 0.38)),
-      );
+      drawEye(paths.leftEye, 280, Math.min(blink, reducedMotion ? 1 : eyelid(time, winkAt, 0.38)));
       drawEye(paths.rightEye, 444, blink);
 
-      const pixels = sampleContext.getImageData(
-        0,
-        0,
-        sampleCanvas.width,
-        sampleCanvas.height,
-      ).data;
+      const pixels = sampleContext.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
       context.fillStyle = "#000";
       context.fillRect(0, 0, width, height);
       context.font = '10px "Menlo", "Consolas", monospace';
@@ -159,8 +145,7 @@ export function AsciiLogo() {
           let blue = 0;
           for (let y = 0; y < 2; y++) {
             for (let x = 0; x < 2; x++) {
-              const index =
-                ((row * 2 + y) * sampleCanvas.width + column * 2 + x) * 4;
+              const index = ((row * 2 + y) * sampleCanvas.width + column * 2 + x) * 4;
               const alpha = pixels[index + 3] / 255;
               coverage += alpha / 4;
               green += pixels[index + 1] * alpha;
@@ -170,10 +155,7 @@ export function AsciiLogo() {
           if (coverage < 0.06) continue;
           const accent = green > blue * 1.5;
           const shading = 0.78 + (column / columns) * 0.12;
-          const character = Math.max(
-            1,
-            Math.floor(coverage * shading * (CHARACTERS.length - 1)),
-          );
+          const character = Math.max(1, Math.floor(coverage * shading * (CHARACTERS.length - 1)));
           context.fillStyle = accent ? primary : foreground;
           context.globalAlpha = 0.35 + coverage * 0.6;
           context.fillText(
@@ -196,8 +178,7 @@ export function AsciiLogo() {
 
     function restart() {
       cancelAnimationFrame(frame);
-      if (!intersecting || document.hidden || width === 0 || height === 0)
-        return;
+      if (!intersecting || document.hidden || width === 0 || height === 0) return;
       lastTime = performance.now();
       paint(lastTime);
       if (!reducedMotion) frame = requestAnimationFrame(animate);
@@ -221,16 +202,8 @@ export function AsciiLogo() {
 
     const onPointerMove = (event: PointerEvent) => {
       if (reducedMotion || width === 0 || height === 0) return;
-      pointerX = clamp(
-        ((event.clientX - bounds.left) / width - 0.5) * 2,
-        -1,
-        1,
-      );
-      pointerY = clamp(
-        ((event.clientY - bounds.top) / height - 0.5) * 2,
-        -1,
-        1,
-      );
+      pointerX = clamp(((event.clientX - bounds.left) / width - 0.5) * 2, -1, 1);
+      pointerY = clamp(((event.clientY - bounds.top) / height - 0.5) * 2, -1, 1);
       pointerAt = elapsed;
     };
     const onPointerLeave = () => {
@@ -267,10 +240,7 @@ export function AsciiLogo() {
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
       window.removeEventListener("pointermove", onPointerMove);
-      document.documentElement.removeEventListener(
-        "pointerleave",
-        onPointerLeave,
-      );
+      document.documentElement.removeEventListener("pointerleave", onPointerLeave);
       canvas.removeEventListener("pointerdown", onClick);
       document.removeEventListener("visibilitychange", restart);
       motionPreference.removeEventListener("change", onMotionChange);

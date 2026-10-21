@@ -22,9 +22,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: () => (
     <Dialog defaultOpen>
-      <DialogTrigger render={<Button variant="outline" />}>
-        Open dialog
-      </DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" />}>Open dialog</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Rename service</DialogTitle>
@@ -33,9 +31,7 @@ export const Default: Story = {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>
-            Cancel
-          </DialogClose>
+          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
           <Button>Save</Button>
         </DialogFooter>
       </DialogContent>
@@ -46,9 +42,7 @@ export const Default: Story = {
 export const WithFooterCloseButton: Story = {
   render: () => (
     <Dialog defaultOpen>
-      <DialogTrigger render={<Button variant="outline" />}>
-        Open dialog
-      </DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" />}>Open dialog</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Export finished</DialogTitle>
@@ -65,9 +59,7 @@ export const WithFooterCloseButton: Story = {
 export const WithoutCloseButton: Story = {
   render: () => (
     <Dialog defaultOpen>
-      <DialogTrigger render={<Button variant="outline" />}>
-        Open dialog
-      </DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" />}>Open dialog</DialogTrigger>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Confirm the change</DialogTitle>
@@ -76,9 +68,7 @@ export const WithoutCloseButton: Story = {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>
-            Cancel
-          </DialogClose>
+          <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
           <DialogClose render={<Button />}>Confirm</DialogClose>
         </DialogFooter>
       </DialogContent>

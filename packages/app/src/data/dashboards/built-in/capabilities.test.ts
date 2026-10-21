@@ -1,10 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import * as z from "zod";
-import {
-  dashboardSlugSchema,
-  dashboardSpecSchemaStrict,
-  GRID_COLS,
-} from "../schema";
+import { dashboardSlugSchema, dashboardSpecSchemaStrict, GRID_COLS } from "../schema";
 import {
   buildCapabilitiesQuery,
   CATALOG_PROBES,
@@ -16,9 +12,7 @@ import {
 import { BUILTIN_DASHBOARDS } from "./catalog";
 import { BUILTIN_CATEGORIES, type BuiltinDashboard, SIGNALS } from "./types";
 
-const template = (
-  requires: BuiltinDashboard["requires"],
-): BuiltinDashboard => ({
+const template = (requires: BuiltinDashboard["requires"]): BuiltinDashboard => ({
   id: "t",
   name: "T",
   description: "",
@@ -36,7 +30,13 @@ describe("CATALOG_PROBES", () => {
     const stated = BUILTIN_DASHBOARDS.flatMap((b) => b.requires).map(probeKey);
     const asked = CATALOG_PROBES.map(probeKey);
     expect(new Set(asked).size).toBe(asked.length);
-    expect([...asked].sort()).toEqual([...new Set(stated)].sort());
+    expect(
+      [...asked].sort((a, b) => (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? "")),
+    ).toEqual(
+      [...new Set(stated)].sort((a, b) =>
+        (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? ""),
+      ),
+    );
   });
 });
 
@@ -45,9 +45,7 @@ describe("buildCapabilitiesQuery", () => {
   // keys arrays can prune, so an absent attribute reads zero granules instead
   // of the window.
   it("probes a trace attribute with the index-prunable keys array", () => {
-    expect(
-      buildCapabilitiesQuery([{ signal: "traces", match: "faas.trigger" }]),
-    ).toBe(
+    expect(buildCapabilitiesQuery([{ signal: "traces", match: "faas.trigger" }])).toBe(
       "SELECT DISTINCT key FROM (\n  " +
         "SELECT 'traces:faas.trigger' AS key FROM traces WHERE " +
         "Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND " +
@@ -57,11 +55,7 @@ describe("buildCapabilitiesQuery", () => {
   });
 
   it("probes a log attribute on its own time column", () => {
-    expect(
-      buildCapabilitiesQuery([
-        { signal: "logs", match: "browser.web_vital.value" },
-      ]),
-    ).toBe(
+    expect(buildCapabilitiesQuery([{ signal: "logs", match: "browser.web_vital.value" }])).toBe(
       "SELECT DISTINCT key FROM (\n  " +
         "SELECT 'logs:browser.web_vital.value' AS key FROM logs WHERE " +
         "Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND " +
@@ -97,9 +91,9 @@ describe("buildCapabilitiesQuery", () => {
   // A namespace can't be proven absent by the key bloom filter, so a prefix
   // attribute match would scan the window on every probe: banned outright.
   it("refuses a prefix attribute match", () => {
-    expect(() =>
-      buildCapabilitiesQuery([{ signal: "logs", match: "redis." }]),
-    ).toThrow(/exact key, not a prefix/);
+    expect(() => buildCapabilitiesQuery([{ signal: "logs", match: "redis." }])).toThrow(
+      /exact key, not a prefix/,
+    );
   });
 
   it("asks bare existence without a name predicate", () => {
@@ -112,9 +106,9 @@ describe("buildCapabilitiesQuery", () => {
   });
 
   it("refuses a match it cannot safely inline", () => {
-    expect(() =>
-      buildCapabilitiesQuery([{ signal: "traces", match: "x' OR '1" }]),
-    ).toThrow(/Unsupported capability match/);
+    expect(() => buildCapabilitiesQuery([{ signal: "traces", match: "x' OR '1" }])).toThrow(
+      /Unsupported capability match/,
+    );
   });
 
   it("refuses a signal outside the schema instead of interpolating it", () => {
@@ -148,9 +142,7 @@ describe("decodeCapabilityRows", () => {
 describe("evaluateBuiltin", () => {
   it("is ready when every requirement is met", () => {
     expect(
-      evaluateBuiltin(template([{ signal: "traces", label: "no traces" }]), [
-        "traces",
-      ]),
+      evaluateBuiltin(template([{ signal: "traces", label: "no traces" }]), ["traces"]),
     ).toEqual({ status: "ready" });
   });
 
@@ -168,10 +160,9 @@ describe("evaluateBuiltin", () => {
 
   it("does not let a signal's bare probe satisfy a match", () => {
     expect(
-      evaluateBuiltin(
-        template([{ signal: "metrics", match: "redis", label: "no redis.*" }]),
-        ["metrics"],
-      ),
+      evaluateBuiltin(template([{ signal: "metrics", match: "redis", label: "no redis.*" }]), [
+        "metrics",
+      ]),
     ).toEqual({ status: "needs-setup", missing: ["no redis.*"] });
   });
 
@@ -179,12 +170,10 @@ describe("evaluateBuiltin", () => {
     // A metric named `http.route` must not satisfy a trace-attribute
     // requirement.
     expect(
-      evaluateBuiltin(
-        template([
-          { signal: "traces", match: "http.route", label: "no http.*" },
-        ]),
-        ["metrics", "metrics:http.route"],
-      ),
+      evaluateBuiltin(template([{ signal: "traces", match: "http.route", label: "no http.*" }]), [
+        "metrics",
+        "metrics:http.route",
+      ]),
     ).toEqual({ status: "needs-setup", missing: ["no http.*"] });
   });
 
@@ -277,8 +266,12 @@ describe("catalog", () => {
         l.spec.items.map((i) => i.content.$ref.split("/").pop()),
       );
       expect(new Set(refs).size).toBe(refs.length);
-      expect([...refs].sort()).toEqual(
-        Object.keys(t.document.spec.panels).sort(),
+      expect(
+        [...refs].sort((a, b) => (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? "")),
+      ).toEqual(
+        Object.keys(t.document.spec.panels).sort((a, b) =>
+          (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? ""),
+        ),
       );
       for (const item of t.document.spec.layouts[0]?.spec.items ?? []) {
         expect(item.x + item.width).toBeLessThanOrEqual(GRID_COLS);

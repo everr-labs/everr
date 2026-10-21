@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { and, eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
@@ -42,12 +42,10 @@ import {
   TEST_ACTOR,
   TEST_ORG,
 } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -60,7 +58,7 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
   return clickhouseMock;
 });
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 describe("the alerting pipeline's instance lifecycle", () => {
   it("fires on the first breach and delivers a notification carrying the evaluated data", async () => {
@@ -93,9 +91,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     // The evaluated row's own label value, carried into the delivered
     // notification body: proof the send carries what the rule saw, not a
     // generic placeholder.
-    expect(JSON.stringify(harness().fetchCalls()[0].body)).toContain(
-      "checkout",
-    );
+    expect(JSON.stringify(harness().fetchCalls()[0].body)).toContain("checkout");
   });
 
   it("holds a breach in pending until `for` elapses, and never notifies while pending", async () => {
@@ -205,9 +201,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     const lifecycleRows = harness()
       .clickhouse.historyRows()
       .filter(
-        (row) =>
-          row.event_type === "instance_fired" ||
-          row.event_type === "instance_resolved",
+        (row) => row.event_type === "instance_fired" || row.event_type === "instance_resolved",
       );
     expect(lifecycleRows).toHaveLength(3);
 
@@ -215,16 +209,12 @@ describe("the alerting pipeline's instance lifecycle", () => {
     expect(episodeIds).toHaveLength(2);
     const [firstEpisodeId, secondEpisodeId] = episodeIds;
 
-    const firstEpisodeRows = lifecycleRows.filter(
-      (row) => row.episode_id === firstEpisodeId,
-    );
+    const firstEpisodeRows = lifecycleRows.filter((row) => row.episode_id === firstEpisodeId);
     expect(firstEpisodeRows.map((row) => row.event_type)).toEqual([
       "instance_fired",
       "instance_resolved",
     ]);
-    expect(
-      firstEpisodeRows.some((row) => row.episode_id === secondEpisodeId),
-    ).toBe(false);
+    expect(firstEpisodeRows.some((row) => row.episode_id === secondEpisodeId)).toBe(false);
   });
 
   it("an evaluation gap longer than the missed-evaluation tolerance restarts the for clock", async () => {
@@ -263,9 +253,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     // Drains the lifecycle projection job the pause enqueued.
     await harness().runDueJobs();
 
-    const instancesAfterPause = await harness()
-      .db.select()
-      .from(alertInstances);
+    const instancesAfterPause = await harness().db.select().from(alertInstances);
     expect(instancesAfterPause).toHaveLength(1);
     expect(instancesAfterPause[0].status).toBe("inactive");
 
@@ -287,9 +275,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     harness().advance(60_000);
     await harness().runDueJobs();
     expect(
-      (await harness().pendingJobs()).filter(
-        (job) => job.identifier === ALERT_EVALUATE_TASK,
-      ),
+      (await harness().pendingJobs()).filter((job) => job.identifier === ALERT_EVALUATE_TASK),
     ).toHaveLength(0);
   });
 
@@ -315,9 +301,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     expect(resumed.active).toBe(true);
     expect(resumed.nextEvaluationAt).not.toBeNull();
     expect(
-      (await harness().pendingJobs()).filter(
-        (job) => job.identifier === ALERT_EVALUATE_TASK,
-      ),
+      (await harness().pendingJobs()).filter((job) => job.identifier === ALERT_EVALUATE_TASK),
     ).toHaveLength(1);
 
     // Pause reset the instance, so the breach that never went away is a new
@@ -342,11 +326,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     const [firing] = await harness().db.select().from(alertInstances);
     expect(firing.status).toBe("firing");
 
-    const { deleted } = await deleteRule(
-      TEST_ORG,
-      rule.id,
-      asDbExecutor(harness().db),
-    );
+    const { deleted } = await deleteRule(TEST_ORG, rule.id, asDbExecutor(harness().db));
     expect(deleted).toBe(true);
     // Drains the lifecycle projection job the delete enqueued.
     await harness().runDueJobs();
@@ -386,17 +366,11 @@ describe("the alerting pipeline's instance lifecycle", () => {
       .from(alertDefinitions)
       .where(eq(alertDefinitions.id, rule.id));
     expect(afterFirstFailure.degradedSince).not.toBeNull();
-    const firstBackoffSecs = alertingRetryDelaySeconds(
-      60,
-      1,
-      60 * ALERT_RETRY_MAX_INTERVAL_FACTOR,
-    );
+    const firstBackoffSecs = alertingRetryDelaySeconds(60, 1, 60 * ALERT_RETRY_MAX_INTERVAL_FACTOR);
     const [firstRetryJob] = (await harness().pendingJobs()).filter(
       (job) => job.identifier === ALERT_EVALUATE_TASK,
     );
-    expect(firstRetryJob.runAt.getTime() - Date.now()).toBe(
-      firstBackoffSecs * 1_000,
-    );
+    expect(firstRetryJob.runAt.getTime() - Date.now()).toBe(firstBackoffSecs * 1_000);
 
     harness().advance(firstBackoffSecs * 1_000);
     await harness().runDueJobs();
@@ -405,9 +379,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
       .from(alertDefinitions)
       .where(eq(alertDefinitions.id, rule.id));
     // Set once: the second failure must not move it forward.
-    expect(afterSecondFailure.degradedSince).toEqual(
-      afterFirstFailure.degradedSince,
-    );
+    expect(afterSecondFailure.degradedSince).toEqual(afterFirstFailure.degradedSince);
 
     const secondBackoffSecs = alertingRetryDelaySeconds(
       60,
@@ -418,9 +390,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     const [secondRetryJob] = (await harness().pendingJobs()).filter(
       (job) => job.identifier === ALERT_EVALUATE_TASK,
     );
-    expect(secondRetryJob.runAt.getTime() - Date.now()).toBe(
-      secondBackoffSecs * 1_000,
-    );
+    expect(secondRetryJob.runAt.getTime() - Date.now()).toBe(secondBackoffSecs * 1_000);
 
     expect(
       harness()
@@ -489,9 +459,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     // scheduledFor; the scanner must not stack a second one on top of it.
     await scanDueAlerts();
     expect(
-      (await harness().pendingJobs()).filter(
-        (job) => job.identifier === ALERT_EVALUATE_TASK,
-      ),
+      (await harness().pendingJobs()).filter((job) => job.identifier === ALERT_EVALUATE_TASK),
     ).toHaveLength(1);
 
     await harness().runDueJobs();
@@ -500,13 +468,9 @@ describe("the alerting pipeline's instance lifecycle", () => {
       .db.select()
       .from(alertDefinitions)
       .where(eq(alertDefinitions.id, rule.id));
-    expect(def.nextEvaluationAt).toEqual(
-      nextAlertEvaluationAt(TEST_ORG, rule.id, 60, new Date()),
-    );
+    expect(def.nextEvaluationAt).toEqual(nextAlertEvaluationAt(TEST_ORG, rule.id, 60, new Date()));
     expect(
-      (await harness().pendingJobs()).filter(
-        (job) => job.identifier === ALERT_EVALUATE_TASK,
-      ),
+      (await harness().pendingJobs()).filter((job) => job.identifier === ALERT_EVALUATE_TASK),
     ).toHaveLength(1);
   });
 
@@ -517,9 +481,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
       forSecs: 0,
       intervalSecs: 60,
     });
-    harness().clickhouse.setSignal([
-      { service: "checkout", region: "us", value: 42 },
-    ]);
+    harness().clickhouse.setSignal([{ service: "checkout", region: "us", value: 42 }]);
     await harness().runDueJobs();
 
     const [firing] = await harness().db.select().from(alertInstances);
@@ -571,9 +533,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
       forSecs: 0,
       intervalSecs: 60,
     });
-    harness().clickhouse.setSignal([
-      { service: "checkout", region: "us", value: 42 },
-    ]);
+    harness().clickhouse.setSignal([{ service: "checkout", region: "us", value: 42 }]);
     await harness().runDueJobs();
 
     const [firing] = await harness().db.select().from(alertInstances);
@@ -728,14 +688,10 @@ describe("the alerting pipeline's instance lifecycle", () => {
     await harness().runDueJobs();
 
     const rows = harness().clickhouse.historyRows();
-    expect(
-      rows.find((row) => row.event_type === "instance_closed")?.reason,
-    ).toBe("rule_paused");
+    expect(rows.find((row) => row.event_type === "instance_closed")?.reason).toBe("rule_paused");
     // The canceled notification gets its own row, naming the fire it ends, so
     // the chain reads as withheld rather than stopping mid-sentence.
-    const suppressed = rows.find(
-      (row) => row.event_type === "notification_suppressed",
-    );
+    const suppressed = rows.find((row) => row.event_type === "notification_suppressed");
     expect(suppressed?.reason).toBe("rule_paused");
     expect(suppressed?.notification_event_id).toBe(fire.id);
   });
@@ -857,10 +813,7 @@ describe("the alerting pipeline's organization isolation", () => {
       .db.select()
       .from(alertEvents)
       .where(
-        and(
-          eq(alertEvents.organizationId, TEST_ORG),
-          eq(alertEvents.eventType, "instance_fired"),
-        ),
+        and(eq(alertEvents.organizationId, TEST_ORG), eq(alertEvents.eventType, "instance_fired")),
       );
     expect(heldEventA.silenceId).not.toBeNull();
     expect(heldEventA.processedAt).toBeNull();
@@ -893,10 +846,7 @@ describe("the alerting pipeline's organization isolation", () => {
         ruleId: alertEvents.sourceDefinitionId,
       })
       .from(alertNotificationGroupEvents)
-      .innerJoin(
-        alertEvents,
-        eq(alertNotificationGroupEvents.eventId, alertEvents.id),
-      )
+      .innerJoin(alertEvents, eq(alertNotificationGroupEvents.eventId, alertEvents.id))
       .where(eq(alertNotificationGroupEvents.groupId, groupA.id));
 
     expect(membersA).toHaveLength(1);

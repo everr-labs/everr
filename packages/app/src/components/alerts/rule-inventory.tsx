@@ -8,11 +8,7 @@ import type {
 } from "#app/data/alerting/triage/view.ts";
 import { SeverityLabel, StatusIcon } from "./alert-status";
 import { RowTarget, SelectableRow } from "./list-row";
-import {
-  RuleStateChart,
-  StateChartAxis,
-  StateChartLegend,
-} from "./rule-state-chart";
+import { RuleStateChart, StateChartAxis, StateChartLegend } from "./rule-state-chart";
 
 /** Shared empties: a fresh `[]` per rule per render would defeat the memo on
  *  `RuleStateChart`, which every row of a long inventory carries. */
@@ -76,12 +72,8 @@ export function RuleInventory({
             <Skeleton className="h-3 w-full rounded-sm" />
           )}
         </div>
-        <span className={cn(kickerClass, "hidden @[50rem]/list:block")}>
-          Severity
-        </span>
-        <span className={cn(kickerClass, "hidden @[50rem]/list:block")}>
-          Every
-        </span>
+        <span className={cn(kickerClass, "hidden @[50rem]/list:block")}>Severity</span>
+        <span className={cn(kickerClass, "hidden @[50rem]/list:block")}>Every</span>
         <span className={cn(kickerClass, "text-right")}>Silence</span>
       </div>
 
@@ -110,10 +102,7 @@ export function RuleInventory({
               <Skeleton className="h-3.5 w-full rounded-sm" />
             )}
           </div>
-          <SeverityLabel
-            severity={row.severity}
-            className="hidden @[50rem]/list:inline-flex"
-          />
+          <SeverityLabel severity={row.severity} className="hidden @[50rem]/list:inline-flex" />
           <span className="hidden font-mono text-xs text-muted-foreground tabular-nums @[50rem]/list:block">
             {row.every}
           </span>

@@ -57,7 +57,7 @@ spec:
             targetColumn: callee
             valueColumn: calls
             valueFormat:
-              unit: '{request}'
+              unit: "{request}"
         queries:
           - kind: TestData
             spec:
@@ -166,7 +166,7 @@ spec:
           description: "a→b and b→a are distinct edges, drawn offset so both stay visible"
         plugin:
           kind: NodeGraph
-          spec: { valueFormat: { unit: '{message}' } }
+          spec: { valueFormat: { unit: "{message}" } }
         queries:
           - kind: TestData
             spec:
@@ -280,7 +280,8 @@ spec:
           description: "valueFormat: none, unit: {connection}, decimals: 2"
         plugin:
           kind: NodeGraph
-          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 }, showValues: true }
+          spec:
+            { valueFormat: { unit: "{connection}", scale: none, decimals: 2 }, showValues: true }
         queries:
           - kind: TestData
             spec:
@@ -289,7 +290,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: source, values: [api, worker] }, { name: target, values: [db, cache] }, { name: value, const: 12500 }]
+                  columns:
+                    [
+                      { name: source, values: [api, worker] },
+                      { name: target, values: [db, cache] },
+                      { name: value, const: 12500 },
+                    ]
     format-decimal:
       kind: Panel
       spec:
@@ -307,7 +313,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: source, values: [api, worker] }, { name: target, values: [db, cache] }, { name: value, const: 12500 }]
+                  columns:
+                    [
+                      { name: source, values: [api, worker] },
+                      { name: target, values: [db, cache] },
+                      { name: value, const: 12500 },
+                    ]
     format-binary:
       kind: Panel
       spec:
@@ -325,7 +336,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: source, values: [api, worker] }, { name: target, values: [db, cache] }, { name: value, const: 2621440 }]
+                  columns:
+                    [
+                      { name: source, values: [api, worker] },
+                      { name: target, values: [db, cache] },
+                      { name: value, const: 2621440 },
+                    ]
     format-duration:
       kind: Panel
       spec:
@@ -343,7 +359,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: source, values: [api, worker] }, { name: target, values: [db, cache] }, { name: value, const: 0.025 }]
+                  columns:
+                    [
+                      { name: source, values: [api, worker] },
+                      { name: target, values: [db, cache] },
+                      { name: value, const: 0.025 },
+                    ]
     format-percent:
       kind: Panel
       spec:
@@ -412,20 +433,98 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 24, height: 12, content: { $ref: "#/spec/panels/node-graph-defaults" } }
-          - { x: 0,  y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-columns-unit" } }
-          - { x: 12, y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-fallback" } }
-          - { x: 0,  y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-undirected" } }
-          - { x: 12, y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-showvalues" } }
-          - { x: 0,  y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-weightless" } }
-          - { x: 12, y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-bidirectional" } }
-          - { x: 0,  y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-multiquery" } }
-          - { x: 12, y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-dropped" } }
-          - { x: 0,  y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-maxnodes" } }
-          - { x: 12, y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/node-graph-empty" } }
+          - {
+              x: 0,
+              y: 0,
+              width: 24,
+              height: 12,
+              content: { $ref: "#/spec/panels/node-graph-defaults" },
+            }
+          - {
+              x: 0,
+              y: 12,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-columns-unit" },
+            }
+          - {
+              x: 12,
+              y: 12,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-fallback" },
+            }
+          - {
+              x: 0,
+              y: 21,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-undirected" },
+            }
+          - {
+              x: 12,
+              y: 21,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-showvalues" },
+            }
+          - {
+              x: 0,
+              y: 30,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-weightless" },
+            }
+          - {
+              x: 12,
+              y: 30,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-bidirectional" },
+            }
+          - {
+              x: 0,
+              y: 39,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-multiquery" },
+            }
+          - {
+              x: 12,
+              y: 39,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-dropped" },
+            }
+          - {
+              x: 0,
+              y: 48,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-maxnodes" },
+            }
+          - {
+              x: 12,
+              y: 48,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-empty" },
+            }
           - { x: 0, y: 57, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
-          - { x: 12, y: 57, width: 12, height: 9, content: { $ref: "#/spec/panels/format-decimal" } }
+          - {
+              x: 12,
+              y: 57,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/format-decimal" },
+            }
           - { x: 0, y: 66, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
-          - { x: 12, y: 66, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
+          - {
+              x: 12,
+              y: 66,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/format-duration" },
+            }
           - { x: 0, y: 75, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
           - { x: 12, y: 75, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }

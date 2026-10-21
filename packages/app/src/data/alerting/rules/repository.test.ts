@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // Only so that importing `./repository` for the pure function below does not
 // build a real database pool. Nothing here answers a query: every mutation

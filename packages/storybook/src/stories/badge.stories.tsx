@@ -94,7 +94,7 @@ export const Sizes: Story = {
         </Badge>
       </p>
       <p className="flex items-center gap-2">
-        Medium: a chip set in a row at the row's own text size
+        Medium: a chip set in a row at the row&apos;s own text size
         <Badge variant="outline" size="md">
           <AlertTriangleIcon data-icon="inline-start" />
           silenced · 14m left

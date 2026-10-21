@@ -14,10 +14,15 @@ const config: StorybookConfig = {
     plugins: [...(config.plugins ?? []), tailwindcss()],
     resolve: {
       ...config.resolve,
-      alias: {
-        ...config.resolve?.alias,
-        "@everr/ui": fileURLToPath(new URL("../../ui/src", import.meta.url)),
-      },
+      alias: [
+        { find: "@everr/ui", replacement: fileURLToPath(new URL("../../ui/src", import.meta.url)) },
+        ...(Array.isArray(config.resolve?.alias)
+          ? config.resolve.alias
+          : Object.entries(config.resolve?.alias ?? {}).map(([find, replacement]) => ({
+              find,
+              replacement,
+            }))),
+      ],
     },
   }),
 };

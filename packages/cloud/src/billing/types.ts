@@ -44,33 +44,40 @@ export type CreateOrganization = (input: {
   body: { name: string; slug: string; userId: string };
 }) => Promise<unknown>;
 export interface PolarGateway {
-  findCustomer(orgId: string): Promise<Customer | null>;
-  getCustomer(id: string): Promise<Customer>;
-  createTeam(input: {
-    orgId: string;
-    name: string;
-    owner: Person;
-  }): Promise<Customer>;
-  members(customerId: string): Promise<BillingMember[]>;
-  createMember(customerId: string, person: Person): Promise<BillingMember>;
+  findCustomer(this: void, orgId: string): Promise<Customer | null>;
+  getCustomer(this: void, id: string): Promise<Customer>;
+  createTeam(
+    this: void,
+    input: {
+      orgId: string;
+      name: string;
+      owner: Person;
+    },
+  ): Promise<Customer>;
+  members(this: void, customerId: string): Promise<BillingMember[]>;
+  createMember(this: void, customerId: string, person: Person): Promise<BillingMember>;
   updateMember(
+    this: void,
     id: string,
     input: { name?: string; email?: string; role?: BillingMember["role"] },
   ): Promise<BillingMember>;
-  deleteMember(id: string): Promise<void>;
-  portal(customerId: string, memberId: string): Promise<string>;
-  checkout(id: string): Promise<Checkout>;
-  checkouts(customerId: string): Promise<Checkout[]>;
-  createCheckout(input: {
-    customerId: string;
-    orgId: string;
-    metadata: Metadata;
-    successUrl: string;
-  }): Promise<Checkout>;
-  updateCheckoutSuccessUrl(id: string, successUrl: string): Promise<Checkout>;
-  subscription(id: string): Promise<Subscription>;
-  checkoutSubscription(checkout: Checkout): Promise<Subscription | null>;
-  revokeSubscription(id: string): Promise<void>;
+  deleteMember(this: void, id: string): Promise<void>;
+  portal(this: void, customerId: string, memberId: string): Promise<string>;
+  checkout(this: void, id: string): Promise<Checkout>;
+  checkouts(this: void, customerId: string): Promise<Checkout[]>;
+  createCheckout(
+    this: void,
+    input: {
+      customerId: string;
+      orgId: string;
+      metadata: Metadata;
+      successUrl: string;
+    },
+  ): Promise<Checkout>;
+  updateCheckoutSuccessUrl(this: void, id: string, successUrl: string): Promise<Checkout>;
+  subscription(this: void, id: string): Promise<Subscription>;
+  checkoutSubscription(this: void, checkout: Checkout): Promise<Subscription | null>;
+  revokeSubscription(this: void, id: string): Promise<void>;
 }
 export type BillingDependencies = {
   db: Database;

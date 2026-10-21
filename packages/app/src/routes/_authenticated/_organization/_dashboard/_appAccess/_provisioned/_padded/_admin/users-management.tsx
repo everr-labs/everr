@@ -7,12 +7,12 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/users-management",
 )({
   staticData: { breadcrumb: "Members", hideTimeRangePicker: true },
-  head: () => ({ meta: [{ title: "Everr - Members" }] }),
   loader: ({ context }) =>
     members.load?.({
       queryClient: context.queryClient,
       organizationId: context.organization.id,
     }),
+  head: () => ({ meta: [{ title: "Everr - Members" }] }),
   component: MembersPage,
 });
 

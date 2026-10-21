@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { NitroModule } from "nitro/types";
-import type { Plugin } from "vite";
+import type { Plugin } from "vite-plus";
 
 /** Ship executable migration histories without schema-generation snapshots. */
 export function migrationAssets(

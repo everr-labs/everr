@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 import { MultiStep } from "./multi-step";
 
 it("locks future steps, allows reviewing confirmed steps, and leaves progress controlled by the caller", () => {
@@ -22,14 +22,9 @@ it("locks future steps, allows reviewing confirmed steps, and leaves progress co
     onStepChange,
   };
   const { rerender } = render(<MultiStep {...props} />);
-  expect(screen.getByRole("button", { name: /Third/ })).toHaveAttribute(
-    "aria-current",
-    "step",
-  );
+  expect(screen.getByRole("button", { name: /Third/ })).toHaveAttribute("aria-current", "step");
   expect(screen.getByRole("button", { name: /Fourth/ })).toBeDisabled();
-  expect(screen.getByRole("button", { name: /Second/ })).toHaveTextContent(
-    "Skipped by choice",
-  );
+  expect(screen.getByRole("button", { name: /Second/ })).toHaveTextContent("Skipped by choice");
   fireEvent.click(screen.getByRole("button", { name: /Fourth/ }));
   expect(onStepChange).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: /First/ }));
@@ -40,11 +35,9 @@ it("locks future steps, allows reviewing confirmed steps, and leaves progress co
   expect(screen.getByRole("heading", { name: "First" })).toHaveFocus();
   expect(screen.queryByText("Third instructions")).toBeNull();
   rerender(<MultiStep {...props} disabled />);
-  expect(
-    screen
-      .getAllByRole("button")
-      .every((button) => button.hasAttribute("disabled")),
-  ).toBe(true);
+  expect(screen.getAllByRole("button").every((button) => button.hasAttribute("disabled"))).toBe(
+    true,
+  );
 });
 
 it("preserves panel state across step changes and when the whole flow is hidden", () => {

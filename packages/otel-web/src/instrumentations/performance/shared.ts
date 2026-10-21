@@ -71,8 +71,7 @@ export function scriptAttrs(
 function navigationType(restored: boolean): string {
   return restored
     ? "back-forward-cache"
-    : (performance.getEntriesByType("navigation")[0]?.type.replace(/_/g, "-") ??
-        "navigate");
+    : (performance.getEntriesByType("navigation")[0]?.type.replace(/_/g, "-") ?? "navigate");
 }
 
 /**
@@ -95,7 +94,7 @@ export function whenIdleOrHidden(cb: () => void): void {
     cb();
   };
   const onHidden = () => {
-    cIC(idleHandle as number);
+    if (typeof idleHandle === "number") cIC(idleHandle);
     once();
   };
   addEventListener("visibilitychange", onHidden, { once: true, capture: true });

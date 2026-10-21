@@ -51,17 +51,11 @@ export function attachGraphileWorkerEventLogging(
   });
 
   events.on("pool:listen:error", ({ error }) => {
-    serverLogger.error(
-      "worker.jobs.pool_listen_error",
-      exceptionAttributes(error),
-    );
+    serverLogger.error("worker.jobs.pool_listen_error", exceptionAttributes(error));
   });
 
   events.on("pool:gracefulShutdown:error", ({ error }) => {
-    serverLogger.error(
-      "worker.jobs.graceful_shutdown_error",
-      exceptionAttributes(error),
-    );
+    serverLogger.error("worker.jobs.graceful_shutdown_error", exceptionAttributes(error));
   });
 
   events.on("worker:getJob:error", ({ error }) => {
@@ -71,9 +65,7 @@ export function attachGraphileWorkerEventLogging(
   events.on("worker:fatalError", ({ error, jobError }) => {
     serverLogger.error("worker.jobs.worker_fatal_error", {
       ...exceptionAttributes(error),
-      ...(jobError
-        ? prefixedExceptionAttributes("job_exception", jobError)
-        : {}),
+      ...(jobError ? prefixedExceptionAttributes("job_exception", jobError) : {}),
     });
   });
 

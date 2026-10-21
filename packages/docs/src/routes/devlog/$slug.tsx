@@ -2,13 +2,7 @@ import browserCollections from "fumadocs-mdx:collections/browser";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import defaultMdxComponents from "fumadocs-ui/mdx";
-import {
-  ArrowLeft,
-  GitCommitHorizontal,
-  GitPullRequest,
-  Minus,
-  Plus,
-} from "lucide-react";
+import { ArrowLeft, GitCommitHorizontal, GitPullRequest, Minus, Plus } from "lucide-react";
 import { Suspense } from "react";
 import { devlogposts } from "@/lib/source";
 import { getBaseUrl } from "@/lib/url";
@@ -157,9 +151,7 @@ function DevlogPost() {
                   <div className="flex items-center gap-2.5">
                     <GitPullRequest className="size-5 text-purple-500/70" />
                     <div>
-                      <p className="font-heading text-xl font-bold">
-                        {data.prs.toLocaleString()}
-                      </p>
+                      <p className="font-heading text-xl font-bold">{data.prs.toLocaleString()}</p>
                       <p className="font-heading text-[10px] uppercase tracking-wider text-fd-muted-foreground/50">
                         PRs merged
                       </p>

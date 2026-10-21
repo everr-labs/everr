@@ -2,18 +2,11 @@ import { Button } from "@everr/ui/components/button";
 import { CodeBlock } from "@everr/ui/components/code-block";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowUpRight, NotebookText, X } from "lucide-react";
 import type { RuleInventoryState } from "#app/data/alerting/rules/read.ts";
-import type {
-  SilenceCancelTarget,
-  SilenceSeed,
-} from "#app/data/alerting/silences/commands.ts";
+import type { SilenceCancelTarget, SilenceSeed } from "#app/data/alerting/silences/commands.ts";
 import type { AlertDetail } from "#app/data/alerting/triage/view.ts";
 import { AlertInstanceChart } from "./alert-instance-chart";
 import { STATUS_META, StatusIcon } from "./alert-status";
@@ -23,13 +16,7 @@ import { SilenceHistory } from "./silence-history";
 /** One label/value line of the definition table. The label column is sized in
  *  `ch` off the longest label rather than in `rem`: the panel is a column, not
  *  a page, and a fixed 10rem gutter spent the value's width on air. */
-function DefinitionRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function DefinitionRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] items-baseline gap-3 border-b py-2.5 last:border-b-0">
       <dt className="text-muted-foreground">{label}</dt>
@@ -52,13 +39,7 @@ function ThresholdLabel({ condition }: { condition: string }) {
           <span className="flex shrink-0 items-center gap-1.5 font-mono text-xs text-muted-foreground" />
         }
       >
-        <svg
-          aria-hidden="true"
-          width="14"
-          height="6"
-          viewBox="0 0 14 6"
-          className="shrink-0"
-        >
+        <svg aria-hidden="true" width="14" height="6" viewBox="0 0 14 6" className="shrink-0">
           <line
             x1="0"
             y1="3"
@@ -71,9 +52,7 @@ function ThresholdLabel({ condition }: { condition: string }) {
         </svg>
         {condition}
       </TooltipTrigger>
-      <TooltipContent>
-        Threshold, drawn on the chart as this line
-      </TooltipContent>
+      <TooltipContent>Threshold, drawn on the chart as this line</TooltipContent>
     </Tooltip>
   );
 }
@@ -160,13 +139,9 @@ export function AlertDetailPanel({
       <div className="flex flex-col gap-2 border-b bg-background px-3 py-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 space-y-1">
-            <p className="truncate font-mono text-xs text-muted-foreground">
-              {path}
-            </p>
+            <p className="truncate font-mono text-xs text-muted-foreground">{path}</p>
             {detail ? (
-              <h2 className="text-base font-semibold text-pretty">
-                {detail.name}
-              </h2>
+              <h2 className="text-base font-semibold text-pretty">{detail.name}</h2>
             ) : (
               <Skeleton className="my-1 h-4 w-48" />
             )}
@@ -207,8 +182,7 @@ export function AlertDetailPanel({
             header is the frozen data it warns about. */}
         {paused && (
           <p className="rounded-md border border-chart-2/40 bg-chart-2/8 px-3 py-2 text-xs text-chart-2">
-            Instances and state below are frozen at the moment this rule stopped
-            evaluating.
+            Instances and state below are frozen at the moment this rule stopped evaluating.
           </p>
         )}
       </div>
@@ -216,10 +190,7 @@ export function AlertDetailPanel({
       {!detail ? (
         <DetailSkeleton />
       ) : (
-        <ScrollArea
-          className="min-h-0 flex-1"
-          viewportClassName="overscroll-contain"
-        >
+        <ScrollArea className="min-h-0 flex-1" viewportClassName="overscroll-contain">
           <div className="space-y-3 px-3 py-3.5">
             <p className="max-w-prose text-xs text-muted-foreground text-pretty">
               {detail.description}
@@ -229,8 +200,8 @@ export function AlertDetailPanel({
                 single fact into three objects to scan. */}
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
               <p className="font-mono text-xs text-muted-foreground">
-                severity {detail.severity} · every{" "}
-                {detail.definition.evaluationInterval} · for {detail.forClause}
+                severity {detail.severity} · every {detail.definition.evaluationInterval} · for{" "}
+                {detail.forClause}
               </p>
               <div className="flex items-center gap-1">
                 <Button
@@ -248,11 +219,7 @@ export function AlertDetailPanel({
                     size="sm"
                     nativeButton={false}
                     render={
-                      <a
-                        href={detail.definition.runbook.href}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <a href={detail.definition.runbook.href} target="_blank" rel="noreferrer">
                         Runbook
                         <ArrowUpRight data-icon="inline-end" />
                       </a>
@@ -287,13 +254,14 @@ export function AlertDetailPanel({
           <Section title="History">
             {detail.timeline.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                No lifecycle events recorded. This rule has not opened an
-                instance in the retained history.
+                No lifecycle events recorded. This rule has not opened an instance in the retained
+                history.
               </p>
             )}
             <ol className="flex flex-col">
               {detail.timeline.map((event, i) => (
                 <li
+                  // oxlint-disable-next-line react/no-array-index-key -- Immutable source events can share timestamps or IDs; the ordinal distinguishes those duplicates.
                   key={`${event.time}-${i}`}
                   className="flex items-start gap-3"
                 >
@@ -334,13 +302,9 @@ export function AlertDetailPanel({
           <Section title="Definition">
             <dl className="text-xs">
               <DefinitionRow label="Repository">
-                <span className="font-mono">
-                  {detail.definition.repository}
-                </span>
+                <span className="font-mono">{detail.definition.repository}</span>
               </DefinitionRow>
-              <DefinitionRow label="Project">
-                {detail.definition.project}
-              </DefinitionRow>
+              <DefinitionRow label="Project">{detail.definition.project}</DefinitionRow>
               {detail.definition.runbook && (
                 <DefinitionRow label="Runbook">
                   <a
@@ -367,10 +331,10 @@ export function AlertDetailPanel({
               )}
               <DefinitionRow label="Last evaluated">
                 {detail.definition.lastEvaluatedAt
-                  ? new Date(detail.definition.lastEvaluatedAt).toLocaleString(
-                      undefined,
-                      { dateStyle: "medium", timeStyle: "short" },
-                    )
+                  ? new Date(detail.definition.lastEvaluatedAt).toLocaleString(undefined, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })
                   : "Never"}
               </DefinitionRow>
             </dl>
@@ -380,10 +344,7 @@ export function AlertDetailPanel({
               {/* The query is the rule. It gets a real code block rather than
                   a one-line value, because reading it is how anyone decides
                   whether the alert is measuring the right thing. */}
-              <CodeBlock
-                className="rounded-md border bg-background/70"
-                codeClassName="font-mono"
-              >
+              <CodeBlock className="rounded-md border bg-background/70" codeClassName="font-mono">
                 <code>{detail.definition.query}</code>
               </CodeBlock>
             </div>

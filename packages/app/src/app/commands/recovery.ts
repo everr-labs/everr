@@ -18,18 +18,13 @@ async function main() {
   }
   if (!values.email) throw new Error(usage);
   const baseUrl = process.env.BETTER_AUTH_URL;
-  if (!baseUrl)
-    throw new Error("BETTER_AUTH_URL is required for recovery links.");
+  if (!baseUrl) throw new Error("BETTER_AUTH_URL is required for recovery links.");
   const { db, pool } = await import("../../db/client");
   try {
     const { createRecoveryLink } = await import("../recovery.server");
     const result = await createRecoveryLink(db, values.email, baseUrl);
-    console.log(
-      `Recovery link (expires ${result.expiresAt.toISOString()}):\n${result.url}`,
-    );
-    console.log(
-      "Existing sessions and previous reset links have been invalidated.",
-    );
+    console.log(`Recovery link (expires ${result.expiresAt.toISOString()}):\n${result.url}`);
+    console.log("Existing sessions and previous reset links have been invalidated.");
   } finally {
     await pool.end();
   }

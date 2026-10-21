@@ -8,15 +8,7 @@
 import { Badge } from "@everr/ui/components/badge";
 import type { GroupBandTone } from "@everr/ui/components/group-band";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  BellOff,
-  Circle,
-  Clock,
-  Flame,
-  type LucideIcon,
-  Pause,
-  TriangleAlert,
-} from "lucide-react";
+import { BellOff, Circle, Clock, Flame, type LucideIcon, Pause, TriangleAlert } from "lucide-react";
 import type { AlertingDefaultTier } from "#app/data/alerting/delivery/defaults.ts";
 import type { RuleInventoryState } from "#app/data/alerting/rules/read.ts";
 import type { AlertingSeverity } from "#app/data/alerting/types.ts";
@@ -114,10 +106,7 @@ export function StatusIcon({
 }) {
   const Icon = STATUS_META[status].icon;
   return (
-    <Icon
-      aria-hidden
-      className={cn("size-3 shrink-0", STATUS_META[status].text, className)}
-    />
+    <Icon aria-hidden className={cn("size-3 shrink-0", STATUS_META[status].text, className)} />
   );
 }
 
@@ -175,11 +164,7 @@ export function SeverityLabel({
 }) {
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-xs",
-        SEVERITY_TEXT[severity],
-        className,
-      )}
+      className={cn("inline-flex items-center gap-1.5 text-xs", SEVERITY_TEXT[severity], className)}
     >
       <span className="size-1.5 shrink-0 rounded-full bg-current" />
       {severity}

@@ -1,10 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { Kbd } from "@everr/ui/components/kbd";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ArrowUpIcon, CommandIcon } from "lucide-react";
 

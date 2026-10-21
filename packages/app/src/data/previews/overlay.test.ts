@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { identityKey } from "#app/data/as-code/reconcile.ts";
 import { overlayPreview } from "./overlay";
 
@@ -18,21 +18,14 @@ const r = (
 });
 
 // A preview row: same shape as a live row but carrying a registry id.
-const p = (
-  repoid: string,
-  slug: string,
-  doc: unknown = { v: 1 },
-  folderPath = "",
-) => r(repoid, slug, doc, folderPath, "preview-1");
+const p = (repoid: string, slug: string, doc: unknown = { v: 1 }, folderPath = "") =>
+  r(repoid, slug, doc, folderPath, "preview-1");
 
 const covered = new Set(["repo-1"]);
 
 // The as-code resource these cases stand in for is a dashboard: identified by
 // (project, slug), declared as a document sitting at a folder path.
-const overlay = (
-  rows: ReturnType<typeof r>[],
-  coveredRepoids: ReadonlySet<string>,
-) =>
+const overlay = (rows: ReturnType<typeof r>[], coveredRepoids: ReadonlySet<string>) =>
   overlayPreview({
     rows,
     coveredRepoids,
@@ -59,9 +52,7 @@ describe("overlayPreview", () => {
       ],
       covered,
     );
-    const byStatus = Object.fromEntries(
-      out.map((row) => [row.slug, row.previewStatus]),
-    );
+    const byStatus = Object.fromEntries(out.map((row) => [row.slug, row.previewStatus]));
     expect(byStatus).toEqual({
       added: "added",
       changed: "changed",
@@ -81,9 +72,7 @@ describe("overlayPreview", () => {
       ],
       covered,
     );
-    const byStatus = Object.fromEntries(
-      out.map((row) => [row.slug, row.previewStatus]),
-    );
+    const byStatus = Object.fromEntries(out.map((row) => [row.slug, row.previewStatus]));
     expect(byStatus).toEqual({ moved: "changed", same: "unchanged" });
   });
 
@@ -92,13 +81,9 @@ describe("overlayPreview", () => {
     // with repo-2's live "dup" — merging it would fail the ownership check.
     const out = overlay([r("repo-2", "dup"), p("repo-1", "dup")], covered);
     expect(out).toHaveLength(2);
-    expect(out.find((row) => row.repoid === "repo-1")?.previewStatus).toBe(
-      "conflict",
-    );
+    expect(out.find((row) => row.repoid === "repo-1")?.previewStatus).toBe("conflict");
     // repo-2's live row is in an uncovered repoid → passes through untagged.
-    expect(
-      out.find((row) => row.repoid === "repo-2")?.previewStatus,
-    ).toBeUndefined();
+    expect(out.find((row) => row.repoid === "repo-2")?.previewStatus).toBeUndefined();
   });
 
   it("tags a preview add with no live identity anywhere as added", () => {
@@ -108,10 +93,7 @@ describe("overlayPreview", () => {
   });
 
   it("ignores orphan preview rows whose repoid is not covered", () => {
-    const out = overlay(
-      [r("repo-3", "dup"), p("repo-3", "dup")],
-      new Set<string>(),
-    );
+    const out = overlay([r("repo-3", "dup"), p("repo-3", "dup")], new Set<string>());
     expect(out).toEqual([r("repo-3", "dup")]);
     expect(out[0].previewStatus).toBeUndefined();
   });

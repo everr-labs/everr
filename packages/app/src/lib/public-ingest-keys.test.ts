@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   normalizeOrigin,
   originPolicyAllows,
@@ -8,36 +8,24 @@ import {
 
 describe("normalizeOrigin", () => {
   it("accepts a bare https origin", () => {
-    expect(normalizeOrigin("https://app.example.com")).toBe(
-      "https://app.example.com",
-    );
+    expect(normalizeOrigin("https://app.example.com")).toBe("https://app.example.com");
   });
 
   it("lowercases scheme and host", () => {
-    expect(normalizeOrigin("HTTPS://App.Example.COM")).toBe(
-      "https://app.example.com",
-    );
+    expect(normalizeOrigin("HTTPS://App.Example.COM")).toBe("https://app.example.com");
   });
 
   it("strips default ports like browsers do", () => {
-    expect(normalizeOrigin("https://app.example.com:443")).toBe(
-      "https://app.example.com",
-    );
-    expect(normalizeOrigin("http://app.example.com:80")).toBe(
-      "http://app.example.com",
-    );
+    expect(normalizeOrigin("https://app.example.com:443")).toBe("https://app.example.com");
+    expect(normalizeOrigin("http://app.example.com:80")).toBe("http://app.example.com");
   });
 
   it("keeps non-default ports", () => {
-    expect(normalizeOrigin("http://127.0.0.1:8000")).toBe(
-      "http://127.0.0.1:8000",
-    );
+    expect(normalizeOrigin("http://127.0.0.1:8000")).toBe("http://127.0.0.1:8000");
   });
 
   it("tolerates a lone trailing slash", () => {
-    expect(normalizeOrigin("https://app.example.com/")).toBe(
-      "https://app.example.com",
-    );
+    expect(normalizeOrigin("https://app.example.com/")).toBe("https://app.example.com");
   });
 
   it("rejects paths, queries, and fragments", () => {
@@ -68,9 +56,7 @@ describe("publicKeyMetadataOf", () => {
 
   it("parses metadata handed back as a JSON string", () => {
     expect(
-      publicKeyMetadataOf(
-        JSON.stringify({ public: true, allowedOrigins: ["https://a.example"] }),
-      ),
+      publicKeyMetadataOf(JSON.stringify({ public: true, allowedOrigins: ["https://a.example"] })),
     ).toEqual({ public: true, allowedOrigins: ["https://a.example"] });
   });
 
@@ -113,9 +99,7 @@ describe("originPolicyAllows (the policy matrix)", () => {
   });
 
   it("public key with matching origin: allowed", () => {
-    expect(originPolicyAllows(publicMeta, "https://app.example.com")).toBe(
-      true,
-    );
+    expect(originPolicyAllows(publicMeta, "https://app.example.com")).toBe(true);
   });
 
   it("public key with mismatched origin: rejected", () => {
@@ -123,9 +107,7 @@ describe("originPolicyAllows (the policy matrix)", () => {
   });
 
   it("normalizes the incoming origin before matching", () => {
-    expect(originPolicyAllows(publicMeta, "HTTPS://APP.EXAMPLE.COM:443")).toBe(
-      true,
-    );
+    expect(originPolicyAllows(publicMeta, "HTTPS://APP.EXAMPLE.COM:443")).toBe(true);
   });
 
   it('the literal "null" origin never matches', () => {
@@ -156,9 +138,7 @@ describe("publicKeyInputError (creation invariants)", () => {
         scopes: ["ingest"],
       }),
     ).toMatch(/at least one/);
-    expect(publicKeyInputError({ public: true, scopes: ["ingest"] })).toMatch(
-      /at least one/,
-    );
+    expect(publicKeyInputError({ public: true, scopes: ["ingest"] })).toMatch(/at least one/);
   });
 
   it("public requires exactly the ingest capability", () => {

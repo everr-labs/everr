@@ -14,10 +14,7 @@ export function validateQueryTemplate(query: string): void {
 }
 
 // Reject variables that the query does not return.
-export function validateMessageRefs(
-  template: string,
-  columns: readonly string[],
-): void {
+export function validateMessageRefs(template: string, columns: readonly string[]): void {
   const known = new Set(columns);
   for (const name of extractVariables(template)) {
     if (!known.has(name)) {
@@ -38,6 +35,13 @@ export function renderMessage(
 ): string {
   return template.replace(VARIABLE_RE, (_, name: string) => {
     const value = ctx.firstRow?.[name];
-    return value === undefined || value === null ? "" : String(value);
+    return value === undefined || value === null
+      ? ""
+      : typeof value === "string" ||
+          typeof value === "number" ||
+          typeof value === "boolean" ||
+          typeof value === "bigint"
+        ? String(value)
+        : (JSON.stringify(value) ?? "");
   });
 }

@@ -11,10 +11,7 @@
  */
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import { alertingConditionMatches } from "#app/data/alerting/rules/condition.ts";
-import type {
-  AlertingEvaluationSample,
-  AlertingRuleSpec,
-} from "#app/data/alerting/types.ts";
+import type { AlertingEvaluationSample, AlertingRuleSpec } from "#app/data/alerting/types.ts";
 import type { ClickhouseQuery } from "#app/lib/clickhouse.ts";
 import { formatLabels } from "./format";
 import type { InstanceValuePoint, InstanceValueSeries } from "./view";
@@ -144,8 +141,7 @@ export async function loadInstanceValues(
   const buckets = new Map<string, Map<string, ValueBucket[]>>();
   const labels = new Map<string, string>();
   for (const row of rows) {
-    const byInstance =
-      buckets.get(row.slug) ?? new Map<string, ValueBucket[]>();
+    const byInstance = buckets.get(row.slug) ?? new Map<string, ValueBucket[]>();
     const at = parseTimestampAsUTC(row.bucket);
     if (!at) continue;
     const list = byInstance.get(row.fingerprint) ?? [];
@@ -169,24 +165,17 @@ export async function loadInstanceValues(
   for (const rule of opts.rules) {
     const own = buckets.get(rule.path);
     if (!own) continue;
-    byPath.set(
-      rule.path,
-      instanceLanes(own, labels, opts.to.getTime(), rule.condition),
-    );
+    byPath.set(rule.path, instanceLanes(own, labels, opts.to.getTime(), rule.condition));
   }
   return { byPath, bucketMs };
 }
 
 /** Written by this app, but read back from a String column: a row that
  *  predates a shape change must not take the whole panel down. */
-function parseJson<T>(
-  json: string,
-  fallback: T,
-  holds: (v: unknown) => boolean,
-): T {
+function parseJson<T>(json: string, fallback: T, holds: (v: unknown) => boolean): T {
   try {
-    const parsed = JSON.parse(json);
-    return holds(parsed) ? (parsed as T) : fallback;
+    const parsed: T = JSON.parse(json);
+    return holds(parsed) ? parsed : fallback;
   } catch {
     return fallback;
   }
@@ -246,11 +235,7 @@ function instanceLanes(
   lanes.sort((a, b) => {
     const breaching = (lane: InstanceValueSeries) =>
       Number(lane.points.some((point) => point.breaching));
-    return (
-      breaching(b) - breaching(a) ||
-      peak(b) - peak(a) ||
-      a.labels.localeCompare(b.labels)
-    );
+    return breaching(b) - breaching(a) || peak(b) - peak(a) || a.labels.localeCompare(b.labels);
   });
 
   return {

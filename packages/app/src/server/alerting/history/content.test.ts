@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   ALERT_LABEL_KEY_MAX,
   ALERT_LABEL_VALUE_MAX,
@@ -36,9 +36,7 @@ describe("resolveAlertServiceName", () => {
   });
 
   it("prefers the exact service key when several match", () => {
-    expect(
-      resolveAlertServiceName({ service_name: "beta", service: "alpha" }),
-    ).toBe("alpha");
+    expect(resolveAlertServiceName({ service_name: "beta", service: "alpha" })).toBe("alpha");
   });
 
   it("falls back to the alert marker", () => {

@@ -66,9 +66,7 @@ export const Interactive: Story = {
             setOpen(false);
           }}
           onSave={() => {
-            setSaved(
-              analyticsEnabled ? "Analytics accepted" : "Analytics denied",
-            );
+            setSaved(analyticsEnabled ? "Analytics accepted" : "Analytics denied");
             setOpen(false);
           }}
         />

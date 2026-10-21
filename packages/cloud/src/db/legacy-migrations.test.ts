@@ -1,11 +1,5 @@
 // @vitest-environment node
-import {
-  cpSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +7,7 @@ import { PGlite } from "@electric-sql/pglite";
 import type { Database } from "@everr/app/db/client";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { upgradeLegacyCloudDatabase } from "./legacy-migrations";
 
 const folders = {
@@ -77,14 +71,12 @@ it("preserves existing billing data and adopts only the baselines before running
       { org_id: "free", plan: "hobby", polar_customer_id: null },
       { org_id: "paid", plan: "pro", polar_customer_id: "customer-paid" },
     ]);
-    expect(
-      (await client.query("SELECT polar_subscription_id FROM org_subscription"))
-        .rows,
-    ).toEqual([{ polar_subscription_id: "subscription-paid" }]);
-    expect(
-      (await client.query("SELECT checkout_id FROM pro_organization_checkout"))
-        .rows,
-    ).toEqual([{ checkout_id: "checkout-pending" }]);
+    expect((await client.query("SELECT polar_subscription_id FROM org_subscription")).rows).toEqual(
+      [{ polar_subscription_id: "subscription-paid" }],
+    );
+    expect((await client.query("SELECT checkout_id FROM pro_organization_checkout")).rows).toEqual([
+      { checkout_id: "checkout-pending" },
+    ]);
     expect(
       (
         await client.query(
@@ -93,11 +85,7 @@ it("preserves existing billing data and adopts only the baselines before running
       ).rows,
     ).toEqual([]);
     expect(
-      (
-        await client.query(
-          "SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations",
-        )
-      ).rows,
+      (await client.query("SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations")).rows,
     ).toEqual([{ count: 15 }]);
     await migrate(db, {
       migrationsFolder: appFolder,
@@ -108,11 +96,7 @@ it("preserves existing billing data and adopts only the baselines before running
       migrationsTable: "__everr_cloud_migrations",
     });
     expect(
-      (
-        await client.query(
-          "SELECT to_regclass('migration_future_check') AS name",
-        )
-      ).rows,
+      (await client.query("SELECT to_regclass('migration_future_check') AS name")).rows,
     ).toEqual([{ name: "migration_future_check" }]);
   } finally {
     await client.close();
@@ -120,56 +104,46 @@ it("preserves existing billing data and adopts only the baselines before running
   }
 }, 30_000);
 
-it.each([
-  true,
-  false,
-])("supports app/cloud switching with an existing app database: %s", async (appFirst) => {
-  const client = new PGlite();
-  const db = drizzle(client);
-  const appConfig = { migrationsFolder: folders.appMigrationsFolder };
-  const cloudConfig = {
-    migrationsFolder: folders.cloudMigrationsFolder,
-    migrationsTable: "__everr_cloud_migrations",
-  };
-  try {
-    if (appFirst) await migrate(db, appConfig);
-    await upgradeLegacyCloudDatabase(db as unknown as Database, folders);
-    await migrate(db, appConfig);
-    await migrate(db, cloudConfig);
-    await client.exec(`
+it.each([true, false])(
+  "supports app/cloud switching with an existing app database: %s",
+  async (appFirst) => {
+    const client = new PGlite();
+    const db = drizzle(client);
+    const appConfig = { migrationsFolder: folders.appMigrationsFolder };
+    const cloudConfig = {
+      migrationsFolder: folders.cloudMigrationsFolder,
+      migrationsTable: "__everr_cloud_migrations",
+    };
+    try {
+      if (appFirst) await migrate(db, appConfig);
+      await upgradeLegacyCloudDatabase(db as unknown as Database, folders);
+      await migrate(db, appConfig);
+      await migrate(db, cloudConfig);
+      await client.exec(`
       INSERT INTO organization (id, name, slug, created_at)
       VALUES ('switch', 'Switch', 'switch', now());
       INSERT INTO organization_billing (org_id, plan, polar_customer_id)
       VALUES ('switch', 'pro', 'customer-switch');
     `);
-    await migrate(db, appConfig);
-    await upgradeLegacyCloudDatabase(db as unknown as Database, folders);
-    await migrate(db, appConfig);
-    await migrate(db, cloudConfig);
-    expect(
-      (
-        await client.query(
-          "SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations",
-        )
-      ).rows,
-    ).toEqual([{ count: 1 }]);
-    expect(
-      (
-        await client.query(
-          "SELECT count(*)::int AS count FROM drizzle.__everr_cloud_migrations",
-        )
-      ).rows,
-    ).toEqual([{ count: 1 }]);
-    expect(
-      (
-        await client.query(
-          "SELECT org_id, plan, polar_customer_id FROM organization_billing",
-        )
-      ).rows,
-    ).toEqual([
-      { org_id: "switch", plan: "pro", polar_customer_id: "customer-switch" },
-    ]);
-  } finally {
-    await client.close();
-  }
-}, 30_000);
+      await migrate(db, appConfig);
+      await upgradeLegacyCloudDatabase(db as unknown as Database, folders);
+      await migrate(db, appConfig);
+      await migrate(db, cloudConfig);
+      expect(
+        (await client.query("SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations"))
+          .rows,
+      ).toEqual([{ count: 1 }]);
+      expect(
+        (await client.query("SELECT count(*)::int AS count FROM drizzle.__everr_cloud_migrations"))
+          .rows,
+      ).toEqual([{ count: 1 }]);
+      expect(
+        (await client.query("SELECT org_id, plan, polar_customer_id FROM organization_billing"))
+          .rows,
+      ).toEqual([{ org_id: "switch", plan: "pro", polar_customer_id: "customer-switch" }]);
+    } finally {
+      await client.close();
+    }
+  },
+  30_000,
+);

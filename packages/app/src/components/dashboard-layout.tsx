@@ -1,17 +1,8 @@
 import { Separator } from "@everr/ui/components/separator";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@everr/ui/components/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@everr/ui/components/sidebar";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Outlet,
-  useMatches,
-  useRouteContext,
-  useSearch,
-} from "@tanstack/react-router";
+import { Outlet, useMatches, useRouteContext, useSearch } from "@tanstack/react-router";
 import { homeView } from "#app/common/onboarding.ts";
 import { RefreshPicker } from "#app/components/analytics/refresh-picker.tsx";
 import { TimeRangePicker } from "#app/components/analytics/time-range-picker.tsx";
@@ -29,21 +20,15 @@ export function DashboardLayout() {
   const matches = useMatches();
   const homeMatch = matches.find(
     (match) =>
-      match.routeId ===
-      "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/",
+      match.routeId === "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/",
   );
   const homeStatus = useQuery({
-    ...homeStatusQueryOptions(
-      session.user.id,
-      session.session.activeOrganizationId ?? "",
-    ),
+    ...homeStatusQueryOptions(session.user.id, session.session.activeOrganizationId ?? ""),
     enabled: Boolean(homeMatch && session.session.activeOrganizationId),
     // Home owns the poll; the layout only observes its cached view decision.
     refetchInterval: false,
   });
-  const showDataControls = matches.some(
-    (match) => match.staticData.showDataControls,
-  );
+  const showDataControls = matches.some((match) => match.staticData.showDataControls);
   let hideTimeRangePicker = false;
   for (const match of matches) {
     if (match.staticData?.hideTimeRangePicker !== undefined) {
@@ -52,11 +37,9 @@ export function DashboardLayout() {
   }
 
   if (homeMatch) {
-    const setupRequested =
-      "setup" in homeMatch.search && homeMatch.search.setup === 1;
+    const setupRequested = "setup" in homeMatch.search && homeMatch.search.setup === 1;
     hideTimeRangePicker =
-      !homeStatus.data ||
-      homeView(homeStatus.data, setupRequested) !== "dashboard";
+      !homeStatus.data || homeView(homeStatus.data, setupRequested) !== "dashboard";
   }
 
   if (!session.session.activeOrganizationId) {
@@ -105,7 +88,7 @@ export function DashboardLayout() {
           {search.github_install === "error" && (
             <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
               Failed to link GitHub installation
-              {search.reason ? ` (${search.reason})` : ""}.
+              {typeof search.reason === "string" && search.reason ? ` (${search.reason})` : ""}.
             </div>
           )}
           <Outlet />

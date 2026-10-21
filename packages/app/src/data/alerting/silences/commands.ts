@@ -78,10 +78,11 @@ export function repeatSilenceSeed(
 }
 
 /** Cancel a known silence when the caller cannot safely reproduce its scope. */
-export const cancelSilenceById = (
-  id: string,
-  label: string,
-): SilenceCancelTarget => ({ id, label, recreate: null });
+export const cancelSilenceById = (id: string, label: string): SilenceCancelTarget => ({
+  id,
+  label,
+  recreate: null,
+});
 
 /**
  * Cancel a listed silence. Undo is available only when the record resolved to
@@ -124,9 +125,7 @@ export function recreateCancelledSilence(
 ): SilenceDraft | null {
   const { recreate } = target;
   if (!recreate || new Date(recreate.startsAt).getTime() > now) return null;
-  const durationMinutes = Math.ceil(
-    (new Date(recreate.endsAt).getTime() - now) / 60_000,
-  );
+  const durationMinutes = Math.ceil((new Date(recreate.endsAt).getTime() - now) / 60_000);
   if (durationMinutes <= 0) return null;
   const { startsAt: _started, endsAt: _ended, ...draft } = recreate;
   return { ...draft, durationMinutes };

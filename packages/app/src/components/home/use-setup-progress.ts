@@ -41,11 +41,7 @@ function readProgress(key: string, completed: boolean): OnboardingProgress {
 }
 
 // The containing component is keyed by user and org to initialize new state.
-export function useSetupProgress(
-  userId: string,
-  organizationId: string,
-  completed: boolean,
-) {
+export function useSetupProgress(userId: string, organizationId: string, completed: boolean) {
   const key = onboardingProgressKey(userId, organizationId);
   const [progress, setProgress] = useState(() => readProgress(key, completed));
   const [reviewStep, setReviewStep] = useState<OnboardingStep | null>(null);
@@ -61,8 +57,7 @@ export function useSetupProgress(
 
   function advance(nextStep: OnboardingStep, nextMode = progress.mode) {
     const savedStep =
-      ONBOARDING_STEPS.indexOf(nextStep) >=
-      ONBOARDING_STEPS.indexOf(progress.step)
+      ONBOARDING_STEPS.indexOf(nextStep) >= ONBOARDING_STEPS.indexOf(progress.step)
         ? nextStep
         : progress.step;
     saveProgress({ step: savedStep, mode: nextMode });

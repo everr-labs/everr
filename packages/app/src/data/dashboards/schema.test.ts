@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   BUILTIN_PROJECT,
   dashboardProjectSchema,
@@ -30,17 +30,13 @@ const spec = (ref: string) => ({
 
 describe("dashboardSpecSchema layout refs", () => {
   it("accepts a ref that points at an existing panel", () => {
-    expect(
-      dashboardSpecSchema.safeParse(spec("#/spec/panels/cpu")).success,
-    ).toBe(true);
+    expect(dashboardSpecSchema.safeParse(spec("#/spec/panels/cpu")).success).toBe(true);
   });
 
   it("rejects a ref to a non-existent panel key", () => {
     const result = dashboardSpecSchema.safeParse(spec("#/spec/panels/typo"));
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.message).toMatch(
-      /does not match any panel/,
-    );
+    expect(result.error?.issues[0]?.message).toMatch(/does not match any panel/);
   });
 
   it("rejects a ref that does not use the panel prefix", () => {
@@ -230,9 +226,7 @@ describe("dashboardSpecSchemaStrict – query plugin specs", () => {
   });
 
   it("rejects a malformed TestData query spec with a precise path", () => {
-    const result = dashboardSpecSchemaStrict.safeParse(
-      base({ scenario: "nope" }),
-    );
+    const result = dashboardSpecSchemaStrict.safeParse(base({ scenario: "nope" }));
     expect(result.success).toBe(false);
     if (result.success) return;
     const issue = result.error.issues[0]!;
@@ -292,9 +286,7 @@ describe("dashboardSlugSchema", () => {
 
 describe("dashboardProjectSchema", () => {
   it("reserves the built-in pseudo-project", () => {
-    expect(dashboardProjectSchema.safeParse(BUILTIN_PROJECT).success).toBe(
-      false,
-    );
+    expect(dashboardProjectSchema.safeParse(BUILTIN_PROJECT).success).toBe(false);
     expect(dashboardProjectSchema.safeParse("default").success).toBe(true);
     // Only the exact name is reserved; names around it stay usable.
     expect(dashboardProjectSchema.safeParse("built-ins").success).toBe(true);

@@ -8,10 +8,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { run, type WorkerEvents } from "graphile-worker";
 import { Pool } from "pg";
 import { attachOrganizationRetryPolicy } from "./retries";
-import {
-  createOrganizationTaskList,
-  organizationProvisioningCronItems,
-} from "./runtime";
+import { createOrganizationTaskList, organizationProvisioningCronItems } from "./runtime";
 
 const runtime = managedWorker({
   name: "everrOrganizationWorker",
@@ -19,7 +16,7 @@ const runtime = managedWorker({
   start: async () => {
     const pool = new Pool({ ...databasePoolConfig, max: 4 });
     const database = drizzle(pool, { schema });
-    const events = new EventEmitter() as WorkerEvents;
+    const events: WorkerEvents = new EventEmitter();
     // Job boundaries record one correlated exception per attempt.
     attachGraphileWorkerEventLogging(events, false);
     const retries = attachOrganizationRetryPolicy(events, pool);
@@ -30,10 +27,7 @@ const runtime = managedWorker({
         events,
         noHandleSignals: true,
         pollInterval: 1000,
-        taskList: createOrganizationTaskList(
-          database,
-          retries.capPendingRetries,
-        ),
+        taskList: createOrganizationTaskList(database, retries.capPendingRetries),
         parsedCronItems: organizationProvisioningCronItems,
         preset: { worker: { gracefulShutdownAbortTimeout: 5000 } },
       });

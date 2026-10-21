@@ -10,16 +10,16 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 
 ## The Context Envelope (on every record)
 
-| Attribute | Meaning |
-| --- | --- |
-| `session.id` | Rotates after 30 idle minutes; groups one visit |
-| `everr.visitor.id` | Stable per browser (localStorage); groups return visits |
-| `everr.page_view.id` | Joins any record to the pageview it happened on |
-| `url.full`, `url.path` | The page the record happened on |
-| `everr.route.pattern` | Low-cardinality route, e.g. `/posts/{id}`; group by this, not `url.path` |
-| `everr.referrer.url` | The page's referrer |
-| `user.id`, `user.*` | Set by `identify()`; flat traits like `user.plan` |
-| ambient `everr.*` keys | Set by the host app via `setAttributes()` |
+| Attribute              | Meaning                                                                  |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `session.id`           | Rotates after 30 idle minutes; groups one visit                          |
+| `everr.visitor.id`     | Stable per browser (localStorage); groups return visits                  |
+| `everr.page_view.id`   | Joins any record to the pageview it happened on                          |
+| `url.full`, `url.path` | The page the record happened on                                          |
+| `everr.route.pattern`  | Low-cardinality route, e.g. `/posts/{id}`; group by this, not `url.path` |
+| `everr.referrer.url`   | The page's referrer                                                      |
+| `user.id`, `user.*`    | Set by `identify()`; flat traits like `user.plan`                        |
+| ambient `everr.*` keys | Set by the host app via `setAttributes()`                                |
 
 ## Resource Attributes (in `ResourceAttributes`)
 
@@ -27,14 +27,14 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 
 ## Log Events (`EventName` column)
 
-| EventName | Meaning | Key attributes |
-| --- | --- | --- |
-| `everr.browser.page_view` | One per hard navigation and per SPA navigation | `everr.navigation.type` (`initial` or `history_change`) |
-| `everr.browser.page_leave` | One per pageview, on navigation away or hide | `everr.page_view.duration` (ms) |
-| `everr.browser.interaction.click` | Autocaptured click | element attrs |
-| `everr.browser.interaction.submit` | Form submit, targeted at the submit button | element attrs |
-| `browser.web_vital` | One per metric (lcp, cls, ttfb, inp) per navigation | see below |
-| `exception` | Frontend error (unhandled, unhandled rejection, React boundary, or manual capture) | see below |
+| EventName                          | Meaning                                                                            | Key attributes                                          |
+| ---------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `everr.browser.page_view`          | One per hard navigation and per SPA navigation                                     | `everr.navigation.type` (`initial` or `history_change`) |
+| `everr.browser.page_leave`         | One per pageview, on navigation away or hide                                       | `everr.page_view.duration` (ms)                         |
+| `everr.browser.interaction.click`  | Autocaptured click                                                                 | element attrs                                           |
+| `everr.browser.interaction.submit` | Form submit, targeted at the submit button                                         | element attrs                                           |
+| `browser.web_vital`                | One per metric (lcp, cls, ttfb, inp) per navigation                                | see below                                               |
+| `exception`                        | Frontend error (unhandled, unhandled rejection, React boundary, or manual capture) | see below                                               |
 
 Element attributes, shared by everything that names a DOM element: `everr.element.selector` (stable CSS path, the one spelling across all signals: nearest `#id` anchor, then per step a naming attribute (`aria-label`, `type`, `name`, `title`, `alt`) and digit-free classes on the tag, positional `:nth-of-type` only as a last resort), `everr.element.tag`, `everr.element.href`, `everr.viewport.width`/`height`. The SDK never captures element text or input values.
 
@@ -44,11 +44,11 @@ Semconv names stay bare: `browser.web_vital.name` (`lcp`, `cls`, `ttfb`, `inp`),
 
 Attribution for LCP, CLS, and TTFB rides under `everr.browser.web_vital.<metric>.*`:
 
-| Metric | Attribution attributes (`everr.browser.web_vital.<metric>.` prefix) |
-| --- | --- |
-| `lcp` | `target` (element selector), `url` (resource url), `time_to_first_byte`, `resource_load_delay`, `resource_load_duration`, `element_render_delay` |
-| `cls` | `largest_shift_target` (element selector), `largest_shift_time`, `largest_shift_value`, `load_state` (`loading`, `dom-interactive`, `dom-content-loaded`, `complete`) |
-| `ttfb` | `waiting_duration`, `cache_duration`, `dns_duration`, `connection_duration`, `request_duration` |
+| Metric | Attribution attributes (`everr.browser.web_vital.<metric>.` prefix)                                                                                                   |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lcp`  | `target` (element selector), `url` (resource url), `time_to_first_byte`, `resource_load_delay`, `resource_load_duration`, `element_render_delay`                      |
+| `cls`  | `largest_shift_target` (element selector), `largest_shift_time`, `largest_shift_value`, `load_state` (`loading`, `dom-interactive`, `dom-content-loaded`, `complete`) |
+| `ttfb` | `waiting_duration`, `cache_duration`, `dns_duration`, `connection_duration`, `request_duration`                                                                       |
 
 The INP vital does not use that prefix. It carries the same attribution as the `slow_interaction` span, under the same names: `everr.browser.interaction.*` (`name`, `type`, phases, `total_*` breakdown, `script.*`) plus element attrs. `everr.browser.interaction.id` joins the vital to the `slow_interaction` span of the same interaction.
 
@@ -58,11 +58,11 @@ The INP vital does not use that prefix. It carries the same attribution as the `
 
 ## Spans (in `traces`)
 
-| SpanName | Meaning | Key attributes |
-| --- | --- | --- |
-| Application-defined name (e.g. `prepare checkout`) | Manual segment from `tracer.startSpan()` or `tracer.startActiveSpan()`. The latter stays active until `end()` in the browser; custom and built-in spans started during that time join the most recently active span's trace. Overlapping interactions share this stack, not isolated async contexts. `root: true` starts a new trace | Context envelope plus caller-supplied attributes (a scalar or an array). Prefer bounded names and `everr.*` for custom attributes. `setStatus({ code: 2 })` marks failure (`StatusCode = 'Error'`, message kept). `setStatus({ code: 1 })` marks OK and sticks. Links carry the linked span's trace id, span id, and trace flags |
-| `<METHOD> <route>` (e.g. `GET /api/posts/{id}`) | One per browser `fetch` or XHR; the server spans parent to it, so `TraceId` joins frontend to backend. Each request is its own trace root | HTTP client semconv: `http.request.method`, `http.response.status_code`, `url.full` (query-stripped request URL), `url.template`, `server.address`; 4xx/5xx set `StatusCode = 'Error'` with `error.type` |
-| `slow_interaction` | Event Timing entry over threshold, from the same observer as INP | `everr.browser.interaction.*`: `id`, `name` (event name, e.g. `click`), `type` (`pointer` or `keyboard`), `input_delay`, `processing_duration`, `presentation_delay`, `total_script_duration`, `total_style_and_layout_duration`, `total_paint_duration`, `total_unattributed_duration`, `script.source_url`, `script.function_name`, `script.invoker_type`, `script.duration` (the longest script; script and total attrs need Chrome 123+ LoAF); plus element attrs |
+| SpanName                                           | Meaning                                                                                                                                                                                                                                                                                                                              | Key attributes                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Application-defined name (e.g. `prepare checkout`) | Manual segment from `tracer.startSpan()` or `tracer.startActiveSpan()`. The latter stays active until `end()` in the browser; custom and built-in spans started during that time join the most recently active span's trace. Overlapping interactions share this stack, not isolated async contexts. `root: true` starts a new trace | Context envelope plus caller-supplied attributes (a scalar or an array). Prefer bounded names and `everr.*` for custom attributes. `setStatus({ code: 2 })` marks failure (`StatusCode = 'Error'`, message kept). `setStatus({ code: 1 })` marks OK and sticks. Links carry the linked span's trace id, span id, and trace flags                                                                                                                                      |
+| `<METHOD> <route>` (e.g. `GET /api/posts/{id}`)    | One per browser `fetch` or XHR; the server spans parent to it, so `TraceId` joins frontend to backend. Each request is its own trace root                                                                                                                                                                                            | HTTP client semconv: `http.request.method`, `http.response.status_code`, `url.full` (query-stripped request URL), `url.template`, `server.address`; 4xx/5xx set `StatusCode = 'Error'` with `error.type`                                                                                                                                                                                                                                                              |
+| `slow_interaction`                                 | Event Timing entry over threshold, from the same observer as INP                                                                                                                                                                                                                                                                     | `everr.browser.interaction.*`: `id`, `name` (event name, e.g. `click`), `type` (`pointer` or `keyboard`), `input_delay`, `processing_duration`, `presentation_delay`, `total_script_duration`, `total_style_and_layout_duration`, `total_paint_duration`, `total_unattributed_duration`, `script.source_url`, `script.function_name`, `script.invoker_type`, `script.duration` (the longest script; script and total attrs need Chrome 123+ LoAF); plus element attrs |
 
 XHR spans start at `send()` and end on completion, timeout, network failure, or cancellation. Network failures set `error.type = NetworkError`; timeouts set `error.type = TimeoutError`. Explicit aborts and requests replaced by `open()` end without an error status. A missing HTTP response has no `http.response.status_code`. Shutdown detaches listeners and discards unfinished XHR observations without aborting application requests. Everr owns XHR trace propagation. Caller-supplied `traceparent` headers are not detected; setting one alongside `network()` causes XHR to append the SDK value, producing an invalid trace header.
 

@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { LifecycleEventType, LifecycleRow } from "./segments";
 import { ruleStateSegments } from "./segments";
 
@@ -144,9 +144,7 @@ describe("what outranks what", () => {
           const instant = failedAt + INTERVAL_MS / 2;
           const minutesBeforeEnd = (WINDOW_TO - instant) / 60_000;
           const covering = segmentsOf(withFailure, prior).find(
-            (segment) =>
-              segment.from >= minutesBeforeEnd &&
-              segment.to <= minutesBeforeEnd,
+            (segment) => segment.from >= minutesBeforeEnd && segment.to <= minutesBeforeEnd,
           );
           // A rule we cannot evaluate hides an unknown number of Firing
           // instances, so nothing may show through it.

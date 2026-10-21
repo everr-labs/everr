@@ -44,14 +44,14 @@ export function ExplorePersistentFilters({
       service={service}
       environment={environment}
       onServiceChange={(values) =>
-        navigate({
+        void navigate({
           to,
           search: (prev) => ({ ...prev, service: values }),
           replace: true,
         })
       }
       onEnvironmentChange={(values) =>
-        navigate({
+        void navigate({
           to,
           search: (prev) => ({ ...prev, environment: values }),
           replace: true,

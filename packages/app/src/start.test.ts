@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import type * as ReactStartTypes from "@tanstack/react-start";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 const startMocks = vi.hoisted(() => ({
   createStart: vi.fn((factory: () => unknown) => factory()),
@@ -9,19 +10,17 @@ const startMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+  ...(await importOriginal<typeof ReactStartTypes>()),
   createStart: startMocks.createStart,
 }));
 
 vi.mock("@everr/tanstack-start-otel", () => ({
-  createRequestTelemetryMiddleware:
-    startMocks.createRequestTelemetryMiddleware.mockReturnValue(
-      startMocks.requestMiddleware,
-    ),
-  createServerFnTelemetryMiddleware:
-    startMocks.createServerFnTelemetryMiddleware.mockReturnValue(
-      startMocks.functionMiddleware,
-    ),
+  createRequestTelemetryMiddleware: startMocks.createRequestTelemetryMiddleware.mockReturnValue(
+    startMocks.requestMiddleware,
+  ),
+  createServerFnTelemetryMiddleware: startMocks.createServerFnTelemetryMiddleware.mockReturnValue(
+    startMocks.functionMiddleware,
+  ),
 }));
 
 // The real module pulls the whole generated route tree into this test.
@@ -50,8 +49,7 @@ describe("startInstance", () => {
     await import("./start");
 
     const { getRouter } = await import("#app/router.tsx");
-    const options =
-      startMocks.createRequestTelemetryMiddleware.mock.calls[0]?.[0];
+    const options = startMocks.createRequestTelemetryMiddleware.mock.calls[0]?.[0];
     options?.router();
     expect(getRouter).toHaveBeenCalled();
   });

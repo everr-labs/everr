@@ -1,12 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   getOrganization: vi.fn(),
@@ -56,9 +50,10 @@ it("refreshes the route when a subsequent status check becomes ready", async () 
   });
   const client = show();
   await waitFor(() =>
-    expect(
-      client.getQueryData(["organization-provisioning", "pending"]),
-    ).toEqual({ id: "pending", status: "pending" }),
+    expect(client.getQueryData(["organization-provisioning", "pending"])).toEqual({
+      id: "pending",
+      status: "pending",
+    }),
   );
   vi.useFakeTimers();
   mocks.getOrganization.mockResolvedValue({
@@ -85,9 +80,7 @@ it("keeps the friendly page visible when a readiness check fails", async () => {
   mocks.getOrganization.mockRejectedValue(new Error("Network unavailable"));
   const client = show();
   await waitFor(() =>
-    expect(
-      client.getQueryState(["organization-provisioning", "pending"])?.status,
-    ).toBe("error"),
+    expect(client.getQueryState(["organization-provisioning", "pending"])?.status).toBe("error"),
   );
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.getByRole("status")).toHaveTextContent(
@@ -112,9 +105,7 @@ it("resumes polling after Try again even if the first status request fails", asy
   vi.useFakeTimers();
   mocks.getOrganization.mockResolvedValue({ id: "pending", status: "failed" });
   mocks.retry.mockImplementation(async () => {
-    mocks.getOrganization.mockRejectedValueOnce(
-      new Error("Network unavailable"),
-    );
+    mocks.getOrganization.mockRejectedValueOnce(new Error("Network unavailable"));
     mocks.getOrganization.mockResolvedValue({
       id: "pending",
       status: "pending",
@@ -142,9 +133,7 @@ it("resumes polling after Try again even if the first status request fails", asy
   expect(mocks.retry).toHaveBeenCalledWith({
     data: { organizationId: "pending" },
   });
-  expect(
-    screen.getByRole("heading", { name: "Getting your space ready" }),
-  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Getting your space ready" })).toBeVisible();
   const resumed = mocks.getOrganization.mock.calls.length;
   await act(async () => {
     await vi.advanceTimersByTimeAsync(3000);

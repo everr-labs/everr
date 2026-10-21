@@ -11,16 +11,9 @@
 
 export { WebSDK } from "./client.js";
 export { captureError } from "./errors.js";
-export {
-  type ErrorMatcher,
-  type ErrorsOptions,
-  errors,
-} from "./instrumentations/errors/index.js";
+export { type ErrorMatcher, type ErrorsOptions, errors } from "./instrumentations/errors/index.js";
 export { interactions } from "./instrumentations/interactions/index.js";
-export {
-  type NetworkOptions,
-  network,
-} from "./instrumentations/network/index.js";
+export { type NetworkOptions, network } from "./instrumentations/network/index.js";
 export { pageviews } from "./instrumentations/pageviews/index.js";
 export {
   type PerformanceOptions,
@@ -49,12 +42,7 @@ export {
   type RouteTemplateResolver,
   setRouteResolver,
 } from "./state/route.js";
-export {
-  clearIdentity,
-  identify,
-  revoke,
-  setPersistence,
-} from "./state/session.js";
+export { clearIdentity, identify, revoke, setPersistence } from "./state/session.js";
 export { epoch } from "./time.js";
 export { tracer } from "./tracer.js";
 export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";

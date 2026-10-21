@@ -4,9 +4,9 @@
 
 Validate against the store receiving the instrumented app's telemetry:
 
-| Export destination | Query command | Prerequisite |
-| --- | --- | --- |
-| Local collector | `everr local query "<SQL>"` | Collector running; endpoint from `everr local status` |
+| Export destination  | Query command               | Prerequisite                                                                                                             |
+| ------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Local collector     | `everr local query "<SQL>"` | Collector running; endpoint from `everr local status`                                                                    |
 | Remote installation | `everr cloud query "<SQL>"` | CLI query access and app ingest credentials for the same organization; see [Remote setup](../references/remote-setup.md) |
 
 The SQL examples below apply to either store. Adapt the service, environment, and marker filters to the exercised path. A local collector is unnecessary for remote validation, including a development run sent to a remote installation. When both local and production setup are requested, verify each independently; local ingestion does not prove production ingestion.
@@ -182,15 +182,15 @@ Resources:
 
 ## Common Failures
 
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| No telemetry | Collector stopped, endpoint wrong, exporter disabled, protocol mismatch | Check status, env, protocol, and startup order |
-| `unknown_service` | Missing `service.name` resource attribute | Hardcode a stable service name in setup code |
-| Spans but no logs | Logger bridge/export path missing | Configure structured logger or OTel logs path |
-| Logs lack trace ids | Logger does not read active span context | Add trace context helper or bridge |
-| Crashes missing | Process exits before buffers flush | Add runtime crash handlers that log, flush, then preserve exit behavior |
-| Metrics missing | SDK exporter disabled or reader not configured | Enable metrics exporter/reader |
-| Duplicate logs | stdout collector and OTLP log exporter both active | Choose one path or deduplicate |
-| High cardinality | Raw URLs, ids, or user values in metric attributes | Normalize or remove attributes |
+| Symptom             | Likely cause                                                            | Fix                                                                     |
+| ------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| No telemetry        | Collector stopped, endpoint wrong, exporter disabled, protocol mismatch | Check status, env, protocol, and startup order                          |
+| `unknown_service`   | Missing `service.name` resource attribute                               | Hardcode a stable service name in setup code                            |
+| Spans but no logs   | Logger bridge/export path missing                                       | Configure structured logger or OTel logs path                           |
+| Logs lack trace ids | Logger does not read active span context                                | Add trace context helper or bridge                                      |
+| Crashes missing     | Process exits before buffers flush                                      | Add runtime crash handlers that log, flush, then preserve exit behavior |
+| Metrics missing     | SDK exporter disabled or reader not configured                          | Enable metrics exporter/reader                                          |
+| Duplicate logs      | stdout collector and OTLP log exporter both active                      | Choose one path or deduplicate                                          |
+| High cardinality    | Raw URLs, ids, or user values in metric attributes                      | Normalize or remove attributes                                          |
 
 If validation fails, fix instrumentation or configuration before continuing with feature work.

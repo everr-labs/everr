@@ -81,9 +81,9 @@ function sortKeys(value: unknown): unknown {
   // null field would hit the object branch and `Object.keys(null)` would throw.
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
-      Object.keys(value as Record<string, unknown>)
-        .sort()
-        .map((k) => [k, sortKeys((value as Record<string, unknown>)[k])]),
+      Object.entries(value)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([k, v]) => [k, sortKeys(v)]),
     );
   }
   return value;

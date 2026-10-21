@@ -1,16 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { formatResourceName } from "#app/data/as-code/identity.ts";
-import {
-  type OwnershipConflict,
-  partitionByOwnership,
-} from "#app/data/as-code/ownership.ts";
+import { type OwnershipConflict, partitionByOwnership } from "#app/data/as-code/ownership.ts";
 import { reconcile } from "#app/data/as-code/reconcile.ts";
 import type { Reconciler } from "#app/data/as-code/registry.ts";
-import {
-  foreignLiveScope,
-  previewOwner,
-  previewScope,
-} from "#app/data/previews/scope.ts";
+import { foreignLiveScope, previewOwner, previewScope } from "#app/data/previews/scope.ts";
 import { dashboards } from "#app/db/schema/index.ts";
 import { buildDesiredSet } from "./desired";
 import type { DashboardResource } from "./schema";
@@ -41,9 +34,7 @@ export const applyDashboardSpecs: Reconciler = async ({
   adopt,
   db: exec,
 }): Promise<ApplyDashboardsResult> => {
-  const desired = buildDesiredSet(
-    resources.map((r) => ({ path: r.path, document: r.resource })),
-  );
+  const desired = buildDesiredSet(resources.map((r) => ({ path: r.path, document: r.resource })));
 
   const scope = previewScope(dashboards, namespace);
 
@@ -73,8 +64,11 @@ export const applyDashboardSpecs: Reconciler = async ({
           .from(dashboards)
           .where(foreignLiveScope(dashboards, namespace, diff.creates))
       : [];
-  const { freshCreates, takenCreates, adopted, conflicts } =
-    partitionByOwnership(diff.creates, foreign, adopt);
+  const { freshCreates, takenCreates, adopted, conflicts } = partitionByOwnership(
+    diff.creates,
+    foreign,
+    adopt,
+  );
 
   const summary: ApplyDashboardsResult = {
     created: freshCreates.map((d) => formatResourceName(d.project, d.slug)),
@@ -93,6 +87,7 @@ export const applyDashboardSpecs: Reconciler = async ({
       project: d.project,
       slug: d.slug,
       folderPath: d.folderPath,
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- buildDesiredSet validates the spec while preserving unknown Perses document fields verbatim.
       document: d.document as DashboardResource,
     });
   }
@@ -104,6 +99,7 @@ export const applyDashboardSpecs: Reconciler = async ({
       .update(dashboards)
       .set({
         repoid: namespace.repoid,
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- buildDesiredSet validates the spec while preserving unknown Perses document fields verbatim.
         document: d.document as DashboardResource,
         folderPath: d.folderPath,
         updatedAt: new Date(),
@@ -121,28 +117,17 @@ export const applyDashboardSpecs: Reconciler = async ({
     await exec
       .update(dashboards)
       .set({
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- buildDesiredSet validates the spec while preserving unknown Perses document fields verbatim.
         document: d.document as DashboardResource,
         folderPath: d.folderPath,
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          scope,
-          eq(dashboards.project, d.project),
-          eq(dashboards.slug, d.slug),
-        ),
-      );
+      .where(and(scope, eq(dashboards.project, d.project), eq(dashboards.slug, d.slug)));
   }
   for (const d of diff.deletes) {
     await exec
       .delete(dashboards)
-      .where(
-        and(
-          scope,
-          eq(dashboards.project, d.project),
-          eq(dashboards.slug, d.slug),
-        ),
-      );
+      .where(and(scope, eq(dashboards.project, d.project), eq(dashboards.slug, d.slug)));
   }
 
   return summary;

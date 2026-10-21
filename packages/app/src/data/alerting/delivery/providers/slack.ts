@@ -22,10 +22,7 @@ import {
  * is left alone; an escaped ampersand would break it.
  */
 function escapeSlackMarkup(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+  return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 /**

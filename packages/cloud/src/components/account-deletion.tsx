@@ -18,18 +18,14 @@ export function AccountDeletion() {
   const canDeleteActiveOrganization = isOrganizationOwner(currentMemberRole);
   const isOnlyActiveOrganizationOwner =
     canDeleteActiveOrganization &&
-    activeOrganizationMembers.filter((member) =>
-      isOrganizationOwner(member.role),
-    ).length === 1;
-  const activeOrganizationName =
-    activeOrganization?.name ?? "current organization";
+    activeOrganizationMembers.filter((member) => isOrganizationOwner(member.role)).length === 1;
+  const activeOrganizationName = activeOrganization?.name ?? "current organization";
 
   return (
     <DeleteAccountDialog
       onDelete={async () => {
         const shouldDeleteOrganization =
-          canDeleteActiveOrganization &&
-          (deleteOrganization || isOnlyActiveOrganizationOwner);
+          canDeleteActiveOrganization && (deleteOrganization || isOnlyActiveOrganizationOwner);
         await deleteCurrentUserAccount({
           data: shouldDeleteOrganization
             ? { confirmation: "DELETE", deleteOrganization: true }
@@ -40,8 +36,7 @@ export function AccountDeletion() {
     >
       {canDeleteActiveOrganization && isOnlyActiveOrganizationOwner ? (
         <p className="rounded-md border border-destructive/20 bg-destructive/5 p-2 text-xs font-medium">
-          This action is also going to delete the {activeOrganizationName}{" "}
-          organization.
+          This action is also going to delete the {activeOrganizationName} organization.
         </p>
       ) : canDeleteActiveOrganization ? (
         <label
@@ -57,12 +52,9 @@ export function AccountDeletion() {
             onChange={(event) => setDeleteOrganization(event.target.checked)}
           />
           <span className="flex flex-col gap-1">
-            <span className="font-medium">
-              Delete {activeOrganizationName} organization too
-            </span>
+            <span className="font-medium">Delete {activeOrganizationName} organization too</span>
             <span className="text-muted-foreground">
-              Leave this unchecked to remove only your account and keep the
-              organization.
+              Leave this unchecked to remove only your account and keep the organization.
             </span>
           </span>
         </label>

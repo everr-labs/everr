@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, type Mock, vi } from "vitest";
+import { describe, expect, it, type Mock, vi } from "vite-plus/test";
 
 vi.mock("@tanstack/react-router", () => ({
   useMatches: vi.fn(),
@@ -13,21 +13,15 @@ vi.mock("@tanstack/react-router", () => ({
     to: string;
     from?: string;
     params?: Record<string, string>;
-    search?:
-      | Record<string, unknown>
-      | ((prev: Record<string, unknown>) => Record<string, unknown>);
+    search?: Record<string, unknown> | ((prev: Record<string, unknown>) => Record<string, unknown>);
     children?: React.ReactNode;
   }) => {
     const route = to === "." ? (from ?? ".") : to;
-    const path = route.replace(
-      /\$([A-Za-z0-9_]+)/g,
-      (segment, name: string) => {
-        const value = params?.[name];
-        return value === undefined ? segment : encodeURIComponent(value);
-      },
-    );
-    const resolvedSearch =
-      typeof search === "function" ? search({ keep: "current" }) : search;
+    const path = route.replace(/\$([A-Za-z0-9_]+)/g, (segment, name: string) => {
+      const value = params?.[name];
+      return value === undefined ? segment : encodeURIComponent(value);
+    });
+    const resolvedSearch = typeof search === "function" ? search({ keep: "current" }) : search;
     const searchStr = resolvedSearch
       ? `?${new URLSearchParams(
           Object.entries(resolvedSearch)
@@ -49,9 +43,7 @@ function makeMatch(
   fullPath: string,
   breadcrumb?:
     | string
-    | ((
-        match: Record<string, unknown>,
-      ) => string | BreadcrumbSegment[] | undefined),
+    | ((match: Record<string, unknown>) => string | BreadcrumbSegment[] | undefined),
   extra?: Record<string, unknown>,
 ) {
   return {
@@ -77,9 +69,7 @@ describe("DashboardBreadcrumb", () => {
       screen.getByText("Overview").closest("[data-slot='breadcrumb-page']"),
     ).toBeInTheDocument();
     expect(screen.getByText("Overview").closest("a")).toBeNull();
-    expect(
-      container.querySelectorAll("[data-slot='breadcrumb-separator']"),
-    ).toHaveLength(0);
+    expect(container.querySelectorAll("[data-slot='breadcrumb-separator']")).toHaveLength(0);
   });
 
   it("renders multiple breadcrumbs with links and a final page", () => {
@@ -97,16 +87,12 @@ describe("DashboardBreadcrumb", () => {
     expect(
       screen.getByText("My Workflow").closest("[data-slot='breadcrumb-page']"),
     ).toBeInTheDocument();
-    expect(
-      container.querySelectorAll("[data-slot='breadcrumb-separator']"),
-    ).toHaveLength(1);
+    expect(container.querySelectorAll("[data-slot='breadcrumb-separator']")).toHaveLength(1);
   });
 
   it("evaluates function breadcrumbs with match data", () => {
     const breadcrumbFn = (match: Record<string, unknown>) => {
-      const loaderData = match.loaderData as
-        | { runDetails?: { workflowName?: string } }
-        | undefined;
+      const loaderData = match.loaderData as { runDetails?: { workflowName?: string } } | undefined;
       return loaderData?.runDetails?.workflowName ?? "Run Details";
     };
 
@@ -131,9 +117,7 @@ describe("DashboardBreadcrumb", () => {
     render(<DashboardBreadcrumb />);
 
     expect(screen.getByText("Runs")).toBeInTheDocument();
-    expect(
-      screen.getByText("Runs").closest("[data-slot='breadcrumb-page']"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Runs").closest("[data-slot='breadcrumb-page']")).toBeInTheDocument();
   });
 
   it("filters out crumbs where function returns empty string", () => {
@@ -146,9 +130,7 @@ describe("DashboardBreadcrumb", () => {
     render(<DashboardBreadcrumb />);
 
     expect(screen.getByText("Runs")).toBeInTheDocument();
-    expect(
-      screen.getByText("Runs").closest("[data-slot='breadcrumb-page']"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Runs").closest("[data-slot='breadcrumb-page']")).toBeInTheDocument();
   });
 
   it("applies hidden md:block class to non-last items for responsive behavior", () => {
@@ -206,8 +188,6 @@ describe("DashboardBreadcrumb", () => {
     expect(
       screen.getByText("Overview").closest("[data-slot='breadcrumb-page']"),
     ).toBeInTheDocument();
-    expect(
-      container.querySelectorAll("[data-slot='breadcrumb-separator']"),
-    ).toHaveLength(2);
+    expect(container.querySelectorAll("[data-slot='breadcrumb-separator']")).toHaveLength(2);
   });
 });

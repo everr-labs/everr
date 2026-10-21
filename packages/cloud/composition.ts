@@ -1,8 +1,7 @@
 import { resolve } from "node:path";
 import type { AppComposition } from "@everr/app/build/composition";
 
-const routeFile = (file: string) =>
-  resolve(import.meta.dirname, "src/routes", file);
+const routeFile = (file: string) => resolve(import.meta.dirname, "src/routes", file);
 
 export const cloudComposition: AppComposition = {
   directory: import.meta.dirname,
@@ -26,9 +25,7 @@ export const cloudComposition: AppComposition = {
       {
         type: "route",
         path: "organizations/checkout/success",
-        file: routeFile(
-          "_welcome/_signedIn/organizations.checkout.success.tsx",
-        ),
+        file: routeFile("_welcome/_signedIn/organizations.checkout.success.tsx"),
       },
       {
         type: "layout",
@@ -38,16 +35,12 @@ export const cloudComposition: AppComposition = {
           {
             type: "route",
             path: "organization-setup",
-            file: routeFile(
-              "_welcome/_signedIn/_organization/organization-setup.tsx",
-            ),
+            file: routeFile("_welcome/_signedIn/_organization/organization-setup.tsx"),
           },
           {
             type: "route",
             path: "organization-pending",
-            file: routeFile(
-              "_welcome/_signedIn/_organization/organization-pending.tsx",
-            ),
+            file: routeFile("_welcome/_signedIn/_organization/organization-pending.tsx"),
           },
         ],
       },
@@ -61,9 +54,7 @@ export const cloudComposition: AppComposition = {
           {
             type: "route",
             path: "checkout/success",
-            file: routeFile(
-              "_authenticated/_organization/_dashboard/_padded/checkout.success.tsx",
-            ),
+            file: routeFile("_authenticated/_organization/_dashboard/_padded/checkout.success.tsx"),
           },
           {
             type: "route",
@@ -75,9 +66,7 @@ export const cloudComposition: AppComposition = {
           {
             type: "layout",
             id: "_admin",
-            file: routeFile(
-              "_authenticated/_organization/_dashboard/_padded/_admin.tsx",
-            ),
+            file: routeFile("_authenticated/_organization/_dashboard/_padded/_admin.tsx"),
             children: [
               {
                 type: "route",

@@ -1,10 +1,4 @@
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "#app/components/page-header.tsx";
@@ -21,6 +15,7 @@ function MembersSkeleton() {
   return (
     <div className="space-y-2 px-3 py-2">
       {Array.from({ length: 4 }).map((_, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton list with no data-backed key
         <Skeleton key={i} className="h-8 w-full" />
       ))}
     </div>
@@ -37,10 +32,7 @@ export function OrganizationMembersPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
-      <PageHeader
-        title="Members"
-        lede="Manage organization members, invitations, and access."
-      />
+      <PageHeader title="Members" lede="Manage organization members, invitations, and access." />
 
       {pendingInvitations.length > 0 && (
         <Card inset="flush-content">
@@ -64,10 +56,7 @@ export function OrganizationMembersPage() {
           {members.isPending ? (
             <MembersSkeleton />
           ) : (
-            <MembersTable
-              members={members.data ?? []}
-              currentUserId={currentUserId}
-            />
+            <MembersTable members={members.data ?? []} currentUserId={currentUserId} />
           )}
         </CardContent>
       </Card>

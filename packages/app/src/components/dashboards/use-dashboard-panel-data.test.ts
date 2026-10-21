@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // The pure helpers under test live alongside the hook, whose import chain
 // (options -> server -> db client) touches server-only env at module load.
@@ -37,10 +37,7 @@ function state(partial: Partial<SingleQueryState>): SingleQueryState {
 
 describe("buildPanelQueryRequests", () => {
   it("resolves variables per ClickHouse query independently", () => {
-    const reqs = buildPanelQueryRequests(
-      [ch("select $region"), ch("select 1")],
-      ctx,
-    );
+    const reqs = buildPanelQueryRequests([ch("select $region"), ch("select 1")], ctx);
     expect(reqs[0]!.variables).toEqual({ region: "us" });
     expect(reqs[0]!.missingName).toBeUndefined();
     expect(reqs[1]!.variables).toBeUndefined();
@@ -85,10 +82,7 @@ describe("buildPanelQueryRequests", () => {
 
 describe("combineQueryStates", () => {
   it("is success with one result set per active query, in order", () => {
-    const result = combineQueryStates([
-      state({ rows: [{ x: 1 }] }),
-      state({ rows: [{ x: 2 }] }),
-    ]);
+    const result = combineQueryStates([state({ rows: [{ x: 1 }] }), state({ rows: [{ x: 2 }] })]);
     expect(result.status).toBe("success");
     expect(result.data).toEqual([[{ x: 1 }], [{ x: 2 }]]);
   });
@@ -120,15 +114,11 @@ describe("combineQueryStates", () => {
       }),
     ]);
     expect(result.status).toBe("error");
-    expect(result.errorMessage).toBe(
-      "Failed to load options for $region: boom",
-    );
+    expect(result.errorMessage).toBe("Failed to load options for $region: boom");
   });
 
   it("errors with a variable hint when a query is missing a value", () => {
-    const result = combineQueryStates([
-      state({ missingName: "region", rows: undefined }),
-    ]);
+    const result = combineQueryStates([state({ missingName: "region", rows: undefined })]);
     expect(result.status).toBe("error");
     expect(result.errorMessage).toBe("Select a value for $region");
   });
@@ -142,9 +132,7 @@ describe("combineQueryStates", () => {
   });
 
   it("is success with undefined data when no queries are active", () => {
-    const result = combineQueryStates([
-      state({ active: false, rows: undefined }),
-    ]);
+    const result = combineQueryStates([state({ active: false, rows: undefined })]);
     expect(result.status).toBe("success");
     expect(result.data).toBeUndefined();
   });

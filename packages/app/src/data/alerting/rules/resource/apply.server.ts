@@ -3,10 +3,7 @@ import { AlertingError } from "#app/data/alerting/errors.ts";
 import * as alerting from "#app/data/alerting/rules/repository.ts";
 import type { AlertingRuleView } from "#app/data/alerting/types.ts";
 import { ApplyValidationError } from "#app/data/as-code/errors.ts";
-import {
-  formatResourceName,
-  parseResourceName,
-} from "#app/data/as-code/identity.ts";
+import { formatResourceName, parseResourceName } from "#app/data/as-code/identity.ts";
 import type { OwnershipConflict } from "#app/data/as-code/ownership.ts";
 import { stableStringify } from "#app/data/as-code/reconcile.ts";
 import type { ApplyCache, Reconciler } from "#app/data/as-code/registry.ts";
@@ -83,9 +80,7 @@ function unwrapChType(chType: string): string {
 }
 
 function isStringTypedColumn(chType: string): boolean {
-  return /^(?:String|FixedString|Enum8|Enum16|UUID|IPv4|IPv6)(?:\(|$)/.test(
-    unwrapChType(chType),
-  );
+  return /^(?:String|FixedString|Enum8|Enum16|UUID|IPv4|IPv6)(?:\(|$)/.test(unwrapChType(chType));
 }
 
 function isNumericTypedColumn(chType: string): boolean {
@@ -103,21 +98,15 @@ async function validateAlertRuleQuery(
 ): Promise<{ warning?: string; instanceLabelColumns: string[] }> {
   let queryResult: SqlApiResult<Record<string, unknown>>;
   try {
-    queryResult = await sql.queryWithMeta<Record<string, unknown>>(
-      rule.spec.query,
-    );
+    queryResult = await sql.queryWithMeta<Record<string, unknown>>(rule.spec.query);
   } catch (error) {
-    throw new ApplyValidationError(
-      `${path}: query failed: ${errorMessage(error)}`,
-    );
+    throw new ApplyValidationError(`${path}: query failed: ${errorMessage(error)}`);
   }
 
   const instanceLabelColumns =
     rule.spec.instanceLabels ??
     queryResult.columns.filter(
-      (column, i) =>
-        isStringTypedColumn(queryResult.columnTypes[i] ?? "") &&
-        column !== "value",
+      (column, i) => isStringTypedColumn(queryResult.columnTypes[i] ?? "") && column !== "value",
     );
   const columnNames = new Set(queryResult.columns);
   for (const column of instanceLabelColumns) {
@@ -141,15 +130,9 @@ async function validateAlertRuleQuery(
   }
 
   try {
-    validateMessageRefs(
-      rule.spec.notificationMessage.title,
-      queryResult.columns,
-    );
+    validateMessageRefs(rule.spec.notificationMessage.title, queryResult.columns);
     if (rule.spec.notificationMessage.description) {
-      validateMessageRefs(
-        rule.spec.notificationMessage.description,
-        queryResult.columns,
-      );
+      validateMessageRefs(rule.spec.notificationMessage.description, queryResult.columns);
     }
   } catch (error) {
     throw validationError(path, error);
@@ -180,11 +163,7 @@ type AlertQueryValidation = Awaited<ReturnType<typeof validateAlertRuleQuery>>;
  * one apply share a single ClickHouse round trip per rule. The key carries the
  * path and the org because both appear in the result the caller gets back.
  */
-function validationCacheKey(
-  path: string,
-  rule: AlertRuleYaml,
-  organizationId: string,
-): string {
+function validationCacheKey(path: string, rule: AlertRuleYaml, organizationId: string): string {
   return `alert-query:${stableStringify({
     organizationId,
     path,
@@ -203,6 +182,7 @@ function cachedQueryValidation(
 ): Promise<AlertQueryValidation> {
   if (!cache) return start();
   const key = validationCacheKey(path, rule, organizationId);
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Only this function writes values under this namespaced validation cache key.
   const cached = cache.get(key) as Promise<AlertQueryValidation> | undefined;
   if (cached) return cached;
   // The promise, not its result: two rules validating concurrently on the same
@@ -214,7 +194,7 @@ function cachedQueryValidation(
 
 const VALIDATION_QUERY_CONCURRENCY = 8;
 
-function specFingerprint(spec: Record<string, unknown>): string {
+function specFingerprint(spec: object): string {
   return stableStringify(spec);
 }
 
@@ -242,15 +222,10 @@ export const applyAlertSpecs = async ({
   const parsed = resources.map(({ path, resource }) => {
     const p = parseAlertRule(path, resource);
     // Project is part of resource identity.
-    const qualified = formatResourceName(
-      p.rule.metadata.project ?? "default",
-      p.slug,
-    );
+    const qualified = formatResourceName(p.rule.metadata.project ?? "default", p.slug);
     const prior = seen.get(qualified);
     if (prior) {
-      throw new ApplyValidationError(
-        `duplicate alert "${qualified}" (${prior} and ${path})`,
-      );
+      throw new ApplyValidationError(`duplicate alert "${qualified}" (${prior} and ${path})`);
     }
     seen.set(qualified, path);
     return { ...p, path };
@@ -261,9 +236,7 @@ export const applyAlertSpecs = async ({
   const validationsPromise = Promise.allSettled(
     parsed.map((p) =>
       cachedQueryValidation(cache, p.path, p.rule, orgId, () =>
-        runValidation(undefined, () =>
-          validateAlertRuleQuery(p.path, p.rule, sql),
-        ),
+        runValidation(undefined, () => validateAlertRuleQuery(p.path, p.rule, sql)),
       ),
     ),
   );
@@ -282,9 +255,7 @@ export const applyAlertSpecs = async ({
     : [];
   const validations = await validationsPromise;
 
-  const availableChannelNames = new Set(
-    channels.map((channel) => channel.name),
-  );
+  const availableChannelNames = new Set(channels.map((channel) => channel.name));
   // A missing channel is a warning, not a refusal: the spec stores the
   // reference as authored and the rule applies without it, so a spec is
   // never blocked on delivery config that lives outside the repo. Creating
@@ -292,9 +263,7 @@ export const applyAlertSpecs = async ({
   const channelWarnings: string[] = [];
   for (const item of parsed) {
     const declared = item.rule.spec.notifications?.channels ?? [];
-    const missing = declared.filter(
-      (channel) => !availableChannelNames.has(channel),
-    );
+    const missing = declared.filter((channel) => !availableChannelNames.has(channel));
     if (missing.length === 0) continue;
     channelWarnings.push(
       `${item.path}: unknown notification channels skipped: ${missing.join(", ")}`,
@@ -326,9 +295,7 @@ export const applyAlertSpecs = async ({
     };
   });
 
-  const existing = listed.filter(
-    (r) => isOwnedRule(r, repoid) && r.previewId === previewId,
-  );
+  const existing = listed.filter((r) => isOwnedRule(r, repoid) && r.previewId === previewId);
   const existingByName = new Map(existing.map((r) => [r.name, r]));
 
   const updates: { d: (typeof desired)[number]; cur: AlertingRuleView }[] = [];
@@ -339,16 +306,8 @@ export const applyAlertSpecs = async ({
       creates.push(d);
       continue;
     }
-    const {
-      name: _name,
-      repoid: _repoid,
-      previewId: _previewId,
-      ...spec
-    } = d.input;
-    if (
-      specFingerprint(cur.spec as Record<string, unknown>) !==
-      specFingerprint(spec as unknown as Record<string, unknown>)
-    ) {
+    const { name: _name, repoid: _repoid, previewId: _previewId, ...spec } = d.input;
+    if (specFingerprint(cur.spec) !== specFingerprint(spec)) {
       updates.push({ d, cur });
     }
   }
@@ -397,24 +356,12 @@ export const applyAlertSpecs = async ({
     if (adopt) {
       for (const { d, foreign } of taken) {
         const { name: _name, repoid, previewId: _previewId, ...spec } = d.input;
-        await alerting.adoptRule(
-          orgId,
-          foreign.id,
-          repoid,
-          foreign.version,
-          spec,
-          executor,
-        );
+        await alerting.adoptRule(orgId, foreign.id, repoid, foreign.version, spec, executor);
       }
     }
     for (const { d, cur } of updates) {
       // Versioned updates preserve instance state unless label columns change.
-      const {
-        name: _name,
-        repoid: _repoid,
-        previewId: _previewId,
-        ...spec
-      } = d.input;
+      const { name: _name, repoid: _repoid, previewId: _previewId, ...spec } = d.input;
       try {
         await alerting.updateRule(orgId, cur.id, spec, cur.version, executor);
       } catch (error) {
@@ -436,10 +383,7 @@ export const applyAlertSpecs = async ({
     deleted.push(cur.name);
   }
 
-  const notes = [
-    ...(namespace.kind === "preview" ? [PREVIEW_NOTE] : []),
-    ...warnings,
-  ];
+  const notes = [...(namespace.kind === "preview" ? [PREVIEW_NOTE] : []), ...warnings];
   return {
     created: fresh.map((d) => d.input.name),
     updated: updates.map(({ d }) => d.input.name),

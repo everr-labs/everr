@@ -35,16 +35,10 @@ export function SelectableRow({
   children: React.ReactNode;
 }) {
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: pointer-only row convenience, the RowTarget inside is the real button
-    // biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only row convenience, the RowTarget inside is the real button
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- pointer-only row convenience, the RowTarget inside is the real button
     <div
       onClick={onOpen}
-      className={cn(
-        "cursor-pointer",
-        ROW_HOVER,
-        selected && "bg-muted/40",
-        className,
-      )}
+      className={cn("cursor-pointer", ROW_HOVER, selected && "bg-muted/40", className)}
     >
       {children}
     </div>

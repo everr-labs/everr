@@ -1,30 +1,24 @@
 import { getActiveOrganizationAccess } from "@everr/app/data/organization-access";
 import { auth } from "@everr/app/identity/server";
 import { createPartiallyAuthenticatedServerFn } from "@everr/app/lib/serverFn";
-import {
-  deleteCookie,
-  getCookie,
-  getRequestHeaders,
-} from "@tanstack/react-start/server";
+import { deleteCookie, getCookie, getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
-import {
-  ORGANIZATION_CREATION_COOKIE,
-  readCreatedOrganizationId,
-} from "./continuation.server";
+import { ORGANIZATION_CREATION_COOKIE, readCreatedOrganizationId } from "./continuation.server";
 import { restartOrganizationProvisioningJob } from "./jobs";
 import { isOrganizationProvisioned } from "./metadata";
 import { readOrganizationProvisioningStatus } from "./status";
 
-export const getOrganizationProvisioningStatus =
-  createPartiallyAuthenticatedServerFn({ method: "GET" }).handler(async () => {
-    const access = await getActiveOrganizationAccess();
-    if (access.status === "missing") return null;
-    const { organization } = access;
-    return {
-      id: organization.id,
-      status: await readOrganizationProvisioningStatus(organization),
-    };
-  });
+export const getOrganizationProvisioningStatus = createPartiallyAuthenticatedServerFn({
+  method: "GET",
+}).handler(async () => {
+  const access = await getActiveOrganizationAccess();
+  if (access.status === "missing") return null;
+  const { organization } = access;
+  return {
+    id: organization.id,
+    status: await readOrganizationProvisioningStatus(organization),
+  };
+});
 
 export const completeOrganizationSetup = createPartiallyAuthenticatedServerFn({
   method: "POST",
@@ -39,17 +33,18 @@ export const completeOrganizationSetup = createPartiallyAuthenticatedServerFn({
       deleteCookie(ORGANIZATION_CREATION_COOKIE, { path: "/" });
   });
 
-export const retryOrganizationProvisioning =
-  createPartiallyAuthenticatedServerFn({ method: "POST" })
-    .inputValidator(z.object({ organizationId: z.string().min(1) }))
-    .handler(async ({ data: { organizationId } }) => {
-      // Explicitly verify membership in the requested organization, including
-      // when the session's active organization changed after rendering the page.
-      const organization = await auth.api.getFullOrganization({
-        headers: getRequestHeaders(),
-        query: { organizationId },
-      });
-      if (!organization) throw new Error("Organization not found");
-      if (!isOrganizationProvisioned(organization.metadata))
-        await restartOrganizationProvisioningJob(organization.id);
+export const retryOrganizationProvisioning = createPartiallyAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(z.object({ organizationId: z.string().min(1) }))
+  .handler(async ({ data: { organizationId } }) => {
+    // Explicitly verify membership in the requested organization, including
+    // when the session's active organization changed after rendering the page.
+    const organization = await auth.api.getFullOrganization({
+      headers: getRequestHeaders(),
+      query: { organizationId },
     });
+    if (!organization) throw new Error("Organization not found");
+    if (!isOrganizationProvisioned(organization.metadata))
+      await restartOrganizationProvisioningJob(organization.id);
+  });

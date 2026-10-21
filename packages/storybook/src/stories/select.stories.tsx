@@ -192,7 +192,7 @@ export const Scrollable: Story = {
 };
 
 export const Controlled: Story = {
-  render: () => {
+  render: function Render() {
     const [value, setValue] = React.useState<unknown>("ticket");
 
     return (
@@ -207,9 +207,7 @@ export const Controlled: Story = {
             <SelectItem value="info">Info</SelectItem>
           </SelectContent>
         </Select>
-        <p className="text-muted-foreground text-xs">
-          Selected: {String(value)}
-        </p>
+        <p className="text-muted-foreground text-xs">Selected: {String(value)}</p>
       </div>
     );
   },

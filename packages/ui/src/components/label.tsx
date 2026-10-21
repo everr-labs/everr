@@ -2,7 +2,7 @@ import { cn } from "@everr/ui/lib/utils";
 
 function Label({ className, ...props }: React.ComponentProps<"label">) {
   return (
-    // biome-ignore lint/a11y/noLabelWithoutControl: ok
+    // oxlint-disable-next-line jsx-a11y/label-has-associated-control -- reusable Label primitive; htmlFor and children are supplied by the call site, where the control association is made
     <label
       data-slot="label"
       className={cn(

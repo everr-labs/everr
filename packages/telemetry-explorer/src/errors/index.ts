@@ -16,12 +16,6 @@ export {
   type ErrorIssuesSearchValue,
   type RenderErrorIssueLink,
 } from "./ui/error-issues";
-export {
-  findErrorOccurrenceByKey,
-  getErrorOccurrenceKey,
-} from "./ui/error-occurrence-key";
+export { findErrorOccurrenceByKey, getErrorOccurrenceKey } from "./ui/error-occurrence-key";
 export type { RenderOccurrenceLink } from "./ui/error-occurrences-list";
-export {
-  ErrorTracePanel,
-  type RenderTraceLink,
-} from "./ui/error-trace-panel";
+export { ErrorTracePanel, type RenderTraceLink } from "./ui/error-trace-panel";

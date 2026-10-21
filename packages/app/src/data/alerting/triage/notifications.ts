@@ -3,10 +3,7 @@
  * journal rather than from the rule's own state.
  */
 import { and, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import {
-  type AlertingDefaultTier,
-  defaultTierFor,
-} from "#app/data/alerting/delivery/defaults.ts";
+import { type AlertingDefaultTier, defaultTierFor } from "#app/data/alerting/delivery/defaults.ts";
 import type { AlertRuleRead } from "#app/data/alerting/rules/read.ts";
 import { formatDurationSeconds } from "#app/data/alerting/rules/resource/window.ts";
 import type { SilenceRow } from "#app/data/alerting/silences/repository.ts";
@@ -127,9 +124,7 @@ export async function loadHeldCounts(
  * channels of its own delivers through one of these, and when neither exists
  * nothing can be sent at all, whatever the pipeline stamps on the event.
  */
-export async function loadDefaultTiers(
-  organizationId: string,
-): Promise<Set<AlertingDefaultTier>> {
+export async function loadDefaultTiers(organizationId: string): Promise<Set<AlertingDefaultTier>> {
   const rows = await db
     .selectDistinct({ tier: alertDefaultChannels.tier })
     .from(alertDefaultChannels)
@@ -139,10 +134,7 @@ export async function loadDefaultTiers(
 
 /** Whether anything at all would carry this rule's notifications: its own
  *  declared channels, or a default tier that covers its severity. */
-export function hasDeliveryTarget(
-  row: AlertRuleRead,
-  tiers: Set<AlertingDefaultTier>,
-): boolean {
+export function hasDeliveryTarget(row: AlertRuleRead, tiers: Set<AlertingDefaultTier>): boolean {
   if ((row.spec.notifications?.channels ?? []).length > 0) return true;
   return defaultTierFor(tiers, row.spec.severity) !== null;
 }
@@ -167,15 +159,9 @@ export type DeliveryFacts = {
  * about the silence itself: the row's chip and the detail's header both name
  * the silence already, and this is the phrase that follows the name.
  */
-export function notificationText(
-  row: AlertRuleRead,
-  delivery: DeliveryFacts,
-  now: Date,
-): string {
+export function notificationText(row: AlertRuleRead, delivery: DeliveryFacts, now: Date): string {
   if (row.degradedSince !== null) {
-    const since = row.lastErrorAt
-      ? formatClock(row.lastErrorAt)
-      : "the last attempt";
+    const since = row.lastErrorAt ? formatClock(row.lastErrorAt) : "the last attempt";
     const cap = row.spec.max_interval_secs
       ? ` · retry capped at ${formatDurationSeconds(row.spec.max_interval_secs)}`
       : "";
@@ -194,8 +180,7 @@ export function notificationText(
   if (!fact) return "nothing sent yet";
   const ago = formatElapsed(now.getTime() - fact.occurredAt.getTime());
   if (fact.suppressed) return `notification suppressed · ${ago} ago`;
-  if (fact.processedAt === null || (fact.grouped && !fact.flushed))
-    return `queued · ${ago} ago`;
+  if (fact.processedAt === null || (fact.grouped && !fact.flushed)) return `queued · ${ago} ago`;
   // Processed without ever joining a group means the chain ended in a
   // terminal: `no_channels` when nothing would have carried it, otherwise the
   // instance had stopped firing before delivery ran. Reading the stamp alone
@@ -206,7 +191,5 @@ export function notificationText(
       : "not sent · no channel for this rule";
   }
   const what = fact.eventType === "instance_resolved" ? "resolved" : "notified";
-  return fact.title
-    ? `${what} · ${fact.title} · ${ago} ago`
-    : `${what} · ${ago} ago`;
+  return fact.title ? `${what} · ${fact.title} · ${ago} ago` : `${what} · ${ago} ago`;
 }

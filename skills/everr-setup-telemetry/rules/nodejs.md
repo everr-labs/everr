@@ -91,19 +91,19 @@ Latest Node.js versions support .ts files, stick with them if possible.
 
 ```typescript
 // src/telemetry-setup.ts
-import { ErrorsInstrumentation } from '@everr/otel-errors';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-proto';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-proto';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
-import { resourceFromAttributes } from '@opentelemetry/resources';
-import { BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
-import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node';
+import { ErrorsInstrumentation } from "@everr/otel-errors";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-proto";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
+import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
 
-const stateKey = Symbol.for('app.telemetry.sdk');
-const SERVICE_NAME = 'app-service';
+const stateKey = Symbol.for("app.telemetry.sdk");
+const SERVICE_NAME = "app-service";
 
 const globalState = globalThis as typeof globalThis & {
   [stateKey]?: { sdk: NodeSDK };
@@ -119,18 +119,16 @@ function startTelemetry() {
   const endpoint = normalizeBaseEndpoint(config.endpoint);
   const sdk = new NodeSDK({
     resource: resourceFromAttributes({
-      'service.name': config.serviceName,
-      ...(config.serviceVersion
-        ? { 'service.version': config.serviceVersion }
-        : {}),
+      "service.name": config.serviceName,
+      ...(config.serviceVersion ? { "service.version": config.serviceVersion } : {}),
       ...(config.deploymentEnvironment
-        ? { 'deployment.environment.name': config.deploymentEnvironment }
+        ? { "deployment.environment.name": config.deploymentEnvironment }
         : {}),
     }),
     spanProcessors: [
       new BatchSpanProcessor(
         new OTLPTraceExporter({
-          url: signalUrl(endpoint, 'traces'),
+          url: signalUrl(endpoint, "traces"),
           headers: config.headers,
         }),
       ),
@@ -138,7 +136,7 @@ function startTelemetry() {
     metricReaders: [
       new PeriodicExportingMetricReader({
         exporter: new OTLPMetricExporter({
-          url: signalUrl(endpoint, 'metrics'),
+          url: signalUrl(endpoint, "metrics"),
           headers: config.headers,
         }),
       }),
@@ -148,7 +146,7 @@ function startTelemetry() {
       // `{ exporter }`; the older positional form silently drops logs.
       new BatchLogRecordProcessor({
         exporter: new OTLPLogExporter({
-          url: signalUrl(endpoint, 'logs'),
+          url: signalUrl(endpoint, "logs"),
           headers: config.headers,
         }),
       }),
@@ -162,7 +160,7 @@ function startTelemetry() {
       // { onUnhandledRejection: 'strict' } to treat it as fatal.
       new ErrorsInstrumentation(),
       getNodeAutoInstrumentations({
-        '@opentelemetry/instrumentation-fs': { enabled: false },
+        "@opentelemetry/instrumentation-fs": { enabled: false },
       }),
     ],
   });
@@ -183,17 +181,15 @@ function resolveTelemetryConfig(env: NodeJS.ProcessEnv) {
     serviceName: SERVICE_NAME,
     serviceVersion: env.SERVICE_VERSION,
     deploymentEnvironment: env.DEPLOYMENT_ENVIRONMENT || env.NODE_ENV,
-    headers: env.EVERR_INGEST_KEY
-      ? { Authorization: `Bearer ${env.EVERR_INGEST_KEY}` }
-      : undefined,
+    headers: env.EVERR_INGEST_KEY ? { Authorization: `Bearer ${env.EVERR_INGEST_KEY}` } : undefined,
   };
 }
 
 function normalizeBaseEndpoint(endpoint: string) {
-  return endpoint.replace(/\/+$/, '');
+  return endpoint.replace(/\/+$/, "");
 }
 
-function signalUrl(endpoint: string, signal: 'traces' | 'metrics' | 'logs') {
+function signalUrl(endpoint: string, signal: "traces" | "metrics" | "logs") {
   if (endpoint.endsWith(`/v1/${signal}`)) {
     return endpoint;
   }
@@ -213,14 +209,13 @@ function installShutdownHandlers(sdk: NodeSDK) {
     await sdk.shutdown();
   }
 
-  process.once('SIGTERM', () => {
+  process.once("SIGTERM", () => {
     void shutdown().finally(() => process.exit(0));
   });
-  process.once('SIGINT', () => {
+  process.once("SIGINT", () => {
     void shutdown().finally(() => process.exit(0));
   });
 }
-
 ```
 
 `@everr/otel-errors` owns crash handling, so there is no `installFatalErrorHandlers` here: the instrumentation installs the `uncaughtException`/`unhandledRejection` handlers. An uncaught exception flushes and exits; an unhandled rejection is captured and the process keeps running.
@@ -251,23 +246,23 @@ Add manual spans for:
 Use low-cardinality span names. Prefer operation names and route templates over IDs or free-form values.
 
 ```typescript
-import { SpanStatusCode, trace } from '@opentelemetry/api';
-import { captureError } from '@everr/otel-errors';
+import { SpanStatusCode, trace } from "@opentelemetry/api";
+import { captureError } from "@everr/otel-errors";
 
-const tracer = trace.getTracer('checkout-worker');
+const tracer = trace.getTracer("checkout-worker");
 
-await tracer.startActiveSpan('invoice.send', async (span) => {
+await tracer.startActiveSpan("invoice.send", async (span) => {
   try {
     span.setAttributes({
-      'invoice.batch_size': invoices.length,
-      'messaging.destination.name': 'billing-email',
+      "invoice.batch_size": invoices.length,
+      "messaging.destination.name": "billing-email",
     });
 
     await sendInvoices(invoices);
     span.setStatus({ code: SpanStatusCode.OK });
   } catch (error) {
     captureError(error, {
-      'everr.error.source': 'invoice.send',
+      "everr.error.source": "invoice.send",
     });
     throw error;
   } finally {
@@ -309,18 +304,18 @@ The division of ownership stays as above:
 
 ## Troubleshooting
 
-| Symptom | Check |
-| --- | --- |
-| No traces | Setup import order, trace exporter URL, HTTP instrumentation enabled |
-| No metrics | `metricReaders` configured, metric exporter URL, process has lived long enough to export |
-| No logs | Log provider configured, logger integration or targeted OTel logs are actually used |
-| Endpoint errors | `everr local status` endpoint, base vs per-signal URL, protocol, production key presence |
-| `unknown_service` | Hardcoded `service.name` missing from the resource config or setup module not loaded |
-| Duplicate spans | Setup module loaded more than once, both manual and auto spans wrapping the same operation |
-| High cardinality | Span names or metric/log attributes contain IDs, paths, queries, or raw messages |
-| Missing DB spans | Database module imported before setup or unsupported driver version |
-| Missing trace-log correlation | Logger helper not reading active context or logs emitted outside active spans |
+| Symptom                             | Check                                                                                                                                                                                                                                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No traces                           | Setup import order, trace exporter URL, HTTP instrumentation enabled                                                                                                                                                                                                                               |
+| No metrics                          | `metricReaders` configured, metric exporter URL, process has lived long enough to export                                                                                                                                                                                                           |
+| No logs                             | Log provider configured, logger integration or targeted OTel logs are actually used                                                                                                                                                                                                                |
+| Endpoint errors                     | `everr local status` endpoint, base vs per-signal URL, protocol, production key presence                                                                                                                                                                                                           |
+| `unknown_service`                   | Hardcoded `service.name` missing from the resource config or setup module not loaded                                                                                                                                                                                                               |
+| Duplicate spans                     | Setup module loaded more than once, both manual and auto spans wrapping the same operation                                                                                                                                                                                                         |
+| High cardinality                    | Span names or metric/log attributes contain IDs, paths, queries, or raw messages                                                                                                                                                                                                                   |
+| Missing DB spans                    | Database module imported before setup or unsupported driver version                                                                                                                                                                                                                                |
+| Missing trace-log correlation       | Logger helper not reading active context or logs emitted outside active spans                                                                                                                                                                                                                      |
 | Logs silently absent with no errors | Two `@opentelemetry/api-logs` versions in the tree (check with the package manager's why/ls command): the global logger registry is per-version, so the SDK registers on one copy and the app emits into the other. Align the direct OTel package versions with what `@everr/otel-errors` resolves |
-| Each error captured twice | `@everr/otel-errors` running alongside leftover hand-rolled `uncaughtException`/`unhandledRejection` handlers: remove the hand-rolled ones |
+| Each error captured twice           | `@everr/otel-errors` running alongside leftover hand-rolled `uncaughtException`/`unhandledRejection` handlers: remove the hand-rolled ones                                                                                                                                                         |
 
 After changes, run the instrumented path and follow [Validation](validation.md) using `everr local query` or `everr cloud query` for the selected destination. Filter by `ServiceName`, the expected environment, a recent time window, and a run/request/test marker when practical.

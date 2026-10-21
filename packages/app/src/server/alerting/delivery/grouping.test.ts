@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // The tasks module reaches the worker enqueue plumbing; the mock only keeps
 // the import from reaching the real database client.
@@ -49,16 +49,12 @@ function member(
 
 describe("nextGroupFlushAt", () => {
   it("uses the fixed group wait for a new notification group", () => {
-    expect(nextGroupFlushAt(null, now).toISOString()).toBe(
-      "2026-08-06T10:00:10.000Z",
-    );
+    expect(nextGroupFlushAt(null, now).toISOString()).toBe("2026-08-06T10:00:10.000Z");
   });
 
   it("does not postpone the first flush when more events arrive", () => {
     const first = new Date("2026-08-06T10:00:10Z");
-    expect(
-      nextGroupFlushAt({ nextFlushAt: first, lastFlushedAt: null }, now),
-    ).toEqual(first);
+    expect(nextGroupFlushAt({ nextFlushAt: first, lastFlushedAt: null }, now)).toEqual(first);
   });
 
   it("treats a group parked on the idle sentinel as a first arrival", () => {
@@ -108,9 +104,7 @@ describe("groupNotificationPlan", () => {
         flushedAt: null,
       }),
     ]);
-    expect(plan.notify.map((event) => event.eventType)).toEqual([
-      "instance_resolved",
-    ]);
+    expect(plan.notify.map((event) => event.eventType)).toEqual(["instance_resolved"]);
     expect(plan.active).toEqual([]);
   });
 
@@ -123,12 +117,8 @@ describe("groupNotificationPlan", () => {
         flushedAt: "2026-08-06T09:59:00Z",
       }),
     ]);
-    expect(plan.notify.map((event) => event.instanceFingerprint)).toEqual([
-      "a",
-    ]);
-    expect(plan.active.map((event) => event.instanceFingerprint)).toEqual([
-      "a",
-    ]);
+    expect(plan.notify.map((event) => event.instanceFingerprint)).toEqual(["a"]);
+    expect(plan.active.map((event) => event.instanceFingerprint)).toEqual(["a"]);
   });
 
   it("includes resolutions again as soon as one member is unflushed", () => {
@@ -140,9 +130,7 @@ describe("groupNotificationPlan", () => {
         flushedAt: null,
       }),
     ]);
-    expect(
-      plan.notify.map((event) => event.instanceFingerprint).sort(),
-    ).toEqual(["a", "b"]);
+    expect(plan.notify.map((event) => event.instanceFingerprint).sort()).toEqual(["a", "b"]);
   });
 
   // The regression this fix closes: fire at T, resolve at T+15, flush at
@@ -285,9 +273,10 @@ describe("memberVerdict", () => {
     });
     // Already carried into a notification once, so drop it without a
     // terminal row: the only withheld thing is the re-announcement.
-    expect(
-      memberVerdict({ ...live, ruleActive: false, flushedAt: flushed }),
-    ).toEqual({ deliverable: false, terminal: null });
+    expect(memberVerdict({ ...live, ruleActive: false, flushedAt: flushed })).toEqual({
+      deliverable: false,
+      terminal: null,
+    });
   });
 
   it("drops a fire whose instance has stopped firing", () => {
@@ -298,9 +287,10 @@ describe("memberVerdict", () => {
       terminal: "no_longer_firing",
     });
     // Already announced, so its chain has an outcome and owes no terminal.
-    expect(
-      memberVerdict({ ...live, instanceFiring: false, flushedAt: flushed }),
-    ).toEqual({ deliverable: false, terminal: null });
+    expect(memberVerdict({ ...live, instanceFiring: false, flushedAt: flushed })).toEqual({
+      deliverable: false,
+      terminal: null,
+    });
   });
 
   it("leaves a fire alone when its resolve is in the same batch", () => {

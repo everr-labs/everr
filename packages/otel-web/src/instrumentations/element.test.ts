@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { selectorOf } from "./element.js";
 
 describe("selectorOf", () => {
@@ -32,8 +32,7 @@ describe("selectorOf", () => {
   });
 
   it("keeps a plain naming attribute readable", () => {
-    document.body.innerHTML =
-      '<div><button aria-label="Close"></button><button></button></div>';
+    document.body.innerHTML = '<div><button aria-label="Close"></button><button></button></div>';
     expect(selectorOf(document.querySelector("button") as Element)).toBe(
       'button[aria-label="Close"]',
     );

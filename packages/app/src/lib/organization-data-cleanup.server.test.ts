@@ -1,31 +1,28 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as DrizzleOrm from "drizzle-orm";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const { mockAnd, mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(
-  () => ({
-    mockAnd: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
-    mockDelete: vi.fn(),
-    mockEq: vi.fn((column: unknown, value: unknown) => ({
-      type: "eq",
-      column,
-      value,
-    })),
-    mockTransaction: vi.fn(),
-    whereCalls: [] as Array<{ table: unknown; condition: unknown }>,
-  }),
-);
+const { mockAnd, mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(() => ({
+  mockAnd: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
+  mockDelete: vi.fn(),
+  mockEq: vi.fn((column: unknown, value: unknown) => ({
+    type: "eq",
+    column,
+    value,
+  })),
+  mockTransaction: vi.fn(),
+  whereCalls: [] as Array<{ table: unknown; condition: unknown }>,
+}));
 
 vi.mock("#app/db/client.ts", () => ({
-  runInTransaction: (
-    executor: { transaction: typeof mockTransaction },
-    run: unknown,
-  ) => executor.transaction(run),
+  runInTransaction: (executor: { transaction: typeof mockTransaction }, run: unknown) =>
+    executor.transaction(run),
   db: {
     transaction: mockTransaction,
   },
 }));
 
 vi.mock("drizzle-orm", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  const actual = await importOriginal<typeof DrizzleOrm>();
   return {
     ...actual,
     and: mockAnd,
@@ -105,10 +102,7 @@ describe("deletePostgresOrganizationData", () => {
     }
     expect(mockEq).toHaveBeenCalledWith(workflowJobs.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(workflowRuns.organizationId, ORG);
-    expect(mockEq).toHaveBeenCalledWith(
-      githubInstallationOrganizations.organizationId,
-      ORG,
-    );
+    expect(mockEq).toHaveBeenCalledWith(githubInstallationOrganizations.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(apikey.configId, "ingest");
     expect(mockEq).toHaveBeenCalledWith(apikey.referenceId, ORG);
     expect(mockAnd).toHaveBeenCalledWith(

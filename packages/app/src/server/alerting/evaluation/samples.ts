@@ -19,21 +19,15 @@ export function captureAlertEvaluationSamples(
   // Downsampling guarantees a breach survives, but only if the breach reaches
   // the samples that feed it.
   const ordered = [
-    ...instances.filter((instance) =>
-      matchingFingerprints.has(instance.fingerprint),
-    ),
-    ...instances.filter(
-      (instance) => !matchingFingerprints.has(instance.fingerprint),
-    ),
+    ...instances.filter((instance) => matchingFingerprints.has(instance.fingerprint)),
+    ...instances.filter((instance) => !matchingFingerprints.has(instance.fingerprint)),
   ];
   return {
-    samples: ordered
-      .slice(0, ALERT_EVALUATION_SAMPLE_LIMIT)
-      .map((instance) => ({
-        fingerprint: instance.fingerprint,
-        labels: instance.labels,
-        value: alertingConditionValue(instance.row),
-      })),
+    samples: ordered.slice(0, ALERT_EVALUATION_SAMPLE_LIMIT).map((instance) => ({
+      fingerprint: instance.fingerprint,
+      labels: instance.labels,
+      value: alertingConditionValue(instance.row),
+    })),
     truncated: ordered.length > ALERT_EVALUATION_SAMPLE_LIMIT,
   };
 }

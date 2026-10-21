@@ -2,7 +2,7 @@ vi.mock("#app/data/organization-access.ts", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
 
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 import { Route } from "./-_signedIn";
 
 const beforeLoad = Route.options.beforeLoad as unknown as (args: {

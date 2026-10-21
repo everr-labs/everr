@@ -10,7 +10,7 @@ kind: AlertRule
 metadata:
   name: error-spike
 spec:
-  runbook: error-spike-runbook   # bare slug; resolves in this alert's project
+  runbook: error-spike-runbook # bare slug; resolves in this alert's project
   evaluationInterval: 1m
   notificationMessage:
     title: "${ServiceName} error rate is high"

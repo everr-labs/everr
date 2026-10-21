@@ -17,9 +17,7 @@ export function RepoHeader({ name, stats }: RepoHeaderProps) {
         <Badge variant={getSuccessRateVariant(stats.successRate)}>
           {stats.successRate}% success
         </Badge>
-        <Badge variant="outline">
-          avg {formatDuration(stats.avgDuration, "ms")}
-        </Badge>
+        <Badge variant="outline">avg {formatDuration(stats.avgDuration, "ms")}</Badge>
       </div>
     </div>
   );

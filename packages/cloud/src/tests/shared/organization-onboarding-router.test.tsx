@@ -27,7 +27,7 @@ import {
 } from "@tanstack/react-router";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { afterAll, afterEach, expect, it, vi } from "vitest";
+import { afterAll, afterEach, expect, it, vi } from "vite-plus/test";
 
 // Exercise the real root without enabling the development telemetry exporter.
 vi.stubEnv("DEV", false);
@@ -54,8 +54,7 @@ vi.mock("@tanstack/react-start", () => ({
         return chain;
       },
       handler:
-        (handler: (args: { data: unknown }) => unknown) =>
-        async (options: { data: unknown }) =>
+        (handler: (args: { data: unknown }) => unknown) => async (options: { data: unknown }) =>
           handler({ data: validate(options.data) }),
     };
     return chain;
@@ -68,19 +67,13 @@ vi.mock("@tanstack/react-start", () => ({
 }));
 
 import { auth } from "@everr/app/identity/server";
-import {
-  productRouteFiles,
-  sharedRouteModules,
-} from "@everr/app/testing/routes";
+import { productRouteFiles, sharedRouteModules } from "@everr/app/testing/routes";
 import { useOrganizationSetupCompletion } from "../../components/use-organization-setup-completion";
 
 function Signup() {
   const router = useRouter();
   return (
-    <button
-      type="button"
-      onClick={() => void router.navigate({ to: "/organization-setup" })}
-    >
+    <button type="button" onClick={() => void router.navigate({ to: "/organization-setup" })}>
       Complete signup
     </button>
   );
@@ -103,9 +96,7 @@ const retained = new Set([
 ]);
 for (const path of [
   ...productRouteFiles,
-  ...Object.keys(import.meta.glob("../../routes/**/*.{ts,tsx}")).map(
-    sourceModule,
-  ),
+  ...Object.keys(import.meta.glob("../../routes/**/*.{ts,tsx}")).map(sourceModule),
 ]) {
   if (retained.has(path)) continue;
   vi.doMock(path, () => ({
@@ -153,9 +144,7 @@ it("preserves the welcome mascot from signup through setup and refreshes auth on
   });
   expect(screen.getByText("Provisioning")).toBeVisible();
   expect(screen.getByRole("button", { name: "Log out" })).toBeVisible();
-  expect(
-    screen.queryByRole("button", { name: "Switch organization" }),
-  ).toBeNull();
+  expect(screen.queryByRole("button", { name: "Switch organization" })).toBeNull();
   expect(document.querySelector("canvas")).toBe(mascot);
   expect(screen.getByText("Observability made simple")).toBe(headline);
   await act(async () => {

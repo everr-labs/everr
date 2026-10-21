@@ -1,4 +1,4 @@
-/// <reference path="../../dom.d.ts" />
+import type {} from "../../dom.js";
 
 import type { AttrValue, Emit } from "../../pipeline/emitter.js";
 import { epoch } from "../../time.js";
@@ -54,9 +54,7 @@ type Classic = Exclude<WebVitalName, "inp">;
  * negative or in the future when the browser has a defect. */
 function navEntry(): PerformanceNavigationTiming | undefined {
   const e = performance.getEntriesByType("navigation")[0];
-  return e && e.responseStart > 0 && e.responseStart < performance.now()
-    ? e
-    : undefined;
+  return e && e.responseStart > 0 && e.responseStart < performance.now() ? e : undefined;
 }
 
 const activationStart = () => navEntry()?.activationStart || 0;
@@ -68,10 +66,7 @@ function loadStateAt(time: number): string {
   const nav = navEntry();
   if (nav) {
     if (time < nav.domInteractive) return "loading";
-    if (
-      !nav.domContentLoadedEventStart ||
-      time < nav.domContentLoadedEventStart
-    )
+    if (!nav.domContentLoadedEventStart || time < nav.domContentLoadedEventStart)
       return "dom-interactive";
     if (!nav.domComplete || time < nav.domComplete) return "dom-content-loaded";
   }
@@ -85,12 +80,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   let restored = false;
 
   // Each caller examines `stopped` before it sends a record.
-  const report = (
-    name: Classic,
-    value: number,
-    attribution: Attrs,
-    timestamp?: number,
-  ) => {
+  const report = (name: Classic, value: number, attribution: Attrs, timestamp?: number) => {
     const extra: Attrs = {};
     for (const [key, v] of Object.entries(attribution)) {
       extra[`everr.browser.web_vital.${name}.${key}`] = v;
@@ -153,6 +143,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   let lcpPo: PerformanceObserver | undefined;
 
   const handleLcpEntries = (entries: PerformanceEntry[]) => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- This observer is registered only for largest-contentful-paint entries.
     for (const entry of entries as LargestContentfulPaint[]) {
       if (entry.startTime >= firstHidden) continue;
       lcp = {
@@ -162,11 +153,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
         // or it can change, a long time before the code completes the record at
         // an input or at the hidden state. If the element is not in the DOM but
         // it had an id, that id still gives its name.
-        target: entry.element
-          ? selectorOf(entry.element)
-          : entry.id
-            ? `#${entry.id}`
-            : undefined,
+        target: entry.element ? selectorOf(entry.element) : entry.id ? `#${entry.id}` : undefined,
       };
     }
   };
@@ -225,9 +212,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
 
   if (!lcpDone) {
     try {
-      lcpPo = new PerformanceObserver((list) =>
-        handleLcpEntries(list.getEntries()),
-      );
+      lcpPo = new PerformanceObserver((list) => handleLcpEntries(list.getEntries()));
       lcpPo.observe({ type: "largest-contentful-paint", buffered: true });
       addEventListener("keydown", onInput, true);
       addEventListener("click", onInput, true);
@@ -241,11 +226,11 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   // wins. The SDK sends one record when the page becomes hidden the first
   // time. ---
   type Shift = { time: number; value: number; target?: string };
-  let session = {
+  let session: { value: number; first: number; last: number; largest: Shift | undefined } = {
     value: 0,
     first: 0,
     last: 0,
-    largest: undefined as Shift | undefined,
+    largest: undefined,
   };
   let clsValue = 0;
   let clsLargest: Shift | undefined;
@@ -254,21 +239,19 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   let clsPo: PerformanceObserver | undefined;
 
   const handleShifts = (entries: PerformanceEntry[]) => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- This observer is registered only for layout-shift entries.
     for (const entry of entries as LayoutShift[]) {
       // A shift immediately after an input from the user is usual, and the
       // specification does not count it.
       if (entry.hadRecentInput) continue;
-      const source =
-        entry.sources?.find((s) => s.node?.nodeType === 1) ??
-        entry.sources?.[0];
+      const source = entry.sources?.find((s) => s.node?.nodeType === 1) ?? entry.sources?.[0];
       const shift: Shift = {
         time: entry.startTime,
         value: entry.value,
         // The code captures this immediately, for the same reason as the LCP.
         // The node that moved usually goes out of the DOM before the page
         // becomes hidden and the SDK sends the record.
-        target:
-          source?.node instanceof Element ? selectorOf(source.node) : undefined,
+        target: source?.node instanceof Element ? selectorOf(source.node) : undefined,
       };
       if (
         session.value &&
@@ -277,8 +260,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
       ) {
         session.value += entry.value;
         session.last = entry.startTime;
-        if (!session.largest || entry.value > session.largest.value)
-          session.largest = shift;
+        if (!session.largest || entry.value > session.largest.value) session.largest = shift;
       } else {
         session = {
           value: entry.value,
@@ -324,9 +306,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
 
   if (!clsDone) {
     try {
-      clsPo = new PerformanceObserver((list) =>
-        handleShifts(list.getEntries()),
-      );
+      clsPo = new PerformanceObserver((list) => handleShifts(list.getEntries()));
       clsPo.observe({ type: "layout-shift", buffered: true });
     } catch {
       clsDone = true;

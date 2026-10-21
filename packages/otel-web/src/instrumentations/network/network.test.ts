@@ -1,10 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { AttrValue, EmitSpan } from "../../pipeline/emitter.js";
 import { createTracer } from "../../pipeline/tracer.js";
-import {
-  type RouteTemplateResolver,
-  setRouteResolver,
-} from "../../state/route.js";
+import { type RouteTemplateResolver, setRouteResolver } from "../../state/route.js";
 import { startNetwork } from "./network.js";
 
 // Unit tests for the change to fetch. A test emitSpan function below the true
@@ -29,10 +26,7 @@ const emitSpan: EmitSpan = (traceId, spanId, name, _s, _e, attrs, status) => {
   spans.push({ traceId, spanId, name, attrs, error: status?.code === 2 });
 };
 
-function start(
-  targets?: Array<string | RegExp>,
-  resolveTemplate?: RouteTemplateResolver,
-) {
+function start(targets?: Array<string | RegExp>, resolveTemplate?: RouteTemplateResolver) {
   if (resolveTemplate) setRouteResolver({ request: resolveTemplate });
   stop = startNetwork(createTracer(emitSpan), targets);
 }
@@ -89,9 +83,7 @@ describe("startNetwork", () => {
   it("injects traceparent on same-origin requests with the span's ids", async () => {
     start();
     await fetch("/api/users");
-    expect(sentHeaders().get("traceparent")).toBe(
-      `00-${spans[0].traceId}-${spans[0].spanId}-01`,
-    );
+    expect(sentHeaders().get("traceparent")).toBe(`00-${spans[0].traceId}-${spans[0].spanId}-01`);
   });
 
   it("does not inject traceparent cross-origin without a matching target", async () => {
@@ -114,19 +106,12 @@ describe("startNetwork", () => {
     expect(sentHeaders().get("traceparent")).not.toBeNull();
   });
 
-  it.each([
-    "g",
-    "y",
-  ])("preserves stateful regex targets with flag %s", async (flag) => {
+  it.each(["g", "y"])("preserves stateful regex targets with flag %s", async (flag) => {
     const target = new RegExp("https://api\\.backend\\.example/", flag);
     target.lastIndex = 7;
     start([target]);
     for (const matches of [true, true, false, true]) {
-      await fetch(
-        matches
-          ? "https://api.backend.example/data"
-          : "https://other.example/data",
-      );
+      await fetch(matches ? "https://api.backend.example/data" : "https://other.example/data");
       expect(sentHeaders().has("traceparent")).toBe(matches);
       expect(target.lastIndex).toBe(7);
     }
@@ -148,9 +133,7 @@ describe("startNetwork", () => {
 
   it("takes headers from a Request input when init has none", async () => {
     start();
-    await fetch(
-      new Request(`${location.origin}/api`, { headers: { "X-App": "a" } }),
-    );
+    await fetch(new Request(`${location.origin}/api`, { headers: { "X-App": "a" } }));
     const h = sentHeaders();
     expect(h.get("X-App")).toBe("a");
     expect(h.get("traceparent")).not.toBeNull();
@@ -209,15 +192,10 @@ describe("startNetwork", () => {
   });
 
   it("names the span by the request's own route template, falling back to the path", async () => {
-    start(undefined, (url) =>
-      url.pathname.startsWith("/api/posts/") ? "/api/posts/{id}" : null,
-    );
+    start(undefined, (url) => (url.pathname.startsWith("/api/posts/") ? "/api/posts/{id}" : null));
     await fetch("/api/posts/123");
     await fetch("/api/b");
-    expect(spans.map((s) => s.name)).toEqual([
-      "GET /api/posts/{id}",
-      "GET /api/b",
-    ]);
+    expect(spans.map((s) => s.name)).toEqual(["GET /api/posts/{id}", "GET /api/b"]);
     expect(spans[0].attrs["url.template"]).toBe("/api/posts/{id}");
     // The url.full attribute keeps the exact target.
     expect(spans[0].attrs["url.full"]).toBe(`${location.origin}/api/posts/123`);
@@ -236,9 +214,7 @@ describe("startNetwork", () => {
     await fetch("/api/cli/runs/abc123");
     expect(spans[0].name).toBe("GET /api/cli/runs/$traceId");
     expect(spans[0].attrs["url.template"]).toBe("/api/cli/runs/$traceId");
-    expect(spans[0].attrs["url.full"]).toBe(
-      `${location.origin}/api/cli/runs/abc123`,
-    );
+    expect(spans[0].attrs["url.full"]).toBe(`${location.origin}/api/cli/runs/abc123`);
   });
 
   it("uppercases the method and reads it from init or the Request", async () => {
@@ -255,7 +231,11 @@ describe("hardening", () => {
     start();
     await fetch("http://");
     expect(spans).toHaveLength(0);
-    expect(String(lastRequest?.input)).toBe("http://");
+    expect(
+      lastRequest?.input instanceof Request
+        ? lastRequest?.input.url
+        : lastRequest?.input?.toString(),
+    ).toBe("http://");
   });
 
   it("falls back to the path when the route resolver throws", async () => {

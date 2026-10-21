@@ -55,28 +55,14 @@ export function GroupBand({
       <div className="sticky top-0 z-10 bg-background">
         {/* `px-3` on the same edge the rows use, so bands and rows all start
             on one left edge. */}
-        <div
-          className={cn(
-            "flex h-10 items-center justify-between gap-3 px-3",
-            TONE[tone].wash,
-          )}
-        >
+        <div className={cn("flex h-10 items-center justify-between gap-3 px-3", TONE[tone].wash)}>
           <h2 id={id} className="flex items-center gap-2">
-            {Icon && (
-              <Icon
-                aria-hidden
-                className={cn("size-3 shrink-0", TONE[tone].icon)}
-              />
-            )}
+            {Icon && <Icon aria-hidden className={cn("size-3 shrink-0", TONE[tone].icon)} />}
             <span className={kickerClass}>{label}</span>
             {count != null && (
-              <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                {count}
-              </span>
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">{count}</span>
             )}
-            {hint && (
-              <span className="text-xs text-muted-foreground">{hint}</span>
-            )}
+            {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
           </h2>
           {action}
         </div>

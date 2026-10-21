@@ -1,12 +1,8 @@
 // Node environment so `this.isServer` is true and the router takes the caching
 // path this test is about.
 // @vitest-environment node
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-} from "@tanstack/react-router";
-import { beforeEach, expect, test, vi } from "vitest";
+import { createMemoryHistory, createRootRoute, createRoute } from "@tanstack/react-router";
+import { beforeEach, expect, test, vi } from "vite-plus/test";
 
 // Stub the generated tree: the real one pulls every route module (and the
 // server env, ClickHouse, and server functions with it) into the test. The
@@ -18,12 +14,9 @@ vi.mock("@composition/routes", () => {
   const rootRoute = createRootRoute();
   return {
     routeTree: rootRoute.addChildren(
-      [
-        "/traces",
-        "/traces/$traceId",
-        "/errors/$fingerprint",
-        "/errors/$fingerprint/modal",
-      ].map((path) => createRoute({ getParentRoute: () => rootRoute, path })),
+      ["/traces", "/traces/$traceId", "/errors/$fingerprint", "/errors/$fingerprint/modal"].map(
+        (path) => createRoute({ getParentRoute: () => rootRoute, path }),
+      ),
     ),
   };
 });

@@ -7,7 +7,7 @@ import {
   type TestDatabase,
 } from "@everr/app/server/alerting/testing/pglite-database";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined }));
 
@@ -57,9 +57,7 @@ it("restarts the exhausted job with a fresh budget without creating another orga
   await fixture.db.execute(
     sql`UPDATE graphile_worker._private_jobs SET attempts=max_attempts, last_error='Timeout', run_at=now()+interval '6 hours'`,
   );
-  const original = (
-    await fixture.db.execute(sql`SELECT id FROM graphile_worker.jobs`)
-  ).rows[0];
+  const original = (await fixture.db.execute(sql`SELECT id FROM graphile_worker.jobs`)).rows[0];
   expect(await status()).toBe("failed");
   await restartOrganizationProvisioningJob(org.id, database());
   expect(await status()).toBe("pending");
@@ -82,9 +80,7 @@ it("restarts the exhausted job with a fresh budget without creating another orga
 });
 it("uses successful provisioning metadata even if an exhausted job still exists", async () => {
   await enqueueOrganizationProvisioning(org.id, database());
-  await fixture.db.execute(
-    sql`UPDATE graphile_worker._private_jobs SET attempts=max_attempts`,
-  );
+  await fixture.db.execute(sql`UPDATE graphile_worker._private_jobs SET attempts=max_attempts`);
   expect(
     await readOrganizationProvisioningStatus(
       { ...org, metadata: { clickhouseReady: true } },

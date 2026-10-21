@@ -39,13 +39,7 @@ export function useComboboxCustomEntry() {
 }
 
 /** The `Use "<typed text>"` row committing the raw query as a value. */
-export function CustomValueItem({
-  query,
-  onSelect,
-}: {
-  query: string;
-  onSelect: () => void;
-}) {
+export function CustomValueItem({ query, onSelect }: { query: string; onSelect: () => void }) {
   // The custom row's cmdk value IS the typed text, so it always survives the
   // filter.
   return (

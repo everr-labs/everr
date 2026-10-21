@@ -7,15 +7,10 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/$",
 )({
   staticData: { breadcrumb: runbookBreadcrumb },
-  head: runbookHead,
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
   component: RunbookSplatPage,
   notFoundComponent: RunbookNotFound,
-  loaderDeps: ({ search: { preview } }) => ({ preview }),
-  loader: ({
-    context: { queryClient },
-    params: { project, slug, _splat },
-    deps: { preview },
-  }) =>
+  loader: ({ context: { queryClient }, params: { project, slug, _splat }, deps: { preview } }) =>
     loadRunbook({
       queryClient,
       project,
@@ -23,11 +18,10 @@ export const Route = createFileRoute(
       preview,
       pagePath: _splat ?? "",
     }),
+  head: runbookHead,
 });
 
 function RunbookSplatPage() {
   const { project, slug, _splat } = Route.useParams();
-  return (
-    <RunbookViewer project={project} slug={slug} pagePath={_splat ?? ""} />
-  );
+  return <RunbookViewer project={project} slug={slug} pagePath={_splat ?? ""} />;
 }

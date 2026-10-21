@@ -12,8 +12,7 @@ export function useOrganizationActivation() {
       const { error } = await authClient.organization.setActive({
         organizationId,
       });
-      if (error)
-        throw new Error(error.message ?? "Could not select this organization.");
+      if (error) throw new Error(error.message ?? "Could not select this organization.");
 
       // Stop previous organization requests from repopulating the shared cache.
       // Mark data stale, then let the guard redirect before starting refetches.

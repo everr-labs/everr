@@ -1,16 +1,11 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@everr/ui/components/collapsible";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  Activity,
-  ChartNoAxesCombined,
-  ChevronDown,
-  Fingerprint,
-  Workflow,
-} from "lucide-react";
+import { Activity, ChartNoAxesCombined, ChevronDown, Fingerprint, Workflow } from "lucide-react";
 import { motion } from "motion/react";
 import { useId, useState } from "react";
 
@@ -19,8 +14,7 @@ const demoClassName =
 const demoBarClassName =
   "flex flex-wrap justify-between gap-2 border-b border-[var(--color-fd-border)] px-7 py-4 text-xs text-muted-foreground max-[700px]:p-4";
 const demoBodyClassName = "px-7 py-6 max-[700px]:p-4";
-const requestClassName =
-  "flex flex-wrap items-center justify-between gap-3 text-sm";
+const requestClassName = "flex flex-wrap items-center justify-between gap-3 text-sm";
 const traceRowClassName =
   "grid grid-cols-[130px_minmax(0,1fr)_82px] items-center gap-5 p-3 font-mono text-[0.8125rem] max-[700px]:grid-cols-[88px_minmax(0,1fr)_52px] max-[700px]:gap-2 max-[700px]:px-0 max-[700px]:text-xs";
 
@@ -61,20 +55,14 @@ function TraceExample() {
       <div className={demoBodyClassName}>
         <div className={requestClassName}>
           <div>
-            <span className="mr-2 text-[#32c8cc]">GET</span>{" "}
-            <code>/projects</code>
+            <span className="mr-2 text-[#32c8cc]">GET</span> <code>/projects</code>
           </div>
           <span className="text-muted-foreground">
             200 OK <strong className="ml-3 text-foreground">2.10 s</strong>
           </span>
         </div>
         <div className="mt-7 mb-[22px]">
-          <div
-            className={cn(
-              traceRowClassName,
-              "pt-0 text-xs text-muted-foreground",
-            )}
-          >
+          <div className={cn(traceRowClassName, "pt-0 text-xs text-muted-foreground")}>
             <span>Operation</span>
             <div className="flex justify-between">
               <span>0 s</span>
@@ -117,8 +105,8 @@ function TraceExample() {
           ))}
         </div>
         <div className="flex items-center gap-2.5 text-[0.8125rem] text-[#32c8cc] max-[700px]:items-start">
-          <Activity className="shrink-0" size={16} aria-hidden="true" /> The
-          database accounts for 97% of request time.
+          <Activity className="shrink-0" size={16} aria-hidden="true" /> The database accounts for
+          97% of request time.
         </div>
       </div>
     </div>
@@ -136,10 +124,7 @@ function TrafficExample() {
       <div className={demoBodyClassName}>
         <div className={requestClassName}>
           <strong className="text-foreground">
-            Request rate{" "}
-            <small className="ml-1.5 font-normal text-muted-foreground">
-              req/s
-            </small>
+            Request rate <small className="ml-1.5 font-normal text-muted-foreground">req/s</small>
           </strong>
           <span className="text-muted-foreground">10:00 - 10:15</span>
         </div>
@@ -151,8 +136,8 @@ function TrafficExample() {
             aria-labelledby={chartTitle}
           >
             <title id={chartTitle}>
-              Request rate from 10:00 to 10:15, with two spikes reaching
-              approximately 400 and 800 requests per second.
+              Request rate from 10:00 to 10:15, with two spikes reaching approximately 400 and 800
+              requests per second.
             </title>
             {[30, 110, 190].map((y) => (
               <line
@@ -243,8 +228,7 @@ function ErrorExample() {
       <div className={demoBodyClassName}>
         <div className={requestClassName}>
           <div>
-            <span className="mr-2 text-[#fb978b]">ERROR</span>{" "}
-            <code>POST /checkout</code>
+            <span className="mr-2 text-[#fb978b]">ERROR</span> <code>POST /checkout</code>
           </div>
           <span className="text-muted-foreground">10:12:08</span>
         </div>
@@ -253,11 +237,7 @@ function ErrorExample() {
             PaymentProviderError: upstream returned 503
           </strong>
           <pre className="mt-2.5 whitespace-pre-wrap font-mono text-[0.8125rem] leading-[1.8] [overflow-wrap:anywhere]">
-            <code>
-              {
-                "at chargeCustomer (payments.ts:84)\nat checkout       (checkout.ts:37)"
-              }
-            </code>
+            <code>{"at chargeCustomer (payments.ts:84)\nat checkout       (checkout.ts:37)"}</code>
           </pre>
         </div>
         <div className="mt-5 mb-2 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
@@ -279,8 +259,7 @@ function ErrorExample() {
 
 function ConnectedMonitoringExamples() {
   const [selection, setSelection] = useState("performance");
-  const selected =
-    examples.find((example) => example.id === selection) ?? examples[0];
+  const selected = examples.find((example) => example.id === selection) ?? examples[0];
 
   return (
     <div className="grid overflow-hidden rounded-xl border border-border bg-card min-[900px]:grid-cols-[minmax(0,32%)_minmax(0,1fr)]">
@@ -365,8 +344,8 @@ export function MonitoringSection() {
             An app can be up and still let users down
           </h2>
           <p className="max-w-[62ch] text-base leading-[1.65] text-muted-foreground">
-            Monitoring goes beyond error reporting. See where your app slows
-            down, how it responds to demand, and what led to a failure.
+            Monitoring goes beyond error reporting. See where your app slows down, how it responds
+            to demand, and what led to a failure.
           </p>
         </motion.div>
         <motion.div

@@ -5,18 +5,10 @@ import { useState } from "react";
 import { siGoogle } from "simple-icons";
 import { authClient } from "#app/lib/auth-client.ts";
 
-export function AuthPageHeader({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle: string;
-}) {
+export function AuthPageHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="text-center">
-      <h1 className="text-2xl font-bold tracking-tight font-heading">
-        {title}
-      </h1>
+      <h1 className="text-2xl font-bold tracking-tight font-heading">{title}</h1>
       <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
     </div>
   );
@@ -110,12 +102,7 @@ export function GoogleAuthButton({
 
 function GoogleIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      data-icon="inline-start"
-    >
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" data-icon="inline-start">
       <path d={siGoogle.path} />
     </svg>
   );

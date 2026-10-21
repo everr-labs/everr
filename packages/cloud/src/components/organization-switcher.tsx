@@ -32,11 +32,7 @@ export function OrganizationSwitcher({
     try {
       await activateOrganization(organizationId);
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not switch organization.",
-      );
+      setError(cause instanceof Error ? cause.message : "Could not switch organization.");
     } finally {
       setSwitching(false);
       onSwitchingChange?.(false);
@@ -44,9 +40,7 @@ export function OrganizationSwitcher({
   }
 
   if (!organizations || organizations.length < 2) return null;
-  const activeOrganization = organizations.find(
-    (org) => org.id === activeOrganizationId,
-  );
+  const activeOrganization = organizations.find((org) => org.id === activeOrganizationId);
 
   return (
     <>
@@ -62,18 +56,14 @@ export function OrganizationSwitcher({
             />
           }
         >
-          <span className="truncate">
-            {activeOrganization?.name ?? "Organization"}
-          </span>
+          <span className="truncate">{activeOrganization?.name ?? "Organization"}</span>
           <ChevronDown className="size-4" aria-hidden="true" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           {organizations.map((org) => (
             <DropdownMenuItem
               key={org.id}
-              disabled={
-                disabled || switching || org.id === activeOrganizationId
-              }
+              disabled={disabled || switching || org.id === activeOrganizationId}
               onClick={() => void switchOrganization(org.id)}
             >
               {org.id === activeOrganizationId ? (

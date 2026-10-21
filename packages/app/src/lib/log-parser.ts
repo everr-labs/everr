@@ -16,25 +16,21 @@ export interface LogGroup {
   endIndex: number;
 }
 
-// Parse GitHub workflow command markers
+// Parse GitHub workflow command markers. Keep GROUP_MARKER_TYPES in sync with
+// the alternation in MARKER_REGEX so the captured group narrows to MarkerType.
+const GROUP_MARKER_TYPES = ["group", "endgroup", "error", "warning", "notice", "debug"] as const;
 const MARKER_REGEX = /^##\[(group|endgroup|error|warning|notice|debug)\](.*)$/;
 const COMMAND_REGEX = /^\[command\](.*)$/;
 
-export type MarkerType =
-  | "group"
-  | "endgroup"
-  | "error"
-  | "warning"
-  | "notice"
-  | "debug"
-  | "command";
+export type MarkerType = (typeof GROUP_MARKER_TYPES)[number] | "command";
 
-export function parseGitHubMarker(
-  line: string,
-): { type: MarkerType; message?: string } | null {
+export function parseGitHubMarker(line: string): { type: MarkerType; message?: string } | null {
   const match = line.match(MARKER_REGEX);
   if (match) {
-    return { type: match[1] as MarkerType, message: match[2] || undefined };
+    const type = GROUP_MARKER_TYPES.find((t) => t === match[1]);
+    if (type) {
+      return { type, message: match[2] || undefined };
+    }
   }
 
   const commandMatch = line.match(COMMAND_REGEX);
@@ -138,10 +134,7 @@ export function computeVisibleLines(
   for (const group of groups) {
     let depth = 0;
     for (const other of groups) {
-      if (
-        other.startIndex < group.startIndex &&
-        other.endIndex > group.endIndex
-      ) {
+      if (other.startIndex < group.startIndex && other.endIndex > group.endIndex) {
         depth++;
       }
     }
@@ -153,9 +146,7 @@ export function computeVisibleLines(
       }
     }
 
-    const headerTimestamp = formatTimestampTimeOfDay(
-      lines[group.startIndex].timestamp,
-    );
+    const headerTimestamp = formatTimestampTimeOfDay(lines[group.startIndex].timestamp);
     let hasUniformTimestamps = true;
     for (let i = group.startIndex + 1; i < group.endIndex; i++) {
       if (
@@ -183,11 +174,7 @@ export function computeVisibleLines(
     let isHidden = false;
     if (groupInfo) {
       for (const group of groups) {
-        if (
-          i > group.startIndex &&
-          i < group.endIndex &&
-          collapsed.has(group.id)
-        ) {
+        if (i > group.startIndex && i < group.endIndex && collapsed.has(group.id)) {
           isHidden = true;
           break;
         }

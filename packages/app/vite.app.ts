@@ -12,10 +12,10 @@ const routeMounts = {
 } as const;
 
 /** URLs and nesting are explicit; source files can live anywhere in the package. */
-export type RegisteredRoute = (
-  | { type: "route"; path: string }
-  | { type: "layout"; id: string }
-) & { file: string; children?: RegisteredRoute[] };
+export type RegisteredRoute = ({ type: "route"; path: string } | { type: "layout"; id: string }) & {
+  file: string;
+  children?: RegisteredRoute[];
+};
 
 /** Build-time inputs supplied by the application that composes the product. */
 export interface AppComposition {
@@ -30,9 +30,7 @@ export interface AppComposition {
 export const installationComposition: AppComposition = {
   directory: appDirectory,
   serverEntries: {
-    recovery: fileURLToPath(
-      new URL("./src/app/commands/recovery.ts", import.meta.url),
-    ),
+    recovery: fileURLToPath(new URL("./src/app/commands/recovery.ts", import.meta.url)),
   },
   routes: {
     welcome: [
@@ -46,10 +44,7 @@ export const installationComposition: AppComposition = {
       {
         type: "route",
         path: "access-required",
-        file: resolve(
-          appDirectory,
-          "src/app/routes/_welcome/_signedIn/access-required.tsx",
-        ),
+        file: resolve(appDirectory, "src/app/routes/_welcome/_signedIn/access-required.tsx"),
       },
     ],
   },
@@ -74,9 +69,8 @@ const compositionNames = [
 /** Each application declares its own complete module selection in tsconfig. */
 function compositionPaths(composition: AppComposition) {
   const file = resolve(composition.directory, "tsconfig.json");
-  const { config, error } = ts.readConfigFile(file, ts.sys.readFile);
-  if (error)
-    throw new Error(ts.flattenDiagnosticMessageText(error.messageText, "\n"));
+  const { config, error } = ts.readConfigFile(file, (name) => ts.sys.readFile(name));
+  if (error) throw new Error(ts.flattenDiagnosticMessageText(error.messageText, "\n"));
   const parsed = ts.parseJsonConfigFileContent(
     config,
     ts.sys,
@@ -87,9 +81,7 @@ function compositionPaths(composition: AppComposition) {
   if (parsed.errors.length)
     throw new Error(
       parsed.errors
-        .map((error) =>
-          ts.flattenDiagnosticMessageText(error.messageText, "\n"),
-        )
+        .map((error) => ts.flattenDiagnosticMessageText(error.messageText, "\n"))
         .join("\n"),
     );
   const paths = config.compilerOptions?.paths;
@@ -101,20 +93,11 @@ function compositionPaths(composition: AppComposition) {
   const entries = Object.fromEntries(
     names.map((name) => {
       const targets = paths?.[name];
-      if (
-        !Array.isArray(targets) ||
-        targets.length !== 1 ||
-        typeof targets[0] !== "string"
-      )
+      if (!Array.isArray(targets) || targets.length !== 1 || typeof targets[0] !== "string")
         throw new Error(`${file}: ${name} must map to exactly one path`);
       const target = targets[0];
-      if (target.includes("*"))
-        throw new Error(`${file}: invalid path for ${name}`);
-      const entry = resolve(
-        composition.directory,
-        parsed.options.baseUrl ?? ".",
-        target,
-      );
+      if (target.includes("*")) throw new Error(`${file}: invalid path for ${name}`);
+      const entry = resolve(composition.directory, parsed.options.baseUrl ?? ".", target);
       assertOwnedFile(composition, entry, name === "@composition/routes");
       return [name, entry];
     }),
@@ -131,18 +114,11 @@ export function appAliases(composition = installationComposition) {
   }));
 }
 
-function assertOwnedFile(
-  composition: AppComposition,
-  file: string,
-  generated = false,
-) {
-  if (!generated && !existsSync(file))
-    throw new Error(`Composition entry does not exist: ${file}`);
+function assertOwnedFile(composition: AppComposition, file: string, generated = false) {
+  if (!generated && !existsSync(file)) throw new Error(`Composition entry does not exist: ${file}`);
   const path = relative(
     realpathSync(composition.directory),
-    existsSync(file)
-      ? realpathSync(file)
-      : resolve(realpathSync(dirname(file)), basename(file)),
+    existsSync(file) ? realpathSync(file) : resolve(realpathSync(dirname(file)), basename(file)),
   );
   if (
     isAbsolute(path) ||
@@ -151,18 +127,13 @@ function assertOwnedFile(
     path.startsWith("..\\") ||
     path.split(/[/\\]/).includes("node_modules")
   ) {
-    throw new Error(
-      `Composition entry must belong to its application package: ${file}`,
-    );
+    throw new Error(`Composition entry must belong to its application package: ${file}`);
   }
 }
 
 export function appRoutes(composition: AppComposition) {
   const seen = new Set<string>();
-  const register = (
-    route: RegisteredRoute,
-    parent: string,
-  ): RegisteredRoute => {
+  const register = (route: RegisteredRoute, parent: string): RegisteredRoute => {
     const segment = route.type === "layout" ? route.id : route.path;
     if (
       !segment ||
@@ -181,12 +152,9 @@ export function appRoutes(composition: AppComposition) {
     };
   };
   const at = (mount: keyof typeof routeMounts) =>
-    (composition.routes[mount] ?? []).map((route) =>
-      register(route, routeMounts[mount]),
-    );
+    (composition.routes[mount] ?? []).map((route) => register(route, routeMounts[mount]));
   for (const mount of Object.keys(composition.routes)) {
-    if (!(mount in routeMounts))
-      throw new Error(`Unknown route attachment point: ${mount}`);
+    if (!(mount in routeMounts)) throw new Error(`Unknown route attachment point: ${mount}`);
   }
   return {
     routesDirectory: resolve(appDirectory, "src"),

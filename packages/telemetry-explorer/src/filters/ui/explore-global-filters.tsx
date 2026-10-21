@@ -3,10 +3,7 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { Boxes, Layers } from "lucide-react";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
-import {
-  unionEnvironmentOptions,
-  unionServiceOptions,
-} from "../data/explore-filter-options";
+import { unionEnvironmentOptions, unionServiceOptions } from "../data/explore-filter-options";
 import { ExploreFilterPill } from "./explore-filter-pill";
 
 // The top zone of the Explore rail. It holds the two filters that stay set when
@@ -71,11 +68,7 @@ export function ExploreGlobalFilters({
       {filters.map(({ label, ...pill }) => (
         <div key={label} className="flex flex-col gap-1">
           <Label className="text-muted-foreground text-xs">{label}</Label>
-          <ExploreFilterPill
-            label={label}
-            {...pill}
-            className="w-full max-w-none"
-          />
+          <ExploreFilterPill label={label} {...pill} className="w-full max-w-none" />
         </div>
       ))}
     </>
@@ -84,9 +77,6 @@ export function ExploreGlobalFilters({
 
 // The number of top-zone filters that narrow the results. This gives the count
 // on the "Filters" button, which replaces the rail in a narrow window.
-export function countPersistentFilters(
-  service: string[],
-  environment: string[],
-): number {
+export function countPersistentFilters(service: string[], environment: string[]): number {
   return (service.length > 0 ? 1 : 0) + (environment.length > 0 ? 1 : 0);
 }

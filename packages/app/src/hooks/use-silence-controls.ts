@@ -7,10 +7,7 @@ import {
   type SilenceDraft,
   type SilenceSeed,
 } from "#app/data/alerting/silences/commands.ts";
-import {
-  cancelAlertSilence,
-  createAlertSilence,
-} from "#app/data/alerting/silences/server.ts";
+import { cancelAlertSilence, createAlertSilence } from "#app/data/alerting/silences/server.ts";
 import { invalidateAlertTriage } from "#app/data/alerting/triage/options.ts";
 
 /**
@@ -60,32 +57,34 @@ export function useSilenceControls() {
         // cannot see the failure any other way: the row comes back exactly as
         // it went in.
         onError: () => onFailed?.(),
-        onSuccess: async () => {
-          // Measured before the refetch, not after: the window Undo recreates
-          // is what was left when the reader cancelled, and awaiting the reads
-          // first billed their latency to the silence.
-          const recreate = recreateCancelledSilence(target, Date.now());
-          await refresh();
-          toast.success(
-            `Silence cancelled · ${target.label} resumes notifying`,
-            recreate
-              ? {
-                  // Bounded on purpose. Sonner keeps a toast that carries an
-                  // action until it is dismissed, and an Undo that writes a
-                  // silence must not sit on screen indefinitely waiting to be
-                  // pressed by something that is no longer the act it belongs
-                  // to. Ten seconds is long enough to change your mind and
-                  // short enough that the affordance dies with the moment.
-                  duration: 10_000,
-                  action: {
-                    label: "Undo",
-                    onClick: () => {
-                      silence.mutate({ data: recreate });
+        onSuccess: () => {
+          void (async () => {
+            // Measured before the refetch, not after: the window Undo recreates
+            // is what was left when the reader cancelled, and awaiting the reads
+            // first billed their latency to the silence.
+            const recreate = recreateCancelledSilence(target, Date.now());
+            await refresh();
+            toast.success(
+              `Silence cancelled · ${target.label} resumes notifying`,
+              recreate
+                ? {
+                    // Bounded on purpose. Sonner keeps a toast that carries an
+                    // action until it is dismissed, and an Undo that writes a
+                    // silence must not sit on screen indefinitely waiting to be
+                    // pressed by something that is no longer the act it belongs
+                    // to. Ten seconds is long enough to change your mind and
+                    // short enough that the affordance dies with the moment.
+                    duration: 10_000,
+                    action: {
+                      label: "Undo",
+                      onClick: () => {
+                        silence.mutate({ data: recreate });
+                      },
                     },
-                  },
-                }
-              : undefined,
-          );
+                  }
+                : undefined,
+            );
+          })();
         },
       },
     );

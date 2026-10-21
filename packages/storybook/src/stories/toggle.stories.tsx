@@ -107,22 +107,15 @@ export const Invalid: Story = {
 };
 
 export const Controlled: Story = {
-  render: (args) => {
+  render: function Render(args) {
     const [pressed, setPressed] = React.useState(false);
 
     return (
       <div className="flex items-center gap-3">
-        <Toggle
-          {...args}
-          aria-label="Underline"
-          pressed={pressed}
-          onPressedChange={setPressed}
-        >
+        <Toggle {...args} aria-label="Underline" pressed={pressed} onPressedChange={setPressed}>
           <UnderlineIcon />
         </Toggle>
-        <span className="text-muted-foreground text-xs">
-          {pressed ? "On" : "Off"}
-        </span>
+        <span className="text-muted-foreground text-xs">{pressed ? "On" : "Off"}</span>
       </div>
     );
   },

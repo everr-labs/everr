@@ -1,10 +1,4 @@
-type JsonAttributeValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonAttributeValue[]
-  | JsonAttributes;
+type JsonAttributeValue = string | number | boolean | null | JsonAttributeValue[] | JsonAttributes;
 
 export type JsonAttributes = { [key: string]: JsonAttributeValue };
 
@@ -51,8 +45,9 @@ export function flattenAttributes(value: unknown): Record<string, string> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return out;
   }
-  const walk = (node: Record<string, unknown>, prefix: string) => {
-    for (const [name, leaf] of Object.entries(node)) {
+  const walk = (node: object, prefix: string) => {
+    const entries: [string, unknown][] = Object.entries(node);
+    for (const [name, leaf] of entries) {
       const key = prefix ? `${prefix}.${name}` : name;
       if (leaf === null || leaf === undefined) continue;
       if (Array.isArray(leaf)) {
@@ -60,12 +55,18 @@ export function flattenAttributes(value: unknown): Record<string, string> {
         continue;
       }
       if (typeof leaf === "object") {
-        walk(leaf as Record<string, unknown>, key);
+        walk(leaf, key);
         continue;
       }
-      out[key] = String(leaf);
+      if (
+        typeof leaf === "string" ||
+        typeof leaf === "number" ||
+        typeof leaf === "boolean" ||
+        typeof leaf === "bigint"
+      )
+        out[key] = String(leaf);
     }
   };
-  walk(value as Record<string, unknown>, "");
+  walk(value, "");
   return out;
 }

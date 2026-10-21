@@ -2,7 +2,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { verifyPassword } from "better-auth/crypto";
-import { afterAll, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import { createInstallationIdentityPolicy } from "#app/app/identity-policy.ts";
 import {
   assertInvitedUser,
@@ -60,9 +60,7 @@ it("allows only one of two overlapping setup attempts", async () => {
     setupWorkspace(input, database),
     setupWorkspace({ ...input, email: "other@example.test" }, database),
   ]);
-  expect(
-    results.filter((result) => result.status === "fulfilled"),
-  ).toHaveLength(1);
+  expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
   expect(await database.select().from(schema.organization)).toHaveLength(1);
   expect(await database.select().from(schema.user)).toHaveLength(1);
 });
@@ -76,9 +74,7 @@ it("rolls back the whole setup after a database constraint failure, allowing ret
   expect(await database.select().from(schema.user)).toHaveLength(0);
   expect(await database.select().from(schema.account)).toHaveLength(0);
   await client.exec("ALTER TABLE member DROP CONSTRAINT reject_initial_owner");
-  await expect(setupWorkspace(input, database)).resolves.toHaveProperty(
-    "organizationId",
-  );
+  await expect(setupWorkspace(input, database)).resolves.toHaveProperty("organizationId");
 });
 
 it("admits signup only for a pending, unexpired invitation in the workspace", async () => {
@@ -96,18 +92,12 @@ it("admits signup only for a pending, unexpired invitation in the workspace", as
     assertInvitedUser({ email: "teammate@example.test" }, "invite", database),
   ).resolves.toBeUndefined();
   await expect(
-    assertInvitedUser(
-      { email: "teammate@example.test", emailVerified: true },
-      undefined,
-      database,
-    ),
+    assertInvitedUser({ email: "teammate@example.test", emailVerified: true }, undefined, database),
   ).resolves.toBeUndefined();
   await expect(
     assertInvitedUser({ email: "stranger@example.test" }, "invite", database),
   ).rejects.toThrow("invitation");
-  await client.exec(
-    "UPDATE invitation SET expires_at = now() - interval '1 second'",
-  );
+  await client.exec("UPDATE invitation SET expires_at = now() - interval '1 second'");
   await expect(
     assertInvitedUser({ email: "teammate@example.test" }, "invite", database),
   ).rejects.toThrow("invitation");
@@ -121,9 +111,7 @@ it("does not silently choose a workspace in an existing multi-organization datab
     slug: "other",
     createdAt: new Date(),
   });
-  await expect(getInstallation(database)).rejects.toThrow(
-    "multiple organizations",
-  );
+  await expect(getInstallation(database)).rejects.toThrow("multiple organizations");
 });
 
 it("rejects replay after a committed setup without changing the workspace or owner", async () => {
@@ -176,20 +164,10 @@ it("issues expiring links consumable once by Better Auth and replaces previous l
     database: drizzleAdapter(database, { provider: "pg", schema }),
     emailAndPassword: { enabled: true, revokeSessionsOnPasswordReset: true },
   });
-  const first = await createRecoveryLink(
-    database,
-    input.email,
-    "https://everr.example",
-  );
-  const second = await createRecoveryLink(
-    database,
-    input.email,
-    "https://everr.example",
-  );
+  const first = await createRecoveryLink(database, input.email, "https://everr.example");
+  const second = await createRecoveryLink(database, input.email, "https://everr.example");
   expect(second.expiresAt.getTime() - Date.now()).toBeGreaterThan(14 * 60_000);
-  expect(second.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(
-    15 * 60_000,
-  );
+  expect(second.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(15 * 60_000);
   const reset = (url: string) =>
     auth.api.resetPassword({
       body: {
@@ -208,29 +186,21 @@ it("issues expiring links consumable once by Better Auth and replaces previous l
   await expect(reset(second.url)).resolves.toEqual({ status: true });
   await expect(reset(second.url)).rejects.toThrow();
   expect(await database.select().from(schema.session)).toEqual([]);
-  expect((await database.select().from(schema.user))[0].emailVerified).toBe(
-    false,
-  );
-  const expired = await createRecoveryLink(
-    database,
-    input.email,
-    "https://everr.example",
-  );
+  expect((await database.select().from(schema.user))[0].emailVerified).toBe(false);
+  const expired = await createRecoveryLink(database, input.email, "https://everr.example");
   await database.update(schema.verification).set({ expiresAt: new Date(0) });
   await expect(reset(expired.url)).rejects.toThrow();
 });
 
 it("refuses recovery for missing or external-only accounts without creating credentials", async () => {
-  await expect(
-    createRecoveryLink(database, input.email, "https://everr.example"),
-  ).rejects.toThrow("No account");
+  await expect(createRecoveryLink(database, input.email, "https://everr.example")).rejects.toThrow(
+    "No account",
+  );
   await setupWorkspace(input, database);
-  await database
-    .update(schema.account)
-    .set({ providerId: "google", password: null });
-  await expect(
-    createRecoveryLink(database, input.email, "https://everr.example"),
-  ).rejects.toThrow("no local password");
+  await database.update(schema.account).set({ providerId: "google", password: null });
+  await expect(createRecoveryLink(database, input.email, "https://everr.example")).rejects.toThrow(
+    "no local password",
+  );
   expect(await database.select().from(schema.verification)).toEqual([]);
   expect((await database.select().from(schema.account))[0].password).toBeNull();
 });
@@ -242,9 +212,9 @@ it("preserves database failures in installation identity policy", async () => {
     throw failure;
   });
   try {
-    await expect(
-      policy.beforeUserCreate({ email: "invited@example.test" }, "invite"),
-    ).rejects.toBe(failure);
+    await expect(policy.beforeUserCreate({ email: "invited@example.test" }, "invite")).rejects.toBe(
+      failure,
+    );
   } finally {
     select.mockRestore();
   }

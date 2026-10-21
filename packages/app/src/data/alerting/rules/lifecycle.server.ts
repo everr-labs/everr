@@ -1,13 +1,4 @@
-import {
-  and,
-  eq,
-  isNotNull,
-  isNull,
-  ne,
-  notExists,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, notExists, or, sql } from "drizzle-orm";
 import { alias, QueryBuilder } from "drizzle-orm/pg-core";
 import { uuidv7 } from "#app/data/alerting/history/ids.ts";
 import { ALERT_PROJECT_LIFECYCLE_TASK } from "#app/data/alerting/history/tasks.ts";
@@ -78,10 +69,7 @@ export async function closeRuleLifecycle(
     .select()
     .from(alertInstances)
     .where(
-      and(
-        eq(alertInstances.alertDefinitionId, def.id),
-        ne(alertInstances.status, "inactive"),
-      ),
+      and(eq(alertInstances.alertDefinitionId, def.id), ne(alertInstances.status, "inactive")),
     );
   const closedRows = openInstances.map((instance) =>
     instanceClosedJournalRow(def, instance, reason, at),
@@ -111,10 +99,7 @@ export async function closeRuleLifecycle(
                 alertNotificationGroups.organizationId,
                 alertNotificationGroupEvents.organizationId,
               ),
-              eq(
-                alertNotificationGroups.id,
-                alertNotificationGroupEvents.groupId,
-              ),
+              eq(alertNotificationGroups.id, alertNotificationGroupEvents.groupId),
             ),
           )
           .where(orphanedDirectChainsFilter(def))
@@ -144,9 +129,7 @@ export async function closeRuleLifecycle(
  * so born-processed state rows stay out. Scoped to `processed_at IS NULL`, so
  * an event a worker already claimed keeps exactly one owner.
  */
-export function cancelableNotifyingEventsFilter(
-  def: Pick<RuleRow, "id" | "organizationId">,
-) {
+export function cancelableNotifyingEventsFilter(def: Pick<RuleRow, "id" | "organizationId">) {
   return and(
     eq(alertEvents.organizationId, def.organizationId),
     eq(alertEvents.sourceDefinitionId, def.id),
@@ -163,13 +146,8 @@ export function cancelableNotifyingEventsFilter(
  * chain already notified. A membership in a group that survives the cascade
  * means that group's flush owns the terminal.
  */
-export function orphanedDirectChainsFilter(
-  def: Pick<RuleRow, "id" | "organizationId">,
-) {
-  const otherMembership = alias(
-    alertNotificationGroupEvents,
-    "other_membership",
-  );
+export function orphanedDirectChainsFilter(def: Pick<RuleRow, "id" | "organizationId">) {
+  const otherMembership = alias(alertNotificationGroupEvents, "other_membership");
   const otherGroup = alias(alertNotificationGroups, "other_group");
   return and(
     eq(alertNotificationGroups.organizationId, def.organizationId),

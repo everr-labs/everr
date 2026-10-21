@@ -32,10 +32,7 @@ type ErrorBoundaryState = { errored: boolean; error?: unknown };
  * server it operates without a WebSDK, because the report.server module needs
  * no setup.
  */
-export class ErrorBoundary extends Component<
-  ErrorBoundaryProps,
-  ErrorBoundaryState
-> {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { errored: false };
 
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
@@ -53,8 +50,6 @@ export class ErrorBoundary extends Component<
     const { errored, error } = this.state;
     if (!errored) return this.props.children;
     const { fallback } = this.props;
-    return typeof fallback === "function"
-      ? fallback(error)
-      : (fallback ?? null);
+    return typeof fallback === "function" ? fallback(error) : (fallback ?? null);
   }
 }

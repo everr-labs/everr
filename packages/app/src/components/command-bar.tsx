@@ -84,16 +84,10 @@ export function CommandBar() {
         )}
       >
         <SearchIcon className="size-3.5 shrink-0" />
-        <span className="flex-1 text-left text-muted-foreground">
-          Search...
-        </span>
+        <span className="flex-1 text-left text-muted-foreground">Search...</span>
         <Kbd>⌘+K</Kbd>
       </Button>
-      <CommandDialog
-        open={open}
-        onOpenChange={toggleCommandBar}
-        className="transition-none"
-      >
+      <CommandDialog open={open} onOpenChange={toggleCommandBar} className="transition-none">
         <Command className="p-0">
           <CommandInput
             placeholder="Search..."
@@ -113,23 +107,18 @@ export function CommandBar() {
                     value={`run ${run.runId} ${run.workflowName} ${run.repo}`}
                     onSelect={() => {
                       toggleCommandBar(false);
-                      navigate({
+                      void navigate({
                         to: "/runs/$traceId",
                         params: { traceId: run.traceId },
                       });
                     }}
                     forceMount
                   >
-                    <ConclusionIcon
-                      conclusion={run.conclusion}
-                      className="size-3.5"
-                    />
+                    <ConclusionIcon conclusion={run.conclusion} className="size-3.5" />
                     <span>
                       #{run.runId} · {run.workflowName}
                     </span>
-                    <CommandShortcut>
-                      {formatRelativeTime(run.timestamp)}
-                    </CommandShortcut>
+                    <CommandShortcut>{formatRelativeTime(run.timestamp)}</CommandShortcut>
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -142,7 +131,7 @@ export function CommandBar() {
                     value={`dashboard ${d.name} ${d.slug}`}
                     onSelect={() => {
                       toggleCommandBar(false);
-                      navigate({
+                      void navigate({
                         to: "/dashboards/$project/$slug",
                         params: { project: d.project, slug: d.slug },
                       });
@@ -161,7 +150,7 @@ export function CommandBar() {
                   value={`built-in dashboard ${b.name} ${b.id}`}
                   onSelect={() => {
                     toggleCommandBar(false);
-                    navigate({
+                    void navigate({
                       to: "/dashboards/built-in/$slug",
                       params: { slug: b.id },
                     });
@@ -173,16 +162,13 @@ export function CommandBar() {
               ))}
             </CommandGroup>
             {navGroups.map((group) => (
-              <CommandGroup
-                key={group.label ?? "pinned"}
-                heading={group.label ?? "Navigation"}
-              >
+              <CommandGroup key={group.label ?? "pinned"} heading={group.label ?? "Navigation"}>
                 {group.items.map((item) => (
                   <CommandItem
                     key={item.url}
                     onSelect={() => {
                       toggleCommandBar(false);
-                      navigate({ to: item.url });
+                      void navigate({ to: item.url });
                     }}
                   >
                     <item.icon />

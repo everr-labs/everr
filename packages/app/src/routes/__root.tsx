@@ -46,9 +46,7 @@ const getRootContext = createServerFn({ method: "GET" })
       googleSignInEnabled: Boolean(socialProviders?.google),
       githubEnabled: Boolean(getGithubConfiguration()),
       session:
-        session?.session && session?.user
-          ? { user: session.user, session: session.session }
-          : null,
+        session?.session && session?.user ? { user: session.user, session: session.session } : null,
       consent: isConsentDecision(consentValue) ? consentValue : undefined,
     };
     if (entryRedirect)

@@ -1,7 +1,8 @@
+import type * as ReactRouterTypes from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { ApiKey } from "#app/data/api-keys.ts";
 
 const mocks = vi.hoisted(() => ({
@@ -10,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  ...(await importOriginal<typeof ReactRouterTypes>()),
   createFileRoute: () => (options: Record<string, unknown>) => ({ options }),
 }));
 vi.mock("@tanstack/react-start/server", () => ({
@@ -26,9 +27,7 @@ vi.mock("#app/lib/serverFn.ts", () => ({
 import { Route } from "./api-keys";
 
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <QueryClientProvider client={new QueryClient()}>
-    {children}
-  </QueryClientProvider>
+  <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
 );
 
 describe("/api-keys route", () => {

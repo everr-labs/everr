@@ -8,12 +8,7 @@
  * part edited in the database breaks the next decrypt rather than showing a
  * kind the ciphertext does not hold.
  */
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  randomBytes,
-} from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import {
   AlertingChannelConfigSchema,
   ALERTING_REDACTED_SECRET as REDACTED,
@@ -33,10 +28,7 @@ function aad(organizationId: string, channelId: string, publicPart: string) {
 }
 
 function encodePublic(config: AlertingChannelConfig): string {
-  return Buffer.from(
-    JSON.stringify(redactChannelConfig(config)),
-    "utf8",
-  ).toString("base64url");
+  return Buffer.from(JSON.stringify(redactChannelConfig(config)), "utf8").toString("base64url");
 }
 
 function decodePublic(publicPart: string): AlertingChannelConfig {
@@ -55,10 +47,7 @@ export function encryptChannelConfig(
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key(), iv);
   cipher.setAAD(aad(organizationId, channelId, publicPart));
-  const ciphertext = Buffer.concat([
-    cipher.update(JSON.stringify(parsed), "utf8"),
-    cipher.final(),
-  ]);
+  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(parsed), "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return [
     iv.toString("base64url"),
@@ -89,11 +78,7 @@ export function decryptChannelConfig(
   encrypted: string,
 ): AlertingChannelConfig {
   const { iv, tag, ciphertext, publicPart } = openEnvelope(encrypted);
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    key(),
-    Buffer.from(iv, "base64url"),
-  );
+  const decipher = createDecipheriv("aes-256-gcm", key(), Buffer.from(iv, "base64url"));
   decipher.setAAD(aad(organizationId, channelId, publicPart));
   decipher.setAuthTag(Buffer.from(tag, "base64url"));
   const plaintext = Buffer.concat([
@@ -108,15 +93,11 @@ export function decryptChannelConfig(
  * A screen listing every channel pays a base64 decode per row rather than
  * a key derivation and a decrypt.
  */
-export function readRedactedChannelConfig(
-  encrypted: string,
-): AlertingChannelConfig {
+export function readRedactedChannelConfig(encrypted: string): AlertingChannelConfig {
   return decodePublic(openEnvelope(encrypted).publicPart);
 }
 
-function redactChannelConfig(
-  config: AlertingChannelConfig,
-): AlertingChannelConfig {
+function redactChannelConfig(config: AlertingChannelConfig): AlertingChannelConfig {
   switch (config.type) {
     case "telegram":
       return { ...config, bot_token: REDACTED };

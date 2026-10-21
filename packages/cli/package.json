@@ -1,13 +1,13 @@
 {
   "name": "@everr/cli",
-  "private": true,
   "version": "0.10.1",
+  "private": true,
   "type": "module",
   "scripts": {
     "build": "node ./scripts/build-cli.ts release",
     "build:debug": "node ./scripts/build-cli.ts debug",
     "build:release": "node ./scripts/build-cli.ts release",
-    "test": "vitest run",
+    "test": "vp test run",
     "test:rust": "node ./scripts/test-cli.ts",
     "install:debug": "node ./scripts/build-cli.ts debug --install"
   },

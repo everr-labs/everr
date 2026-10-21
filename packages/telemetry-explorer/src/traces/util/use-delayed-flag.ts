@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
 
 export function useDelayedFlag(active: boolean, delayMs: number): boolean {
-  const [delayed, setDelayed] = useState(false);
+  const [state, setState] = useState({ active, ready: false });
+  if (state.active !== active) setState({ active, ready: false });
   useEffect(() => {
-    if (!active) {
-      setDelayed(false);
-      return;
-    }
-    const id = setTimeout(() => setDelayed(true), delayMs);
+    if (!active) return;
+    const id = setTimeout(() => setState({ active, ready: true }), delayMs);
     return () => clearTimeout(id);
   }, [active, delayMs]);
-  return delayed;
+  return state.active === active && state.ready;
 }

@@ -25,16 +25,14 @@ function OperatorRecovery() {
         subtitle="Contact your installation administrator"
       />
       <p className="text-sm text-muted-foreground">
-        Email delivery is not configured. Your administrator can give you a
-        recovery link to reset your password.
+        Email delivery is not configured. Your administrator can give you a recovery link to reset
+        your password.
       </p>
       <details className="space-y-3 text-sm">
-        <summary className="cursor-pointer font-medium">
-          Manage this installation?
-        </summary>
+        <summary className="cursor-pointer font-medium">Manage this installation?</summary>
         <p>
-          Run this command from your Compose directory on the server. Replace
-          user@example.com with the account email.
+          Run this command from your Compose directory on the server. Replace user@example.com with
+          the account email.
         </p>
         <p>Generate a recovery link:</p>
         <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
@@ -74,10 +72,7 @@ function EmailRecovery() {
         });
 
         if (result.error) {
-          setError(
-            result.error.message ??
-              "Failed to send reset email. Please try again.",
-          );
+          setError(result.error.message ?? "Failed to send reset email. Please try again.");
           return;
         }
 
@@ -150,10 +145,7 @@ function EmailRecovery() {
 
       <p className="text-center text-sm text-muted-foreground">
         Remember your password?{" "}
-        <Link
-          to="/auth/sign-in"
-          className="font-medium text-foreground hover:underline"
-        >
+        <Link to="/auth/sign-in" className="font-medium text-foreground hover:underline">
           Sign in
         </Link>
       </p>

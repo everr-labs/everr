@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { resolveCliReleaseRedirectUrl } from "./cli-release-redirect";
 
 const publicBaseUrl = "https://cli-release.example.com/releases/";
@@ -10,9 +10,7 @@ describe("resolveCliReleaseRedirectUrl", () => {
         pathname: "/everr-app/release-metadata.json",
         publicBaseUrl,
       }),
-    ).toBe(
-      "https://cli-release.example.com/releases/everr-app/release-metadata.json",
-    );
+    ).toBe("https://cli-release.example.com/releases/everr-app/release-metadata.json");
   });
 
   it("redirects CLI release files to the public artifact base URL", () => {
@@ -28,9 +26,7 @@ describe("resolveCliReleaseRedirectUrl", () => {
         pathname: "/everr-app/everr.sha256",
         publicBaseUrl,
       }),
-    ).toBe(
-      "https://cli-release.example.com/releases/everr-app/everr.sha256",
-    );
+    ).toBe("https://cli-release.example.com/releases/everr-app/everr.sha256");
   });
 
   it("redirects Linux CLI release files to the public artifact base URL", () => {
@@ -39,27 +35,21 @@ describe("resolveCliReleaseRedirectUrl", () => {
         pathname: "/everr-app/everr-linux-arm64",
         publicBaseUrl,
       }),
-    ).toBe(
-      "https://cli-release.example.com/releases/everr-app/everr-linux-arm64",
-    );
+    ).toBe("https://cli-release.example.com/releases/everr-app/everr-linux-arm64");
 
     expect(
       resolveCliReleaseRedirectUrl({
         pathname: "/everr-app/everr-linux-x86_64",
         publicBaseUrl,
       }),
-    ).toBe(
-      "https://cli-release.example.com/releases/everr-app/everr-linux-x86_64",
-    );
+    ).toBe("https://cli-release.example.com/releases/everr-app/everr-linux-x86_64");
 
     expect(
       resolveCliReleaseRedirectUrl({
         pathname: "/everr-app/everr-linux-x86_64.sha256",
         publicBaseUrl,
       }),
-    ).toBe(
-      "https://cli-release.example.com/releases/everr-app/everr-linux-x86_64.sha256",
-    );
+    ).toBe("https://cli-release.example.com/releases/everr-app/everr-linux-x86_64.sha256");
   });
 
   it("rejects unknown CLI release files", () => {

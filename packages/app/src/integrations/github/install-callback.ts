@@ -1,19 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "#app/db/client.ts";
-import {
-  githubInstallationOrganizations,
-  member,
-} from "#app/db/schema/index.ts";
+import { githubInstallationOrganizations, member } from "#app/db/schema/index.ts";
 import { parseInstallState } from "#app/lib/github-install-state.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { getGithubConfiguration } from "./configuration";
 
-function redirectToGithub(
-  origin: string,
-  status: string,
-  reason?: string,
-): Response {
+function redirectToGithub(origin: string, status: string, reason?: string): Response {
   const url = new URL("/github", origin);
   url.searchParams.set("github_install", status);
   if (reason) {
@@ -22,9 +15,7 @@ function redirectToGithub(
   return Response.redirect(url.toString(), 302);
 }
 
-export async function handleInstallCallback(
-  request: Request,
-): Promise<Response> {
+export async function handleInstallCallback(request: Request): Promise<Response> {
   const configuration = getGithubConfiguration();
   if (!configuration) return new Response("Not found", { status: 404 });
   const callbackURL = new URL(request.url);
@@ -36,11 +27,7 @@ export async function handleInstallCallback(
 
   const installationId = Number(installationIdParam);
   if (!Number.isSafeInteger(installationId) || installationId <= 0) {
-    return redirectToGithub(
-      callbackURL.origin,
-      "error",
-      "invalid_installation_id",
-    );
+    return redirectToGithub(callbackURL.origin, "error", "invalid_installation_id");
   }
 
   const session = await getSession({
@@ -81,17 +68,11 @@ export async function handleInstallCallback(
   try {
     const [existing] = await db
       .select({
-        githubInstallationId:
-          githubInstallationOrganizations.githubInstallationId,
+        githubInstallationId: githubInstallationOrganizations.githubInstallationId,
         organizationId: githubInstallationOrganizations.organizationId,
       })
       .from(githubInstallationOrganizations)
-      .where(
-        eq(
-          githubInstallationOrganizations.githubInstallationId,
-          installationId,
-        ),
-      )
+      .where(eq(githubInstallationOrganizations.githubInstallationId, installationId))
       .limit(1);
 
     if (existing) {
@@ -107,14 +88,8 @@ export async function handleInstallCallback(
         })
         .where(
           and(
-            eq(
-              githubInstallationOrganizations.githubInstallationId,
-              installationId,
-            ),
-            eq(
-              githubInstallationOrganizations.organizationId,
-              parsedState.organizationId,
-            ),
+            eq(githubInstallationOrganizations.githubInstallationId, installationId),
+            eq(githubInstallationOrganizations.organizationId, parsedState.organizationId),
           ),
         );
     } else {

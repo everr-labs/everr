@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import {
   ALERTING_MATCHER_LABEL_MAX,
   ALERTING_MATCHER_VALUE_MAX,
@@ -106,9 +106,7 @@ it("bounds matcher counts and label and value lengths", () => {
     ).success,
   ).toBe(false);
   expect(
-    AlertingSilenceInputSchema.safeParse(
-      silence(matchers(ALERTING_MATCHERS_MAX + 1)),
-    ).success,
+    AlertingSilenceInputSchema.safeParse(silence(matchers(ALERTING_MATCHERS_MAX + 1))).success,
   ).toBe(false);
   expect(
     AlertingSilenceInputSchema.safeParse(

@@ -4,10 +4,7 @@ import { run, type WorkerEvents } from "graphile-worker";
 import { pool } from "#app/db/client.ts";
 import { githubTasks } from "#app/integrations/github/registration.ts";
 import { alertCronItems, alertTaskList } from "#app/server/alerting/runtime.ts";
-import {
-  previewsCronItems,
-  previewsTaskList,
-} from "#app/server/previews/00-runtime.ts";
+import { previewsCronItems, previewsTaskList } from "#app/server/previews/00-runtime.ts";
 import { registerShutdownHook } from "#app/server/shutdown.ts";
 import { attachGraphileWorkerEventLogging } from "./events";
 import { managedWorker } from "./managed-worker";
@@ -18,7 +15,7 @@ const general = managedWorker({
   name: "everrGeneralWorker",
   hot: import.meta.hot,
   start: async () => {
-    const events = new EventEmitter() as WorkerEvents;
+    const events: WorkerEvents = new EventEmitter();
     attachGraphileWorkerEventLogging(events);
     const runner = await run({
       concurrency: 2,
@@ -60,8 +57,7 @@ export async function startWorkerRuntime() {
       const errors = results.flatMap((result) =>
         result.status === "rejected" ? [result.reason] : [],
       );
-      if (errors.length)
-        throw new AggregateError(errors, "Worker shutdown failed");
+      if (errors.length) throw new AggregateError(errors, "Worker shutdown failed");
     })();
     return stopping;
   };
@@ -74,10 +70,7 @@ export async function startWorkerRuntime() {
     try {
       await stop();
     } catch (cleanupError) {
-      throw new AggregateError(
-        [error, cleanupError],
-        "Worker startup and rollback failed",
-      );
+      throw new AggregateError([error, cleanupError], "Worker startup and rollback failed");
     }
     throw error;
   }

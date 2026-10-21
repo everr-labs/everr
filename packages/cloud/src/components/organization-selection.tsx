@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
 import { authClient } from "@everr/app/identity/client";
 import { Button, buttonVariants } from "@everr/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
@@ -37,8 +38,7 @@ export function OrganizationSelection() {
   const [switching, setSwitching] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
-  const isLoading =
-    !hasRefreshed || organizations.isPending || organizations.isRefetching;
+  const isLoading = !hasRefreshed || organizations.isPending || organizations.isRefetching;
   const hasOrganizations = Boolean(orgs?.length);
 
   async function handleSwitch(orgId: string) {
@@ -48,9 +48,7 @@ export function OrganizationSelection() {
       await activateOrganization(orgId, returnTo);
     } catch (error) {
       setSwitchError(
-        error instanceof Error
-          ? error.message
-          : "Could not select this organization.",
+        error instanceof Error ? error.message : "Could not select this organization.",
       );
       await organizations.refetch();
     } finally {
@@ -76,9 +74,7 @@ export function OrganizationSelection() {
     <main className="flex flex-1 items-center justify-center px-6 py-10 lg:min-h-screen lg:py-16">
       <div className="w-full max-w-sm space-y-8">
         <div className="space-y-4">
-          <p className="text-xs font-medium text-muted-foreground">
-            Your organizations
-          </p>
+          <p className="text-xs font-medium text-muted-foreground">Your organizations</p>
           <h1 className="font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
             {isLoading || organizations.error
               ? "Finding your space"
@@ -114,10 +110,7 @@ export function OrganizationSelection() {
               <p role="alert" className="text-sm text-destructive">
                 Could not load your organizations. Please try again.
               </p>
-              <Button
-                variant="outline"
-                onClick={() => void organizations.refetch()}
-              >
+              <Button variant="outline" onClick={() => void organizations.refetch()}>
                 Try again
               </Button>
             </div>
@@ -138,10 +131,7 @@ export function OrganizationSelection() {
                       aria-hidden="true"
                     />
                   ) : (
-                    <ArrowRight
-                      className="size-4 text-muted-foreground"
-                      aria-hidden="true"
-                    />
+                    <ArrowRight className="size-4 text-muted-foreground" aria-hidden="true" />
                   )}
                 </Button>
               ))}

@@ -5,16 +5,10 @@ import {
 } from "#app/data/alerting/delivery/tasks.ts";
 import { alertingPartitionQueue } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
 import { currentTraceLink } from "#app/data/alerting/trace-link.ts";
-import {
-  SILENCE_PAGE_LIMIT,
-  type SilenceCut,
-} from "#app/data/alerting/triage/view.ts";
+import { SILENCE_PAGE_LIMIT, type SilenceCut } from "#app/data/alerting/triage/view.ts";
 import { db } from "#app/db/client.ts";
 import { alertEvents, alertSilences } from "#app/db/schema/index.ts";
-import {
-  parseAlertingInput,
-  throwAlertingPersistenceError,
-} from "../persistence";
+import { parseAlertingInput, throwAlertingPersistenceError } from "../persistence";
 import { AlertingSilenceIdSchema, AlertingSilenceInputSchema } from "../schema";
 import { type AlertingMutationScope, alertingActorPrincipal } from "../session";
 import { ruleSubject, silenceSelects } from "./matching";
@@ -102,10 +96,7 @@ export async function listSilences(
  * evaluating hundreds of members must not issue hundreds of identical
  * org-wide scans.
  */
-export async function loadActiveSilences(
-  organizationId: string,
-  now: Date,
-): Promise<SilenceRow[]> {
+export async function loadActiveSilences(organizationId: string, now: Date): Promise<SilenceRow[]> {
   return db
     .select()
     .from(alertSilences)
@@ -127,9 +118,7 @@ export async function loadActiveSilences(
  * Wider than `loadActiveSilences` by exactly the unstarted ones, which is why
  * it does not share the name.
  */
-export async function loadOpenSilences(
-  organizationId: string,
-): Promise<SilenceRow[]> {
+export async function loadOpenSilences(organizationId: string): Promise<SilenceRow[]> {
   return db
     .select()
     .from(alertSilences)
@@ -200,10 +189,7 @@ export async function loadSilencesForPage(
     .where(
       and(
         eq(alertSilences.organizationId, organizationId),
-        or(
-          stillOpen(),
-          and(lte(alertSilences.startsAt, to), gte(alertSilences.endsAt, from)),
-        ),
+        or(stillOpen(), and(lte(alertSilences.startsAt, to), gte(alertSilences.endsAt, from))),
       ),
     )
     .orderBy(desc(stillOpen()), desc(alertSilences.startsAt))
@@ -214,12 +200,7 @@ export async function loadSilencesForPage(
     // The open rows lead, so a full page was cut off inside whichever group
     // its last row belongs to: reaching a closed row at all means every open
     // one is already here.
-    cut:
-      rows.length < SILENCE_PAGE_LIMIT || !last
-        ? null
-        : last.open
-          ? "open"
-          : "history",
+    cut: rows.length < SILENCE_PAGE_LIMIT || !last ? null : last.open ? "open" : "history",
   };
 }
 
@@ -231,11 +212,7 @@ export async function createSilence(
   const startsAt = new Date(input.starts_at);
   const endsAt = new Date(input.ends_at);
   if (!(endsAt > startsAt)) {
-    throwAlertingPersistenceError(
-      422,
-      "validation",
-      "silence ends_at must be after starts_at",
-    );
+    throwAlertingPersistenceError(422, "validation", "silence ends_at must be after starts_at");
   }
   const [row] = await db
     .insert(alertSilences)
@@ -268,10 +245,7 @@ export async function createSilence(
  * `now` would put it before `starts_at`, so it collapses to `starts_at` and
  * the window ends up empty instead of inverted.
  */
-export async function expireSilence(
-  { organizationId }: AlertingMutationScope,
-  rawId: string,
-) {
+export async function expireSilence({ organizationId }: AlertingMutationScope, rawId: string) {
   const id = parseAlertingInput(AlertingSilenceIdSchema, rawId);
   return db.transaction(async (tx) => {
     const rows = await tx

@@ -24,11 +24,7 @@ import {
   loadSilencesInWindow,
 } from "#app/data/alerting/silences/repository.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
-import {
-  assembleAlertDetail,
-  assembleRuleStateHistory,
-  assembleTriage,
-} from "./assemble";
+import { assembleAlertDetail, assembleRuleStateHistory, assembleTriage } from "./assemble";
 import { formatLabels } from "./format";
 import {
   loadInstanceLabels,
@@ -38,19 +34,10 @@ import {
   loadRecentTimeline,
   loadSilenceImpact,
 } from "./history";
-import {
-  loadDefaultTiers,
-  loadHeldCounts,
-  loadLatestNotifications,
-} from "./notifications";
+import { loadDefaultTiers, loadHeldCounts, loadLatestNotifications } from "./notifications";
 import { silenceRecords } from "./silences";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
-import type {
-  AlertDetail,
-  AlertSilencePage,
-  AlertTriageData,
-  RuleStateHistoryData,
-} from "./view";
+import type { AlertDetail, AlertSilencePage, AlertTriageData, RuleStateHistoryData } from "./view";
 
 const valueRule = (row: AlertRuleRead): ValueRule => ({
   path: rulePath(row),
@@ -72,27 +59,24 @@ export const getAlertTriage = createAuthenticatedServerFn({
 
     const definitions = await loadRules(organizationId);
     const ids = definitions.map((d) => d.id);
-    const triageDefinitions = definitions.filter(
-      (d) => triageStatus(d) !== null,
-    );
-    const [instances, silences, notifications, held, defaultTiers, values] =
-      await Promise.all([
-        loadInstances(organizationId, ids),
-        loadOpenSilences(organizationId),
-        loadLatestNotifications(organizationId, ids),
-        loadHeldCounts(organizationId, ids),
-        loadDefaultTiers(organizationId),
-        // The same per-instance values the two charts on this screen read, over
-        // the same selected window: one loader, so a row, a lane and a track can
-        // never disagree about what the rule measured. It rides here rather than
-        // after the await because it is the one ClickHouse read in the set, and
-        // so is the one that genuinely overlaps the five PostgreSQL ones.
-        loadInstanceValues(context.clickhouse.query, {
-          rules: triageDefinitions.map(valueRule),
-          from: fromDate,
-          to: toDate,
-        }),
-      ]);
+    const triageDefinitions = definitions.filter((d) => triageStatus(d) !== null);
+    const [instances, silences, notifications, held, defaultTiers, values] = await Promise.all([
+      loadInstances(organizationId, ids),
+      loadOpenSilences(organizationId),
+      loadLatestNotifications(organizationId, ids),
+      loadHeldCounts(organizationId, ids),
+      loadDefaultTiers(organizationId),
+      // The same per-instance values the two charts on this screen read, over
+      // the same selected window: one loader, so a row, a lane and a track can
+      // never disagree about what the rule measured. It rides here rather than
+      // after the await because it is the one ClickHouse read in the set, and
+      // so is the one that genuinely overlaps the five PostgreSQL ones.
+      loadInstanceValues(context.clickhouse.query, {
+        rules: triageDefinitions.map(valueRule),
+        from: fromDate,
+        to: toDate,
+      }),
+    ]);
 
     return assembleTriage({
       now,
@@ -143,9 +127,7 @@ export const getRuleStateHistory = createAuthenticatedServerFn({
   });
 
 export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(
-    z.object({ path: z.string(), from: z.string(), to: z.string() }),
-  )
+  .inputValidator(z.object({ path: z.string(), from: z.string(), to: z.string() }))
   .handler(async ({ data, context }): Promise<AlertDetail> => {
     const organizationId = context.session.session.activeOrganizationId;
     const now = new Date();
@@ -168,13 +150,7 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
     ] = await Promise.all([
       loadRuleInstances(organizationId, definition.id),
       loadOpenSilences(organizationId),
-      loadSilencesInWindow(
-        organizationId,
-        definition.id,
-        spec.severity,
-        fromDate,
-        toDate,
-      ),
+      loadSilencesInWindow(organizationId, definition.id, spec.severity, fromDate, toDate),
       loadLatestNotifications(organizationId, [definition.id]),
       loadHeldCounts(organizationId, [definition.id]),
       loadDefaultTiers(organizationId),
@@ -207,15 +183,10 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
         // the last evaluation saw from its own samples.
         labels: new Map([
           ...instanceLabels.map(
-            (row) =>
-              [
-                row.instance_fingerprint,
-                formatLabels(row.labels ?? {}),
-              ] as const,
+            (row) => [row.instance_fingerprint, formatLabels(row.labels ?? {})] as const,
           ),
           ...lastSamples.map(
-            (sample) =>
-              [sample.fingerprint, formatLabels(sample.labels ?? {})] as const,
+            (sample) => [sample.fingerprint, formatLabels(sample.labels ?? {})] as const,
           ),
         ]),
       }),
@@ -245,11 +216,7 @@ export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
     const now = new Date();
     const { fromDate, toDate } = resolveTimeRange(data);
 
-    const { rows, cut } = await loadSilencesForPage(
-      organizationId,
-      fromDate,
-      toDate,
-    );
+    const { rows, cut } = await loadSilencesForPage(organizationId, fromDate, toDate);
     // The page spans every rule, so a row's stored id means nothing until it
     // is resolved. The same read the picker uses, and it is cheap: two short
     // columns per live rule. Skipped outright when there is nothing to
@@ -265,12 +232,7 @@ export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
     // to turn a path into a name.
     const byId = new Map(rules.map((rule) => [rule.id, rule]));
     return {
-      silences: silenceRecords(
-        rows,
-        now,
-        impacts,
-        (id) => byId.get(id) ?? null,
-      ),
+      silences: silenceRecords(rows, now, impacts, (id) => byId.get(id) ?? null),
       cut,
     };
   });
@@ -280,7 +242,6 @@ export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
  *  time a screen polls. */
 export const getAlertRuleOptions = createAuthenticatedServerFn({
   method: "GET",
-}).handler(
-  ({ context }): Promise<AlertRuleOption[]> =>
-    loadRuleOptions(context.session.session.activeOrganizationId),
+}).handler(({ context }): Promise<AlertRuleOption[]> =>
+  loadRuleOptions(context.session.session.activeOrganizationId),
 );

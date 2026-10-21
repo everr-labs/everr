@@ -18,26 +18,13 @@ export const Route = createFileRoute(
       { label: match.loaderData?.name ?? "Dashboard" },
     ],
   },
-  head: () => ({
-    meta: [{ title: "Everr - Dashboard" }],
-    links: [
-      {
-        rel: "stylesheet",
-        href: gridLayoutCSS,
-      },
-      {
-        rel: "stylesheet",
-        href: gridLayoutOverridesCSS,
-      },
-    ],
-  }),
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
 
   component: DashboardPage,
   notFoundComponent: DashboardNotFound,
   // Preview is app-wide search state; declaring it as a loader dep keeps the
   // prefetch keyed to the same (project, slug, preview) the component reads, so
   // switching previews refetches instead of serving the wrong overlay.
-  loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: async ({
     context: { queryClient, session },
     params: { project, slug },
@@ -69,6 +56,19 @@ export const Route = createFileRoute(
       timeDefaults: dashboardTimeDefaults(document.spec),
     };
   },
+  head: () => ({
+    meta: [{ title: "Everr - Dashboard" }],
+    links: [
+      {
+        rel: "stylesheet",
+        href: gridLayoutCSS,
+      },
+      {
+        rel: "stylesheet",
+        href: gridLayoutOverridesCSS,
+      },
+    ],
+  }),
 });
 
 function DashboardPage() {

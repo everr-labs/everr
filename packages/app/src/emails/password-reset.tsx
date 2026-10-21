@@ -5,10 +5,7 @@ interface PasswordResetEmailProps {
   url: string;
 }
 
-export default function PasswordResetEmail({
-  assetBaseUrl,
-  url,
-}: PasswordResetEmailProps) {
+export default function PasswordResetEmail({ assetBaseUrl, url }: PasswordResetEmailProps) {
   return (
     <EmailLayout
       assetBaseUrl={assetBaseUrl}

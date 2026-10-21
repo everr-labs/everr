@@ -23,8 +23,8 @@ function SheetBody() {
   return (
     <div className="text-muted-foreground flex-1 px-6">
       <p>
-        The sheet holds a detail view next to the page. Use it when the reader
-        must keep the context of the list behind it.
+        The sheet holds a detail view next to the page. Use it when the reader must keep the context
+        of the list behind it.
       </p>
     </div>
   );
@@ -33,9 +33,7 @@ function SheetBody() {
 export const Right: Story = {
   render: () => (
     <Sheet defaultOpen>
-      <SheetTrigger render={<Button variant="outline" />}>
-        Open sheet
-      </SheetTrigger>
+      <SheetTrigger render={<Button variant="outline" />}>Open sheet</SheetTrigger>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>Instance detail</SheetTitle>
@@ -56,9 +54,7 @@ export const Right: Story = {
 export const Left: Story = {
   render: () => (
     <Sheet defaultOpen>
-      <SheetTrigger render={<Button variant="outline" />}>
-        Open sheet
-      </SheetTrigger>
+      <SheetTrigger render={<Button variant="outline" />}>Open sheet</SheetTrigger>
       <SheetContent side="left">
         <SheetHeader>
           <SheetTitle>Navigation</SheetTitle>
@@ -73,9 +69,7 @@ export const Left: Story = {
 export const Top: Story = {
   render: () => (
     <Sheet defaultOpen>
-      <SheetTrigger render={<Button variant="outline" />}>
-        Open sheet
-      </SheetTrigger>
+      <SheetTrigger render={<Button variant="outline" />}>Open sheet</SheetTrigger>
       <SheetContent side="top">
         <SheetHeader>
           <SheetTitle>Announcement</SheetTitle>
@@ -89,9 +83,7 @@ export const Top: Story = {
 export const Bottom: Story = {
   render: () => (
     <Sheet defaultOpen>
-      <SheetTrigger render={<Button variant="outline" />}>
-        Open sheet
-      </SheetTrigger>
+      <SheetTrigger render={<Button variant="outline" />}>Open sheet</SheetTrigger>
       <SheetContent side="bottom">
         <SheetHeader>
           <SheetTitle>Filters</SheetTitle>
@@ -108,15 +100,11 @@ export const Bottom: Story = {
 export const WithoutCloseButton: Story = {
   render: () => (
     <Sheet defaultOpen>
-      <SheetTrigger render={<Button variant="outline" />}>
-        Open sheet
-      </SheetTrigger>
+      <SheetTrigger render={<Button variant="outline" />}>Open sheet</SheetTrigger>
       <SheetContent showCloseButton={false}>
         <SheetHeader>
           <SheetTitle>No close button</SheetTitle>
-          <SheetDescription>
-            The footer holds the only way to close this sheet.
-          </SheetDescription>
+          <SheetDescription>The footer holds the only way to close this sheet.</SheetDescription>
         </SheetHeader>
         <SheetFooter>
           <SheetClose render={<Button variant="outline" />}>Close</SheetClose>

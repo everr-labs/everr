@@ -45,7 +45,7 @@ RUN set -eu; \
     done
 
 # Stage 3: production
-# Node 24.21.0, keep in sync with the builder and .nvmrc.
+# Node 24.21.0, keep in sync with the builder and .node-version.
 FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:bb6b03d81066993293a10feda7250e8e1cc034035fe9b61cfceededa7c8bf04d AS runner
 WORKDIR /app
 ENV NODE_ENV=production

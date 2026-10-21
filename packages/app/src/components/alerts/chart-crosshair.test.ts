@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { InstanceValuePoint } from "#app/data/alerting/triage/view.ts";
 import {
   BREACHING,
@@ -18,9 +18,7 @@ import {
  * server hands the readings over.
  */
 
-const point = (
-  overrides: Partial<InstanceValuePoint> & { at: number },
-): InstanceValuePoint => ({
+const point = (overrides: Partial<InstanceValuePoint> & { at: number }): InstanceValuePoint => ({
   value: 50,
   low: 50,
   high: 50,
@@ -67,9 +65,7 @@ describe("the instant the tooltip names", () => {
   it("prints a clock time, not a distance", () => {
     const windowTo = new Date("2026-08-21T12:00:00Z").getTime();
 
-    expect(tooltipTime(windowTo, 30)).toBe(
-      new Date("2026-08-21T11:30:00Z").toLocaleString(),
-    );
+    expect(tooltipTime(windowTo, 30)).toBe(new Date("2026-08-21T11:30:00Z").toLocaleString());
   });
 
   it("stands at the window's own end for a distance of nothing", () => {
@@ -95,10 +91,7 @@ describe("the value the tooltip prints", () => {
 describe("every Alert instance at one instant", () => {
   it("names all of them, so one can be read against the others", () => {
     const rows = instanceRowsAt(
-      [
-        series("a", [point({ at: 10, value: 90 })]),
-        series("b", [point({ at: 10, value: 20 })]),
-      ],
+      [series("a", [point({ at: 10, value: 90 })]), series("b", [point({ at: 10, value: 20 })])],
       10,
       60,
     );
@@ -138,11 +131,7 @@ describe("every Alert instance at one instant", () => {
   });
 
   it("says so for an Alert instance whose only reading is older than the window", () => {
-    const rows = instanceRowsAt(
-      [series("stale", [point({ at: 500 })])],
-      10,
-      60,
-    );
+    const rows = instanceRowsAt([series("stale", [point({ at: 500 })])], 10, 60);
 
     expect(rows[0].value).toBe("not evaluated");
   });

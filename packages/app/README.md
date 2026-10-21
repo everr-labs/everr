@@ -111,6 +111,7 @@ with its plan update.
 
   Keep shared authorization checks around actions restricted to administrators
   or signed-in users.
+
 - Compose a page when an application needs different data loading or rendering.
   `ApplicationPages.members` can provide both. Its `load` function may prefetch
   data, and its component owns rendering:
@@ -125,6 +126,7 @@ with its plan update.
   ```
 
   Shared routes continue to own authentication and authorization guards.
+
 - Register new application routes explicitly in `AppComposition.routes`. A route
   declaration names its mount point, URL path, and source file:
 
@@ -149,6 +151,7 @@ with its plan update.
   Shared routes retain file-based discovery. After changing routes, regenerate
   the application's checked-in TanStack route tree by running its development
   server or build. Do not add a component or feature registry for contributions.
+
 - Keep application policy in its adapter. Shared identity code owns membership
   endpoint quirks and normalizes lifecycle behavior before invoking application
   hooks, so an adapter cannot replace the shared membership and deletion guards.

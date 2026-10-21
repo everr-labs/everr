@@ -42,8 +42,7 @@ const PRICING_TABLE: PricingEntry[] = [
 
   // GPU runners
   {
-    match: (labels) =>
-      labels.some((l) => l.includes("gpu")) && hasOs(labels, "windows"),
+    match: (labels) => labels.some((l) => l.includes("gpu")) && hasOs(labels, "windows"),
     pricing: {
       ratePerMinute: 0.102,
       os: "windows",
@@ -64,8 +63,7 @@ const PRICING_TABLE: PricingEntry[] = [
   // macOS larger runners
   {
     match: (labels) =>
-      hasOs(labels, "macos") &&
-      labels.some((l) => l.includes("xlarge") || l.includes("12-core")),
+      hasOs(labels, "macos") && labels.some((l) => l.includes("xlarge") || l.includes("12-core")),
     pricing: {
       ratePerMinute: 0.077,
       os: "macos",
@@ -74,8 +72,7 @@ const PRICING_TABLE: PricingEntry[] = [
     },
   },
   {
-    match: (labels) =>
-      hasOs(labels, "macos") && labels.some((l) => l.includes("m2")),
+    match: (labels) => hasOs(labels, "macos") && labels.some((l) => l.includes("m2")),
     pricing: {
       ratePerMinute: 0.102,
       os: "macos",
@@ -120,8 +117,7 @@ const PRICING_TABLE: PricingEntry[] = [
 
   // Linux 1-core
   {
-    match: (labels) =>
-      hasOs(labels, "linux") && labels.some((l) => l.includes("1-core")),
+    match: (labels) => hasOs(labels, "linux") && labels.some((l) => l.includes("1-core")),
     pricing: {
       ratePerMinute: 0.002,
       os: "linux",
@@ -154,22 +150,14 @@ function hasOs(labels: string[], os: "linux" | "windows" | "macos"): boolean {
   }
   if (os === "windows") {
     return labels.some(
-      (l) =>
-        l.includes("windows") ||
-        l === "windows-latest" ||
-        l.startsWith("windows-"),
+      (l) => l.includes("windows") || l === "windows-latest" || l.startsWith("windows-"),
     );
   }
-  return labels.some(
-    (l) =>
-      l.includes("macos") || l === "macos-latest" || l.startsWith("macos-"),
-  );
+  return labels.some((l) => l.includes("macos") || l === "macos-latest" || l.startsWith("macos-"));
 }
 
 function hasCoreCount(labels: string[], cores: number): boolean {
-  return labels.some(
-    (l) => l.includes(`${cores}-core`) || l.includes(`${cores}core`),
-  );
+  return labels.some((l) => l.includes(`${cores}-core`) || l.includes(`${cores}core`));
 }
 
 function hasBlacksmithLabel(labels: string[], pattern: RegExp): boolean {
@@ -184,10 +172,7 @@ function blacksmithRunners(): PricingEntry[] {
   return [
     ...linuxXCores.map((cores) => ({
       match: (labels: string[]) =>
-        hasBlacksmithLabel(
-          labels,
-          new RegExp(`^blacksmith-${cores}vcpu-ubuntu-(2204|2404)$`),
-        ),
+        hasBlacksmithLabel(labels, new RegExp(`^blacksmith-${cores}vcpu-ubuntu-(2204|2404)$`)),
       pricing: {
         ratePerMinute: 0.004 * (cores / 2),
         os: "linux" as const,
@@ -197,10 +182,7 @@ function blacksmithRunners(): PricingEntry[] {
     })),
     ...linuxArmCores.map((cores) => ({
       match: (labels: string[]) =>
-        hasBlacksmithLabel(
-          labels,
-          new RegExp(`^blacksmith-${cores}vcpu-ubuntu-(2204|2404)-arm$`),
-        ),
+        hasBlacksmithLabel(labels, new RegExp(`^blacksmith-${cores}vcpu-ubuntu-(2204|2404)-arm$`)),
       pricing: {
         ratePerMinute: 0.0025 * (cores / 2),
         os: "linux" as const,
@@ -210,10 +192,7 @@ function blacksmithRunners(): PricingEntry[] {
     })),
     ...windowsCores.map((cores) => ({
       match: (labels: string[]) =>
-        hasBlacksmithLabel(
-          labels,
-          new RegExp(`^blacksmith-${cores}vcpu-windows-2025$`),
-        ),
+        hasBlacksmithLabel(labels, new RegExp(`^blacksmith-${cores}vcpu-windows-2025$`)),
       pricing: {
         ratePerMinute: 0.008 * (cores / 2),
         os: "windows" as const,
@@ -222,8 +201,7 @@ function blacksmithRunners(): PricingEntry[] {
       },
     })),
     {
-      match: (labels) =>
-        hasBlacksmithLabel(labels, /^blacksmith-6vcpu-macos-(latest|15|26)$/),
+      match: (labels) => hasBlacksmithLabel(labels, /^blacksmith-6vcpu-macos-(latest|15|26)$/),
       pricing: {
         ratePerMinute: 0.08,
         os: "macos",
@@ -232,8 +210,7 @@ function blacksmithRunners(): PricingEntry[] {
       },
     },
     {
-      match: (labels) =>
-        hasBlacksmithLabel(labels, /^blacksmith-12vcpu-macos-(latest|15|26)$/),
+      match: (labels) => hasBlacksmithLabel(labels, /^blacksmith-12vcpu-macos-(latest|15|26)$/),
       pricing: {
         ratePerMinute: 0.16,
         os: "macos",
@@ -254,8 +231,7 @@ function windowsLargerRunners(): PricingEntry[] {
     { c: 4, rate: 0.022 },
   ];
   return cores.map(({ c, rate }) => ({
-    match: (labels: string[]) =>
-      hasOs(labels, "windows") && hasCoreCount(labels, c),
+    match: (labels: string[]) => hasOs(labels, "windows") && hasCoreCount(labels, c),
     pricing: {
       ratePerMinute: rate,
       os: "windows" as const,

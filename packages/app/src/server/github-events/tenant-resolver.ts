@@ -6,9 +6,7 @@ import { StaleInstallationError } from "./types";
 
 const cache = new Map<number, { organizationId: string; expiresAt: number }>();
 
-export async function resolveOrganizationId(
-  installationId: number,
-): Promise<string> {
+export async function resolveOrganizationId(installationId: number): Promise<string> {
   const now = Date.now();
   const cached = cache.get(installationId);
   if (cached && cached.expiresAt > now) return cached.organizationId;
@@ -20,17 +18,13 @@ export async function resolveOrganizationId(
     .from(githubInstallationOrganizations)
     .where(
       and(
-        eq(
-          githubInstallationOrganizations.githubInstallationId,
-          installationId,
-        ),
+        eq(githubInstallationOrganizations.githubInstallationId, installationId),
         eq(githubInstallationOrganizations.status, "active"),
       ),
     )
     .limit(1);
 
-  if (!mapping)
-    throw new StaleInstallationError("organization not found for installation");
+  if (!mapping) throw new StaleInstallationError("organization not found for installation");
 
   cache.set(installationId, {
     organizationId: mapping.organizationId,

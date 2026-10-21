@@ -49,12 +49,8 @@ export const Route = createFileRoute("/api/cli/runs")({
             offset: parsed.data.offset,
             repos: parsed.data.repo ? [parsed.data.repo] : undefined,
             branches: parsed.data.branch ? [parsed.data.branch] : undefined,
-            conclusions: parsed.data.conclusion
-              ? [parsed.data.conclusion]
-              : undefined,
-            workflowNames: parsed.data.workflowName
-              ? [parsed.data.workflowName]
-              : undefined,
+            conclusions: parsed.data.conclusion ? [parsed.data.conclusion] : undefined,
+            workflowNames: parsed.data.workflowName ? [parsed.data.workflowName] : undefined,
             runId: parsed.data.runId,
           },
         });

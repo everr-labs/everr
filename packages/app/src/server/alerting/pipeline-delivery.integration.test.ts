@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { sendChannelNotification } from "#app/data/alerting/delivery/channel-sender.server.ts";
 import { CHANNEL_TEXT_MAX } from "#app/data/alerting/delivery/channel-text-limits.ts";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
@@ -8,19 +8,12 @@ import {
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
 } from "#app/data/alerting/delivery/defaults.ts";
-import {
-  deleteChannel,
-  testChannel,
-} from "#app/data/alerting/delivery/repository.ts";
+import { deleteChannel, testChannel } from "#app/data/alerting/delivery/repository.ts";
 import {
   ALERT_SEND_DELIVERY_TASK,
   IDLE_GROUP_FLUSH_AT,
 } from "#app/data/alerting/delivery/tasks.ts";
-import {
-  deleteRule,
-  pauseRule,
-  updateRule,
-} from "#app/data/alerting/rules/repository.ts";
+import { deleteRule, pauseRule, updateRule } from "#app/data/alerting/rules/repository.ts";
 import {
   alertChannels,
   alertDefaultChannels,
@@ -41,12 +34,10 @@ import {
   TEST_ACTOR,
   TEST_ORG,
 } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -59,7 +50,7 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
   return clickhouseMock;
 });
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 // Short enough that a second (or third) evaluation tick still lands inside
 // the default 10s group wait, so several cases can drive two dispatches into
@@ -93,9 +84,7 @@ describe("the alerting pipeline's delivery", () => {
     // Still inside the 10s group wait (6s elapsed): nothing sent yet.
     expect(harness().fetchCalls()).toHaveLength(0);
 
-    harness().advance(
-      ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000 - 2 * FAST_TICK_SECS * 1000,
-    );
+    harness().advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000 - 2 * FAST_TICK_SECS * 1000);
     await harness().runDueJobs();
 
     expect(harness().fetchCalls()).toHaveLength(1);
@@ -273,9 +262,7 @@ describe("the alerting pipeline's delivery", () => {
     expect(delivery.status).toBe("failed");
     expect(delivery.attempts).toBe(ALERT_DELIVERY_MAX_ATTEMPTS);
     expect(
-      (await harness().failedJobs()).some(
-        (job) => job.identifier === ALERT_SEND_DELIVERY_TASK,
-      ),
+      (await harness().failedJobs()).some((job) => job.identifier === ALERT_SEND_DELIVERY_TASK),
     ).toBe(true);
 
     // The job itself is exhausted: waiting longer must not add a sixth call.
@@ -312,18 +299,14 @@ describe("the alerting pipeline's delivery", () => {
     // Still in flight: a verdict misclassified as permanent would have
     // jumped straight to the max attempts and left no retry behind.
     expect(
-      (await harness().pendingJobs()).some(
-        (job) => job.identifier === ALERT_SEND_DELIVERY_TASK,
-      ),
+      (await harness().pendingJobs()).some((job) => job.identifier === ALERT_SEND_DELIVERY_TASK),
     ).toBe(true);
 
     harness().advance(200_000);
     await harness().runDueJobs(); // second round: both chats tried again
 
     expect(harness().fetchCalls()).toHaveLength(4);
-    const [afterSecondRound] = await harness()
-      .db.select()
-      .from(alertDeliveries);
+    const [afterSecondRound] = await harness().db.select().from(alertDeliveries);
     expect(afterSecondRound.attempts).toBe(2);
   });
 
@@ -349,8 +332,7 @@ describe("the alerting pipeline's delivery", () => {
       .clickhouse.historyRows()
       .filter(
         (row) =>
-          row.event_type === "delivery_succeeded" &&
-          row.delivery_dedup_key === delivery.dedupKey,
+          row.event_type === "delivery_succeeded" && row.delivery_dedup_key === delivery.dedupKey,
       );
     expect(succeededRows).toHaveLength(1);
   });
@@ -418,9 +400,7 @@ describe("the alerting pipeline's delivery", () => {
     const failedRow = harness()
       .clickhouse.historyRows()
       .find((row) => row.event_type === "delivery_failed");
-    expect(
-      Object.keys(failedRow?.delivery_targets as Record<string, unknown>),
-    ).toEqual(["slack"]);
+    expect(Object.keys(failedRow?.delivery_targets as Record<string, unknown>)).toEqual(["slack"]);
   });
 
   // PGlite is a single connection: the two dispatches below run strictly
@@ -441,9 +421,7 @@ describe("the alerting pipeline's delivery", () => {
     harness().clickhouse.setSignal([{ service: "svc-a", value: 42 }]);
     await harness().runDueJobs(); // the first dispatch: creates the group and its first membership
 
-    const groupsAfterFirst = await harness()
-      .db.select()
-      .from(alertNotificationGroups);
+    const groupsAfterFirst = await harness().db.select().from(alertNotificationGroups);
     expect(groupsAfterFirst).toHaveLength(1);
 
     harness().clickhouse.setSignal([
@@ -455,9 +433,7 @@ describe("the alerting pipeline's delivery", () => {
     // must join the group above rather than create its own.
     await harness().runDueJobs();
 
-    const groupsAfterSecond = await harness()
-      .db.select()
-      .from(alertNotificationGroups);
+    const groupsAfterSecond = await harness().db.select().from(alertNotificationGroups);
     expect(groupsAfterSecond).toHaveLength(1);
     expect(groupsAfterSecond[0].id).toBe(groupsAfterFirst[0].id);
 
@@ -478,9 +454,7 @@ describe("the alerting pipeline's delivery", () => {
       .from(alertEvents)
       .where(eq(alertEvents.eventType, "instance_fired"));
     expect(fired.processedAt).not.toBeNull();
-    const membersBefore = await harness()
-      .db.select()
-      .from(alertNotificationGroupEvents);
+    const membersBefore = await harness().db.select().from(alertNotificationGroupEvents);
     expect(membersBefore).toHaveLength(1);
 
     // A redelivered dispatch job (the same at-least-once scenario as the
@@ -492,9 +466,7 @@ describe("the alerting pipeline's delivery", () => {
       .from(alertEvents)
       .where(eq(alertEvents.id, fired.id));
     expect(afterRedispatch.processedAt).toEqual(fired.processedAt);
-    expect(
-      await harness().db.select().from(alertNotificationGroupEvents),
-    ).toHaveLength(1);
+    expect(await harness().db.select().from(alertNotificationGroupEvents)).toHaveLength(1);
 
     harness().advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
     await harness().runDueJobs();
@@ -518,9 +490,7 @@ describe("the alerting pipeline's delivery", () => {
     harness().advance(FAST_TICK_SECS * 1000);
     await harness().runDueJobs(); // svc-a resolves and dispatches into the same group
 
-    harness().advance(
-      ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000 - FAST_TICK_SECS * 1000,
-    );
+    harness().advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000 - FAST_TICK_SECS * 1000);
     await harness().runDueJobs();
 
     expect(harness().fetchCalls()).toHaveLength(1);
@@ -548,12 +518,8 @@ describe("the alerting pipeline's delivery", () => {
   // flush's own liveness check the member is announced with every later
   // notification of the group, forever. The label change is the one of the
   // three that needs no second feature to reach.
-  async function fireThenDestroyTheInstance(harnessRule: {
-    id: string;
-  }): Promise<void> {
-    const [channel] = await harness()
-      .db.select({ name: alertChannels.name })
-      .from(alertChannels);
+  async function fireThenDestroyTheInstance(harnessRule: { id: string }): Promise<void> {
+    const [channel] = await harness().db.select({ name: alertChannels.name }).from(alertChannels);
     await updateRule(
       TEST_ORG,
       harnessRule.id,
@@ -586,13 +552,9 @@ describe("the alerting pipeline's delivery", () => {
 
   it("withholds a member whose instance died before the flush, and records why", async () => {
     const rule = await insertDirectRule(harness().db, STALE_MEMBER_RULE);
-    harness().clickhouse.setSignal([
-      { service: "checkout", region: "us", value: 42 },
-    ]);
+    harness().clickhouse.setSignal([{ service: "checkout", region: "us", value: 42 }]);
     await harness().runDueJobs(); // fires and dispatches; the flush is not due yet
-    expect(
-      await harness().db.select().from(alertNotificationGroupEvents),
-    ).toHaveLength(1);
+    expect(await harness().db.select().from(alertNotificationGroupEvents)).toHaveLength(1);
 
     await fireThenDestroyTheInstance(rule);
 
@@ -608,9 +570,7 @@ describe("the alerting pipeline's delivery", () => {
 
   it("owes no terminal to a dead member whose chain already ended in a delivery", async () => {
     const rule = await insertDirectRule(harness().db, STALE_MEMBER_RULE);
-    harness().clickhouse.setSignal([
-      { service: "checkout", region: "us", value: 42 },
-    ]);
+    harness().clickhouse.setSignal([{ service: "checkout", region: "us", value: 42 }]);
     await harness().fireAndFlush();
     expect(harness().fetchCalls()).toHaveLength(1);
     const [announced] = await harness()
@@ -627,9 +587,7 @@ describe("the alerting pipeline's delivery", () => {
     await harness().runDueJobs();
     expect(harness().fetchCalls()).toHaveLength(2);
 
-    const members = await harness()
-      .db.select()
-      .from(alertNotificationGroupEvents);
+    const members = await harness().db.select().from(alertNotificationGroupEvents);
     expect(members.map((member) => member.eventId)).not.toContain(announced.id);
     // Dropped, not withheld. A terminal here would claim its notification
     // never went out, when it did.
@@ -772,9 +730,8 @@ describe("the alerting pipeline's delivery", () => {
     await harness().fireAndFlush();
 
     const [call] = harness().fetchCalls();
-    const text = (
-      call.body as { attachments: [{ blocks: [{ text: { text: string } }] }] }
-    ).attachments[0].blocks[0].text.text;
+    const text = (call.body as { attachments: [{ blocks: [{ text: { text: string } }] }] })
+      .attachments[0].blocks[0].text.text;
     expect(text).toContain("&lt;!channel&gt;");
     expect(text).not.toContain("<!channel>");
     expect(text).not.toContain("<https://evil.example|");
@@ -805,8 +762,7 @@ describe("the alerting pipeline's delivery", () => {
   });
 
   it("keeps webhook URLs and bot tokens out of the delivery's error trail", async () => {
-    const leakedUrl =
-      "https://203.0.113.10/webhook/T000/B000/SUPER-SECRET-PATH";
+    const leakedUrl = "https://203.0.113.10/webhook/T000/B000/SUPER-SECRET-PATH";
     const leakedToken = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi";
     const leakedChatId = "918273645";
 
@@ -864,9 +820,7 @@ describe("the alerting pipeline's delivery", () => {
       .filter((row) => row.event_type === "delivery_failed");
     expect(
       failedRows
-        .flatMap((row) =>
-          Object.keys(row.delivery_targets as Record<string, unknown>),
-        )
+        .flatMap((row) => Object.keys(row.delivery_targets as Record<string, unknown>))
         .sort(),
     ).toEqual(["telegram", "webhook"]);
     for (const row of failedRows) {

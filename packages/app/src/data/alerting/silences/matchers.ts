@@ -68,11 +68,7 @@ function readQuoted(input: string, from: number): [string, number] {
 }
 
 /** One field and where it ends: a quoted one, or the bare run up to `ends`. */
-function readField(
-  input: string,
-  from: number,
-  ends: RegExp,
-): [string, number] {
+function readField(input: string, from: number, ends: RegExp): [string, number] {
   if (input[from] === '"') return readQuoted(input, from);
   let end = from;
   while (end < input.length && !ends.test(input[end])) end += 1;
@@ -80,8 +76,7 @@ function readField(
 }
 
 /** The token an error is about, for a message that names what was refused. */
-const tokenAt = (input: string, from: number) =>
-  input.slice(from).split(SEPARATOR)[0];
+const tokenAt = (input: string, from: number) => input.slice(from).split(SEPARATOR)[0];
 
 /** Free-form `label=value` and `label!=value` pairs, space or comma separated,
  *  either side optionally quoted. Anything that is not a pair is rejected
@@ -106,11 +101,7 @@ export function parseMatchers(input: string): AlertingMatcher[] {
     // The `!` before the token's first `=` is the operator's, not the label's,
     // so a bare label gives it back. Only a bare one: a label written
     // `"bang!"` meant the bang it quoted.
-    if (
-      input[start] !== '"' &&
-      label.endsWith("!") &&
-      input[at] === OPERATOR.eq
-    ) {
+    if (input[start] !== '"' && label.endsWith("!") && input[at] === OPERATOR.eq) {
       label = label.slice(0, -1);
       at -= 1;
     }

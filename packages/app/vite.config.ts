@@ -4,7 +4,7 @@ import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv } from "vite-plus";
 import svgr from "vite-plugin-svgr";
 import { migrationAssets } from "./build/migrations.ts";
 import {
@@ -65,10 +65,8 @@ export function createAppConfig(
           },
           {
             find: "use-sync-external-store/shim",
-            replacement: new URL(
-              "src/ssr-shims/use-sync-external-store-shim.ts",
-              import.meta.url,
-            ).pathname,
+            replacement: new URL("src/ssr-shims/use-sync-external-store-shim.ts", import.meta.url)
+              .pathname,
           },
         ],
       },
@@ -84,9 +82,7 @@ export function createAppConfig(
               return;
             return (
               code +
-              (composition.cssSources ?? [])
-                .map((source) => `\n@source "${source}";`)
-                .join("")
+              (composition.cssSources ?? []).map((source) => `\n@source "${source}";`).join("")
             );
           },
         },
@@ -115,9 +111,7 @@ export function createAppConfig(
                 index: nitro.options.entry,
                 ...composition.serverEntries,
               };
-              const outputs = Array.isArray(config.output)
-                ? config.output
-                : [config.output];
+              const outputs = Array.isArray(config.output) ? config.output : [config.output];
               for (const output of outputs) {
                 if (output) output.entryFileNames = "[name].mjs";
               }

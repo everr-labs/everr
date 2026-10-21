@@ -38,18 +38,10 @@ export async function cleanupAlertingHistory(options?: {
   const budgetMs = options?.budgetMs ?? CLEANUP_BUDGET_MS;
   const clock = options?.clock ?? Date.now;
   const deadline = clock() + budgetMs;
-  const evaluationCutoff = new Date(
-    now.getTime() - EVALUATION_RETENTION_DAYS * DAY_MS,
-  );
-  const historyCutoff = new Date(
-    now.getTime() - HISTORY_RETENTION_DAYS * DAY_MS,
-  );
-  const idleGroupCutoff = new Date(
-    now.getTime() - IDLE_GROUP_RETENTION_DAYS * DAY_MS,
-  );
-  const instanceCutoff = new Date(
-    now.getTime() - INSTANCE_RETENTION_DAYS * DAY_MS,
-  );
+  const evaluationCutoff = new Date(now.getTime() - EVALUATION_RETENTION_DAYS * DAY_MS);
+  const historyCutoff = new Date(now.getTime() - HISTORY_RETENTION_DAYS * DAY_MS);
+  const idleGroupCutoff = new Date(now.getTime() - IDLE_GROUP_RETENTION_DAYS * DAY_MS);
+  const instanceCutoff = new Date(now.getTime() - INSTANCE_RETENTION_DAYS * DAY_MS);
   const totals: AlertingCleanupCounts = {
     alertEvaluations: 0,
     events: 0,
@@ -191,6 +183,7 @@ export async function cleanupAlertingHistory(options?: {
         instances: instances.rowCount ?? 0,
       };
     });
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Object.keys widens the keys of the complete typed cleanup-count record to string[].
     for (const key of Object.keys(totals) as (keyof AlertingCleanupCounts)[]) {
       totals[key] += counts[key];
     }

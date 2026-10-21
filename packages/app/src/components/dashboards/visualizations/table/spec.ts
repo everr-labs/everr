@@ -9,10 +9,7 @@ import { valueFormatSpec } from "../value-format-spec";
 export const tableSpec = z.looseObject({
   valueFormat: valueFormatSpec.optional(),
   columns: z
-    .record(
-      z.string(),
-      z.looseObject({ valueFormat: valueFormatSpec.optional() }),
-    )
+    .record(z.string(), z.looseObject({ valueFormat: valueFormatSpec.optional() }))
     .default({}),
   stickyHeader: z.boolean().default(false),
 });

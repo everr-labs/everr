@@ -12,7 +12,7 @@ datasources:
       username:
       tlsSkipVerify: true
     secureJsonData:
-        password:
+      password:
   - name: ClickHouse-vertamedia
     type: vertamedia-clickhouse-datasource
     url: http://clickhouse:8123

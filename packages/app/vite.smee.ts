@@ -1,6 +1,5 @@
 import SmeeClient from "smee-client";
-import type { AddressInfo } from "node:net";
-import type { Plugin, ViteDevServer } from "vite";
+import type { Plugin, ViteDevServer } from "vite-plus";
 
 type Logger = Pick<ViteDevServer["config"]["logger"], "error" | "info">;
 
@@ -25,7 +24,7 @@ function addressPort(server: ViteDevServer): number | null {
 
   if (!address || typeof address === "string") return null;
 
-  return (address as AddressInfo).port;
+  return address.port;
 }
 
 function createSmeeClient(options: SmeeClientOptions): SmeeClientLike {

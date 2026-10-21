@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { rowsToInstances } from "./instances";
 import {
   type AlertInstanceTransition,
@@ -20,10 +20,7 @@ const at = (seconds: number) => new Date(seconds * 1000);
 // The `SELECT count() AS value, max(timestamp) AS last_event` shape: one
 // instance, applied with no label columns, and evidence that moves every tick.
 function instanceAt(seconds: number): PresentAlertInstance {
-  const [instance] = rowsToInstances(
-    [{ value: 1, last_event: at(seconds).toISOString() }],
-    [],
-  );
+  const [instance] = rowsToInstances([{ value: 1, last_event: at(seconds).toISOString() }], []);
   return {
     fingerprint: instance.fingerprint,
     labels: instance.labels,
@@ -311,8 +308,7 @@ describe("advanceAlertInstance", () => {
     for (const seconds of [0, 60, 120]) {
       const present = instanceAt(seconds);
       last = advanceAlertInstance({
-        previous:
-          stored.get(present.fingerprint) ?? newInactiveInstance(present),
+        previous: stored.get(present.fingerprint) ?? newInactiveInstance(present),
         present,
         evaluatedAt: at(seconds),
         forSeconds: 120,

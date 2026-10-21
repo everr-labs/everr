@@ -28,17 +28,11 @@ export const Route = createFileRoute("/api/cli/sql")({
         if (!sql.trim()) {
           span?.setAttribute("everr.sql_query.outcome", "user_error");
           span?.setAttribute("everr.sql_query.kind", "empty");
-          return Response.json(
-            { error: "SQL query is required." },
-            { status: 400 },
-          );
+          return Response.json({ error: "SQL query is required." }, { status: 400 });
         }
 
         try {
-          const storage = createOrganizationSql(
-            orgId,
-            context.organization.metadata,
-          );
+          const storage = createOrganizationSql(orgId, context.organization.metadata);
           const rows = await storage.query<Record<string, unknown>>(sql);
 
           span?.setAttribute("everr.sql_query.outcome", "ok");

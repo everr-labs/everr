@@ -1,9 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { instanceFingerprint } from "./instances";
-import {
-  ALERT_EVALUATION_SAMPLE_LIMIT,
-  captureAlertEvaluationSamples,
-} from "./samples";
+import { ALERT_EVALUATION_SAMPLE_LIMIT, captureAlertEvaluationSamples } from "./samples";
 
 describe("captureAlertEvaluationSamples", () => {
   it("captures values on both sides of the condition using the rule identity", () => {
@@ -34,10 +31,10 @@ describe("captureAlertEvaluationSamples", () => {
   });
 
   it("deduplicates label sets and bounds high-cardinality results", () => {
-    const rows = Array.from(
-      { length: ALERT_EVALUATION_SAMPLE_LIMIT + 2 },
-      (_, i) => ({ service: `service-${i}`, value: i }),
-    );
+    const rows = Array.from({ length: ALERT_EVALUATION_SAMPLE_LIMIT + 2 }, (_, i) => ({
+      service: `service-${i}`,
+      value: i,
+    }));
     rows.push({ service: "service-0", value: 999 });
 
     const result = captureAlertEvaluationSamples(rows, ["service"], new Set());
@@ -55,18 +52,14 @@ describe("captureAlertEvaluationSamples", () => {
   // samples at all, and the series that reads them (evaluation-series.ts)
   // had nothing to find.
   it("puts matching label sets first so a late breach survives the sample cap", () => {
-    const rows = Array.from(
-      { length: ALERT_EVALUATION_SAMPLE_LIMIT },
-      (_, i) => ({ service: `healthy-${i}`, value: 1 }),
-    );
+    const rows = Array.from({ length: ALERT_EVALUATION_SAMPLE_LIMIT }, (_, i) => ({
+      service: `healthy-${i}`,
+      value: 1,
+    }));
     rows.push({ service: "breaching", value: 999 });
     const matchingFingerprint = instanceFingerprint({ service: "breaching" });
 
-    const result = captureAlertEvaluationSamples(
-      rows,
-      ["service"],
-      new Set([matchingFingerprint]),
-    );
+    const result = captureAlertEvaluationSamples(rows, ["service"], new Set([matchingFingerprint]));
 
     expect(result.samples).toHaveLength(ALERT_EVALUATION_SAMPLE_LIMIT);
     expect(result.samples[0]).toMatchObject({

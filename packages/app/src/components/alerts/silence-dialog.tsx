@@ -9,10 +9,7 @@ import {
 } from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import {
-  OptionCombobox,
-  type OptionComboboxItem,
-} from "@everr/ui/components/option-combobox";
+import { OptionCombobox, type OptionComboboxItem } from "@everr/ui/components/option-combobox";
 import {
   Select,
   SelectContent,
@@ -126,10 +123,7 @@ function SilenceForm({
   const choices = useQuery({ ...alertRuleOptionsOptions(), enabled: choosing });
   // Memoized because this sits under the dialog's text fields, and every
   // character typed into them re-renders the form.
-  const options = useMemo(
-    () => ruleOptions(choices.data ?? []),
-    [choices.data],
-  );
+  const options = useMemo(() => ruleOptions(choices.data ?? []), [choices.data]);
   // The whole entry, not its label: the confirm hands on `minutes`, and
   // nothing has to turn a label back into a number on the way out.
   const [duration, setDuration] = useState<SilenceDuration>(DEFAULT_DURATION);
@@ -154,8 +148,8 @@ function SilenceForm({
             named the wrong noun in its new home. */}
         <DialogTitle>{choosing ? "New silence" : "Silence alert"}</DialogTitle>
         <DialogDescription>
-          Notifications stop. The rule keeps evaluating, and held notifications
-          are marked <span className="font-mono">suppressed</span>.
+          Notifications stop. The rule keeps evaluating, and held notifications are marked{" "}
+          <span className="font-mono">suppressed</span>.
         </DialogDescription>
       </DialogHeader>
 
@@ -168,9 +162,7 @@ function SilenceForm({
               value={rulePath}
               options={options}
               disabled={choices.isPending}
-              placeholder={
-                choices.isPending ? "Loading rules…" : "Choose a rule"
-              }
+              placeholder={choices.isPending ? "Loading rules…" : "Choose a rule"}
               searchable
               searchPlaceholder="Search rules…"
               emptyMessage="No rule matches."
@@ -187,10 +179,7 @@ function SilenceForm({
             <Select
               value={duration.label}
               onValueChange={(v) =>
-                setDuration(
-                  SILENCE_DURATIONS.find((d) => d.label === v) ??
-                    DEFAULT_DURATION,
-                )
+                setDuration(SILENCE_DURATIONS.find((d) => d.label === v) ?? DEFAULT_DURATION)
               }
             >
               <SelectTrigger id="silence-duration" className="w-full">
@@ -227,8 +216,8 @@ function SilenceForm({
             is what a reader needs here: the shape of a matcher, that several
             are space-separated, and that a negation exists. */}
         <p id="silence-matchers-help" className="text-xs text-muted-foreground">
-          Matchers are <span className="font-mono">label=value</span>, space
-          separated. <span className="font-mono">!=</span> excludes. Example:{" "}
+          Matchers are <span className="font-mono">label=value</span>, space separated.{" "}
+          <span className="font-mono">!=</span> excludes. Example:{" "}
           <span className="font-mono">region=eu-west-1 service!=search</span>
         </p>
 
@@ -261,9 +250,7 @@ function SilenceForm({
         </Button>
         <Button
           disabled={pending || rulePath === null}
-          aria-describedby={
-            choosing && rulePath === null ? "silence-confirm-help" : undefined
-          }
+          aria-describedby={choosing && rulePath === null ? "silence-confirm-help" : undefined}
           onClick={() => {
             if (rulePath)
               onConfirm({

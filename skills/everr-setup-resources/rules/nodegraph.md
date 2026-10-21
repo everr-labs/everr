@@ -4,15 +4,15 @@ A **directed graph of nodes and weighted edges** with a deterministic force-dire
 
 ## Options (`plugin.spec`)
 
-| Option | Type | Default | Values | Effect |
-| --- | --- | --- | --- | --- |
-| `sourceColumn` | string | `source` | column name | Edge source column; falls back to the first column when absent. |
-| `targetColumn` | string | `target` | column name | Edge target column; falls back to the second column when absent. |
-| `valueColumn` | string | `value` | column name | Edge weight column — drives edge thickness and node size. Falls back to the first remaining numeric column; without one every edge weighs 1. |
-| `valueFormat` | object | none | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels. |
-| `directed` | boolean | `true` | `false` | Draw arrowheads pointing at each edge's target. |
-| `showValues` | boolean | `false` | `true` | Render the edge's value at its midpoint. |
-| `maxNodes` | number | unset | ≥ 2 | Keep only the `maxNodes` highest-value nodes (and the edges between them); the rest are hidden behind a "not shown" badge. There is also a built-in 250-node layout limit. |
+| Option         | Type    | Default  | Values          | Effect                                                                                                                                                                     |
+| -------------- | ------- | -------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sourceColumn` | string  | `source` | column name     | Edge source column; falls back to the first column when absent.                                                                                                            |
+| `targetColumn` | string  | `target` | column name     | Edge target column; falls back to the second column when absent.                                                                                                           |
+| `valueColumn`  | string  | `value`  | column name     | Edge weight column — drives edge thickness and node size. Falls back to the first remaining numeric column; without one every edge weighs 1.                               |
+| `valueFormat`  | object  | none     | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels.                                                                        |
+| `directed`     | boolean | `true`   | `false`         | Draw arrowheads pointing at each edge's target.                                                                                                                            |
+| `showValues`   | boolean | `false`  | `true`          | Render the edge's value at its midpoint.                                                                                                                                   |
+| `maxNodes`     | number  | unset    | ≥ 2             | Keep only the `maxNodes` highest-value nodes (and the edges between them); the rest are hidden behind a "not shown" badge. There is also a built-in 250-node layout limit. |
 
 ```yaml
 plugin:
@@ -22,7 +22,7 @@ plugin:
     targetColumn: server
     valueColumn: calls
     valueFormat:
-      unit: '{request}'
+      unit: "{request}"
 ```
 
 There is **no** node coloring/grouping option, no separate nodes query, no pinning, and no layout option — nodes are derived from the edge rows only.

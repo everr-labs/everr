@@ -46,16 +46,11 @@ export function TraceWaterfall({
   virtuosoRef?: Ref<VirtuosoHandle>;
 }) {
   const [labelWidth, setLabelWidth] = useState<number>();
+  const labelStyle: CSSProperties & { "--waterfall-label-width": string } = {
+    "--waterfall-label-width": labelWidth === undefined ? "38%" : `${labelWidth}px`,
+  };
   return (
-    <div
-      className="relative flex h-full min-h-0 flex-col"
-      style={
-        {
-          "--waterfall-label-width":
-            labelWidth === undefined ? "38%" : `${labelWidth}px`,
-        } as CSSProperties
-      }
-    >
+    <div className="relative flex h-full min-h-0 flex-col" style={labelStyle}>
       {/* Keep one virtualized list so resizing cannot desynchronize the rows. */}
       <ResizablePanelGroup
         orientation="horizontal"
@@ -75,9 +70,7 @@ export function TraceWaterfall({
         <ResizablePanel minSize="160px" />
       </ResizablePanelGroup>
       <div className="grid shrink-0 grid-cols-[var(--waterfall-label-width)_1px_minmax(0,1fr)] border-b">
-        <div className="text-muted-foreground px-3 pt-1.5 text-[10px]">
-          Service / operation
-        </div>
+        <div className="text-muted-foreground px-3 pt-1.5 text-[10px]">Service / operation</div>
         <TimeRuler range={range} className="col-start-3 border-b-0" />
       </div>
       <Virtuoso
@@ -93,21 +86,17 @@ export function TraceWaterfall({
         computeItemKey={(_, row) => row.spanId}
         itemContent={(_, node) => {
           const selected = selectedSpanId === node.spanId;
-          const dimmed =
-            filterActive && !matchingIds.has(node.spanId) && !selected;
+          const dimmed = filterActive && !matchingIds.has(node.spanId) && !selected;
           const color = serviceColor(spanColorGroup(node, colorBy));
           const fullWidth = range.end - range.start;
           const left = ((node.timestamp - range.start) / fullWidth) * 100;
           const right =
-            ((node.timestamp + node.durationNano / 1e6 - range.start) /
-              fullWidth) *
-            100;
+            ((node.timestamp + node.durationNano / 1e6 - range.start) / fullWidth) * 100;
           const preview = previewField
             ? (node.attributes[previewField] ?? node.resource[previewField])
             : undefined;
           const status =
-            node.attributes["http.response.status_code"] ??
-            node.attributes["http.status_code"];
+            node.attributes["http.response.status_code"] ?? node.attributes["http.status_code"];
           return (
             <div
               data-span-id={node.spanId}
@@ -128,19 +117,12 @@ export function TraceWaterfall({
                     aria-label={`${openNodes.has(node.spanId) ? "Collapse" : "Expand"} ${node.name}`}
                     onClick={() => onToggle(node.spanId)}
                   >
-                    {openNodes.has(node.spanId) ? (
-                      <ChevronDown />
-                    ) : (
-                      <ChevronRight />
-                    )}
+                    {openNodes.has(node.spanId) ? <ChevronDown /> : <ChevronRight />}
                   </Button>
                 ) : (
                   <span className="w-5 shrink-0" />
                 )}
-                <span
-                  className="size-2 shrink-0 rounded-sm"
-                  style={{ backgroundColor: color }}
-                />
+                <span className="size-2 shrink-0 rounded-sm" style={{ backgroundColor: color }} />
                 <button
                   type="button"
                   className="min-w-0 flex-1 truncate text-left text-xs outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
@@ -149,18 +131,14 @@ export function TraceWaterfall({
                   onClick={() => onSelect(node.spanId)}
                   title={`${node.source.serviceName}: ${node.name}`}
                 >
-                  <span className="text-muted-foreground mr-2">
-                    {node.source.serviceName}
-                  </span>
+                  <span className="text-muted-foreground mr-2">{node.source.serviceName}</span>
                   {node.name}
                 </button>
                 {status && (
                   <span
                     className={cn(
                       "shrink-0 rounded border px-1 font-mono text-[10px]",
-                      Number(status) >= 400
-                        ? "text-destructive"
-                        : "text-muted-foreground",
+                      Number(status) >= 400 ? "text-destructive" : "text-muted-foreground",
                     )}
                   >
                     {status}
@@ -195,9 +173,7 @@ export function TraceWaterfall({
                       backgroundColor: color,
                     }}
                   >
-                    {node.hasError && (
-                      <span className="absolute inset-0 bg-destructive/30" />
-                    )}
+                    {node.hasError && <span className="absolute inset-0 bg-destructive/30" />}
                     <span className="relative shrink-0 font-mono">
                       {formatDuration(node.durationNano, "ns")}
                     </span>
@@ -205,18 +181,16 @@ export function TraceWaterfall({
                   </span>
                 )}
                 {node.event.map((event, i) => {
-                  const position =
-                    ((event.offsetNs / 1e6 - range.start) / fullWidth) * 100;
+                  const position = ((event.offsetNs / 1e6 - range.start) / fullWidth) * 100;
                   return position >= 0 && position <= 100 ? (
                     <span
+                      // oxlint-disable-next-line react/no-array-index-key -- Immutable source events can share timestamps or IDs; the ordinal distinguishes those duplicates.
                       key={`${event.offsetNs}-${i}`}
                       title={event.name}
                       className="absolute top-3.5 size-1.5 rotate-45 border border-background"
                       style={{
                         left: `${position}%`,
-                        backgroundColor: event.isError
-                          ? "var(--destructive)"
-                          : "var(--foreground)",
+                        backgroundColor: event.isError ? "var(--destructive)" : "var(--foreground)",
                       }}
                     />
                   ) : null;

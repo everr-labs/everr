@@ -9,7 +9,7 @@ Always check the OpenTelemetry semantic conventions for the domain, and comply w
 Use structured key-value logs. Do not rely on string interpolation for important fields.
 
 ```javascript
-logger.info('order.placed', {
+logger.info("order.placed", {
   order_id: orderId,
   amount,
 });
@@ -22,7 +22,7 @@ Never spread request bodies, headers, form data, user profiles, or arbitrary obj
 Logs emitted inside an active span should carry trace context.
 
 ```javascript
-import { context, trace } from '@opentelemetry/api';
+import { context, trace } from "@opentelemetry/api";
 
 function getTraceContext() {
   const span = trace.getSpan(context.active());

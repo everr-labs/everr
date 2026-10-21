@@ -1,6 +1,6 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { SeverityNumber } from "@opentelemetry/api-logs";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { capture, configure, resetSharedClient, setLogger } from "./capture.js";
 import { setupTestTelemetry } from "./test-utils.js";
 
@@ -34,9 +34,7 @@ describe("the capture path", () => {
     expect(record.body).toBe("TypeError: boom");
     expect(record.attributes["exception.type"]).toBe("TypeError");
     expect(record.attributes["exception.message"]).toBe("boom");
-    expect(record.attributes["exception.stacktrace"]).toContain(
-      "client.test.ts",
-    );
+    expect(record.attributes["exception.stacktrace"]).toContain("client.test.ts");
     expect(record.attributes["everr.error.mechanism"]).toBe("manual");
     expect(record.attributes["log.record.uid"]).toMatch(/^[0-9a-f-]{32,36}$/);
   });
@@ -128,9 +126,7 @@ describe("the capture path", () => {
 
     const [record] = otel.records();
     const requestSpan = otel.spans().find((s) => s.name === "request");
-    expect(record.spanContext?.traceId).toBe(
-      requestSpan?.spanContext().traceId,
-    );
+    expect(record.spanContext?.traceId).toBe(requestSpan?.spanContext().traceId);
   });
 
   it("marks the active span as errored", () => {

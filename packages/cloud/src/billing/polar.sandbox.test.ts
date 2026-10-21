@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { env } from "@everr/app/env";
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { appEnv as cloudEnv } from "../app/env";
 import { createPolarGateway, polarClient } from "./polar.server";
 
@@ -11,8 +11,7 @@ it.skipIf(process.env.EVERR_POLAR_SANDBOX_TEST !== "1")(
     expect(cloudEnv.POLAR_SERVER).toBe("sandbox");
     const gateway = createPolarGateway();
     const id = randomUUID();
-    if (!env.EMAIL_FROM)
-      throw new Error("EMAIL_FROM is required for the sandbox test");
+    if (!env.EMAIL_FROM) throw new Error("EMAIL_FROM is required for the sandbox test");
     const address = env.EMAIL_FROM.match(/<([^<>]+)>$/)?.[1] ?? env.EMAIL_FROM;
     const domain = address.split("@")[1];
     const email = `billing-test-${id}@${domain}`;
@@ -44,15 +43,13 @@ it.skipIf(process.env.EVERR_POLAR_SANDBOX_TEST !== "1")(
         name: "Updated manager",
       });
       expect(changed.email).toBe(`changed-${email}`);
-      expect(
-        (await gateway.members(customer.id)).find((m) => m.id === manager.id)
-          ?.email,
-      ).toBe(changed.email);
+      expect((await gateway.members(customer.id)).find((m) => m.id === manager.id)?.email).toBe(
+        changed.email,
+      );
       await gateway.updateMember(manager.id, { role: "owner" });
-      expect(
-        (await gateway.members(customer.id)).find((m) => m.role === "owner")
-          ?.id,
-      ).toBe(manager.id);
+      expect((await gateway.members(customer.id)).find((m) => m.role === "owner")?.id).toBe(
+        manager.id,
+      );
       const originalOwner = (await gateway.members(customer.id)).find(
         (m) => m.externalId === owner.id,
       );
@@ -74,33 +71,23 @@ it.skipIf(process.env.EVERR_POLAR_SANDBOX_TEST !== "1")(
         customerId: customer.id,
         orgId,
         metadata: { orgId },
-        successUrl:
-          "http://localhost:5173/checkout/success?checkout_id={CHECKOUT_ID}",
+        successUrl: "http://localhost:5173/checkout/success?checkout_id={CHECKOUT_ID}",
       });
       expect(checkout.customerId).toBe(customer.id);
       expect(checkout.externalCustomerId).toBe(orgId);
       const successUrl =
         "http://localhost:5173/organizations/checkout/success?checkout_id={CHECKOUT_ID}&returnTo=%2Flogs";
-      const updated = await gateway.updateCheckoutSuccessUrl(
-        checkout.id,
-        successUrl,
-      );
-      const resolvedSuccessUrl = successUrl.replace(
-        "{CHECKOUT_ID}",
-        checkout.id,
-      );
+      const updated = await gateway.updateCheckoutSuccessUrl(checkout.id, successUrl);
+      const resolvedSuccessUrl = successUrl.replace("{CHECKOUT_ID}", checkout.id);
       expect(updated.successUrl).toBe(resolvedSuccessUrl);
-      expect((await gateway.checkout(checkout.id)).successUrl).toBe(
-        resolvedSuccessUrl,
-      );
+      expect((await gateway.checkout(checkout.id)).successUrl).toBe(resolvedSuccessUrl);
       expect(
         (await gateway.checkouts(customer.id)).some(
           (c) => c.id === checkout.id && c.successUrl === resolvedSuccessUrl,
         ),
       ).toBe(true);
     } finally {
-      for (const customerId of created)
-        await polarClient.customers.delete({ id: customerId });
+      for (const customerId of created) await polarClient.customers.delete({ id: customerId });
     }
   },
 );

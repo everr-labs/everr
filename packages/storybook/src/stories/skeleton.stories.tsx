@@ -41,12 +41,7 @@ export const CardPlaceholder: Story = {
 export const TablePlaceholder: Story = {
   render: () => (
     <div className="flex w-full max-w-2xl flex-col gap-3">
-      {[
-        "checkout-api",
-        "payments-worker",
-        "search-indexer",
-        "edge-gateway",
-      ].map((service) => (
+      {["checkout-api", "payments-worker", "search-indexer", "edge-gateway"].map((service) => (
         <div key={service} className="flex items-center gap-4">
           <Skeleton className="h-4 w-40" />
           <Skeleton className="h-4 w-16" />

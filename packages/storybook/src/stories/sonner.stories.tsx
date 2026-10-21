@@ -30,34 +30,19 @@ export const Default: Story = {
       <Button variant="outline" onClick={() => toast("The rule was applied.")}>
         Default
       </Button>
-      <Button
-        variant="outline"
-        onClick={() => toast.success("The rule was applied.")}
-      >
+      <Button variant="outline" onClick={() => toast.success("The rule was applied.")}>
         Success
       </Button>
-      <Button
-        variant="outline"
-        onClick={() => toast.info("Two rules match this service.")}
-      >
+      <Button variant="outline" onClick={() => toast.info("Two rules match this service.")}>
         Info
       </Button>
-      <Button
-        variant="outline"
-        onClick={() => toast.warning("The rule has no destination.")}
-      >
+      <Button variant="outline" onClick={() => toast.warning("The rule has no destination.")}>
         Warning
       </Button>
-      <Button
-        variant="outline"
-        onClick={() => toast.error("The rule was refused by the server.")}
-      >
+      <Button variant="outline" onClick={() => toast.error("The rule was refused by the server.")}>
         Error
       </Button>
-      <Button
-        variant="outline"
-        onClick={() => toast.loading("Applying the rule...")}
-      >
+      <Button variant="outline" onClick={() => toast.loading("Applying the rule...")}>
         Loading
       </Button>
     </div>
@@ -126,10 +111,7 @@ export const TopCenter: Story = {
   render: (args) => (
     <div className="flex flex-wrap gap-2">
       <Toaster {...args} />
-      <Button
-        variant="outline"
-        onClick={() => toast.success("The rule was applied.")}
-      >
+      <Button variant="outline" onClick={() => toast.success("The rule was applied.")}>
         Toast at the top
       </Button>
     </div>

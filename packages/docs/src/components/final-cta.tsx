@@ -16,14 +16,14 @@ export function FinalCTA() {
           See <span className="text-primary">what matters</span> in your app.
         </h2>
         <p className="mx-auto mt-7 max-w-[55ch] text-lg leading-[1.6] text-muted-foreground">
-          Everr guides you through setup, then helps you monitor and investigate
-          with the context you need.
+          Everr guides you through setup, then helps you monitor and investigate with the context
+          you need.
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Button
             nativeButton={false}
             render={
-              // biome-ignore lint/a11y/useAnchorContent: content is injected by Button
+              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- content is injected by Button
               <a href="https://app.everr.dev/auth/sign-up" />
             }
           >

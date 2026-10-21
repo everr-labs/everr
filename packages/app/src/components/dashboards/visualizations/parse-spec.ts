@@ -28,9 +28,7 @@ export function parseSpecLenient<S extends z.ZodType>(
 
   const warnings = strict.error.issues.map(formatIssue);
   const cleaned: Record<string, unknown> =
-    typeof raw === "object" && raw !== null && !Array.isArray(raw)
-      ? { ...(raw as Record<string, unknown>) }
-      : {};
+    typeof raw === "object" && raw !== null && !Array.isArray(raw) ? { ...raw } : {};
   for (const issue of strict.error.issues) {
     const head = issue.path[0];
     if (typeof head === "string") delete cleaned[head];

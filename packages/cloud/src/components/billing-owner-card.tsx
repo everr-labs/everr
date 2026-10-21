@@ -26,15 +26,13 @@ export function BillingOwnerCard({ orgId }: { orgId: string }) {
       <CardHeader>
         <CardTitle>Billing owner</CardTitle>
         <CardDescription>
-          The billing owner receives billing communications and is responsible
-          for this organization's billing.
+          The billing owner receives billing communications and is responsible for this
+          organization&apos;s billing.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {settings.error ? (
-          <p role="alert">
-            Billing settings could not be loaded. Please try again.
-          </p>
+          <p role="alert">Billing settings could not be loaded. Please try again.</p>
         ) : (
           <>
             <p>
@@ -49,7 +47,8 @@ export function BillingOwnerCard({ orgId }: { orgId: string }) {
                 onSubmit={(event) => {
                   event.preventDefault();
                   const form = new FormData(event.currentTarget);
-                  transfer.mutate(String(form.get("userId")));
+                  const userId = form.get("userId");
+                  if (typeof userId === "string") transfer.mutate(userId);
                 }}
               >
                 <label className="flex flex-col gap-2 text-sm">
@@ -82,9 +81,7 @@ export function BillingOwnerCard({ orgId }: { orgId: string }) {
               </p>
             )}
             {transfer.isSuccess && (
-              <p role="status" className="text-sm">
-                Billing owner updated.
-              </p>
+              <output className="block text-sm">Billing owner updated.</output>
             )}
           </>
         )}

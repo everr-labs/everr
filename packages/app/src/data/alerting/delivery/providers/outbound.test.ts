@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { validateOutboundUrl } from "./outbound";
 
 async function rejection(raw: string): Promise<string> {
@@ -17,19 +17,13 @@ it("names an IPv6 loopback literal as internal, not as an unknown host", async (
 });
 
 it("sees through a v4-mapped IPv6 literal", async () => {
-  expect(await rejection("http://[0:0:0:0:0:ffff:127.0.0.1]/hook")).toContain(
-    "internal address",
-  );
+  expect(await rejection("http://[0:0:0:0:0:ffff:127.0.0.1]/hook")).toContain("internal address");
 });
 
 it("blocks the gateway prefixes that carry a v4 address", async () => {
   // NAT64 and 6to4: on a network with either gateway these reach 127.0.0.1.
-  expect(await rejection("http://[64:ff9b::7f00:1]/hook")).toContain(
-    "internal address",
-  );
-  expect(await rejection("http://[2002:7f00:1::]/hook")).toContain(
-    "internal address",
-  );
+  expect(await rejection("http://[64:ff9b::7f00:1]/hook")).toContain("internal address");
+  expect(await rejection("http://[2002:7f00:1::]/hook")).toContain("internal address");
 });
 
 it("still allows a public literal", async () => {

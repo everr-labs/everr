@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { Route } from "./__root";
 
@@ -94,13 +94,13 @@ it("generates the prerendered shell without looking up runtime session data", as
   expect(mocks.getEntryRedirect).not.toHaveBeenCalled();
 });
 
-it.each([
-  { href: "/setup" },
-  { to: "/" },
-])("applies the application's redirect %j with history replacement", async (entryRedirect) => {
-  mocks.getEntryRedirect.mockResolvedValueOnce(entryRedirect);
-  await expect(loadContext("/some-path")).rejects.toMatchObject({
-    options: { ...entryRedirect, replace: true },
-  });
-  expect(mocks.getEntryRedirect).toHaveBeenCalledWith("/some-path");
-});
+it.each([{ href: "/setup" }, { to: "/" }])(
+  "applies the application's redirect %j with history replacement",
+  async (entryRedirect) => {
+    mocks.getEntryRedirect.mockResolvedValueOnce(entryRedirect);
+    await expect(loadContext("/some-path")).rejects.toMatchObject({
+      options: { ...entryRedirect, replace: true },
+    });
+    expect(mocks.getEntryRedirect).toHaveBeenCalledWith("/some-path");
+  },
+);

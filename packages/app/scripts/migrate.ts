@@ -1,4 +1,4 @@
-import { loadEnv } from "vite";
+import { loadEnv } from "vite-plus";
 
 const mode = process.argv[2] ?? "production";
 
@@ -14,10 +14,7 @@ try {
       runtime: { migrateDatabase },
     },
     { withMigrationLock },
-  ] = await Promise.all([
-    import("@composition/runtime"),
-    import("#app/db/migrations.ts"),
-  ]);
+  ] = await Promise.all([import("@composition/runtime"), import("#app/db/migrations.ts")]);
   await withMigrationLock(migrateDatabase);
 } finally {
   await pool.end();

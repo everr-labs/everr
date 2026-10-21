@@ -1,7 +1,4 @@
-import {
-  resolveThresholdColor,
-  type ThresholdsSpec,
-} from "../stat-chart/stat-calculations";
+import { resolveThresholdColor, type ThresholdsSpec } from "../stat-chart/stat-calculations";
 import { createValueFormatter } from "../value-format";
 
 /**
@@ -49,8 +46,7 @@ export function thresholdMarks(
   const upper = Math.max(min, max);
   const marks: ThresholdMark[] = [];
   for (const step of thresholds.steps) {
-    const value =
-      thresholds.mode === "percent" ? (step.value / 100) * ref : step.value;
+    const value = thresholds.mode === "percent" ? (step.value / 100) * ref : step.value;
     if (value <= lower || value >= upper) continue;
     marks.push({
       fraction: axisFraction(value, min, max),

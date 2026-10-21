@@ -1,14 +1,13 @@
+import type * as ReactRouterTypes from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({ emailEnabled: false, request: vi.fn() }));
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  ...(await importOriginal<typeof ReactRouterTypes>()),
   useRouteContext: () => ({ emailEnabled: state.emailEnabled }),
-  Link: ({ children }: { children: React.ReactNode }) => (
-    <a href="/auth/sign-in">{children}</a>
-  ),
+  Link: ({ children }: { children: React.ReactNode }) => <a href="/auth/sign-in">{children}</a>,
 }));
 vi.mock("#app/lib/auth-client.ts", () => ({
   authClient: { requestPasswordReset: state.request },
@@ -24,9 +23,7 @@ beforeEach(() => {
 it("offers operator recovery without submitting an email request when SMTP is unavailable", async () => {
   const Component = Route.options.component as React.ComponentType;
   render(<Component />);
-  expect(
-    screen.getByText("Contact your installation administrator"),
-  ).toBeVisible();
+  expect(screen.getByText("Contact your installation administrator")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Send reset link" })).toBeNull();
   await userEvent.click(screen.getByText("Manage this installation?"));
   expect(screen.getByText(/recovery.mjs --email/)).toBeVisible();
@@ -44,7 +41,5 @@ it("retains email recovery when SMTP is available", async () => {
     email: "member@example.test",
     redirectTo: "/auth/reset-password",
   });
-  expect(
-    await screen.findByText("Check your email for a password reset link."),
-  ).toBeVisible();
+  expect(await screen.findByText("Check your email for a password reset link.")).toBeVisible();
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { ALL_VALUE } from "./interpolate";
 import type { ListVariable, TextVariable, Variable } from "./schema";
 import {
@@ -13,10 +13,7 @@ function text(name: string, value: string): TextVariable {
   return { kind: "TextVariable", spec: { name, value } };
 }
 
-function list(
-  name: string,
-  spec: Partial<ListVariable["spec"]> = {},
-): ListVariable {
+function list(name: string, spec: Partial<ListVariable["spec"]> = {}): ListVariable {
   return {
     kind: "ListVariable",
     spec: {
@@ -29,20 +26,15 @@ function list(
 
 describe("effectiveVariableValues", () => {
   it("URL value wins over the spec default", () => {
-    const vars: Variable[] = [
-      text("env", "prod"),
-      list("svc", { defaultValue: "a" }),
-    ];
-    expect(effectiveVariableValues(vars, { env: "staging", svc: "b" })).toEqual(
-      { env: "staging", svc: "b" },
-    );
+    const vars: Variable[] = [text("env", "prod"), list("svc", { defaultValue: "a" })];
+    expect(effectiveVariableValues(vars, { env: "staging", svc: "b" })).toEqual({
+      env: "staging",
+      svc: "b",
+    });
   });
 
   it("falls back to spec defaults when the URL has no value", () => {
-    const vars: Variable[] = [
-      text("env", "prod"),
-      list("svc", { defaultValue: "a" }),
-    ];
+    const vars: Variable[] = [text("env", "prod"), list("svc", { defaultValue: "a" })];
     expect(effectiveVariableValues(vars, undefined)).toEqual({
       env: "prod",
       svc: "a",
@@ -78,9 +70,7 @@ describe("effectiveVariableValues", () => {
   });
 
   it("treats an array URL value for a text variable as invalid → default", () => {
-    expect(
-      effectiveVariableValues([text("env", "prod")], { env: ["x"] }),
-    ).toEqual({
+    expect(effectiveVariableValues([text("env", "prod")], { env: ["x"] })).toEqual({
       env: "prod",
     });
   });
@@ -102,11 +92,9 @@ describe("effectiveVariableValues", () => {
       allowAllValue: true,
       defaultValue: ["a"],
     });
-    expect(effectiveVariableValues([multi], { svc: [ALL_VALUE, "b"] })).toEqual(
-      {
-        svc: ["a"],
-      },
-    );
+    expect(effectiveVariableValues([multi], { svc: [ALL_VALUE, "b"] })).toEqual({
+      svc: ["a"],
+    });
   });
 
   it("treats an array default for a single-select as invalid → omitted", () => {
@@ -186,11 +174,7 @@ describe("buildAllMeta", () => {
 
   it("ignores variables whose value is not the All sentinel", () => {
     const v = list("svc", { allowAllValue: true });
-    const { meta, pendingAllNames } = buildAllMeta(
-      [v],
-      { svc: "a" },
-      { svc: { options: ["a"] } },
-    );
+    const { meta, pendingAllNames } = buildAllMeta([v], { svc: "a" }, { svc: { options: ["a"] } });
     expect(meta).toEqual({});
     expect(pendingAllNames).toEqual([]);
   });
@@ -216,9 +200,7 @@ describe("buildAllMeta", () => {
     );
     expect(meta).toEqual({});
     expect(pendingAllNames).toEqual([]);
-    expect(allErrors.svc).toBe(
-      'Variable "$svc" has too many values to expand "All"',
-    );
+    expect(allErrors.svc).toBe('Variable "$svc" has too many values to expand "All"');
   });
 });
 
@@ -247,58 +229,44 @@ describe("sortVariableOptions", () => {
   });
 
   it("sorts alphabetical-asc (case-sensitive)", () => {
-    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-asc")).toEqual([
-      "A",
-      "b",
-      "c",
-    ]);
+    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-asc")).toEqual(["A", "b", "c"]);
   });
 
   it("sorts alphabetical-desc (case-sensitive)", () => {
-    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-desc")).toEqual([
-      "c",
-      "b",
-      "A",
-    ]);
+    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-desc")).toEqual(["c", "b", "A"]);
   });
 
   it("sorts alphabetical-ci-asc (case-insensitive)", () => {
-    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-ci-asc")).toEqual(
-      ["A", "b", "c"],
-    );
+    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-ci-asc")).toEqual(["A", "b", "c"]);
   });
 
   it("sorts alphabetical-ci-desc (case-insensitive)", () => {
-    expect(
-      sortVariableOptions(["b", "A", "c"], "alphabetical-ci-desc"),
-    ).toEqual(["c", "b", "A"]);
+    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-ci-desc")).toEqual(["c", "b", "A"]);
   });
 
   it("sorts numerical-asc", () => {
-    expect(sortVariableOptions(["10", "2", "1"], "numerical-asc")).toEqual([
-      "1",
-      "2",
-      "10",
-    ]);
+    expect(sortVariableOptions(["10", "2", "1"], "numerical-asc")).toEqual(["1", "2", "10"]);
   });
 
   it("sorts numerical-desc", () => {
-    expect(sortVariableOptions(["10", "2", "1"], "numerical-desc")).toEqual([
-      "10",
-      "2",
-      "1",
-    ]);
+    expect(sortVariableOptions(["10", "2", "1"], "numerical-desc")).toEqual(["10", "2", "1"]);
   });
 
   it("pushes non-numeric values to end for numerical-asc", () => {
-    expect(
-      sortVariableOptions(["foo", "10", "bar", "2"], "numerical-asc"),
-    ).toEqual(["2", "10", "foo", "bar"]);
+    expect(sortVariableOptions(["foo", "10", "bar", "2"], "numerical-asc")).toEqual([
+      "2",
+      "10",
+      "foo",
+      "bar",
+    ]);
   });
 
   it("pushes non-numeric values to end for numerical-desc", () => {
-    expect(
-      sortVariableOptions(["foo", "10", "bar", "2"], "numerical-desc"),
-    ).toEqual(["10", "2", "foo", "bar"]);
+    expect(sortVariableOptions(["foo", "10", "bar", "2"], "numerical-desc")).toEqual([
+      "10",
+      "2",
+      "foo",
+      "bar",
+    ]);
   });
 });

@@ -1,8 +1,4 @@
-import {
-  executeTraceTask,
-  type TraceResponse,
-  type TraceTask,
-} from "./processor-tasks";
+import { executeTraceTask, type TraceResponse, type TraceTask } from "./processor-tasks";
 
 self.onmessage = (event: MessageEvent<TraceTask>) => {
   let response: TraceResponse;

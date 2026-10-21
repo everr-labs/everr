@@ -30,9 +30,7 @@ export interface FlamegraphRowMetrics {
   EVENT_DOT_SIZE: number;
 }
 
-export function getFlamegraphRowMetrics(
-  rowHeight: number,
-): FlamegraphRowMetrics {
+export function getFlamegraphRowMetrics(rowHeight: number): FlamegraphRowMetrics {
   const spanBarHeight = clamp(
     Math.round(rowHeight * SPAN_BAR_HEIGHT_RATIO),
     MIN_SPAN_BAR_HEIGHT,
@@ -61,9 +59,7 @@ interface EventDotColor {
 /** Event markers use theme tokens, with destructive coloring for errors. */
 function getEventDotColor(isError: boolean): EventDotColor {
   return {
-    fill: resolveThemeColor(
-      isError ? "var(--destructive)" : "var(--foreground)",
-    ),
+    fill: resolveThemeColor(isError ? "var(--destructive)" : "var(--foreground)"),
     stroke: resolveThemeColor("var(--background)"),
   };
 }
@@ -199,8 +195,7 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
     }
 
     const eventTimeMs = event.offsetNs / 1e6;
-    if (eventTimeMs < viewStartTs || eventTimeMs > viewStartTs + timeSpan)
-      return;
+    if (eventTimeMs < viewStartTs || eventTimeMs > viewStartTs + timeSpan) return;
     const eventX = ((eventTimeMs - viewStartTs) / timeSpan) * cssWidth;
     const eventY = spanY + metrics.SPAN_BAR_HEIGHT / 2;
 
@@ -251,8 +246,7 @@ interface DrawSpanLabelArgs {
 }
 
 function drawSpanLabel(args: DrawSpanLabelArgs): void {
-  const { ctx, span, x, y, width, color, isSelectedOrHovered, spanBarHeight } =
-    args;
+  const { ctx, span, x, y, width, color, isSelectedOrHovered, spanBarHeight } = args;
 
   if (width < MIN_WIDTH_FOR_NAME) {
     return;
@@ -300,11 +294,7 @@ function drawSpanLabel(args: DrawSpanLabelArgs): void {
   ctx.restore();
 }
 
-function truncateText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-): string {
+function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   const ellipsis = "...";
   const ellipsisWidth = ctx.measureText(ellipsis).width;
 

@@ -9,29 +9,28 @@ A `Runbook` is a resource with three top-level keys, validated on `everr apply` 
 kind: Runbook
 metadata:
   name: <slug>
-  project: <project>   # optional
-spec:
-  { ... }
+  project: <project> # optional
+spec: { ... }
 ```
 
-| Key | Type | Notes |
-| --- | --- | --- |
-| `kind` | `"Runbook"` | Selects the reconciler. Required. The legacy `"Notebook"` is accepted as an alias. |
-| `metadata.name` | string | The runbook's **slug** and identity. Required, non-empty. |
-| `metadata.project` | string | Optional namespace; defaults to `default`. Identity and URL are `project` + `slug`. |
-| `spec` | object | The runbook contents, below. |
+| Key                | Type        | Notes                                                                               |
+| ------------------ | ----------- | ----------------------------------------------------------------------------------- |
+| `kind`             | `"Runbook"` | Selects the reconciler. Required. The legacy `"Notebook"` is accepted as an alias.  |
+| `metadata.name`    | string      | The runbook's **slug** and identity. Required, non-empty.                           |
+| `metadata.project` | string      | Optional namespace; defaults to `default`. Identity and URL are `project` + `slug`. |
+| `spec`             | object      | The runbook contents, below.                                                        |
 
 ## `spec`
 
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `markdown` | object | yes | The **index page**: the front page, and the whole runbook when there are no `pages`. See below. |
-| `pages` | [Page] | no | Child pages; recursive. See below. |
-| `display` | object | no | `name` and/or `description`, both optional. Human-facing labels. |
-| `variables` | [Variable] | no | Dashboard [variables](/docs/reference/variables), verbatim. `$name` tokens interpolate into panel queries server-side. |
-| `panels` | map | no | Shared dashboard [Panels](/docs/reference/dashboard-spec) keyed by name, referenced from markdown with `ref:`. |
-| `duration` | string | no | Seeds the time-range picker, same as dashboards (e.g. `6h`, `24h`). |
-| `refreshInterval` | string | no | Seeds auto-refresh (e.g. `1m`). |
+| Field             | Type       | Required | Notes                                                                                                                  |
+| ----------------- | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `markdown`        | object     | yes      | The **index page**: the front page, and the whole runbook when there are no `pages`. See below.                        |
+| `pages`           | [Page]     | no       | Child pages; recursive. See below.                                                                                     |
+| `display`         | object     | no       | `name` and/or `description`, both optional. Human-facing labels.                                                       |
+| `variables`       | [Variable] | no       | Dashboard [variables](/docs/reference/variables), verbatim. `$name` tokens interpolate into panel queries server-side. |
+| `panels`          | map        | no       | Shared dashboard [Panels](/docs/reference/dashboard-spec) keyed by name, referenced from markdown with `ref:`.         |
+| `duration`        | string     | no       | Seeds the time-range picker, same as dashboards (e.g. `6h`, `24h`).                                                    |
+| `refreshInterval` | string     | no       | Seeds auto-refresh (e.g. `1m`).                                                                                        |
 
 Unknown keys in `spec` and in each page are rejected: a misspelled field is an apply error, not silently ignored content.
 
@@ -42,19 +41,19 @@ markdown:
   file: ./high-error-rate.runbook.md
 ```
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `file` | string | Path to a markdown file, resolved relative to the YAML. Must stay inside the apply directory. The CLI inlines the content at apply time; a missing file fails the apply. |
-| `inline` | string | Raw markdown content. This is what the server stores; prefer `file:` in authored YAML and let the CLI inline it. |
+| Field    | Type   | Notes                                                                                                                                                                    |
+| -------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `file`   | string | Path to a markdown file, resolved relative to the YAML. Must stay inside the apply directory. The CLI inlines the content at apply time; a missing file fails the apply. |
+| `inline` | string | Raw markdown content. This is what the server stores; prefer `file:` in authored YAML and let the CLI inline it.                                                         |
 
 ## Pages
 
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `name` | string | yes | The page slug, **unique among its siblings**. Page names join into the URL: `/runbooks/<project>/<slug>/triage/network`. |
-| `markdown` | object | yes | The page body, same shape as `spec.markdown`. |
-| `display` | object | no | `name` and/or `description`. |
-| `pages` | [Page] | no | Nested children; pages nest arbitrarily deep. |
+| Field      | Type   | Required | Notes                                                                                                                    |
+| ---------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `name`     | string | yes      | The page slug, **unique among its siblings**. Page names join into the URL: `/runbooks/<project>/<slug>/triage/network`. |
+| `markdown` | object | yes      | The page body, same shape as `spec.markdown`.                                                                            |
+| `display`  | object | no       | `name` and/or `description`.                                                                                             |
+| `pages`    | [Page] | no       | Nested children; pages nest arbitrarily deep.                                                                            |
 
 ## Linking between pages
 
@@ -68,7 +67,7 @@ Absolute (`/...`) and external (`http(s):`, `mailto:`) URLs are left untouched.
 
 ## Panel blocks
 
-A fenced ```panel``` block embeds a visualization. The body is YAML in one of two forms, discriminated by shape, each with an optional top-level `height:` in pixels (80 to 2000, default 350).
+A fenced `panel` block embeds a visualization. The body is YAML in one of two forms, discriminated by shape, each with an optional top-level `height:` in pixels (80 to 2000, default 350).
 
 Inline one-off panel: a full `kind: Panel` object, defined inline:
 
@@ -101,7 +100,7 @@ spec:
   panels:
     error-rate:
       kind: Panel
-      spec: { ... }              # exactly a dashboard Panel spec
+      spec: { ... } # exactly a dashboard Panel spec
 ```
 
 ````md
@@ -130,5 +129,5 @@ Declarations sit flat in `everr/` as `*.runbook.yaml` (the legacy `*.notebook.ya
 - Page `name`s must be unique among siblings; duplicates fail the apply.
 - Unknown keys in `spec` or in a page are rejected.
 - `markdown.file` must resolve inside the apply directory; a missing file fails the apply, naming both the YAML and the markdown path.
-- Malformed ```panel``` fence YAML, a `ref:` to a missing shared panel, and invalid panel or visualization options fail the apply. Panel specs are validated against the visualization registry, exactly like dashboard panels.
+- Malformed `panel` fence YAML, a `ref:` to a missing shared panel, and invalid panel or visualization options fail the apply. Panel specs are validated against the visualization registry, exactly like dashboard panels.
 - An alert's `spec.runbook` link is validated on apply: it must resolve to a runbook in the same apply batch or one already stored. See [Link alerts to runbooks](/docs/guides/link-alerts-to-runbooks).

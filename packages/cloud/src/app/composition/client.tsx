@@ -1,8 +1,6 @@
 import type { ProductClient } from "@everr/app/composition";
 
-const additionalBuiltinManifest = [
-  { id: "telemetry-usage", name: "Telemetry Usage" },
-] as const;
+const additionalBuiltinManifest = [{ id: "telemetry-usage", name: "Telemetry Usage" }] as const;
 
 export const productClient = {
   homeDashboardId: "telemetry-usage",

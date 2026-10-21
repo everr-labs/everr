@@ -1,8 +1,5 @@
 import { AccountSettings } from "@everr/app/account-settings";
-import type {
-  ApplicationPages,
-  OrganizationPageProps,
-} from "@everr/app/composition";
+import type { ApplicationPages, OrganizationPageProps } from "@everr/app/composition";
 import { getActiveOrgPolicy } from "@everr/app/data/product";
 import { OrganizationMembersPage } from "@everr/app/members";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
@@ -19,11 +16,7 @@ function membersPolicy(organizationId: string) {
 
 function MembersPage({ organizationId }: OrganizationPageProps) {
   const { data: policy } = useSuspenseQuery(membersPolicy(organizationId));
-  return policy.canInviteMembers ? (
-    <OrganizationMembersPage />
-  ) : (
-    <MembersUnavailable />
-  );
+  return policy.canInviteMembers ? <OrganizationMembersPage /> : <MembersUnavailable />;
 }
 
 export const pages: ApplicationPages = {

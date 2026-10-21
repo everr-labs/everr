@@ -38,10 +38,7 @@ export async function runSqlForConnection(args: {
   try {
     const storage = createOrganizationSql(args.orgId, args.metadata);
     const result = await storage.preview(sql, MCP_MAX_ROWS);
-    const lines = [
-      JSON.stringify(result.columns),
-      JSON.stringify(result.columnTypes),
-    ];
+    const lines = [JSON.stringify(result.columns), JSON.stringify(result.columnTypes)];
     let size = lines[0].length + lines[1].length;
     if (size > MCP_MAX_OUTPUT_CHARS) {
       return {
@@ -101,14 +98,12 @@ function cellJson(value: unknown): string {
 
 const SCHEMA_HINT =
   "Run DESCRIBE TABLE <table> for columns. List attribute keys with SELECT arrayJoin(SpanAttributesKeys) AS key, count() FROM traces WHERE Timestamp > now() - INTERVAL 1 HOUR GROUP BY key LIMIT 100.";
-const NARROW_SCAN_HINT =
-  "Narrow the time window and filter on ServiceName (the sort key).";
+const NARROW_SCAN_HINT = "Narrow the time window and filter on ServiceName (the sort key).";
 
 const ERROR_HINTS: Record<string, string> = {
   UNKNOWN_IDENTIFIER: SCHEMA_HINT,
   NO_SUCH_COLUMN_IN_TABLE: SCHEMA_HINT,
-  TOO_MANY_ROWS_OR_BYTES:
-    "The result is too large. Aggregate, select fewer columns, or add LIMIT.",
+  TOO_MANY_ROWS_OR_BYTES: "The result is too large. Aggregate, select fewer columns, or add LIMIT.",
   TOO_MANY_ROWS: NARROW_SCAN_HINT,
   TOO_MANY_BYTES: NARROW_SCAN_HINT,
 };
@@ -122,7 +117,6 @@ function errorHint(error: unknown): string | undefined {
   if (!(error instanceof ClickHouseError)) return undefined;
   if (classifySqlQueryError(error).kind === "timeout") return NARROW_SCAN_HINT;
   return (
-    ERROR_HINTS[error.type ?? ""] ??
-    (error.message.includes("Dynamic") ? DYNAMIC_HINT : undefined)
+    ERROR_HINTS[error.type ?? ""] ?? (error.message.includes("Dynamic") ? DYNAMIC_HINT : undefined)
   );
 }

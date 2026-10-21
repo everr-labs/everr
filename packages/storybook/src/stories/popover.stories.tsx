@@ -21,9 +21,7 @@ export const Default: Story = {
   render: () => (
     <div className="flex min-h-72 items-center justify-center">
       <Popover defaultOpen>
-        <PopoverTrigger render={<Button variant="outline" />}>
-          Open popover
-        </PopoverTrigger>
+        <PopoverTrigger render={<Button variant="outline" />}>Open popover</PopoverTrigger>
         <PopoverContent>
           <PopoverHeader>
             <PopoverTitle>Retention</PopoverTitle>
@@ -42,9 +40,7 @@ export const Sides: Story = {
     <div className="grid min-h-96 grid-cols-2 place-items-center gap-8">
       {(["top", "right", "bottom", "left"] as const).map((side) => (
         <Popover key={side} defaultOpen>
-          <PopoverTrigger render={<Button variant="outline" />}>
-            {side}
-          </PopoverTrigger>
+          <PopoverTrigger render={<Button variant="outline" />}>{side}</PopoverTrigger>
           <PopoverContent side={side} className="w-48">
             <PopoverHeader>
               <PopoverTitle>Side {side}</PopoverTitle>
@@ -63,9 +59,7 @@ export const AlignedStart: Story = {
   render: () => (
     <div className="flex min-h-72 items-center justify-center">
       <Popover defaultOpen>
-        <PopoverTrigger render={<Button variant="outline" />}>
-          Aligned to start
-        </PopoverTrigger>
+        <PopoverTrigger render={<Button variant="outline" />}>Aligned to start</PopoverTrigger>
         <PopoverContent align="start" sideOffset={8}>
           <PopoverHeader>
             <PopoverTitle>Alignment</PopoverTitle>
@@ -83,9 +77,7 @@ export const WithActions: Story = {
   render: () => (
     <div className="flex min-h-72 items-center justify-center">
       <Popover defaultOpen>
-        <PopoverTrigger render={<Button variant="outline" />}>
-          Silence rule
-        </PopoverTrigger>
+        <PopoverTrigger render={<Button variant="outline" />}>Silence rule</PopoverTrigger>
         <PopoverContent>
           <PopoverHeader>
             <PopoverTitle>Silence for 1 hour?</PopoverTitle>

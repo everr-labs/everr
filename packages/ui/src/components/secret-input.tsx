@@ -66,6 +66,7 @@ function SecretInput({
     <InputGroup className="h-8" data-disabled={disabled || undefined}>
       <InputGroupInput
         {...props}
+        // oxlint-disable-next-line jsx-a11y/no-autofocus -- Focus starts in the primary field when this user-opened dialog mounts.
         autoFocus={hasStoredSecret}
         className={className}
         type={type}

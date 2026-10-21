@@ -1,16 +1,7 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  AttributeMap,
-  DetailItem,
-  DetailSection,
-} from "@everr/ui/components/detail-panel";
+import { AttributeMap, DetailItem, DetailSection } from "@everr/ui/components/detail-panel";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@everr/ui/components/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@everr/ui/components/tabs";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { Link } from "@tanstack/react-router";
 import { Copy, Focus, X } from "lucide-react";
@@ -35,26 +26,16 @@ export function SpanDetails({
     <aside className="flex h-full min-h-0 flex-col" aria-label="Span details">
       <div className="flex shrink-0 items-start gap-2 border-b p-3">
         <div className="min-w-0 flex-1">
-          <div className="text-muted-foreground truncate text-xs">
-            {span.serviceName}
-          </div>
-          <h2 className="mt-1 break-words text-sm font-medium">
-            {span.spanName}
-          </h2>
+          <div className="text-muted-foreground truncate text-xs">{span.serviceName}</div>
+          <h2 className="mt-1 break-words text-sm font-medium">{span.spanName}</h2>
           <div className="mt-1 font-mono text-xs">
             {formatDuration(Number(span.duration), "ns")}{" "}
             <span className="text-muted-foreground">
-              ({((node.durationNano / 1e6 / durationMs) * 100).toFixed(1)}% of
-              trace)
+              ({((node.durationNano / 1e6 / durationMs) * 100).toFixed(1)}% of trace)
             </span>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Close span details"
-          onClick={onClose}
-        >
+        <Button variant="ghost" size="icon-xs" aria-label="Close span details" onClick={onClose}>
           <X />
         </Button>
       </div>
@@ -67,13 +48,15 @@ export function SpanDetails({
           variant="ghost"
           size="icon-sm"
           aria-label="Copy span link"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(window.location.href);
-              toast.success("Span link copied");
-            } catch {
-              toast.error("Could not copy span link");
-            }
+          onClick={() => {
+            void (async () => {
+              try {
+                await navigator.clipboard.writeText(window.location.href);
+                toast.success("Span link copied");
+              } catch {
+                toast.error("Could not copy span link");
+              }
+            })();
           }}
         >
           <Copy />
@@ -82,9 +65,7 @@ export function SpanDetails({
       <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
         <TabsList variant="line" className="mx-3 shrink-0 border-b">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="events">
-            Events ({span.events.length})
-          </TabsTrigger>
+          <TabsTrigger value="events">Events ({span.events.length})</TabsTrigger>
           <TabsTrigger value="links">Links ({span.links.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="min-h-0 overflow-hidden">
@@ -99,17 +80,10 @@ export function SpanDetails({
                 mono
               />
               <DetailItem label="Span ID" value={span.spanId} mono />
-              <DetailItem
-                label="Parent ID"
-                value={span.parentSpanId || undefined}
-                mono
-              />
+              <DetailItem label="Parent ID" value={span.parentSpanId || undefined} mono />
             </DetailSection>
             <AttributeMap title="Span attributes" map={span.spanAttributes} />
-            <AttributeMap
-              title="Resource attributes"
-              map={span.resourceAttributes}
-            />
+            <AttributeMap title="Resource attributes" map={span.resourceAttributes} />
           </ScrollArea>
         </TabsContent>
         <TabsContent value="events" className="min-h-0 overflow-auto p-3">
@@ -118,6 +92,7 @@ export function SpanDetails({
           ) : (
             span.events.map((event, i) => (
               <div
+                // oxlint-disable-next-line react/no-array-index-key -- Immutable source events can share timestamps or IDs; the ordinal distinguishes those duplicates.
                 key={`${event.timestamp}-${i}`}
                 className="mb-3 rounded-md border p-3 text-xs"
               >
@@ -136,6 +111,7 @@ export function SpanDetails({
           ) : (
             span.links.map((link, i) => (
               <div
+                // oxlint-disable-next-line react/no-array-index-key -- Immutable source events can share timestamps or IDs; the ordinal distinguishes those duplicates.
                 key={`${link.traceId}-${link.spanId}-${i}`}
                 className="mb-3 rounded-md border p-3 text-xs"
               >

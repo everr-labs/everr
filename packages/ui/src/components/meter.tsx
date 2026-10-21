@@ -66,6 +66,7 @@ export function Meter({
           layer.pct > 0 && (
             <span
               // A fixed, ordered stack per call site; never reordered.
+              // oxlint-disable-next-line react/no-array-index-key -- Layers are a fixed ordered decorative stack and never reorder.
               key={i}
               className={meterFill({ tone: layer.tone })}
               style={{ width: `${Math.min(100, layer.pct)}%` }}

@@ -3,13 +3,12 @@
 import { createLockPool } from "@everr/app/db/database";
 
 import { Pool, type PoolClient } from "pg";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { createBillingRequestLocks } from "./request-locks";
 
 const mocks = { query: vi.fn(), release: vi.fn() };
 let locks: ReturnType<typeof createBillingRequestLocks>;
-const withBillingRequest = <T>(run: () => Promise<T>) =>
-  locks.withBillingRequest(run);
+const withBillingRequest = <T>(run: () => Promise<T>) => locks.withBillingRequest(run);
 const withCheckoutLock = <T>(key: string, run: () => Promise<T>) =>
   locks.withCheckoutLock(key, run);
 
@@ -35,21 +34,15 @@ it("releases its session lock after a failed operation", async () => {
 it("rejects concurrent processing without retaining a pool connection", async () => {
   mocks.query.mockResolvedValueOnce({ rows: [{ locked: false }] });
   const run = vi.fn();
-  await expect(withCheckoutLock("intent", run)).rejects.toThrow(
-    "Please try again",
-  );
+  await expect(withCheckoutLock("intent", run)).rejects.toThrow("Please try again");
   expect(run).not.toHaveBeenCalled();
   expect(mocks.query).toHaveBeenCalledTimes(1);
   expect(mocks.release).toHaveBeenCalledWith(undefined);
 });
 it("discards a connection if unlock fails", async () => {
   const error = new Error("connection lost");
-  mocks.query
-    .mockResolvedValueOnce({ rows: [{ locked: true }] })
-    .mockRejectedValueOnce(error);
-  await expect(withCheckoutLock("intent", async () => "ok")).resolves.toBe(
-    "ok",
-  );
+  mocks.query.mockResolvedValueOnce({ rows: [{ locked: true }] }).mockRejectedValueOnce(error);
+  await expect(withCheckoutLock("intent", async () => "ok")).resolves.toBe("ok");
   expect(mocks.release).toHaveBeenCalledWith(error);
 });
 
@@ -94,9 +87,7 @@ it("keeps independent request-lock instances isolated", async () => {
   });
   await withBillingRequest(async () => {
     await withCheckoutLock("billing:org", async () => {});
-    await other.withBillingRequest(() =>
-      other.withCheckoutLock("billing:org", async () => {}),
-    );
+    await other.withBillingRequest(() => other.withCheckoutLock("billing:org", async () => {}));
     expect(mocks.release).toHaveBeenCalledTimes(1);
   });
   expect(mocks.release).toHaveBeenCalledTimes(2);

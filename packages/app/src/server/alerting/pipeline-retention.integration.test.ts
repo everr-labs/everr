@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
 import {
   alertDeliveries,
@@ -11,16 +11,11 @@ import {
   alertSilences,
 } from "#app/db/schema/index.ts";
 import { cleanupAlertingHistory } from "#app/server/alerting/maintenance/cleanup.ts";
-import {
-  insertDirectRule,
-  insertSilence,
-} from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { insertDirectRule, insertSilence } from "#app/server/alerting/testing/fixtures.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -33,7 +28,7 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
   return clickhouseMock;
 });
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 const BREACHING = [{ service: "checkout", value: 42 }];
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -50,23 +45,16 @@ async function runOneSettledIncident(): Promise<void> {
 }
 
 async function rowCounts() {
-  const [
-    evaluations,
-    events,
-    deliveries,
-    deliveryLinks,
-    groups,
-    instances,
-    silences,
-  ] = await Promise.all([
-    harness().db.select().from(alertEvaluations),
-    harness().db.select().from(alertEvents),
-    harness().db.select().from(alertDeliveries),
-    harness().db.select().from(alertDeliveryEvents),
-    harness().db.select().from(alertNotificationGroups),
-    harness().db.select().from(alertInstances),
-    harness().db.select().from(alertSilences),
-  ]);
+  const [evaluations, events, deliveries, deliveryLinks, groups, instances, silences] =
+    await Promise.all([
+      harness().db.select().from(alertEvaluations),
+      harness().db.select().from(alertEvents),
+      harness().db.select().from(alertDeliveries),
+      harness().db.select().from(alertDeliveryEvents),
+      harness().db.select().from(alertNotificationGroups),
+      harness().db.select().from(alertInstances),
+      harness().db.select().from(alertSilences),
+    ]);
   return {
     evaluations: evaluations.length,
     events: events.length,
@@ -171,9 +159,7 @@ describe("the alerting pipeline's retention", () => {
 
     // One more attempt is the difference between a notification still owed
     // and one that will never be sent. Only then is the event's job done.
-    await harness()
-      .db.update(alertDeliveries)
-      .set({ attempts: ALERT_DELIVERY_MAX_ATTEMPTS });
+    await harness().db.update(alertDeliveries).set({ attempts: ALERT_DELIVERY_MAX_ATTEMPTS });
     await cleanupAlertingHistory({ now: new Date() });
     expect((await rowCounts()).events).toBe(0);
   });

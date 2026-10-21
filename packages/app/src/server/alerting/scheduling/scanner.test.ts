@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // Only so that importing `./scanner` for the pure functions below does not
 // build a real database pool. Nothing here answers a query: every case in
@@ -16,9 +16,7 @@ import { staleEnqueueCutoff } from "./scanner";
 describe("alert scanner", () => {
   it("uses only 64 queue partitions", () => {
     const queues = new Set(
-      Array.from({ length: 2_000 }, (_, index) =>
-        alertingPartitionQueue("alert", `rule-${index}`),
-      ),
+      Array.from({ length: 2_000 }, (_, index) => alertingPartitionQueue("alert", `rule-${index}`)),
     );
     expect(queues.size).toBeLessThanOrEqual(64);
   });
@@ -27,12 +25,7 @@ describe("alert scanner", () => {
     const after = new Date("2026-08-06T10:00:00.000Z");
     const first = nextAlertEvaluationAt("org-1", "rule-1", 60, after);
     const repeated = nextAlertEvaluationAt("org-1", "rule-1", 60, after);
-    const next = nextAlertEvaluationAt(
-      "org-1",
-      "rule-1",
-      60,
-      new Date(after.getTime() + 60_000),
-    );
+    const next = nextAlertEvaluationAt("org-1", "rule-1", 60, new Date(after.getTime() + 60_000));
 
     expect(first).toEqual(repeated);
     expect(first.getTime()).toBeGreaterThan(after.getTime());
@@ -44,12 +37,7 @@ describe("alert scanner", () => {
     const after = new Date("2026-08-06T10:00:00.000Z");
     const phases = new Set(
       Array.from({ length: 256 }, (_, index) =>
-        nextAlertEvaluationAt(
-          `org-${index % 8}`,
-          `rule-${index}`,
-          60,
-          after,
-        ).getTime(),
+        nextAlertEvaluationAt(`org-${index % 8}`, `rule-${index}`, 60, after).getTime(),
       ),
     );
 
@@ -59,9 +47,7 @@ describe("alert scanner", () => {
   it("keeps retry delays separate from recurring phases", () => {
     const after = new Date("2026-08-06T10:00:00.000Z");
 
-    expect(alertingRetryAt(120, after).getTime() - after.getTime()).toBe(
-      120_000,
-    );
+    expect(alertingRetryAt(120, after).getTime() - after.getTime()).toBe(120_000);
   });
 
   it("retries quickly before backing off to the configured maximum", () => {
@@ -74,15 +60,12 @@ describe("alert scanner", () => {
     // Without this the scanner skips anything with lastEnqueuedAt at or after
     // nextEvaluationAt, so a rule whose evaluation died goes silent forever.
     const now = new Date("2026-08-06T10:00:00Z");
-    expect(staleEnqueueCutoff(now).toISOString()).toBe(
-      "2026-08-06T09:45:00.000Z",
-    );
+    expect(staleEnqueueCutoff(now).toISOString()).toBe("2026-08-06T09:45:00.000Z");
   });
 
   it("waits longer than any plausible evaluation before re-enqueueing", () => {
     const now = new Date("2026-08-06T10:00:00Z");
-    const waitedSeconds =
-      (now.getTime() - staleEnqueueCutoff(now).getTime()) / 1_000;
+    const waitedSeconds = (now.getTime() - staleEnqueueCutoff(now).getTime()) / 1_000;
     expect(waitedSeconds).toBeGreaterThanOrEqual(600);
   });
 });

@@ -21,7 +21,7 @@
  * versions must agree on are asserted: which rows a predicate selects, what an
  * aggregate counts, and what order rows come back in.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { uuidv7 } from "#app/data/alerting/history/ids.ts";
 import type { AlertingMatcher } from "#app/data/alerting/types.ts";
 import {
@@ -35,12 +35,10 @@ import {
   ZERO_UUID,
 } from "#app/server/alerting/history/clickhouse.ts";
 import { TEST_ORG } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -58,7 +56,7 @@ import {
   loadSilenceImpact,
 } from "#app/data/alerting/triage/history.ts";
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
@@ -83,9 +81,7 @@ function windowOf(fromMinutes: number, toMinutes = 0) {
   };
 }
 
-function definition(
-  overrides: Partial<AlertHistoryDefinition> = {},
-): AlertHistoryDefinition {
+function definition(overrides: Partial<AlertHistoryDefinition> = {}): AlertHistoryDefinition {
   return {
     id: "8b2f2f5e-1f2a-4d8b-9a3c-2f6b1c4d5e60",
     organizationId: TEST_ORG,
@@ -118,9 +114,7 @@ function transition(opts: {
     evidence: {},
     evidenceTruncated: false,
     contextJson: "{}",
-    ...(opts.eventType === "instance_resolved"
-      ? { reason: "condition_cleared" as const }
-      : {}),
+    ...(opts.eventType === "instance_resolved" ? { reason: "condition_cleared" as const } : {}),
   });
 }
 
@@ -164,10 +158,7 @@ describe("the lifecycle events behind the state chart", () => {
 
     const events = await loadLifecycleEvents(query, windowOf(60));
 
-    expect(events.map((row) => row.event_type)).toEqual([
-      "instance_pending",
-      "instance_fired",
-    ]);
+    expect(events.map((row) => row.event_type)).toEqual(["instance_pending", "instance_fired"]);
   });
 
   it("never reads a Preview copy's events", async () => {
@@ -419,9 +410,7 @@ describe("the labels the chart names its lanes with", () => {
       windowTo: new Date(),
     });
 
-    expect(labels).toEqual([
-      { instance_fingerprint: "closed-since", labels: { host: "web-1" } },
-    ]);
+    expect(labels).toEqual([{ instance_fingerprint: "closed-since", labels: { host: "web-1" } }]);
   });
 });
 
@@ -440,9 +429,7 @@ describe("what a Silence withheld", () => {
       journalTerminalRow(dropped, { silence: silenceCopy(SILENCE) }),
     );
 
-    const impact = await loadSilenceImpact(query, [
-      { id: SILENCE, startsAt: minutesAgo(60) },
-    ]);
+    const impact = await loadSilenceImpact(query, [{ id: SILENCE, startsAt: minutesAgo(60) }]);
 
     expect(impact.get(SILENCE)).toEqual({ held: 2, dropped: 1 });
   });

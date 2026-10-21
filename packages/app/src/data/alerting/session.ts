@@ -42,9 +42,7 @@ type AlertingSessionContext = {
   principalId?: string;
 };
 
-function alertingOrganizationId(session: {
-  session: { activeOrganizationId: string };
-}): string {
+function alertingOrganizationId(session: { session: { activeOrganizationId: string } }): string {
   return session.session.activeOrganizationId;
 }
 
@@ -78,9 +76,7 @@ function alertingActor(session: AlertingSessionContext): AlertingActor {
 }
 
 /** Narrow an authenticated session to the scope an alerting mutation needs. */
-export function alertingMutationScope(
-  session: AlertingSessionContext,
-): AlertingMutationScope {
+export function alertingMutationScope(session: AlertingSessionContext): AlertingMutationScope {
   return {
     organizationId: alertingOrganizationId(session),
     actor: alertingActor(session),

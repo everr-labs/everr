@@ -48,9 +48,7 @@ function numberFormatter(decimals?: number, useGrouping = true) {
 }
 
 /** Resolves presentation once; all geometry and thresholds keep raw query values. */
-export function createValueFormatter(
-  format: ValueFormat = { unit: "", scale: "none" },
-) {
+export function createValueFormatter(format: ValueFormat = { unit: "", scale: "none" }) {
   const { unit, decimals } = format;
   const percent = format.display === "percent";
   const label = percent ? "%" : unitLabel(unit);
@@ -58,32 +56,21 @@ export function createValueFormatter(
   const axisNumbers = numberFormatter(decimals, false);
   const separator = label === "%" ? "" : " ";
 
-  function rawParts(
-    value: number,
-    reference = value,
-    axis = false,
-  ): RawFormattedValueParts {
+  function rawParts(value: number, reference = value, axis = false): RawFormattedValueParts {
     const formatter = axis ? axisNumbers : numbers;
     if (percent) return { value: formatter.format(value * 100), unit: label };
-    if (!Number.isFinite(value))
-      return { value: formatter.format(value), unit: label };
-    const magnitude = Number.isFinite(reference)
-      ? Math.abs(reference)
-      : Math.abs(value);
+    if (!Number.isFinite(value)) return { value: formatter.format(value), unit: label };
+    const magnitude = Number.isFinite(reference) ? Math.abs(reference) : Math.abs(value);
     if (
       format.scale === "duration" ||
       (format.scale === "decimal" && Object.hasOwn(durationUnits, unit))
     ) {
       const inputFactor = durationUnits[unit] ?? 1;
-      const steps =
-        format.scale === "duration" ? DURATION_STEPS : DECIMAL_DURATION_STEPS;
+      const steps = format.scale === "duration" ? DURATION_STEPS : DECIMAL_DURATION_STEPS;
       const [factor, label] =
         magnitude === 0
           ? [inputFactor, unit]
-          : (steps.find(([factor]) => magnitude * inputFactor >= factor) ?? [
-              1e-9,
-              "ns",
-            ]);
+          : (steps.find(([factor]) => magnitude * inputFactor >= factor) ?? [1e-9, "ns"]);
       return {
         value: formatter.format(value * (inputFactor / factor)),
         unit: unitLabel(label),
@@ -91,11 +78,9 @@ export function createValueFormatter(
     }
     if (format.scale === "decimal" || format.scale === "binary") {
       const base = format.scale === "binary" ? 1024 : 1000;
-      const prefixes =
-        format.scale === "binary" ? BINARY_PREFIXES : DECIMAL_PREFIXES;
+      const prefixes = format.scale === "binary" ? BINARY_PREFIXES : DECIMAL_PREFIXES;
       let index = 0;
-      while (index < prefixes.length - 1 && magnitude >= base ** (index + 1))
-        index++;
+      while (index < prefixes.length - 1 && magnitude >= base ** (index + 1)) index++;
       const prefix = prefixes[index] ?? "";
       // SI symbols use decimal prefixes; binary prefixes remain byte/bit-specific.
       const prefixOnUnit =
@@ -114,11 +99,7 @@ export function createValueFormatter(
     return { value: formatter.format(value), unit: label };
   }
 
-  function parts(
-    value: number,
-    reference = value,
-    axis = false,
-  ): FormattedValueParts {
+  function parts(value: number, reference = value, axis = false): FormattedValueParts {
     const formatted = rawParts(value, reference, axis);
     return {
       ...formatted,
@@ -136,7 +117,6 @@ export function createValueFormatter(
     parts: (value: number) => parts(value),
     format: (value: number) => join(parts(value)),
     /** Fix one scale for the entire axis, selected from its largest magnitude. */
-    axis: (reference: number) => (value: number) =>
-      join(parts(value, reference, true)),
+    axis: (reference: number) => (value: number) => join(parts(value, reference, true)),
   };
 }

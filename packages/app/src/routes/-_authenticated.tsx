@@ -3,6 +3,5 @@ import { requireSession } from "#app/lib/route-access.ts";
 
 export const Route = createFileRoute("/_authenticated")({
   // Keep guard inference independent of `matches`, which depends on the full router.
-  beforeLoad: (options): ReturnType<typeof requireSession> =>
-    requireSession(options),
+  beforeLoad: (options): ReturnType<typeof requireSession> => requireSession(options),
 });

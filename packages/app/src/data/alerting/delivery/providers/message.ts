@@ -18,26 +18,16 @@ export interface ChannelNotification {
  * No production path sets it yet, so the branch that keeps it is unreached
  * outside tests.
  */
-export function composeText(
-  notification: ChannelNotification,
-  max: number,
-): string {
+export function composeText(notification: ChannelNotification, max: number): string {
   const url = notification.url ?? "";
   const frameLength = url
     ? notification.title.length + url.length + 4
     : notification.title.length + 2;
   const bodyBudget = max - frameLength;
   if (bodyBudget <= 0) {
-    return truncateWithEllipsis(
-      [notification.title, url].filter(Boolean).join("\n\n"),
-      max,
-    );
+    return truncateWithEllipsis([notification.title, url].filter(Boolean).join("\n\n"), max);
   }
-  return [
-    notification.title,
-    truncateWithEllipsis(notification.body, bodyBudget),
-    url,
-  ]
+  return [notification.title, truncateWithEllipsis(notification.body, bodyBudget), url]
     .filter(Boolean)
     .join("\n\n");
 }

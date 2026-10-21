@@ -14,6 +14,16 @@ export const Route = createFileRoute(
   component: PreviewableLayout,
 });
 
+function isPreviewStatus(value: unknown): value is PreviewStatus {
+  return (
+    value === "added" ||
+    value === "changed" ||
+    value === "conflict" ||
+    value === "removed" ||
+    value === "unchanged"
+  );
+}
+
 // Layout for the previewable pages (dashboards, runbooks, alerts). Supplies the
 // scrolling content, copy, and exit action to the ui `PreviewFrame`.
 function PreviewableLayout() {
@@ -33,10 +43,14 @@ function PreviewableLayout() {
   for (const match of matches) {
     if (!match.routeId.startsWith(Route.id)) continue;
     fullBleed ||= match.staticData.fullBleed ?? false;
-    const data = match.loaderData as
-      | { previewStatus?: PreviewStatus }
-      | undefined;
-    if (data?.previewStatus !== undefined) status = data.previewStatus;
+    const data = match.loaderData;
+    if (
+      data &&
+      typeof data === "object" &&
+      "previewStatus" in data &&
+      isPreviewStatus(data.previewStatus)
+    )
+      status = data.previewStatus;
     if (match.staticData?.hidePreviewFrame !== undefined) {
       hidePreviewFrame = match.staticData.hidePreviewFrame;
     }
@@ -62,13 +76,7 @@ function PreviewableLayout() {
       dismissed={dismissed}
       onDismiss={dismiss}
       actions={
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2"
-          onClick={exit}
-        >
+        <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={exit}>
           <LogOut data-icon="inline-start" />
           Exit preview
         </Button>

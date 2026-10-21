@@ -15,26 +15,18 @@ export interface AccountSettingsProps {
   children: ReactNode;
 }
 
-export function AccountSettings({
-  googleSignInEnabled,
-  children,
-}: AccountSettingsProps) {
+export function AccountSettings({ googleSignInEnabled, children }: AccountSettingsProps) {
   const { data: session } = authClient.useSession();
   const accounts = useQuery(linkedAccountsQueryOptions(session?.user.id ?? ""));
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
-      <PageHeader
-        title="Account Settings"
-        lede="Manage your profile and account lifecycle."
-      />
+      <PageHeader title="Account Settings" lede="Manage your profile and account lifecycle." />
 
       {session?.user && (
         <>
           <ProfileSettings key={session.user.id} user={session.user} />
-          {accounts.isPending && (
-            <Skeleton className="h-40" aria-label="Loading sign-in methods" />
-          )}
+          {accounts.isPending && <Skeleton className="h-40" aria-label="Loading sign-in methods" />}
           {accounts.isError && (
             <RetryError
               variant="inline"
@@ -47,15 +39,11 @@ export function AccountSettings({
             <>
               <PasswordSettings
                 key={session.user.id}
-                hasPassword={accounts.data.some(
-                  (account) => account.providerId === "credential",
-                )}
+                hasPassword={accounts.data.some((account) => account.providerId === "credential")}
               />
               {googleSignInEnabled && (
                 <GoogleConnection
-                  linked={accounts.data.some(
-                    (account) => account.providerId === "google",
-                  )}
+                  linked={accounts.data.some((account) => account.providerId === "google")}
                 />
               )}
             </>

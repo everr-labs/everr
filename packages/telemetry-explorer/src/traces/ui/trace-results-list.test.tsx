@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { TraceSummary } from "../data/types";
 
 vi.mock("react-virtuoso", () => ({
@@ -18,14 +18,11 @@ vi.mock("react-virtuoso", () => ({
   }) => (
     <div data-testid="virtuoso-mock">
       {data.map((item, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- generic Virtuoso mock over unconstrained T with no accessible stable field
         <div key={i}>{itemContent(i, item)}</div>
       ))}
       {/* Lets tests simulate scrolling to the bottom of the virtual list. */}
-      <button
-        type="button"
-        data-testid="virtuoso-end-reached"
-        onClick={() => endReached?.()}
-      >
+      <button type="button" data-testid="virtuoso-end-reached" onClick={() => endReached?.()}>
         end
       </button>
       {components?.Footer ? <components.Footer /> : null}
@@ -35,9 +32,7 @@ vi.mock("react-virtuoso", () => ({
 
 import { TraceResultsList } from "./trace-results-list";
 
-function row(
-  overrides: Partial<TraceSummary> & { traceId: string },
-): TraceSummary {
+function row(overrides: Partial<TraceSummary> & { traceId: string }): TraceSummary {
   return {
     rootName: `root-${overrides.traceId}`,
     rootService: "web",
@@ -63,11 +58,7 @@ function renderTraceLink({
   children: ReactNode;
 }) {
   return (
-    <a
-      href={`/traces/${traceId}`}
-      className={className}
-      data-testid="trace-row-link"
-    >
+    <a href={`/traces/${traceId}`} className={className} data-testid="trace-row-link">
       {children}
     </a>
   );
@@ -122,9 +113,7 @@ describe("TraceResultsList", () => {
     // give the original span name, and never "POST POST /api/users".
     expect(screen.getAllByText("POST")).toHaveLength(1);
     expect(screen.getByText("/api/users")).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "POST /api/users" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "POST /api/users" })).toBeInTheDocument();
   });
 
   it("leaves non-HTTP span names unbadged", () => {
@@ -387,9 +376,7 @@ describe("TraceResultsList", () => {
       />,
     );
 
-    expect(
-      screen.getByText(/showing all 1 matching traces/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/showing all 1 matching traces/i)).toBeInTheDocument();
 
     await user.click(screen.getByTestId("virtuoso-end-reached"));
     expect(onLoadMore).not.toHaveBeenCalled();

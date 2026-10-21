@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { TracesRepository } from "./repository";
 import type { ServiceIdentity, TraceSummary } from "./types";
 
@@ -68,9 +68,7 @@ describe("TracesRepository.search", () => {
       minDurationNs: "1000000",
       cursorStartTs: "2026-05-26 12:00:00",
       cursorTraceId: "trace-z",
-      attributes: [
-        { source: "span", key: "http.route", op: "missing", values: [] },
-      ],
+      attributes: [{ source: "span", key: "http.route", op: "missing", values: [] }],
     });
 
     const [sql] = query.mock.calls[0] ?? [];
@@ -188,9 +186,7 @@ describe("TracesRepository.search", () => {
     });
 
     const [sql, params] = query.mock.calls[0] ?? [];
-    expect(sql).toContain(
-      "startTsRaw < parseDateTime64BestEffort({cursorStartTs:String}, 9)",
-    );
+    expect(sql).toContain("startTsRaw < parseDateTime64BestEffort({cursorStartTs:String}, 9)");
     expect(sql).toContain("TraceId < {cursorTraceId:String}");
     expect(sql).toContain("ORDER BY startTsRaw DESC, TraceId DESC");
     expect(params).toMatchObject({
@@ -262,9 +258,7 @@ describe("TracesRepository.search", () => {
     });
 
     const [sql] = query.mock.calls[0] ?? [];
-    expect(sql).not.toContain(
-      "has(ResourceAttributesKeys, 'service.namespace')",
-    );
+    expect(sql).not.toContain("has(ResourceAttributesKeys, 'service.namespace')");
     expect(sql).toContain(
       "toString(ResourceAttributes.`service.namespace`) IN {namespace:Array(String)}",
     );
@@ -307,9 +301,7 @@ describe("TracesRepository.search", () => {
     const [sql, params] = query.mock.calls[0] ?? [];
     expect(sql).toContain("HAVING");
     expect(sql).toContain("durationNsRaw >= toUInt64({minDurationNs:String})");
-    expect(sql).not.toContain(
-      "durationNsRaw <= toUInt64({maxDurationNs:String})",
-    );
+    expect(sql).not.toContain("durationNsRaw <= toUInt64({maxDurationNs:String})");
     expect(sql).toContain("countIf(StatusCode = 'Error') > 0");
     expect(params).toMatchObject({ minDurationNs: "1000" });
   });
@@ -482,9 +474,7 @@ describe("trace search attribute filtering", () => {
       name: "",
       status: "all",
       limit: 50,
-      attributes: [
-        { source: "span", key: "http.route", op: "in", values: ["/x"] },
-      ],
+      attributes: [{ source: "span", key: "http.route", op: "in", values: ["/x"] }],
     });
 
     const [sql, params] = query.mock.calls[0] ?? [];
@@ -502,9 +492,7 @@ describe("trace search attribute filtering", () => {
       fromTs: "2026-06-01 00:00:00",
       toTs: "2026-06-01 01:00:00",
       limit: 50,
-      attributes: [
-        { source: "span", key: "http.route", op: "missing", values: [] },
-      ],
+      attributes: [{ source: "span", key: "http.route", op: "missing", values: [] }],
     });
 
     const [sql, params] = query.mock.calls[0] ?? [];
@@ -550,9 +538,7 @@ describe("trace search attribute filtering", () => {
       fromTs: "2026-06-01 00:00:00",
       toTs: "2026-06-01 01:00:00",
       limit: 50,
-      attributes: [
-        { source: "span", key: "http.route", op: "not_in", values: [] },
-      ],
+      attributes: [{ source: "span", key: "http.route", op: "not_in", values: [] }],
     });
 
     const [sql] = query.mock.calls[0] ?? [];

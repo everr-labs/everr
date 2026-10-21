@@ -1,22 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { colorRamp, normalizeValue, schemeBaseColor } from "../color-scale";
 import type { QueryResultRow } from "../index";
-import {
-  deriveDomain,
-  extractMarkers,
-  markerRadius,
-  mergeRegions,
-} from "./geo-data";
+import { deriveDomain, extractMarkers, markerRadius, mergeRegions } from "./geo-data";
 import { geoMapSpec } from "./spec";
 
 const spec = (o: Record<string, unknown> = {}) => geoMapSpec.parse(o);
 
 describe("extractMarkers", () => {
   it("reads lat/lon/value across all frames and tags each with its frame index", () => {
-    const frames = [
-      [{ lat: 10, lon: 20, value: 5 }],
-      [{ lat: -5, lon: 30, value: 8 }],
-    ];
+    const frames = [[{ lat: 10, lon: 20, value: 5 }], [{ lat: -5, lon: 30, value: 8 }]];
     const { markers, skipped } = extractMarkers(frames, spec());
     expect(skipped).toBe(0);
     expect(markers).toEqual([
@@ -55,10 +47,7 @@ describe("mergeRegions", () => {
         { region: "DE", value: 7 },
       ],
     ];
-    const { values, unmatched } = mergeRegions(
-      frames,
-      spec({ mode: "choropleth" }),
-    );
+    const { values, unmatched } = mergeRegions(frames, spec({ mode: "choropleth" }));
     expect(values.get("840")).toBe(5);
     expect(values.get("276")).toBe(7);
     expect(unmatched).toBe(0);
@@ -73,10 +62,7 @@ describe("mergeRegions", () => {
       ],
     ];
     const get = (aggregation: string) =>
-      mergeRegions(
-        frames,
-        spec({ mode: "choropleth", aggregation }),
-      ).values.get("840");
+      mergeRegions(frames, spec({ mode: "choropleth", aggregation })).values.get("840");
     expect(get("sum")).toBe(15);
     expect(get("avg")).toBe(5);
     expect(get("min")).toBe(2);
@@ -86,10 +72,7 @@ describe("mergeRegions", () => {
 
   it("counts rows whose region code is unknown", () => {
     const frames = [[{ region: "ZZ", value: 1 }]];
-    const { values, unmatched } = mergeRegions(
-      frames,
-      spec({ mode: "choropleth" }),
-    );
+    const { values, unmatched } = mergeRegions(frames, spec({ mode: "choropleth" }));
     expect(values.size).toBe(0);
     expect(unmatched).toBe(1);
   });
@@ -101,9 +84,7 @@ describe("deriveDomain", () => {
   });
 
   it("prefers explicit spec min/max", () => {
-    expect(deriveDomain([3, 1, 9], spec({ min: 0, max: 100 }))).toEqual([
-      0, 100,
-    ]);
+    expect(deriveDomain([3, 1, 9], spec({ min: 0, max: 100 }))).toEqual([0, 100]);
   });
 
   it("falls back to [0,1] for an empty set", () => {
@@ -113,9 +94,7 @@ describe("deriveDomain", () => {
   it("zeroFloor extends an all-positive extent down to 0", () => {
     expect(deriveDomain([3, 9], spec(), { zeroFloor: true })).toEqual([0, 9]);
     // explicit spec.min wins over the floor
-    expect(deriveDomain([3, 9], spec({ min: 2 }), { zeroFloor: true })).toEqual(
-      [2, 9],
-    );
+    expect(deriveDomain([3, 9], spec({ min: 2 }), { zeroFloor: true })).toEqual([2, 9]);
     // negative extents are kept as-is
     expect(deriveDomain([-4, 9], spec(), { zeroFloor: true })).toEqual([-4, 9]);
   });

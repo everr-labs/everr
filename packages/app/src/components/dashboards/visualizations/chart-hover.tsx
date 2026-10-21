@@ -45,10 +45,7 @@ export function nearestSeriesKeys(
   if (!Number.isFinite(nearest)) return NONE;
   const keys = new Set<string>();
   for (const p of points) {
-    if (
-      p.value !== null &&
-      Math.abs(p.value - cursorValue) <= nearest + tolerance
-    ) {
+    if (p.value !== null && Math.abs(p.value - cursorValue) <= nearest + tolerance) {
       keys.add(p.key);
     }
   }
@@ -101,9 +98,7 @@ export function hoverMarkers({
   activeKeys?: ReadonlySet<string>;
 }): ReactElement[] {
   return [...points]
-    .sort(
-      (a, b) => Number(activeKeys.has(a.key)) - Number(activeKeys.has(b.key)),
-    )
+    .sort((a, b) => Number(activeKeys.has(a.key)) - Number(activeKeys.has(b.key)))
     .flatMap((p) =>
       p.value === null
         ? []

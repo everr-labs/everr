@@ -1,10 +1,6 @@
 import { and, eq, gt } from "drizzle-orm";
 import { type Database, db } from "#app/db/client.ts";
-import {
-  member,
-  organization,
-  session as sessions,
-} from "#app/db/schema/index.ts";
+import { member, organization, session as sessions } from "#app/db/schema/index.ts";
 import { selectSoleOrganization } from "#app/lib/auto-org.ts";
 import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
 
@@ -21,11 +17,7 @@ export async function resolveSessionOrganization(
 ): Promise<{ activeOrganizationId: string | null } | null> {
   if (
     session.activeOrganizationId &&
-    (await findOrganizationForMember(
-      database,
-      session.userId,
-      session.activeOrganizationId,
-    ))
+    (await findOrganizationForMember(database, session.userId, session.activeOrganizationId))
   ) {
     return { activeOrganizationId: session.activeOrganizationId };
   }
@@ -47,11 +39,7 @@ export async function resolveSessionOrganization(
     if (!current) return null;
     if (
       current.activeOrganizationId &&
-      (await findOrganizationForMember(
-        tx,
-        session.userId,
-        current.activeOrganizationId,
-      ))
+      (await findOrganizationForMember(tx, session.userId, current.activeOrganizationId))
     ) {
       return current;
     }
@@ -61,14 +49,9 @@ export async function resolveSessionOrganization(
       .innerJoin(member, eq(member.organizationId, organization.id))
       .where(eq(member.userId, session.userId))
       .limit(2);
-    const activeOrganizationId = selectSoleOrganization(
-      memberships.map(({ id }) => id),
-    );
+    const activeOrganizationId = selectSoleOrganization(memberships.map(({ id }) => id));
     if (activeOrganizationId !== current.activeOrganizationId) {
-      await tx
-        .update(sessions)
-        .set({ activeOrganizationId })
-        .where(eq(sessions.id, session.id));
+      await tx.update(sessions).set({ activeOrganizationId }).where(eq(sessions.id, session.id));
     }
     return { activeOrganizationId };
   });

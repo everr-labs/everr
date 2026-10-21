@@ -22,12 +22,7 @@
 import type { AttrValue } from "../pipeline/emitter.js";
 import type { Persistence, UserTraits } from "../types.js";
 import { getAttributes, setAttributes } from "./attributes.js";
-import {
-  currentStore,
-  type SessionState,
-  setStore,
-  storeFor,
-} from "./store.js";
+import { currentStore, type SessionState, setStore, storeFor } from "./store.js";
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -38,8 +33,7 @@ const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
  * different from the other ids. Also, it does not need a secure context, but
  * crypto.randomUUID does.
  */
-export const uniqueId = () =>
-  `${Date.now()}-${Math.floor(Math.random() * (9e12 - 1)) + 1e12}`;
+export const uniqueId = () => `${Date.now()}-${Math.floor(Math.random() * (9e12 - 1)) + 1e12}`;
 
 /** Hexadecimal data from the CSPRNG. The network and the tracer use it to
  * make the trace ids and the span ids. */

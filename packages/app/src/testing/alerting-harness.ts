@@ -1,15 +1,11 @@
 import "./alerting-context";
 import type { MigrationConfig } from "drizzle-orm/migrator";
-import { afterAll, afterEach, beforeAll, beforeEach, inject, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, inject, vi } from "vite-plus/test";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "#app/data/alerting/delivery/defaults.ts";
 import { organization } from "#app/db/schema/index.ts";
 import { setTestDatabase } from "#app/server/alerting/testing/db-proxy.ts";
 import { TEST_ORG } from "#app/server/alerting/testing/fixtures.ts";
-import {
-  failedJobs,
-  pendingJobs,
-  runDueJobs,
-} from "#app/server/alerting/testing/job-driver.ts";
+import { failedJobs, pendingJobs, runDueJobs } from "#app/server/alerting/testing/job-driver.ts";
 import {
   createTestDatabase,
   type TestDatabase,
@@ -67,7 +63,7 @@ export async function createAlertingHarness(
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
+      const url = input instanceof Request ? input.url : input.toString();
       let body: unknown = init?.body;
       if (typeof init?.body === "string") {
         try {
@@ -77,8 +73,7 @@ export async function createAlertingHarness(
         }
       }
       calls.push({ url, body });
-      const response =
-        typeof responder === "function" ? responder(url) : responder;
+      const response = typeof responder === "function" ? responder(url) : responder;
       return new Response(response.body ?? "", { status: response.status });
     }),
   );
@@ -101,9 +96,7 @@ export async function createAlertingHarness(
     },
     async fireAndFlush() {
       await runDueJobs(database.db);
-      vi.setSystemTime(
-        new Date(Date.now() + ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000),
-      );
+      vi.setSystemTime(new Date(Date.now() + ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000));
       await runDueJobs(database.db);
     },
     async reset() {
@@ -137,7 +130,7 @@ const TEST_CLOCK_START = new Date("2026-01-01T00:00:00Z");
  * Keep the `vi.mock` calls in the test file. Vitest hoists them to the top of
  * the file that holds them, so a mock moved in here does not apply.
  */
-export function useAlertingHarness(
+export function registerAlertingHarness(
   additionalMigrations: MigrationConfig[] = inject("alertingMigrations") ?? [],
 ): () => AlertingHarness {
   let harness: AlertingHarness | undefined;

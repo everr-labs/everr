@@ -10,11 +10,7 @@ import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Bar, BarChart, ReferenceArea, XAxis } from "recharts";
 import type { RunHistogramBucket } from "../schemas";
-import {
-  RUN_CONCLUSION_META,
-  RUN_HISTOGRAM_KEYS,
-  type RunHistogramKey,
-} from "./run-conclusion-meta";
+import { RUN_CONCLUSION_META, RUN_HISTOGRAM_KEYS } from "./run-conclusion-meta";
 
 export interface RunsHistogramProps {
   buckets: RunHistogramBucket[];
@@ -40,21 +36,16 @@ function formatBucketLabel(bucket: RunHistogramBucket | undefined) {
   if (!bucket) return "";
   const start = new Date(bucket.timestamp);
   const end = new Date(bucket.endTimestamp);
-  const time = (date: Date) =>
-    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const time = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const day = start.toLocaleDateString([], { month: "short", day: "numeric" });
   return `${day} · ${time(start)} – ${time(end)}`;
 }
 
-type HistogramMouseEvent = {
-  activeTooltipIndex?: number | null;
-};
-
-function histogramEventIndex(
-  event: unknown,
-  data: RunHistogramBucket[],
-): number | null {
-  const index = (event as HistogramMouseEvent | undefined)?.activeTooltipIndex;
+function histogramEventIndex(event: unknown, data: RunHistogramBucket[]): number | null {
+  const index =
+    typeof event === "object" && event !== null && "activeTooltipIndex" in event
+      ? event.activeTooltipIndex
+      : undefined;
   if (typeof index !== "number" || index < 0 || index >= data.length) {
     return null;
   }
@@ -99,19 +90,11 @@ function RunsHistogramChart({
   const commitDrag = (event: unknown) => {
     const finalIndex = histogramEventIndex(event, data);
     const committedRange =
-      dragRange && finalIndex !== null
-        ? { ...dragRange, endIndex: finalIndex }
-        : dragRange;
+      dragRange && finalIndex !== null ? { ...dragRange, endIndex: finalIndex } : dragRange;
 
     if (committedRange) {
-      const startIndex = Math.min(
-        committedRange.startIndex,
-        committedRange.endIndex,
-      );
-      const endIndex = Math.max(
-        committedRange.startIndex,
-        committedRange.endIndex,
-      );
+      const startIndex = Math.min(committedRange.startIndex, committedRange.endIndex);
+      const endIndex = Math.max(committedRange.startIndex, committedRange.endIndex);
       onSelectRange({
         from: data[startIndex].timestamp,
         to: data[endIndex].endTimestamp,
@@ -154,20 +137,16 @@ function RunsHistogramChart({
           content={
             <ChartTooltipContent
               className="z-50 bg-popover text-popover-foreground"
-              labelFormatter={(_value, payload) =>
-                formatBucketLabel(payload?.[0]?.payload)
-              }
+              labelFormatter={(_value, payload) => formatBucketLabel(payload?.[0]?.payload)}
               formatter={(value, name) => (
                 <>
                   <div
                     className="size-2.5 shrink-0 rounded-[2px]"
                     style={{ backgroundColor: `var(--color-${name})` }}
                   />
-                  <span className="text-muted-foreground">
-                    {chartConfig[name as RunHistogramKey]?.label}
-                  </span>
+                  <span className="text-muted-foreground">{chartConfig[name]?.label}</span>
                   <span className="ml-auto font-mono font-medium tabular-nums">
-                    {(value as number).toLocaleString()}
+                    {typeof value === "number" ? value.toLocaleString() : String(value)}
                   </span>
                 </>
               )}
@@ -234,9 +213,7 @@ export function RunsHistogram({
           ) : buckets.some((bucket) => bucket.total > 0) ? (
             <RunsHistogramChart
               data={buckets}
-              onSelectRange={(range) =>
-                onRangeSelect(new Date(range.from), new Date(range.to))
-              }
+              onSelectRange={(range) => onRangeSelect(new Date(range.from), new Date(range.to))}
             />
           ) : (
             <div className="text-muted-foreground flex h-[104px] items-center justify-center rounded-md border border-dashed text-sm">

@@ -5,10 +5,7 @@ interface VerificationEmailProps {
   url: string;
 }
 
-export default function VerificationEmail({
-  assetBaseUrl,
-  url,
-}: VerificationEmailProps) {
+export default function VerificationEmail({ assetBaseUrl, url }: VerificationEmailProps) {
   return (
     <EmailLayout
       assetBaseUrl={assetBaseUrl}

@@ -7,15 +7,13 @@ export function assembleBuiltinCatalog<T extends BuiltinManifestEntry>(
 ): T[] {
   const byId = new Map<string, T>();
   for (const dashboard of dashboards) {
-    if (byId.has(dashboard.id))
-      throw new Error(`Duplicate built-in dashboard: ${dashboard.id}`);
+    if (byId.has(dashboard.id)) throw new Error(`Duplicate built-in dashboard: ${dashboard.id}`);
     byId.set(dashboard.id, dashboard);
   }
 
   const seen = new Set<string>();
   const ordered = manifest.map(({ id, name }) => {
-    if (seen.has(id))
-      throw new Error(`Duplicate built-in manifest entry: ${id}`);
+    if (seen.has(id)) throw new Error(`Duplicate built-in manifest entry: ${id}`);
     seen.add(id);
     const dashboard = byId.get(id);
     if (!dashboard) throw new Error(`Missing built-in dashboard: ${id}`);
@@ -25,8 +23,6 @@ export function assembleBuiltinCatalog<T extends BuiltinManifestEntry>(
     return dashboard;
   });
   if (byId.size)
-    throw new Error(
-      `Built-in dashboards missing from manifest: ${[...byId.keys()].join(", ")}`,
-    );
+    throw new Error(`Built-in dashboards missing from manifest: ${[...byId.keys()].join(", ")}`);
   return ordered;
 }

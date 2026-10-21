@@ -33,10 +33,7 @@ export interface TreemapModel {
  * multi-query results. Ungrouped single-query tiles cycle the palette per
  * tile so neighbors stay distinguishable.
  */
-export function buildTreemapTiles(
-  frames: QueryResultRow[][],
-  spec: TreemapSpec,
-): TreemapModel {
+export function buildTreemapTiles(frames: QueryResultRow[][], spec: TreemapSpec): TreemapModel {
   interface Acc {
     name: string;
     group: string | undefined;
@@ -75,7 +72,7 @@ export function buildTreemapTiles(
     }
   });
 
-  const fallback = SERIES_COLORS[0] as string;
+  const fallback = SERIES_COLORS[0] ?? OTHER_COLOR;
   let tiles = [...acc.values()]
     .sort((a, b) => b.value - a.value)
     .map((t, i) => {
@@ -97,9 +94,7 @@ export function buildTreemapTiles(
       value: tail.reduce((sum, t) => sum + t.value, 0),
       color: OTHER_COLOR,
     };
-    tiles = [...tiles.slice(0, spec.maxTiles - 1), other].sort(
-      (a, b) => b.value - a.value,
-    );
+    tiles = [...tiles.slice(0, spec.maxTiles - 1), other].sort((a, b) => b.value - a.value);
   }
 
   return { tiles, groups, dropped };

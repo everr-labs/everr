@@ -19,18 +19,10 @@ function sendInBackground(
   if (!delivery) return;
   void render(email)
     .then((html) => delivery.send({ ...params, html }))
-    .catch((error) =>
-      serverLogger.error("mailer.send.failed", exceptionAttributes(error)),
-    );
+    .catch((error) => serverLogger.error("mailer.send.failed", exceptionAttributes(error)));
 }
 
-export function sendVerificationEmail({
-  to,
-  url,
-}: {
-  to: string;
-  url: string;
-}): void {
+export function sendVerificationEmail({ to, url }: { to: string; url: string }): void {
   sendInBackground(
     {
       to,
@@ -41,13 +33,7 @@ export function sendVerificationEmail({
   );
 }
 
-export function sendPasswordResetEmail({
-  to,
-  url,
-}: {
-  to: string;
-  url: string;
-}): void {
+export function sendPasswordResetEmail({ to, url }: { to: string; url: string }): void {
   sendInBackground(
     {
       to,

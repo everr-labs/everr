@@ -58,9 +58,7 @@ function TriageRow({
           </span>
         )}
         {partialSilence && (
-          <StatusChip status="silenced">
-            silenced · {alert.silence?.expiresIn} left
-          </StatusChip>
+          <StatusChip status="silenced">silenced · {alert.silence?.expiresIn} left</StatusChip>
         )}
         {/* Delivery is the answer to "has anyone been told?", which is the
             second thing a responder asks after "what is on fire?". */}
@@ -72,8 +70,7 @@ function TriageRow({
                 silenced · {alert.silence.expiresIn} left
                 {/* Nothing held yet is the common case right after silencing;
                     printing "0 held" makes the reader stop and parse a zero. */}
-                {alert.silence.suppressed > 0 &&
-                  ` · ${alert.silence.suppressed} held`}
+                {alert.silence.suppressed > 0 && ` · ${alert.silence.suppressed} held`}
               </span>
             </>
           ) : (
@@ -86,23 +83,15 @@ function TriageRow({
       </div>
 
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-xs text-muted-foreground">
-          {alert.measured}
-        </span>
+        <span className="truncate text-xs text-muted-foreground">{alert.measured}</span>
         <div className="flex items-baseline gap-1.5">
-          <span className="font-mono text-base tabular-nums">
-            {alert.value}
-          </span>
-          <span className="font-mono text-xs text-muted-foreground">
-            {alert.condition}
-          </span>
+          <span className="font-mono text-base tabular-nums">{alert.value}</span>
+          <span className="font-mono text-xs text-muted-foreground">{alert.condition}</span>
         </div>
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-xs text-muted-foreground">
-          {SINCE_LABEL[alert.status]}
-        </span>
+        <span className="text-xs text-muted-foreground">{SINCE_LABEL[alert.status]}</span>
         <div className="flex items-baseline gap-1.5">
           <span className="font-mono text-sm tabular-nums">{alert.since}</span>
           {alert.pending && (
@@ -128,8 +117,7 @@ function TriageRow({
         />
       </div>
 
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: stops the row click when using the silence controls */}
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: stops the row click when using the silence controls */}
+      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- stops the row click when using the silence controls */}
       <div
         onClick={(e) => e.stopPropagation()}
         className="flex justify-start @[44rem]/list:justify-end"

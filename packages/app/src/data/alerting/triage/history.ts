@@ -114,9 +114,7 @@ export function loadPriorStates(
       GROUP BY slug, instance_fingerprint`,
     {
       types: ALERTING_EVENT_TYPES,
-      floor: new Date(
-        window.fromDate.getTime() - PRIOR_STATE_LOOKBACK_MS,
-      ).toISOString(),
+      floor: new Date(window.fromDate.getTime() - PRIOR_STATE_LOOKBACK_MS).toISOString(),
       from: window.fromISO,
     },
   );
@@ -149,9 +147,7 @@ export function loadRecentTimeline(
     {
       slug: opts.path,
       types: TIMELINE_EVENT_TYPES,
-      since: new Date(
-        opts.windowTo.getTime() - TIMELINE_LOOKBACK_MS,
-      ).toISOString(),
+      since: new Date(opts.windowTo.getTime() - TIMELINE_LOOKBACK_MS).toISOString(),
       to: opts.windowTo.toISOString(),
     },
   );
@@ -247,9 +243,7 @@ export async function loadSilenceImpact(
   if (silences.length === 0) return new Map();
   // Bounded at the oldest silence's start: no hold can predate the window
   // that caused it, and the bound is what prunes partitions.
-  const from = new Date(
-    Math.min(...silences.map((s) => s.startsAt.getTime())),
-  ).toISOString();
+  const from = new Date(Math.min(...silences.map((s) => s.startsAt.getTime()))).toISOString();
   const rows = await query<{
     // Not `silence_id`: an expression aliased to the column it reads shadows
     // that column in the WHERE clause. Here the shadow is silent rather than
@@ -272,12 +266,7 @@ export async function loadSilenceImpact(
       LIMIT 200`,
     { ids: silences.map((s) => s.id), from },
   );
-  return new Map(
-    rows.map((r) => [
-      r.sid,
-      { held: Number(r.held), dropped: Number(r.dropped) },
-    ]),
-  );
+  return new Map(rows.map((r) => [r.sid, { held: Number(r.held), dropped: Number(r.dropped) }]));
 }
 
 /**

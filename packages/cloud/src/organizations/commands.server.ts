@@ -4,14 +4,8 @@ import { auth } from "@everr/app/identity/server";
 import { eq } from "drizzle-orm";
 import type { z } from "zod";
 import { billing } from "../billing/server";
-import {
-  readOrgEntitlement,
-  userOwnsHobbyOrganization,
-} from "../billing-data.server";
-import {
-  type CreateOrganizationInputSchema,
-  generateOrgSlug,
-} from "../common/organization-name";
+import { readOrgEntitlement, userOwnsHobbyOrganization } from "../billing-data.server";
+import { type CreateOrganizationInputSchema, generateOrgSlug } from "../common/organization-name";
 import { organizationBilling } from "../db/schema";
 import { lockOrganizationOwnership } from "../organization-lock.server";
 
@@ -47,8 +41,7 @@ export const organizationCommands = {
     actorId: string;
     input: z.infer<typeof CreateOrganizationInputSchema>;
   }) {
-    if (!input.plan)
-      throw new OrganizationCreationError("Choose a cloud plan.");
+    if (!input.plan) throw new OrganizationCreationError("Choose a cloud plan.");
     if (input.plan === "hobby") {
       return db.transaction(async (tx) => {
         await lockOrganizationOwnership(tx, actorId);
@@ -64,9 +57,7 @@ export const organizationCommands = {
           },
         });
         if (!organization) {
-          throw new OrganizationCreationError(
-            "The organization could not be created.",
-          );
+          throw new OrganizationCreationError("The organization could not be created.");
         }
 
         return {
@@ -89,26 +80,12 @@ export const organizationCommands = {
       );
     }
   },
-  async completeCheckout({
-    actorId,
-    checkoutId,
-  }: {
-    actorId: string;
-    checkoutId: string;
-  }) {
-    return billing.completeNewOrganizationCheckout(
-      checkoutId,
-      actorId,
-      (input) => auth.api.createOrganization(input),
+  async completeCheckout({ actorId, checkoutId }: { actorId: string; checkoutId: string }) {
+    return billing.completeNewOrganizationCheckout(checkoutId, actorId, (input) =>
+      auth.api.createOrganization(input),
     );
   },
-  async downgradeToHobby({
-    organizationId,
-    actorId,
-  }: {
-    organizationId: string;
-    actorId: string;
-  }) {
+  async downgradeToHobby({ organizationId, actorId }: { organizationId: string; actorId: string }) {
     // Billing rechecks the actor's current Owner membership under its organization lock.
     return billing.downgrade(organizationId, actorId, (revokeBillingAccess) =>
       db.transaction(async (tx) => {
@@ -118,17 +95,13 @@ export const organizationCommands = {
         // Billing holds the organization lock and has rechecked ownership.
         // Re-read suspension after both locks: a subscription may have
         // recovered since this request started.
-        if (
-          (await readOrgEntitlement(organizationId)).appState !== "suspended"
-        ) {
+        if ((await readOrgEntitlement(organizationId)).appState !== "suspended") {
           throw new HobbyDowngradeUnavailableError(
             "Only a suspended Pro organization can be downgraded.",
           );
         }
         if (await userOwnsHobbyOrganization(actorId, organizationId)) {
-          throw new HobbyDowngradeUnavailableError(
-            "You already own a Hobby organization.",
-          );
+          throw new HobbyDowngradeUnavailableError("You already own a Hobby organization.");
         }
 
         await revokeBillingAccess();

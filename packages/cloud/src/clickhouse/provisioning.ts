@@ -1,9 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { runSqlApiQuery } from "@everr/app/lib/clickhouse";
-import {
-  type AdminCommandOptions,
-  adminCommand,
-} from "@everr/app/lib/clickhouse-writer";
+import { type AdminCommandOptions, adminCommand } from "@everr/app/lib/clickhouse-writer";
 import { SQL_API_TABLES } from "@everr/app/lib/sql-api-tables";
 import { sqlApiOrgPassword, sqlApiOrgUserName } from "./credentials";
 

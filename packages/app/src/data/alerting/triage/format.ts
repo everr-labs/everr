@@ -74,10 +74,7 @@ export function formatClock(at: Date): string {
  * row spends the reader's attention on the absence of an event, and buries
  * the handful of rows where something was actually withheld.
  */
-export function silenceImpact(counts: {
-  held: number;
-  dropped: number;
-}): string | null {
+export function silenceImpact(counts: { held: number; dropped: number }): string | null {
   const parts: string[] = [];
   if (counts.held > 0) parts.push(`held ${counts.held}`);
   if (counts.dropped > 0) parts.push(`dropped ${counts.dropped}`);

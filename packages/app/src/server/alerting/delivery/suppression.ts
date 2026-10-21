@@ -1,20 +1,10 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { enqueueProcessAlertEvent } from "#app/data/alerting/delivery/tasks.ts";
-import {
-  eventSubject,
-  matchingSilence,
-} from "#app/data/alerting/silences/matching.ts";
-import {
-  loadActiveSilences,
-  type SilenceRow,
-} from "#app/data/alerting/silences/repository.ts";
+import { eventSubject, matchingSilence } from "#app/data/alerting/silences/matching.ts";
+import { loadActiveSilences, type SilenceRow } from "#app/data/alerting/silences/repository.ts";
 import { db } from "#app/db/client.ts";
 import { alertEvents, alertInstances } from "#app/db/schema/index.ts";
-import {
-  journalHoldRow,
-  journalTerminalRow,
-  recordAlertHistory,
-} from "../history/clickhouse";
+import { journalHoldRow, journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
 import { instanceKey } from "./grouping";
 
 export function matchSilence(
@@ -27,15 +17,8 @@ export function matchSilence(
 
 /** The silence covering this event right now, loading the org's own. Use
  *  `matchSilence` where a batch is being weighed, so the scan happens once. */
-export async function silenceForEvent(
-  event: typeof alertEvents.$inferSelect,
-  now: Date,
-) {
-  return matchSilence(
-    event,
-    await loadActiveSilences(event.organizationId, now),
-    now,
-  );
+export async function silenceForEvent(event: typeof alertEvents.$inferSelect, now: Date) {
+  return matchSilence(event, await loadActiveSilences(event.organizationId, now), now);
 }
 
 export async function eventStillFiring(event: typeof alertEvents.$inferSelect) {
@@ -68,10 +51,7 @@ export async function eventStillFiring(event: typeof alertEvents.$inferSelect) {
  */
 export async function loadFiringInstanceKeys(
   organizationId: string,
-  events: Pick<
-    typeof alertEvents.$inferSelect,
-    "sourceDefinitionId" | "instanceFingerprint"
-  >[],
+  events: Pick<typeof alertEvents.$inferSelect, "sourceDefinitionId" | "instanceFingerprint">[],
 ): Promise<Set<string>> {
   if (events.length === 0) return new Set();
   const rows = await db
@@ -107,8 +87,7 @@ export async function deferSuppressedEvent(
   silence: NonNullable<Awaited<ReturnType<typeof silenceForEvent>>>,
   now: Date,
 ) {
-  const shouldRetry =
-    event.eventType !== "instance_resolved" && (await eventStillFiring(event));
+  const shouldRetry = event.eventType !== "instance_resolved" && (await eventStillFiring(event));
   const claimed = await db.transaction(async (tx) => {
     const stamped = await tx
       .update(alertEvents)
@@ -152,16 +131,12 @@ export async function deferSuppressedEvent(
   // The id derives from the event and the silence, so both defer paths and
   // their retries converge on one row per hold.
   if (shouldRetry) {
-    await recordAlertHistory(
-      event.sourceDefinitionId,
-      [journalHoldRow(event, silence)],
-      { convergesOnRetry: true },
-    );
+    await recordAlertHistory(event.sourceDefinitionId, [journalHoldRow(event, silence)], {
+      convergesOnRetry: true,
+    });
     return;
   }
-  await recordAlertHistory(
-    event.sourceDefinitionId,
-    [journalTerminalRow(event, { silence })],
-    { convergesOnRetry: true },
-  );
+  await recordAlertHistory(event.sourceDefinitionId, [journalTerminalRow(event, { silence })], {
+    convergesOnRetry: true,
+  });
 }

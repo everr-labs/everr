@@ -3,9 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { OrganizationProvisioning } from "../../../../components/organization-provisioning";
 
-export const Route = createFileRoute(
-  "/_welcome/_signedIn/_organization/organization-pending",
-)({
+export const Route = createFileRoute("/_welcome/_signedIn/_organization/organization-pending")({
   validateSearch: z.object({ returnTo: returnToSchema.default("/") }),
   head: () => ({ meta: [{ title: "Everr - Organization setup" }] }),
   component: OrganizationPending,

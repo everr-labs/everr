@@ -5,13 +5,5 @@
 // entry supplies `capture`. Thus in this entry the type gives an argument that
 // no caller can send.
 export { captureError, configure, setLogger } from "./capture.js";
-export {
-  ErrorsInstrumentation,
-  type ErrorsInstrumentationConfig,
-} from "./instrumentation.js";
-export type {
-  ClientOptions,
-  ErrorEvent,
-  ErrorSeverity,
-  Mechanism,
-} from "./types.js";
+export { ErrorsInstrumentation, type ErrorsInstrumentationConfig } from "./instrumentation.js";
+export type { ClientOptions, ErrorEvent, ErrorSeverity, Mechanism } from "./types.js";

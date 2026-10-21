@@ -1,7 +1,4 @@
-import {
-  productRouteFiles,
-  sharedRouteModules,
-} from "@everr/app/testing/routes";
+import { productRouteFiles, sharedRouteModules } from "@everr/app/testing/routes";
 import {
   createFileRoute,
   createMemoryHistory,
@@ -10,7 +7,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
 const billing = vi.hoisted(() => ({
   getSuspendedOrgRecovery: vi.fn(),
@@ -44,13 +41,9 @@ for (const path of [
     (path) => new URL(path, import.meta.url).pathname,
   ),
 ]) {
-  if (path.endsWith("/_admin.tsx") || /\/billing_\.suspended\.tsx$/.test(path))
-    continue;
+  if (path.endsWith("/_admin.tsx") || path.endsWith("/billing_.suspended.tsx")) continue;
   vi.doMock(path, () => ({
-    Route:
-      path === sharedRouteModules.root
-        ? createRootRoute()
-        : createFileRoute()({}),
+    Route: path === sharedRouteModules.root ? createRootRoute() : createFileRoute()({}),
   }));
 }
 
@@ -72,68 +65,56 @@ async function visit(path: string) {
   return router;
 }
 
-test.each([
-  "owner",
-  "admin",
-  "member",
-])("a suspended %s can see recovery without entering the billing admin route", async (role) => {
-  organizationAdmin.ensure.mockRejectedValue(
-    new Error("The recovery page must not require billing admin access"),
-  );
-  billing.getSuspendedOrgRecovery.mockResolvedValue({
-    entitlement: { appState: "suspended" },
-    canManageBilling: role !== "member",
-    canDowngrade: role === "owner",
-    ownsAnotherHobby: false,
-  });
+test.each(["owner", "admin", "member"])(
+  "a suspended %s can see recovery without entering the billing admin route",
+  async (role) => {
+    organizationAdmin.ensure.mockRejectedValue(
+      new Error("The recovery page must not require billing admin access"),
+    );
+    billing.getSuspendedOrgRecovery.mockResolvedValue({
+      entitlement: { appState: "suspended" },
+      canManageBilling: role !== "member",
+      canDowngrade: role === "owner",
+      ownsAnotherHobby: false,
+    });
 
-  await visit("/billing/suspended");
+    await visit("/billing/suspended");
 
-  expect(await screen.findByText("Pro subscription suspended")).toBeVisible();
-  expect(organizationAdmin.ensure).not.toHaveBeenCalled();
-  expect(
-    screen.queryByRole("button", { name: "Manage billing" }) !== null,
-  ).toBe(role !== "member");
-  expect(
-    screen.queryByRole("button", { name: "Downgrade to Hobby" }) !== null,
-  ).toBe(role === "owner");
-  if (role === "member") {
-    expect(
-      screen.getByText(
-        "Contact an organization Owner or Admin to restore billing.",
-      ),
-    ).toBeVisible();
-  }
-});
+    expect(await screen.findByText("Pro subscription suspended")).toBeVisible();
+    expect(organizationAdmin.ensure).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Manage billing" }) !== null).toBe(
+      role !== "member",
+    );
+    expect(screen.queryByRole("button", { name: "Downgrade to Hobby" }) !== null).toBe(
+      role === "owner",
+    );
+    if (role === "member") {
+      expect(
+        screen.getByText("Contact an organization Owner or Admin to restore billing."),
+      ).toBeVisible();
+    }
+  },
+);
 
-test.each([
-  "/billing",
-  "/api-keys",
-  "/github",
-  "/users-management",
-])("%s shows unauthorized without changing the URL", async (path) => {
-  organizationAdmin.ensure.mockRejectedValue(new Error("Not authorized"));
-  const router = await visit(path);
-  expect(
-    await screen.findByRole("heading", { name: "Not authorized" }),
-  ).toBeVisible();
-  expect(router.state.location.pathname).toBe(path);
-  expect(organizationAdmin.ensure).toHaveBeenCalledOnce();
-  expect(billing.getSuspendedOrgRecovery).not.toHaveBeenCalled();
-});
+test.each(["/billing", "/api-keys", "/github", "/users-management"])(
+  "%s shows unauthorized without changing the URL",
+  async (path) => {
+    organizationAdmin.ensure.mockRejectedValue(new Error("Not authorized"));
+    const router = await visit(path);
+    expect(await screen.findByRole("heading", { name: "Not authorized" })).toBeVisible();
+    expect(router.state.location.pathname).toBe(path);
+    expect(organizationAdmin.ensure).toHaveBeenCalledOnce();
+    expect(billing.getSuspendedOrgRecovery).not.toHaveBeenCalled();
+  },
+);
 
-test.each([
-  "hobby",
-  "pro",
-])("%s organizations leave recovery", async (appState) => {
+test.each(["hobby", "pro"])("%s organizations leave recovery", async (appState) => {
   billing.getSuspendedOrgRecovery.mockResolvedValue({
     entitlement: { appState },
   });
   const router = await visit("/billing/suspended");
   expect(router.state.location.pathname).toBe("/");
-  expect(
-    screen.queryByText("Pro subscription suspended"),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByText("Pro subscription suspended")).not.toBeInTheDocument();
 });
 
 import { QueryClient } from "@tanstack/react-query";

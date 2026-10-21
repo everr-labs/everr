@@ -4,7 +4,7 @@ import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import { currentTraceLink } from "#app/data/alerting/trace-link.ts";
 import { setAlertSpanAttributes, withAlertJobSpan } from "./telemetry";
 
@@ -68,11 +68,7 @@ describe("an alerting job's span", () => {
     ["null", null],
     ["malformed", "not-a-traceparent"],
   ])("runs with no link when the traceparent is %s", async (_label, value) => {
-    await withAlertJobSpan(
-      "alerts.jobs.process_event",
-      { traceparent: value },
-      async () => {},
-    );
+    await withAlertJobSpan("alerts.jobs.process_event", { traceparent: value }, async () => {});
 
     expect(finished()[0].links).toEqual([]);
   });

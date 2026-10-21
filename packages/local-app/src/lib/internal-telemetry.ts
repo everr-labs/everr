@@ -1,10 +1,4 @@
-import {
-  captureError,
-  errors,
-  interactions,
-  performance,
-  WebSDK,
-} from "@everr/otel-web";
+import { captureError, errors, interactions, performance, WebSDK } from "@everr/otel-web";
 
 export type TelemetryContext = {
   serviceVersion: string;
@@ -32,12 +26,9 @@ export function initializeTelemetry(context: TelemetryContext) {
           "X-Everr-Local": "1",
         },
         body:
-          context.deploymentEnvironment === "production"
-            ? sanitizeReleaseTelemetry(body)
-            : body,
+          context.deploymentEnvironment === "production" ? sanitizeReleaseTelemetry(body) : body,
       });
-      if (!response.ok)
-        throw new Error("Failed to export internal UI telemetry");
+      if (!response.ok) throw new Error("Failed to export internal UI telemetry");
     },
     instrumentations: [errors(), interactions(), performance()],
   });
@@ -53,10 +44,7 @@ function sanitizeReleaseTelemetry(body: string): string {
     if (Array.isArray(value)) {
       return value.filter(
         (attribute) =>
-          !(
-            typeof attribute?.key === "string" &&
-            attribute.key.startsWith("everr.utm.")
-          ) &&
+          !(typeof attribute?.key === "string" && attribute.key.startsWith("everr.utm.")) &&
           ![
             "everr.element.selector",
             "everr.browser.web_vital.lcp.target",
@@ -67,12 +55,9 @@ function sanitizeReleaseTelemetry(body: string): string {
     if (
       value &&
       typeof value === "object" &&
-      [
-        "url.full",
-        "everr.landing.url",
-        "everr.referrer.url",
-        "everr.element.href",
-      ].includes(value.key) &&
+      ["url.full", "everr.landing.url", "everr.referrer.url", "everr.element.href"].includes(
+        value.key,
+      ) &&
       typeof value.value?.stringValue === "string"
     ) {
       const url = value.value.stringValue;
@@ -86,8 +71,7 @@ function sanitizeReleaseTelemetry(body: string): string {
 }
 
 export function captureLocalSqlError(error: unknown) {
-  captureError(
-    developmentTelemetry ? error : new Error("Local telemetry query failed"),
-    { "everr.error.source": "local-ui.local_sql" },
-  );
+  captureError(developmentTelemetry ? error : new Error("Local telemetry query failed"), {
+    "everr.error.source": "local-ui.local_sql",
+  });
 }

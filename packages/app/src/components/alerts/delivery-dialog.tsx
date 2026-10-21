@@ -32,9 +32,10 @@ function tiersFromDraft(
 ): AlertingDefaultDestination["tiers"] {
   if (split)
     return Object.fromEntries(
-      ALERTING_SEVERITY_TIERS.filter((tier) => draft[tier].length > 0).map(
-        (tier) => [tier, draft[tier]],
-      ),
+      ALERTING_SEVERITY_TIERS.filter((tier) => draft[tier].length > 0).map((tier) => [
+        tier,
+        draft[tier],
+      ]),
     );
   return draft.all.length > 0 ? { all: draft.all } : {};
 }
@@ -67,9 +68,7 @@ function ChannelChecklist({
                 onChange={() => onToggle(channel.name)}
               />
               <ChannelMark type={channel.config.type} size="sm" />
-              <span className="min-w-0 flex-1 truncate font-mono text-xs">
-                {channel.name}
-              </span>
+              <span className="min-w-0 flex-1 truncate font-mono text-xs">{channel.name}</span>
               <span className="shrink-0 text-xs text-muted-foreground">
                 {CHANNEL_LABEL[channel.config.type]}
               </span>
@@ -97,9 +96,7 @@ function ChannelSeverityCard({
       <legend className="sr-only">{channel.name}</legend>
       <div className="flex items-center gap-2.5 px-4 py-3">
         <ChannelMark type={channel.config.type} size="sm" />
-        <span className="min-w-0 flex-1 truncate font-mono text-sm">
-          {channel.name}
-        </span>
+        <span className="min-w-0 flex-1 truncate font-mono text-sm">{channel.name}</span>
         <span className="shrink-0 text-xs text-muted-foreground">
           {CHANNEL_LABEL[channel.config.type]}
         </span>
@@ -111,9 +108,7 @@ function ChannelSeverityCard({
             key={tier}
             className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium hover:bg-muted/50 focus-within:bg-muted/50"
           >
-            <span
-              className={cn("size-2 shrink-0 rounded-full", SEVERITY_DOT[tier])}
-            />
+            <span className={cn("size-2 shrink-0 rounded-full", SEVERITY_DOT[tier])} />
             <span className="min-w-0 flex-1">{TIER_LABEL[tier]}</span>
             <input
               type="checkbox"
@@ -194,15 +189,11 @@ function DeliveryForm({
   const toggle = (tier: AlertingDefaultTier, name: string) =>
     setDraft((d) => ({
       ...d,
-      [tier]: d[tier].includes(name)
-        ? d[tier].filter((n) => n !== name)
-        : [...d[tier], name],
+      [tier]: d[tier].includes(name) ? d[tier].filter((n) => n !== name) : [...d[tier], name],
     }));
 
   const tiers = tiersFromDraft(split, draft);
-  const hadChannels = Object.values(destination.tiers).some(
-    (names) => names.length > 0,
-  );
+  const hadChannels = Object.values(destination.tiers).some((names) => names.length > 0);
   const clearsDelivery = Object.keys(tiers).length === 0 && hadChannels;
   const save = () => onConfirm({ tiers });
 
@@ -222,25 +213,15 @@ function DeliveryForm({
         <DialogHeader>
           <DialogTitle>Stop delivering to every channel?</DialogTitle>
           <DialogDescription>
-            The default destination keeps no channels. Alerts still fire and
-            still reach the history, but nobody is notified unless the rule
-            names its own channels.
+            The default destination keeps no channels. Alerts still fire and still reach the
+            history, but nobody is notified unless the rule names its own channels.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={pending}
-            onClick={() => setConfirmingClear(false)}
-          >
+          <Button variant="outline" disabled={pending} onClick={() => setConfirmingClear(false)}>
             Back
           </Button>
-          <Button
-            variant="destructive"
-            disabled={pending}
-            aria-busy={pending}
-            onClick={save}
-          >
+          <Button variant="destructive" disabled={pending} aria-busy={pending} onClick={save}>
             Save with no channels
           </Button>
         </DialogFooter>
@@ -250,10 +231,7 @@ function DeliveryForm({
 
   return (
     <DialogContent
-      className={cn(
-        "flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-md",
-        split && "sm:max-w-2xl",
-      )}
+      className={cn("flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-md", split && "sm:max-w-2xl")}
     >
       <ScrollArea
         className="min-h-0 flex-1"
@@ -262,19 +240,14 @@ function DeliveryForm({
         <DialogHeader>
           <DialogTitle>Edit delivery</DialogTitle>
           <DialogDescription>
-            Every alert delivers here unless its rule names channels of its own.
-            Split by severity to send critical alerts one place and the rest
-            another.
+            Every alert delivers here unless its rule names channels of its own. Split by severity
+            to send critical alerts one place and the rest another.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <Label className="flex w-fit cursor-pointer items-center gap-2">
-            <Switch
-              checked={split}
-              disabled={pending}
-              onCheckedChange={setSplit}
-            />
+            <Switch checked={split} disabled={pending} onCheckedChange={setSplit} />
             Split by severity
           </Label>
           {split ? (

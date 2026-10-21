@@ -18,8 +18,5 @@
       "@composition/deployment": ["./src/app/composition/deployment.ts"]
     }
   },
-  "exclude": [
-    "node_modules/@everr/app/src/app",
-    "node_modules/@everr/app/src/routeTree.gen.ts"
-  ]
+  "exclude": ["node_modules/@everr/app/src/app", "node_modules/@everr/app/src/routeTree.gen.ts"]
 }

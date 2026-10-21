@@ -4,14 +4,14 @@ A bar chart over time **or** over categories. It infers its structure from the c
 
 ## Options (`plugin.spec`)
 
-| Option | Type | Default | Values | Effect |
-| --- | --- | --- | --- | --- |
-| `valueFormat` | object | none | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels. |
-| `showLegend` | boolean | `false` | `true` | Show the series legend. Only the literal `true` enables it. |
-| `stacking` | string | `none` | `none`, `stacked`, `percent` | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% — the value axis becomes percentages while tooltips keep raw values. |
-| `orientation` | string | `vertical` | `vertical`, `horizontal` | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis — prefer it for categorical data with long labels. |
-| `showValues` | boolean | `false` | `true` | Draw each bar's value: on top (vertical) / to the right (horizontal) of grouped bars, centered inside stacked segments. |
-| `colors` | map | `{}` | series name to CSS color | Pin a series to a fixed color. Use it when the series name carries a meaning a rotating palette would lose (`good` / `poor`, `pass` / `fail`). Unlisted series keep their palette color. |
+| Option        | Type    | Default    | Values                       | Effect                                                                                                                                                                                                     |
+| ------------- | ------- | ---------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `valueFormat` | object  | none       | see shared rule              | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels.                                                                                                        |
+| `showLegend`  | boolean | `false`    | `true`                       | Show the series legend. Only the literal `true` enables it.                                                                                                                                                |
+| `stacking`    | string  | `none`     | `none`, `stacked`, `percent` | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% — the value axis becomes percentages while tooltips keep raw values. |
+| `orientation` | string  | `vertical` | `vertical`, `horizontal`     | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis — prefer it for categorical data with long labels.                                                    |
+| `showValues`  | boolean | `false`    | `true`                       | Draw each bar's value: on top (vertical) / to the right (horizontal) of grouped bars, centered inside stacked segments.                                                                                    |
+| `colors`      | map     | `{}`       | series name to CSS color     | Pin a series to a fixed color. Use it when the series name carries a meaning a rotating palette would lose (`good` / `poor`, `pass` / `fail`). Unlisted series keep their palette color.                   |
 
 ```yaml
 plugin:
@@ -23,7 +23,7 @@ plugin:
     showValues: false
     colors: { good: "#0cce6b", poor: "#ff4e42" } # optional
     valueFormat:
-      unit: '{request}'
+      unit: "{request}"
 ```
 
 The table lists the supported top-level options. There is **no** `yAxis` / `min` / `max`, `barWidth`, `legend` object, `thresholds`, or top-level `decimals`. Set precision with `valueFormat.decimals`. A series that `colors` does not name takes its color from a fixed 6-color palette assigned by order (wrapping after 6).

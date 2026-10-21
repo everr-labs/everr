@@ -13,11 +13,7 @@ import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
 import { setAlertSpanAttributes } from "../telemetry";
 import { nextGroupFlushAt } from "./grouping";
 import { claimDeliverableEvent } from "./journal-reader";
-import {
-  deferSuppressedEvent,
-  eventStillFiring,
-  silenceForEvent,
-} from "./suppression";
+import { deferSuppressedEvent, eventStillFiring, silenceForEvent } from "./suppression";
 import { dispatchTargetForEvent } from "./targeting";
 
 export async function processAlertEvent(rawPayload: unknown): Promise<void> {
@@ -39,17 +35,11 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     // cancel may have already claimed this event and projected its own
     // terminal. Muted chains carry no terminal of their own either way, so a
     // lost claim needs nothing further here.
-    await db
-      .update(alertEvents)
-      .set({ processedAt: now })
-      .where(processedStampGuard(event.id));
+    await db.update(alertEvents).set({ processedAt: now }).where(processedStampGuard(event.id));
     setAlertSpanAttributes({ outcome: "muted" });
     return;
   }
-  if (
-    event.eventType !== "instance_resolved" &&
-    !(await eventStillFiring(event))
-  ) {
+  if (event.eventType !== "instance_resolved" && !(await eventStillFiring(event))) {
     // A fire reached here after its instance had already stopped firing (a
     // worker outage and recovery, most often). Nobody was ever told it
     // fired, so notifying a resolve later would announce an alert that was
@@ -65,10 +55,7 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     return;
   }
   if (event.silenceId) {
-    await db
-      .update(alertEvents)
-      .set({ silenceId: null })
-      .where(eq(alertEvents.id, event.id));
+    await db.update(alertEvents).set({ silenceId: null }).where(eq(alertEvents.id, event.id));
   }
 
   const target = await dispatchTargetForEvent(event);
@@ -137,11 +124,9 @@ async function endChainWithTerminal(
     setAlertSpanAttributes({ outcome: "lost_claim" });
     return;
   }
-  await recordAlertHistory(
-    event.sourceDefinitionId,
-    [journalTerminalRow(event, { reason })],
-    { convergesOnRetry: true },
-  );
+  await recordAlertHistory(event.sourceDefinitionId, [journalTerminalRow(event, { reason })], {
+    convergesOnRetry: true,
+  });
   setAlertSpanAttributes({ outcome: reason });
 }
 
@@ -208,10 +193,7 @@ export async function claimNotificationGroup(
         nextFlushAt: nextGroupFlushAt(null, now),
       })
       .onConflictDoNothing({
-        target: [
-          alertNotificationGroups.organizationId,
-          alertNotificationGroups.groupKey,
-        ],
+        target: [alertNotificationGroups.organizationId, alertNotificationGroups.groupKey],
       })
       .returning();
     return created;

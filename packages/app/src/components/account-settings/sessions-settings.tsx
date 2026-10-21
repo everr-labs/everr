@@ -50,33 +50,25 @@ export function SessionsSettings({
         token === null
           ? await authClient.revokeOtherSessions()
           : await authClient.revokeSession({ token });
-      if (result.error)
-        throw new Error(
-          result.error.message ?? "Could not sign out the session.",
-        );
+      if (result.error) throw new Error(result.error.message ?? "Could not sign out the session.");
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: options.queryKey });
     },
   });
-  const hasOtherSessions = sessions.data?.some(
-    (session) => session.id !== currentSessionId,
-  );
+  const hasOtherSessions = sessions.data?.some((session) => session.id !== currentSessionId);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Active sessions</CardTitle>
         <CardDescription>
-          Manage your browser and CLI sessions. Your current session stays
-          signed in.
+          Manage your browser and CLI sessions. Your current session stays signed in.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {sessions.isPending && (
-          <p role="status" className="text-sm text-muted-foreground">
-            Loading sessions...
-          </p>
+          <output className="block text-sm text-muted-foreground">Loading sessions...</output>
         )}
         {sessions.isError && (
           <RetryError
@@ -95,18 +87,13 @@ export function SessionsSettings({
                   className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0 space-y-1">
-                    <p
-                      className="break-all text-sm"
-                      title={session.userAgent ?? undefined}
-                    >
+                    <p className="break-all text-sm" title={session.userAgent ?? undefined}>
                       {deviceName(session.userAgent)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {session.ipAddress || "Unknown IP address"}
                       {" · Signed in "}
-                      <time
-                        dateTime={new Date(session.createdAt).toISOString()}
-                      >
+                      <time dateTime={new Date(session.createdAt).toISOString()}>
                         {new Date(session.createdAt).toLocaleString()}
                       </time>
                     </p>
@@ -133,9 +120,7 @@ export function SessionsSettings({
             <Button
               type="button"
               variant="outline"
-              disabled={
-                !hasOtherSessions || revoke.isPending || sessions.isFetching
-              }
+              disabled={!hasOtherSessions || revoke.isPending || sessions.isFetching}
               onClick={() => revoke.mutate(null)}
             >
               Sign out other sessions
@@ -148,9 +133,9 @@ export function SessionsSettings({
           </p>
         )}
         {revoke.isSuccess && (
-          <p role="status" className="text-sm text-muted-foreground">
+          <output className="block text-sm text-muted-foreground">
             Session sign-out completed.
-          </p>
+          </output>
         )}
       </CardContent>
     </Card>

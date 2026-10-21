@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -18,9 +18,7 @@ it("validates production configuration and registers no integration jobs with op
   vi.stubEnv("EMAIL_FROM", undefined);
 
   const { env } = await import("#app/env/index.ts");
-  const { githubTasks } = await import(
-    "#app/integrations/github/registration.ts"
-  );
+  const { githubTasks } = await import("#app/integrations/github/registration.ts");
   const { mailer } = await import("#app/lib/mailer.server.ts");
   expect(mailer).toBeNull();
   expect(env.NODE_ENV).toBe("production");

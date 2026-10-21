@@ -18,7 +18,5 @@ export interface HomeStatus {
 type HomeView = "onboarding" | "dashboard";
 
 export function homeView(status: HomeStatus, setupRequested = false): HomeView {
-  return setupRequested || !status.onboardingCompleted
-    ? "onboarding"
-    : "dashboard";
+  return setupRequested || !status.onboardingCompleted ? "onboarding" : "dashboard";
 }

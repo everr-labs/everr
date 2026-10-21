@@ -60,9 +60,7 @@ export const WithFooter: Story = {
         <CardDescription>Promoted 12 minutes ago</CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground">
-          All checks passed on the release pipeline.
-        </p>
+        <p className="text-muted-foreground">All checks passed on the release pipeline.</p>
       </CardContent>
       <Separator />
       <CardFooter className="justify-end gap-2 pt-3">

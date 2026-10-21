@@ -39,9 +39,8 @@ export function Hero() {
           className="mt-8 flex flex-col items-start gap-6 border-t border-border py-6 min-[701px]:flex-row min-[701px]:items-center min-[701px]:justify-between min-[701px]:gap-8"
         >
           <p className="max-w-[65ch] flex-1 text-[17px] leading-[1.6] text-muted-foreground">
-            Everr turns established observability practices into guided
-            workflows, from AI-assisted setup to everyday monitoring and
-            investigation.
+            Everr turns established observability practices into guided workflows, from AI-assisted
+            setup to everyday monitoring and investigation.
             <br />
             Focus shipping features, not hunting down issues.
           </p>
@@ -49,7 +48,7 @@ export function Hero() {
             <Button
               variant="default"
               nativeButton={false}
-              // biome-ignore lint/a11y/useAnchorContent: content is injected by Button
+              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- content is injected by Button
               render={<a href="https://app.everr.dev/auth/sign-up" />}
             >
               Get started

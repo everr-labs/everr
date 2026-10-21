@@ -1,7 +1,4 @@
-import {
-  RESOURCE_KINDS,
-  ReservedProjectError,
-} from "#app/data/as-code/resource-admin.server.ts";
+import { RESOURCE_KINDS, ReservedProjectError } from "#app/data/as-code/resource-admin.server.ts";
 
 /** 400 response for a `kind` path/query segment that is not a ResourceKind. */
 export function unknownKindResponse(kind: string): Response {
@@ -23,11 +20,7 @@ export function reservedProjectResponse(error: unknown): Response | null {
 }
 
 /** 404 response for a resource that does not exist. */
-export function notFoundResponse(
-  kind: string,
-  project: string,
-  slug: string,
-): Response {
+export function notFoundResponse(kind: string, project: string, slug: string): Response {
   return Response.json(
     { error: `resource not found: ${kind}/${project}/${slug}` },
     { status: 404 },

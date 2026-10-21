@@ -5,9 +5,7 @@ const CLICKHOUSE_SETUP_MESSAGE =
 
 export const ORGANIZATION_SETUP_DELAY_NOTICE_MS = 30_000;
 
-export function parseOrganizationMetadata(
-  value: unknown,
-): Record<string, unknown> {
+export function parseOrganizationMetadata(value: unknown): Record<string, unknown> {
   if (typeof value === "string") {
     try {
       value = JSON.parse(value);
@@ -15,9 +13,7 @@ export function parseOrganizationMetadata(
       return {};
     }
   }
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+  return isRecord(value) ? value : {};
 }
 
 export function isOrganizationProvisioned(metadata: unknown): boolean {
@@ -28,4 +24,8 @@ export function isOrganizationProvisioned(metadata: unknown): boolean {
 export function assertOrganizationProvisioned(metadata: unknown): void {
   if (!isOrganizationProvisioned(metadata))
     throw new StorageNotReadyError(CLICKHOUSE_SETUP_MESSAGE);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

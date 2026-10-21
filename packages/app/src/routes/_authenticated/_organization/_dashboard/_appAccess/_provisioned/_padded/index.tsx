@@ -9,10 +9,7 @@ import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index
 import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
 
 const homeDashboard = getBuiltinDashboard(productClient.homeDashboardId);
-if (!homeDashboard)
-  throw new Error(
-    `Missing ${productClient.homeDashboardId} built-in dashboard`,
-  );
+if (!homeDashboard) throw new Error(`Missing ${productClient.homeDashboardId} built-in dashboard`);
 const homeDashboardDocument = homeDashboard.document;
 
 export const Route = createFileRoute(
@@ -20,15 +17,15 @@ export const Route = createFileRoute(
 )({
   staticData: { breadcrumb: "Home" },
   validateSearch: HomeSearchSchema,
+  loader: () => ({
+    timeDefaults: dashboardTimeDefaults(homeDashboardDocument.spec),
+  }),
   head: () => ({
     meta: [{ title: "Everr - Home" }],
     links: [
       { rel: "stylesheet", href: gridLayoutCSS },
       { rel: "stylesheet", href: gridLayoutOverridesCSS },
     ],
-  }),
-  loader: () => ({
-    timeDefaults: dashboardTimeDefaults(homeDashboardDocument.spec),
   }),
   component: HomePage,
 });

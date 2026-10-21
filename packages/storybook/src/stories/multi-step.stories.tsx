@@ -13,13 +13,7 @@ export default meta;
 type Story = StoryObj<typeof Example>;
 type Step = "install" | "agent" | "local" | "production";
 
-function Example({
-  narrow = false,
-  manual = false,
-}: {
-  narrow?: boolean;
-  manual?: boolean;
-}) {
+function Example({ narrow = false, manual = false }: { narrow?: boolean; manual?: boolean }) {
   const [currentStep, setCurrentStep] = useState<Step>("agent");
   const steps: MultiStepItem<Step>[] = [
     {
@@ -33,16 +27,11 @@ function Example({
       skipped: manual ? "Manual setup" : undefined,
       content: (
         <>
-          <p>
-            From your project directory, install the bundled skills for your
-            coding agent.
-          </p>
+          <p>From your project directory, install the bundled skills for your coding agent.</p>
           <pre className="whitespace-pre-wrap break-words rounded-md border p-4">
             everr skills install --all --project
           </pre>
-          <Button onClick={() => setCurrentStep("local")}>
-            Project skills installed
-          </Button>
+          <Button onClick={() => setCurrentStep("local")}>Project skills installed</Button>
         </>
       ),
     },
@@ -54,9 +43,7 @@ function Example({
           <pre className="whitespace-pre-wrap break-words rounded-md border p-4">
             /everr-setup-telemetry
           </pre>
-          <Button onClick={() => setCurrentStep("production")}>
-            I can see my local telemetry
-          </Button>
+          <Button onClick={() => setCurrentStep("production")}>I can see my local telemetry</Button>
         </>
       ),
     },
@@ -64,19 +51,12 @@ function Example({
       id: "production",
       title: "To production",
       content: (
-        <p>
-          Configure your production deployment using an ingestion key and the
-          Cloud endpoint.
-        </p>
+        <p>Configure your production deployment using an ingestion key and the Cloud endpoint.</p>
       ),
     },
   ];
   return (
-    <div
-      className={
-        narrow ? "mx-auto flex max-w-sm flex-col p-3" : "flex flex-col p-3"
-      }
-    >
+    <div className={narrow ? "mx-auto flex max-w-sm flex-col p-3" : "flex flex-col p-3"}>
       <MultiStep
         steps={steps}
         currentStep={currentStep}
@@ -86,9 +66,7 @@ function Example({
       >
         <div className="space-y-2 pt-4">
           <h1 className="text-3xl font-semibold">Set up your project</h1>
-          <p>
-            Each step uses the same width, heading, spacing, and navigation.
-          </p>
+          <p>Each step uses the same width, heading, spacing, and navigation.</p>
         </div>
       </MultiStep>
     </div>

@@ -11,16 +11,9 @@ export type { IdentityPolicy } from "./identity-policy";
 export type { ApplicationLayouts, WelcomeProps } from "./layouts";
 export type { ApplicationNavigation } from "./navigation";
 export type { SessionOnboardingHookFactory } from "./onboarding";
-export type {
-  ApplicationPages,
-  OrganizationPage,
-  OrganizationPageProps,
-} from "./pages";
+export type { ApplicationPages, OrganizationPage, OrganizationPageProps } from "./pages";
 export type { OrganizationPolicy, ProductPolicy } from "./policy";
 export type { TenantRetention } from "./retention";
 export type { ApplicationRuntime } from "./runtime";
 export type { ApplicationStorage } from "./storage";
-export type {
-  ProductUI,
-  SignInFooterProps,
-} from "./ui";
+export type { ProductUI, SignInFooterProps } from "./ui";

@@ -9,11 +9,7 @@ import {
   type AlertingDefaultTier,
   defaultTierFor,
 } from "#app/data/alerting/delivery/defaults.ts";
-import {
-  type AlertRuleRead,
-  rulePath,
-  ruleTitle,
-} from "#app/data/alerting/rules/read.ts";
+import { type AlertRuleRead, rulePath, ruleTitle } from "#app/data/alerting/rules/read.ts";
 import type { AlertingChannel, AlertingDefaultDestination } from "../types";
 import type { UndeliveredRecord } from "./record";
 import type {
@@ -33,9 +29,7 @@ import type {
 export function destinationView(
   destination: AlertingDefaultDestination,
 ): NotificationDestinationView {
-  const split = ALERTING_SEVERITY_TIERS.some(
-    (tier) => destination.tiers[tier] !== undefined,
-  );
+  const split = ALERTING_SEVERITY_TIERS.some((tier) => destination.tiers[tier] !== undefined);
   return {
     split,
     tiers: {
@@ -49,9 +43,7 @@ export function destinationView(
 
 /** The rules that name channels of their own, by the name the rest of the
  *  product calls them. Live rules only: a preview never notifies. */
-export function overrideViews(
-  rules: AlertRuleRead[],
-): NotificationOverrideView[] {
+export function overrideViews(rules: AlertRuleRead[]): NotificationOverrideView[] {
   return rules.flatMap((rule) => {
     const channels = rule.spec.notifications?.channels ?? [];
     if (channels.length === 0) return [];
@@ -73,11 +65,8 @@ function tiersReaching(
   destination: NotificationDestinationView,
   name: string,
 ): AlertingDefaultTier[] {
-  if (!destination.split)
-    return destination.tiers.all.includes(name) ? ["all"] : [];
-  return ALERTING_SEVERITY_TIERS.filter((tier) =>
-    destination.tiers[tier].includes(name),
-  );
+  if (!destination.split) return destination.tiers.all.includes(name) ? ["all"] : [];
+  return ALERTING_SEVERITY_TIERS.filter((tier) => destination.tiers[tier].includes(name));
 }
 
 export function channelViews(
@@ -134,9 +123,7 @@ export function deriveGaps(
 
   const gaps: NotificationGap[] = [];
   const openTiers: AlertingDefaultTier[] = destination.split
-    ? ALERTING_SEVERITY_TIERS.filter(
-        (tier) => destination.tiers[tier].length === 0,
-      )
+    ? ALERTING_SEVERITY_TIERS.filter((tier) => destination.tiers[tier].length === 0)
     : destination.tiers.all.length === 0
       ? ["all"]
       : [];

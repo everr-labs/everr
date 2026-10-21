@@ -224,13 +224,32 @@ service:
     # spoof their tenant.
     traces/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_traces, everr_usage]
+      processors:
+        [
+          attributes/strip_user_tenant,
+          resource/public_tenant,
+          resource/public_retention_traces,
+          everr_usage,
+        ]
       exporters: [clickhouse, everr_usage_connector]
     metrics/public:
       receivers: [otlp/public]
-      processors: [filter/reserved_everr, attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_metrics, everr_usage]
+      processors:
+        [
+          filter/reserved_everr,
+          attributes/strip_user_tenant,
+          resource/public_tenant,
+          resource/public_retention_metrics,
+          everr_usage,
+        ]
       exporters: [clickhouse, everr_usage_connector]
     logs/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/public_tenant, resource/public_retention_logs, everr_usage]
+      processors:
+        [
+          attributes/strip_user_tenant,
+          resource/public_tenant,
+          resource/public_retention_logs,
+          everr_usage,
+        ]
       exporters: [clickhouse, everr_usage_connector]

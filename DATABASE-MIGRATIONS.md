@@ -7,11 +7,11 @@ without applying the same schema changes twice.
 
 ## Histories
 
-| Location | Purpose | Tracking table |
-| --- | --- | --- |
-| `packages/app/drizzle` | Shared application tables | `drizzle.__drizzle_migrations` |
-| `packages/cloud/src/drizzle` | Billing, subscriptions, and checkout tables | `drizzle.__everr_cloud_migrations` |
-| `packages/cloud/src/drizzle-legacy` | Upgrade databases created before the split | Existing entries in `drizzle.__drizzle_migrations` |
+| Location                            | Purpose                                     | Tracking table                                     |
+| ----------------------------------- | ------------------------------------------- | -------------------------------------------------- |
+| `packages/app/drizzle`              | Shared application tables                   | `drizzle.__drizzle_migrations`                     |
+| `packages/cloud/src/drizzle`        | Billing, subscriptions, and checkout tables | `drizzle.__everr_cloud_migrations`                 |
+| `packages/cloud/src/drizzle-legacy` | Upgrade databases created before the split  | Existing entries in `drizzle.__drizzle_migrations` |
 
 Tracking tables record applied migrations. They do not isolate SQL objects or
 prevent conflicting migrations. Each table definition must have a single owner.

@@ -23,35 +23,16 @@ import type {
   LogsTotalsInput,
   LogsTotalsResult,
 } from "../schemas";
-import {
-  LOGS_ATTRIBUTE_SOURCES,
-  logsAttributeColumn,
-} from "../sql/attribute-columns";
-import {
-  buildDetailQuery,
-  type DetailRowRaw,
-  mapDetailRow,
-} from "../sql/detail";
-import {
-  buildExplorerQuery,
-  type ExplorerRowRaw,
-  mapExplorerRow,
-} from "../sql/explorer";
+import { LOGS_ATTRIBUTE_SOURCES, logsAttributeColumn } from "../sql/attribute-columns";
+import { buildDetailQuery, type DetailRowRaw, mapDetailRow } from "../sql/detail";
+import { buildExplorerQuery, type ExplorerRowRaw, mapExplorerRow } from "../sql/explorer";
 import {
   buildFilterOptionsQuery,
   decodeFilterOptionsRows,
   type FilterOptionsRowRaw,
 } from "../sql/filter-options";
-import {
-  buildHistogramQuery,
-  fillHistogramBuckets,
-  type HistogramRowRaw,
-} from "../sql/histogram";
-import {
-  buildTotalsQuery,
-  decodeTotalsRows,
-  type TotalsRowRaw,
-} from "../sql/totals";
+import { buildHistogramQuery, fillHistogramBuckets, type HistogramRowRaw } from "../sql/histogram";
+import { buildTotalsQuery, decodeTotalsRows, type TotalsRowRaw } from "../sql/totals";
 import type { SqlClient } from "./client";
 
 export interface LogsRepositoryOptions {
@@ -87,16 +68,8 @@ export class LogsRepository {
   // fallow-ignore-next-line unused-class-member
   async histogram(input: LogHistogramInput): Promise<LogHistogramBucket[]> {
     const built = buildHistogramQuery(input, { tableName: this.tableName });
-    const rows = await this.client.execute<HistogramRowRaw>(
-      built.sql,
-      built.params,
-    );
-    return fillHistogramBuckets(
-      rows,
-      built.fromDate,
-      built.toDate,
-      built.intervalSeconds,
-    );
+    const rows = await this.client.execute<HistogramRowRaw>(built.sql, built.params);
+    return fillHistogramBuckets(rows, built.fromDate, built.toDate, built.intervalSeconds);
   }
 
   async detail(identity: LogIdentity): Promise<LogDetail> {
@@ -110,9 +83,7 @@ export class LogsRepository {
   }
 
   // fallow-ignore-next-line unused-class-member
-  async filterOptions(input: {
-    timeRange: TimeRange;
-  }): Promise<LogFilterOptions> {
+  async filterOptions(input: { timeRange: TimeRange }): Promise<LogFilterOptions> {
     const { sql, params } = buildFilterOptionsQuery(input, {
       tableName: this.tableName,
     });
@@ -120,9 +91,7 @@ export class LogsRepository {
     return decodeFilterOptionsRows(rows);
   }
 
-  async attributeKeys(
-    input: LogAttributeKeysInput,
-  ): Promise<LogAttributeKey[]> {
+  async attributeKeys(input: LogAttributeKeysInput): Promise<LogAttributeKey[]> {
     const { sql, params } = buildAttributeKeysQuery(input, {
       tableName: this.tableName,
       sources: LOGS_ATTRIBUTE_SOURCES,

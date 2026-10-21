@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   // Consumed in call order: claimDeliverableEvent's own select first, then
@@ -30,20 +30,16 @@ vi.mock("../history/clickhouse", () => ({
     mocks.history.push(rows);
     return Promise.resolve();
   },
-  journalTerminalRow: (
-    event: { id: string },
-    opts: Record<string, unknown> = {},
-  ) => ({ notificationEventId: event.id, ...opts }),
+  journalTerminalRow: (event: { id: string }, opts: Record<string, unknown> = {}) => ({
+    notificationEventId: event.id,
+    ...opts,
+  }),
 }));
 
 import { QueryBuilder } from "drizzle-orm/pg-core";
 import type { Transaction } from "#app/db/client.ts";
 import { alertEvents } from "#app/db/schema/index.ts";
-import {
-  claimNotificationGroup,
-  processAlertEvent,
-  processedStampGuard,
-} from "./process-event";
+import { claimNotificationGroup, processAlertEvent, processedStampGuard } from "./process-event";
 
 const EVENT_ID = "0ee52a7c-c9d7-4bca-9c67-a21db2096acf";
 
@@ -60,9 +56,7 @@ describe("processAlertEvent retention lifecycle", () => {
   });
 
   it("marks intentionally suppressed events as processed", async () => {
-    mocks.selectQueue = [
-      [{ id: EVENT_ID, processedAt: null, suppressed: true }],
-    ];
+    mocks.selectQueue = [[{ id: EVENT_ID, processedAt: null, suppressed: true }]];
 
     await processAlertEvent({ eventId: EVENT_ID });
 
@@ -92,9 +86,7 @@ describe("processAlertEvent retention lifecycle", () => {
 
     expect(mocks.set).toHaveBeenCalledWith({ processedAt: expect.any(Date) });
     expect(mocks.history).toHaveLength(1);
-    expect(mocks.history[0]).toEqual([
-      expect.objectContaining({ reason: "no_longer_firing" }),
-    ]);
+    expect(mocks.history[0]).toEqual([expect.objectContaining({ reason: "no_longer_firing" })]);
   });
 
   it("records no terminal when the no-longer-firing claim is lost to a concurrent cancel", async () => {

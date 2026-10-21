@@ -1,11 +1,6 @@
 import { diag } from "@opentelemetry/api";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  capture,
-  captureError,
-  configure,
-  resetSharedClient,
-} from "./capture.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { capture, captureError, configure, resetSharedClient } from "./capture.js";
 import { setupTestTelemetry } from "./test-utils.js";
 
 // Tests for the singleton layer. The full process has one client, and only

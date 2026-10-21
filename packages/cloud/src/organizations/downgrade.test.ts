@@ -5,7 +5,7 @@ import {
   type TestDatabase,
 } from "@everr/app/server/alerting/testing/pglite-database";
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import { organizationBilling } from "../db/schema";
 import { cloudTestMigrations } from "../testing/migrations";
 import { organizationCommands } from "./commands.server";
@@ -54,9 +54,7 @@ beforeEach(async () => {
   vi.resetAllMocks();
   mocks.entitlement.mockResolvedValue({ appState: "suspended" });
   mocks.ownsHobby.mockResolvedValue(false);
-  mocks.lockOwnership.mockImplementation(async () =>
-    mocks.afterOwnershipLock(),
-  );
+  mocks.lockOwnership.mockImplementation(async () => mocks.afterOwnershipLock());
   await fixture.db.insert(user).values(
     ["owner-a", "owner-b"].map((id) => ({
       id,
@@ -72,9 +70,7 @@ beforeEach(async () => {
       createdAt: new Date(),
     })),
   );
-  await fixture.db
-    .insert(organizationBilling)
-    .values({ orgId: "org", plan: "pro" });
+  await fixture.db.insert(organizationBilling).values({ orgId: "org", plan: "pro" });
   await fixture.db.insert(member).values([
     {
       id: "owner-a",
@@ -116,9 +112,7 @@ const downgrade = (actorId = "owner-a") =>
   organizationCommands.downgradeToHobby({ organizationId: "org", actorId });
 async function savedState() {
   return {
-    members: (await fixture.db.select({ id: member.id }).from(member))
-      .map(({ id }) => id)
-      .sort(),
+    members: (await fixture.db.select({ id: member.id }).from(member)).map(({ id }) => id).sort(),
     invitations: await fixture.db
       .select({ id: invitation.id, status: invitation.status })
       .from(invitation)
@@ -144,20 +138,19 @@ it("downgrades atomically, retaining its Owner and leaving other organizations a
   expect(mocks.revoke).toHaveBeenCalledOnce();
 });
 
-it.each([
-  "billing",
-  "ownership",
-] as const)("rechecks suspension after acquiring the %s lock", async (lock) => {
-  const before = await savedState();
-  const hook =
-    lock === "billing" ? mocks.beforeBillingLock : mocks.afterOwnershipLock;
-  hook.mockImplementationOnce(() => {
-    mocks.entitlement.mockResolvedValue({ appState: "pro" });
-  });
-  await expect(downgrade()).rejects.toThrow("Only a suspended Pro");
-  expect(await savedState()).toEqual(before);
-  expect(mocks.revoke).not.toHaveBeenCalled();
-});
+it.each(["billing", "ownership"] as const)(
+  "rechecks suspension after acquiring the %s lock",
+  async (lock) => {
+    const before = await savedState();
+    const hook = lock === "billing" ? mocks.beforeBillingLock : mocks.afterOwnershipLock;
+    hook.mockImplementationOnce(() => {
+      mocks.entitlement.mockResolvedValue({ appState: "pro" });
+    });
+    await expect(downgrade()).rejects.toThrow("Only a suspended Pro");
+    expect(await savedState()).toEqual(before);
+    expect(mocks.revoke).not.toHaveBeenCalled();
+  },
+);
 
 it("preserves collaboration when the owner already owns another Hobby organization", async () => {
   const before = await savedState();
@@ -167,39 +160,36 @@ it("preserves collaboration when the owner already owns another Hobby organizati
   expect(mocks.revoke).not.toHaveBeenCalled();
 });
 
-it.each([
-  "provider",
-  "database",
-] as const)("preserves members, invitations, and plan after a %s failure", async (failure) => {
-  const before = await savedState();
-  if (failure === "provider")
-    mocks.revoke.mockRejectedValueOnce(new Error("Provider unavailable"));
-  else
-    await fixture.client.exec(
-      "ALTER TABLE organization_billing ADD CONSTRAINT reject_downgrade CHECK (plan <> 'hobby')",
-    );
-  try {
-    await expect(downgrade()).rejects.toThrow();
-    expect(await savedState()).toEqual(before);
-  } finally {
-    if (failure === "database")
+it.each(["provider", "database"] as const)(
+  "preserves members, invitations, and plan after a %s failure",
+  async (failure) => {
+    const before = await savedState();
+    if (failure === "provider")
+      mocks.revoke.mockRejectedValueOnce(new Error("Provider unavailable"));
+    else
       await fixture.client.exec(
-        "ALTER TABLE organization_billing DROP CONSTRAINT reject_downgrade",
+        "ALTER TABLE organization_billing ADD CONSTRAINT reject_downgrade CHECK (plan <> 'hobby')",
       );
-  }
-});
+    try {
+      await expect(downgrade()).rejects.toThrow();
+      expect(await savedState()).toEqual(before);
+    } finally {
+      if (failure === "database")
+        await fixture.client.exec(
+          "ALTER TABLE organization_billing DROP CONSTRAINT reject_downgrade",
+        );
+    }
+  },
+);
 
-it.each([
-  "missing",
-  "admin",
-] as const)("rejects a retained member with %s ownership", async (ownership) => {
-  const predicate = and(
-    eq(member.organizationId, "org"),
-    eq(member.userId, "owner-a"),
-  );
-  if (ownership === "missing") await fixture.db.delete(member).where(predicate);
-  else await fixture.db.update(member).set({ role: "admin" }).where(predicate);
-  const before = await savedState();
-  await expect(downgrade()).rejects.toThrow("must be an organization owner");
-  expect(await savedState()).toEqual(before);
-});
+it.each(["missing", "admin"] as const)(
+  "rejects a retained member with %s ownership",
+  async (ownership) => {
+    const predicate = and(eq(member.organizationId, "org"), eq(member.userId, "owner-a"));
+    if (ownership === "missing") await fixture.db.delete(member).where(predicate);
+    else await fixture.db.update(member).set({ role: "admin" }).where(predicate);
+    const before = await savedState();
+    await expect(downgrade()).rejects.toThrow("must be an organization owner");
+    expect(await savedState()).toEqual(before);
+  },
+);

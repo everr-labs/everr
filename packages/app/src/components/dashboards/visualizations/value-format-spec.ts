@@ -17,14 +17,10 @@ export const valueFormatSpec = z
     decimals: z.number().int().min(0).max(10).optional(),
     display: z.enum(["value", "percent"]).optional(),
   })
-  .refine(
-    (format) =>
-      format.scale !== "duration" || Object.hasOwn(durationUnits, format.unit),
-    {
-      path: ["unit"],
-      message: "Duration scaling requires ns, us, ms, s, min, h, or d",
-    },
-  )
+  .refine((format) => format.scale !== "duration" || Object.hasOwn(durationUnits, format.unit), {
+    path: ["unit"],
+    message: "Duration scaling requires ns, us, ms, s, min, h, or d",
+  })
   .refine((format) => format.display !== "percent" || format.unit === "1", {
     path: ["display"],
     message: "Percent display requires the dimensionless unit 1",

@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 vi.mock("#app/data/organization-access.ts", () => ({
   getActiveOrganizationAccess: vi.fn(),

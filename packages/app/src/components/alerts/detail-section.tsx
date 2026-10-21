@@ -21,12 +21,7 @@ export function Section({
 }) {
   return (
     <section className={cn("border-t py-4", !flush && "px-3")}>
-      <div
-        className={cn(
-          "mb-2.5 flex items-baseline justify-between gap-3",
-          flush && "px-3",
-        )}
-      >
+      <div className={cn("mb-2.5 flex items-baseline justify-between gap-3", flush && "px-3")}>
         <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
         {aside}
       </div>

@@ -1,10 +1,7 @@
 import type { WebSDKOptions } from "@everr/otel-web";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { localSqlClient } from "@/features/logs/local-sql-client";
-import {
-  captureLocalSqlError,
-  initializeTelemetry,
-} from "./internal-telemetry";
+import { captureLocalSqlError, initializeTelemetry } from "./internal-telemetry";
 
 const mocks = vi.hoisted(() => ({
   sdk: vi.fn(),
@@ -37,32 +34,32 @@ describe("internal UI telemetry", () => {
     expect(mocks.sdk).not.toHaveBeenCalled();
   });
 
-  it.each([
-    "development",
-    "production",
-  ] as const)("uses the backend's %s build mode", async (deploymentEnvironment) => {
-    initializeTelemetry({
-      serviceVersion: "cli-build-version",
-      telemetryEnabled: true,
-      deploymentEnvironment,
-    });
-    const options = mocks.sdk.mock.calls[0][0] as WebSDKOptions;
-    expect(options).toMatchObject({
-      serviceName: "everr-local-ui",
-      serviceVersion: "cli-build-version",
-      deploymentEnvironment,
-    });
-    expect(options).not.toHaveProperty("ingestKey");
-    expect(options).not.toHaveProperty("endpoint");
-    const fetch = vi.fn().mockResolvedValue({ ok: true });
-    vi.stubGlobal("fetch", fetch);
-    await options.send?.("logs", '{"resourceLogs":[]}');
-    expect(fetch).toHaveBeenCalledWith("/api/telemetry/logs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Everr-Local": "1" },
-      body: '{"resourceLogs":[]}',
-    });
-  });
+  it.each(["development", "production"] as const)(
+    "uses the backend's %s build mode",
+    async (deploymentEnvironment) => {
+      initializeTelemetry({
+        serviceVersion: "cli-build-version",
+        telemetryEnabled: true,
+        deploymentEnvironment,
+      });
+      const options = mocks.sdk.mock.calls[0][0] as WebSDKOptions;
+      expect(options).toMatchObject({
+        serviceName: "everr-local-ui",
+        serviceVersion: "cli-build-version",
+        deploymentEnvironment,
+      });
+      expect(options).not.toHaveProperty("ingestKey");
+      expect(options).not.toHaveProperty("endpoint");
+      const fetch = vi.fn().mockResolvedValue({ ok: true });
+      vi.stubGlobal("fetch", fetch);
+      await options.send?.("logs", '{"resourceLogs":[]}');
+      expect(fetch).toHaveBeenCalledWith("/api/telemetry/logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Everr-Local": "1" },
+        body: '{"resourceLogs":[]}',
+      });
+    },
+  );
 
   it("exports a fixed SQL error while preserving the detailed error for the UI", async () => {
     vi.stubGlobal(
@@ -72,9 +69,9 @@ describe("internal UI telemetry", () => {
         json: async () => ({ error: "SELECT 'customer-sentinel' failed" }),
       }),
     );
-    await expect(
-      localSqlClient.execute("SELECT 'customer-sentinel'", {}),
-    ).rejects.toThrow("customer-sentinel");
+    await expect(localSqlClient.execute("SELECT 'customer-sentinel'", {})).rejects.toThrow(
+      "customer-sentinel",
+    );
     expect(mocks.capture).toHaveBeenCalledOnce();
     const [error, attributes] = mocks.capture.mock.calls[0];
     expect(error.message).toBe("Local telemetry query failed");
@@ -105,8 +102,7 @@ describe("internal UI telemetry", () => {
     const attribute = (key: string) => ({
       key,
       value: {
-        stringValue:
-          "http://127.0.0.1/logs?q=customer-sentinel#customer-sentinel",
+        stringValue: "http://127.0.0.1/logs?q=customer-sentinel#customer-sentinel",
       },
     });
     const body = JSON.stringify({
@@ -135,129 +131,117 @@ describe("internal UI telemetry", () => {
     expect(sent).toContain("http://127.0.0.1/logs");
   });
 
-  it.each([
-    "logs",
-    "traces",
-  ] as const)("removes customer-backed selectors from release %s while preserving interaction metadata", async (signal) => {
-    initializeTelemetry({
-      serviceVersion: "test",
-      telemetryEnabled: true,
-      deploymentEnvironment: "production",
-    });
-    const options = mocks.sdk.mock.calls[0][0] as WebSDKOptions;
-    const fetch = vi.fn().mockResolvedValue({ ok: true });
-    vi.stubGlobal("fetch", fetch);
-    const attributes = [
-      {
-        key: "everr.element.selector",
-        value: {
-          stringValue: 'button[aria-label="Select customer-span-sentinel"]',
-        },
-      },
-      {
-        key: "everr.browser.web_vital.lcp.target",
-        value: { stringValue: 'div[title="customer-span-sentinel"]' },
-      },
-      {
-        key: "everr.browser.web_vital.cls.largest_shift_target",
-        value: { stringValue: "#customer-span-sentinel" },
-      },
-      {
-        key: "everr.element.href",
-        value: {
-          stringValue:
-            "/traces/trace-id?q=customer-filter-sentinel#customer-filter-sentinel",
-        },
-      },
-      { key: "everr.element.tag", value: { stringValue: "button" } },
-      { key: "everr.browser.click.x", value: { intValue: "42" } },
-    ];
-    const record = { attributes };
-    const body = JSON.stringify(
-      signal === "logs"
-        ? { resourceLogs: [{ scopeLogs: [{ logRecords: [record] }] }] }
-        : { resourceSpans: [{ scopeSpans: [{ spans: [record] }] }] },
-    );
-    await options.send?.(signal, body);
-    const sent = fetch.mock.calls[0][1].body as string;
-    expect(sent).not.toContain("customer-span-sentinel");
-    expect(sent).not.toContain("customer-filter-sentinel");
-    const parsed = JSON.parse(sent);
-    const exportedRecord =
-      signal === "logs"
-        ? parsed.resourceLogs[0].scopeLogs[0].logRecords[0]
-        : parsed.resourceSpans[0].scopeSpans[0].spans[0];
-    expect(exportedRecord.attributes).toEqual([
-      { key: "everr.element.href", value: { stringValue: "/traces/trace-id" } },
-      { key: "everr.element.tag", value: { stringValue: "button" } },
-      { key: "everr.browser.click.x", value: { intValue: "42" } },
-    ]);
-  });
-
-  it.each([
-    "logs",
-    "traces",
-  ] as const)("drops UTM attribution from release %s at every attribute level and retains it in debug", async (signal) => {
-    const safeAttributes = [
-      { key: "service.name", value: { stringValue: "everr-local-ui" } },
-    ];
-    const attributes = [
-      ...safeAttributes,
-      ...["source", "medium", "campaign", "term", "content", "future"].map(
-        (name) => ({
-          key: `everr.utm.${name}`,
-          value: { stringValue: `customer-sentinel-${name}` },
-        }),
-      ),
-    ];
-    const payload = (attrs: typeof attributes) => {
-      const resource = { attributes: attrs };
-      if (signal === "logs") {
-        return {
-          resourceLogs: [
-            { resource, scopeLogs: [{ logRecords: [{ attributes: attrs }] }] },
-          ],
-        };
-      }
-      return {
-        resourceSpans: [
-          {
-            resource,
-            scopeSpans: [
-              {
-                spans: [
-                  {
-                    attributes: attrs,
-                    events: [{ name: "test", attributes: attrs }],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      };
-    };
-    for (const deploymentEnvironment of [
-      "production",
-      "development",
-    ] as const) {
-      mocks.sdk.mockClear();
+  it.each(["logs", "traces"] as const)(
+    "removes customer-backed selectors from release %s while preserving interaction metadata",
+    async (signal) => {
       initializeTelemetry({
         serviceVersion: "test",
         telemetryEnabled: true,
-        deploymentEnvironment,
+        deploymentEnvironment: "production",
       });
       const options = mocks.sdk.mock.calls[0][0] as WebSDKOptions;
       const fetch = vi.fn().mockResolvedValue({ ok: true });
       vi.stubGlobal("fetch", fetch);
-      await options.send?.(signal, JSON.stringify(payload(attributes)));
-      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(
-        payload(
-          deploymentEnvironment === "production" ? safeAttributes : attributes,
-        ),
+      const attributes = [
+        {
+          key: "everr.element.selector",
+          value: {
+            stringValue: 'button[aria-label="Select customer-span-sentinel"]',
+          },
+        },
+        {
+          key: "everr.browser.web_vital.lcp.target",
+          value: { stringValue: 'div[title="customer-span-sentinel"]' },
+        },
+        {
+          key: "everr.browser.web_vital.cls.largest_shift_target",
+          value: { stringValue: "#customer-span-sentinel" },
+        },
+        {
+          key: "everr.element.href",
+          value: {
+            stringValue: "/traces/trace-id?q=customer-filter-sentinel#customer-filter-sentinel",
+          },
+        },
+        { key: "everr.element.tag", value: { stringValue: "button" } },
+        { key: "everr.browser.click.x", value: { intValue: "42" } },
+      ];
+      const record = { attributes };
+      const body = JSON.stringify(
+        signal === "logs"
+          ? { resourceLogs: [{ scopeLogs: [{ logRecords: [record] }] }] }
+          : { resourceSpans: [{ scopeSpans: [{ spans: [record] }] }] },
       );
-    }
-  });
+      await options.send?.(signal, body);
+      const sent = fetch.mock.calls[0][1].body as string;
+      expect(sent).not.toContain("customer-span-sentinel");
+      expect(sent).not.toContain("customer-filter-sentinel");
+      const parsed = JSON.parse(sent);
+      const exportedRecord =
+        signal === "logs"
+          ? parsed.resourceLogs[0].scopeLogs[0].logRecords[0]
+          : parsed.resourceSpans[0].scopeSpans[0].spans[0];
+      expect(exportedRecord.attributes).toEqual([
+        { key: "everr.element.href", value: { stringValue: "/traces/trace-id" } },
+        { key: "everr.element.tag", value: { stringValue: "button" } },
+        { key: "everr.browser.click.x", value: { intValue: "42" } },
+      ]);
+    },
+  );
+
+  it.each(["logs", "traces"] as const)(
+    "drops UTM attribution from release %s at every attribute level and retains it in debug",
+    async (signal) => {
+      const safeAttributes = [{ key: "service.name", value: { stringValue: "everr-local-ui" } }];
+      const attributes = [
+        ...safeAttributes,
+        ...["source", "medium", "campaign", "term", "content", "future"].map((name) => ({
+          key: `everr.utm.${name}`,
+          value: { stringValue: `customer-sentinel-${name}` },
+        })),
+      ];
+      const payload = (attrs: typeof attributes) => {
+        const resource = { attributes: attrs };
+        if (signal === "logs") {
+          return {
+            resourceLogs: [{ resource, scopeLogs: [{ logRecords: [{ attributes: attrs }] }] }],
+          };
+        }
+        return {
+          resourceSpans: [
+            {
+              resource,
+              scopeSpans: [
+                {
+                  spans: [
+                    {
+                      attributes: attrs,
+                      events: [{ name: "test", attributes: attrs }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        };
+      };
+      for (const deploymentEnvironment of ["production", "development"] as const) {
+        mocks.sdk.mockClear();
+        initializeTelemetry({
+          serviceVersion: "test",
+          telemetryEnabled: true,
+          deploymentEnvironment,
+        });
+        const options = mocks.sdk.mock.calls[0][0] as WebSDKOptions;
+        const fetch = vi.fn().mockResolvedValue({ ok: true });
+        vi.stubGlobal("fetch", fetch);
+        await options.send?.(signal, JSON.stringify(payload(attributes)));
+        expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(
+          payload(deploymentEnvironment === "production" ? safeAttributes : attributes),
+        );
+      }
+    },
+  );
 
   it("retains local interaction diagnostics in development builds", async () => {
     initializeTelemetry({

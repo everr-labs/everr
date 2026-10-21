@@ -1,21 +1,10 @@
 // @vitest-environment node
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
-import {
-  sendInvitationEmail,
-  sendPasswordResetEmail,
-  sendVerificationEmail,
-} from "./email.server";
+import { sendInvitationEmail, sendPasswordResetEmail, sendVerificationEmail } from "./email.server";
 
 const mocks = vi.hoisted(() => ({
-  send: vi.fn(
-    async (_message: {
-      to: string;
-      subject: string;
-      text: string;
-      html?: string;
-    }) => {},
-  ),
+  send: vi.fn(async (_message: { to: string; subject: string; text: string; html?: string }) => {}),
   logError: vi.fn(),
   enabled: true,
 }));
@@ -87,9 +76,7 @@ it.each([
   expect(message?.html).toContain(email.heading);
   expect(message?.html).toContain(email.url);
   expect(message?.html).toContain("Everr");
-  expect(message?.html).toContain(
-    'src="https://app.example.com/email/everr-mark.png"',
-  );
+  expect(message?.html).toContain('src="https://app.example.com/email/everr-mark.png"');
 });
 
 it("logs a delivery failure without rejecting the auth callback", async () => {

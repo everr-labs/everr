@@ -1,8 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  isResourceKind,
-  listResources,
-} from "#app/data/as-code/resource-admin.server.ts";
+import { isResourceKind, listResources } from "#app/data/as-code/resource-admin.server.ts";
 import { unknownKindResponse } from "./resources/-responses";
 
 // Auth + org context comes from the parent `/api/cli` route
@@ -18,10 +15,10 @@ export const Route = createFileRoute("/api/cli/resources")({
           return unknownKindResponse(kindParam);
         }
         const repoid = url.searchParams.get("repoid") ?? undefined;
-        const resources = await listResources(
-          context.session.session.activeOrganizationId,
-          { kind: kindParam, repoid },
-        );
+        const resources = await listResources(context.session.session.activeOrganizationId, {
+          kind: kindParam,
+          repoid,
+        });
         return Response.json(resources);
       },
     },

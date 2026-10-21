@@ -1,5 +1,5 @@
 import { QueryBuilder } from "drizzle-orm/pg-core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("#app/db/client.ts", () => ({ db: {}, pool: {} }));
 

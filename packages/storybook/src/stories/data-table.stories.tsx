@@ -78,9 +78,7 @@ const columns: Column<ServiceRow>[] = [
   },
   {
     header: "Environment",
-    cell: (row) => (
-      <span className="text-muted-foreground">{row.environment}</span>
-    ),
+    cell: (row) => <span className="text-muted-foreground">{row.environment}</span>,
   },
   {
     header: "Requests",
@@ -96,9 +94,7 @@ const columns: Column<ServiceRow>[] = [
   },
   {
     header: "Status",
-    cell: (row) => (
-      <Badge variant={statusVariant[row.status]}>{row.status}</Badge>
-    ),
+    cell: (row) => <Badge variant={statusVariant[row.status]}>{row.status}</Badge>,
   },
 ];
 
@@ -128,10 +124,7 @@ export const Bordered: Story = {
 
 export const StickyHeader: Story = {
   args: {
-    data: [
-      ...services,
-      ...services.map((row) => ({ ...row, environment: "staging" })),
-    ],
+    data: [...services, ...services.map((row) => ({ ...row, environment: "staging" }))],
     rowKey: (row: ServiceRow) => `${row.service}-${row.environment}`,
     stickyHeader: true,
     containerClassName: "h-56 rounded-lg border border-border",
@@ -140,8 +133,7 @@ export const StickyHeader: Story = {
 
 export const HighlightedRows: Story = {
   args: {
-    rowClassName: (row: ServiceRow) =>
-      row.status === "firing" ? "bg-red-500/10" : undefined,
+    rowClassName: (row: ServiceRow) => (row.status === "firing" ? "bg-red-500/10" : undefined),
   },
 };
 
@@ -163,9 +155,7 @@ export const EmptyState: Story = {
             <SearchXIcon />
           </EmptyMedia>
           <EmptyTitle>No services reported data</EmptyTitle>
-          <EmptyDescription>
-            Widen the time range or remove a filter.
-          </EmptyDescription>
+          <EmptyDescription>Widen the time range or remove a filter.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     ),

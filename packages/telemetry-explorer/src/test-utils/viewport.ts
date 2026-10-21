@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { vi } from "vite-plus/test";
 
 /**
  * Makes every media query match. The Explore rail then shows the form it uses

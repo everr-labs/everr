@@ -84,18 +84,8 @@ function checkSharedNavigationTypes() {
       <Link to="/runs" search={{ unknown: "value" }} />
 
       <RailRow label="Runs" icon={Activity} to="/runs" />
-      <RailRow
-        label="Trace"
-        icon={Activity}
-        to="/runs/$traceId"
-        params={{ traceId: "trace-id" }}
-      />
-      <RailRow
-        label="Filtered runs"
-        icon={Activity}
-        to="/runs"
-        search={{ runId: "run-id" }}
-      />
+      <RailRow label="Trace" icon={Activity} to="/runs/$traceId" params={{ traceId: "trace-id" }} />
+      <RailRow label="Filtered runs" icon={Activity} to="/runs" search={{ runId: "run-id" }} />
       {/* @ts-expect-error Rail rows reject unknown routes. */}
       <RailRow {...unknownRailProps} />
       {/* @ts-expect-error Rail rows require dynamic route params. */}

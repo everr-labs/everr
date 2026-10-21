@@ -47,10 +47,7 @@ function AlertingSilencesPage() {
   return (
     <>
       <AlertDetailShell {...shellProps}>
-        <ScrollArea
-          className="min-h-0 min-w-0"
-          viewportClassName="overscroll-y-contain pb-6"
-        >
+        <ScrollArea className="min-h-0 min-w-0" viewportClassName="overscroll-y-contain pb-6">
           <SilencesPage
             silences={silences.data?.silences ?? null}
             cut={silences.data?.cut ?? null}

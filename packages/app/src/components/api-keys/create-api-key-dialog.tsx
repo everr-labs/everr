@@ -25,15 +25,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCreateApiKey } from "#app/components/api-keys/queries.ts";
 import { SCOPE_ICONS } from "#app/components/api-keys/scope-meta.tsx";
-import {
-  ALL_API_KEY_SCOPES,
-  API_KEY_SCOPES,
-  type ApiKeyScope,
-} from "#app/lib/api-key-scopes.ts";
-import {
-  PUBLIC_KEY_SCOPE,
-  publicKeyInputError,
-} from "#app/lib/public-ingest-keys.ts";
+import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "#app/lib/api-key-scopes.ts";
+import { PUBLIC_KEY_SCOPE, publicKeyInputError } from "#app/lib/public-ingest-keys.ts";
 
 const EXPIRY_OPTIONS = [
   { value: "never", label: "Never" },
@@ -46,12 +39,8 @@ const EXPIRY_OPTIONS = [
 
 type Expiry = (typeof EXPIRY_OPTIONS)[number]["value"];
 
-function scopeSelection(
-  defaultScopes: readonly ApiKeyScope[],
-): Record<ApiKeyScope, boolean> {
-  return Object.fromEntries(
-    ALL_API_KEY_SCOPES.map((scope) => [scope, defaultScopes.includes(scope)]),
-  ) as Record<ApiKeyScope, boolean>;
+function scopeSelection(defaultScopes: readonly ApiKeyScope[]): Record<ApiKeyScope, boolean> {
+  return { ingest: defaultScopes.includes("ingest"), apply: defaultScopes.includes("apply") };
 }
 
 interface CreateApiKeyDialogProps {
@@ -193,8 +182,8 @@ export function CreateApiKeyDialog({
                 Copy your key now
               </DialogTitle>
               <DialogDescription>
-                This is the only time the full key is shown. Store it in your
-                secret manager. You won't be able to retrieve it later.
+                This is the only time the full key is shown. Store it in your secret manager. You
+                won&apos;t be able to retrieve it later.
               </DialogDescription>
             </DialogHeader>
             <div className="bg-muted/40 rounded-md border p-3 font-mono text-xs break-all">
@@ -204,12 +193,8 @@ export function CreateApiKeyDialog({
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Done
               </Button>
-              <Button onClick={copyKey}>
-                {copied ? (
-                  <Check className="size-4" />
-                ) : (
-                  <Copy className="size-4" />
-                )}
+              <Button onClick={() => void copyKey()}>
+                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
                 {copied ? "Copied" : "Copy key"}
               </Button>
             </DialogFooter>
@@ -221,16 +206,10 @@ export function CreateApiKeyDialog({
                 <span
                   className={cn(
                     "flex size-7 items-center justify-center rounded-md",
-                    isPublic
-                      ? "bg-muted text-muted-foreground"
-                      : "bg-primary/10 text-primary",
+                    isPublic ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary",
                   )}
                 >
-                  {isPublic ? (
-                    <Globe className="size-4" />
-                  ) : (
-                    <KeyRound className="size-4" />
-                  )}
+                  {isPublic ? <Globe className="size-4" /> : <KeyRound className="size-4" />}
                 </span>
                 {isPublic ? "New public key" : "New key"}
               </DialogTitle>
@@ -239,8 +218,7 @@ export function CreateApiKeyDialog({
                   "Anyone can read this key in your page source, so it only sends telemetry, and only from the origins you allow."
                 ) : (
                   <>
-                    Organization-scoped{" "}
-                    <code className="font-mono text-[0.7rem]">ek_</code> key for
+                    Organization-scoped <code className="font-mono text-[0.7rem]">ek_</code> key for
                     servers, CLIs, and collectors. Pick what it can do.
                   </>
                 )}
@@ -257,6 +235,7 @@ export function CreateApiKeyDialog({
                   onChange={(e) => setName(e.target.value)}
                   placeholder="prod-api"
                   required
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus -- intended focus on the primary field when this modal dialog opens
                   autoFocus
                   autoComplete="off"
                   data-1p-ignore
@@ -267,7 +246,10 @@ export function CreateApiKeyDialog({
                 <Label htmlFor="api-key-expiry">Expiration</Label>
                 <Select
                   value={expiry}
-                  onValueChange={(v) => setExpiry(v as Expiry)}
+                  onValueChange={(v) => {
+                    const option = EXPIRY_OPTIONS.find((o) => o.value === v);
+                    if (option) setExpiry(option.value);
+                  }}
                 >
                   <SelectTrigger id="api-key-expiry" className="w-full">
                     <SelectValue>
@@ -297,16 +279,14 @@ export function CreateApiKeyDialog({
                   required
                 />
                 <p className="text-muted-foreground text-xs">
-                  One origin per line: scheme://host with an optional port, no
-                  paths.
+                  One origin per line: scheme://host with an optional port, no paths.
                 </p>
               </div>
             ) : (
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Capabilities</legend>
                 <p className="text-muted-foreground text-xs">
-                  Grant only what this key needs. It's rejected for anything
-                  else.
+                  Grant only what this key needs. It&apos;s rejected for anything else.
                 </p>
                 <div className="space-y-2 pt-0.5">
                   {ALL_API_KEY_SCOPES.map((scope) => {
@@ -325,9 +305,7 @@ export function CreateApiKeyDialog({
                           htmlFor={switchId}
                           className="min-w-0 flex-1 cursor-pointer space-y-0.5"
                         >
-                          <span className="block text-sm font-medium">
-                            {meta.label}
-                          </span>
+                          <span className="block text-sm font-medium">{meta.label}</span>
                           <span className="text-muted-foreground block text-xs/relaxed">
                             {meta.description}
                           </span>
@@ -353,13 +331,8 @@ export function CreateApiKeyDialog({
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={create.isPending || noScopePicked}
-              >
-                {create.isPending && (
-                  <Loader2 className="size-4 animate-spin" />
-                )}
+              <Button type="submit" disabled={create.isPending || noScopePicked}>
+                {create.isPending && <Loader2 className="size-4 animate-spin" />}
                 {isPublic ? "Create public key" : "Create key"}
               </Button>
             </DialogFooter>

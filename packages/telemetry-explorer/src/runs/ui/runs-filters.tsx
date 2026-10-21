@@ -25,12 +25,7 @@ export interface RunsFiltersProps {
   onChange: (patch: Partial<RunsFiltersValue>) => void;
 }
 
-export function RunsFilters({
-  repo,
-  timeRange,
-  value,
-  onChange,
-}: RunsFiltersProps) {
+export function RunsFilters({ repo, timeRange, value, onChange }: RunsFiltersProps) {
   const { runId, repos, branches, conclusions, workflowNames } = value;
 
   const toggleStatus = (status: RunStatusFilter) => {
@@ -106,9 +101,7 @@ export function RunsFilters({
               onClick={() => toggleStatus(status)}
             >
               <ConclusionIcon conclusion={status} className="size-3.5" />
-              <span className="truncate">
-                {RUN_CONCLUSION_META[status].label}
-              </span>
+              <span className="truncate">{RUN_CONCLUSION_META[status].label}</span>
             </button>
           ))}
         </div>

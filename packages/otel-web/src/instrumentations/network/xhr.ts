@@ -14,9 +14,9 @@ type RequestState = {
 export function startXHR(tracer: Tracer, targets?: PropagationTarget[]) {
   if (typeof XMLHttpRequest === "undefined") return () => {};
   const proto = XMLHttpRequest.prototype;
+  // oxlint-disable-next-line typescript/unbound-method -- Keep the original prototype methods to call with the intercepted XMLHttpRequest as their receiver.
   const { open, send } = proto;
-  let requests: WeakMap<XMLHttpRequest, RequestState> | undefined =
-    new WeakMap();
+  let requests: WeakMap<XMLHttpRequest, RequestState> | undefined = new WeakMap();
   const pending = new Set<() => void>();
 
   const patchedOpen: typeof open = function (
@@ -77,8 +77,7 @@ export function startXHR(tracer: Tracer, targets?: PropagationTarget[]) {
     const events = ["readystatechange", "load", "error", "timeout", "abort"];
     const finish = (errorType?: string, cancelled = false) => {
       if (state.finish !== finish) return;
-      for (const event of events)
-        this.removeEventListener(event, onEvent, true);
+      for (const event of events) this.removeEventListener(event, onEvent, true);
       state.finish = undefined;
       pending.delete(finish);
       // A cleared request map means shutdown: detach without exporting.
@@ -102,12 +101,7 @@ export function startXHR(tracer: Tracer, targets?: PropagationTarget[]) {
         if (this.readyState !== 4) return;
       } else {
         // A nested retry can complete before the old terminal event resumes.
-        if (
-          !state.done ||
-          current?.sending ||
-          (current?.done && current.finish)
-        )
-          return;
+        if (!state.done || current?.sending || (current?.done && current.finish)) return;
       }
       finish(
         event.type === "error"

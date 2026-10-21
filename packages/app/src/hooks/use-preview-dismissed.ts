@@ -6,11 +6,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 // and survives navigation within a preview. The queryFn only runs when a broad
 // invalidation sweeps this key up; echoing the cached value back keeps the
 // "refetch" a no-op instead of a missing-queryFn error.
-export function usePreviewDismissed(
-  preview: string,
-): readonly [boolean, () => void] {
+export function usePreviewDismissed(preview: string): readonly [boolean, () => void] {
   const queryClient = useQueryClient();
   const queryKey = ["preview-frame-dismissed", preview] as const;
+  // oxlint-disable-next-line query/exhaustive-deps -- The query key is the complete cache address used to read this client-only state.
   const { data: dismissed } = useQuery({
     queryKey,
     queryFn: () => queryClient.getQueryData<boolean>(queryKey) ?? false,

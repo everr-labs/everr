@@ -20,12 +20,7 @@ export const Section: Story = {
   render: (args) => (
     <div className="w-80">
       <DetailSection {...args}>
-        <DetailItem
-          icon={<ServerIcon />}
-          label="service.name"
-          value="checkout-api"
-          mono
-        />
+        <DetailItem icon={<ServerIcon />} label="service.name" value="checkout-api" mono />
         <DetailItem icon={<ClockIcon />} label="Duration" value="412 ms" />
       </DetailSection>
     </div>
@@ -38,11 +33,7 @@ export const ItemStates: Story = {
     <div className="w-80">
       <DetailSection {...args}>
         <DetailItem label="Plain value" value="checkout-api" />
-        <DetailItem
-          label="Monospaced value"
-          value="4f21ac9e0b1d47c8a3f5"
-          mono
-        />
+        <DetailItem label="Monospaced value" value="4f21ac9e0b1d47c8a3f5" mono />
         <DetailItem icon={<TagIcon />} label="With icon" value="production" />
         <DetailItem label="Missing value" />
         <DetailItem

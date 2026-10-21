@@ -1,5 +1,5 @@
 import { storage } from "@composition/storage";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 import { querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
 
@@ -60,9 +60,7 @@ beforeEach(() => {
 
 describe("extractBearerKey", () => {
   it("reads a Bearer token from the Authorization header", () => {
-    expect(extractBearerKey(headers({ authorization: "Bearer ek_abc" }))).toBe(
-      "ek_abc",
-    );
+    expect(extractBearerKey(headers({ authorization: "Bearer ek_abc" }))).toBe("ek_abc");
   });
   it("reads the x-api-key header", () => {
     expect(extractBearerKey(headers({ "x-api-key": "ek_xyz" }))).toBe("ek_xyz");
@@ -74,9 +72,7 @@ describe("extractBearerKey", () => {
 
 describe("resolveApplyAuth", () => {
   it("throws when there is no credential", async () => {
-    await expect(resolveApplyAuth(headers({}))).rejects.toThrow(
-      /missing credential/i,
-    );
+    await expect(resolveApplyAuth(headers({}))).rejects.toThrow(/missing credential/i);
   });
 
   it("resolves an ek_ key with the apply scope to its org (+name)", async () => {
@@ -90,9 +86,7 @@ describe("resolveApplyAuth", () => {
       },
     });
     orgRows = [{ name: "Acme" }];
-    const result = await resolveApplyAuth(
-      headers({ authorization: "Bearer ek_abc" }),
-    );
+    const result = await resolveApplyAuth(headers({ authorization: "Bearer ek_abc" }));
     expect(result).toEqual({
       organizationId: "org-1",
       organizationName: "Acme",
@@ -118,9 +112,7 @@ describe("resolveApplyAuth", () => {
       },
     });
     orgRows = [{ name: "Acme" }];
-    const result = await resolveApplyAuth(
-      headers({ authorization: "Bearer ek_abc" }),
-    );
+    const result = await resolveApplyAuth(headers({ authorization: "Bearer ek_abc" }));
     expect(result.applyActions).toEqual(["read"]);
   });
 
@@ -132,9 +124,9 @@ describe("resolveApplyAuth", () => {
       valid: true,
       key: { id: "k1", referenceId: "org-1", permissions: null },
     });
-    await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })),
-    ).rejects.toThrow(/not authorized to apply/i);
+    await expect(resolveApplyAuth(headers({ authorization: "Bearer ek_abc" }))).rejects.toThrow(
+      /not authorized to apply/i,
+    );
   });
 
   it("rejects an ek_ key that only has the ingest scope", async () => {
@@ -146,9 +138,9 @@ describe("resolveApplyAuth", () => {
         permissions: { ingest: ["write"] },
       },
     });
-    await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })),
-    ).rejects.toThrow(/not authorized to apply/i);
+    await expect(resolveApplyAuth(headers({ authorization: "Bearer ek_abc" }))).rejects.toThrow(
+      /not authorized to apply/i,
+    );
   });
 
   // parseAlertingPrincipal trusts this producer and does not re-validate the
@@ -160,9 +152,7 @@ describe("resolveApplyAuth", () => {
       valid: true,
       key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
     });
-    const viaKey = await resolveApplyAuth(
-      headers({ authorization: "Bearer ek_abc" }),
-    );
+    const viaKey = await resolveApplyAuth(headers({ authorization: "Bearer ek_abc" }));
     expect(parseAlertingPrincipal(viaKey.principalId)).toEqual({
       kind: "apikey",
       id: "k1",
@@ -173,9 +163,7 @@ describe("resolveApplyAuth", () => {
       session: { activeOrganizationId: "org-1" },
       user: { id: "u1" },
     });
-    const viaSession = await resolveApplyAuth(
-      headers({ authorization: "Bearer session-token" }),
-    );
+    const viaSession = await resolveApplyAuth(headers({ authorization: "Bearer session-token" }));
     expect(parseAlertingPrincipal(viaSession.principalId)).toEqual({
       kind: "user",
       id: "u1",
@@ -189,16 +177,16 @@ describe("resolveApplyAuth", () => {
       key: { id: "k1", referenceId: "org-1", permissions: { apply: ["*"] } },
     });
     orgRows = [];
-    await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })),
-    ).rejects.toThrow("Organization not found");
+    await expect(resolveApplyAuth(headers({ authorization: "Bearer ek_abc" }))).rejects.toThrow(
+      "Organization not found",
+    );
   });
 
   it("throws when an ek_ key is invalid", async () => {
     verifyApiKey.mockResolvedValueOnce({ valid: false, key: null });
-    await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer ek_nope" })),
-    ).rejects.toThrow(/invalid api key/i);
+    await expect(resolveApplyAuth(headers({ authorization: "Bearer ek_nope" }))).rejects.toThrow(
+      /invalid api key/i,
+    );
   });
 
   it("resolves a session bearer to the active org (+name)", async () => {
@@ -207,9 +195,7 @@ describe("resolveApplyAuth", () => {
       session: { activeOrganizationId: "org-9" },
     });
     orgRows = [{ name: "Globex" }];
-    const result = await resolveApplyAuth(
-      headers({ authorization: "Bearer sess_token" }),
-    );
+    const result = await resolveApplyAuth(headers({ authorization: "Bearer sess_token" }));
     expect(result).toEqual({
       organizationId: "org-9",
       organizationName: "Globex",
@@ -225,16 +211,16 @@ describe("resolveApplyAuth", () => {
       user: { id: "u1" },
       session: { activeOrganizationId: null },
     });
-    await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer sess_token" })),
-    ).rejects.toThrow(/no active organization/i);
+    await expect(resolveApplyAuth(headers({ authorization: "Bearer sess_token" }))).rejects.toThrow(
+      /no active organization/i,
+    );
   });
 
   it("throws when the session is invalid", async () => {
     getSession.mockResolvedValueOnce(null);
-    await expect(
-      resolveApplyAuth(headers({ authorization: "Bearer sess_token" })),
-    ).rejects.toThrow(/unauthenticated/i);
+    await expect(resolveApplyAuth(headers({ authorization: "Bearer sess_token" }))).rejects.toThrow(
+      /unauthenticated/i,
+    );
   });
 });
 
@@ -327,9 +313,7 @@ describe("applyAuthErrorResponse", () => {
   });
 
   it("returns null for an unknown (non-auth) error so it propagates as 500", () => {
-    expect(
-      applyAuthErrorResponse(new Error("connect ECONNREFUSED")),
-    ).toBeNull();
+    expect(applyAuthErrorResponse(new Error("connect ECONNREFUSED"))).toBeNull();
     expect(applyAuthErrorResponse("not an error")).toBeNull();
   });
 });

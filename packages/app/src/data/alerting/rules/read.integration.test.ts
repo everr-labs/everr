@@ -9,20 +9,14 @@
  * or a path that resolved to the wrong row all give back rows the assembler
  * then formats perfectly.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { ANN_DISPLAY_NAME } from "#app/data/alerting/resource-annotations.ts";
 import { alertInstances } from "#app/db/schema/index.ts";
-import {
-  insertPreview,
-  insertRule,
-  TEST_ORG,
-} from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { insertPreview, insertRule, TEST_ORG } from "#app/server/alerting/testing/fixtures.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -39,7 +33,7 @@ import {
   rulePath,
 } from "#app/data/alerting/rules/read.ts";
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 /** One tracked Alert instance of a rule, with the value the list ranks it by. */
 async function insertInstance(
@@ -88,10 +82,7 @@ describe("the Alert rules the app reads", () => {
 
     const rules = await loadRules(TEST_ORG);
 
-    expect(rules.map(rulePath)).toEqual([
-      "default/zzz-last-by-slug",
-      "default/aaa-first-by-slug",
-    ]);
+    expect(rules.map(rulePath)).toEqual(["default/zzz-last-by-slug", "default/aaa-first-by-slug"]);
   });
 
   it("finds one rule by the project and slug its path names", async () => {
@@ -127,11 +118,7 @@ describe("the Alert rules the app reads", () => {
 
     const instances = await loadRuleInstances(TEST_ORG, rule.id);
 
-    expect(instances.map((row) => row.fingerprint)).toEqual([
-      "worst",
-      "middle",
-      "best",
-    ]);
+    expect(instances.map((row) => row.fingerprint)).toEqual(["worst", "middle", "best"]);
   });
 
   it("reads the Alert instances of the rules it was given, and no others", async () => {

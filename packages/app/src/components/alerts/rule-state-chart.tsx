@@ -1,33 +1,22 @@
+/* oxlint-disable jsx-a11y/no-noninteractive-element-interactions -- Pointer movement only adds a visual chart readout; the chart is described by its accessible name and surrounding data. */
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { memo, useMemo } from "react";
-import {
-  formatAgoPhrase,
-  formatElapsed,
-} from "#app/data/alerting/triage/format.ts";
+import { formatAgoPhrase, formatElapsed } from "#app/data/alerting/triage/format.ts";
 import type {
   ChartWindow,
   InstanceValueSeries,
   RuleStateSegment,
 } from "#app/data/alerting/triage/view.ts";
 import { STATUS_META, StatusIcon } from "./alert-status";
-import {
-  ChartCrosshair,
-  instanceRowsAt,
-  tooltipTime,
-  useChartScrub,
-} from "./chart-crosshair";
+import { ChartCrosshair, instanceRowsAt, tooltipTime, useChartScrub } from "./chart-crosshair";
 
 /** The states this chart paints, in legend order. The words, fills and legend
  *  tones all come from `STATUS_META`, so the chart, the band headers and the
  *  icon column can never call the same state two different things. */
-const SEGMENT_STATES: RuleStateSegment["state"][] = [
-  "firing",
-  "pending",
-  "silenced",
-  "degraded",
-];
+const SEGMENT_STATES: RuleStateSegment["state"][] = ["firing", "pending", "silenced", "degraded"];
 
 /**
  * One rule's state over the selected window, as a chart rather than a
@@ -91,8 +80,7 @@ export const RuleStateChart = memo(function RuleStateChart({
   const segment =
     hovered == null
       ? null
-      : (visible.find((s) => hovered.at <= s.from && hovered.at >= s.to) ??
-        null);
+      : (visible.find((s) => hovered.at <= s.from && hovered.at >= s.to) ?? null);
 
   return (
     <div
@@ -104,11 +92,9 @@ export const RuleStateChart = memo(function RuleStateChart({
     >
       {visible.map((s, i) => (
         <span
+          // oxlint-disable-next-line react/no-array-index-key -- Immutable source events can share timestamps or IDs; the ordinal distinguishes those duplicates.
           key={`${s.state}-${s.from}-${s.to}-${i}`}
-          className={cn(
-            "absolute inset-y-0 rounded-[2px]",
-            STATUS_META[s.state].fill,
-          )}
+          className={cn("absolute inset-y-0 rounded-[2px]", STATUS_META[s.state].fill)}
           style={{ left: `${s.left}%`, width: `${s.width}%` }}
         />
       ))}
@@ -163,9 +149,7 @@ export function StateChartAxis({ windowMinutes }: { windowMinutes: number }) {
             t === 1 && "right-0",
           )}
           style={
-            t === 0 || t === 1
-              ? undefined
-              : { left: `${t * 100}%`, transform: "translateX(-50%)" }
+            t === 0 || t === 1 ? undefined : { left: `${t * 100}%`, transform: "translateX(-50%)" }
           }
         >
           {axisTick(windowMinutes * (1 - t), windowMinutes)}

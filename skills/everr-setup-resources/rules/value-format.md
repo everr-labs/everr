@@ -6,12 +6,12 @@ Use the case-sensitive UCUM codes prescribed by [OpenTelemetry instrument units]
 
 Common codes receive readable display labels: `By` becomes `B`, `Cel` becomes `°C`, `us` becomes `µs`, `1` has no suffix, and `{request}` becomes `request`. These labels also work in rates with a supported time denominator, such as `By/s` and `{request}/s`. Codes remain unchanged in the configuration. Unknown expressions remain literal: this is a presentation subset, not a full UCUM validator or conversion engine. In particular, `B` is not a byte alias (UCUM defines it as bel), and `1` does not implicitly turn a fraction into a percentage.
 
-| Field | Default | Meaning |
-| --- | --- | --- |
-| `unit` | `""` | UCUM/OTel code of the query result; unknown custom units remain literal labels. |
-| `scale` | `none` | `none`, `decimal`, `binary`, or `duration`. |
-| `decimals` | omitted | Fixed fraction digits (0 to 10); omitted uses up to 2 without trailing zeros. |
-| `display` | `value` | `value` preserves ordinary unit formatting; `percent` displays a dimensionless ratio as a percentage. |
+| Field      | Default | Meaning                                                                                               |
+| ---------- | ------- | ----------------------------------------------------------------------------------------------------- |
+| `unit`     | `""`    | UCUM/OTel code of the query result; unknown custom units remain literal labels.                       |
+| `scale`    | `none`  | `none`, `decimal`, `binary`, or `duration`.                                                           |
+| `decimals` | omitted | Fixed fraction digits (0 to 10); omitted uses up to 2 without trailing zeros.                         |
+| `display`  | `value` | `value` preserves ordinary unit formatting; `percent` displays a dimensionless ratio as a percentage. |
 
 ```yaml
 valueFormat: { unit: "{request}/s", scale: decimal, decimals: 1 }

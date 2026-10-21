@@ -1,30 +1,13 @@
-import {
-  type BillingDependencies,
-  BillingError,
-  type BillingMember,
-  type Person,
-} from "./types";
+import { type BillingDependencies, BillingError, type BillingMember, type Person } from "./types";
 
 export function createBillingMembers({ polar }: BillingDependencies) {
-  async function resolveMember(
-    customerId: string,
-    person: Person,
-    remote: BillingMember[],
-  ) {
+  async function resolveMember(customerId: string, person: Person, remote: BillingMember[]) {
     let current = remote.find((m) => m.externalId === person.id);
-    if (
-      current &&
-      (current.customerId !== customerId || current.externalId !== person.id)
-    )
-      throw new BillingError(
-        "identity_conflict",
-        "Billing member identity is inconsistent.",
-      );
+    if (current && (current.customerId !== customerId || current.externalId !== person.id))
+      throw new BillingError("identity_conflict", "Billing member identity is inconsistent.");
     if (
       remote.some(
-        (m) =>
-          m.id !== current?.id &&
-          m.email.toLowerCase() === person.email.toLowerCase(),
+        (m) => m.id !== current?.id && m.email.toLowerCase() === person.email.toLowerCase(),
       )
     )
       throw new BillingError(
@@ -35,17 +18,12 @@ export function createBillingMembers({ polar }: BillingDependencies) {
       try {
         current = await polar.createMember(customerId, person);
       } catch (cause) {
-        current = (await polar.members(customerId)).find(
-          (m) => m.externalId === person.id,
-        );
+        current = (await polar.members(customerId)).find((m) => m.externalId === person.id);
         if (!current) throw cause;
       }
     }
     if (current.externalId !== person.id || current.customerId !== customerId)
-      throw new BillingError(
-        "identity_conflict",
-        "Billing member belongs to another user.",
-      );
+      throw new BillingError("identity_conflict", "Billing member belongs to another user.");
     return current;
   }
   async function syncMember(
@@ -56,11 +34,7 @@ export function createBillingMembers({ polar }: BillingDependencies) {
   ) {
     const current = await resolveMember(customerId, person, remote);
     const role = person.id === ownerUserId ? "owner" : "billing_manager";
-    if (
-      current.role !== role ||
-      current.name !== person.name ||
-      current.email !== person.email
-    )
+    if (current.role !== role || current.name !== person.name || current.email !== person.email)
       await polar.updateMember(current.id, {
         role,
         name: person.name,
@@ -79,11 +53,7 @@ export function createBillingMembers({ polar }: BillingDependencies) {
     ))
       await syncMember(customerId, ownerUserId, person, remote);
     for (const current of remote) {
-      if (
-        !current.externalId ||
-        desired.some((p) => p.id === current.externalId)
-      )
-        continue;
+      if (!current.externalId || desired.some((p) => p.id === current.externalId)) continue;
       if (current.role === "owner")
         throw new BillingError(
           "owner_required",

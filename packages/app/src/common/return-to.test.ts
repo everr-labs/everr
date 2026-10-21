@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { returnToSchema } from "./return-to";
 
 it.each([
@@ -11,10 +11,9 @@ it.each([
   expect(returnToSchema.parse(target)).toBe("/");
 });
 
-it.each([
-  "/invite/one",
-  "/device?user_code=ABCD",
-  "/logs?service=api#results",
-])("preserves the original destination: %s", (target) => {
-  expect(returnToSchema.parse(target)).toBe(target);
-});
+it.each(["/invite/one", "/device?user_code=ABCD", "/logs?service=api#results"])(
+  "preserves the original destination: %s",
+  (target) => {
+    expect(returnToSchema.parse(target)).toBe(target);
+  },
+);

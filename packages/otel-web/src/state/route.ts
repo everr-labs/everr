@@ -53,9 +53,7 @@ let resolvers: RouteResolvers | null | undefined;
  * If a function throws an error, or if it returns null or undefined, the
  * record gets no route. To remove the resolvers, send null or undefined.
  */
-export function setRouteResolver(
-  next: RouteResolvers | null | undefined,
-): void {
+export function setRouteResolver(next: RouteResolvers | null | undefined): void {
   resolvers = next;
 }
 

@@ -22,13 +22,7 @@ new WebSDK({
   deploymentEnvironment: import.meta.env.MODE,
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
   dev: import.meta.env.DEV,
-  instrumentations: [
-    errors(),
-    pageviews(),
-    interactions(),
-    performance(),
-    network(),
-  ],
+  instrumentations: [errors(), pageviews(), interactions(), performance(), network()],
 });
 ```
 
@@ -36,13 +30,13 @@ Without a key or an endpoint, a production build resolves to an inert client tha
 
 ## Instrumentations
 
-| Instrumentation | Captures |
-| --- | --- |
-| `errors()` | `window` errors and unhandled rejections, with `ignore` and `denyUrls` filters |
-| `pageviews()` | Page views and page leaves, across SPA navigations |
-| `interactions()` | Clicks and submits |
-| `performance()` | Web vitals and slow-interaction spans |
-| `network()` | `fetch` and XHR as client spans |
+| Instrumentation  | Captures                                                                       |
+| ---------------- | ------------------------------------------------------------------------------ |
+| `errors()`       | `window` errors and unhandled rejections, with `ignore` and `denyUrls` filters |
+| `pageviews()`    | Page views and page leaves, across SPA navigations                             |
+| `interactions()` | Clicks and submits                                                             |
+| `performance()`  | Web vitals and slow-interaction spans                                          |
+| `network()`      | `fetch` and XHR as client spans                                                |
 
 Wrap any instrumentation in `sampled(instrumentation, rate)` to capture a fraction of sessions, for example `sampled(performance(), 0.1)`.
 

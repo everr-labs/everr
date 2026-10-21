@@ -1,11 +1,7 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { Span } from "../../data/types";
 import { prepareTraceLayout, prepareTraceModel } from "./processor";
-import {
-  executeTraceTask,
-  type TraceResponse,
-  type TraceTask,
-} from "./processor-tasks";
+import { executeTraceTask, type TraceResponse, type TraceTask } from "./processor-tasks";
 
 const workers: FakeWorker[] = [];
 class FakeWorker {
@@ -21,9 +17,7 @@ class FakeWorker {
     this.task = task;
   }
   respond() {
-    this.onmessage?.(
-      new MessageEvent("message", { data: executeTraceTask(this.task) }),
-    );
+    this.onmessage?.(new MessageEvent("message", { data: executeTraceTask(this.task) }));
   }
 }
 

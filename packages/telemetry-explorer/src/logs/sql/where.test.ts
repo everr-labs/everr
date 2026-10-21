@@ -1,15 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildWhereClause } from "./where";
 
 describe("buildWhereClause", () => {
   it("starts with the time-range bounds", () => {
     const { clause } = buildWhereClause({ levels: [], services: [] });
-    expect(clause).toContain(
-      "Timestamp >= parseDateTimeBestEffort({fromTime:String})",
-    );
-    expect(clause).toContain(
-      "Timestamp <= parseDateTimeBestEffort({toTime:String})",
-    );
+    expect(clause).toContain("Timestamp >= parseDateTimeBestEffort({fromTime:String})");
+    expect(clause).toContain("Timestamp <= parseDateTimeBestEffort({toTime:String})");
   });
 
   it("adds positionCaseInsensitive when query is set", () => {
@@ -18,9 +14,7 @@ describe("buildWhereClause", () => {
       levels: [],
       services: [],
     });
-    expect(clause).toContain(
-      "positionCaseInsensitive(Body, {query:String}) > 0",
-    );
+    expect(clause).toContain("positionCaseInsensitive(Body, {query:String}) > 0");
   });
 
   it("filters levels when present and includeLevels is not false", () => {
@@ -69,9 +63,7 @@ describe("buildWhereClause", () => {
     const { clause } = buildWhereClause({
       levels: [],
       services: [],
-      attributes: [
-        { source: "log", key: "http.method", op: "not_in", values: ["GET"] },
-      ],
+      attributes: [{ source: "log", key: "http.method", op: "not_in", values: ["GET"] }],
     });
     expect(clause).toContain(
       "(has(LogAttributesKeys, {attrKey0:String}) AND toString(LogAttributes.`http.method`) NOT IN {attrVals0:Array(String)})",
@@ -84,21 +76,15 @@ describe("buildWhereClause", () => {
       services: [],
       attributes: [{ source: "scope", key: "lib", op: "exists", values: [] }],
     });
-    expect(exists.clause).toContain(
-      "has(ScopeAttributesKeys, {attrKey0:String})",
-    );
+    expect(exists.clause).toContain("has(ScopeAttributesKeys, {attrKey0:String})");
     expect(exists.params).toEqual({ attrKey0: "lib" });
 
     const missing = buildWhereClause({
       levels: [],
       services: [],
-      attributes: [
-        { source: "resource", key: "host.name", op: "missing", values: [] },
-      ],
+      attributes: [{ source: "resource", key: "host.name", op: "missing", values: [] }],
     });
-    expect(missing.clause).toContain(
-      "NOT has(ResourceAttributesKeys, {attrKey0:String})",
-    );
+    expect(missing.clause).toContain("NOT has(ResourceAttributesKeys, {attrKey0:String})");
   });
 
   it("indexes multiple attribute filters independently", () => {
@@ -144,9 +130,7 @@ describe("buildWhereClause", () => {
     const { clause, params } = buildWhereClause({
       levels: [],
       services: [],
-      attributes: [
-        { source: "log", key: "http.method", op: "not_in", values: [] },
-      ],
+      attributes: [{ source: "log", key: "http.method", op: "not_in", values: [] }],
     });
     expect(clause).not.toContain("attrKey0");
     expect(params).toEqual({});
@@ -163,8 +147,6 @@ describe("buildWhereClause", () => {
     });
     // first filter (index 0) is skipped; second keeps its index-1 names
     expect(params).toEqual({ attrKey1: "b", attrVals1: ["x"] });
-    expect(clause).toContain(
-      "toString(LogAttributes.`b`) IN {attrVals1:Array(String)}",
-    );
+    expect(clause).toContain("toString(LogAttributes.`b`) IN {attrVals1:Array(String)}");
   });
 });

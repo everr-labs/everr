@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   groupRow: null as Record<string, unknown> | null,
@@ -20,12 +20,7 @@ const mocks = vi.hoisted(() => ({
       }[],
     ) =>
       Promise.resolve(
-        new Set(
-          events.map(
-            (event) =>
-              `${event.sourceDefinitionId}:${event.instanceFingerprint}`,
-          ),
-        ),
+        new Set(events.map((event) => `${event.sourceDefinitionId}:${event.instanceFingerprint}`)),
       ),
   ),
   recordHistory: vi.fn(() => Promise.resolve()),
@@ -57,8 +52,7 @@ vi.mock("#app/db/client.ts", () => {
               from: () => ({
                 where: () => ({
                   for: () => ({
-                    limit: () =>
-                      Promise.resolve(mocks.groupRow ? [mocks.groupRow] : []),
+                    limit: () => Promise.resolve(mocks.groupRow ? [mocks.groupRow] : []),
                   }),
                 }),
               }),
@@ -93,8 +87,7 @@ vi.mock("#app/db/client.ts", () => {
               mocks.inserts.push(values);
               return Object.assign(Promise.resolve(undefined), {
                 onConflictDoNothing: () => ({
-                  returning: () =>
-                    Promise.resolve([{ dedupKey: "dedup-key-1" }]),
+                  returning: () => Promise.resolve([{ dedupKey: "dedup-key-1" }]),
                 }),
               });
             },
@@ -134,18 +127,14 @@ vi.mock("#app/data/alerting/silences/repository.ts", () => ({
 
 vi.mock("../history/clickhouse", () => ({
   recordAlertHistory: mocks.recordHistory,
-  journalTerminalRow: (
-    event: { id: string },
-    opts: Record<string, unknown> = {},
-  ) => ({ notificationEventId: event.id, ...opts }),
+  journalTerminalRow: (event: { id: string }, opts: Record<string, unknown> = {}) => ({
+    notificationEventId: event.id,
+    ...opts,
+  }),
 }));
 
 import { CHANNEL_TEXT_MAX } from "#app/data/alerting/delivery/channel-text-limits.ts";
-import {
-  flushAlertGroup,
-  formatNotification,
-  type NotificationEvent,
-} from "./flush-group";
+import { flushAlertGroup, formatNotification, type NotificationEvent } from "./flush-group";
 
 beforeEach(() => {
   mocks.groupRow = null;
@@ -195,10 +184,7 @@ function member(i: number, eventOverrides: Record<string, unknown> = {}) {
 
 describe("formatNotification", () => {
   it("keeps a small group byte for byte", () => {
-    const events = [
-      event(),
-      event({ eventType: "instance_resolved", slug: "default/latency" }),
-    ];
+    const events = [event(), event({ eventType: "instance_resolved", slug: "default/latency" })];
     expect(formatNotification(events)).toEqual({
       title: "Everr alert: 1 firing, 1 resolved",
       body: "Firing: default/high-5xx (host=web-1)\nResolved: default/latency (host=web-1)",
@@ -207,9 +193,7 @@ describe("formatNotification", () => {
   });
 
   it("reads resolved only when nothing in the group still fires", () => {
-    expect(
-      formatNotification([event({ eventType: "instance_resolved" })]).status,
-    ).toBe("resolved");
+    expect(formatNotification([event({ eventType: "instance_resolved" })]).status).toBe("resolved");
   });
 
   it("cuts a large group to a bounded body and says how many were cut", () => {
@@ -223,9 +207,7 @@ describe("formatNotification", () => {
     const shown = lines.length - 1;
     expect(shown).toBeLessThanOrEqual(20);
     expect(lines.at(-1)).toBe(`…and ${300 - shown} more events in this group`);
-    expect(body.length).toBeLessThan(
-      CHANNEL_TEXT_MAX.discord - title.length - 4,
-    );
+    expect(body.length).toBeLessThan(CHANNEL_TEXT_MAX.discord - title.length - 4);
   });
 
   it("caps one pathological event so it cannot eat the budget", () => {
@@ -247,9 +229,7 @@ describe("formatNotification", () => {
 
   it("counts every event in the title even when lines are cut", () => {
     const events = [
-      ...Array.from({ length: 50 }, (_, i) =>
-        event({ instanceLabels: { host: `web-${i}` } }),
-      ),
+      ...Array.from({ length: 50 }, (_, i) => event({ instanceLabels: { host: `web-${i}` } })),
       ...Array.from({ length: 30 }, (_, i) =>
         event({
           eventType: "instance_resolved",
@@ -257,9 +237,7 @@ describe("formatNotification", () => {
         }),
       ),
     ];
-    expect(formatNotification(events).title).toBe(
-      "Everr alert: 50 firing, 30 resolved",
-    );
+    expect(formatNotification(events).title).toBe("Everr alert: 50 firing, 30 resolved");
   });
 });
 
@@ -380,9 +358,7 @@ describe("flushAlertGroup flap handling", () => {
 
     expect(mocks.recordHistory).toHaveBeenCalledWith(
       null,
-      expect.arrayContaining([
-        expect.objectContaining({ notificationEventId: "resolve-event" }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ notificationEventId: "resolve-event" })]),
       // The terminal's id derives from the notification event, so a retried
       // flush rebuilds it and the write converges instead of journaling a
       // second terminal.

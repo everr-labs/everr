@@ -50,5 +50,5 @@ export async function loadUndeliveredRecords(
 }
 
 function isSeverity(value: string): value is AlertingSeverity {
-  return (ALERTING_SEVERITIES as readonly string[]).includes(value);
+  return ALERTING_SEVERITIES.some((severity) => severity === value);
 }

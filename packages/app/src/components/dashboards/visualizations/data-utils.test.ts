@@ -1,12 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { isNumericValue } from "#app/lib/numeric.ts";
-import {
-  detectTimeKey,
-  getValueKeys,
-  niceLinearDomain,
-  toNumber,
-  toTimestamp,
-} from "./data-utils";
+import { detectTimeKey, getValueKeys, niceLinearDomain, toNumber, toTimestamp } from "./data-utils";
 
 describe("detectTimeKey", () => {
   it("matches ts, time, and timestamp exactly, case-insensitively", () => {
@@ -175,10 +169,7 @@ describe("niceLinearDomain", () => {
   });
 
   it("survives data that carries no usable numbers", () => {
-    const { domain } = niceLinearDomain(
-      Number.POSITIVE_INFINITY,
-      Number.NEGATIVE_INFINITY,
-    );
+    const { domain } = niceLinearDomain(Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY);
     expect(domain.every(Number.isFinite)).toBe(true);
   });
 });

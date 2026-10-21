@@ -61,11 +61,7 @@ export function aggregateLogVolume(lines: ParsedLogLine[]): LogVolumeBin[] {
 
   // Handle edge case: all logs at same timestamp
   if (duration === 0) {
-    const bin = createEmptyBin(
-      formatTimeLabel(new Date(minTime), 5_000),
-      minTime,
-      0,
-    );
+    const bin = createEmptyBin(formatTimeLabel(new Date(minTime), 5_000), minTime, 0);
     for (const line of lines) {
       if (!line.isGroupEnd) {
         incrementBinCount(bin, line);
@@ -81,13 +77,7 @@ export function aggregateLogVolume(lines: ParsedLogLine[]): LogVolumeBin[] {
   // Create empty bins
   for (let i = 0; i < binCount; i++) {
     const binStart = minTime + i * binSize;
-    bins.push(
-      createEmptyBin(
-        formatTimeLabel(new Date(binStart), binSize),
-        binStart,
-        -1,
-      ),
-    );
+    bins.push(createEmptyBin(formatTimeLabel(new Date(binStart), binSize), binStart, -1));
   }
 
   // Populate bins with log counts and track first line index per bin

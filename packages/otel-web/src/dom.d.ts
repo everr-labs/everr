@@ -48,10 +48,12 @@ declare global {
     "layout-shift": LayoutShift;
     "long-animation-frame": PerformanceLongAnimationFrameTiming;
   }
+  interface PerformanceObserverInit {
+    durationThreshold?: number;
+  }
   interface Performance {
-    getEntriesByType<K extends keyof PerformanceEntryMap>(
-      type: K,
-    ): PerformanceEntryMap[K][];
+    interactionCount?: number;
+    getEntriesByType<K extends keyof PerformanceEntryMap>(type: K): PerformanceEntryMap[K][];
   }
 }
 

@@ -1,16 +1,9 @@
 import { member, organization, user } from "@everr/app/db/schema";
-import {
-  isOrganizationAdmin,
-  isOrganizationOwner,
-} from "@everr/app/identity/roles";
+import { isOrganizationAdmin, isOrganizationOwner } from "@everr/app/identity/roles";
 import { and, eq, getTableColumns, isNull, or, sql } from "drizzle-orm";
 import { organizationBilling, orgSubscription } from "../db/schema";
 import { assertPolarProductGrantsPlan } from "./catalog.server";
-import {
-  type BillingDependencies,
-  BillingError,
-  type Subscription,
-} from "./types";
+import { type BillingDependencies, BillingError, type Subscription } from "./types";
 
 export function createBillingStore({ db }: BillingDependencies) {
   const store = {
@@ -19,33 +12,20 @@ export function createBillingStore({ db }: BillingDependencies) {
         .select({ id: user.id, name: user.name, email: user.email })
         .from(user)
         .where(eq(user.id, id));
-      if (!person)
-        throw new BillingError(
-          "identity_conflict",
-          "Billing user no longer exists.",
-        );
+      if (!person) throw new BillingError("identity_conflict", "Billing user no longer exists.");
       return person;
     },
     async organization(id: string) {
       const [org] = await db
         .select({
           ...getTableColumns(organization),
-          plan: sql<
-            "hobby" | "pro"
-          >`coalesce(${organizationBilling.plan}, 'hobby')`,
+          plan: sql<"hobby" | "pro">`coalesce(${organizationBilling.plan}, 'hobby')`,
           polarCustomerId: organizationBilling.polarCustomerId,
         })
         .from(organization)
-        .leftJoin(
-          organizationBilling,
-          eq(organizationBilling.orgId, organization.id),
-        )
+        .leftJoin(organizationBilling, eq(organizationBilling.orgId, organization.id))
         .where(eq(organization.id, id));
-      if (!org)
-        throw new BillingError(
-          "identity_conflict",
-          "Organization no longer exists.",
-        );
+      if (!org) throw new BillingError("identity_conflict", "Organization no longer exists.");
       return org;
     },
     async linkCustomer(orgId: string, customerId: string) {
@@ -84,18 +64,9 @@ export function createBillingStore({ db }: BillingDependencies) {
       const [row] = await db
         .select({ role: member.role })
         .from(member)
-        .where(
-          and(eq(member.organizationId, orgId), eq(member.userId, userId)),
-        );
-      if (
-        !(ownerOnly
-          ? isOrganizationOwner(row?.role)
-          : isOrganizationAdmin(row?.role))
-      )
-        throw new BillingError(
-          "forbidden",
-          "You cannot manage billing for this organization.",
-        );
+        .where(and(eq(member.organizationId, orgId), eq(member.userId, userId)));
+      if (!(ownerOnly ? isOrganizationOwner(row?.role) : isOrganizationAdmin(row?.role)))
+        throw new BillingError("forbidden", "You cannot manage billing for this organization.");
     },
     async saveSubscription(orgId: string, subscription: Subscription) {
       assertPolarProductGrantsPlan(subscription.productId, "pro");

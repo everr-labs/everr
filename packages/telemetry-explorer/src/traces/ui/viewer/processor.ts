@@ -51,8 +51,7 @@ function run(task: TraceTask, signal?: AbortSignal): Promise<TraceResult> {
         finish(response);
       }
     };
-    worker.onerror = () =>
-      finish(undefined, new Error("Could not prepare this trace."));
+    worker.onerror = () => finish(undefined, new Error("Could not prepare this trace."));
     worker.onmessageerror = () =>
       finish(undefined, new Error("Could not read the prepared trace."));
     try {
@@ -69,10 +68,7 @@ export async function prepareTraceModel(spans: Span[], signal?: AbortSignal) {
   return result.model;
 }
 
-export async function prepareTraceLayout(
-  spans: FlamegraphSpan[],
-  signal?: AbortSignal,
-) {
+export async function prepareTraceLayout(spans: FlamegraphSpan[], signal?: AbortSignal) {
   const result = await run({ type: "layout", spans }, signal);
   if (result.type !== "layout") throw new Error("Expected a trace layout.");
   return result.layout;

@@ -1,9 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  GetTraceInputSchema,
-  TraceDetailParamsSchema,
-  toTraceListSearch,
-} from "./schemas";
+import { describe, expect, it } from "vite-plus/test";
+import { GetTraceInputSchema, TraceDetailParamsSchema, toTraceListSearch } from "./schemas";
 
 it("accepts ID-only trace requests and ignores legacy time bounds", () => {
   expect(GetTraceInputSchema.parse({ traceId: "trace-1" })).toEqual({

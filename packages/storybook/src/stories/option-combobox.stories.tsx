@@ -1,7 +1,4 @@
-import {
-  OptionCombobox,
-  type OptionComboboxItem,
-} from "@everr/ui/components/option-combobox";
+import { OptionCombobox, type OptionComboboxItem } from "@everr/ui/components/option-combobox";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MailIcon, WebhookIcon } from "lucide-react";
 import { useState } from "react";
@@ -58,7 +55,7 @@ const meta = {
     value: "webhook",
     onChange: () => {},
   },
-  render: ({ value, onChange, ...args }) => (
+  render: ({ value, onChange: _onChange, ...args }) => (
     <div className="h-72 w-72">
       <StatefulCombobox {...args} initialValue={value} />
     </div>

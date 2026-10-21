@@ -57,6 +57,7 @@ export function Marquee({
         .fill(0)
         .map((_, i) => (
           <div
+            // oxlint-disable-next-line react/no-array-index-key -- These are fixed repetitions of the same decorative content.
             key={i}
             aria-hidden={i > 0 || undefined}
             className={cn("flex shrink-0 justify-around gap-(--gap)", {

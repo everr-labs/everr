@@ -1,9 +1,5 @@
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
-import {
-  resolveTimeRange,
-  type TimeRange,
-  toClickHouseDateTime,
-} from "@everr/ui/lib/time-range";
+import { resolveTimeRange, type TimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { TracesRepositoryLike } from "./repository";
@@ -35,6 +31,7 @@ export function tracesSearchInfiniteOptions(input: TraceSearchOptionsInput) {
   const { repo, refresh, ...key } = input;
   const refreshMs = getRefreshIntervalMs(refresh);
   const queryKey = ["traces", "search", "infinite", key] as const;
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return infiniteQueryOptions({
     queryKey,
     queryFn: async ({ pageParam }: { pageParam: TraceSearchCursor | null }) => {
@@ -48,13 +45,9 @@ export function tracesSearchInfiniteOptions(input: TraceSearchOptionsInput) {
         service: input.service,
         name: input.name,
         minDurationNs:
-          input.minMs === undefined
-            ? undefined
-            : (BigInt(input.minMs) * MS_TO_NS).toString(),
+          input.minMs === undefined ? undefined : (BigInt(input.minMs) * MS_TO_NS).toString(),
         maxDurationNs:
-          input.maxMs === undefined
-            ? undefined
-            : (BigInt(input.maxMs) * MS_TO_NS).toString(),
+          input.maxMs === undefined ? undefined : (BigInt(input.maxMs) * MS_TO_NS).toString(),
         status: input.status,
         attributes: input.attributes,
         limit: input.limit,
@@ -79,6 +72,7 @@ export type GetTraceOptionsInput = {
 
 export function getTraceOptions(input: GetTraceOptionsInput) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
+
   return queryOptions({
     queryKey: ["traces", "get", input.traceId] as const,
     queryFn: () =>
@@ -95,6 +89,7 @@ export function listServiceIdentitiesOptions(
   input: { timeRange: TimeRange; refresh: string },
 ) {
   const refreshMs = getRefreshIntervalMs(input.refresh);
+
   return queryOptions({
     queryKey: ["traces", "service-identities", input.timeRange] as const,
     queryFn: async () => {

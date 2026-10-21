@@ -25,9 +25,7 @@ import { createStart } from "@tanstack/react-start";
 import { getRouter } from "@/router";
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [
-    createRequestTelemetryMiddleware({ router: (): RouterLike => getRouter() }),
-  ],
+  requestMiddleware: [createRequestTelemetryMiddleware({ router: (): RouterLike => getRouter() })],
   functionMiddleware: [createServerFnTelemetryMiddleware()],
 }));
 ```
@@ -59,11 +57,11 @@ Disable the HTTP auto-instrumentation's incoming-request span
 
 ## Options
 
-| Option | Applies to | Purpose |
-| --- | --- | --- |
-| `router` | request | The app's router factory, called once and memoized. Required. |
-| `tracerName` | both | Tracer name. Defaults to `tanstack-start.server` / `tanstack-start.server_fn`. |
-| `isExpectedError` | server fn | Errors treated as control flow rather than faults, so they are not captured. |
+| Option            | Applies to | Purpose                                                                        |
+| ----------------- | ---------- | ------------------------------------------------------------------------------ |
+| `router`          | request    | The app's router factory, called once and memoized. Required.                  |
+| `tracerName`      | both       | Tracer name. Defaults to `tanstack-start.server` / `tanstack-start.server_fn`. |
+| `isExpectedError` | server fn  | Errors treated as control flow rather than faults, so they are not captured.   |
 
 ## Note on CSRF
 

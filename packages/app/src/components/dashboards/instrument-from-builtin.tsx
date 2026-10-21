@@ -1,9 +1,5 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@everr/ui/components/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { Check, ClipboardList, Copy } from "lucide-react";
@@ -16,13 +12,7 @@ import { instrumentMissingPrompt } from "#app/data/dashboards/built-in/prompt.ts
  * hands the Agent a prompt that investigates and sets up the missing
  * instrumentation.
  */
-export function InstrumentFromBuiltin({
-  name,
-  missing,
-}: {
-  name: string;
-  missing: string[];
-}) {
+export function InstrumentFromBuiltin({ name, missing }: { name: string; missing: string[] }) {
   const prompt = instrumentMissingPrompt({ name, missing });
   const promptRef = useRef<HTMLElement>(null);
   const { state: copyState, copy } = useCopyToClipboard(prompt, {
@@ -37,8 +27,8 @@ export function InstrumentFromBuiltin({
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96">
         <p className="text-muted-foreground text-xs/relaxed">
-          Paste this into your coding assistant. It checks what instrumentation
-          is needed and sets it up so this dashboard can render.
+          Paste this into your coding assistant. It checks what instrumentation is needed and sets
+          it up so this dashboard can render.
         </p>
         <div className="mt-3 flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
           <code
@@ -55,26 +45,16 @@ export function InstrumentFromBuiltin({
           onClick={copy}
           aria-label="Copy assistant prompt"
         >
-          {copyState === "copied" ? (
-            <Check className="size-3.5" />
-          ) : (
-            <Copy className="size-3.5" />
-          )}
+          {copyState === "copied" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
           {copyState === "copied" ? "Copied" : "Copy prompt"}
         </Button>
         {/* One status line serves sighted and screen-reader users alike:
             visible on failure, announced-only for the transient "copied". */}
-        <p
-          role="status"
-          className={cn(
-            "mt-2 text-amber-400 text-xs",
-            copyState !== "failed" && "sr-only",
-          )}
-        >
+        <output className={cn("mt-2 text-amber-400 text-xs", copyState !== "failed" && "sr-only")}>
           {copyState === "copied" && "Prompt copied to clipboard."}
           {copyState === "failed" &&
             "Couldn't access the clipboard. The prompt is selected, copy it manually."}
-        </p>
+        </output>
       </PopoverContent>
     </Popover>
   );

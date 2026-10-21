@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { alertingMutationScope, parseAlertingPrincipal } from "./session";
 
 describe("parseAlertingPrincipal", () => {
@@ -20,9 +20,7 @@ describe("parseAlertingPrincipal", () => {
 
   it("throws rather than attribute a malformed principal", () => {
     for (const malformed of ["", "u1", "user", "user:", ":u1", "robot:r1"]) {
-      expect(() => parseAlertingPrincipal(malformed)).toThrow(
-        /Unrecognized principal id/,
-      );
+      expect(() => parseAlertingPrincipal(malformed)).toThrow(/Unrecognized principal id/);
     }
   });
 });
@@ -47,9 +45,7 @@ describe("alertingMutationScope", () => {
         user,
       });
 
-    expect(scopeFor({ id: "u1", email: "ada@example.com" }).actor.display).toBe(
-      "ada@example.com",
-    );
+    expect(scopeFor({ id: "u1", email: "ada@example.com" }).actor.display).toBe("ada@example.com");
     expect(scopeFor({ id: "u1" }).actor.display).toBe("u1");
   });
 

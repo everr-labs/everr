@@ -1,3 +1,4 @@
+import type * as TracesTypes from "@everr/telemetry-explorer/traces";
 import type { TraceExplorerProps } from "@everr/telemetry-explorer/traces";
 import {
   createMemoryHistory,
@@ -8,22 +9,14 @@ import {
   useNavigate,
   useSearch,
 } from "@tanstack/react-router";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useRef } from "react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 import { Route } from "./traces_.$traceId";
 
 vi.mock("#app/data/traces/remote-repo.ts", () => ({ remoteTracesRepo: {} }));
 vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@everr/telemetry-explorer/traces")
-  >()),
+  ...(await importOriginal<typeof TracesTypes>()),
   TraceExplorer: ({ search, onSpanChange }: TraceExplorerProps) => {
     const viewport = useRef<HTMLDivElement>(null);
     return (
@@ -55,9 +48,7 @@ afterEach(() => vi.restoreAllMocks());
 it("preserves the viewer's span scroll when a delayed URL update finishes", async () => {
   vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   vi.spyOn(Route, "useParams").mockReturnValue({ traceId: "trace-1" });
-  vi.spyOn(Route, "useSearch").mockImplementation(() =>
-    useSearch({ strict: false }),
-  );
+  vi.spyOn(Route, "useSearch").mockImplementation(() => useSearch({ strict: false }));
   vi.spyOn(Route, "useNavigate").mockImplementation(() => useNavigate());
   let navigationBlocked = false;
   let finishNavigation = () => {};
@@ -84,9 +75,7 @@ it("preserves the viewer's span scroll when a delayed URL update finishes", asyn
   viewport.scrollTop = 120;
   fireEvent.scroll(viewport);
   navigationBlocked = true;
-  fireEvent.click(
-    screen.getByRole("button", { name: "Select flamegraph span" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Select flamegraph span" }));
   await waitFor(() => expect(viewport.scrollTop).toBe(700));
   await act(async () => finishNavigation());
   await screen.findByText("Selected child");

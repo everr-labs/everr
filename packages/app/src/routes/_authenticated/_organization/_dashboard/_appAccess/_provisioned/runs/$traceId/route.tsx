@@ -8,12 +8,7 @@ import {
 } from "@everr/ui/components/card";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@everr/ui/components/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@everr/ui/components/tabs";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -28,11 +23,7 @@ import { ArrowLeft } from "lucide-react";
 import { PageContainer } from "#app/components/page-container.tsx";
 import { JobTreeNav } from "#app/components/run-detail/job-tree-nav.tsx";
 import { RunHeader } from "#app/components/run-detail/run-header.tsx";
-import {
-  allJobsStepsOptions,
-  runDetailsOptions,
-  runJobsOptions,
-} from "#app/data/runs/options.ts";
+import { allJobsStepsOptions, runDetailsOptions, runJobsOptions } from "#app/data/runs/options.ts";
 import { useRealtimeSubscription } from "#app/hooks/use-realtime-subscription.ts";
 
 export const Route = createFileRoute(
@@ -43,9 +34,6 @@ export const Route = createFileRoute(
       match.loaderData?.workflowName ?? "Run Details",
     hideTimeRangePicker: true,
   },
-  head: () => ({
-    meta: [{ title: "Everr - Run Details" }],
-  }),
   loader: async ({ context: { queryClient }, params }) => {
     const [runDetails, jobs] = await Promise.all([
       queryClient.ensureQueryData(runDetailsOptions(params.traceId)),
@@ -61,6 +49,9 @@ export const Route = createFileRoute(
 
     return { traceId: params.traceId, workflowName: runDetails?.workflowName };
   },
+  head: () => ({
+    meta: [{ title: "Everr - Run Details" }],
+  }),
   component: RunDetailLayout,
   pendingComponent: RunDetailSkeleton,
   errorComponent: RunDetailError,
@@ -120,10 +111,7 @@ function RunDetailLayout() {
         pullRequestUrls={runDetails.pullRequestUrls}
       />
 
-      <Tabs
-        value={traceMatch ? "Trace" : "Jobs"}
-        className="flex min-h-0 flex-1 flex-col"
-      >
+      <Tabs value={traceMatch ? "Trace" : "Jobs"} className="flex min-h-0 flex-1 flex-col">
         <TabsList className="shrink-0">
           <TabsTrigger value="Jobs">
             {stepDetailMatch ? (
@@ -162,9 +150,7 @@ function RunDetailLayout() {
             <Card size="sm" className="flex flex-col overflow-hidden">
               <CardHeader className="shrink-0">
                 <CardTitle>Jobs</CardTitle>
-                <CardDescription>
-                  {(jobs ?? []).length} jobs in this run
-                </CardDescription>
+                <CardDescription>{(jobs ?? []).length} jobs in this run</CardDescription>
               </CardHeader>
               <CardContent className="min-h-0 flex-1">
                 <ScrollArea orientation="both" className="size-full">
@@ -172,7 +158,11 @@ function RunDetailLayout() {
                     jobs={jobs ?? []}
                     stepsByJobId={stepsByJobId ?? {}}
                     traceId={traceId}
-                    selectedJobId={(params as { jobId?: string }).jobId}
+                    selectedJobId={
+                      "jobId" in params && typeof params.jobId === "string"
+                        ? params.jobId
+                        : undefined
+                    }
                   />
                 </ScrollArea>
               </CardContent>
@@ -206,12 +196,9 @@ function RunDetailSkeleton() {
             <Skeleton className="h-3 w-32" />
           </CardHeader>
           <CardContent className="min-h-0 flex-1">
-            <ScrollArea
-              orientation="both"
-              className="size-full"
-              viewportClassName="space-y-2"
-            >
+            <ScrollArea orientation="both" className="size-full" viewportClassName="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
+                // oxlint-disable-next-line react/no-array-index-key -- Loading placeholders occupy fixed positions and hold no row state.
                 <Skeleton key={i} className="h-8 w-full" />
               ))}
             </ScrollArea>
@@ -233,19 +220,14 @@ function RunDetailError({ error }: ErrorComponentProps) {
       <div className="space-y-3">
         <Link
           to="/runs"
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "h-7 px-2",
-          )}
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-7 px-2")}
         >
           <ArrowLeft className="size-4" />
         </Link>
         <Card size="sm">
           <CardContent className="pt-4">
             <div className="text-center">
-              <p className="text-destructive font-medium">
-                Failed to load run details
-              </p>
+              <p className="text-destructive font-medium">Failed to load run details</p>
               <p className="text-muted-foreground mt-1 text-sm">
                 {error instanceof Error ? error.message : String(error)}
               </p>

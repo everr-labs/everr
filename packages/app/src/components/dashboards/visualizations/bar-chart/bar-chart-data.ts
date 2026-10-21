@@ -60,14 +60,12 @@ export function buildBarChartModel(
       // No time column: the first string column is the category axis. A frame
       // with only numeric columns falls back to its first column so something
       // sensible still renders (e.g. numeric bucket labels).
-      xKey = getGroupKeys(data, [])[0] ?? Object.keys(data[0]!)[0]!;
+      xKey = getGroupKeys(data, [])[0] ?? Object.keys(data[0])[0];
       sawCategory = true;
     }
 
     const groupKeys = getGroupKeys(data, [xKey]);
-    const rawValueKeys = getValueKeys(data, xKey).filter(
-      (k) => !groupKeys.includes(k),
-    );
+    const rawValueKeys = getValueKeys(data, xKey).filter((k) => !groupKeys.includes(k));
 
     let rows: QueryResultRow[];
     // The series' source names: pivoted group values, or raw value-column names.
@@ -79,7 +77,7 @@ export function buildBarChartModel(
         ...row,
         [compositeKey]: groupKeys.map((k) => row[k]).join(" · "),
       }));
-      const piv = pivotByGroup(keyed, xKey, compositeKey, rawValueKeys[0]!);
+      const piv = pivotByGroup(keyed, xKey, compositeKey, rawValueKeys[0]);
       rows = piv.pivoted;
       seriesNames = piv.seriesKeys;
     } else {
@@ -97,8 +95,7 @@ export function buildBarChartModel(
       valueKeys.push(renderKey);
       chartConfig[renderKey] = {
         label: name,
-        color:
-          colors[name] ?? SERIES_COLORS[seriesIndex % SERIES_COLORS.length],
+        color: colors[name] ?? SERIES_COLORS[seriesIndex % SERIES_COLORS.length],
       };
       seriesIndex++;
     }
@@ -115,7 +112,9 @@ export function buildBarChartModel(
         // A pivoted row carries only the groups present at its x value, so a
         // missing key is "no bar here" — don't record it as 0.
         if (!(name in row)) continue;
-        entry[renderKeyByName.get(name)!] = toNumber(row[name]);
+        const renderKey = renderKeyByName.get(name);
+        if (renderKey === undefined) continue;
+        entry[renderKey] = toNumber(row[name]);
       }
     }
   });
@@ -123,7 +122,7 @@ export function buildBarChartModel(
   const isTimeAxis = sawTime && !sawCategory;
   const chartData = [...byX.values()];
   if (isTimeAxis) {
-    chartData.sort((a, b) => (a[X_KEY] as number) - (b[X_KEY] as number));
+    chartData.sort((a, b) => Number(a[X_KEY]) - Number(b[X_KEY]));
   }
 
   return { chartData, valueKeys, chartConfig, isTimeAxis };

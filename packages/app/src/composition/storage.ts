@@ -4,11 +4,15 @@ import type { ClickHouseSettings } from "@clickhouse/client";
 export interface ApplicationStorage {
   /** Query isolation settings for the deployment's tenancy model. */
   appQuerySettings(
+    this: void,
     organizationId: string,
     settings?: ClickHouseSettings,
   ): ClickHouseSettings | undefined;
   /** Organization-scoped SQL access, separate from the application's database identity. */
-  sqlApiAccess(organizationId: string): {
+  sqlApiAccess(
+    this: void,
+    organizationId: string,
+  ): {
     /** SQL API credentials for the selected organization. */
     auth: { username: string; password: string };
     /** Additional transport identity required by the deployment's SQL gateway. */

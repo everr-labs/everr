@@ -1,16 +1,10 @@
 import { auth } from "@everr/app/identity/server";
-import {
-  createOrganizationAdminServerFn,
-  requireOrgMiddleware,
-} from "@everr/app/lib/serverFn";
+import { createOrganizationAdminServerFn, requireOrgMiddleware } from "@everr/app/lib/serverFn";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import * as z from "zod";
 import { billing } from "../billing/server";
-import {
-  readOrgEntitlement,
-  userOwnsHobbyOrganization,
-} from "../billing-data.server";
+import { readOrgEntitlement, userOwnsHobbyOrganization } from "../billing-data.server";
 import { organizationCommands } from "../organizations/commands.server";
 
 export const getOrgEntitlement = createOrganizationAdminServerFn({
@@ -32,9 +26,7 @@ export const getSuspendedOrgRecovery = createServerFn()
       entitlement: await readOrgEntitlement(orgId),
       canManageBilling: isAdmin,
       canDowngrade: isOwner,
-      ownsAnotherHobby: isOwner
-        ? await userOwnsHobbyOrganization(session.user.id, orgId)
-        : false,
+      ownsAnotherHobby: isOwner ? await userOwnsHobbyOrganization(session.user.id, orgId) : false,
     };
   });
 
@@ -48,14 +40,10 @@ export const startOrgCheckout = createOrganizationAdminServerFn({
 
 export const getOrgPortalUrl = createOrganizationAdminServerFn({
   method: "POST",
-}).handler(({ context: { orgId, session } }) =>
-  billing.openPortal(orgId, session.user.id),
-);
+}).handler(({ context: { orgId, session } }) => billing.openPortal(orgId, session.user.id));
 export const getOrgBillingSettings = createOrganizationAdminServerFn({
   method: "GET",
-}).handler(({ context: { orgId, session } }) =>
-  billing.getSettings(orgId, session.user.id),
-);
+}).handler(({ context: { orgId, session } }) => billing.getSettings(orgId, session.user.id));
 export const changeOrgBillingOwner = createOrganizationAdminServerFn({
   method: "POST",
 })

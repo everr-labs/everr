@@ -12,13 +12,13 @@ Use the Everr CLI to validate and debug instrumentation against the selected des
 If the user wants to setup alerting rules on that telemetry (and dashboards or runbooks), use the `everr-setup-resources` skill.
 
 ## Default Workflow
+
 ### Step 0 - Select the destination and check prerequisites
 
 1. Honor the requested destination. Default development and test work to the local collector; use the repository's selected remote installation for requested production setup or an explicit remote choice. If both environments are requested, configure and validate each separately.
 2. Ensure the `everr` CLI is installed and accessible.
 3. For local export, run `everr local status`. If stopped, run `everr local start -d --no-open` and check status again. Use the returned `otlp:` and `ui:` URLs. If the collector cannot start, resolve the reported problem or ask the user whether to repair it or switch to a remote installation. Switch only when the user has chosen that destination.
 4. For remote setup or connection troubleshooting, follow [Remote setup](references/remote-setup.md) to resolve the saved target and `ingestEndpoint` with `everr cloud status --json`. Persist the exporter settings and telemetry documentation for later sessions. A local collector is not required for this branch.
-
 
 ### Step 1 - Plan the instrumentation
 
@@ -32,7 +32,6 @@ If the user wants to setup alerting rules on that telemetry (and dashboards or r
    - **Validation:** the path to exercise, the expected telemetry to query in Everr, and the build or typecheck to run.
 5. Identify connections between selected services, such as browser-to-API trace propagation or producer-to-worker context, and any shared-library changes supporting them. Keep distinct runtimes visible even when they live in the same package.
 6. Planning is complete when the target runtimes are established, coverage is delegated to the baseline or defined by selected goals, and the per-service plan has been shown to the user. Resolve any remaining scope decision with the user, then proceed without a separate approval round unless they requested one.
-
 
 ### Step 2 - Instrument the codebase
 
@@ -60,27 +59,27 @@ Preserve working signals and existing destinations outside the task. Add another
 
 Read the rules matching the change. Use the contents links in long references to reach the relevant sections; signal-specific examples apply only to signals in the plan.
 
-| When | Read |
-| --- | --- |
-| Resolving or changing service identity, environment, endpoint, or authentication | [Resolve configuration values](rules/resolve-values.md) |
-| Adding or changing service resource attributes | [Resources](rules/resources.md) |
-| Adding or changing captured data or redaction | [Sensitive data](rules/sensitive-data.md) |
-| Adding or changing spans, context propagation, or span status | [Spans](rules/spans.md) |
-| Adding or changing structured logs or trace correlation | [Logs](rules/logs.md) |
-| Adding or changing metric instruments, units, or attributes | [Metrics](rules/metrics.md) |
-| Capturing errors without an `@everr` SDK, for example in Python, Go, or Java | [Error tracking](rules/error-tracking.md) |
-| Setting up a generic Node.js service, CLI, worker, or test runner; framework-specific rules take precedence | [Node.js](rules/nodejs.md) |
-| Instrumenting Next.js App Router on the Node.js runtime | [Next.js](rules/nextjs.md) |
-| Instrumenting a browser app that is not wrapped in Electron or Tauri | [Browser](rules/browser.md) |
-| Wiring a Vite SSR app on Node.js | [Vite SSR](rules/vite-ssr.md), plus Node.js and Browser for the halves being changed |
-| Joining browser and server traces, including in Next.js | [Browser/server trace joining](rules/vite-ssr.md#the-seam-joining-browser-and-server-traces) |
-| Instrumenting TanStack Start | [TanStack Start](rules/tanstack-start.md), plus Vite SSR and the rules for the halves being changed |
-| Instrumenting Next.js Server Actions, TanStack Start server functions, or equivalent framework functions | [Server functions](rules/server-functions.md), alongside the framework and Spans rules |
-| Instrumenting Tauri v2 with Rust and a frontend using IPC | [Tauri](rules/tauri.md), plus Rust for backend instrumentation |
-| Instrumenting Electron main and renderer processes using IPC | [Electron](rules/electron.md), plus Node.js for main-process instrumentation |
-| Instrumenting a Rust service or backend | [Rust](rules/rust.md) |
-| Exporting to the selected remote installation or documenting how to activate it in production | [Remote setup](references/remote-setup.md) |
-| Verifying any instrumentation change | [Validation](rules/validation.md) |
+| When                                                                                                        | Read                                                                                                |
+| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Resolving or changing service identity, environment, endpoint, or authentication                            | [Resolve configuration values](rules/resolve-values.md)                                             |
+| Adding or changing service resource attributes                                                              | [Resources](rules/resources.md)                                                                     |
+| Adding or changing captured data or redaction                                                               | [Sensitive data](rules/sensitive-data.md)                                                           |
+| Adding or changing spans, context propagation, or span status                                               | [Spans](rules/spans.md)                                                                             |
+| Adding or changing structured logs or trace correlation                                                     | [Logs](rules/logs.md)                                                                               |
+| Adding or changing metric instruments, units, or attributes                                                 | [Metrics](rules/metrics.md)                                                                         |
+| Capturing errors without an `@everr` SDK, for example in Python, Go, or Java                                | [Error tracking](rules/error-tracking.md)                                                           |
+| Setting up a generic Node.js service, CLI, worker, or test runner; framework-specific rules take precedence | [Node.js](rules/nodejs.md)                                                                          |
+| Instrumenting Next.js App Router on the Node.js runtime                                                     | [Next.js](rules/nextjs.md)                                                                          |
+| Instrumenting a browser app that is not wrapped in Electron or Tauri                                        | [Browser](rules/browser.md)                                                                         |
+| Wiring a Vite SSR app on Node.js                                                                            | [Vite SSR](rules/vite-ssr.md), plus Node.js and Browser for the halves being changed                |
+| Joining browser and server traces, including in Next.js                                                     | [Browser/server trace joining](rules/vite-ssr.md#the-seam-joining-browser-and-server-traces)        |
+| Instrumenting TanStack Start                                                                                | [TanStack Start](rules/tanstack-start.md), plus Vite SSR and the rules for the halves being changed |
+| Instrumenting Next.js Server Actions, TanStack Start server functions, or equivalent framework functions    | [Server functions](rules/server-functions.md), alongside the framework and Spans rules              |
+| Instrumenting Tauri v2 with Rust and a frontend using IPC                                                   | [Tauri](rules/tauri.md), plus Rust for backend instrumentation                                      |
+| Instrumenting Electron main and renderer processes using IPC                                                | [Electron](rules/electron.md), plus Node.js for main-process instrumentation                        |
+| Instrumenting a Rust service or backend                                                                     | [Rust](rules/rust.md)                                                                               |
+| Exporting to the selected remote installation or documenting how to activate it in production               | [Remote setup](references/remote-setup.md)                                                          |
+| Verifying any instrumentation change                                                                        | [Validation](rules/validation.md)                                                                   |
 
 #### Instrumentation rules
 
@@ -128,16 +127,16 @@ When ongoing monitoring fits the user's goal and remote telemetry is available, 
 
 ## Command Choice
 
-| Need | Command |
-| --- | --- |
-| Check collector state | `everr local status` |
-| Start the CLI collector | `everr local start` |
-| Get the local OTLP/HTTP endpoint | `everr local status` |
-| Verify local telemetry arrived | `everr local query "<SQL>"` |
-| Discover a remote connection during setup or troubleshooting | `everr cloud status --json` |
-| Authenticate remote query access when needed | The CLI's login hint or the installation's onboarding login command |
-| Verify remote telemetry arrived | `everr cloud query "<SQL>"` |
-| Capture build/lint output | `everr wrap -- <command>` |
+| Need                                                         | Command                                                             |
+| ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Check collector state                                        | `everr local status`                                                |
+| Start the CLI collector                                      | `everr local start`                                                 |
+| Get the local OTLP/HTTP endpoint                             | `everr local status`                                                |
+| Verify local telemetry arrived                               | `everr local query "<SQL>"`                                         |
+| Discover a remote connection during setup or troubleshooting | `everr cloud status --json`                                         |
+| Authenticate remote query access when needed                 | The CLI's login hint or the installation's onboarding login command |
+| Verify remote telemetry arrived                              | `everr cloud query "<SQL>"`                                         |
+| Capture build/lint output                                    | `everr wrap -- <command>`                                           |
 
 For local export, keep the endpoint as `<otlp-url-from-status>` in plans and example commands until you have actual status output.
 
@@ -156,11 +155,11 @@ Do not optimize local debug telemetry for storage cost. Rich local evidence is u
 
 ## Common Mistakes
 
-| Mistake | Fix |
-| --- | --- |
-| Naming a likely collector URL such as a default localhost port before reading status | Use `<otlp-url-from-status>` in plans and examples until `everr local status` returns the actual endpoint. |
-| Adding a run, request, or test marker but querying only by service and time | Filter the query by the marker too, or do not claim the marker proved freshness. |
-| Mirroring every `console.*` call into logs | Prefer targeted OTel logs or the app's structured logger; any bridge must be temporary, gated, redacted, and bounded. |
-| Verifying by UI visibility or absence of exporter errors | Query the selected destination with `everr local query` or `everr cloud query` and show rows from the exercised path. |
-| Validating only against the dev server | Run the production build too; strict type checking is skipped in dev, and OTLP exporter `headers` options are a common casualty (a conditional headers value uses `undefined` for the keyless branch, never `{}`). |
-| Exposing `EVERR_INGEST_KEY` to the browser | Browsers use a public origin-bound ingest key (`rules/browser.md`); secret keys stay server-side. |
+| Mistake                                                                              | Fix                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Naming a likely collector URL such as a default localhost port before reading status | Use `<otlp-url-from-status>` in plans and examples until `everr local status` returns the actual endpoint.                                                                                                         |
+| Adding a run, request, or test marker but querying only by service and time          | Filter the query by the marker too, or do not claim the marker proved freshness.                                                                                                                                   |
+| Mirroring every `console.*` call into logs                                           | Prefer targeted OTel logs or the app's structured logger; any bridge must be temporary, gated, redacted, and bounded.                                                                                              |
+| Verifying by UI visibility or absence of exporter errors                             | Query the selected destination with `everr local query` or `everr cloud query` and show rows from the exercised path.                                                                                              |
+| Validating only against the dev server                                               | Run the production build too; strict type checking is skipped in dev, and OTLP exporter `headers` options are a common casualty (a conditional headers value uses `undefined` for the keyless branch, never `{}`). |
+| Exposing `EVERR_INGEST_KEY` to the browser                                           | Browsers use a public origin-bound ingest key (`rules/browser.md`); secret keys stay server-side.                                                                                                                  |

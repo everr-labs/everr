@@ -9,8 +9,8 @@ export function AskAiSection() {
             Let your AI kick the tires.
           </h2>
           <p className="mt-6 max-w-[42ch] text-lg leading-[1.6] text-muted-foreground">
-            Ask it to read the docs, question the fit, and tell you where Everr
-            could help your project.
+            Ask it to read the docs, question the fit, and tell you where Everr could help your
+            project.
           </p>
         </div>
         <div className="min-w-0">

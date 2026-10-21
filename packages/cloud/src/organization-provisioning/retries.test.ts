@@ -8,15 +8,7 @@ import { addWorkerJob } from "@everr/app/server/worker/jobs";
 import { sql } from "drizzle-orm";
 import type { WorkerEvents } from "graphile-worker";
 import type { Pool } from "pg";
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({ database: undefined as unknown }));
 vi.mock("@everr/app/db/client", () => ({
@@ -25,14 +17,8 @@ vi.mock("@everr/app/db/client", () => ({
   },
 }));
 
-import {
-  enqueueOrganizationProvisioning,
-  ORGANIZATION_MAX_ATTEMPTS,
-} from "./jobs";
-import {
-  attachOrganizationRetryPolicy,
-  organizationRetryDelaySeconds,
-} from "./retries";
+import { enqueueOrganizationProvisioning, ORGANIZATION_MAX_ATTEMPTS } from "./jobs";
+import { attachOrganizationRetryPolicy, organizationRetryDelaySeconds } from "./retries";
 
 let fixture: TestDatabase;
 let events: WorkerEvents;
@@ -48,8 +34,7 @@ beforeEach(async () => {
   await fixture.truncate();
   events = new EventEmitter() as WorkerEvents;
   const pgPool = {
-    query: (text: string, values: unknown[]) =>
-      fixture.client.query(text, values),
+    query: (text: string, values: unknown[]) => fixture.client.query(text, values),
   } as unknown as Pick<Pool, "query">;
   retries = attachOrganizationRetryPolicy(events, pgPool);
 });
@@ -78,9 +63,9 @@ function completed(current: Awaited<ReturnType<typeof job>>, error: unknown) {
 describe("organization retry scheduling", () => {
   it("uses short initial delays and never exceeds 30 seconds, including large attempt counts", () => {
     const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
-    expect(
-      [1, 2, 3, 4, 5, 50, 10_000].map(organizationRetryDelaySeconds),
-    ).toEqual([1.8, 3.6, 7.2, 14.4, 27, 27, 27]);
+    expect([1, 2, 3, 4, 5, 50, 10_000].map(organizationRetryDelaySeconds)).toEqual([
+      1.8, 3.6, 7.2, 14.4, 27, 27, 27,
+    ]);
     random.mockReturnValue(0);
     expect(organizationRetryDelaySeconds(1000)).toBe(24);
     random.mockReturnValue(1);
@@ -170,9 +155,7 @@ describe("organization retry scheduling", () => {
     await retries.drain();
     await retries.capPendingRetries();
     expect((await job()).delay).toBeGreaterThan(20_000);
-    await fixture.db.execute(
-      sql`UPDATE graphile_worker._private_jobs SET attempts=2`,
-    );
+    await fixture.db.execute(sql`UPDATE graphile_worker._private_jobs SET attempts=2`);
     completed(await job(), null);
     await retries.drain();
     expect((await job()).delay).toBeGreaterThan(20_000);

@@ -1,12 +1,11 @@
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { Emit } from "./pipeline/emitter.js";
 import { ErrorBoundary } from "./react.js";
 import { bindEmit } from "./state/emit.js";
 
 declare global {
-  // eslint-disable-next-line no-var
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
@@ -41,9 +40,7 @@ function render(node: Parameters<ReturnType<typeof createRoot>["render"]>[0]) {
 
 describe("ErrorBoundary", () => {
   it("renders children while nothing throws", () => {
-    const host = render(
-      createElement(ErrorBoundary, null, createElement("p", null, "fine")),
-    );
+    const host = render(createElement(ErrorBoundary, null, createElement("p", null, "fine")));
     expect(host.textContent).toBe("fine");
     expect(emit).not.toHaveBeenCalled();
   });
@@ -82,9 +79,7 @@ describe("ErrorBoundary", () => {
   });
 
   it("renders nothing after an error without a fallback", () => {
-    const host = render(
-      createElement(ErrorBoundary, null, createElement(Bomb)),
-    );
+    const host = render(createElement(ErrorBoundary, null, createElement(Bomb)));
     expect(host.textContent).toBe("");
   });
 });

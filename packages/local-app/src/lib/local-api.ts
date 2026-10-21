@@ -7,7 +7,7 @@ export async function invokeCommand<TResult>(
     headers: { "Content-Type": "application/json", "X-Everr-Local": "1" },
     body: JSON.stringify(args ?? {}),
   });
-  const result = await response.json();
+  const result: TResult & { error?: string } = await response.json();
   if (!response.ok) throw new Error(result.error ?? "Local request failed");
-  return result as TResult;
+  return result;
 }

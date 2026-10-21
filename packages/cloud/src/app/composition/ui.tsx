@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 export const productUI: ProductUI = {
   SignInFooter: ({ redirect, email }) => (
     <p className="text-center text-sm text-muted-foreground">
-      Don't have an account?{" "}
+      Don&apos;t have an account?{" "}
       <Link
         to="/auth/sign-up"
         search={{ redirect, email }}
@@ -15,8 +15,7 @@ export const productUI: ProductUI = {
   ),
   DeviceLoginRecovery: () => (
     <>
-      Restart <code className="font-mono">everr cloud login</code> from your
-      terminal.
+      Restart <code className="font-mono">everr cloud login</code> from your terminal.
     </>
   ),
 };

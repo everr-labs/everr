@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- Delegating the overloaded OTel method through a rest tuple loses its generic return relationship in TypeScript. */
 // The server entry. The "node" condition in package.json selects it. Thus the
 // same `@everr/otel-web` import operates in the two module graphs of a
 // full-stack framework.
@@ -38,12 +39,7 @@
 // correct.
 import { capture } from "@everr/otel-errors/core";
 import { context, type Tracer, trace } from "@opentelemetry/api";
-import {
-  type LogAttributes,
-  type Logger,
-  logs,
-  SeverityNumber,
-} from "@opentelemetry/api-logs";
+import { type LogAttributes, type Logger, logs, SeverityNumber } from "@opentelemetry/api-logs";
 import type { ErrorContext } from "./errors.js";
 import type { ErrorsOptions } from "./instrumentations/errors/index.js";
 import type { NetworkOptions } from "./instrumentations/network/index.js";
@@ -77,22 +73,16 @@ export function captureError(error: unknown, context?: ErrorContext): void {
     context,
   });
 }
-export type {
-  Instrumentation,
-  InstrumentationContext,
-} from "./instrumentations/runtime.js";
+export type { Instrumentation, InstrumentationContext } from "./instrumentations/runtime.js";
 export { epoch } from "./time.js";
 export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 export { logger };
 
 /** Capture segments through the app's OpenTelemetry provider and context manager. */
 export const tracer: Tracer = {
-  startSpan: (...args) =>
-    trace.getTracer(SDK_NAME, SDK_VERSION).startSpan(...args),
+  startSpan: (...args) => trace.getTracer(SDK_NAME, SDK_VERSION).startSpan(...args),
   startActiveSpan: ((...args: Parameters<Tracer["startActiveSpan"]>) =>
-    trace
-      .getTracer(SDK_NAME, SDK_VERSION)
-      .startActiveSpan(...args)) as Tracer["startActiveSpan"],
+    trace.getTracer(SDK_NAME, SDK_VERSION).startActiveSpan(...args)) as Tracer["startActiveSpan"],
 };
 
 /**
@@ -145,18 +135,14 @@ export function revoke(): void {}
 
 /** Does nothing on the server. The envelope of the browser carries the ambient
  * context. */
-export function setAttributes(
-  _attributes: Record<string, AttrValue | null>,
-): void {}
+export function setAttributes(_attributes: Record<string, AttrValue | null>): void {}
 
 /** Does nothing on the server. The persistence belongs to the browser. */
 export function setPersistence(_persistence: Persistence | undefined): void {}
 
 /** Does nothing on the server. The envelope of the browser carries the route
  * patterns. */
-export function setRouteResolver(
-  _resolvers: RouteResolvers | null | undefined,
-): void {}
+export function setRouteResolver(_resolvers: RouteResolvers | null | undefined): void {}
 
 // The functions that make the built-in instrumentations. Thus shared code that
 // writes `new WebSDK({ instrumentations: [...] })` also operates in the server
@@ -165,15 +151,9 @@ export function setRouteResolver(
 // instrumentation that does nothing.
 const inert: Instrumentation = () => {};
 
-export type {
-  ErrorMatcher,
-  ErrorsOptions,
-} from "./instrumentations/errors/index.js";
+export type { ErrorMatcher, ErrorsOptions } from "./instrumentations/errors/index.js";
 export type { NetworkOptions } from "./instrumentations/network/index.js";
-export type {
-  PerformanceOptions,
-  WebVitalName,
-} from "./instrumentations/performance/index.js";
+export type { PerformanceOptions, WebVitalName } from "./instrumentations/performance/index.js";
 // The sampled() function contains a different instrumentation, and it is not a
 // source of the capture. It operates in the same way with the instrumentations
 // of the server that do nothing and with the instrumentations of the browser.
@@ -186,8 +166,7 @@ export const pageviews = (): Instrumentation => inert;
 /** Does nothing on the server. The interactions belong to the browser. */
 export const interactions = (): Instrumentation => inert;
 /** Does nothing on the server. The performance capture belongs to the browser. */
-export const performance = (_options?: PerformanceOptions): Instrumentation =>
-  inert;
+export const performance = (_options?: PerformanceOptions): Instrumentation => inert;
 /** Does nothing on the server. Network instrumentation belongs to the browser. */
 export const network = (_options?: NetworkOptions): Instrumentation => inert;
 
@@ -201,10 +180,7 @@ export const network = (_options?: NetworkOptions): Instrumentation => inert;
 // condition can occur: the server entry has no span pipeline. The eventName
 // goes to the hook, but this entry does not send it, and thus a hook that
 // changes it has no result on the server.
-const emitVia = (
-  otelLogger: Logger,
-  beforeSend: BeforeSend | undefined,
-): Emit => {
+const emitVia = (otelLogger: Logger, beforeSend: BeforeSend | undefined): Emit => {
   const applyBeforeSend = createBeforeSendGuard(beforeSend);
   const write = (
     severityNumber: number,
@@ -224,13 +200,7 @@ const emitVia = (
       context: context.active(),
     });
 
-  return (
-    eventName,
-    attributes,
-    timestamp,
-    severityNumber = 9,
-    body = eventName,
-  ) => {
+  return (eventName, attributes, timestamp, severityNumber = 9, body = eventName) => {
     // Without a hook the code sends the attributes of the caller directly. The
     // copy below exists only to keep a hook that changes the item away from
     // the object of the caller.

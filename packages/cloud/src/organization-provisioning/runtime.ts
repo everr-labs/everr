@@ -2,25 +2,13 @@ import type { Database } from "@everr/app/db/client";
 import { organization } from "@everr/app/db/schema";
 import { deletePostgresOrganizationData } from "@everr/app/organizations/cleanup";
 import { withBoundaryErrorCapture } from "@everr/app/telemetry/error-boundary";
-import {
-  mergeTelemetryIdentity,
-  withTelemetryIdentityScope,
-} from "@everr/app/telemetry/identity";
+import { mergeTelemetryIdentity, withTelemetryIdentityScope } from "@everr/app/telemetry/identity";
 import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
-import {
-  context,
-  ROOT_CONTEXT,
-  SpanKind,
-  SpanStatusCode,
-  trace,
-} from "@opentelemetry/api";
+import { context, ROOT_CONTEXT, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { and, eq, sql } from "drizzle-orm";
 import { parseCronItems, type Task, type TaskList } from "graphile-worker";
 import { z } from "zod";
-import {
-  deprovisionSqlApiOrgUser,
-  provisionSqlApiOrgUser,
-} from "../clickhouse/provisioning";
+import { deprovisionSqlApiOrgUser, provisionSqlApiOrgUser } from "../clickhouse/provisioning";
 import {
   DEPROVISION_ORGANIZATION_TASK,
   enqueueOrganizationProvisioning,
@@ -42,41 +30,36 @@ function organizationJob(name: string, run: Task): Task {
   return context.bind(ROOT_CONTEXT, async (payload, helpers) =>
     withTelemetryIdentityScope(() =>
       withBoundaryErrorCapture(() =>
-        tracer.startActiveSpan(
-          name,
-          { kind: SpanKind.CONSUMER },
-          async (span) => {
-            const job = helpers.job;
-            const attributes = {
-              "everr.worker.task.name": name,
-              ...(job
-                ? {
-                    "everr.worker.job.id": String(job.id),
-                    "everr.worker.job.attempt": job.attempts,
-                    "everr.worker.job.max_attempts": job.max_attempts,
-                  }
-                : {}),
-            };
-            span.setAttributes(attributes);
-            try {
-              await run(payload, helpers);
-            } catch (error) {
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: error instanceof Error ? error.message : String(error),
-              });
-              serverLogger.error(`${name}.failed`, {
-                ...attributes,
-                ...exceptionAttributes(error),
-                "everr.worker.job.exhausted":
-                  !!job && job.attempts >= job.max_attempts,
-              });
-              throw error;
-            } finally {
-              span.end();
-            }
-          },
-        ),
+        tracer.startActiveSpan(name, { kind: SpanKind.CONSUMER }, async (span) => {
+          const job = helpers.job;
+          const attributes = {
+            "everr.worker.task.name": name,
+            ...(job
+              ? {
+                  "everr.worker.job.id": String(job.id),
+                  "everr.worker.job.attempt": job.attempts,
+                  "everr.worker.job.max_attempts": job.max_attempts,
+                }
+              : {}),
+          };
+          span.setAttributes(attributes);
+          try {
+            await run(payload, helpers);
+          } catch (error) {
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error instanceof Error ? error.message : String(error),
+            });
+            serverLogger.error(`${name}.failed`, {
+              ...attributes,
+              ...exceptionAttributes(error),
+              "everr.worker.job.exhausted": !!job && job.attempts >= job.max_attempts,
+            });
+            throw error;
+          } finally {
+            span.end();
+          }
+        }),
       ),
     ),
   );
@@ -118,12 +101,7 @@ export function createOrganizationTaskList(
         const updated = await database
           .update(organization)
           .set({ metadata: provisionedOrganizationMetadata })
-          .where(
-            and(
-              eq(organization.id, organizationId),
-              organizationProvisioningPending,
-            ),
-          )
+          .where(and(eq(organization.id, organizationId), organizationProvisioningPending))
           .returning({ id: organization.id });
         if (!updated.length) {
           const [remaining] = await database
@@ -144,57 +122,46 @@ export function createOrganizationTaskList(
         await cleanup(organizationId, helpers.abortSignal);
       },
     ),
-    [SCAN_PENDING_TASK]: organizationJob(
-      "clickhouse.organization.scan",
-      async () => {
-        // Recovery is useful but must never disable a healthy worker or scanner.
-        try {
-          await recoverRetries();
-        } catch (error) {
-          serverLogger.error(
-            "clickhouse.organization.retry_recovery.failed",
-            exceptionAttributes(error),
-          );
-        }
-        const pending = await database
-          .select({
-            id: organization.id,
-            createdAt: organization.createdAt,
-            missingJob: sql<boolean>`NOT EXISTS (
+    [SCAN_PENDING_TASK]: organizationJob("clickhouse.organization.scan", async () => {
+      // Recovery is useful but must never disable a healthy worker or scanner.
+      try {
+        await recoverRetries();
+      } catch (error) {
+        serverLogger.error(
+          "clickhouse.organization.retry_recovery.failed",
+          exceptionAttributes(error),
+        );
+      }
+      const pending = await database
+        .select({
+          id: organization.id,
+          createdAt: organization.createdAt,
+          missingJob: sql<boolean>`NOT EXISTS (
               SELECT 1 FROM graphile_worker.jobs j
               WHERE j.task_identifier = ${PROVISION_ORGANIZATION_TASK}
                 AND j.key = 'clickhouse-organization:' || ${sql.identifier("organization")}.${sql.identifier("id")} || ':provision'
             )`,
-          })
-          .from(organization)
-          .where(organizationProvisioningPending);
-        const now = Date.now();
-        const stalled = pending.filter(
-          (org) =>
-            now - org.createdAt.getTime() >=
-            PROVISIONING_STALLED_SECONDS * 1000,
-        );
-        const health = {
-          "everr.provisioning.pending_count": pending.length,
-          "everr.provisioning.stalled_count": stalled.length,
-          "everr.provisioning.oldest_pending_seconds": pending.reduce(
-            (oldest, org) =>
-              Math.max(oldest, (now - org.createdAt.getTime()) / 1000),
-            0,
-          ),
-        };
-        serverLogger.info("clickhouse.organization.provision.health", health);
-        if (stalled.length)
-          serverLogger.error(
-            "clickhouse.organization.provision.stalled",
-            health,
-          );
-        for (const org of pending) {
-          if (org.missingJob)
-            await enqueueOrganizationProvisioning(org.id, database);
-        }
-      },
-    ),
+        })
+        .from(organization)
+        .where(organizationProvisioningPending);
+      const now = Date.now();
+      const stalled = pending.filter(
+        (org) => now - org.createdAt.getTime() >= PROVISIONING_STALLED_SECONDS * 1000,
+      );
+      const health = {
+        "everr.provisioning.pending_count": pending.length,
+        "everr.provisioning.stalled_count": stalled.length,
+        "everr.provisioning.oldest_pending_seconds": pending.reduce(
+          (oldest, org) => Math.max(oldest, (now - org.createdAt.getTime()) / 1000),
+          0,
+        ),
+      };
+      serverLogger.info("clickhouse.organization.provision.health", health);
+      if (stalled.length) serverLogger.error("clickhouse.organization.provision.stalled", health);
+      for (const org of pending) {
+        if (org.missingJob) await enqueueOrganizationProvisioning(org.id, database);
+      }
+    }),
   };
 }
 

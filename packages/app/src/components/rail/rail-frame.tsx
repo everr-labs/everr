@@ -54,9 +54,7 @@ export function RailFrame({
     <div
       className={cn(
         "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] [--rail:260px] md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-sidebar motion-reduce:md:transition-none",
-        full
-          ? "md:grid-cols-[0px_minmax(0,1fr)]"
-          : "md:grid-cols-[var(--rail)_minmax(0,1fr)]",
+        full ? "md:grid-cols-[0px_minmax(0,1fr)]" : "md:grid-cols-[var(--rail)_minmax(0,1fr)]",
       )}
     >
       {/*
@@ -77,9 +75,7 @@ export function RailFrame({
           full && "max-md:hidden md:border-r-0",
         )}
       >
-        <div className="flex h-full min-h-0 flex-col p-3 md:w-[var(--rail)]">
-          {rail}
-        </div>
+        <div className="flex h-full min-h-0 flex-col p-3 md:w-[var(--rail)]">{rail}</div>
       </aside>
       <ScrollArea
         render={<main />}

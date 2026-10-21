@@ -7,16 +7,8 @@ import {
   CommandItem,
   CommandList,
 } from "@everr/ui/components/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@everr/ui/components/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
@@ -65,6 +57,7 @@ export function ExploreFilterPill<TData>({
   className,
 }: ExploreFilterPillProps<TData>) {
   const id = useId();
+  const listboxId = `${id}-listbox`;
   const [open, setOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
@@ -76,8 +69,7 @@ export function ExploreFilterPill<TData>({
   const isActive = count > 0;
   const noun = countNoun ?? `${label.toLowerCase()}s`;
 
-  const display =
-    count === 0 ? placeholder : count === 1 ? values[0] : `${count} ${noun}`;
+  const display = count === 0 ? placeholder : count === 1 ? values[0] : `${count} ${noun}`;
 
   const toggle = (value: string) => {
     if (values.includes(value)) {
@@ -103,13 +95,11 @@ export function ExploreFilterPill<TData>({
                 <Button
                   id={id}
                   variant="outline"
+                  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- trigger opens a searchable listbox popover (combobox pattern); a rich <button> with icon + label + chevron can't be an <input>/<select>
                   role="combobox"
+                  aria-controls={open ? listboxId : undefined}
                   aria-expanded={open}
-                  className={cn(
-                    "max-w-52 gap-1.5",
-                    isActive && "border-primary/35",
-                    className,
-                  )}
+                  className={cn("max-w-52 gap-1.5", isActive && "border-primary/35", className)}
                 />
               }
             />
@@ -117,29 +107,21 @@ export function ExploreFilterPill<TData>({
         >
           <Icon
             data-icon="inline-start"
-            className={cn(
-              "size-3.5 shrink-0",
-              isActive ? "text-primary" : "text-muted-foreground",
-            )}
+            className={cn("size-3.5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")}
             aria-hidden="true"
           />
           {/* flex-1 puts the chevron and the clear control at the right edge
               when the trigger fills its column, as it does in the Explore rail.
               At the width of the top bar there is no free space, so nothing
               moves. */}
-          <span
-            className={cn(
-              "flex-1 truncate text-left",
-              !isActive && "text-muted-foreground",
-            )}
-          >
+          <span className={cn("flex-1 truncate text-left", !isActive && "text-muted-foreground")}>
             {display}
           </span>
           {isActive ? (
             // A native <button> would nest inside the trigger <button> (invalid
             // HTML), so this clear affordance is a span with button semantics.
-            // biome-ignore lint/a11y/useSemanticElements: nested-button constraint
             <span
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a native <button> would nest inside the trigger <button> (invalid HTML), so this clear affordance is a span with button semantics
               role="button"
               tabIndex={0}
               aria-label={`Clear ${label} filter`}
@@ -161,9 +143,7 @@ export function ExploreFilterPill<TData>({
         </TooltipTrigger>
         {/* Open downward to keep tooltips within the topbar's viewport. */}
         <TooltipContent side="bottom">
-          {isActive
-            ? `${label}: ${values.join(", ")}`
-            : `Filter by ${label.toLowerCase()}`}
+          {isActive ? `${label}: ${values.join(", ")}` : `Filter by ${label.toLowerCase()}`}
         </TooltipContent>
       </Tooltip>
       <PopoverContent align="start" className="w-64 p-0">
@@ -173,10 +153,8 @@ export function ExploreFilterPill<TData>({
             inputGroupClassName="border-none rounded-none bg-transparent h-9"
             placeholder={searchPlaceholder ?? "Search..."}
           />
-          <CommandList>
-            <CommandEmpty>
-              {isLoading ? "Loading…" : "No results."}
-            </CommandEmpty>
+          <CommandList id={listboxId}>
+            <CommandEmpty>{isLoading ? "Loading…" : "No results."}</CommandEmpty>
             <CommandGroup>
               <CommandItem
                 value="__all__"

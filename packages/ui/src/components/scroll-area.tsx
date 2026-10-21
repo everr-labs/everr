@@ -2,27 +2,17 @@ import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import type * as React from "react";
 
-function ScrollAreaViewport({
-  className,
-  ...props
-}: ScrollAreaPrimitive.Viewport.Props) {
+function ScrollAreaViewport({ className, ...props }: ScrollAreaPrimitive.Viewport.Props) {
   return (
     <ScrollAreaPrimitive.Viewport
       data-slot="scroll-area-viewport"
-      className={cn(
-        "min-h-0 flex-1 rounded-[inherit] focus-visible:outline-none",
-        className,
-      )}
+      className={cn("min-h-0 flex-1 rounded-[inherit] focus-visible:outline-none", className)}
       {...props}
     />
   );
 }
 
-function ScrollAreaScrollbar({
-  orientation,
-}: {
-  orientation: "vertical" | "horizontal";
-}) {
+function ScrollAreaScrollbar({ orientation }: { orientation: "vertical" | "horizontal" }) {
   return (
     // Not keepMounted: Base UI unmounts the bar when the axis does not
     // overflow, and every mounted bar costs a getComputedStyle on every scroll
@@ -53,8 +43,7 @@ const clearPresentationRole = { role: undefined };
 interface ScrollAreaProps extends ScrollAreaPrimitive.Root.Props {
   viewportClassName?: string;
   viewportRef?: React.Ref<HTMLDivElement>;
-  viewportProps?: ScrollAreaPrimitive.Viewport.Props &
-    Record<`data-${string}`, string>;
+  viewportProps?: ScrollAreaPrimitive.Viewport.Props & Record<`data-${string}`, string>;
   orientation?: "vertical" | "horizontal" | "both";
 }
 
@@ -94,11 +83,11 @@ function ScrollArea({
         // scroll area does not own has to be clipped back inline. Without it
         // an `orientation="vertical"` area still scrolls sideways, with no
         // scrollbar to show for it.
-        style={{
+        style={(state) => ({
           ...(horizontal ? undefined : { overflowX: "hidden" as const }),
           ...(vertical ? undefined : { overflowY: "hidden" as const }),
-          ...viewportStyle,
-        }}
+          ...(typeof viewportStyle === "function" ? viewportStyle(state) : viewportStyle),
+        })}
         {...viewportProps}
       >
         {children}
@@ -137,12 +126,7 @@ function ScrollAreaScroller({
   // overflow on both axes, and a value merged on top would fight it.
   // `position: relative` is kept because the virtuoso item list is absolutely
   // positioned against the scroller.
-  const {
-    overflowY: _y,
-    overflowX: _x,
-    overflow: _o,
-    ...scrollerStyle
-  } = style ?? {};
+  const { overflowY: _y, overflowX: _x, overflow: _o, ...scrollerStyle } = style ?? {};
   return (
     <ScrollArea
       className={className}

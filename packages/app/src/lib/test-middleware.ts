@@ -8,6 +8,16 @@ export type FunctionMiddlewareHandler = (args: {
   next: (args?: unknown) => Promise<unknown>;
 }) => Promise<unknown>;
 
+// The `context` a middleware forwards through `next(...)`, if it passed an
+// object carrying one. Kept as `object | undefined` so it can be spread as-is.
+function nextContext(args: unknown): object | undefined {
+  if (typeof args === "object" && args !== null && "context" in args) {
+    const ctx = args.context;
+    if (typeof ctx === "object" && ctx !== null) return ctx;
+  }
+  return undefined;
+}
+
 /**
  * Compose an ordered list of middleware handlers around a final handler,
  * mirroring TanStack Start's runtime semantics: each middleware receives a
@@ -31,8 +41,7 @@ export function composeMiddleware(
                 typeof args === "object" && args !== null
                   ? {
                       ...context,
-                      ...((args as { context?: Record<string, unknown> })
-                        .context ?? {}),
+                      ...nextContext(args),
                     }
                   : context,
               next,

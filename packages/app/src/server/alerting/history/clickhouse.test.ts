@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 // Cuts the import chain to the Postgres client. Retention is fixed so
 // the stamped retention_days is a known value below.
@@ -31,9 +31,7 @@ vi.mock("#app/telemetry/logger.ts", () => ({
   serverLogger: { error: mocks.error },
 }));
 vi.mock("#app/lib/retention.server.ts", async () => {
-  const { retentionForDays } = await import(
-    "#app/product/retention.test-fixtures.ts"
-  );
+  const { retentionForDays } = await import("#app/product/retention.test-fixtures.ts");
   return {
     retentionForOrg: vi.fn(async () => retentionForDays(365, 30)),
   };
@@ -79,9 +77,7 @@ const EPOCH_ISO = "1970-01-01T00:00:00.000Z";
 describe("ClickHouse alert history", () => {
   beforeEach(() => {
     mocks.insertRows.mockReset().mockResolvedValue(undefined);
-    vi.mocked(retentionForOrg).mockImplementation(async () =>
-      retentionForDays(365, 30),
-    );
+    vi.mocked(retentionForOrg).mockImplementation(async () => retentionForDays(365, 30));
     mocks.error.mockReset();
   });
 
@@ -135,8 +131,7 @@ describe("ClickHouse alert history", () => {
       event_type: "evaluation_succeeded",
       row_count: 1,
       evidence_json: '[{"service":"api","value":42}]',
-      samples_json:
-        '[{"fingerprint":"api","labels":{"service":"api"},"value":42}]',
+      samples_json: '[{"fingerprint":"api","labels":{"service":"api"},"value":42}]',
       evaluation_scheduled_at: scheduledFor.toISOString(),
     });
     expect(transition).toMatchObject({
@@ -180,13 +175,7 @@ describe("ClickHouse alert history", () => {
     });
     await recordAlertHistory(
       null,
-      [
-        rowFor("org-1"),
-        rowFor("org-2"),
-        proFailure,
-        proLifecycle,
-        freeLifecycle,
-      ],
+      [rowFor("org-1"), rowFor("org-2"), proFailure, proLifecycle, freeLifecycle],
       {
         convergesOnRetry: false,
       },
@@ -234,9 +223,7 @@ describe("ClickHouse alert history", () => {
       samples: [],
       samplesTruncated: false,
     });
-    expect(uuidv7Time(evaluation.event_id).toISOString()).toBe(
-      occurredAt.toISOString(),
-    );
+    expect(uuidv7Time(evaluation.event_id).toISOString()).toBe(occurredAt.toISOString());
   });
 
   it("stamps the epoch sentinel on evaluation_scheduled_at off evaluation rows", () => {
@@ -324,9 +311,7 @@ describe("ClickHouse alert history", () => {
   it("converges suppression rows for one chain on one id", () => {
     // The whole row, not only the id: an event_time from a decision clock
     // would differ between two writes, and a MergeTree keeps both of them.
-    expect(journalTerminalRow(journalEvent)).toEqual(
-      journalTerminalRow(journalEvent),
-    );
+    expect(journalTerminalRow(journalEvent)).toEqual(journalTerminalRow(journalEvent));
     expect(journalTerminalRow(journalEvent).event_time).toBe(
       uuidv7Time(journalEvent.id).toISOString(),
     );
@@ -340,9 +325,7 @@ describe("ClickHouse alert history", () => {
 
   it("holds a chain once per silence, and the hold is not the terminal", () => {
     // Both defer paths retry, so two writes of one hold must be one row.
-    expect(journalHoldRow(journalEvent, silence)).toEqual(
-      journalHoldRow(journalEvent, silence),
-    );
+    expect(journalHoldRow(journalEvent, silence)).toEqual(journalHoldRow(journalEvent, silence));
     expect(journalHoldRow(journalEvent, silence)).toMatchObject({
       event_type: "notification_deferred",
       silenced: true,
@@ -388,9 +371,7 @@ describe("ClickHouse alert history", () => {
   });
 
   it("writes the zero UUID, not an empty string, when no silence matched", () => {
-    expect(
-      journalTerminalRow({ ...journalEvent, instanceLabels: {} }).silence_id,
-    ).toBe(ZERO_UUID);
+    expect(journalTerminalRow({ ...journalEvent, instanceLabels: {} }).silence_id).toBe(ZERO_UUID);
   });
 
   it("records delivery outcomes with deterministic ids, targets, and a sanitized error", () => {
@@ -413,8 +394,7 @@ describe("ClickHouse alert history", () => {
     const failed = deliveryHistoryRow({
       ...opts,
       outcome: "failed",
-      error:
-        "429 Too Many Requests from https://hooks.slack.com/services/T0/B0/secret",
+      error: "429 Too Many Requests from https://hooks.slack.com/services/T0/B0/secret",
     });
 
     expect(sent).toMatchObject({
@@ -522,10 +502,7 @@ describe("ClickHouse alert history", () => {
         {
           async_insert: 0,
           date_time_input_format: "best_effort",
-          insert_deduplication_token: `app.alert_events:${[
-            first.event_id,
-            second.event_id,
-          ]
+          insert_deduplication_token: `app.alert_events:${[first.event_id, second.event_id]
             .sort()
             .join(",")}`,
         },
@@ -553,9 +530,7 @@ describe("ClickHouse alert history", () => {
         reason: "rule_paused",
       });
 
-      await expect(recordAlertHistoryStrict([row])).rejects.toThrow(
-        "unavailable",
-      );
+      await expect(recordAlertHistoryStrict([row])).rejects.toThrow("unavailable");
     });
   });
 });

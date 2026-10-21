@@ -2,12 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import {
-  createFileRoute,
-  Link,
-  redirect,
-  useNavigate,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
@@ -86,10 +81,7 @@ function SignUp() {
 
   return (
     <>
-      <AuthPageHeader
-        title="Create your account"
-        subtitle="Get started with Everr"
-      />
+      <AuthPageHeader title="Create your account" subtitle="Get started with Everr" />
 
       {googleSignInEnabled && (
         <div className="flex flex-col gap-4">

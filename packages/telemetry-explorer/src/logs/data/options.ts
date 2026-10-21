@@ -32,11 +32,7 @@ export function logsExplorerInfiniteOptions(
   });
 }
 
-export function logsTotalsOptions(
-  repo: LogsRepositoryLike,
-  input: LogsTotalsInput,
-  refresh = "",
-) {
+export function logsTotalsOptions(repo: LogsRepositoryLike, input: LogsTotalsInput, refresh = "") {
   return queryOptions({
     queryKey: ["logs", "totals", input],
     refetchInterval: getRefreshIntervalMs(refresh) ?? false,
@@ -44,10 +40,7 @@ export function logsTotalsOptions(
   });
 }
 
-export function logDetailOptions(
-  repo: LogsRepositoryLike,
-  identity: LogIdentity,
-) {
+export function logDetailOptions(repo: LogsRepositoryLike, identity: LogIdentity) {
   return queryOptions({
     queryKey: ["logs", "detail", identity],
     queryFn: () => repo.detail(identity),

@@ -1,18 +1,11 @@
-import {
-  type ParsedCronItem,
-  parseCronItems,
-  type TaskList,
-} from "graphile-worker";
+import { type ParsedCronItem, parseCronItems, type TaskList } from "graphile-worker";
 import {
   ALERT_FLUSH_GROUP_TASK,
   ALERT_PROCESS_EVENT_TASK,
   ALERT_SEND_DELIVERY_TASK,
 } from "#app/data/alerting/delivery/tasks.ts";
 import { ALERT_PROJECT_LIFECYCLE_TASK } from "#app/data/alerting/history/tasks.ts";
-import {
-  ALERT_EVALUATE_TASK,
-  type EvaluatePayload,
-} from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
+import { ALERT_EVALUATE_TASK } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
 import { serverLogger } from "#app/telemetry/logger.ts";
 import { flushAlertGroup } from "./delivery/flush-group";
 import { processAlertEvent } from "./delivery/process-event";
@@ -34,7 +27,7 @@ const ALERT_RETENTION_TASK = "alerts/retention";
  */
 function jobTraceparent(payload: unknown): string | null {
   if (typeof payload !== "object" || payload === null) return null;
-  const value = (payload as { traceparent?: unknown }).traceparent;
+  const value = "traceparent" in payload ? payload.traceparent : undefined;
   return typeof value === "string" ? value : null;
 }
 
@@ -43,9 +36,7 @@ function alertJob(
   run: (payload: unknown) => Promise<void>,
 ): (payload: unknown) => Promise<void> {
   return async (payload: unknown) => {
-    await withAlertJobSpan(name, { traceparent: jobTraceparent(payload) }, () =>
-      run(payload),
-    );
+    await withAlertJobSpan(name, { traceparent: jobTraceparent(payload) }, () => run(payload));
   };
 }
 
@@ -54,38 +45,23 @@ export const alertTaskList: TaskList = {
     await scanDueAlerts();
   }),
   [ALERT_EVALUATE_TASK]: alertJob("alerts.jobs.evaluate", async (payload) => {
-    await evaluateAlert(payload as EvaluatePayload);
+    await evaluateAlert(payload);
   }),
-  [ALERT_PROCESS_EVENT_TASK]: alertJob(
-    "alerts.jobs.process_event",
-    async (payload) => {
-      await processAlertEvent(payload);
-    },
-  ),
-  [ALERT_FLUSH_GROUP_TASK]: alertJob(
-    "alerts.jobs.flush_group",
-    async (payload) => {
-      await flushAlertGroup(payload);
-    },
-  ),
-  [ALERT_SEND_DELIVERY_TASK]: alertJob(
-    "alerts.jobs.send_delivery",
-    async (payload) => {
-      await sendAlertDelivery(payload);
-    },
-  ),
-  [ALERT_PROJECT_LIFECYCLE_TASK]: alertJob(
-    "alerts.jobs.project_lifecycle",
-    async (payload) => {
-      await projectAlertLifecycle(payload);
-    },
-  ),
+  [ALERT_PROCESS_EVENT_TASK]: alertJob("alerts.jobs.process_event", async (payload) => {
+    await processAlertEvent(payload);
+  }),
+  [ALERT_FLUSH_GROUP_TASK]: alertJob("alerts.jobs.flush_group", async (payload) => {
+    await flushAlertGroup(payload);
+  }),
+  [ALERT_SEND_DELIVERY_TASK]: alertJob("alerts.jobs.send_delivery", async (payload) => {
+    await sendAlertDelivery(payload);
+  }),
+  [ALERT_PROJECT_LIFECYCLE_TASK]: alertJob("alerts.jobs.project_lifecycle", async (payload) => {
+    await projectAlertLifecycle(payload);
+  }),
   [ALERT_RETENTION_TASK]: alertJob("alerts.jobs.retention", async () => {
     const counts = await cleanupAlertingHistory();
-    const deleted = Object.values(counts).reduce(
-      (sum, count) => sum + count,
-      0,
-    );
+    const deleted = Object.values(counts).reduce((sum, count) => sum + count, 0);
     if (deleted > 0) {
       serverLogger.info("alerts.retention.deleted", {
         "alerts.retention.alert_evaluations": counts.alertEvaluations,

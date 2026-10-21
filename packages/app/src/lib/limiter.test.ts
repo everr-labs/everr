@@ -1,14 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createLimiter } from "./limiter";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
+  let resolveFn!: (value: T) => void;
+  const promise = new Promise<T>((resolve) => {
+    resolveFn = resolve;
   });
-  return { promise, resolve };
+  return { promise, resolve: resolveFn };
 }
 
 describe("createLimiter", () => {
@@ -16,12 +16,7 @@ describe("createLimiter", () => {
     const run = createLimiter(2);
     let active = 0;
     let maxActive = 0;
-    const gates = [
-      deferred<void>(),
-      deferred<void>(),
-      deferred<void>(),
-      deferred<void>(),
-    ];
+    const gates = [deferred<void>(), deferred<void>(), deferred<void>(), deferred<void>()];
     const results = gates.map((gate, i) =>
       run(undefined, async () => {
         active++;

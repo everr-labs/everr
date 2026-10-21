@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { createChdbDatabase } from "@everr/app/testing/alerting-storage";
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 
 it("includes the tenant column in the deployed alerting schema", () => {
   const database = createChdbDatabase();

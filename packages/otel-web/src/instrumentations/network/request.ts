@@ -6,9 +6,7 @@ export function shouldPropagate(url: URL, targets?: PropagationTarget[]) {
   return (
     url.origin === location.origin ||
     targets?.some((target) =>
-      typeof target === "string"
-        ? url.href.includes(target)
-        : url.href.search(target) !== -1,
+      typeof target === "string" ? url.href.includes(target) : url.href.search(target) !== -1,
     )
   );
 }
@@ -22,7 +20,7 @@ export function startRequest(tracer: Tracer, method: string, url: URL) {
   const { traceId, spanId } = span.spanContext();
   return {
     traceparent: `00-${traceId}-${spanId}-01`,
-    end(status?: number, errorType?: string, echoed?: string | null) {
+    end(this: void, status?: number, errorType?: string, echoed?: string | null) {
       errorType ??= status && status >= 400 ? String(status) : undefined;
       // The server's route echo wins over the client resolver.
       if (echoed) span.updateName(`${method} ${echoed}`);

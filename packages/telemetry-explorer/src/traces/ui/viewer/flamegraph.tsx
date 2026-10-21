@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- This composite control or canvas chart needs its ARIA role and cannot be represented by a native input, select, or img. */
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
@@ -18,13 +19,7 @@ import { useFlamegraphDraw } from "./rendering/use-flamegraph-draw";
 export type ViewRange = { start: number; end: number };
 export type FlamegraphHandle = { scrollToSpan: (spanId: string) => void };
 
-export function TimeRuler({
-  range,
-  className,
-}: {
-  range: ViewRange;
-  className?: string;
-}) {
+export function TimeRuler({ range, className }: { range: ViewRange; className?: string }) {
   return (
     <div
       aria-hidden
@@ -35,10 +30,7 @@ export function TimeRuler({
     >
       {Array.from({ length: 5 }, (_, i) => (
         <span key={i} className="pt-1.5">
-          {formatDuration(
-            range.start + ((range.end - range.start) * i) / 4,
-            "ms",
-          )}
+          {formatDuration(range.start + ((range.end - range.start) * i) / 4, "ms")}
         </span>
       ))}
     </div>
@@ -107,21 +99,15 @@ export function TraceFlamegraph({
     const selectionChanged = selectedSpanId !== lastSelectedSpanIdRef.current;
     lastSelectedSpanIdRef.current = selectedSpanId;
     if (selectionChanged) {
-      const isDirectSelection =
-        selectedSpanId && selectedSpanId === directSelectionRef.current;
+      const isDirectSelection = selectedSpanId && selectedSpanId === directSelectionRef.current;
       directSelectionRef.current = undefined;
       if (isDirectSelection) return;
     }
-    const row = selectedSpanId
-      ? layout.spanToVisualRow[selectedSpanId]
-      : undefined;
+    const row = selectedSpanId ? layout.spanToVisualRow[selectedSpanId] : undefined;
     const container = containerRef.current;
     if (row !== undefined && container) {
       const top = row * 24;
-      if (
-        top < container.scrollTop ||
-        top + 24 > container.scrollTop + container.clientHeight
-      ) {
+      if (top < container.scrollTop || top + 24 > container.scrollTop + container.clientHeight) {
         container.scrollTop = Math.max(0, top - container.clientHeight / 2);
       }
     }
@@ -134,10 +120,7 @@ export function TraceFlamegraph({
         const row = layout.spanToVisualRow[id];
         const container = containerRef.current;
         if (row !== undefined && container)
-          container.scrollTop = Math.max(
-            0,
-            row * 24 - container.clientHeight / 2,
-          );
+          container.scrollTop = Math.max(0, row * 24 - container.clientHeight / 2);
       },
     }),
     [layout],
@@ -170,16 +153,10 @@ export function TraceFlamegraph({
     (factor: number, anchor: number) => {
       const full = model.durationMs;
       const width = range.end - range.start;
-      const nextWidth = Math.min(
-        full,
-        Math.max(Math.min(full, 0.001), width * factor),
-      );
+      const nextWidth = Math.min(full, Math.max(Math.min(full, 0.001), width * factor));
       const nextStart = Math.max(
         0,
-        Math.min(
-          full - nextWidth,
-          range.start + width * anchor - nextWidth * anchor,
-        ),
+        Math.min(full - nextWidth, range.start + width * anchor - nextWidth * anchor),
       );
       onRangeChange({ start: nextStart, end: nextStart + nextWidth });
     },
@@ -257,17 +234,9 @@ export function TraceFlamegraph({
               });
               const span = [...spanRectsRef.current]
                 .reverse()
-                .find(
-                  (s) =>
-                    x >= s.x &&
-                    x <= s.x + s.width &&
-                    y >= s.y &&
-                    y <= s.y + s.height,
-                );
+                .find((s) => x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height);
               const dot = eventRectsRef.current.find(
-                (e) =>
-                  Math.abs(e.cx - x) <= e.halfSize + 2 &&
-                  Math.abs(e.cy - y) <= e.halfSize + 2,
+                (e) => Math.abs(e.cx - x) <= e.halfSize + 2 && Math.abs(e.cy - y) <= e.halfSize + 2,
               );
               setHover(
                 span
@@ -290,18 +259,10 @@ export function TraceFlamegraph({
               const y = event.clientY - rect.top;
               const hit = [...spanRectsRef.current]
                 .reverse()
-                .find(
-                  (s) =>
-                    x >= s.x &&
-                    x <= s.x + s.width &&
-                    y >= s.y &&
-                    y <= s.y + s.height,
-                );
+                .find((s) => x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height);
               if (hit) {
                 directSelectionRef.current =
-                  hit.span.spanId === selectedSpanId
-                    ? undefined
-                    : hit.span.spanId;
+                  hit.span.spanId === selectedSpanId ? undefined : hit.span.spanId;
                 onSelect(hit.span.spanId);
               }
             }}
@@ -312,9 +273,7 @@ export function TraceFlamegraph({
               setHover(undefined);
               setCursor(undefined);
             }}
-            onDoubleClick={() =>
-              onRangeChange({ start: 0, end: model.durationMs })
-            }
+            onDoubleClick={() => onRangeChange({ start: 0, end: model.durationMs })}
           />
         </div>
       </ScrollArea>
@@ -332,8 +291,7 @@ export function TraceFlamegraph({
             }}
           >
             {formatDuration(
-              range.start +
-                (cursor.x / cursor.width) * (range.end - range.start),
+              range.start + (cursor.x / cursor.width) * (range.end - range.start),
               "ms",
             )}
           </span>
@@ -344,10 +302,7 @@ export function TraceFlamegraph({
           className="pointer-events-none absolute z-20 max-w-64 rounded-md border bg-popover p-3 text-xs text-popover-foreground shadow-md"
           style={{
             left: Math.max(8, hover.x),
-            top: Math.min(
-              hover.y + 35,
-              (containerRef.current?.clientHeight ?? 160) - 65,
-            ),
+            top: Math.min(hover.y + 35, (containerRef.current?.clientHeight ?? 160) - 65),
           }}
         >
           <div className="truncate font-medium">

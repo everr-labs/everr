@@ -1,6 +1,6 @@
 // @vitest-environment node
 import fc from "fast-check";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("#app/env/auth.ts", () => ({
   authEnv: { BETTER_AUTH_SECRET: "a-test-secret-long-enough-to-hash" },
@@ -69,9 +69,7 @@ describe("a channel config's encrypted envelope", () => {
         const sealed = encryptChannelConfig(ORG, ID, stored);
         const secret = secretOf(stored);
         expect(sealed).not.toContain(secret);
-        expect(sealed).not.toContain(
-          Buffer.from(secret, "utf8").toString("base64url"),
-        );
+        expect(sealed).not.toContain(Buffer.from(secret, "utf8").toString("base64url"));
         expect(secretOf(readRedactedChannelConfig(sealed))).toBe(REDACTED);
       }),
     );

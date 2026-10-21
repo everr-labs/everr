@@ -22,12 +22,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatDate } from "./format-date";
-import {
-  type Member,
-  type OrgRole,
-  useRemoveMember,
-  useUpdateMemberRole,
-} from "./queries";
+import { type Member, type OrgRole, useRemoveMember, useUpdateMemberRole } from "./queries";
 
 interface MembersTableProps {
   members: Member[];
@@ -44,17 +39,14 @@ interface RoleChangePending {
 export function MembersTable({ members, currentUserId }: MembersTableProps) {
   const updateRole = useUpdateMemberRole();
   const remove = useRemoveMember();
-  const [rolePending, setRolePending] = useState<RoleChangePending | null>(
-    null,
-  );
+  const [rolePending, setRolePending] = useState<RoleChangePending | null>(null);
 
   const ownerCount = members.filter((m) => m.role === "owner").length;
 
   const confirmRoleChange = () => {
     if (!rolePending) return;
     const { memberId, memberName, nextRole } = rolePending;
-    const clearIfStillMine = () =>
-      setRolePending((p) => (p?.memberId === memberId ? null : p));
+    const clearIfStillMine = () => setRolePending((p) => (p?.memberId === memberId ? null : p));
     updateRole.mutate(
       { memberId, role: nextRole },
       {
@@ -111,11 +103,13 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
           <Select
             value={row.role}
             onValueChange={(value) => {
+              // oxlint-disable-next-line typescript/consistent-type-assertions -- Select only emits the OrgRole option values; better-auth types the role as a plain string.
               const next = value as OrgRole;
               if (next === row.role) return;
               setRolePending({
                 memberId: row.id,
                 memberName: row.user?.name ?? row.user?.email ?? "Member",
+                // oxlint-disable-next-line typescript/consistent-type-assertions -- better-auth types the member role as a plain string; it is always one of the OrgRole values.
                 currentRole: row.role as OrgRole,
                 nextRole: next,
               });
@@ -154,8 +148,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Remove member</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Remove {memberName} from this organization? They will lose
-                  access immediately.
+                  Remove {memberName} from this organization? They will lose access immediately.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -184,9 +177,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
         columns={columns}
         rowKey={(row) => row.id}
         emptyState={
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No members found.
-          </p>
+          <p className="py-8 text-center text-sm text-muted-foreground">No members found.</p>
         }
       />
       <AlertDialog
@@ -201,19 +192,16 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
             <AlertDialogDescription>
               {rolePending && (
                 <>
-                  Change {rolePending.memberName}'s role from{" "}
-                  <span className="capitalize">{rolePending.currentRole}</span>{" "}
-                  to <span className="capitalize">{rolePending.nextRole}</span>?
+                  Change {rolePending.memberName}&apos;s role from{" "}
+                  <span className="capitalize">{rolePending.currentRole}</span> to{" "}
+                  <span className="capitalize">{rolePending.nextRole}</span>?
                 </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmRoleChange}
-              disabled={updateRole.isPending}
-            >
+            <AlertDialogAction onClick={confirmRoleChange} disabled={updateRole.isPending}>
               Change role
             </AlertDialogAction>
           </AlertDialogFooter>

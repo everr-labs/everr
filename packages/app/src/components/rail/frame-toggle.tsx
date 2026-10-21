@@ -1,11 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import {
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelTopClose,
-  PanelTopOpen,
-} from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, PanelTopClose, PanelTopOpen } from "lucide-react";
 
 /**
  * The full-screen toggle for a rail frame, seated at the left of the toolbar
@@ -13,11 +8,7 @@ import {
  * the rail, or bring it back. `listLabel` names what the rail lists, so the
  * runbooks frame reuses the control without borrowing the dashboards wording.
  */
-export function FrameToggle({
-  listLabel = "dashboard list",
-}: {
-  listLabel?: string;
-}) {
+export function FrameToggle({ listLabel = "dashboard list" }: { listLabel?: string }) {
   // Loose search read: this control mounts from several route subtrees
   // (dashboards, runbooks), where a `from`-bound read would throw.
   const search: { full?: boolean } = useSearch({ strict: false });

@@ -1,15 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 const middlewareMocks = vi.hoisted(() => ({
   createMiddleware: vi.fn(() => ({
     server: vi.fn((serverFn: unknown) => ({ runServer: serverFn })),
   })),
-  getRequest: vi.fn(
-    () => new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
-  ),
-  instrumentServerFunction: vi.fn(
-    async (run: () => Promise<unknown>, _options: unknown) => run(),
-  ),
+  getRequest: vi.fn(() => new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca")),
+  instrumentServerFunction: vi.fn(async (run: () => Promise<unknown>, _options: unknown) => run()),
 }));
 
 vi.mock("@tanstack/react-start", () => ({
@@ -52,9 +48,7 @@ describe("createServerFnTelemetryMiddleware", () => {
     expect(middlewareMocks.instrumentServerFunction).toHaveBeenCalledWith(
       expect.any(Function),
       expect.objectContaining({
-        request: new Request(
-          "http://localhost/_serverFn/c4d3d0c28997f144965eeaca",
-        ),
+        request: new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
         serverFnMeta,
         tracer: expect.any(Object),
       }),

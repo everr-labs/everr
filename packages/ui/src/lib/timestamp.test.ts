@@ -1,9 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-  formatRelativeTime,
-  formatTimestampTimeOfDay,
-  parseTimestampAsUTC,
-} from "./timestamp";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { formatRelativeTime, formatTimestampTimeOfDay, parseTimestampAsUTC } from "./timestamp";
 
 describe("parseTimestampAsUTC", () => {
   it("parses an ISO timestamp with Z suffix", () => {

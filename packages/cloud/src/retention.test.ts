@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("./billing-data.server", () => ({ readOrgEntitlement: vi.fn() }));
 
@@ -10,20 +10,23 @@ describe("cloud retention", () => {
     ["hobby", "hobby", 14, 14],
     ["pro", "pro", 365, 30],
     ["pro", "suspended", 365, 30],
-  ] as const)("preserves %s retention with %s access", async (plan, appState, telemetryDays, evaluationDays) => {
-    vi.mocked(readOrgEntitlement).mockResolvedValueOnce({
-      plan,
-      appState,
-      status: "active",
-      currentPeriodEnd: null,
-      cancelAtPeriodEnd: false,
-    });
-    expect((await productPolicy.forOrganization("org")).retention).toEqual({
-      tracesDays: telemetryDays,
-      logsDays: telemetryDays,
-      metricsDays: telemetryDays,
-      alertEvaluationDays: evaluationDays,
-      alertLifecycleDays: telemetryDays,
-    });
-  });
+  ] as const)(
+    "preserves %s retention with %s access",
+    async (plan, appState, telemetryDays, evaluationDays) => {
+      vi.mocked(readOrgEntitlement).mockResolvedValueOnce({
+        plan,
+        appState,
+        status: "active",
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      });
+      expect((await productPolicy.forOrganization("org")).retention).toEqual({
+        tracesDays: telemetryDays,
+        logsDays: telemetryDays,
+        metricsDays: telemetryDays,
+        alertEvaluationDays: evaluationDays,
+        alertLifecycleDays: telemetryDays,
+      });
+    },
+  );
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { Instrumentation, InstrumentationContext } from "./runtime.js";
 import { sampled } from "./sampled.js";
 
@@ -89,13 +89,7 @@ describe("sampled()", () => {
     // and the same rate must get different decisions a minimum of one time. Two
     // instrumentations with the same name, or with no name, get the same hash.
     // Then they get the same decision in each session.
-    const names = [
-      "pageviews",
-      "interactions",
-      "network",
-      "performance",
-      "errors",
-    ];
+    const names = ["pageviews", "interactions", "network", "performance", "errors"];
     let disagreed = false;
     for (let session = 0; session < 20 && !disagreed; session++) {
       const ctx = fakeCtx(`session-${session}`);

@@ -1,4 +1,4 @@
-import { and, eq, lt, or, type SQL } from "drizzle-orm";
+import { and, eq, lt, or, sql, type SQL } from "drizzle-orm";
 import { alertDeliveries } from "#app/db/schema/index.ts";
 
 export const ALERT_DELIVERY_MAX_ATTEMPTS = 5;
@@ -8,10 +8,11 @@ export const ALERT_DELIVERY_MAX_ATTEMPTS = 5;
  * open, and retention must leave it alone. The complement is terminal, which
  * `alert_deliveries_terminal_cleanup_idx` and the retention sweep key on.
  */
-export const deliveryIsInFlight: SQL = or(
-  eq(alertDeliveries.status, "pending"),
-  and(
-    eq(alertDeliveries.status, "failed"),
-    lt(alertDeliveries.attempts, ALERT_DELIVERY_MAX_ATTEMPTS),
-  ),
-) as SQL;
+export const deliveryIsInFlight: SQL =
+  or(
+    eq(alertDeliveries.status, "pending"),
+    and(
+      eq(alertDeliveries.status, "failed"),
+      lt(alertDeliveries.attempts, ALERT_DELIVERY_MAX_ATTEMPTS),
+    ),
+  ) ?? sql`false`;

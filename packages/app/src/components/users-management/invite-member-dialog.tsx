@@ -82,8 +82,8 @@ export function InviteMemberDialog() {
             <DialogHeader>
               <DialogTitle>Invite member</DialogTitle>
               <DialogDescription>
-                Create an invitation to share by link or email. Inviting the
-                same email again replaces its previous invitation.
+                Create an invitation to share by link or email. Inviting the same email again
+                replaces its previous invitation.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -97,6 +97,7 @@ export function InviteMemberDialog() {
                   disabled={invite.isPending}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus -- Focus starts in the primary field when this user-opened dialog mounts.
                   autoFocus
                 />
               </div>
@@ -105,7 +106,7 @@ export function InviteMemberDialog() {
                 <Select
                   value={role}
                   disabled={invite.isPending}
-                  onValueChange={(v) => setRole(v as OrgRole)}
+                  onValueChange={(v) => setRole(v === "admin" ? "admin" : "member")}
                 >
                   <SelectTrigger id="invite-role">
                     <SelectValue />
@@ -142,9 +143,7 @@ export function InviteMemberDialog() {
                 Cancel
               </Button>
               <Button type="submit" disabled={invite.isPending}>
-                {invite.isPending && (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                )}
+                {invite.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
                 Create invitation
               </Button>
             </DialogFooter>

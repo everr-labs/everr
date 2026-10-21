@@ -21,6 +21,7 @@ export const Route = createFileRoute(
 const traceSkeleton = (
   <div className="space-y-2 p-4">
     {Array.from({ length: 6 }).map((_, i) => (
+      // oxlint-disable-next-line react/no-array-index-key -- fixed-length static skeleton placeholders with no data identity
       <div key={i} className="flex items-center gap-2">
         <Skeleton className="h-6 w-32" />
         <Skeleton className="h-6 flex-1" />
@@ -41,9 +42,7 @@ function TraceView() {
     >
       {(spans) =>
         spans.length === 0 ? (
-          <p className="text-muted-foreground text-center py-8">
-            No trace data available
-          </p>
+          <p className="text-muted-foreground text-center py-8">No trace data available</p>
         ) : (
           <TraceWaterfall spans={spans} traceId={traceId} />
         )

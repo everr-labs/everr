@@ -65,10 +65,7 @@ export function ruleSubject(ruleId: string, severity: string): SilenceSubject {
 
 /** Missing labels match as empty strings. Matching is exact only: a value
  *  that reads as a pattern is compared literally. */
-function matcherSelects(
-  matcher: AlertingMatcher,
-  subject: SilenceSubject,
-): boolean {
+function matcherSelects(matcher: AlertingMatcher, subject: SilenceSubject): boolean {
   const value = subject[matcher.label] ?? "";
   switch (matcher.op) {
     case "eq":
@@ -80,10 +77,7 @@ function matcherSelects(
 
 /** Every matcher has to select the subject. A silence with none selects
  *  everything, which is what an org-wide mute is. */
-export function silenceSelects(
-  matchers: AlertingMatcher[],
-  subject: SilenceSubject,
-): boolean {
+export function silenceSelects(matchers: AlertingMatcher[], subject: SilenceSubject): boolean {
   return matchers.every((m) => matcherSelects(m, subject));
 }
 
@@ -101,8 +95,6 @@ export function matchingSilence<S extends SilenceCandidate>(
   now: Date,
 ): S | null {
   return (
-    silences.find(
-      (s) => silenceIsInForce(s, now) && silenceSelects(s.matchers, subject),
-    ) ?? null
+    silences.find((s) => silenceIsInForce(s, now) && silenceSelects(s.matchers, subject)) ?? null
   );
 }

@@ -22,8 +22,7 @@ function SetupPage() {
         email: data.email,
         password: data.password,
       });
-      if (result.error)
-        throw new Error("Workspace created. Please sign in to continue.");
+      if (result.error) throw new Error("Workspace created. Please sign in to continue.");
       window.location.assign("/");
     },
   });
@@ -33,15 +32,15 @@ function SetupPage() {
         <div className="space-y-2">
           <h1 className="font-heading text-3xl">Set up your workspace</h1>
           <p className="text-sm text-muted-foreground">
-            Create the workspace for this installation and its first owner. You
-            can invite your team afterward.
+            Create the workspace for this installation and its first owner. You can invite your team
+            afterward.
           </p>
         </div>
         {created ? (
           <>
             <p>
-              Your workspace has been created. Sign in with the owner account to
-              configure telemetry ingestion.
+              Your workspace has been created. Sign in with the owner account to configure telemetry
+              ingestion.
             </p>
             <a href="/auth/sign-in?redirect=%2F">Sign in</a>
           </>
@@ -52,11 +51,15 @@ function SetupPage() {
               event.preventDefault();
               if (setup.isPending) return;
               const fields = new FormData(event.currentTarget);
+              const textField = (name: string) => {
+                const value = fields.get(name);
+                return typeof value === "string" ? value : "";
+              };
               setup.mutate({
-                workspaceName: String(fields.get("workspaceName") ?? ""),
-                name: String(fields.get("name") ?? ""),
-                email: String(fields.get("email") ?? ""),
-                password: String(fields.get("password") ?? ""),
+                workspaceName: textField("workspaceName"),
+                name: textField("name"),
+                email: textField("email"),
+                password: textField("password"),
               });
             }}
           >
@@ -73,23 +76,11 @@ function SetupPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="owner-name">Your name</Label>
-              <Input
-                id="owner-name"
-                name="name"
-                required
-                maxLength={100}
-                autoComplete="name"
-              />
+              <Input id="owner-name" name="name" required maxLength={100} autoComplete="name" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="owner-email">Email</Label>
-              <Input
-                id="owner-email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-              />
+              <Input id="owner-email" name="email" type="email" required autoComplete="email" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="owner-password">Password</Label>
@@ -102,9 +93,7 @@ function SetupPage() {
                 maxLength={128}
                 autoComplete="new-password"
               />
-              <p className="text-xs text-muted-foreground">
-                At least 8 characters.
-              </p>
+              <p className="text-xs text-muted-foreground">At least 8 characters.</p>
             </div>
             <Button type="submit" className="w-full" disabled={setup.isPending}>
               {setup.isPending ? "Setting up..." : "Create workspace"}

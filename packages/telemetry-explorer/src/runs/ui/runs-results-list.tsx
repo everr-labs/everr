@@ -1,27 +1,12 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@everr/ui/components/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { useDelayedFlag } from "../../traces/util/use-delayed-flag";
 import type { RunListItem } from "../schemas";
@@ -87,11 +72,7 @@ export function RunsResultsList({
 
   const itemContent = useCallback(
     (_index: number, run: RunListItem) => (
-      <RunRow
-        run={run}
-        renderRunLink={renderRunLink}
-        renderRowActions={renderRowActions}
-      />
+      <RunRow run={run} renderRunLink={renderRunLink} renderRowActions={renderRowActions} />
     ),
     [renderRunLink, renderRowActions],
   );
@@ -192,10 +173,7 @@ function RunRow({
           <span className="truncate">{run.repo}</span>
           <span className="hidden shrink-0 items-center gap-1.5 sm:inline-flex">
             <Separator />
-            <Badge
-              variant="outline"
-              className="max-w-[12rem] truncate font-normal"
-            >
+            <Badge variant="outline" className="max-w-[12rem] truncate font-normal">
               {run.branch}
             </Badge>
           </span>
@@ -277,8 +255,7 @@ function ResultsFooter({
       ) : hasMore ? (
         <span>
           Showing {count.toLocaleString()}
-          {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""}{" "}
-          runs
+          {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} runs
         </span>
       ) : (
         <span>Showing all {count.toLocaleString()} matching runs</span>
@@ -291,6 +268,7 @@ function ResultsSkeleton() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {Array.from({ length: 14 }).map((_, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton, no data-derived key exists and the list never reorders
         <div key={i} className="flex items-center gap-3 border-b px-3 py-2">
           <Skeleton className="size-4 shrink-0 rounded-full" />
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -310,9 +288,7 @@ function EmptyState({ onClearFilters }: { onClearFilters: () => void }) {
     <Empty>
       <EmptyHeader>
         <EmptyTitle>No runs</EmptyTitle>
-        <EmptyDescription>
-          No workflow runs match the current filters.
-        </EmptyDescription>
+        <EmptyDescription>No workflow runs match the current filters.</EmptyDescription>
       </EmptyHeader>
       <Button variant="outline" size="sm" onClick={onClearFilters}>
         Clear filters

@@ -1,8 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  CreateOrganizationInputSchema,
-  deriveOrgName,
-} from "./organization-name";
+import { describe, expect, it } from "vite-plus/test";
+import { CreateOrganizationInputSchema, deriveOrgName } from "./organization-name";
 
 describe("organization creation input", () => {
   it.each(["hobby", "pro"])("accepts %s without a billing email", (plan) => {

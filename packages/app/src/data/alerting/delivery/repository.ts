@@ -1,13 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, countDistinct, eq, inArray, sql } from "drizzle-orm";
 import { deliveryIsInFlight } from "#app/data/alerting/delivery/config.ts";
-import type { AlertingDefaultTier } from "#app/data/alerting/delivery/defaults.ts";
+import { ALERTING_DEFAULT_TIERS } from "#app/data/alerting/delivery/defaults.ts";
 import { type DbExecutor, db } from "#app/db/client.ts";
-import {
-  alertChannels,
-  alertDefaultChannels,
-  alertDeliveries,
-} from "#app/db/schema/index.ts";
+import { alertChannels, alertDefaultChannels, alertDeliveries } from "#app/db/schema/index.ts";
 import { truncateWithEllipsis } from "#app/lib/truncate.ts";
 import { sanitizeAlertError } from "#app/server/alerting/history/content.ts";
 import {
@@ -44,27 +40,17 @@ function resolveChannelConfig(
     case "webhook":
     case "slack":
     case "discord": {
-      const url =
-        input.url ?? (previous?.type === input.type ? previous.url : undefined);
+      const url = input.url ?? (previous?.type === input.type ? previous.url : undefined);
       if (!url) {
-        throwAlertingPersistenceError(
-          422,
-          "validation",
-          `${input.type} URL is required`,
-        );
+        throwAlertingPersistenceError(422, "validation", `${input.type} URL is required`);
       }
       return { type: input.type, url };
     }
     case "telegram": {
       const botToken =
-        input.bot_token ??
-        (previous?.type === "telegram" ? previous.bot_token : undefined);
+        input.bot_token ?? (previous?.type === "telegram" ? previous.bot_token : undefined);
       if (!botToken) {
-        throwAlertingPersistenceError(
-          422,
-          "validation",
-          "telegram bot token is required",
-        );
+        throwAlertingPersistenceError(422, "validation", "telegram bot token is required");
       }
       return {
         type: "telegram",
@@ -86,10 +72,7 @@ function channelView(row: typeof alertChannels.$inferSelect): AlertingChannel {
   };
 }
 
-export async function listChannels(
-  organizationId: string,
-  executor: DbExecutor = db,
-) {
+export async function listChannels(organizationId: string, executor: DbExecutor = db) {
   const rows = await executor
     .select()
     .from(alertChannels)
@@ -98,10 +81,7 @@ export async function listChannels(
   return rows.map(channelView);
 }
 
-export async function createChannel(
-  { organizationId }: AlertingMutationScope,
-  rawInput: unknown,
-) {
+export async function createChannel({ organizationId }: AlertingMutationScope, rawInput: unknown) {
   const input = parseAlertingInput(AlertingChannelInputSchema, rawInput);
   const config = resolveChannelConfig(input.config, null);
   const id = randomUUID();
@@ -137,19 +117,10 @@ async function getChannelRow(organizationId: string, name: string) {
   const [row] = await db
     .select()
     .from(alertChannels)
-    .where(
-      and(
-        eq(alertChannels.organizationId, organizationId),
-        eq(alertChannels.name, name),
-      ),
-    )
+    .where(and(eq(alertChannels.organizationId, organizationId), eq(alertChannels.name, name)))
     .limit(1);
   if (!row) {
-    throwAlertingPersistenceError(
-      404,
-      "not_found",
-      `Channel not found: ${name}`,
-    );
+    throwAlertingPersistenceError(404, "not_found", `Channel not found: ${name}`);
   }
   return row;
 }
@@ -174,11 +145,7 @@ export async function updateChannel(
       .update(alertChannels)
       .set({
         name: input.name ?? name,
-        encryptedConfig: encryptChannelConfig(
-          organizationId,
-          previous.id,
-          nextConfig,
-        ),
+        encryptedConfig: encryptChannelConfig(organizationId, previous.id, nextConfig),
         updatedAt: new Date(),
       })
       .where(eq(alertChannels.id, previous.id))
@@ -187,10 +154,7 @@ export async function updateChannel(
   return channelView(row);
 }
 
-export async function deleteChannel(
-  { organizationId }: AlertingMutationScope,
-  name: string,
-) {
+export async function deleteChannel({ organizationId }: AlertingMutationScope, name: string) {
   const channel = await getChannelRow(organizationId, name);
   // One transaction. A flush that inserts a delivery for this channel between
   // the count and the delete would otherwise slip past the guard. It can still
@@ -253,10 +217,7 @@ const TEST_CHANNEL_ERROR_MAX = 300;
  */
 function testChannelError(cause: unknown): string {
   const message = cause instanceof Error ? cause.message : String(cause);
-  return truncateWithEllipsis(
-    sanitizeAlertError(message),
-    TEST_CHANNEL_ERROR_MAX,
-  );
+  return truncateWithEllipsis(sanitizeAlertError(message), TEST_CHANNEL_ERROR_MAX);
 }
 
 export async function testChannel(organizationId: string, body: unknown) {
@@ -265,9 +226,7 @@ export async function testChannel(organizationId: string, body: unknown) {
     const { sendChannelTest } = await import("./channel-sender.server");
     const input = parseAlertingInput(AlertingChannelTestInputSchema, body);
     const stored =
-      input.source.kind === "saved"
-        ? await getChannelRow(organizationId, input.source.name)
-        : null;
+      input.source.kind === "saved" ? await getChannelRow(organizationId, input.source.name) : null;
     const previous = stored
       ? decryptChannelConfig(organizationId, stored.id, stored.encryptedConfig)
       : null;
@@ -321,14 +280,11 @@ export async function setDefaultDestination(
   { organizationId }: AlertingMutationScope,
   rawInput: unknown,
 ): Promise<AlertingDefaultDestination> {
-  const input = parseAlertingInput(
-    AlertingDefaultDestinationInputSchema,
-    rawInput,
-  );
-  const entries = Object.entries(input.tiers) as [
-    AlertingDefaultTier,
-    string[],
-  ][];
+  const input = parseAlertingInput(AlertingDefaultDestinationInputSchema, rawInput);
+  const entries = ALERTING_DEFAULT_TIERS.flatMap((tier) => {
+    const channels = input.tiers[tier];
+    return channels ? [[tier, channels] as const] : [];
+  });
   if ("all" in input.tiers && entries.length > 1) {
     throwAlertingPersistenceError(
       422,
@@ -352,11 +308,7 @@ export async function setDefaultDestination(
   const idByName = new Map(resolved.map((row) => [row.name, row.id]));
   const missing = names.filter((name) => !idByName.has(name));
   if (missing.length > 0) {
-    throwAlertingPersistenceError(
-      422,
-      "validation",
-      `Unknown channels: ${missing.join(", ")}`,
-    );
+    throwAlertingPersistenceError(422, "validation", `Unknown channels: ${missing.join(", ")}`);
   }
   await db.transaction(async (tx) => {
     await tx
@@ -364,11 +316,11 @@ export async function setDefaultDestination(
       .where(eq(alertDefaultChannels.organizationId, organizationId));
     // Unique within a tier already: the schema refused duplicates.
     const values = entries.flatMap(([tier, channels]) =>
-      channels.map((name) => ({
-        organizationId,
-        tier,
-        channelId: idByName.get(name) as string,
-      })),
+      channels.map((name) => {
+        const channelId = idByName.get(name);
+        if (channelId === undefined) throw new Error("Missing validated channel");
+        return { organizationId, tier, channelId };
+      }),
     );
     if (values.length > 0) {
       await tx.insert(alertDefaultChannels).values(values);

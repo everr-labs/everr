@@ -24,11 +24,11 @@ This rule owns only what neither half covers alone: wiring both into one Vite pr
 
 Vite exposes `import.meta.env.VITE_*` to the client and `process.env` to the server. Keep the two surfaces separate:
 
-| Variable | Side | Purpose |
-| --- | --- | --- |
+| Variable                       | Side   | Purpose                                            |
+| ------------------------------ | ------ | -------------------------------------------------- |
 | `VITE_EVERR_PUBLIC_INGEST_KEY` | client | Public origin-bound key, production browser export |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | server | Optional local/custom collector override |
-| `EVERR_INGEST_KEY` | server | Secret key, production server export |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`  | server | Optional local/custom collector override           |
+| `EVERR_INGEST_KEY`             | server | Secret key, production server export               |
 
 Never move `EVERR_INGEST_KEY` into a `VITE_`-prefixed variable: the `VITE_` prefix is exactly the boundary that ships values to every visitor.
 

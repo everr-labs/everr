@@ -34,8 +34,7 @@ export function performance(options?: PerformanceOptions): Instrumentation {
     // INP and the slow interactions is necessary, because it keeps the Event
     // Timing observer off.
     const stopVitals = startWebVitals(ctx.emit, classic);
-    const stopInp =
-      inp || slow ? startInp(ctx.emit, ctx.tracer, inp, slow) : undefined;
+    const stopInp = inp || slow ? startInp(ctx.emit, ctx.tracer, inp, slow) : undefined;
     return () => {
       stopVitals();
       stopInp?.();

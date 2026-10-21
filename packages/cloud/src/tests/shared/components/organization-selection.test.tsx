@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   organizations: [
@@ -25,7 +25,9 @@ vi.mock("@everr/app/identity/client", async () => {
     plugins: [organizationClient()],
     fetchOptions: {
       customFetchImpl: async (input) =>
-        String(input).includes("/organization/set-active")
+        (input instanceof Request ? input.url : input.toString()).includes(
+          "/organization/set-active",
+        )
           ? new Response(
               JSON.stringify({
                 message: "You are no longer a member",
@@ -53,9 +55,7 @@ vi.mock("@tanstack/react-router", () => ({
     navigate: mocks.invalidate,
   }),
   useSearch: () => ({ returnTo: "/logs" }),
-  Link: ({ children }: { children: ReactNode }) => (
-    <a href="/account">{children}</a>
-  ),
+  Link: ({ children }: { children: ReactNode }) => <a href="/account">{children}</a>,
   ErrorComponent: () => null,
   redirect: vi.fn(),
 }));
@@ -65,9 +65,7 @@ vi.mock("../../../data/organizations", () => ({
     kind: "created",
     organization: { id: "new", name: "New organization" },
   }),
-  getOrganizationCreationOptions: vi
-    .fn()
-    .mockResolvedValue({ canCreateHobby: true }),
+  getOrganizationCreationOptions: vi.fn().mockResolvedValue({ canCreateHobby: true }),
 }));
 
 import { authClient } from "@everr/app/identity/client";
@@ -104,26 +102,14 @@ it("refreshes memberships when the chooser replaces a menu with cached organizat
     </QueryClientProvider>,
   );
 
-  expect(
-    await screen.findByRole("button", { name: "Remaining organization" }),
-  ).toBeVisible();
-  expect(
-    screen.queryByRole("button", { name: "Removed organization" }),
-  ).not.toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Remaining organization" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Removed organization" })).not.toBeInTheDocument();
 
   mocks.organizations = [];
-  await userEvent
-    .setup()
-    .click(screen.getByRole("button", { name: "Remaining organization" }));
-  expect(
-    await screen.findByRole("heading", { name: "Let's get you settled" }),
-  ).toBeVisible();
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "You are no longer a member",
-  );
-  expect(
-    screen.getByRole("button", { name: "Create organization" }),
-  ).toBeEnabled();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Remaining organization" }));
+  expect(await screen.findByRole("heading", { name: "Let's get you settled" })).toBeVisible();
+  expect(screen.getByRole("alert")).toHaveTextContent("You are no longer a member");
+  expect(screen.getByRole("button", { name: "Create organization" })).toBeEnabled();
   expect(mocks.invalidate).not.toHaveBeenCalled();
 });
 
@@ -137,10 +123,7 @@ it("keeps the setup step mounted when the new membership becomes visible", async
   );
   await screen.findByRole("heading", { name: "Let's get you settled" });
   const user = userEvent.setup();
-  await user.type(
-    screen.getByLabelText("Organization name"),
-    "New organization",
-  );
+  await user.type(screen.getByLabelText("Organization name"), "New organization");
   await user.click(screen.getByRole("button", { name: "Create organization" }));
   await screen.findByRole("heading", { name: "Getting your space ready" });
   mocks.organizations = [
@@ -154,12 +137,8 @@ it("keeps the setup step mounted when the new membership becomes visible", async
   await act(async () => {
     await mocks.refetch();
   });
-  expect(
-    screen.getByRole("heading", { name: "Getting your space ready" }),
-  ).toBeVisible();
-  expect(
-    screen.queryByRole("heading", { name: "Choose your organization" }),
-  ).toBeNull();
+  expect(screen.getByRole("heading", { name: "Getting your space ready" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Choose your organization" })).toBeNull();
 });
 
 vi.mock("../../../organization-provisioning/actions", () => ({

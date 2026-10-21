@@ -26,22 +26,17 @@ export function ErrorOccurrencesList({
     <section className="min-w-0 rounded-md border bg-background">
       <div className="border-b px-3 py-2">
         <h2 className="text-sm font-medium">Occurrences</h2>
-        <p className="text-xs text-muted-foreground">
-          Latest {occurrences.length} matching logs
-        </p>
+        <p className="text-xs text-muted-foreground">Latest {occurrences.length} matching logs</p>
       </div>
       <ul className="min-w-0 list-none p-0">
-        {occurrences.map((occurrence, index) => {
+        {occurrences.map((occurrence) => {
           const occurrenceKey = getErrorOccurrenceKey(occurrence);
           const isSelected = occurrenceKey === selectedOccurrenceKey;
 
           return (
             <li
-              key={`${occurrenceKey}-${index}`}
-              className={cn(
-                "border-b px-3 py-2.5 last:border-b-0",
-                isSelected && "bg-muted/40",
-              )}
+              key={occurrenceKey}
+              className={cn("border-b px-3 py-2.5 last:border-b-0", isSelected && "bg-muted/40")}
             >
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">

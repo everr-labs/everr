@@ -7,7 +7,4 @@ const LastViewedSchema = z.union([
   z.object({ kind: z.literal("own"), project: z.string(), slug: z.string() }),
 ]);
 
-export const lastViewedDashboard = lastViewedStore(
-  "dashboard",
-  LastViewedSchema,
-);
+export const lastViewedDashboard = lastViewedStore("dashboard", LastViewedSchema);

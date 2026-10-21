@@ -7,14 +7,8 @@ import { notFound } from "@tanstack/react-router";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { ANN_DISPLAY_NAME } from "#app/data/alerting/resource-annotations.ts";
 import { alertingConditionOperatorLabel } from "#app/data/alerting/rules/condition.ts";
-import type {
-  AlertingEvaluationSample,
-  AlertingRuleSpec,
-} from "#app/data/alerting/types.ts";
-import {
-  formatResourceName,
-  parseResourceName,
-} from "#app/data/as-code/identity.ts";
+import type { AlertingEvaluationSample, AlertingRuleSpec } from "#app/data/alerting/types.ts";
+import { formatResourceName, parseResourceName } from "#app/data/as-code/identity.ts";
 import { db } from "#app/db/client.ts";
 import { alertDefinitions, alertInstances } from "#app/db/schema/index.ts";
 
@@ -22,11 +16,7 @@ import { alertDefinitions, alertInstances } from "#app/db/schema/index.ts";
 export type TriageStatus = "degraded" | "firing" | "pending";
 
 /** Every state the rule inventory can present. */
-export type RuleInventoryState =
-  | TriageStatus
-  | "inactive"
-  | "silenced"
-  | "paused";
+export type RuleInventoryState = TriageStatus | "inactive" | "silenced" | "paused";
 
 /**
  * One rule as a screen that does not load rules refers to it: the
@@ -141,13 +131,8 @@ function liveRulesFilter(organizationId: string) {
  * the triage list above, which sorts by band and severity and otherwise keeps
  * the order it was given.
  */
-export async function loadRules(
-  organizationId: string,
-): Promise<AlertRuleRead[]> {
-  const rows = await db
-    .select()
-    .from(alertDefinitions)
-    .where(liveRulesFilter(organizationId));
+export async function loadRules(organizationId: string): Promise<AlertRuleRead[]> {
+  const rows = await db.select().from(alertDefinitions).where(liveRulesFilter(organizationId));
   return rows
     .map((row) => ({ row, label: ruleTitle(row), path: rulePath(row) }))
     .sort(compareRuleLabels)
@@ -170,9 +155,7 @@ export async function loadRules(
  * database can produce without seeing the annotation. Callers that print names
  * sort on the name.
  */
-export async function loadRuleOptions(
-  organizationId: string,
-): Promise<AlertRuleOption[]> {
+export async function loadRuleOptions(organizationId: string): Promise<AlertRuleOption[]> {
   const rows = await db
     .select({
       id: alertDefinitions.id,
@@ -183,10 +166,7 @@ export async function loadRuleOptions(
       // written as SQL is one that can drift from the one every other screen
       // prints. This keeps the point of the read, which is not fetching the
       // whole spec.
-      annotations: sql<Record<
-        string,
-        string
-      > | null>`${alertDefinitions.spec}->'annotations'`,
+      annotations: sql<Record<string, string> | null>`${alertDefinitions.spec}->'annotations'`,
     })
     .from(alertDefinitions)
     .where(liveRulesFilter(organizationId))
@@ -208,10 +188,7 @@ export async function loadRuleOptions(
  * not found is the caller's 404: the name came from the URL or from a row on
  * the screen, and either way the rule it named is gone.
  */
-export async function loadRule(
-  organizationId: string,
-  path: string,
-): Promise<AlertRuleRead> {
+export async function loadRule(organizationId: string, path: string): Promise<AlertRuleRead> {
   const { project, slug } = parseResourceName(path);
   const [row] = await db
     .select()
@@ -290,10 +267,7 @@ function ruleState(row: AlertRuleRead): TriageStatus | "paused" | "inactive" {
 
 /** Silenced is a label on firing, not a state of its own: the rule is still
  *  firing, nobody is being told about it. */
-export function inventoryState(
-  row: AlertRuleRead,
-  silenced: boolean,
-): RuleInventoryState {
+export function inventoryState(row: AlertRuleRead, silenced: boolean): RuleInventoryState {
   const state = ruleState(row);
   return silenced && state === "firing" ? "silenced" : state;
 }
@@ -324,19 +298,14 @@ function byWorstInstance(
 
 /** The instance a responder should look at: the worst breaching one, or the
  *  highest value seen when nothing breaches. */
-export function worstInstance(
-  instances: AlertInstanceRead[],
-): AlertInstanceRead | null {
+export function worstInstance(instances: AlertInstanceRead[]): AlertInstanceRead | null {
   return instances.reduce<AlertInstanceRead | null>(
     (worst, row) => (worst && byWorstInstance(worst, row) <= 0 ? worst : row),
     null,
   );
 }
 
-export function measuredText(
-  row: AlertRuleRead,
-  instances: AlertInstanceRead[],
-): string {
+export function measuredText(row: AlertRuleRead, instances: AlertInstanceRead[]): string {
   if (row.degradedSince !== null) {
     return `no rows · ${row.consecutiveFailures} consecutive ${row.consecutiveFailures === 1 ? "failure" : "failures"}`;
   }

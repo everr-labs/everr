@@ -67,9 +67,7 @@ export async function findPreviewId(
  * transaction. Already-queued evaluation jobs safely no-op when their
  * definition no longer exists.
  */
-export async function deleteStalePreviews(
-  retentionDays: number,
-): Promise<number> {
+export async function deleteStalePreviews(retentionDays: number): Promise<number> {
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
   const now = new Date();
   // The open set is read under the delete's own transaction and filtered to
@@ -84,9 +82,7 @@ export async function deleteStalePreviews(
     const removed = new Set(deleted.map((row) => row.id));
     return {
       deletedIds: deleted.map((row) => row.id),
-      closures: open.filter(
-        ({ def }) => def.previewId !== null && removed.has(def.previewId),
-      ),
+      closures: open.filter(({ def }) => def.previewId !== null && removed.has(def.previewId)),
     };
   });
   await recordPreviewTeardownClosures(closures, now);

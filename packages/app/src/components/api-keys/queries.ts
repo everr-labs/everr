@@ -1,8 +1,4 @@
-import {
-  queryOptions,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiKey, listApiKeys } from "#app/data/api-keys.ts";
 import type { ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { authClient } from "#app/lib/auth-client.ts";
@@ -40,13 +36,9 @@ export function useCreateApiKey() {
       createApiKey({
         data: {
           name: vars.name,
-          ...(vars.expiresInDays !== undefined
-            ? { expiresInDays: vars.expiresInDays }
-            : {}),
+          ...(vars.expiresInDays !== undefined ? { expiresInDays: vars.expiresInDays } : {}),
           scopes: vars.scopes,
-          ...(vars.public
-            ? { public: true, allowedOrigins: vars.allowedOrigins ?? [] }
-            : {}),
+          ...(vars.public ? { public: true, allowedOrigins: vars.allowedOrigins ?? [] } : {}),
         },
       }),
     onSuccess: () => {
@@ -63,8 +55,7 @@ export function useRevokeApiKey() {
         keyId,
         configId: API_KEY_CONFIG_ID,
       });
-      if (res.error)
-        throw new Error(res.error.message ?? "Failed to revoke API key");
+      if (res.error) throw new Error(res.error.message ?? "Failed to revoke API key");
       return res.data;
     },
     onSuccess: () => {

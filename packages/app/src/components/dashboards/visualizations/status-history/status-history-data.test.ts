@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { SERIES_COLORS } from "../data-utils";
 import { statusHistorySpec } from "./spec";
 import { buildStatusHistoryModel } from "./status-history-data";
@@ -28,11 +28,7 @@ describe("buildStatusHistoryModel", () => {
     );
     expect(model.lanes.map((l) => l.label)).toEqual(["api", "db"]);
     // db is "up" throughout but still gets one cell per sample — no merging
-    expect(model.lanes[1]!.cells.map((c) => c.state)).toEqual([
-      "up",
-      "up",
-      "up",
-    ]);
+    expect(model.lanes[1]!.cells.map((c) => c.state)).toEqual(["up", "up", "up"]);
   });
 
   it("centers cells on their timestamp, sized to the sampling interval times colWidth", () => {
@@ -196,11 +192,7 @@ describe("buildStatusHistoryModel", () => {
   });
 
   it("skips frames without a time column", () => {
-    const model = buildStatusHistoryModel(
-      [[{ name: "api", state: "up" }]],
-      specWith(),
-      DOMAIN,
-    );
+    const model = buildStatusHistoryModel([[{ name: "api", state: "up" }]], specWith(), DOMAIN);
     expect(model.lanes).toEqual([]);
   });
 

@@ -10,11 +10,7 @@ export type ResolvedSession = {
 function attributeSession(resolved: ResolvedSession | null | undefined): void {
   // A valid signed cache identifies attempted credentials, not authorization.
   // Retain that identity even if a later database check rejects the session.
-  if (
-    !resolved ||
-    !(new Date(resolved.session.expiresAt).getTime() > Date.now())
-  )
-    return;
+  if (!resolved || !(new Date(resolved.session.expiresAt).getTime() > Date.now())) return;
   mergeTelemetryIdentity({
     userId: resolved.user.id,
     organizationId:
@@ -34,8 +30,7 @@ export function createIdentityAuthHooks(
     before: createAuthMiddleware(async (ctx) => {
       // The resolver itself calls this endpoint. Its after hook attributes the result.
       if (ctx.path === "/get-session" || !ctx.headers) return;
-      if (!ctx.headers.has("cookie") && !ctx.headers.has("authorization"))
-        return;
+      if (!ctx.headers.has("cookie") && !ctx.headers.has("authorization")) return;
       const resolved = await resolveSession(ctx.headers).catch(() => null);
       if (!resolved) return;
       // Keep telemetry separate from authentication: a preloaded session can
@@ -52,12 +47,9 @@ export function createIdentityAuthHooks(
         ctx.context.responseHeaders ??= new Headers();
         const responseHeaders = ctx.context.responseHeaders;
         // The endpoint's cookies take precedence, especially when signing out.
-        const names = new Set(
-          responseHeaders.getSetCookie().map((cookie) => cookie.split("=")[0]),
-        );
+        const names = new Set(responseHeaders.getSetCookie().map((cookie) => cookie.split("=")[0]));
         for (const cookie of ctx.context.telemetrySessionHeaders.getSetCookie()) {
-          if (!names.has(cookie.split("=")[0]))
-            responseHeaders.append("set-cookie", cookie);
+          if (!names.has(cookie.split("=")[0])) responseHeaders.append("set-cookie", cookie);
         }
       }
     }),

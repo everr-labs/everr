@@ -28,8 +28,7 @@ export function useCollectorStatusQuery() {
   return useQuery({
     queryKey: collectorStatusQueryKey,
     refetchInterval: 10_000,
-    queryFn: () =>
-      invokeCommand<CollectorStatusResponse>("get_collector_status"),
+    queryFn: () => invokeCommand<CollectorStatusResponse>("get_collector_status"),
   });
 }
 
@@ -37,8 +36,7 @@ export function useRestartCollectorMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () =>
-      invokeCommand<CollectorStatusResponse>("restart_collector"),
+    mutationFn: () => invokeCommand<CollectorStatusResponse>("restart_collector"),
     onSuccess: (status) => {
       queryClient.setQueryData(collectorStatusQueryKey, status);
       if (status.status === "running") {
@@ -70,9 +68,7 @@ export function LocalTelemetryGate({ children }: { children: ReactNode }) {
     <LocalTelemetryState
       title="Local telemetry unavailable"
       description={
-        status?.reason ||
-        (statusQuery.error as Error | undefined)?.message ||
-        "The local collector is not running."
+        status?.reason || statusQuery.error?.message || "The local collector is not running."
       }
       action={
         <Button

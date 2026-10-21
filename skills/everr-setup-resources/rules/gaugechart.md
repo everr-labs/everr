@@ -4,27 +4,27 @@ One or more gauges, each showing a single value filled between `min` and `max`, 
 
 ## Options (`plugin.spec`)
 
-| Option | Type | Default | Values | Effect |
-| --- | --- | --- | --- | --- |
-| `calculation` | string | `last` | `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff` | How each gauge's column is reduced to one number. `count` = number of points, `range` = max − min, `diff` = last − first. An unknown value is rejected by `everr apply`. |
-| `valueFormat` | object | none | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels. |
-| `min` | number | `0` | any number | Gauge axis lower bound. |
-| `max` | number | `100` | any number | Gauge axis upper bound. **Set it to the metric's real ceiling** — the default 100 only suits percentages. Inverting the bounds (`min > max`) inverts the arc, so a lower value reads as fuller — useful for "lower is better" metrics. |
-| `showLabel` | boolean | `false` | `true` | Show the column-name label even on a single-gauge panel (multi-gauge always shows it). |
-| `noValue` | string | `–` | any string | Text rendered for a query that produced no value (empty result / no numeric column). |
-| `variant` | string | `arc` | `arc`, `horizontal` | Rendering shape. `arc`: semicircular arc. `horizontal`: flat bar filling left→right with the value text above it, a triangle marker at the value position and, with thresholds, multi-colored fill segments per band. |
-| `showAxis` | boolean | `true` | `false` | Show the `min`/`max` axis labels: at the arc ends, or below the horizontal bar. |
-| `showThresholdLabels` | boolean | `false` | `true` | Show a numeric label at each threshold tick mark (any variant). |
-| `thresholds` | object | none | see below | Color the arc and mark step positions on the gauge. Omit for the default series color. |
+| Option                | Type    | Default | Values                                                                 | Effect                                                                                                                                                                                                                                 |
+| --------------------- | ------- | ------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `calculation`         | string  | `last`  | `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff` | How each gauge's column is reduced to one number. `count` = number of points, `range` = max − min, `diff` = last − first. An unknown value is rejected by `everr apply`.                                                               |
+| `valueFormat`         | object  | none    | see shared rule                                                        | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels.                                                                                                                                    |
+| `min`                 | number  | `0`     | any number                                                             | Gauge axis lower bound.                                                                                                                                                                                                                |
+| `max`                 | number  | `100`   | any number                                                             | Gauge axis upper bound. **Set it to the metric's real ceiling** — the default 100 only suits percentages. Inverting the bounds (`min > max`) inverts the arc, so a lower value reads as fuller — useful for "lower is better" metrics. |
+| `showLabel`           | boolean | `false` | `true`                                                                 | Show the column-name label even on a single-gauge panel (multi-gauge always shows it).                                                                                                                                                 |
+| `noValue`             | string  | `–`     | any string                                                             | Text rendered for a query that produced no value (empty result / no numeric column).                                                                                                                                                   |
+| `variant`             | string  | `arc`   | `arc`, `horizontal`                                                    | Rendering shape. `arc`: semicircular arc. `horizontal`: flat bar filling left→right with the value text above it, a triangle marker at the value position and, with thresholds, multi-colored fill segments per band.                  |
+| `showAxis`            | boolean | `true`  | `false`                                                                | Show the `min`/`max` axis labels: at the arc ends, or below the horizontal bar.                                                                                                                                                        |
+| `showThresholdLabels` | boolean | `false` | `true`                                                                 | Show a numeric label at each threshold tick mark (any variant).                                                                                                                                                                        |
+| `thresholds`          | object  | none    | see below                                                              | Color the arc and mark step positions on the gauge. Omit for the default series color.                                                                                                                                                 |
 
 ### `thresholds`
 
-| Field | Type | Default | Values | Effect |
-| --- | --- | --- | --- | --- |
-| `mode` | string | `absolute` | `absolute`, `percent` | `absolute` compares the raw value; `percent` compares `value / max × 100`. |
-| `max` | number | the gauge's `max` | any number | Reference for `percent` mode. |
-| `defaultColor` | string | none | CSS color | Arc color before any step is crossed. Optional. |
-| `steps` | array | `[]` | `{ value: number, color?: string }` | Sorted ascending internally; the **highest step whose `value` ≤ the compare value wins** and colors the filled arc. Each colored step also draws a tick mark at its position on the gauge. |
+| Field          | Type   | Default           | Values                              | Effect                                                                                                                                                                                     |
+| -------------- | ------ | ----------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mode`         | string | `absolute`        | `absolute`, `percent`               | `absolute` compares the raw value; `percent` compares `value / max × 100`.                                                                                                                 |
+| `max`          | number | the gauge's `max` | any number                          | Reference for `percent` mode.                                                                                                                                                              |
+| `defaultColor` | string | none              | CSS color                           | Arc color before any step is crossed. Optional.                                                                                                                                            |
+| `steps`        | array  | `[]`              | `{ value: number, color?: string }` | Sorted ascending internally; the **highest step whose `value` ≤ the compare value wins** and colors the filled arc. Each colored step also draws a tick mark at its position on the gauge. |
 
 ```yaml
 plugin:

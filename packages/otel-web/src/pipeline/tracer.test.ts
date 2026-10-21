@@ -1,13 +1,8 @@
 import type { Tracer } from "@opentelemetry/api";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebSDK } from "../client.js";
 import { logger } from "../logger.js";
-import {
-  attrs,
-  type OtlpBatch,
-  type OtlpSpan,
-  startClient,
-} from "../test-kit.js";
+import { attrs, type OtlpBatch, type OtlpSpan, startClient } from "../test-kit.js";
 
 // The tracer that ctx.tracer gives to an instrumentation. It is a small
 // @opentelemetry/api Tracer on the span pipeline of the SDK. These tests use it
@@ -52,8 +47,7 @@ describe("instrumentation tracer", () => {
     const after = tracer.startSpan("later");
     after.end();
     const wire = await spans();
-    const by = (name: string) =>
-      wire.find((span) => span.name === name) as OtlpSpan;
+    const by = (name: string) => wire.find((span) => span.name === name) as OtlpSpan;
     const childWire = by("work");
     const parentWire = by("parent");
     const afterWire = by("later");
@@ -86,9 +80,7 @@ describe("instrumentation tracer", () => {
     const span = (name: string) => wire.find((item) => item.name === name);
     const log = (body: string) =>
       logs.find(
-        (record) =>
-          (record.body as { stringValue?: string } | undefined)?.stringValue ===
-          body,
+        (record) => (record.body as { stringValue?: string } | undefined)?.stringValue === body,
       );
     const parentSpan = span("parent");
     const childSpan = span("child");
@@ -128,10 +120,8 @@ describe("instrumentation tracer", () => {
       await client?.flush();
       const wire = batches.flatMap((batch) => batch.spans);
       const logs = batches.flatMap((batch) => batch.records);
-      const spanId = (name: string) =>
-        wire.find((item) => item.name === name)?.spanId;
-      const log = (name: string) =>
-        logs.find((record) => record.eventName === name);
+      const spanId = (name: string) => wire.find((item) => item.name === name)?.spanId;
+      const log = (name: string) => logs.find((record) => record.eventName === name);
       expect(log("everr.test.before")?.traceId).toBeUndefined();
       expect(log("everr.test.in-parent")?.spanId).toBe(spanId("parent"));
       expect(log("everr.test.in-child")?.spanId).toBe(spanId("child"));
@@ -143,11 +133,7 @@ describe("instrumentation tracer", () => {
   it("stacks the active spans", async () => {
     start();
     const outer = tracer.startActiveSpan("outer", (span) => span);
-    const inner = tracer.startActiveSpan(
-      "inner",
-      { attributes: {} },
-      (span) => span,
-    );
+    const inner = tracer.startActiveSpan("inner", { attributes: {} }, (span) => span);
     tracer.startSpan("in-inner").end();
     inner.end();
     tracer.startSpan("in-outer").end();
@@ -334,16 +320,11 @@ describe("instrumentation tracer", () => {
     const rooted = tracer.startSpan("rooted", { root: true });
     rooted.end();
     parent.end();
-    const activeRoot = tracer.startActiveSpan(
-      "active-root",
-      { root: true },
-      (span) => span,
-    );
+    const activeRoot = tracer.startActiveSpan("active-root", { root: true }, (span) => span);
     tracer.startSpan("child").end();
     activeRoot.end();
     const wire = await spans();
-    const by = (name: string) =>
-      wire.find((span) => span.name === name) as OtlpSpan;
+    const by = (name: string) => wire.find((span) => span.name === name) as OtlpSpan;
     expect(by("rooted").parentSpanId).toBeUndefined();
     expect(by("rooted").traceId).not.toBe(by("parent").traceId);
     expect(by("child").parentSpanId).toBe(by("active-root").spanId);
@@ -399,10 +380,8 @@ describe("instrumentation tracer", () => {
       return "done";
     });
     expect(plain).toBe("done");
-    tracer.startActiveSpan(
-      "active-options",
-      { attributes: { "everr.mode": "opts" } },
-      (span) => span.end(),
+    tracer.startActiveSpan("active-options", { attributes: { "everr.mode": "opts" } }, (span) =>
+      span.end(),
     );
     const wire = await spans();
     expect(wire[0].name).toBe("active-plain");

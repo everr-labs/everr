@@ -74,8 +74,7 @@ module.exports = [
     // the sum of the individual increments above, not above it.
     name: "core + all instrumentations",
     path: "dist/index.js",
-    import:
-      "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
+    import: "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
     limit: "10 KB",

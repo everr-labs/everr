@@ -27,14 +27,9 @@ export type ErrorsOptions = {
   denyUrls?: ErrorMatcher[];
 };
 
-const matches = (
-  matchers: ErrorMatcher[] | undefined,
-  value: string | undefined,
-): boolean =>
+const matches = (matchers: ErrorMatcher[] | undefined, value: string | undefined): boolean =>
   value !== undefined &&
-  !!matchers?.some((m) =>
-    typeof m === "string" ? value.includes(m) : m.test(value),
-  );
+  !!matchers?.some((m) => (typeof m === "string" ? value.includes(m) : m.test(value)));
 
 export function errors(options?: ErrorsOptions): Instrumentation {
   // This function has a name and it is not an arrow function. Thus sampled()
@@ -43,10 +38,8 @@ export function errors(options?: ErrorsOptions): Instrumentation {
   return function errors() {
     const stopHandlers = startErrors();
     const filter: ErrorFilter = (message, scriptUrl) =>
-      matches(options?.ignore, message) ||
-      matches(options?.denyUrls, scriptUrl);
-    const removeFilter =
-      options?.ignore || options?.denyUrls ? setErrorFilter(filter) : undefined;
+      matches(options?.ignore, message) || matches(options?.denyUrls, scriptUrl);
+    const removeFilter = options?.ignore || options?.denyUrls ? setErrorFilter(filter) : undefined;
     return () => {
       removeFilter?.();
       stopHandlers();
@@ -70,15 +63,11 @@ function startErrors(): () => void {
     if (event.error != null) {
       if (seenByRejection.has(event.error)) return;
       seenByOnerror.add(event.error);
-      captureError(
-        event.error,
-        { "everr.error.mechanism": "onerror" },
-        event.filename,
-      );
+      captureError(event.error, { "everr.error.mechanism": "onerror" }, event.filename);
     }
   };
   const onRejection = (event: Event) => {
-    const reason = (event as { reason?: unknown }).reason;
+    const reason = "reason" in event ? event.reason : undefined;
     if (reason != null && typeof reason === "object") {
       if (seenByOnerror.has(reason)) return;
       seenByRejection.add(reason);

@@ -1,8 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  getDeviceApprovalUserCode,
-  getDeviceTokenCode,
-} from "#app/lib/auth-context-body.ts";
+import { describe, expect, it } from "vite-plus/test";
+import { getDeviceApprovalUserCode, getDeviceTokenCode } from "#app/lib/auth-context-body.ts";
 
 describe("auth context body helpers", () => {
   it("reads the device token code only from the device token path", () => {

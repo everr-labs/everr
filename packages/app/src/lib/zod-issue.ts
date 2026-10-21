@@ -8,9 +8,6 @@ import type { z } from "zod";
  */
 export function firstZodIssue(error: z.ZodError): string {
   const issue = error.issues[0];
-  const where =
-    issue && issue.path.length > 0
-      ? ` at ${issue.path.map(String).join(".")}`
-      : "";
+  const where = issue && issue.path.length > 0 ? ` at ${issue.path.map(String).join(".")}` : "";
   return `${issue?.message}${where}`;
 }

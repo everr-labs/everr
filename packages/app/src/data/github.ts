@@ -3,10 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#app/db/client.ts";
 import { githubInstallationOrganizations } from "#app/db/schema/index.ts";
-import {
-  createAuthenticatedServerFn,
-  createOrganizationAdminServerFn,
-} from "#app/lib/serverFn.ts";
+import { createAuthenticatedServerFn, createOrganizationAdminServerFn } from "#app/lib/serverFn.ts";
 import {
   backfillRepo,
   JOB_QUOTA_PER_REPO,
@@ -31,9 +28,7 @@ async function getInstallationsForOrganization(organizationId: string) {
 export const getGithubAppInstallStatus = createAuthenticatedServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
-  const installations = await getInstallationsForOrganization(
-    session.session.activeOrganizationId,
-  );
+  const installations = await getInstallationsForOrganization(session.session.activeOrganizationId);
 
   return installations.map((installation) => ({
     installed: installation.status === "active",
@@ -46,12 +41,8 @@ export const getGithubAppInstallStatus = createAuthenticatedServerFn({
 export const getInstallationRepos = createOrganizationAdminServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }) => {
-  const installations = await getInstallationsForOrganization(
-    session.session.activeOrganizationId,
-  );
-  const active = installations.find(
-    (installation) => installation.status === "active",
-  );
+  const installations = await getInstallationsForOrganization(session.session.activeOrganizationId);
+  const active = installations.find((installation) => installation.status === "active");
 
   if (!active) {
     return [];
@@ -67,9 +58,7 @@ export const importRepos = createOrganizationAdminServerFn({ method: "POST" })
     const installations = await getInstallationsForOrganization(
       session.session.activeOrganizationId,
     );
-    const active = installations.find(
-      (installation) => installation.status === "active",
-    );
+    const active = installations.find((installation) => installation.status === "active");
     if (!active) {
       throw new Error("No active GitHub installation found");
     }

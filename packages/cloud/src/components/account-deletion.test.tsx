@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   useActiveOrganization: vi.fn(),
@@ -47,9 +47,7 @@ it("hides organization deletion for non-owners", async () => {
 
   await user.click(screen.getByRole("button", { name: "Delete account" }));
 
-  expect(
-    screen.queryByLabelText("Delete Test Org organization too"),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Delete Test Org organization too")).not.toBeInTheDocument();
 });
 
 it("passes the organization deletion choice when confirmed", async () => {
@@ -94,13 +92,9 @@ it("passes organization deletion without an extra checkbox click for the only ow
 
   await user.click(screen.getByRole("button", { name: "Delete account" }));
   expect(
-    screen.getByText(
-      "This action is also going to delete the Acme organization.",
-    ),
+    screen.getByText("This action is also going to delete the Acme organization."),
   ).toBeInTheDocument();
-  expect(
-    screen.queryByLabelText("Delete Acme organization too"),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Delete Acme organization too")).not.toBeInTheDocument();
   await user.type(screen.getByLabelText("Confirmation"), "DELETE");
   await user.click(screen.getByRole("button", { name: "Delete permanently" }));
 

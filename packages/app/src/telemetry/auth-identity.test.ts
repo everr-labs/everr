@@ -14,7 +14,7 @@ import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { bearer, organization } from "better-auth/plugins";
-import { afterAll, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import { createIdentityAuthHooks, type ResolvedSession } from "./auth-identity";
 import {
   identityLogProcessor,
@@ -63,9 +63,7 @@ function createTestAuth(
     session: { cookieCache },
     socialProviders,
     hooks: createIdentityAuthHooks(
-      async (
-        headers,
-      ): Promise<{ response: ResolvedSession | null; headers: Headers }> =>
+      async (headers): Promise<{ response: ResolvedSession | null; headers: Headers }> =>
         auth.api.getSession({ headers, returnHeaders: true }),
     ),
     plugins: [
@@ -74,8 +72,7 @@ function createTestAuth(
         hooks: {
           before: [
             {
-              matcher: (ctx) =>
-                resolveInBeforeHook && ctx.path === "/organization/update",
+              matcher: (ctx) => resolveInBeforeHook && ctx.path === "/organization/update",
               handler: createAuthMiddleware(async (ctx) => {
                 await getSessionFromCtx(ctx);
               }),
@@ -100,146 +97,136 @@ function createTestAuth(
   return auth;
 }
 
-it.each([
-  "cookie",
-  "bearer",
-  "signed-bearer",
-])("attributes %s sessions and leaves invalid sessions anonymous", async (credential) => {
-  const auth = createTestAuth(undefined, undefined, credential === "cookie");
-  const signedUp = await auth.api.signUpEmail({
-    body: {
-      email: "identity@example.test",
-      password: "test-password-123",
-      name: "Identity Test",
-    },
-  });
-  const response = await auth.handler(
-    new Request("http://localhost:5173/api/auth/sign-in/email", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+it.each(["cookie", "bearer", "signed-bearer"])(
+  "attributes %s sessions and leaves invalid sessions anonymous",
+  async (credential) => {
+    const auth = createTestAuth(undefined, undefined, credential === "cookie");
+    const signedUp = await auth.api.signUpEmail({
+      body: {
         email: "identity@example.test",
         password: "test-password-123",
+        name: "Identity Test",
+      },
+    });
+    const response = await auth.handler(
+      new Request("http://localhost:5173/api/auth/sign-in/email", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "identity@example.test",
+          password: "test-password-123",
+        }),
       }),
-    }),
-  );
-  expect(response.status).toBe(200);
-  const cookie = response.headers
-    .getSetCookie()
-    .map((value) => value.split(";")[0])
-    .join("; ");
-  const { token } = await response.json();
-  const headers = new Headers(
-    credential === "cookie"
-      ? { cookie }
-      : {
-          authorization: `Bearer ${credential === "bearer" ? token : response.headers.get("set-auth-token")}`,
-        },
-  );
-  const org = await auth.api.createOrganization({
-    headers,
-    body: { name: "Identity Test", slug: "identity-test" },
-  });
-  if (!org) throw new Error("Expected organization to be created");
-  await auth.api.setActiveOrganization({
-    headers,
-    body: { organizationId: org.id },
-  });
-  const sessionLookup = vi.spyOn(
-    (await auth.$context).internalAdapter,
-    "findSession",
-  );
-  await withTelemetryIdentityScope(() =>
-    tracer.startActiveSpan("organization-request", async (root) => {
-      const response = await auth.handler(
-        new Request("http://localhost:5173/api/auth/organization/update", {
-          method: "POST",
-          headers: {
-            ...Object.fromEntries(headers),
-            origin: "http://localhost:5173",
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            organizationId: org.id,
-            data: { name: "Updated" },
-          }),
-        }),
-      );
-      expect(response.status).toBe(200);
-      root.end();
-    }),
-  );
-  expect(sessionLookup).toHaveBeenCalledTimes(2);
-  sessionLookup.mockRestore();
-  await withTelemetryIdentityScope(() =>
-    tracer.startActiveSpan("authenticated", async (root) => {
-      const session = await auth.api.getSession({ headers });
-      expect(session?.user.id).toBe(signedUp.user.id);
-      tracer.startActiveSpan("child", (span) => span.end());
-      root.end();
-    }),
-  );
-  await withTelemetryIdentityScope(() =>
-    tracer.startActiveSpan("anonymous", async (root) => {
-      expect(
-        await auth.api.getSession({
-          headers: new Headers(
-            credential === "cookie"
-              ? { cookie: "better-auth.session_token=invalid" }
-              : { authorization: "Bearer invalid" },
-          ),
-        }),
-      ).toBeNull();
-      root.end();
-    }),
-  );
-  const attributed = exporter
-    .getFinishedSpans()
-    .filter((span) =>
-      [
-        "authenticated",
-        "child",
-        "organization-request",
-        "organization-handler",
-      ].includes(span.name),
     );
-  expect(attributed).toHaveLength(4);
-  for (const span of attributed) {
-    expect(span.attributes).toMatchObject({
+    expect(response.status).toBe(200);
+    const cookie = response.headers
+      .getSetCookie()
+      .map((value) => value.split(";")[0])
+      .join("; ");
+    const { token } = await response.json();
+    const headers = new Headers(
+      credential === "cookie"
+        ? { cookie }
+        : {
+            authorization: `Bearer ${credential === "bearer" ? token : response.headers.get("set-auth-token")}`,
+          },
+    );
+    const org = await auth.api.createOrganization({
+      headers,
+      body: { name: "Identity Test", slug: "identity-test" },
+    });
+    if (!org) throw new Error("Expected organization to be created");
+    await auth.api.setActiveOrganization({
+      headers,
+      body: { organizationId: org.id },
+    });
+    const sessionLookup = vi.spyOn((await auth.$context).internalAdapter, "findSession");
+    await withTelemetryIdentityScope(() =>
+      tracer.startActiveSpan("organization-request", async (root) => {
+        const response = await auth.handler(
+          new Request("http://localhost:5173/api/auth/organization/update", {
+            method: "POST",
+            headers: {
+              ...Object.fromEntries(headers),
+              origin: "http://localhost:5173",
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              organizationId: org.id,
+              data: { name: "Updated" },
+            }),
+          }),
+        );
+        expect(response.status).toBe(200);
+        root.end();
+      }),
+    );
+    expect(sessionLookup).toHaveBeenCalledTimes(2);
+    sessionLookup.mockRestore();
+    await withTelemetryIdentityScope(() =>
+      tracer.startActiveSpan("authenticated", async (root) => {
+        const session = await auth.api.getSession({ headers });
+        expect(session?.user.id).toBe(signedUp.user.id);
+        tracer.startActiveSpan("child", (span) => span.end());
+        root.end();
+      }),
+    );
+    await withTelemetryIdentityScope(() =>
+      tracer.startActiveSpan("anonymous", async (root) => {
+        expect(
+          await auth.api.getSession({
+            headers: new Headers(
+              credential === "cookie"
+                ? { cookie: "better-auth.session_token=invalid" }
+                : { authorization: "Bearer invalid" },
+            ),
+          }),
+        ).toBeNull();
+        root.end();
+      }),
+    );
+    const attributed = exporter
+      .getFinishedSpans()
+      .filter((span) =>
+        ["authenticated", "child", "organization-request", "organization-handler"].includes(
+          span.name,
+        ),
+      );
+    expect(attributed).toHaveLength(4);
+    for (const span of attributed) {
+      expect(span.attributes).toMatchObject({
+        "user.id": signedUp.user.id,
+        "everr.organization.id": org.id,
+      });
+      expect(span.attributes).not.toHaveProperty("user.email");
+    }
+    expect(records.getFinishedLogRecords()).toHaveLength(1);
+    expect(records.getFinishedLogRecords()[0].attributes).toEqual({
       "user.id": signedUp.user.id,
       "everr.organization.id": org.id,
     });
-    expect(span.attributes).not.toHaveProperty("user.email");
-  }
-  expect(records.getFinishedLogRecords()).toHaveLength(1);
-  expect(records.getFinishedLogRecords()[0].attributes).toEqual({
-    "user.id": signedUp.user.id,
-    "everr.organization.id": org.id,
-  });
-  expect(
-    exporter.getFinishedSpans().find((span) => span.name === "anonymous")
-      ?.attributes,
-  ).toEqual({});
+    expect(
+      exporter.getFinishedSpans().find((span) => span.name === "anonymous")?.attributes,
+    ).toEqual({});
 
-  const session = await auth.api.getSession({ headers });
-  if (!session) throw new Error("Expected verification session");
-  await (await auth.$context).internalAdapter.updateSession(
-    session.session.token,
-    {
+    const session = await auth.api.getSession({ headers });
+    if (!session) throw new Error("Expected verification session");
+    await (
+      await auth.$context
+    ).internalAdapter.updateSession(session.session.token, {
       expiresAt: new Date(Date.now() - 1_000),
-    },
-  );
-  await withTelemetryIdentityScope(() =>
-    tracer.startActiveSpan("expired", async (span) => {
-      expect(await auth.api.getSession({ headers })).toBeNull();
-      span.end();
-    }),
-  );
-  expect(
-    exporter.getFinishedSpans().find((span) => span.name === "expired")
-      ?.attributes,
-  ).toEqual({});
-});
+    });
+    await withTelemetryIdentityScope(() =>
+      tracer.startActiveSpan("expired", async (span) => {
+        expect(await auth.api.getSession({ headers })).toBeNull();
+        span.end();
+      }),
+    );
+    expect(exporter.getFinishedSpans().find((span) => span.name === "expired")?.attributes).toEqual(
+      {},
+    );
+  },
+);
 
 it("keeps concurrent authenticated organization requests isolated", async () => {
   let entered = 0;
@@ -289,10 +276,7 @@ it("keeps concurrent authenticated organization requests isolated", async () => 
   exporter.reset();
   records.reset();
   const expected = new Map<string, Record<string, string>>();
-  const sessionLookup = vi.spyOn(
-    (await auth.$context).internalAdapter,
-    "findSession",
-  );
+  const sessionLookup = vi.spyOn((await auth.$context).internalAdapter, "findSession");
   try {
     await Promise.all(
       callers.map((caller) =>
@@ -304,21 +288,18 @@ it("keeps concurrent authenticated organization requests isolated", async () => 
             });
             try {
               const response = await auth.handler(
-                new Request(
-                  "http://localhost:5173/api/auth/organization/update",
-                  {
-                    method: "POST",
-                    headers: {
-                      ...Object.fromEntries(caller.headers),
-                      origin: "http://localhost:5173",
-                      "content-type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      organizationId: caller.organizationId,
-                      data: { name: `updated-${caller.name}` },
-                    }),
+                new Request("http://localhost:5173/api/auth/organization/update", {
+                  method: "POST",
+                  headers: {
+                    ...Object.fromEntries(caller.headers),
+                    origin: "http://localhost:5173",
+                    "content-type": "application/json",
                   },
-                ),
+                  body: JSON.stringify({
+                    organizationId: caller.organizationId,
+                    data: { name: `updated-${caller.name}` },
+                  }),
+                }),
               );
               expect(response.status).toBe(200);
             } finally {
@@ -334,20 +315,14 @@ it("keeps concurrent authenticated organization requests isolated", async () => 
   }
   const attributed = exporter
     .getFinishedSpans()
-    .filter(
-      (span) =>
-        span.name.startsWith("request-") ||
-        span.name === "organization-handler",
-    );
+    .filter((span) => span.name.startsWith("request-") || span.name === "organization-handler");
   expect(attributed).toHaveLength(4);
   for (const span of attributed) {
     expect(span.attributes).toEqual(expected.get(span.spanContext().traceId));
   }
   expect(records.getFinishedLogRecords()).toHaveLength(2);
   for (const record of records.getFinishedLogRecords()) {
-    expect(record.attributes).toEqual(
-      expected.get(record.spanContext?.traceId ?? ""),
-    );
+    expect(record.attributes).toEqual(expected.get(record.spanContext?.traceId ?? ""));
   }
 });
 
@@ -355,114 +330,103 @@ it.each(
   (["compact", "jwt", "jwe"] as const).flatMap((strategy) =>
     [false, true].map((early) => ({ strategy, early })),
   ),
-)("attributes verified $strategy cache hits (before hook: $early) without a session lookup", async ({
-  strategy,
-  early,
-}) => {
-  const auth = createTestAuth(undefined, { enabled: true, strategy }, early);
-  const signedUp = await auth.api.signUpEmail({
-    body: {
-      email: "cached@example.test",
-      password: "test-password-123",
-      name: "Cached",
-    },
-    asResponse: true,
-  });
-  const { user, token } = await signedUp.json();
-  const headers = new Headers();
-  const cookies = new Map<string, string>();
-  function acceptCookies(response: Response) {
-    for (const value of response.headers.getSetCookie()) {
-      const pair = value.split(";")[0];
-      const index = pair.indexOf("=");
-      cookies.set(pair.slice(0, index), pair.slice(index + 1));
-    }
-    headers.set(
-      "cookie",
-      [...cookies].map(([name, value]) => `${name}=${value}`).join("; "),
-    );
-  }
-  acceptCookies(signedUp);
-  const org = await auth.api.createOrganization({
-    headers,
-    body: { name: "Cached", slug: "cached" },
-  });
-  if (!org) throw new Error("Expected organization");
-  acceptCookies(
-    await auth.api.getSession({
-      headers,
-      query: { disableCookieCache: true },
+)(
+  "attributes verified $strategy cache hits (before hook: $early) without a session lookup",
+  async ({ strategy, early }) => {
+    const auth = createTestAuth(undefined, { enabled: true, strategy }, early);
+    const signedUp = await auth.api.signUpEmail({
+      body: {
+        email: "cached@example.test",
+        password: "test-password-123",
+        name: "Cached",
+      },
       asResponse: true,
-    }),
-  );
-  const sessionLookup = vi.spyOn(
-    (await auth.$context).internalAdapter,
-    "findSession",
-  );
-  try {
-    await withTelemetryIdentityScope(() =>
-      tracer.startActiveSpan("cached-request", async (span) => {
-        try {
-          const result = await auth.handler(
-            new Request("http://localhost:5173/api/auth/organization/update", {
-              method: "POST",
-              headers: {
-                ...Object.fromEntries(headers),
-                origin: "http://localhost:5173",
-                "content-type": "application/json",
-              },
-              body: JSON.stringify({
-                organizationId: org.id,
-                data: { name: "Updated" },
-              }),
-            }),
-          );
-          expect(result.status).toBe(200);
-        } finally {
-          span.end();
-        }
+    });
+    const { user, token } = await signedUp.json();
+    const headers = new Headers();
+    const cookies = new Map<string, string>();
+    function acceptCookies(response: Response) {
+      for (const value of response.headers.getSetCookie()) {
+        const pair = value.split(";")[0];
+        const index = pair.indexOf("=");
+        cookies.set(pair.slice(0, index), pair.slice(index + 1));
+      }
+      headers.set("cookie", [...cookies].map(([name, value]) => `${name}=${value}`).join("; "));
+    }
+    acceptCookies(signedUp);
+    const org = await auth.api.createOrganization({
+      headers,
+      body: { name: "Cached", slug: "cached" },
+    });
+    if (!org) throw new Error("Expected organization");
+    acceptCookies(
+      await auth.api.getSession({
+        headers,
+        query: { disableCookieCache: true },
+        asResponse: true,
       }),
     );
-    expect(sessionLookup).not.toHaveBeenCalled();
-  } finally {
-    sessionLookup.mockRestore();
-  }
-  const spans = exporter
-    .getFinishedSpans()
-    .filter((span) =>
-      ["cached-request", "organization-handler"].includes(span.name),
-    );
-  expect(spans).toHaveLength(2);
-  for (const span of spans)
-    expect(span.attributes).toEqual({
+    const sessionLookup = vi.spyOn((await auth.$context).internalAdapter, "findSession");
+    try {
+      await withTelemetryIdentityScope(() =>
+        tracer.startActiveSpan("cached-request", async (span) => {
+          try {
+            const result = await auth.handler(
+              new Request("http://localhost:5173/api/auth/organization/update", {
+                method: "POST",
+                headers: {
+                  ...Object.fromEntries(headers),
+                  origin: "http://localhost:5173",
+                  "content-type": "application/json",
+                },
+                body: JSON.stringify({
+                  organizationId: org.id,
+                  data: { name: "Updated" },
+                }),
+              }),
+            );
+            expect(result.status).toBe(200);
+          } finally {
+            span.end();
+          }
+        }),
+      );
+      expect(sessionLookup).not.toHaveBeenCalled();
+    } finally {
+      sessionLookup.mockRestore();
+    }
+    const spans = exporter
+      .getFinishedSpans()
+      .filter((span) => ["cached-request", "organization-handler"].includes(span.name));
+    expect(spans).toHaveLength(2);
+    for (const span of spans)
+      expect(span.attributes).toEqual({
+        "user.id": user.id,
+        "everr.organization.id": org.id,
+      });
+    expect(records.getFinishedLogRecords()).toHaveLength(1);
+    expect(records.getFinishedLogRecords()[0].attributes).toEqual({
       "user.id": user.id,
       "everr.organization.id": org.id,
     });
-  expect(records.getFinishedLogRecords()).toHaveLength(1);
-  expect(records.getFinishedLogRecords()[0].attributes).toEqual({
-    "user.id": user.id,
-    "everr.organization.id": org.id,
-  });
 
-  // A valid cache must not satisfy an endpoint's authoritative session check.
-  await (await auth.$context).internalAdapter.deleteSession(token);
-  const authoritativeLookup = vi.spyOn(
-    (await auth.$context).internalAdapter,
-    "findSession",
-  );
-  const revoked = await auth.handler(
-    new Request("http://localhost:5173/api/auth/revoke-sessions", {
-      method: "POST",
-      headers: {
-        ...Object.fromEntries(headers),
-        origin: "http://localhost:5173",
-      },
-    }),
-  );
-  expect(revoked.status).toBe(401);
-  expect(authoritativeLookup).toHaveBeenCalledTimes(1);
-  authoritativeLookup.mockRestore();
-});
+    // A valid cache must not satisfy an endpoint's authoritative session check.
+    await (await auth.$context).internalAdapter.deleteSession(token);
+    const authoritativeLookup = vi.spyOn((await auth.$context).internalAdapter, "findSession");
+    const revoked = await auth.handler(
+      new Request("http://localhost:5173/api/auth/revoke-sessions", {
+        method: "POST",
+        headers: {
+          ...Object.fromEntries(headers),
+          origin: "http://localhost:5173",
+        },
+      }),
+    );
+    expect(revoked.status).toBe(401);
+    expect(authoritativeLookup).toHaveBeenCalledTimes(1);
+    authoritativeLookup.mockRestore();
+  },
+);
 
 it("skips session lookups for requests without credentials and attributes sign-up", async () => {
   const auth = createTestAuth();
@@ -479,8 +443,7 @@ it("skips session lookups for requests without credentials and attributes sign-u
       });
       span.end();
       expect(
-        exporter.getFinishedSpans().find((span) => span.name === "signup")
-          ?.attributes["user.id"],
+        exporter.getFinishedSpans().find((span) => span.name === "signup")?.attributes["user.id"],
       ).toBe(result.user.id);
     }),
   );
@@ -533,9 +496,7 @@ it("preserves session refresh and sign-out cookies with independent lookups", as
   expect(lookup).toHaveBeenCalledTimes(2);
   lookup.mockRestore();
   expect(
-    response.headers
-      .getSetCookie()
-      .some((value) => value.startsWith("better-auth.session_token=")),
+    response.headers.getSetCookie().some((value) => value.startsWith("better-auth.session_token=")),
   ).toBe(true);
   expect(response.headers.get("cache-control")).toBeNull();
 
@@ -602,169 +563,163 @@ it("preserves existing span identity but clears subsequent attribution when the 
   );
   // Clearing changes future attribution, not the identity existing spans observed.
   for (const name of ["clear-request", "before-clear", "spans-clear"]) {
-    expect(
-      exporter.getFinishedSpans().find((span) => span.name === name)
-        ?.attributes,
-    ).toEqual({ "user.id": user.id, "everr.organization.id": org?.id });
+    expect(exporter.getFinishedSpans().find((span) => span.name === name)?.attributes).toEqual({
+      "user.id": user.id,
+      "everr.organization.id": org?.id,
+    });
   }
   expect(
-    exporter.getFinishedSpans().find((span) => span.name === "after-clear")
-      ?.attributes,
+    exporter.getFinishedSpans().find((span) => span.name === "after-clear")?.attributes,
   ).toEqual({ "user.id": user.id });
   expect(
-    records
-      .getFinishedLogRecords()
-      .find((record) => record.body === "before-clear")?.attributes,
+    records.getFinishedLogRecords().find((record) => record.body === "before-clear")?.attributes,
   ).toEqual({ "user.id": user.id, "everr.organization.id": org?.id });
   expect(
-    records
-      .getFinishedLogRecords()
-      .find((record) => record.body === "after-clear")?.attributes,
+    records.getFinishedLogRecords().find((record) => record.body === "after-clear")?.attributes,
   ).toEqual({ "user.id": user.id });
 });
 
 it.each(
   (["compact", "jwt", "jwe"] as const).flatMap((strategy) =>
-    ["/get-access-token", "/refresh-token", "/account-info"].map(
-      (endpoint) => ({ strategy, endpoint }),
-    ),
+    ["/get-access-token", "/refresh-token", "/account-info"].map((endpoint) => ({
+      strategy,
+      endpoint,
+    })),
   ),
-)("requires an authoritative session for $endpoint while retaining $strategy cache identity in telemetry", async ({
-  strategy,
-  endpoint,
-}) => {
-  const refreshAccessToken = vi.fn(async () => ({
-    accessToken: "refreshed-test-provider-token",
-    accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
-  }));
-  const getUserInfo = vi.fn(async () => ({
-    user: { id: "provider-user", name: "Provider User", emailVerified: true },
-    data: {},
-  }));
-  const auth = createTestAuth(undefined, { enabled: true, strategy }, false, {
-    google: {
-      clientId: "test-client",
-      clientSecret: "test-secret",
-      refreshAccessToken,
-      getUserInfo,
-    },
-  });
-  const signedUp = await auth.api.signUpEmail({
-    body: {
-      name: "Authority",
-      email: "authority@example.test",
-      password: "test-password-123",
-    },
-    asResponse: true,
-  });
-  expect(signedUp.status).toBe(200);
-  const { user, token } = await signedUp.json();
-  let cookie = signedUp.headers
-    .getSetCookie()
-    .map((value) => value.split(";")[0])
-    .join("; ");
-  const org = await auth.api.createOrganization({
-    headers: new Headers({ cookie }),
-    body: { name: "Authority", slug: "authority" },
-  });
-  if (!org) throw new Error("Expected organization");
-  const refreshed = await auth.api.getSession({
-    headers: new Headers({ cookie }),
-    query: { disableCookieCache: true },
-    asResponse: true,
-  });
-  const cookies = new Map<string, string>();
-  for (const response of [signedUp, refreshed]) {
-    for (const value of response.headers.getSetCookie()) {
-      const pair = value.split(";")[0];
-      const separator = pair.indexOf("=");
-      cookies.set(pair.slice(0, separator), pair.slice(separator + 1));
+)(
+  "requires an authoritative session for $endpoint while retaining $strategy cache identity in telemetry",
+  async ({ strategy, endpoint }) => {
+    const refreshAccessToken = vi.fn(async () => ({
+      accessToken: "refreshed-test-provider-token",
+      accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+    }));
+    const getUserInfo = vi.fn(async () => ({
+      user: { id: "provider-user", name: "Provider User", emailVerified: true },
+      data: {},
+    }));
+    const auth = createTestAuth(undefined, { enabled: true, strategy }, false, {
+      google: {
+        clientId: "test-client",
+        clientSecret: "test-secret",
+        refreshAccessToken,
+        getUserInfo,
+      },
+    });
+    const signedUp = await auth.api.signUpEmail({
+      body: {
+        name: "Authority",
+        email: "authority@example.test",
+        password: "test-password-123",
+      },
+      asResponse: true,
+    });
+    expect(signedUp.status).toBe(200);
+    const { user, token } = await signedUp.json();
+    let cookie = signedUp.headers
+      .getSetCookie()
+      .map((value) => value.split(";")[0])
+      .join("; ");
+    const org = await auth.api.createOrganization({
+      headers: new Headers({ cookie }),
+      body: { name: "Authority", slug: "authority" },
+    });
+    if (!org) throw new Error("Expected organization");
+    const refreshed = await auth.api.getSession({
+      headers: new Headers({ cookie }),
+      query: { disableCookieCache: true },
+      asResponse: true,
+    });
+    const cookies = new Map<string, string>();
+    for (const response of [signedUp, refreshed]) {
+      for (const value of response.headers.getSetCookie()) {
+        const pair = value.split(";")[0];
+        const separator = pair.indexOf("=");
+        cookies.set(pair.slice(0, separator), pair.slice(separator + 1));
+      }
     }
-  }
-  cookie = [...cookies].map(([name, value]) => `${name}=${value}`).join("; ");
-  const adapter = (await auth.$context).internalAdapter;
-  await adapter.createAccount({
-    userId: user.id,
-    providerId: "google",
-    accountId: "provider-account",
-    accessToken: "test-provider-token",
-    refreshToken: "test-provider-refresh-token",
-    accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
-  });
-  const request = () =>
-    auth.handler(
-      new Request(
-        `http://localhost:5173/api/auth${endpoint}${endpoint === "/account-info" ? "?providerId=google&accountId=provider-account" : ""}`,
-        {
-          method: endpoint === "/account-info" ? "GET" : "POST",
-          headers: {
-            cookie,
-            origin: "http://localhost:5173",
-            "content-type": "application/json",
-          },
-          ...(endpoint === "/account-info"
-            ? {}
-            : {
-                body: JSON.stringify({
-                  providerId: "google",
-                  accountId: "provider-account",
+    cookie = [...cookies].map(([name, value]) => `${name}=${value}`).join("; ");
+    const adapter = (await auth.$context).internalAdapter;
+    await adapter.createAccount({
+      userId: user.id,
+      providerId: "google",
+      accountId: "provider-account",
+      accessToken: "test-provider-token",
+      refreshToken: "test-provider-refresh-token",
+      accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+    });
+    const request = () =>
+      auth.handler(
+        new Request(
+          `http://localhost:5173/api/auth${endpoint}${endpoint === "/account-info" ? "?providerId=google&accountId=provider-account" : ""}`,
+          {
+            method: endpoint === "/account-info" ? "GET" : "POST",
+            headers: {
+              cookie,
+              origin: "http://localhost:5173",
+              "content-type": "application/json",
+            },
+            ...(endpoint === "/account-info"
+              ? {}
+              : {
+                  body: JSON.stringify({
+                    providerId: "google",
+                    accountId: "provider-account",
+                  }),
                 }),
-              }),
-        },
-      ),
-    );
-  const lookup = vi.spyOn(adapter, "findSession");
-  try {
-    const valid = await request();
-    expect(valid.status).toBe(200);
-    expect(await valid.json()).toMatchObject(
-      endpoint === "/account-info"
-        ? { user: { id: "provider-user" } }
-        : {
-            accessToken:
-              endpoint === "/refresh-token"
-                ? "refreshed-test-provider-token"
-                : "test-provider-token",
           },
-    );
-    expect(lookup).toHaveBeenCalledTimes(1);
+        ),
+      );
+    const lookup = vi.spyOn(adapter, "findSession");
+    try {
+      const valid = await request();
+      expect(valid.status).toBe(200);
+      expect(await valid.json()).toMatchObject(
+        endpoint === "/account-info"
+          ? { user: { id: "provider-user" } }
+          : {
+              accessToken:
+                endpoint === "/refresh-token"
+                  ? "refreshed-test-provider-token"
+                  : "test-provider-token",
+            },
+      );
+      expect(lookup).toHaveBeenCalledTimes(1);
 
-    await adapter.deleteSession(token);
-    lookup.mockClear();
-    refreshAccessToken.mockClear();
-    getUserInfo.mockClear();
-    // Keep the still-valid signed cookie cache after server-side revocation.
-    await withTelemetryIdentityScope(() =>
-      tracer.startActiveSpan("rejected-request", async (root) => {
-        try {
-          const revoked = await request();
-          expect(revoked.status).toBe(401);
-          tracer.startActiveSpan("after-rejection", (span) => span.end());
-          logger.emit({ body: "after-rejection" });
-        } finally {
-          root.end();
-        }
-      }),
-    );
-    expect(lookup).toHaveBeenCalledTimes(1);
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-    expect(getUserInfo).not.toHaveBeenCalled();
-    const attemptedIdentity = {
-      "user.id": user.id,
-      "everr.organization.id": org.id,
-    };
-    for (const name of ["rejected-request", "after-rejection"]) {
+      await adapter.deleteSession(token);
+      lookup.mockClear();
+      refreshAccessToken.mockClear();
+      getUserInfo.mockClear();
+      // Keep the still-valid signed cookie cache after server-side revocation.
+      await withTelemetryIdentityScope(() =>
+        tracer.startActiveSpan("rejected-request", async (root) => {
+          try {
+            const revoked = await request();
+            expect(revoked.status).toBe(401);
+            tracer.startActiveSpan("after-rejection", (span) => span.end());
+            logger.emit({ body: "after-rejection" });
+          } finally {
+            root.end();
+          }
+        }),
+      );
+      expect(lookup).toHaveBeenCalledTimes(1);
+      expect(refreshAccessToken).not.toHaveBeenCalled();
+      expect(getUserInfo).not.toHaveBeenCalled();
+      const attemptedIdentity = {
+        "user.id": user.id,
+        "everr.organization.id": org.id,
+      };
+      for (const name of ["rejected-request", "after-rejection"]) {
+        expect(exporter.getFinishedSpans().find((span) => span.name === name)?.attributes).toEqual(
+          attemptedIdentity,
+        );
+      }
       expect(
-        exporter.getFinishedSpans().find((span) => span.name === name)
+        records.getFinishedLogRecords().find((record) => record.body === "after-rejection")
           ?.attributes,
       ).toEqual(attemptedIdentity);
+    } finally {
+      lookup.mockRestore();
     }
-    expect(
-      records
-        .getFinishedLogRecords()
-        .find((record) => record.body === "after-rejection")?.attributes,
-    ).toEqual(attemptedIdentity);
-  } finally {
-    lookup.mockRestore();
-  }
-});
+  },
+);

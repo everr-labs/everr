@@ -33,8 +33,7 @@ export const WithLabel: Story = {
 
 export const WithValue: Story = {
   args: {
-    defaultValue:
-      "The checkout API error rate is above the budget for the last 30 minutes.",
+    defaultValue: "The checkout API error rate is above the budget for the last 30 minutes.",
   },
 };
 
@@ -57,19 +56,13 @@ export const Invalid: Story = {
 };
 
 export const Controlled: Story = {
-  render: (args) => {
+  render: function Render(args) {
     const [value, setValue] = React.useState("");
 
     return (
       <div className="grid gap-2">
-        <Textarea
-          {...args}
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-        />
-        <p className="text-muted-foreground text-xs">
-          {value.length} characters
-        </p>
+        <Textarea {...args} value={value} onChange={(event) => setValue(event.target.value)} />
+        <p className="text-muted-foreground text-xs">{value.length} characters</p>
       </div>
     );
   },

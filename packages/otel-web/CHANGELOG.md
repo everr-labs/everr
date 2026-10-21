@@ -95,14 +95,7 @@
 itself. Every capture source is a plugin, composed explicitly:
 
 ```ts
-import {
-  errors,
-  init,
-  interactions,
-  network,
-  pageviews,
-  performance,
-} from "@everr/otel-web";
+import { errors, init, interactions, network, pageviews, performance } from "@everr/otel-web";
 
 init({
   serviceName: "my-app",
@@ -113,7 +106,7 @@ init({
 ```
 
 - A plugin is now its setup function: `type Plugin = (ctx: PluginContext) =>
-(() => void) | void`. The `{ name, setup }` object shape is gone.
+  (() => void) | void`. The `{ name, setup }` object shape is gone.
 - `disable` and the `CaptureSignal` type are removed. Disabling a signal is
   now leaving its plugin out: `disable: ["interactions"]` becomes a plugin
   list without `interactions()`.

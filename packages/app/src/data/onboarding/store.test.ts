@@ -2,7 +2,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
-import { afterAll, beforeEach, expect, it } from "vitest";
+import { afterAll, beforeEach, expect, it } from "vite-plus/test";
 import type { Database } from "#app/db/client.ts";
 import * as schema from "#app/db/schema/index.ts";
 import { createOnboardingStore } from "./store";
@@ -31,13 +31,10 @@ it("starts incomplete and shares completion between members of only the selected
   expect((await store.getStatus(scope)).onboardingCompleted).toBe(false);
   expect(await store.complete(scope)).toEqual({ onboardingCompleted: true });
   const reloaded = createOnboardingStore(database as unknown as Database);
-  expect(
-    (await reloaded.getStatus({ ...scope, userId: "bob" })).onboardingCompleted,
-  ).toBe(true);
-  expect(
-    (await reloaded.getStatus({ ...scope, organizationId: "two" }))
-      .onboardingCompleted,
-  ).toBe(false);
+  expect((await reloaded.getStatus({ ...scope, userId: "bob" })).onboardingCompleted).toBe(true);
+  expect((await reloaded.getStatus({ ...scope, organizationId: "two" })).onboardingCompleted).toBe(
+    false,
+  );
 });
 
 it("rejects nonmembers and revoked members for reads and completion", async () => {
@@ -52,9 +49,7 @@ it("rejects nonmembers and revoked members for reads and completion", async () =
 
 it("offers keys only to admins and owners while allowing other members to finish without keys or telemetry", async () => {
   expect((await store.getStatus(scope)).canCreateKeys).toBe(true);
-  expect(
-    (await store.getStatus({ ...scope, userId: "bob" })).canCreateKeys,
-  ).toBe(true);
+  expect((await store.getStatus({ ...scope, userId: "bob" })).canCreateKeys).toBe(true);
   const memberScope = { ...scope, organizationId: "two" };
   expect((await store.getStatus(memberScope)).canCreateKeys).toBe(false);
   expect(await store.complete(memberScope)).toEqual({
@@ -73,13 +68,10 @@ it("recognizes completion already saved by the former organization onboarding", 
     })
     .where(eq(schema.organization.id, scope.organizationId));
   expect((await store.getStatus(scope)).onboardingCompleted).toBe(true);
-  expect(
-    (await store.getStatus({ ...scope, userId: "bob" })).onboardingCompleted,
-  ).toBe(true);
-  expect(
-    (await store.getStatus({ ...scope, organizationId: "two" }))
-      .onboardingCompleted,
-  ).toBe(false);
+  expect((await store.getStatus({ ...scope, userId: "bob" })).onboardingCompleted).toBe(true);
+  expect((await store.getStatus({ ...scope, organizationId: "two" })).onboardingCompleted).toBe(
+    false,
+  );
 });
 
 it.each([
@@ -89,15 +81,18 @@ it.each([
   "{}",
   '{"onboardingCompleted":false}',
   '{"onboardingCompleted":"true"}',
-])("treats unset or nonboolean completion as incomplete and can complete it (%s)", async (metadata) => {
-  await database
-    .update(schema.organization)
-    .set({ metadata })
-    .where(eq(schema.organization.id, scope.organizationId));
-  expect((await store.getStatus(scope)).onboardingCompleted).toBe(false);
-  expect(await store.complete(scope)).toEqual({ onboardingCompleted: true });
-  expect((await store.getStatus(scope)).onboardingCompleted).toBe(true);
-});
+])(
+  "treats unset or nonboolean completion as incomplete and can complete it (%s)",
+  async (metadata) => {
+    await database
+      .update(schema.organization)
+      .set({ metadata })
+      .where(eq(schema.organization.id, scope.organizationId));
+    expect((await store.getStatus(scope)).onboardingCompleted).toBe(false);
+    expect(await store.complete(scope)).toEqual({ onboardingCompleted: true });
+    expect((await store.getStatus(scope)).onboardingCompleted).toBe(true);
+  },
+);
 
 it("makes completion idempotent and preserves other metadata including changes since Home was loaded", async () => {
   const initialMetadata = {

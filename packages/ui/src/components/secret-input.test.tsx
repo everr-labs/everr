@@ -2,7 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { SecretInput } from "./secret-input";
 
 function renderSecret(hasStoredSecret = true) {
@@ -45,9 +45,7 @@ it("cancels a replacement without changing the stored secret", async () => {
 
   await user.click(screen.getByRole("button", { name: "Edit secret" }));
   await user.type(screen.getByLabelText("Webhook URL"), "replacement");
-  await user.click(
-    screen.getByRole("button", { name: "Cancel editing secret" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Cancel editing secret" }));
 
   expect(screen.getByLabelText("Webhook URL")).toHaveValue("Stored securely");
   expect(screen.getByLabelText("Webhook URL")).toHaveAttribute("readonly");

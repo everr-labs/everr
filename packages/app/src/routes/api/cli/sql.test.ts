@@ -1,7 +1,7 @@
 import { ClickHouseError } from "@clickhouse/client";
 import { storage } from "@composition/storage";
 import { trace } from "@opentelemetry/api";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
 import { querySqlApi } from "#app/lib/clickhouse.ts";
@@ -68,14 +68,8 @@ describe("/api/cli/sql", () => {
     expect(await response.json()).toEqual({
       error: "Storage is not ready.",
     });
-    expect(span.setAttribute).toHaveBeenCalledWith(
-      "everr.sql_query.outcome",
-      "user_error",
-    );
-    expect(span.setAttribute).toHaveBeenCalledWith(
-      "everr.sql_query.kind",
-      "account_setup",
-    );
+    expect(span.setAttribute).toHaveBeenCalledWith("everr.sql_query.outcome", "user_error");
+    expect(span.setAttribute).toHaveBeenCalledWith("everr.sql_query.kind", "account_setup");
     expect(span.setStatus).not.toHaveBeenCalled();
   });
   it("returns NDJSON rows for valid SQL", async () => {
@@ -91,14 +85,8 @@ describe("/api/cli/sql", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain(
-      "application/x-ndjson",
-    );
-    expect(mockedQuerySqlApi).toHaveBeenCalledWith(
-      "SELECT 1 AS ok",
-      "org-42",
-      undefined,
-    );
+    expect(response.headers.get("content-type")).toContain("application/x-ndjson");
+    expect(mockedQuerySqlApi).toHaveBeenCalledWith("SELECT 1 AS ok", "org-42", undefined);
     expect(await response.text()).toBe('{"ok":1}\n');
   });
 
@@ -119,14 +107,8 @@ describe("/api/cli/sql", () => {
   });
 
   it.each([
-    [
-      "standard query-level SETTINGS",
-      "SELECT 1 SETTINGS max_result_rows = 1000",
-    ],
-    [
-      "tenant override query-level SETTINGS",
-      "SELECT 1 SETTINGS SQL_everr_tenant_id = 'other-org'",
-    ],
+    ["standard query-level SETTINGS", "SELECT 1 SETTINGS max_result_rows = 1000"],
+    ["tenant override query-level SETTINGS", "SELECT 1 SETTINGS SQL_everr_tenant_id = 'other-org'"],
   ])("passes through SQL with %s", async (_name, sql) => {
     mockedQuerySqlApi.mockResolvedValue([{ ok: 1 }]);
 
@@ -187,9 +169,7 @@ describe("/api/cli/sql", () => {
     ],
     ["UNKNOWN_DATABASE", "81", "Database secret_db does not exist."],
   ])("collapses %s into a uniform message that leaks no schema", async (type, code, rawMessage) => {
-    mockedQuerySqlApi.mockRejectedValue(
-      new ClickHouseError({ message: rawMessage, code, type }),
-    );
+    mockedQuerySqlApi.mockRejectedValue(new ClickHouseError({ message: rawMessage, code, type }));
 
     const response = await postSql("SELECT * FROM app.private_records");
     const body = (await response.json()) as { error: string };

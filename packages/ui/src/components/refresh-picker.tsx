@@ -54,29 +54,19 @@ export function RefreshPicker({
     }
   }, [isFetching]);
 
-  const activeLabel =
-    REFRESH_INTERVALS.find((i) => i.value === value)?.label ?? "Off";
+  const activeLabel = REFRESH_INTERVALS.find((i) => i.value === value)?.label ?? "Off";
 
   return (
     <div className="flex items-center">
-      <Button
-        variant="outline"
-        className="rounded-r-none border-r-0"
-        onClick={onRefresh}
-      >
+      <Button variant="outline" className="rounded-r-none border-r-0" onClick={onRefresh}>
         <RefreshCwIcon
-          className={cn(
-            "size-3.5 linear",
-            spinning && "animate-[spin_600ms_ease_infinite]",
-          )}
+          className={cn("size-3.5 linear", spinning && "animate-[spin_600ms_ease_infinite]")}
           onAnimationIteration={handleAnimationIteration}
         />
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={
-            <Button variant="outline" className="rounded-l-none gap-1 px-1.5" />
-          }
+          render={<Button variant="outline" className="rounded-l-none gap-1 px-1.5" />}
         >
           {getRefreshIntervalMs(value) !== null && (
             <span className="text-xs text-center">{activeLabel}</span>

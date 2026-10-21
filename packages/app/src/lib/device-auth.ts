@@ -14,9 +14,7 @@ async function verifyDeviceCode(userCode: string): Promise<DeviceActionResult> {
   if (verification.error) {
     return {
       ok: false,
-      message:
-        verification.error.error_description ??
-        "Could not verify the device code.",
+      message: verification.error.error_description ?? "Could not verify the device code.",
     };
   }
   return { ok: true };
@@ -37,8 +35,7 @@ export async function approveDevice(
   if (activation.error) {
     return {
       ok: false,
-      message:
-        activation.error.message ?? "Could not select this organization.",
+      message: activation.error.message ?? "Could not select this organization.",
     };
   }
 
@@ -46,16 +43,13 @@ export async function approveDevice(
   if (result.error || !result.data?.success) {
     return {
       ok: false,
-      message:
-        result.error?.error_description ?? "Could not authorize the device.",
+      message: result.error?.error_description ?? "Could not authorize the device.",
     };
   }
   return { ok: true };
 }
 
-export async function denyDevice(
-  userCode: string,
-): Promise<DeviceActionResult> {
+export async function denyDevice(userCode: string): Promise<DeviceActionResult> {
   const verified = await verifyDeviceCode(userCode);
   if (!verified.ok) return verified;
 

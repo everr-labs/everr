@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactNode, useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { stubNarrowViewport } from "../../test-utils/viewport";
 import type { LogsRepositoryLike } from "../data/repository";
 
@@ -16,6 +16,7 @@ vi.mock("react-virtuoso", () => ({
   }) => (
     <div data-testid="virtuoso-mock">
       {data.map((item, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- The test virtualizer renders a fixed fixture in source order.
         <div key={i}>{itemContent(i, item)}</div>
       ))}
     </div>
@@ -38,9 +39,7 @@ const ALL_LEVEL_COUNTS = {
 function makeRepo(): LogsRepositoryLike {
   return {
     explorer: vi.fn().mockResolvedValue({ logs: [] }),
-    totals: vi
-      .fn()
-      .mockResolvedValue({ totalCount: 0, levelCounts: ALL_LEVEL_COUNTS }),
+    totals: vi.fn().mockResolvedValue({ totalCount: 0, levelCounts: ALL_LEVEL_COUNTS }),
     histogram: vi.fn().mockResolvedValue([]),
     detail: vi.fn().mockResolvedValue(null),
     filterOptions: vi.fn().mockResolvedValue({ services: [] }),
@@ -118,9 +117,7 @@ describe("Logs page filter rail", () => {
     const { rerender, unmount } = render(page(emptySearch));
     await user.click(screen.getByRole("button", { name: /^error/i }));
     await user.click(screen.getByRole("button", { name: /^error/i }));
-    expect(onSearchChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ levels: [] }),
-    );
+    expect(onSearchChange).toHaveBeenLastCalledWith(expect.objectContaining({ levels: [] }));
 
     rerender(
       page({
@@ -129,9 +126,7 @@ describe("Logs page filter rail", () => {
         levels: ["info"],
       }),
     );
-    expect(
-      screen.getByPlaceholderText("Search messages, errors, IDs"),
-    ).toHaveValue("external");
+    expect(screen.getByPlaceholderText("Search messages, errors, IDs")).toHaveValue("external");
     await waitFor(() =>
       expect(repo.explorer).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -157,12 +152,8 @@ describe("Logs page filter rail", () => {
     render(<LogsPageHarness />);
 
     const rail = screen.getByRole("complementary", { name: "Log filters" });
-    expect(rail).toContainElement(
-      screen.getByPlaceholderText("Search messages, errors, IDs"),
-    );
-    expect(
-      screen.getAllByPlaceholderText("Search messages, errors, IDs"),
-    ).toHaveLength(1);
+    expect(rail).toContainElement(screen.getByPlaceholderText("Search messages, errors, IDs"));
+    expect(screen.getAllByPlaceholderText("Search messages, errors, IDs")).toHaveLength(1);
   });
 
   it("applies the search on Enter", async () => {
@@ -175,9 +166,7 @@ describe("Logs page filter rail", () => {
     expect(onSearchChange).not.toHaveBeenCalled();
 
     await user.type(input, "{Enter}");
-    expect(onSearchChange).toHaveBeenCalledWith(
-      expect.objectContaining({ q: "timeout" }),
-    );
+    expect(onSearchChange).toHaveBeenCalledWith(expect.objectContaining({ q: "timeout" }));
   });
 
   it("clears the page zone including the search, and leaves Service alone", async () => {
@@ -190,9 +179,7 @@ describe("Logs page filter rail", () => {
       />,
     );
 
-    await user.click(
-      screen.getByRole("button", { name: "Clear page filters" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Clear page filters" }));
 
     const next = onSearchChange.mock.calls[0]?.[0];
     expect(next).toMatchObject({ q: undefined, levels: [], attributes: [] });
@@ -206,18 +193,12 @@ describe("Logs page filter rail", () => {
     render(<LogsPageHarness persistentFilters={<div>persistent zone</div>} />);
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: /Filters/ }),
-      ).toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: /Filters/ })).toBeInTheDocument(),
     );
-    expect(
-      screen.queryByRole("complementary", { name: "Log filters" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Log filters" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Filters/ }));
-    expect(
-      screen.getByRole("complementary", { name: "Log filters" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Log filters" })).toBeInTheDocument();
   });
 
   it("the narrow Filters button counts the persistent filters it hides", async () => {
@@ -230,9 +211,7 @@ describe("Logs page filter rail", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent(
-        "3",
-      ),
+      expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("3"),
     );
   });
 });

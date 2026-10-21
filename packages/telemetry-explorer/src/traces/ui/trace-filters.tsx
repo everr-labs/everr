@@ -2,10 +2,7 @@ import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type ReactNode, useId, useRef, useState } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
@@ -51,9 +48,7 @@ export function TraceFilters({
   persistentFilterCount = 0,
   onChange,
 }: TraceFiltersProps) {
-  const namespaces = dedupe(
-    identities.map((i) => i.serviceNamespace).filter((n) => n.length > 0),
-  );
+  const namespaces = dedupe(identities.map((i) => i.serviceNamespace).filter((n) => n.length > 0));
 
   const namespaceOptions = staticListOptions(
     ["traces", "filter", "namespaces", namespaces] as const,
@@ -103,11 +98,7 @@ export function TraceFilters({
           className="w-full"
           onValueChange={(next) => {
             const selected = next[0];
-            if (
-              selected === "ok" ||
-              selected === "error" ||
-              selected === "all"
-            ) {
+            if (selected === "ok" || selected === "error" || selected === "all") {
               onChange({ status: selected });
             }
           }}
@@ -172,8 +163,7 @@ function DurationInput({
   onCommit: (next: number | undefined) => void;
 }) {
   const id = useId();
-  const asString = (v: number | undefined) =>
-    v === undefined ? "" : String(v);
+  const asString = (v: number | undefined) => (v === undefined ? "" : String(v));
   const [local, setLocal] = useState(asString(value));
   const lastValueRef = useRef(value);
   if (lastValueRef.current !== value) {
@@ -227,10 +217,8 @@ function dedupe(items: string[]): string[] {
   return Array.from(new Set(items)).sort();
 }
 
-function staticListOptions<K extends readonly unknown[]>(
-  queryKey: K,
-  items: string[],
-) {
+function staticListOptions<K extends readonly unknown[]>(queryKey: K, items: string[]) {
+  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return {
     queryKey,
     queryFn: () => items,

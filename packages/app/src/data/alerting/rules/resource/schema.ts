@@ -7,10 +7,7 @@ import {
   alertingResourceAnnotationsSchema,
   alertingResourceMetadataSchema,
 } from "#app/data/alerting/resource/schema.ts";
-import {
-  AlertingRuleConditionSchema,
-  AlertingSeveritySchema,
-} from "#app/data/alerting/schema.ts";
+import { AlertingRuleConditionSchema, AlertingSeveritySchema } from "#app/data/alerting/schema.ts";
 import { parseWindow } from "./window";
 
 const notificationMessageSchema = z
@@ -72,9 +69,7 @@ export const AlertRuleYamlSchema = z
           }
           if (maxIntervalSeconds !== undefined && spec.evaluationInterval) {
             try {
-              const evaluationIntervalSeconds = parseWindow(
-                spec.evaluationInterval,
-              );
+              const evaluationIntervalSeconds = parseWindow(spec.evaluationInterval);
               if (maxIntervalSeconds < evaluationIntervalSeconds) {
                 ctx.addIssue({
                   code: z.ZodIssueCode.custom,

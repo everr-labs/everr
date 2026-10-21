@@ -43,11 +43,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     .limit(1);
   if (!row || row.delivery.status === "sent") return;
   setAlertSpanAttributes({ tenant: row.delivery.organizationId });
-  const failDelivery = async (
-    channelType: string,
-    rawError: string,
-    attempts: number | SQL,
-  ) => {
+  const failDelivery = async (channelType: string, rawError: string, attempts: number | SQL) => {
     // A provider's error text routinely echoes back the webhook URL, which
     // for Slack, Discord and Telegram IS the secret; sanitize before it
     // reaches Postgres, same as the identical string already does on the
@@ -65,12 +61,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       // Guarded on status <> 'sent': a racing or duplicate run must never be
       // able to mark an already-delivered row failed, whatever this read of
       // `row` saw.
-      .where(
-        and(
-          eq(alertDeliveries.dedupKey, dedupKey),
-          ne(alertDeliveries.status, "sent"),
-        ),
-      );
+      .where(and(eq(alertDeliveries.dedupKey, dedupKey), ne(alertDeliveries.status, "sent")));
     await recordDeliveryOutcome({
       organizationId: row.delivery.organizationId,
       dedupKey,
@@ -171,17 +162,12 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
         // same stale count and one attempt would go uncounted. A permanent
         // failure instead jumps straight to the max, the same terminal
         // count retention and the cleanup index already require.
-        permanent
-          ? ALERT_DELIVERY_MAX_ATTEMPTS
-          : sql`${alertDeliveries.attempts} + 1`,
+        permanent ? ALERT_DELIVERY_MAX_ATTEMPTS : sql`${alertDeliveries.attempts} + 1`,
       );
     } catch (bookkeepingError) {
-      throw new Error(
-        "alert delivery send failed, and recording it failed too",
-        {
-          cause: { sendError: cause, bookkeepingError },
-        },
-      );
+      throw new Error("alert delivery send failed, and recording it failed too", {
+        cause: { sendError: cause, bookkeepingError },
+      });
     }
     recordAlertNotification({
       channelType,
@@ -203,12 +189,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
         lastError: null,
         updatedAt: sentAt,
       })
-      .where(
-        and(
-          eq(alertDeliveries.dedupKey, dedupKey),
-          ne(alertDeliveries.status, "sent"),
-        ),
-      )
+      .where(and(eq(alertDeliveries.dedupKey, dedupKey), ne(alertDeliveries.status, "sent")))
       .returning({ sentAt: alertDeliveries.updatedAt });
   let marked: { sentAt: Date }[];
   try {
@@ -222,10 +203,9 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       // pending and throw a distinct error so this run is not confused with
       // a send failure. The job queue's retry is what resolves a row stuck
       // here; nothing else does, since no reconciliation sweep exists.
-      throw new Error(
-        "alert delivery sent, but its status write failed twice",
-        { cause: statusWriteError },
-      );
+      throw new Error("alert delivery sent, but its status write failed twice", {
+        cause: statusWriteError,
+      });
     }
   }
   let outcomeAt = marked[0]?.sentAt;

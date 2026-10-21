@@ -29,7 +29,12 @@ export function extractInstanceLabels(
         ? ""
         : value === null
           ? NULL_LABEL_VALUE
-          : String(value);
+          : typeof value === "string" ||
+              typeof value === "number" ||
+              typeof value === "boolean" ||
+              typeof value === "bigint"
+            ? String(value)
+            : (JSON.stringify(value) ?? "");
   }
   return labels;
 }

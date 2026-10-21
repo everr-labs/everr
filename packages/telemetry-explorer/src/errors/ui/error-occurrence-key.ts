@@ -9,8 +9,6 @@ export function findErrorOccurrenceByKey(
   key: string,
 ): ErrorOccurrence | undefined {
   return (
-    occurrences.find(
-      (occurrence) => getErrorOccurrenceKey(occurrence) === key,
-    ) ?? occurrences[0]
+    occurrences.find((occurrence) => getErrorOccurrenceKey(occurrence) === key) ?? occurrences[0]
   );
 }

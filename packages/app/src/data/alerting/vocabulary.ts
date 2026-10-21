@@ -1,10 +1,6 @@
 export const ALERTING_SEVERITIES = ["info", "warning", "critical"] as const;
 
-export const ALERTING_INSTANCE_STATUSES = [
-  "inactive",
-  "pending",
-  "firing",
-] as const;
+export const ALERTING_INSTANCE_STATUSES = ["inactive", "pending", "firing"] as const;
 
 export const ALERTING_HEALTH_STATUSES = ["healthy", "degraded"] as const;
 
@@ -40,5 +36,4 @@ export const ALERTING_LIFECYCLE_REASONS = [
   "no_channels",
 ] as const;
 
-export type AlertingLifecycleReason =
-  (typeof ALERTING_LIFECYCLE_REASONS)[number];
+export type AlertingLifecycleReason = (typeof ALERTING_LIFECYCLE_REASONS)[number];

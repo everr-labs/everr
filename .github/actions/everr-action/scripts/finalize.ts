@@ -1,6 +1,10 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 interface PartialArtifactMetadata {
   checkRunId?: string;
   completedAt?: string;
@@ -97,9 +101,7 @@ function formatError(error: unknown): string {
   return String(error);
 }
 
-function buildMetadata(
-  metadata: PartialArtifactMetadata,
-): ResourceUsageMetadata {
+function buildMetadata(metadata: PartialArtifactMetadata): ResourceUsageMetadata {
   const startedAt = parseDate(metadata.startedAt);
   const completedAt = parseDate(metadata.completedAt, startedAt);
 
@@ -134,16 +136,8 @@ function parseCPULogicalSamples(
 
   return value
     .map((item) => ({
-      logicalNumber: toInteger(
-        item && typeof item === "object"
-          ? (item as Record<string, unknown>).logicalNumber
-          : undefined,
-      ),
-      utilization: toNumber(
-        item && typeof item === "object"
-          ? (item as Record<string, unknown>).utilization
-          : undefined,
-      ),
+      logicalNumber: toInteger(isRecord(item) ? item.logicalNumber : undefined),
+      utilization: toNumber(isRecord(item) ? item.utilization : undefined),
     }))
     .sort((left, right) => left.logicalNumber - right.logicalNumber);
 }
@@ -157,44 +151,18 @@ function parseNetworkInterfaces(
 
   return value
     .map((item) => ({
-      name: toString(
-        item && typeof item === "object"
-          ? (item as Record<string, unknown>).name
-          : undefined,
-      ),
-      receiveBytes: toNumber(
-        item && typeof item === "object"
-          ? (item as Record<string, unknown>).receiveBytes
-          : undefined,
-      ),
-      transmitBytes: toNumber(
-        item && typeof item === "object"
-          ? (item as Record<string, unknown>).transmitBytes
-          : undefined,
-      ),
+      name: toString(isRecord(item) ? item.name : undefined),
+      receiveBytes: toNumber(isRecord(item) ? item.receiveBytes : undefined),
+      transmitBytes: toNumber(isRecord(item) ? item.transmitBytes : undefined),
     }))
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
-function sanitizeSample(
-  parsed: Record<string, unknown>,
-): ResourceUsageSample {
-  const cpu =
-    parsed.cpu && typeof parsed.cpu === "object"
-      ? (parsed.cpu as Record<string, unknown>)
-      : {};
-  const memory =
-    parsed.memory && typeof parsed.memory === "object"
-      ? (parsed.memory as Record<string, unknown>)
-      : {};
-  const filesystem =
-    parsed.filesystem && typeof parsed.filesystem === "object"
-      ? (parsed.filesystem as Record<string, unknown>)
-      : {};
-  const network =
-    parsed.network && typeof parsed.network === "object"
-      ? (parsed.network as Record<string, unknown>)
-      : {};
+function sanitizeSample(parsed: Record<string, unknown>): ResourceUsageSample {
+  const cpu = isRecord(parsed.cpu) ? parsed.cpu : {};
+  const memory = isRecord(parsed.memory) ? parsed.memory : {};
+  const filesystem = isRecord(parsed.filesystem) ? parsed.filesystem : {};
+  const network = isRecord(parsed.network) ? parsed.network : {};
 
   return {
     timestamp: toString(parsed.timestamp),
@@ -222,9 +190,7 @@ function sanitizeSample(
   };
 }
 
-export async function loadSamples(
-  samplesPath: string | undefined,
-): Promise<ResourceUsageSample[]> {
+export async function loadSamples(samplesPath: string | undefined): Promise<ResourceUsageSample[]> {
   if (!samplesPath || !existsSync(samplesPath)) {
     return [];
   }
@@ -241,11 +207,9 @@ export async function loadSamples(
     .map((line, index) => {
       let parsed: Record<string, unknown>;
       try {
-        parsed = JSON.parse(line) as Record<string, unknown>;
+        parsed = JSON.parse(line);
       } catch (error) {
-        throw new Error(
-          `invalid NDJSON sample on line ${index + 1}: ${formatError(error)}`,
-        );
+        throw new Error(`invalid NDJSON sample on line ${index + 1}: ${formatError(error)}`);
       }
 
       return sanitizeSample(parsed);
@@ -278,12 +242,7 @@ export async function finalizePartialArtifact({
     `${JSON.stringify(finalizedMetadata, null, 2)}\n`,
     "utf8",
   );
-  await writeFile(
-    `${outputDir}/samples.ndjson`,
-    serializeSamples(samples),
-    "utf8",
-  );
+  await writeFile(`${outputDir}/samples.ndjson`, serializeSamples(samples), "utf8");
 
   return finalizedMetadata;
 }
-

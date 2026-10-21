@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { eq, isNull } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { ALERTING_DEFAULT_GROUP_INTERVAL_SECS } from "#app/data/alerting/delivery/defaults.ts";
 import { IDLE_GROUP_FLUSH_AT } from "#app/data/alerting/delivery/tasks.ts";
 import {
@@ -18,10 +18,7 @@ import {
   BODY_MAX_EVENTS,
   FLUSH_GROUP_MEMBER_CLAIM_CAP,
 } from "#app/server/alerting/delivery/flush-group.ts";
-import {
-  MAX_EVIDENCE_BYTES,
-  MAX_EVIDENCE_ROWS,
-} from "#app/server/alerting/evaluation/evidence.ts";
+import { MAX_EVIDENCE_BYTES, MAX_EVIDENCE_ROWS } from "#app/server/alerting/evaluation/evidence.ts";
 import { ALERT_EVALUATION_SAMPLE_LIMIT } from "#app/server/alerting/evaluation/samples.ts";
 import {
   SCANNER_BATCH_SIZE,
@@ -33,15 +30,10 @@ import {
   insertRule,
   insertRulesInBulk,
 } from "#app/server/alerting/testing/fixtures.ts";
-import {
-  type AlertingHarness,
-  useAlertingHarness,
-} from "#app/testing/alerting-harness.ts";
+import { type AlertingHarness, registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -54,7 +46,7 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
   return clickhouseMock;
 });
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 type EvaluationHistoryRow = {
   event_type: string;
@@ -100,14 +92,11 @@ describe("the alerting pipeline's capacity bounds", () => {
     // The rule's query result still carries "stale" (so its instance stays
     // firing, no transition, no new event) plus 500 brand-new label sets
     // (new fingerprints, new fire events, new unflushed memberships).
-    const freshRows = Array.from(
-      { length: FLUSH_GROUP_MEMBER_CLAIM_CAP },
-      (_, index) => ({ service: `svc-${index}`, value: 42 }),
-    );
-    harness().clickhouse.setSignal([
-      { service: "stale", value: 42 },
-      ...freshRows,
-    ]);
+    const freshRows = Array.from({ length: FLUSH_GROUP_MEMBER_CLAIM_CAP }, (_, index) => ({
+      service: `svc-${index}`,
+      value: 42,
+    }));
+    harness().clickhouse.setSignal([{ service: "stale", value: 42 }, ...freshRows]);
 
     // The rule's own schedule would not reach a second evaluation for up to
     // one whole interval (nextAlertEvaluationAt, rule.ts): waiting for it
@@ -130,12 +119,8 @@ describe("the alerting pipeline's capacity bounds", () => {
     // file's fixtures.
     await harness().runDueJobs({ limit: 2_000 });
 
-    const membersBeforeCappedFlush = await harness()
-      .db.select()
-      .from(alertNotificationGroupEvents);
-    expect(membersBeforeCappedFlush).toHaveLength(
-      FLUSH_GROUP_MEMBER_CLAIM_CAP + 1,
-    );
+    const membersBeforeCappedFlush = await harness().db.select().from(alertNotificationGroupEvents);
+    expect(membersBeforeCappedFlush).toHaveLength(FLUSH_GROUP_MEMBER_CLAIM_CAP + 1);
 
     // The group already flushed once, so the next flush is due at one
     // group interval past that flush, not another group wait.
@@ -145,13 +130,9 @@ describe("the alerting pipeline's capacity bounds", () => {
     // A still-firing claimed member is re-armed in place (a fresh
     // flushedAt), not deleted, so the table's total size does not shrink;
     // the cap shows up in *whose* flushedAt moved, not in the row count.
-    const afterCappedFlush = await harness()
-      .db.select()
-      .from(alertNotificationGroupEvents);
+    const afterCappedFlush = await harness().db.select().from(alertNotificationGroupEvents);
     expect(afterCappedFlush).toHaveLength(FLUSH_GROUP_MEMBER_CLAIM_CAP + 1);
-    const staleMemberAfterCap = afterCappedFlush.find(
-      (member) => member.eventId === staleEvent.id,
-    );
+    const staleMemberAfterCap = afterCappedFlush.find((member) => member.eventId === staleEvent.id);
     const freshMembersAfterCap = afterCappedFlush.filter(
       (member) => member.eventId !== staleEvent.id,
     );
@@ -161,9 +142,7 @@ describe("the alerting pipeline's capacity bounds", () => {
     // member winning every claim and starving new arrivals) from
     // reappearing.
     expect(freshMembersAfterCap).toHaveLength(FLUSH_GROUP_MEMBER_CLAIM_CAP);
-    expect(
-      freshMembersAfterCap.every((member) => member.flushedAt !== null),
-    ).toBe(true);
+    expect(freshMembersAfterCap.every((member) => member.flushedAt !== null)).toBe(true);
     // The stale member lost the claim entirely: its flushedAt is exactly
     // what phase one left it at, untouched by this flush.
     expect(staleMemberAfterCap?.flushedAt).toEqual(staleFlushedAtBeforeCap);
@@ -217,16 +196,12 @@ describe("the alerting pipeline's capacity bounds", () => {
     const samples = JSON.parse(row.samples_json) as AlertingEvaluationSample[];
     expect(samples).toHaveLength(ALERT_EVALUATION_SAMPLE_LIMIT);
     expect(row.samples_truncated).toBe(true);
-    expect(
-      samples
-        .slice(0, 3)
-        .every((sample) => sample.labels.service.startsWith("breach-")),
-    ).toBe(true);
-    expect(
-      samples
-        .slice(3)
-        .every((sample) => sample.labels.service.startsWith("healthy-")),
-    ).toBe(true);
+    expect(samples.slice(0, 3).every((sample) => sample.labels.service.startsWith("breach-"))).toBe(
+      true,
+    );
+    expect(samples.slice(3).every((sample) => sample.labels.service.startsWith("healthy-"))).toBe(
+      true,
+    );
   });
 
   it("bounds a 60-row evaluation result whose rows are wide enough to also cross the byte cap", async () => {
@@ -252,9 +227,7 @@ describe("the alerting pipeline's capacity bounds", () => {
     const evidence = JSON.parse(row.evidence_json) as unknown[];
     // Fewer than the row cap alone would keep: the byte cap trimmed further.
     expect(evidence.length).toBeLessThan(MAX_EVIDENCE_ROWS);
-    expect(Buffer.byteLength(row.evidence_json, "utf8")).toBeLessThanOrEqual(
-      MAX_EVIDENCE_BYTES,
-    );
+    expect(Buffer.byteLength(row.evidence_json, "utf8")).toBeLessThanOrEqual(MAX_EVIDENCE_BYTES);
   });
 
   it("composes a 25-member group's body as 20 listed events plus a line naming the 5 it omitted", async () => {
@@ -278,13 +251,9 @@ describe("the alerting pipeline's capacity bounds", () => {
     // All 25 events share one `occurredAt` (one evaluation batch), so which
     // 20 make the cut is not pinned by any documented ordering; the bound is
     // the count listed and what the omitted line says, not which members.
-    const firingLines = text
-      .split("\n")
-      .filter((line) => line.startsWith("Firing:"));
+    const firingLines = text.split("\n").filter((line) => line.startsWith("Firing:"));
     expect(firingLines).toHaveLength(BODY_MAX_EVENTS);
-    expect(text).toContain(
-      `…and ${25 - BODY_MAX_EVENTS} more events in this group`,
-    );
+    expect(text).toContain(`…and ${25 - BODY_MAX_EVENTS} more events in this group`);
   });
 
   it("the scanner's batch of 5000 claims a 5001-rule backlog over two scans", async () => {

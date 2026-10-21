@@ -13,16 +13,17 @@ type ApplicationOrganizationHooks = Pick<OrganizationHooks, CreationHook> & {
 /** Better Auth integration, assembled only by authentication startup. */
 export interface IdentityProvider {
   /** Reentrant scope holding locks through persistence and lifecycle hooks. */
-  withIdentityRequest<T>(run: () => Promise<T>): Promise<T>;
+  withIdentityRequest<T>(this: void, run: () => Promise<T>): Promise<T>;
   /** Acquire locks before Better Auth reads membership state. */
-  beforeMembershipMutation?(): Promise<void>;
+  beforeMembershipMutation?(this: void): Promise<void>;
   /** Exclude concurrent creation and deletion for this user until the request finishes. */
-  lockUserLifecycle(userId: string): Promise<void>;
+  lockUserLifecycle(this: void, userId: string): Promise<void>;
   /** Hold locks for the discovered organizations until the identity request finishes. */
-  lockAccountDeletion(organizationIds: readonly string[]): Promise<void>;
-  identityAdapter(): ReturnType<typeof drizzleAdapter>;
-  organizationHooks(): ApplicationOrganizationHooks;
+  lockAccountDeletion(this: void, organizationIds: readonly string[]): Promise<void>;
+  identityAdapter(this: void): ReturnType<typeof drizzleAdapter>;
+  organizationHooks(this: void): ApplicationOrganizationHooks;
   authPlugins?(
+    this: void,
     createOrganization: (input: {
       body: { name: string; slug: string; userId: string };
     }) => Promise<unknown>,

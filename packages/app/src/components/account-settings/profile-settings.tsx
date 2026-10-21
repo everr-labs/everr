@@ -12,30 +12,22 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { authClient } from "#app/lib/auth-client.ts";
 
-export function ProfileSettings({
-  user,
-}: {
-  user: { name: string; email: string };
-}) {
+export function ProfileSettings({ user }: { user: { name: string; email: string } }) {
   const [draft, setDraft] = useState<string | null>(null);
   const name = draft ?? user.name;
   const save = useMutation({
     mutationFn: async () => {
       const result = await authClient.updateUser({ name: name.trim() });
-      if (result.error)
-        throw new Error(result.error.message ?? "Could not save your profile.");
+      if (result.error) throw new Error(result.error.message ?? "Could not save your profile.");
     },
   });
-  const canSave =
-    !save.isPending && Boolean(name.trim()) && name.trim() !== user.name;
+  const canSave = !save.isPending && Boolean(name.trim()) && name.trim() !== user.name;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Profile</CardTitle>
-        <CardDescription>
-          Your name is visible to other workspace members.
-        </CardDescription>
+        <CardDescription>Your name is visible to other workspace members.</CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -76,9 +68,7 @@ export function ProfileSettings({
             </p>
           )}
           {save.isSuccess && (
-            <p role="status" className="text-sm text-muted-foreground">
-              Profile saved.
-            </p>
+            <output className="block text-sm text-muted-foreground">Profile saved.</output>
           )}
           <Button type="submit" disabled={!canSave}>
             {save.isPending ? "Saving..." : "Save profile"}

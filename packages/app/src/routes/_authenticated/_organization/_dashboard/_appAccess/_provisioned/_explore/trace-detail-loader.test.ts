@@ -1,7 +1,4 @@
-import {
-  getTraceOptions,
-  TraceDetailParamsSchema,
-} from "@everr/telemetry-explorer/traces";
+import { getTraceOptions, TraceDetailParamsSchema } from "@everr/telemetry-explorer/traces";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -9,7 +6,7 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 import { Route } from "./traces_.$traceId";
 
@@ -30,8 +27,7 @@ it("shares prefetched trace data with the viewer regardless of URL time bounds",
   });
   const root = createRootRouteWithContext<{ queryClient: QueryClient }>()();
   const load = Route.options.loader;
-  if (typeof load !== "function")
-    throw new Error("Expected trace route loader");
+  if (typeof load !== "function") throw new Error("Expected trace route loader");
   const trace = createRoute({
     getParentRoute: () => root,
     path: "/traces/$traceId",

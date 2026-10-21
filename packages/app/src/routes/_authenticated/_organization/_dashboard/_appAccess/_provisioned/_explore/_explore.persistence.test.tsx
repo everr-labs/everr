@@ -1,11 +1,8 @@
 import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
-import {
-  ExploreSearchSchema,
-  ExploreSearchShape,
-} from "@everr/telemetry-explorer/filters";
+import { ExploreSearchSchema, ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import { LogsSearchSchema } from "@everr/telemetry-explorer/logs";
 import { TraceSearchParamsSchema } from "@everr/telemetry-explorer/traces";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 // Regression test for: service/environment being stripped by child-route
 // validateSearch when navigating between Explore sections.

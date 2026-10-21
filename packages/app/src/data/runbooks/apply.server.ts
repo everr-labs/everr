@@ -1,16 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { formatResourceName } from "#app/data/as-code/identity.ts";
-import {
-  type OwnershipConflict,
-  partitionByOwnership,
-} from "#app/data/as-code/ownership.ts";
+import { type OwnershipConflict, partitionByOwnership } from "#app/data/as-code/ownership.ts";
 import { reconcile } from "#app/data/as-code/reconcile.ts";
 import type { Reconciler } from "#app/data/as-code/registry.ts";
-import {
-  foreignLiveScope,
-  previewOwner,
-  previewScope,
-} from "#app/data/previews/scope.ts";
+import { foreignLiveScope, previewOwner, previewScope } from "#app/data/previews/scope.ts";
 import { runbooks } from "#app/db/schema/index.ts";
 import { buildDesiredRunbookSet } from "./desired";
 import type { Runbook } from "./schema";
@@ -74,8 +67,11 @@ export const applyRunbookSpecs: Reconciler = async ({
           .from(runbooks)
           .where(foreignLiveScope(runbooks, namespace, diff.creates))
       : [];
-  const { freshCreates, takenCreates, adopted, conflicts } =
-    partitionByOwnership(diff.creates, foreign, adopt);
+  const { freshCreates, takenCreates, adopted, conflicts } = partitionByOwnership(
+    diff.creates,
+    foreign,
+    adopt,
+  );
 
   const summary: ApplyRunbooksResult = {
     created: freshCreates.map((d) => formatResourceName(d.project, d.slug)),
@@ -94,6 +90,7 @@ export const applyRunbookSpecs: Reconciler = async ({
       project: d.project,
       slug: d.slug,
       folderPath: d.folderPath,
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- shared reconcile diff carries documents as `unknown` (verbatim passthrough); the runbooks column is `$type<Runbook>()` and documents are validated in buildDesiredRunbookSet
       document: d.document as Runbook,
     });
   }
@@ -104,6 +101,7 @@ export const applyRunbookSpecs: Reconciler = async ({
       .update(runbooks)
       .set({
         repoid: namespace.repoid,
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- shared reconcile diff carries documents as `unknown` (verbatim passthrough); the runbooks column is `$type<Runbook>()` and documents are validated in buildDesiredRunbookSet
         document: d.document as Runbook,
         folderPath: d.folderPath,
         updatedAt: new Date(),
@@ -121,20 +119,17 @@ export const applyRunbookSpecs: Reconciler = async ({
     await exec
       .update(runbooks)
       .set({
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- shared reconcile diff carries documents as `unknown` (verbatim passthrough); the runbooks column is `$type<Runbook>()` and documents are validated in buildDesiredRunbookSet
         document: d.document as Runbook,
         folderPath: d.folderPath,
         updatedAt: new Date(),
       })
-      .where(
-        and(scope, eq(runbooks.project, d.project), eq(runbooks.slug, d.slug)),
-      );
+      .where(and(scope, eq(runbooks.project, d.project), eq(runbooks.slug, d.slug)));
   }
   for (const d of diff.deletes) {
     await exec
       .delete(runbooks)
-      .where(
-        and(scope, eq(runbooks.project, d.project), eq(runbooks.slug, d.slug)),
-      );
+      .where(and(scope, eq(runbooks.project, d.project), eq(runbooks.slug, d.slug)));
   }
 
   return summary;

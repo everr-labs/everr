@@ -1,10 +1,4 @@
-import {
-  type Attributes,
-  context,
-  createContextKey,
-  type Span,
-  trace,
-} from "@opentelemetry/api";
+import { type Attributes, context, createContextKey, type Span, trace } from "@opentelemetry/api";
 import type { LogRecordProcessor } from "@opentelemetry/sdk-logs";
 import type { SpanProcessor } from "@opentelemetry/sdk-trace-node";
 
@@ -12,6 +6,7 @@ type IdentityScope = { attributes: Attributes; root?: Span };
 const identityKey = createContextKey("everr.telemetry.identity");
 
 function identityScope(ctx = context.active()): IdentityScope | undefined {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- The private context key is written only with IdentityScope by withTelemetryIdentityScope.
   return ctx.getValue(identityKey) as IdentityScope | undefined;
 }
 
@@ -27,13 +22,11 @@ export function mergeTelemetryIdentity(identity: {
   userId?: string;
 }): void {
   const attributes: Attributes = {};
-  if (identity.organizationId)
-    attributes["everr.organization.id"] = identity.organizationId;
+  if (identity.organizationId) attributes["everr.organization.id"] = identity.organizationId;
   if (identity.userId) attributes["user.id"] = identity.userId;
   const scope = identityScope();
   if (scope) {
-    if (identity.organizationId === null)
-      delete scope.attributes["everr.organization.id"];
+    if (identity.organizationId === null) delete scope.attributes["everr.organization.id"];
     Object.assign(scope.attributes, attributes);
     scope.root?.setAttributes(attributes);
   }

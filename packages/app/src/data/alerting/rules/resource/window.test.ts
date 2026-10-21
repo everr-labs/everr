@@ -1,9 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  parseEvaluationInterval,
-  parseForDuration,
-  parseWindow,
-} from "./window";
+import { describe, expect, it } from "vite-plus/test";
+import { parseEvaluationInterval, parseForDuration, parseWindow } from "./window";
 
 describe("parseWindow", () => {
   it("parses supported units into seconds and rejects malformed values", () => {
@@ -12,16 +8,7 @@ describe("parseWindow", () => {
     expect(parseWindow("2h")).toBe(7200);
     expect(parseWindow("1d")).toBe(86400);
 
-    for (const bad of [
-      "",
-      "5",
-      "m",
-      "5 m",
-      "5mo",
-      "-5m",
-      "5.5m",
-      `${"9".repeat(400)}d`,
-    ]) {
+    for (const bad of ["", "5", "m", "5 m", "5mo", "-5m", "5.5m", `${"9".repeat(400)}d`]) {
       expect(() => parseWindow(bad)).toThrow();
     }
   });

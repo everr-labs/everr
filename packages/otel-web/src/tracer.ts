@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- The OTel API has three generic call overloads; this implementation dispatches their shared runtime argument layout. */
 import type { Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import { createTracer } from "./pipeline/tracer.js";
 
@@ -7,11 +8,7 @@ let current: Tracer | undefined;
  * active span stays active until end(), including across awaited work. */
 export const tracer: Tracer = {
   startSpan: (name, options, context) =>
-    (current ?? createTracer()).startSpan(
-      name,
-      { ...options, kind: options?.kind ?? 0 },
-      context,
-    ),
+    (current ?? createTracer()).startSpan(name, { ...options, kind: options?.kind ?? 0 }, context),
   startActiveSpan: ((name: string, ...rest: unknown[]) => {
     const fn = rest.pop() as (span: Span) => unknown;
     const options = rest[0] as SpanOptions | undefined;

@@ -43,12 +43,8 @@ function deterministicUuidV8(seed: string): string {
 // delivery id: the projection runs under Graphile retry, and a retry or a
 // racing second writer must converge on one id, not mint a second terminal
 // into an append-only table.
-export function deterministicSuppressionEventId(
-  notificationEventId: string,
-): string {
-  return deterministicUuidV8(
-    `everr.alert_suppression_event.v1\0${notificationEventId}`,
-  );
+export function deterministicSuppressionEventId(notificationEventId: string): string {
+  return deterministicUuidV8(`everr.alert_suppression_event.v1\0${notificationEventId}`);
 }
 
 // One hold row per silence that holds a chain, so its id derives from the
@@ -77,8 +73,7 @@ export function deterministicDeliveryEventId(opts: {
   outcome: "succeeded" | "failed";
   attemptAt?: Date;
 }): string {
-  const attempt =
-    opts.outcome === "failed" ? (opts.attemptAt?.toISOString() ?? "") : "";
+  const attempt = opts.outcome === "failed" ? (opts.attemptAt?.toISOString() ?? "") : "";
   return deterministicUuidV8(
     `everr.alert_delivery_event.v1\0${opts.notificationEventId}\0${opts.dedupKey}\0${opts.outcome}\0${attempt}`,
   );

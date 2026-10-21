@@ -8,7 +8,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { Route as PreviewableLayoutFileRoute } from "./_previewable";
 
 // Two bare leaf routes under the real layout: one leaves `hidePreviewFrame`
@@ -79,17 +79,13 @@ describe("_previewable layout", () => {
     renderPreviewableLayout("/as-code?preview=pr-1");
 
     expect(await screen.findByText("as-code page")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Exit preview" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exit preview" })).toBeInTheDocument();
   });
 
   it("hides the preview banner on a route with hidePreviewFrame: true", async () => {
     renderPreviewableLayout("/live-state?preview=pr-1");
 
     expect(await screen.findByText("live-state page")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Exit preview" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Exit preview" })).not.toBeInTheDocument();
   });
 });

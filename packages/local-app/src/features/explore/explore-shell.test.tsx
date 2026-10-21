@@ -1,18 +1,7 @@
-import {
-  QueryClient,
-  QueryClientProvider,
-  type QueryKey,
-  useQuery,
-} from "@tanstack/react-query";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { QueryClient, QueryClientProvider, type QueryKey, useQuery } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { ExploreShell } from "./explore-shell";
 
 vi.mock("../app-shell/title-bar", () => ({
@@ -24,26 +13,14 @@ vi.mock("@everr/ui/components/time-range-picker", () => ({
 }));
 
 vi.mock("@everr/ui/components/refresh-picker", () => ({
-  RefreshPicker: ({
-    onRefresh,
-    isFetching,
-  }: {
-    onRefresh: () => void;
-    isFetching: boolean;
-  }) => (
+  RefreshPicker: ({ onRefresh, isFetching }: { onRefresh: () => void; isFetching: boolean }) => (
     <button type="button" aria-busy={isFetching} onClick={onRefresh}>
       Refresh
     </button>
   ),
 }));
 
-function QueryProbe({
-  queryKey,
-  queryFn,
-}: {
-  queryKey: QueryKey;
-  queryFn: () => Promise<string>;
-}) {
+function QueryProbe({ queryKey, queryFn }: { queryKey: QueryKey; queryFn: () => Promise<string> }) {
   useQuery({ queryKey, queryFn });
   return null;
 }

@@ -13,7 +13,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   googleEnabled: true,
@@ -62,10 +62,7 @@ vi.mock("@everr/app/data/invite", async () => {
   };
 });
 
-import {
-  productRouteFiles,
-  sharedRouteModules,
-} from "@everr/app/testing/routes";
+import { productRouteFiles, sharedRouteModules } from "@everr/app/testing/routes";
 
 const sourceModule = (path: string) => new URL(path, import.meta.url).pathname;
 const retained = new Set([
@@ -75,28 +72,23 @@ const retained = new Set([
   sharedRouteModules.invitation,
   sharedRouteModules.signedIn,
   sourceModule("../../routes/_welcome/_signedIn/_organization.tsx"),
-  sourceModule(
-    "../../routes/_welcome/_signedIn/_organization/organization-setup.tsx",
-  ),
+  sourceModule("../../routes/_welcome/_signedIn/_organization/organization-setup.tsx"),
   sourceModule("../../routes/_welcome/_signedIn/choose-organization.tsx"),
 ]);
 for (const path of [
   ...productRouteFiles,
-  ...Object.keys(import.meta.glob("../../routes/**/*.{ts,tsx}")).map(
-    sourceModule,
-  ),
+  ...Object.keys(import.meta.glob("../../routes/**/*.{ts,tsx}")).map(sourceModule),
 ]) {
   if (retained.has(path)) continue;
   vi.doMock(path, () => {
-    if (path !== sharedRouteModules.root)
-      return { Route: createFileRoute()({}) };
+    if (path !== sharedRouteModules.root) return { Route: createFileRoute()({}) };
     const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
       beforeLoad: () => ({
         session: mocks.session,
         googleSignInEnabled: mocks.googleEnabled,
         emailEnabled: mocks.emailEnabled,
       }),
-      component: () => {
+      component: function Component() {
         const { queryClient } = Route.useRouteContext();
         return (
           <QueryClientProvider client={queryClient}>
@@ -148,63 +140,51 @@ it.each([
   { provider: "email", emailEnabled: false },
   { provider: "google", emailEnabled: false },
   { provider: "email", emailEnabled: true },
-])("returns an invited $provider signup to acceptance (email enabled: $emailEnabled)", async ({
-  provider,
-  emailEnabled,
-}) => {
-  mocks.emailEnabled = emailEnabled;
-  mocks.googleEnabled = provider === "google";
-  const router = invitationSignupRouter();
-  mocks.social.mockImplementation(async (options) => {
-    signUpInvitedUser();
-    await router.navigate({ href: options.callbackURL });
-    return { error: null };
-  });
-  render(<RouterProvider router={router} />);
-  const user = userEvent.setup();
-  await user.click(
-    await screen.findByRole("button", { name: "Create account" }),
-  );
-  await screen.findByRole("heading", { name: "Create your account" });
-  expect(screen.getByLabelText("Email")).toHaveValue("invited@example.com");
-  if (provider === "email") {
-    expect(
-      screen.queryByRole("button", { name: "Sign up with Google" }),
-    ).toBeNull();
-    expect(screen.queryByText("or")).toBeNull();
-    await user.type(screen.getByLabelText("Name"), "Invited User");
-    await user.type(screen.getByLabelText("Password"), "test-password-123");
-    await user.click(screen.getByRole("button", { name: "Sign up" }));
-  } else {
-    await user.click(
-      screen.getByRole("button", { name: "Sign up with Google" }),
-    );
-  }
-  if (emailEnabled) {
-    await screen.findByRole("heading", { name: "Verify your email" });
-    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
-    await user.click(
-      screen.getByRole("button", { name: "Send verification email" }),
-    );
-    expect(mocks.verification).toHaveBeenCalledWith({
-      email: "invited@example.com",
-      callbackURL: "/invite/invitation-123",
+])(
+  "returns an invited $provider signup to acceptance (email enabled: $emailEnabled)",
+  async ({ provider, emailEnabled }) => {
+    mocks.emailEnabled = emailEnabled;
+    mocks.googleEnabled = provider === "google";
+    const router = invitationSignupRouter();
+    mocks.social.mockImplementation(async (options) => {
+      signUpInvitedUser();
+      await router.navigate({ href: options.callbackURL });
+      return { error: null };
     });
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Check your inbox",
-    );
-    if (!mocks.session) throw new Error("Missing invited session");
-    mocks.session.user.emailVerified = true;
-    await router.invalidate();
-  }
-  expect(await screen.findByRole("button", { name: "Accept" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Decline" })).toBeVisible();
-  expect(router.state.location.pathname).toBe("/invite/invitation-123");
-  expect(
-    screen.queryByRole("heading", { name: "Let's get you settled" }),
-  ).toBeNull();
-  expect(screen.queryByLabelText("Organization name")).toBeNull();
-});
+    render(<RouterProvider router={router} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Create account" }));
+    await screen.findByRole("heading", { name: "Create your account" });
+    expect(screen.getByLabelText("Email")).toHaveValue("invited@example.com");
+    if (provider === "email") {
+      expect(screen.queryByRole("button", { name: "Sign up with Google" })).toBeNull();
+      expect(screen.queryByText("or")).toBeNull();
+      await user.type(screen.getByLabelText("Name"), "Invited User");
+      await user.type(screen.getByLabelText("Password"), "test-password-123");
+      await user.click(screen.getByRole("button", { name: "Sign up" }));
+    } else {
+      await user.click(screen.getByRole("button", { name: "Sign up with Google" }));
+    }
+    if (emailEnabled) {
+      await screen.findByRole("heading", { name: "Verify your email" });
+      expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Send verification email" }));
+      expect(mocks.verification).toHaveBeenCalledWith({
+        email: "invited@example.com",
+        callbackURL: "/invite/invitation-123",
+      });
+      expect(await screen.findByRole("status")).toHaveTextContent("Check your inbox");
+      if (!mocks.session) throw new Error("Missing invited session");
+      mocks.session.user.emailVerified = true;
+      await router.invalidate();
+    }
+    expect(await screen.findByRole("button", { name: "Accept" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/invite/invitation-123");
+    expect(screen.queryByRole("heading", { name: "Let's get you settled" })).toBeNull();
+    expect(screen.queryByLabelText("Organization name")).toBeNull();
+  },
+);
 
 vi.mock("../../organization-provisioning/actions", () => ({
   completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),

@@ -16,9 +16,7 @@ export function requireSession({
 }) {
   if (!session?.user)
     throw redirect({
-      to: matches?.some(
-        (match) => match.staticData.authEntry === "/auth/sign-up",
-      )
+      to: matches?.some((match) => match.staticData.authEntry === "/auth/sign-up")
         ? "/auth/sign-up"
         : "/auth/sign-in",
       search: { redirect: location.href },

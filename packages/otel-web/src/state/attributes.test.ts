@@ -1,12 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebSDK } from "../client.js";
-import {
-  attrs,
-  type OtlpBatch,
-  type OtlpRecord,
-  startClient,
-  UNIQUE_ID,
-} from "../test-kit.js";
+import { attrs, type OtlpBatch, type OtlpRecord, startClient, UNIQUE_ID } from "../test-kit.js";
 import type { WebSDKOptions } from "../types.js";
 import { setAttributes } from "./attributes.js";
 

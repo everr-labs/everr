@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as ResourceAdminServerTypes from "#app/data/as-code/resource-admin.server.ts";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { listResources } from "#app/data/as-code/resource-admin.server.ts";
 import { getRouteHandler } from "./-test-utils";
 import { Route } from "./resources";
@@ -7,15 +8,10 @@ vi.mock("#app/db/client.ts", () => ({
   db: { select: vi.fn(), delete: vi.fn(), update: vi.fn() },
 }));
 
-vi.mock(
-  "#app/data/as-code/resource-admin.server.ts",
-  async (importOriginal) => ({
-    ...(await importOriginal<
-      typeof import("#app/data/as-code/resource-admin.server.ts")
-    >()),
-    listResources: vi.fn(),
-  }),
-);
+vi.mock("#app/data/as-code/resource-admin.server.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof ResourceAdminServerTypes>()),
+  listResources: vi.fn(),
+}));
 
 const mockedList = vi.mocked(listResources);
 
@@ -72,9 +68,7 @@ describe("GET /api/cli/resources", () => {
   it("passes kind and repoid filters through", async () => {
     mockedList.mockResolvedValueOnce([]);
     await handler()({
-      request: new Request(
-        "http://localhost/api/cli/resources?kind=runbook&repoid=",
-      ),
+      request: new Request("http://localhost/api/cli/resources?kind=runbook&repoid="),
       context,
     });
     expect(mockedList).toHaveBeenCalledWith("org-42", {

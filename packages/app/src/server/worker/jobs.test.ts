@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { StringChunk } from "drizzle-orm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
@@ -42,9 +42,9 @@ describe("addWorkerJob", () => {
 
     // The statement's bound values, in the order add_job takes them: every
     // chunk that is not a literal fragment of SQL text.
-    const bound = (
-      mocks.execute.mock.calls[0][0].queryChunks as unknown[]
-    ).filter((chunk) => !(chunk instanceof StringChunk));
+    const bound = (mocks.execute.mock.calls[0][0].queryChunks as unknown[]).filter(
+      (chunk) => !(chunk instanceof StringChunk),
+    );
     expect(bound).toEqual([
       "task",
       JSON.stringify({ a: 1 }),

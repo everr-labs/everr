@@ -11,9 +11,7 @@ const clickhouseAdmin = createClient({
   keep_alive: { idle_socket_ttl: 8000 },
 });
 
-type InsertSettings = Parameters<
-  typeof clickhouseAdmin.insert
->[0]["clickhouse_settings"];
+type InsertSettings = Parameters<typeof clickhouseAdmin.insert>[0]["clickhouse_settings"];
 
 export async function insertRows<T extends { organizationId: string }>(
   table: string,
@@ -27,26 +25,20 @@ export async function insertRows<T extends { organizationId: string }>(
     return tenantId === undefined ? row : { ...row, tenant_id: tenantId };
   });
 
-  await instrumentClickhouseOperation(
-    { client: "admin", operation: "INSERT" },
-    () =>
-      clickhouseAdmin.insert({
-        table,
-        values,
-        format: "JSONEachRow",
-        clickhouse_settings,
-      }),
+  await instrumentClickhouseOperation({ client: "admin", operation: "INSERT" }, () =>
+    clickhouseAdmin.insert({
+      table,
+      values,
+      format: "JSONEachRow",
+      clickhouse_settings,
+    }),
   );
 }
 
-export type AdminCommandOptions = Omit<
-  Parameters<typeof clickhouseAdmin.command>[0],
-  "query"
->;
+export type AdminCommandOptions = Omit<Parameters<typeof clickhouseAdmin.command>[0], "query">;
 
 export function adminCommand(query: string, options: AdminCommandOptions = {}) {
-  return instrumentClickhouseOperation(
-    { client: "admin", operation: "QUERY" },
-    () => clickhouseAdmin.command({ query, ...options }),
+  return instrumentClickhouseOperation({ client: "admin", operation: "QUERY" }, () =>
+    clickhouseAdmin.command({ query, ...options }),
   );
 }

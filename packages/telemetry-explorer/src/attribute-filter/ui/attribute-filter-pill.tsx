@@ -6,11 +6,7 @@ import {
   CommandItem,
   CommandList,
 } from "@everr/ui/components/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@everr/ui/components/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -88,17 +84,14 @@ function PillEditor({
 
   // Let the user commit a known value that's past the discovery cutoff.
   const trimmedSearch = search.trim();
-  const canAddExact =
-    trimmedSearch.length > 0 && !displayValues.includes(trimmedSearch);
+  const canAddExact = trimmedSearch.length > 0 && !displayValues.includes(trimmedSearch);
 
   return (
     <div className="flex flex-col">
       <div className="border-b px-2.5 py-2">
         <div className="truncate text-xs font-medium">{name ?? filter.key}</div>
         {name ? (
-          <div className="text-muted-foreground truncate font-mono text-[10px]">
-            {filter.key}
-          </div>
+          <div className="text-muted-foreground truncate font-mono text-[10px]">{filter.key}</div>
         ) : null}
       </div>
 
@@ -135,18 +128,14 @@ function PillEditor({
             placeholder="Search values..."
           />
           <CommandList>
-            <CommandEmpty>
-              {isFetching ? "Loading..." : "No values."}
-            </CommandEmpty>
+            <CommandEmpty>{isFetching ? "Loading..." : "No values."}</CommandEmpty>
             {canAddExact ? (
               <CommandGroup>
                 <CommandItem
                   value={`__exact__:${trimmedSearch}`}
                   onSelect={() => toggleValue(trimmedSearch)}
                 >
-                  <span className="truncate">
-                    Use exactly “{trimmedSearch}”
-                  </span>
+                  <span className="truncate">Use exactly “{trimmedSearch}”</span>
                 </CommandItem>
               </CommandGroup>
             ) : null}
@@ -199,6 +188,7 @@ export function AttributeFilterPill({
             <button
               type="button"
               title={filter.key}
+              aria-label={`Edit ${name} filter`}
               className="hover:bg-muted/60 flex min-w-0 flex-1 flex-col gap-0.5 px-2 py-1.5 text-left outline-none transition-colors"
             />
           }
@@ -209,11 +199,7 @@ export function AttributeFilterPill({
           </span>
           {opTakesValues(filter.op) ? (
             <span className="truncate">
-              {summary ?? (
-                <span className="text-muted-foreground/70 italic">
-                  any value
-                </span>
-              )}
+              {summary ?? <span className="text-muted-foreground/70 italic">any value</span>}
             </span>
           ) : null}
         </PopoverTrigger>

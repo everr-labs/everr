@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import type * as ServerTypes from "./server.js";
+import type * as IndexTypes from "./index.js";
+import { describe, expect, it } from "vite-plus/test";
 import { identify, revoke } from "./state/session.js";
 import type { WebSDKOptions } from "./types.js";
 
@@ -39,10 +41,7 @@ function identifyAndRevokeAreFreeFunctions(): void {
 // specifier gives them, through the conditional exports in package.json. Thus
 // each public function of one entry must have the same type as the equivalent
 // function of the other entry. Shared code then sees one API.
-function entriesStayInLockstep(
-  server: typeof import("./server.js"),
-  browser: typeof import("./index.js"),
-): void {
+function entriesStayInLockstep(server: typeof ServerTypes, browser: typeof IndexTypes): void {
   const browserCoversServer: typeof server = browser;
   const serverCoversBrowser: typeof browser = server;
   void browserCoversServer;

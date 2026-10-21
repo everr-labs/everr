@@ -20,11 +20,7 @@ function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || (status >= 500 && status <= 599);
 }
 
-function classifyFailedResponse(
-  target: string,
-  status: number,
-  bodyText: string,
-): never {
+function classifyFailedResponse(target: string, status: number, bodyText: string): never {
   const message = `${target} status=${status} body=${JSON.stringify(bodyText)}`;
   if (isRetryableStatus(status)) {
     throw new Error(message);
@@ -47,15 +43,12 @@ export async function replayWebhookToCollector(
   headers.set(retentionHeaderNames.tracesDays, String(retention.tracesDays));
   headers.set(retentionHeaderNames.metricsDays, String(retention.metricsDays));
 
-  const response = await fetch(
-    requireGithubConfiguration().INGRESS_COLLECTOR_URL,
-    {
-      method: "POST",
-      headers,
-      body: new Uint8Array(event.body),
-      signal: AbortSignal.timeout(GH_EVENTS_CONFIG.replayTimeoutMs),
-    },
-  );
+  const response = await fetch(requireGithubConfiguration().INGRESS_COLLECTOR_URL, {
+    method: "POST",
+    headers,
+    body: new Uint8Array(event.body),
+    signal: AbortSignal.timeout(GH_EVENTS_CONFIG.replayTimeoutMs),
+  });
 
   if (response.ok) {
     return;

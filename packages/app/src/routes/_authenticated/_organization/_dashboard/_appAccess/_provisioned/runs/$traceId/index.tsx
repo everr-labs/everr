@@ -6,9 +6,7 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/",
 )({
   loader: async ({ context: { queryClient }, params }) => {
-    const jobs = await queryClient.ensureQueryData(
-      runJobsOptions(params.traceId),
-    );
+    const jobs = await queryClient.ensureQueryData(runJobsOptions(params.traceId));
     if (!jobs.length) return;
 
     const stepsByJobId = await queryClient.ensureQueryData(
@@ -39,9 +37,7 @@ function RunDetailPage() {
   return (
     <Card size="sm">
       <CardContent className="flex h-[calc(100vh-200px)] items-center justify-center">
-        <p className="text-muted-foreground text-sm">
-          Select a step to view logs
-        </p>
+        <p className="text-muted-foreground text-sm">Select a step to view logs</p>
       </CardContent>
     </Card>
   );

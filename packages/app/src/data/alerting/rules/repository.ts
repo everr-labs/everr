@@ -1,20 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, isNull, ne } from "drizzle-orm";
-import {
-  formatResourceName,
-  parseResourceName,
-} from "#app/data/as-code/identity.ts";
-import {
-  type DbExecutor,
-  db,
-  runInTransaction,
-  type Transaction,
-} from "#app/db/client.ts";
+import { formatResourceName, parseResourceName } from "#app/data/as-code/identity.ts";
+import { type DbExecutor, db, runInTransaction, type Transaction } from "#app/db/client.ts";
 import { alertDefinitions, alertInstances } from "#app/db/schema/index.ts";
-import {
-  throwAlertingPersistenceError,
-  translateAlertingConflict,
-} from "../persistence";
+import { throwAlertingPersistenceError, translateAlertingConflict } from "../persistence";
 import {
   enqueueAlertEvaluation,
   enqueueAlertEvaluationInTransaction,
@@ -25,16 +14,8 @@ import {
   AlertingRuleSpecSchema,
   AlertingRuleUpdateSchema,
 } from "../schema";
-import {
-  type AlertingActor,
-  type AlertingMutationScope,
-  alertingActorPrincipal,
-} from "../session";
-import type {
-  AlertingRuleHealthStatus,
-  AlertingRuleInput,
-  AlertingRuleUpdate,
-} from "../types";
+import { type AlertingActor, type AlertingMutationScope, alertingActorPrincipal } from "../session";
+import type { AlertingRuleHealthStatus, AlertingRuleInput, AlertingRuleUpdate } from "../types";
 import { closeRuleLifecycle } from "./lifecycle.server";
 
 type RuleRow = typeof alertDefinitions.$inferSelect;
@@ -78,9 +59,7 @@ export function rollupAlertState(
  * `degraded_since` is non-null exactly while the rule is degraded, so the
  * status is read off it rather than stored beside it.
  */
-function ruleHealthStatus(
-  degradedSince: Date | null,
-): AlertingRuleHealthStatus {
+function ruleHealthStatus(degradedSince: Date | null): AlertingRuleHealthStatus {
   return degradedSince === null ? "healthy" : "degraded";
 }
 
@@ -115,11 +94,7 @@ function decodeOffset(cursor: string | undefined): number {
   if (!cursor) return 0;
   const value = Number(Buffer.from(cursor, "base64url").toString("utf8"));
   if (!Number.isSafeInteger(value) || value < 0) {
-    throwAlertingPersistenceError(
-      422,
-      "validation",
-      "invalid pagination cursor",
-    );
+    throwAlertingPersistenceError(422, "validation", "invalid pagination cursor");
   }
   return value;
 }
@@ -194,15 +169,9 @@ async function getRuleRow(
   const [row] = await executor
     .select()
     .from(alertDefinitions)
-    .where(
-      and(
-        eq(alertDefinitions.organizationId, organizationId),
-        eq(alertDefinitions.id, id),
-      ),
-    )
+    .where(and(eq(alertDefinitions.organizationId, organizationId), eq(alertDefinitions.id, id)))
     .limit(1);
-  if (!row)
-    throwAlertingPersistenceError(404, "not_found", `Rule not found: ${id}`);
+  if (!row) throwAlertingPersistenceError(404, "not_found", `Rule not found: ${id}`);
   return row;
 }
 
@@ -210,20 +179,11 @@ async function getRuleRow(
 // label_columns with the same membership is a no-op for every open
 // instance. Comparing the raw arrays would close and re-fire them on a
 // reorder alone.
-function labelColumnsChanged(
-  previous: readonly string[],
-  next: readonly string[],
-): boolean {
-  return (
-    JSON.stringify([...previous].sort()) !== JSON.stringify([...next].sort())
-  );
+function labelColumnsChanged(previous: readonly string[], next: readonly string[]): boolean {
+  return JSON.stringify([...previous].sort()) !== JSON.stringify([...next].sort());
 }
 
-function definitionValues(
-  id: string,
-  organizationId: string,
-  input: AlertingRuleInput,
-) {
+function definitionValues(id: string, organizationId: string, input: AlertingRuleInput) {
   const { project, slug } = parseResourceName(input.name);
   const spec = AlertingRuleSpecSchema.parse(input);
   return {
@@ -234,11 +194,7 @@ function definitionValues(
     project,
     slug,
     spec,
-    nextEvaluationAt: nextAlertEvaluationAt(
-      organizationId,
-      id,
-      spec.interval_secs,
-    ),
+    nextEvaluationAt: nextAlertEvaluationAt(organizationId, id, spec.interval_secs),
     active: true,
   };
 }
@@ -248,8 +204,7 @@ function definitionValues(
 function scheduleEvaluation(tx: Transaction, row: RuleRow): Promise<void> {
   return enqueueAlertEvaluationInTransaction(tx, {
     alertDefinitionId: row.id,
-    scheduledFor:
-      row.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
+    scheduledFor: row.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
     ruleVersion: row.version,
   });
 }
@@ -286,21 +241,10 @@ export async function updateRule(
   const spec = AlertingRuleUpdateSchema.parse(rawSpec);
   const previous = await getRuleRow(organizationId, id, executor);
   if (version !== undefined && previous.version !== version) {
-    throwAlertingPersistenceError(
-      409,
-      "conflict",
-      `Rule version changed: ${id}`,
-    );
+    throwAlertingPersistenceError(409, "conflict", `Rule version changed: ${id}`);
   }
-  const labelsChanged = labelColumnsChanged(
-    previous.spec.label_columns,
-    spec.label_columns,
-  );
-  const nextEvaluationAt = nextAlertEvaluationAt(
-    organizationId,
-    id,
-    spec.interval_secs,
-  );
+  const labelsChanged = labelColumnsChanged(previous.spec.label_columns, spec.label_columns);
+  const nextEvaluationAt = nextAlertEvaluationAt(organizationId, id, spec.interval_secs);
   const now = new Date();
   const updated = await translateAlertingConflict(() =>
     runInTransaction(executor, async (tx) => {
@@ -320,21 +264,14 @@ export async function updateRule(
           ),
         )
         .returning();
-      if (!row)
-        throwAlertingPersistenceError(
-          409,
-          "conflict",
-          `Rule version changed: ${id}`,
-        );
+      if (!row) throwAlertingPersistenceError(409, "conflict", `Rule version changed: ${id}`);
       if (labelsChanged) {
         // New label columns mean new fingerprints, so the old instances can
         // never match again. They still must end like any other destruction:
         // terminals journaled and in-flight events canceled, or their open
         // episodes dangle forever and fired chains die without a record.
         await closeRuleLifecycle(tx, row, "labels_changed", now);
-        await tx
-          .delete(alertInstances)
-          .where(eq(alertInstances.alertDefinitionId, id));
+        await tx.delete(alertInstances).where(eq(alertInstances.alertDefinitionId, id));
       }
       await scheduleEvaluation(tx, row);
       return row;
@@ -351,20 +288,14 @@ export async function adoptRule(
   rawSpec: AlertingRuleUpdate | undefined,
   executor: DbExecutor,
 ) {
-  if (repoid.length === 0)
-    throwAlertingPersistenceError(422, "validation", "repoid is required");
+  if (repoid.length === 0) throwAlertingPersistenceError(422, "validation", "repoid is required");
   const previous = await getRuleRow(organizationId, id, executor);
   if (previous.version !== version || previous.previewId !== null) {
-    throwAlertingPersistenceError(
-      409,
-      "conflict",
-      `Rule version changed: ${id}`,
-    );
+    throwAlertingPersistenceError(409, "conflict", `Rule version changed: ${id}`);
   }
   const spec = rawSpec ? AlertingRuleUpdateSchema.parse(rawSpec) : null;
   const labelsChanged =
-    spec !== null &&
-    labelColumnsChanged(previous.spec.label_columns, spec.label_columns);
+    spec !== null && labelColumnsChanged(previous.spec.label_columns, spec.label_columns);
   const row = await translateAlertingConflict(() =>
     runInTransaction(executor, async (tx) => {
       const [updated] = await tx
@@ -374,11 +305,7 @@ export async function adoptRule(
           ...(spec
             ? {
                 spec,
-                nextEvaluationAt: nextAlertEvaluationAt(
-                  organizationId,
-                  id,
-                  spec.interval_secs,
-                ),
+                nextEvaluationAt: nextAlertEvaluationAt(organizationId, id, spec.interval_secs),
               }
             : {}),
           version: version + 1,
@@ -393,18 +320,11 @@ export async function adoptRule(
           ),
         )
         .returning();
-      if (!updated)
-        throwAlertingPersistenceError(
-          409,
-          "conflict",
-          `Rule version changed: ${id}`,
-        );
+      if (!updated) throwAlertingPersistenceError(409, "conflict", `Rule version changed: ${id}`);
       if (labelsChanged) {
         // Same contract as updateRule: close before the fingerprints change.
         await closeRuleLifecycle(tx, updated, "labels_changed", new Date());
-        await tx
-          .delete(alertInstances)
-          .where(eq(alertInstances.alertDefinitionId, id));
+        await tx.delete(alertInstances).where(eq(alertInstances.alertDefinitionId, id));
       }
       if (spec) await scheduleEvaluation(tx, updated);
       return updated;
@@ -413,22 +333,13 @@ export async function adoptRule(
   return ruleBase(row);
 }
 
-export async function deleteRule(
-  organizationId: string,
-  id: string,
-  executor: DbExecutor,
-) {
+export async function deleteRule(organizationId: string, id: string, executor: DbExecutor) {
   const now = new Date();
   return await runInTransaction(executor, async (tx) => {
     const [def] = await tx
       .select()
       .from(alertDefinitions)
-      .where(
-        and(
-          eq(alertDefinitions.organizationId, organizationId),
-          eq(alertDefinitions.id, id),
-        ),
-      )
+      .where(and(eq(alertDefinitions.organizationId, organizationId), eq(alertDefinitions.id, id)))
       .limit(1);
     if (!def) return { deleted: false };
     // The terminals must be journaled before the cascade forgets the open
@@ -437,12 +348,7 @@ export async function deleteRule(
     await closeRuleLifecycle(tx, def, "rule_deleted", now);
     await tx
       .delete(alertDefinitions)
-      .where(
-        and(
-          eq(alertDefinitions.organizationId, organizationId),
-          eq(alertDefinitions.id, id),
-        ),
-      );
+      .where(and(eq(alertDefinitions.organizationId, organizationId), eq(alertDefinitions.id, id)));
     return { deleted: true };
   });
 }
@@ -466,10 +372,7 @@ const PAUSE_TRAIL_CLEARED = {
   pausedBy: null,
 } as const;
 
-export async function pauseRule(
-  { organizationId, actor }: AlertingMutationScope,
-  id: string,
-) {
+export async function pauseRule({ organizationId, actor }: AlertingMutationScope, id: string) {
   const now = new Date();
   const row = await db.transaction(async (tx) => {
     const [updated] = await tx
@@ -491,15 +394,9 @@ export async function pauseRule(
         ...pauseTrailFor(actor, now),
         updatedAt: now,
       })
-      .where(
-        and(
-          eq(alertDefinitions.organizationId, organizationId),
-          eq(alertDefinitions.id, id),
-        ),
-      )
+      .where(and(eq(alertDefinitions.organizationId, organizationId), eq(alertDefinitions.id, id)))
       .returning();
-    if (!updated)
-      throwAlertingPersistenceError(404, "not_found", `Rule not found: ${id}`);
+    if (!updated) throwAlertingPersistenceError(404, "not_found", `Rule not found: ${id}`);
     await closeRuleLifecycle(tx, updated, "rule_paused", now);
     // Reset after the close read the open set, so resume starts from scratch:
     // re-pending, re-firing, re-notifying.
@@ -513,27 +410,15 @@ export async function pauseRule(
         episodeId: null,
         updatedAt: now,
       })
-      .where(
-        and(
-          eq(alertInstances.alertDefinitionId, id),
-          ne(alertInstances.status, "inactive"),
-        ),
-      );
+      .where(and(eq(alertInstances.alertDefinitionId, id), ne(alertInstances.status, "inactive")));
     return updated;
   });
   return ruleBase(row);
 }
 
-export async function resumeRule(
-  { organizationId }: AlertingMutationScope,
-  id: string,
-) {
+export async function resumeRule({ organizationId }: AlertingMutationScope, id: string) {
   const previous = await getRuleRow(organizationId, id);
-  const nextEvaluationAt = nextAlertEvaluationAt(
-    organizationId,
-    id,
-    previous.spec.interval_secs,
-  );
+  const nextEvaluationAt = nextAlertEvaluationAt(organizationId, id, previous.spec.interval_secs);
   const [row] = await db
     .update(alertDefinitions)
     .set({
@@ -544,19 +429,12 @@ export async function resumeRule(
       ...PAUSE_TRAIL_CLEARED,
       updatedAt: new Date(),
     })
-    .where(
-      and(
-        eq(alertDefinitions.organizationId, organizationId),
-        eq(alertDefinitions.id, id),
-      ),
-    )
+    .where(and(eq(alertDefinitions.organizationId, organizationId), eq(alertDefinitions.id, id)))
     .returning();
-  if (!row)
-    throwAlertingPersistenceError(404, "not_found", `Rule not found: ${id}`);
+  if (!row) throwAlertingPersistenceError(404, "not_found", `Rule not found: ${id}`);
   await enqueueAlertEvaluation({
     alertDefinitionId: row.id,
-    scheduledFor:
-      row.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
+    scheduledFor: row.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
     ruleVersion: row.version,
   });
   return ruleBase(row);

@@ -15,7 +15,7 @@ const meta = {
     onChange: () => {},
     onRefresh: () => {},
   },
-  render: (args) => {
+  render: function Render(args) {
     const [interval, setInterval] = useState(args.value);
     const [fetchCount, setFetchCount] = useState(0);
     return (
@@ -27,8 +27,8 @@ const meta = {
           isFetching={args.isFetching}
         />
         <code className="text-muted-foreground text-xs">
-          interval: {interval} ({getRefreshIntervalMs(interval) ?? "manual"}) ·
-          refreshes: {fetchCount}
+          interval: {interval} ({getRefreshIntervalMs(interval) ?? "manual"}) · refreshes:{" "}
+          {fetchCount}
         </code>
       </div>
     );

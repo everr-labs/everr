@@ -15,12 +15,7 @@ import WebhookIcon from "#app/assets/webhook.svg?react";
 import type { ChannelType } from "#app/data/alerting/delivery/channel-input.ts";
 import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 
-const CHANNEL_TYPES: ChannelType[] = [
-  "slack",
-  "discord",
-  "webhook",
-  "telegram",
-];
+const CHANNEL_TYPES: ChannelType[] = ["slack", "discord", "webhook", "telegram"];
 
 export const CHANNEL_LABEL: Record<ChannelType, string> = {
   webhook: "Webhook",
@@ -29,10 +24,7 @@ export const CHANNEL_LABEL: Record<ChannelType, string> = {
   telegram: "Telegram",
 };
 
-const CHANNEL_ICON: Record<
-  ChannelType,
-  ComponentType<SVGProps<SVGSVGElement>>
-> = {
+const CHANNEL_ICON: Record<ChannelType, ComponentType<SVGProps<SVGSVGElement>>> = {
   slack: SlackIcon,
   discord: DiscordIcon,
   webhook: WebhookIcon,
@@ -93,7 +85,6 @@ export function ChannelMark({
 /** What a redacted config still says: the kind, and for Telegram the chats
  *  it reaches. Never the URL or the token, which the read never returns. */
 export function channelDetail(config: AlertingChannelConfig): string {
-  if (config.type === "telegram")
-    return `Telegram · ${config.chat_ids.join(", ")}`;
+  if (config.type === "telegram") return `Telegram · ${config.chat_ids.join(", ")}`;
   return `${CHANNEL_LABEL[config.type]} · secret saved`;
 }

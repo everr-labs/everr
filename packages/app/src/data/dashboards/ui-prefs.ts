@@ -1,9 +1,5 @@
 import { z } from "zod";
-import {
-  readLocalStorage,
-  removeLocalStorage,
-  writeLocalStorage,
-} from "#app/lib/local-storage.ts";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "#app/lib/local-storage.ts";
 
 /**
  * Sticky UI flags for the dashboards rail. Local to the browser on purpose,

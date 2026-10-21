@@ -27,9 +27,7 @@ async function setGithubInstallationStatus(
   await db
     .update(githubInstallationOrganizations)
     .set({ status: newStatus, updatedAt: new Date() })
-    .where(
-      eq(githubInstallationOrganizations.githubInstallationId, installationId),
-    );
+    .where(eq(githubInstallationOrganizations.githubInstallationId, installationId));
 }
 
 async function handleInstallationEvent(args: {
@@ -99,11 +97,8 @@ async function handleInstallationEvent(args: {
   return new Response(null, { status: 202 });
 }
 
-export async function handleGitHubWebhookRequest(
-  request: Request,
-): Promise<Response> {
-  if (!getGithubConfiguration())
-    return new Response("Not found", { status: 404 });
+export async function handleGitHubWebhookRequest(request: Request): Promise<Response> {
+  if (!getGithubConfiguration()) return new Response("Not found", { status: 404 });
 
   if (request.method !== "POST") {
     return new Response("method not allowed", { status: 405 });
@@ -135,10 +130,7 @@ export async function handleGitHubWebhookRequest(
     return new Response("missing x-github-event", { status: 400 });
   }
 
-  if (
-    eventType === "installation" ||
-    eventType === "installation_repositories"
-  ) {
+  if (eventType === "installation" || eventType === "installation_repositories") {
     return handleInstallationEvent({ eventType, bodyText });
   }
 

@@ -50,10 +50,7 @@ export function TechnologyBackdrop({ items }: { items: Technology[] }) {
     >
       <div className="absolute -inset-x-[100px] -inset-y-[140px] grid grid-cols-16 grid-rows-8 place-items-center rotate-[-14deg] scale-[1.12] max-[760px]:-inset-y-20 max-[760px]:inset-x-auto max-[760px]:left-1/2 max-[760px]:w-[960px] max-[760px]:-translate-x-1/2 max-[760px]:scale-100 max-[760px]:grid-cols-12 max-[760px]:grid-rows-11">
         {Array.from({ length: 128 }, (_, index) => {
-          const item =
-            technologies[
-              (index * 7 + Math.floor(index / 16) * 3) % technologies.length
-            ];
+          const item = technologies[(index * 7 + Math.floor(index / 16) * 3) % technologies.length];
           return (
             <span
               className="grid size-full place-items-center [&>img]:size-11 [&>img]:rotate-[14deg] [&>img]:object-contain [&>svg]:size-11 [&>svg]:rotate-[14deg] max-[760px]:[&>img]:size-8 max-[760px]:[&>svg]:size-8"
@@ -63,11 +60,7 @@ export function TechnologyBackdrop({ items }: { items: Technology[] }) {
                 <img src={item.image} alt="" />
               ) : (
                 <item.icon
-                  color={
-                    item.color.toLowerCase() === "#000000"
-                      ? "currentColor"
-                      : item.color
-                  }
+                  color={item.color.toLowerCase() === "#000000" ? "currentColor" : item.color}
                 />
               )}
             </span>

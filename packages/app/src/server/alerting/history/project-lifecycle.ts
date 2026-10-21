@@ -15,18 +15,11 @@ import {
  * mutation's commit; the journal rows are self-sufficient, so a definition
  * that is already gone (delete) needs no lookup.
  */
-export async function projectAlertLifecycle(
-  rawPayload: unknown,
-): Promise<void> {
+export async function projectAlertLifecycle(rawPayload: unknown): Promise<void> {
   const payload = AlertLifecycleProjectionPayloadSchema.parse(rawPayload);
-  const ids = [
-    ...new Set([...payload.closedEventIds, ...payload.suppressedEventIds]),
-  ];
+  const ids = [...new Set([...payload.closedEventIds, ...payload.suppressedEventIds])];
   if (ids.length === 0) return;
-  const rows = await db
-    .select()
-    .from(alertEvents)
-    .where(inArray(alertEvents.id, ids));
+  const rows = await db.select().from(alertEvents).where(inArray(alertEvents.id, ids));
   if (rows.length === 0) return;
   const rowById = new Map(rows.map((row) => [row.id, row]));
 

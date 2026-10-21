@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { panelPluginSpecs } from "#app/data/dashboards/plugin-specs.ts";
 import { parseSpecLenient } from "./parse-spec";
 import { statChartSpec } from "./stat-chart/spec";
@@ -86,13 +86,10 @@ describe("panel plugin spec contracts", () => {
     "NodeGraph",
   ])("%s validates and defaults the shared format", (kind) => {
     const schema = panelPluginSpecs[kind];
-    expect(
-      schema?.safeParse({ valueFormat: { scale: "invalid" } }).success,
-    ).toBe(false);
-    expect(
-      schema?.safeParse({ valueFormat: { scale: "duration", unit: "widgets" } })
-        .success,
-    ).toBe(false);
+    expect(schema?.safeParse({ valueFormat: { scale: "invalid" } }).success).toBe(false);
+    expect(schema?.safeParse({ valueFormat: { scale: "duration", unit: "widgets" } }).success).toBe(
+      false,
+    );
     expect(schema?.parse({ valueFormat: {} })).toMatchObject({
       valueFormat: { unit: "", scale: "none" },
     });

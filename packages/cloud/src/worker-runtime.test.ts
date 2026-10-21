@@ -1,6 +1,7 @@
+import type * as RuntimeTypes from "@everr/app/server/worker/runtime";
 // @vitest-environment node
 import type { EventEmitter } from "node:events";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 type MockRunOptions = {
   concurrency: number;
@@ -75,21 +76,14 @@ vi.mock("@everr/app/telemetry/logger", () => ({
       "exception.type": error.name,
     };
   },
-  errorMessage: (reason: unknown) =>
-    reason instanceof Error ? reason.message : String(reason),
+  errorMessage: (reason: unknown) => (reason instanceof Error ? reason.message : String(reason)),
   serverLogger: {
     error: runtimeMocks.serverLoggerError,
     info: vi.fn(),
   },
 }));
 
-let activeRuntime:
-  | Awaited<
-      ReturnType<
-        typeof import("@everr/app/server/worker/runtime")["startWorkerRuntime"]
-      >
-    >
-  | undefined;
+let activeRuntime: Awaited<ReturnType<(typeof RuntimeTypes)["startWorkerRuntime"]>> | undefined;
 afterEach(async () => {
   await activeRuntime?.stop();
   activeRuntime = undefined;
@@ -102,8 +96,7 @@ async function loadRuntime() {
   // The runner handle deliberately lives on the hot-singleton registry on
   // globalThis to survive HMR module replacement; tests need each import to
   // start from a clean slate.
-  delete (globalThis as { __everrHotSingletons?: unknown })
-    .__everrHotSingletons;
+  delete (globalThis as { __everrHotSingletons?: unknown }).__everrHotSingletons;
   runtimeMocks.run.mockClear();
   runtimeMocks.runOptions.length = 0;
   runtimeMocks.runners.length = 0;
@@ -131,9 +124,7 @@ describe("worker runtime", () => {
     await runtime.startWorkerRuntime();
 
     expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
-    const general = runtimeMocks.runOptions.find(
-      (options) => options.pgPool === runtimeMocks.pool,
-    );
+    const general = runtimeMocks.runOptions.find((options) => options.pgPool === runtimeMocks.pool);
     const organizations = runtimeMocks.runOptions.find(
       (options) => options.pgPool !== runtimeMocks.pool,
     );
@@ -173,8 +164,7 @@ describe("worker runtime", () => {
     const runtime = await loadRuntime();
     const handle = await runtime.startWorkerRuntime();
     await handle.stop();
-    for (const runner of runtimeMocks.runners)
-      expect(runner.stop).toHaveBeenCalledOnce();
+    for (const runner of runtimeMocks.runners) expect(runner.stop).toHaveBeenCalledOnce();
     expect(runtimeMocks.organizationPool.end).toHaveBeenCalledOnce();
   });
 
@@ -183,8 +173,7 @@ describe("worker runtime", () => {
     const start = runtimeMocks.run.getMockImplementation();
     if (!start) throw new Error("Missing worker implementation");
     runtimeMocks.run.mockImplementation(async (options) => {
-      if (options.pgPool === runtimeMocks.pool)
-        throw new Error("Shared worker unavailable");
+      if (options.pgPool === runtimeMocks.pool) throw new Error("Shared worker unavailable");
       return start(options);
     });
     await runtime.startWorkerRuntime();
@@ -213,8 +202,7 @@ describe("worker runtime", () => {
         "exception.message": "Could not recover retries",
       }),
     );
-    for (const runner of runtimeMocks.runners)
-      expect(runner.stop).not.toHaveBeenCalled();
+    for (const runner of runtimeMocks.runners) expect(runner.stop).not.toHaveBeenCalled();
     expect(runtimeMocks.organizationPool.end).not.toHaveBeenCalled();
   });
 });

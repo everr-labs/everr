@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { SERIES_COLORS } from "../data-utils";
 import type { QueryResultRow } from "../index";
 import { treemapSpec } from "./spec";
@@ -48,13 +48,8 @@ describe("buildTreemapTiles", () => {
 
   it("reads custom column names", () => {
     const frames = [[{ svc: "api", reqs: 9 }]];
-    const { tiles } = buildTreemapTiles(
-      frames,
-      spec({ nameColumn: "svc", valueColumn: "reqs" }),
-    );
-    expect(tiles).toEqual([
-      { name: "api", group: undefined, value: 9, color: SERIES_COLORS[0] },
-    ]);
+    const { tiles } = buildTreemapTiles(frames, spec({ nameColumn: "svc", valueColumn: "reqs" }));
+    expect(tiles).toEqual([{ name: "api", group: undefined, value: 9, color: SERIES_COLORS[0] }]);
   });
 
   it("sums duplicate names within the same group", () => {
@@ -80,10 +75,7 @@ describe("buildTreemapTiles", () => {
         { name: "b", env: "prod", value: 1 },
       ],
     ];
-    const { tiles, groups } = buildTreemapTiles(
-      frames,
-      spec({ groupColumn: "env" }),
-    );
+    const { tiles, groups } = buildTreemapTiles(frames, spec({ groupColumn: "env" }));
     expect(groups).toEqual(["prod", "dev"]);
     // same name in different groups stays distinct
     expect(tiles.map((t) => [t.name, t.group, t.value])).toEqual([
@@ -91,9 +83,7 @@ describe("buildTreemapTiles", () => {
       ["a", "dev", 2],
       ["b", "prod", 1],
     ]);
-    const colorOf = Object.fromEntries(
-      tiles.map((t) => [`${t.group}/${t.name}`, t.color]),
-    );
+    const colorOf = Object.fromEntries(tiles.map((t) => [`${t.group}/${t.name}`, t.color]));
     expect(colorOf["prod/a"]).toBe(SERIES_COLORS[0]);
     expect(colorOf["prod/b"]).toBe(SERIES_COLORS[0]);
     expect(colorOf["dev/a"]).toBe(SERIES_COLORS[1]);
@@ -128,10 +118,7 @@ describe("buildTreemapTiles", () => {
         { name: "b", env: null, value: 2 },
       ],
     ];
-    const { tiles, groups, dropped } = buildTreemapTiles(
-      frames,
-      spec({ groupColumn: "env" }),
-    );
+    const { tiles, groups, dropped } = buildTreemapTiles(frames, spec({ groupColumn: "env" }));
     expect(tiles).toHaveLength(1);
     expect(groups).toEqual(["prod"]);
     expect(dropped).toBe(1);
@@ -165,10 +152,7 @@ describe("buildTreemapTiles", () => {
 
     it("never produces an Other tile holding a single tile", () => {
       // 4 tiles, maxTiles 4: collapsing the 4th alone would be pointless
-      const { tiles } = buildTreemapTiles(
-        [rows.slice(0, 4)],
-        spec({ maxTiles: 4 }),
-      );
+      const { tiles } = buildTreemapTiles([rows.slice(0, 4)], spec({ maxTiles: 4 }));
       expect(tiles).toHaveLength(4);
       expect(tiles.some((t) => t.name.startsWith("Other"))).toBe(false);
     });

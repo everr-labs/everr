@@ -1,20 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const {
-  mockQuery,
-  mockInsert,
-  mockCommand,
-  mockJson,
-  mockInstrumentClickhouseOperation,
-} = vi.hoisted(() => ({
-  mockQuery: vi.fn(),
-  mockInsert: vi.fn(),
-  mockCommand: vi.fn(),
-  mockJson: vi.fn(),
-  mockInstrumentClickhouseOperation: vi.fn(
-    async (_attributes: unknown, run: () => Promise<unknown>) => run(),
-  ),
-}));
+const { mockQuery, mockInsert, mockCommand, mockJson, mockInstrumentClickhouseOperation } =
+  vi.hoisted(() => ({
+    mockQuery: vi.fn(),
+    mockInsert: vi.fn(),
+    mockCommand: vi.fn(),
+    mockJson: vi.fn(),
+    mockInstrumentClickhouseOperation: vi.fn(
+      async (_attributes: unknown, run: () => Promise<unknown>) => run(),
+    ),
+  }));
 
 vi.mock("@clickhouse/client", () => ({
   createClient: vi.fn(() => ({
@@ -51,11 +46,7 @@ vi.mock("#app/telemetry/clickhouse.ts", () => ({
 
 vi.unmock("#app/lib/clickhouse.ts");
 
-import {
-  query,
-  querySqlApi,
-  querySqlApiWithMeta,
-} from "#app/lib/clickhouse.ts";
+import { query, querySqlApi, querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
 import { adminCommand, insertRows } from "#app/lib/clickhouse-writer.ts";
 
 const ORG = "org42";
@@ -113,9 +104,7 @@ describe("querySqlApi", () => {
   });
 
   it("rejects when tenant id is missing", async () => {
-    await expect(querySqlApi("SELECT 1", "")).rejects.toThrow(
-      /workspace context/i,
-    );
+    await expect(querySqlApi("SELECT 1", "")).rejects.toThrow(/workspace context/i);
     expect(mockQuery).not.toHaveBeenCalled();
   });
 });

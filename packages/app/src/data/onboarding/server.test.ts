@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@composition/deployment", () => ({
   deployment: { ingestEndpoint: "https://ingest.example.test/" },
@@ -24,12 +24,12 @@ it("derives identity and the active organization from the authenticated session"
   expect(store.complete).toHaveBeenCalledWith(scope);
 });
 it("rejects stale organization requests for reads and completion", async () => {
-  await expect(
-    getHomeStatus({ data: { organizationId: "previous_org" } }),
-  ).rejects.toThrow("Organization changed");
-  await expect(
-    completeOnboarding({ data: { organizationId: "previous_org" } }),
-  ).rejects.toThrow("Organization changed");
+  await expect(getHomeStatus({ data: { organizationId: "previous_org" } })).rejects.toThrow(
+    "Organization changed",
+  );
+  await expect(completeOnboarding({ data: { organizationId: "previous_org" } })).rejects.toThrow(
+    "Organization changed",
+  );
   expect(store.getStatus).not.toHaveBeenCalled();
   expect(store.complete).not.toHaveBeenCalled();
 });
@@ -52,12 +52,10 @@ it("includes the configured ingestion endpoint and application URL", async () =>
     canCreateKeys: true,
     onboardingCompleted: false,
   });
-  expect(await getHomeStatus({ data: { organizationId: "test_org" } })).toEqual(
-    {
-      canCreateKeys: true,
-      onboardingCompleted: false,
-      ingestEndpoint: "https://ingest.example.test/",
-      appUrl: "https://app.example.test",
-    },
-  );
+  expect(await getHomeStatus({ data: { organizationId: "test_org" } })).toEqual({
+    canCreateKeys: true,
+    onboardingCompleted: false,
+    ingestEndpoint: "https://ingest.example.test/",
+    appUrl: "https://app.example.test",
+  });
 });

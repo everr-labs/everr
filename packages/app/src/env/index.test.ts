@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 beforeEach(() => {
   vi.resetModules();
@@ -26,16 +26,14 @@ describe("environment validation", () => {
     expect(env.EMAIL_DSN).toBe("smtp://localhost:1025");
   });
 
-  it.each([
-    undefined,
-    "false",
-  ])("rejects missing runtime configuration when the build flag is %s", async (flag) => {
-    vi.stubEnv("SKIP_ENV_VALIDATION", flag);
-    vi.stubEnv("DATABASE_HOST", undefined);
-    vi.spyOn(console, "error").mockImplementation(() => {});
+  it.each([undefined, "false"])(
+    "rejects missing runtime configuration when the build flag is %s",
+    async (flag) => {
+      vi.stubEnv("SKIP_ENV_VALIDATION", flag);
+      vi.stubEnv("DATABASE_HOST", undefined);
+      vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(import("./index")).rejects.toThrow(
-      "Invalid environment variables",
-    );
-  });
+      await expect(import("./index")).rejects.toThrow("Invalid environment variables");
+    },
+  );
 });

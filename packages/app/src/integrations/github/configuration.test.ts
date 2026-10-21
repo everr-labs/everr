@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { resolveGithubConfiguration } from "./configuration";
 
 const configured = {
@@ -27,9 +27,9 @@ describe("GitHub integration configuration", () => {
     ).toBeUndefined();
   });
   it("rejects partial configuration without exposing secret values", () => {
-    expect(() =>
-      resolveGithubConfiguration({ GITHUB_APP_PRIVATE_KEY: "secret-value" }),
-    ).toThrow("Invalid GitHub integration configuration");
+    expect(() => resolveGithubConfiguration({ GITHUB_APP_PRIVATE_KEY: "secret-value" })).toThrow(
+      "Invalid GitHub integration configuration",
+    );
     try {
       resolveGithubConfiguration({ GITHUB_APP_PRIVATE_KEY: "secret-value" });
     } catch (error) {
@@ -37,8 +37,8 @@ describe("GitHub integration configuration", () => {
     }
   });
   it("requires configuration when explicitly enabled", () => {
-    expect(() =>
-      resolveGithubConfiguration({ EVERR_GITHUB_ENABLED: "true" }),
-    ).toThrow("GITHUB_APP_ID");
+    expect(() => resolveGithubConfiguration({ EVERR_GITHUB_ENABLED: "true" })).toThrow(
+      "GITHUB_APP_ID",
+    );
   });
 });

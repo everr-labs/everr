@@ -18,13 +18,7 @@ export const TitleBarSlotsContext = createContext<TitleBarSlots>({
   right: null,
 });
 
-export function PageTitleBar({
-  title,
-  actions,
-}: {
-  title?: ReactNode;
-  actions?: ReactNode;
-}) {
+export function PageTitleBar({ title, actions }: { title?: ReactNode; actions?: ReactNode }) {
   const { left, right } = useContext(TitleBarSlotsContext);
   return (
     <>
@@ -57,10 +51,7 @@ export function SectionsPage({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <PageTitleBar title={title} actions={actions} />
-      <ScrollArea
-        className="min-h-0 flex-1"
-        viewportClassName="grid divide-y divide-white/[0.08]"
-      >
+      <ScrollArea className="min-h-0 flex-1" viewportClassName="grid divide-y divide-white/[0.08]">
         {children}
       </ScrollArea>
     </div>

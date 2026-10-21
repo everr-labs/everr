@@ -16,9 +16,7 @@ export function setTestDatabase(db: TestDb | undefined): void {
 export const testDb = new Proxy({} as TestDb, {
   get(_target, property) {
     if (!current) {
-      throw new Error(
-        "test database not set: call setTestDatabase in beforeAll",
-      );
+      throw new Error("test database not set: call setTestDatabase in beforeAll");
     }
     // The receiver defaults to the target, which is the real database. Passing
     // the proxy instead would run any accessor drizzle adds later with `this`
@@ -30,10 +28,7 @@ export const testDb = new Proxy({} as TestDb, {
 
 // Copied from @/db/client rather than imported: importing it would construct
 // the real connection pool, which is the thing the mock exists to avoid.
-export function runInTransaction<T>(
-  executor: unknown,
-  fn: (tx: never) => Promise<T>,
-): Promise<T> {
+export function runInTransaction<T>(executor: unknown, fn: (tx: never) => Promise<T>): Promise<T> {
   return executor instanceof PgTransaction
     ? fn(executor as never)
     : (executor as TestDb).transaction(fn as never);

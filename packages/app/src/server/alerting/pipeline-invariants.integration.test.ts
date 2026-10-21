@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "#app/data/alerting/delivery/defaults.ts";
 import { ALERT_FLUSH_GROUP_TASK } from "#app/data/alerting/delivery/tasks.ts";
 import { uuidv7 } from "#app/data/alerting/history/ids.ts";
@@ -26,12 +26,10 @@ import {
   TEST_ORG,
 } from "#app/server/alerting/testing/fixtures.ts";
 import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -44,7 +42,7 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
   return clickhouseMock;
 });
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 // Drizzle wraps the driver error in its own DrizzleQueryError, whose message
 // is just "Failed query: ...": the constraint name lives on the wrapped
@@ -135,10 +133,7 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
 
   it("converges two writes of the same instance onto one row, via alert_instances_definition_fingerprint_uq", async () => {
     const rule = await insertRule(harness().db);
-    const target = [
-      alertInstances.alertDefinitionId,
-      alertInstances.fingerprint,
-    ];
+    const target = [alertInstances.alertDefinitionId, alertInstances.fingerprint];
     const base = {
       organizationId: rule.organizationId,
       alertDefinitionId: rule.id,
@@ -177,13 +172,9 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness().fireAndFlush();
 
-    const [groupBefore] = await harness()
-      .db.select()
-      .from(alertNotificationGroups);
+    const [groupBefore] = await harness().db.select().from(alertNotificationGroups);
     expect(groupBefore.directAlertDefinitionId).toBe(rule.id);
-    const [membershipBefore] = await harness()
-      .db.select()
-      .from(alertNotificationGroupEvents);
+    const [membershipBefore] = await harness().db.select().from(alertNotificationGroupEvents);
     expect(membershipBefore).toBeDefined();
     const [deliveryBefore] = await harness().db.select().from(alertDeliveries);
     expect(deliveryBefore.status).toBe("sent");
@@ -191,12 +182,8 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     await deleteRule(TEST_ORG, rule.id, asDbExecutor(harness().db));
 
     expect(await harness().db.select().from(alertInstances)).toHaveLength(0);
-    expect(
-      await harness().db.select().from(alertNotificationGroups),
-    ).toHaveLength(0);
-    expect(
-      await harness().db.select().from(alertNotificationGroupEvents),
-    ).toHaveLength(0);
+    expect(await harness().db.select().from(alertNotificationGroups)).toHaveLength(0);
+    expect(await harness().db.select().from(alertNotificationGroupEvents)).toHaveLength(0);
 
     // alert_deliveries carries no foreign key to alert_definitions at all,
     // only to the notification group, and that FK is ON DELETE SET NULL, not
@@ -334,15 +321,10 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
       });
       partitionRuleIds.add(rule.id);
     }
-    const evaluationQueues = (await queueNamesFor(ALERT_EVALUATE_TASK)).filter(
-      (job) =>
-        partitionRuleIds.has(
-          (job.payload as EvaluatePayload).alertDefinitionId,
-        ),
+    const evaluationQueues = (await queueNamesFor(ALERT_EVALUATE_TASK)).filter((job) =>
+      partitionRuleIds.has((job.payload as EvaluatePayload).alertDefinitionId),
     );
     expect(evaluationQueues).toHaveLength(RULE_COUNT);
-    expect(
-      new Set(evaluationQueues.map((job) => job.queueName)).size,
-    ).toBeGreaterThan(1);
+    expect(new Set(evaluationQueues.map((job) => job.queueName)).size).toBeGreaterThan(1);
   });
 });

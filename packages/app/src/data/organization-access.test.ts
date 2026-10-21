@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   rows: vi.fn(),
@@ -24,9 +24,7 @@ beforeEach(() => {
   }));
 });
 it("returns membership and metadata without calling the full organization endpoint", async () => {
-  mocks.rows.mockResolvedValue([
-    { id: "test_org", metadata: '{"clickhouseReady":false}' },
-  ]);
+  mocks.rows.mockResolvedValue([{ id: "test_org", metadata: '{"clickhouseReady":false}' }]);
   expect(await getActiveOrganizationAccess()).toEqual({
     status: "available",
     organization: { id: "test_org", metadata: '{"clickhouseReady":false}' },
@@ -48,9 +46,7 @@ it("skips organization lookup when none is selected", async () => {
 });
 it("preserves infrastructure failures instead of classifying them as missing membership", async () => {
   mocks.rows.mockRejectedValue(new Error("Database unavailable"));
-  await expect(getActiveOrganizationAccess()).rejects.toThrow(
-    "Database unavailable",
-  );
+  await expect(getActiveOrganizationAccess()).rejects.toThrow("Database unavailable");
 });
 
 it("resolves application entry only after membership verification", async () => {

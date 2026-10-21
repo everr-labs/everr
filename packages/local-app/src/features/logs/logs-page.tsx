@@ -14,7 +14,7 @@ import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "./local-sql-client";
 
 export function LogsPage() {
-  const search = useSearch({ strict: false }) as LogsSearch;
+  const search: LogsSearch = useSearch({ strict: false });
   const navigate = useNavigate();
   const controls = useExploreControls("/logs");
 
@@ -35,12 +35,7 @@ export function LogsPage() {
   };
 
   return (
-    <ExploreShell
-      title="Logs"
-      timeRange={timeRange}
-      refresh={search.refresh ?? ""}
-      {...controls}
-    >
+    <ExploreShell title="Logs" timeRange={timeRange} refresh={search.refresh ?? ""} {...controls}>
       <LocalTelemetryGate>
         <LogsExplorer
           repo={repo}
@@ -57,14 +52,14 @@ export function LogsPage() {
             />
           }
           onSearchChange={({ services: _ignored, ...next }) =>
-            navigate({
+            void navigate({
               to: "/logs",
               search: (prev) => ({ ...prev, ...next }),
               replace: true,
             })
           }
           onTimeRangeSelect={(from, to) =>
-            navigate({
+            void navigate({
               to: "/logs",
               search: (prev) => ({
                 ...prev,

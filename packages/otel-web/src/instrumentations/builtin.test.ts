@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebSDK } from "../client.js";
 import { captureError } from "../errors.js";
 import {
@@ -232,8 +232,7 @@ describe("errors()", () => {
     if (stack !== undefined) error.stack = stack;
     return error;
   };
-  const exceptions = async () =>
-    (await records()).filter((r) => r.eventName === "exception");
+  const exceptions = async () => (await records()).filter((r) => r.eventName === "exception");
 
   it("reports unhandled window errors exactly once", async () => {
     start({ instrumentations: [errors()] });
@@ -254,9 +253,7 @@ describe("errors()", () => {
 
   it("ignore drops matching messages from every error path", async () => {
     start({
-      instrumentations: [
-        errors({ ignore: ["ResizeObserver", /^Script error/] }),
-      ],
+      instrumentations: [errors({ ignore: ["ResizeObserver", /^Script error/] })],
     });
     // The filter also applies to a manual captureError. The code then
     // continues and gives no warning.
@@ -278,9 +275,7 @@ describe("errors()", () => {
       ),
     );
     // The frame structure of Firefox. It has no message line.
-    captureError(
-      boom("gecko widget", "render@https://cdn.widget.example/w.js:1:2"),
-    );
+    captureError(boom("gecko widget", "render@https://cdn.widget.example/w.js:1:2"));
     // A url:line:col text in the MESSAGE line is not a frame. This error comes
     // from our own build, and the filter must not refuse it.
     captureError(
@@ -289,12 +284,7 @@ describe("errors()", () => {
         "Error: Failed to load https://cdn.widget.example/chunk.js:1:2\n    at main (https://app.example/bundle.js:1:2)",
       ),
     );
-    captureError(
-      boom(
-        "ours",
-        "Error: ours\n    at main (https://app.example/bundle.js:1:2)",
-      ),
-    );
+    captureError(boom("ours", "Error: ours\n    at main (https://app.example/bundle.js:1:2)"));
     const got = await exceptions();
     expect(got.map((r) => attrs(r)["exception.message"])).toEqual([
       "Failed to load https://cdn.widget.example/chunk.js:1:2",
@@ -304,10 +294,7 @@ describe("errors()", () => {
 
   it("denyUrls falls back to the handler filename, and no url means no match", async () => {
     start({ instrumentations: [errors({ denyUrls: [/evil\.example/] })] });
-    dispatchError(
-      boom("from third party", "no frames here"),
-      "https://evil.example/inject.js",
-    );
+    dispatchError(boom("from third party", "no frames here"), "https://evil.example/inject.js");
     // There is no URL in the stack and no filename. Thus denyUrls cannot
     // agree, and the SDK sends the error.
     captureError(boom("bare", "no frames here"));
@@ -341,9 +328,7 @@ describe("composing all five", () => {
 
     const got = await names();
     expect(got.filter((n) => n === "everr.browser.page_view")).toHaveLength(1);
-    expect(
-      got.filter((n) => n === "everr.browser.interaction.click"),
-    ).toHaveLength(1);
+    expect(got.filter((n) => n === "everr.browser.interaction.click")).toHaveLength(1);
     expect(got.filter((n) => n === "exception")).toHaveLength(1);
     expect(batches.flatMap((b) => b.spans)).toHaveLength(1);
 
@@ -378,9 +363,7 @@ describe("capture guards and page context", () => {
     dispatchEvent(new Event("visibilitychange"));
     expect(await names()).not.toContain("everr.browser.page_leave");
     dispatchEvent(new Event("pagehide"));
-    const leave = (await records()).find(
-      (r) => r.eventName === "everr.browser.page_leave",
-    );
+    const leave = (await records()).find((r) => r.eventName === "everr.browser.page_leave");
     const leaveAttrs = attrs(leave as OtlpRecord);
     expect(leaveAttrs["everr.page_view.duration"]).toBeDefined();
     expect(leaveAttrs).not.toHaveProperty("everr.scroll.depth");
@@ -393,9 +376,7 @@ describe("errors() edge wiring", () => {
     const swallow = (event: Event) => event.preventDefault();
     window.addEventListener("error", swallow);
     try {
-      window.dispatchEvent(
-        new ErrorEvent("error", { message: "no object", cancelable: true }),
-      );
+      window.dispatchEvent(new ErrorEvent("error", { message: "no object", cancelable: true }));
     } finally {
       window.removeEventListener("error", swallow);
     }
@@ -413,9 +394,9 @@ describe("errors() edge wiring", () => {
   it("a newer init's filters win the slot; the older teardown leaves them", async () => {
     start({ instrumentations: [errors({ ignore: ["from-first"] })] });
     const first = client;
-    const [second, secondBatches] = (
-      await import("../test-kit.js")
-    ).startClient({ instrumentations: [errors({ ignore: ["from-second"] })] });
+    const [second, secondBatches] = (await import("../test-kit.js")).startClient({
+      instrumentations: [errors({ ignore: ["from-second"] })],
+    });
     // The shutdown of the older client must not remove the newer filter. That
     // shutdown does disconnect the shared pipeline, and thus a new construction
     // connects it again.
@@ -429,9 +410,7 @@ describe("errors() edge wiring", () => {
     captureError(new Error("from-first: no longer filtered"));
     const got = (await records()).filter((r) => r.eventName === "exception");
     expect(got).toHaveLength(1);
-    expect(attrs(got[0])["exception.message"]).toBe(
-      "from-first: no longer filtered",
-    );
+    expect(attrs(got[0])["exception.message"]).toBe("from-first: no longer filtered");
     await second.shutdown();
   });
 });
@@ -443,8 +422,7 @@ describe("frame-url parsing precision", () => {
     // some digits stay in the url, and the rule does not agree.
     start({ instrumentations: [errors({ denyUrls: [/w\.js$/] })] });
     const denied = new Error("widget exploded");
-    denied.stack =
-      "Error: widget exploded\n    at render (https://cdn.widget.example/w.js:10:25)";
+    denied.stack = "Error: widget exploded\n    at render (https://cdn.widget.example/w.js:10:25)";
     captureError(denied);
     // A line with no :line:column part is not a frame. Thus the filter refuses
     // nothing.
@@ -476,15 +454,11 @@ describe("frame-url parsing, remaining shapes", () => {
     // Additional text after the column number means that the line is not a
     // frame.
     const trailing = new Error("trailing");
-    trailing.stack =
-      "Error: trailing\n    at https://cdn.widget.example/w.js:1:2 [native]";
+    trailing.stack = "Error: trailing\n    at https://cdn.widget.example/w.js:1:2 [native]";
     captureError(trailing);
     const kept = (await records())
       .filter((r) => r.eventName === "exception")
       .map((r) => attrs(r)["exception.message"]);
-    expect(kept).toEqual([
-      "failed at https://cdn.widget.example/w.js:1:2",
-      "trailing",
-    ]);
+    expect(kept).toEqual(["failed at https://cdn.widget.example/w.js:1:2", "trailing"]);
   });
 });

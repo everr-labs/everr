@@ -3,10 +3,7 @@ import type {
   AlertingRuleInput,
   AlertingSeverity,
 } from "#app/data/alerting/types.ts";
-import {
-  formatResourceName,
-  parseResourceName,
-} from "#app/data/as-code/identity.ts";
+import { formatResourceName, parseResourceName } from "#app/data/as-code/identity.ts";
 import { formatRunbookRef, parseRunbookRef } from "../../resource/runbook-ref";
 import {
   ANN_ALERTING_DESCRIPTION,
@@ -51,11 +48,9 @@ export function toRuleInput(
     [ANN_ALERTING_SUMMARY]: rule.spec.notificationMessage.title,
   };
   if (rule.spec.notificationMessage.description) {
-    annotations[ANN_ALERTING_DESCRIPTION] =
-      rule.spec.notificationMessage.description;
+    annotations[ANN_ALERTING_DESCRIPTION] = rule.spec.notificationMessage.description;
   }
-  if (rule.spec.display?.name)
-    annotations[ANN_DISPLAY_NAME] = rule.spec.display.name;
+  if (rule.spec.display?.name) annotations[ANN_DISPLAY_NAME] = rule.spec.display.name;
   if (rule.spec.display?.description) {
     annotations[ANN_DISPLAY_DESCRIPTION] = rule.spec.display.description;
   }
@@ -89,9 +84,7 @@ export function toRuleInput(
     // Sorted, not authored order. Identity is fingerprinted over sorted label
     // keys, so reordering the same columns must not churn the stored spec, and
     // a reorder-only update must not close every open instance.
-    label_columns: [
-      ...(rule.spec.instanceLabels ?? opts.instanceLabels ?? []),
-    ].sort(),
+    label_columns: [...(rule.spec.instanceLabels ?? opts.instanceLabels ?? [])].sort(),
     condition: rule.spec.condition,
     severity: rule.spec.severity,
     annotations,
@@ -109,9 +102,7 @@ export function toRuleInput(
     // visible in history, but the dispatcher never notifies on it. This
     // column is the whole record of that; nothing copies it into the spec.
     previewId: opts.previewId ?? null,
-    ...(rule.spec.notifications
-      ? { notifications: rule.spec.notifications }
-      : {}),
+    ...(rule.spec.notifications ? { notifications: rule.spec.notifications } : {}),
     ...spec,
   };
 }
@@ -147,9 +138,7 @@ export function fromAlertingRule(
   // bare ref can only be a legacy row, and the bug that wrote one dropped the
   // "default" project, so that is the fallback. Never the alert's own project,
   // which may differ.
-  const runbook = ann[ANN_RUNBOOK]
-    ? parseRunbookRef(ann[ANN_RUNBOOK], "default")
-    : null;
+  const runbook = ann[ANN_RUNBOOK] ? parseRunbookRef(ann[ANN_RUNBOOK], "default") : null;
   return {
     project,
     slug,
@@ -171,9 +160,7 @@ export function fromAlertingRule(
 }
 
 /** Reconstructs the canonical as-code document from a stored rule. */
-export function toAlertRuleDocument(
-  rule: Pick<AlertingRule, "name" | "spec">,
-): AlertRuleYaml {
+export function toAlertRuleDocument(rule: Pick<AlertingRule, "name" | "spec">): AlertRuleYaml {
   const { project, slug } = parseResourceName(rule.name);
   const ann = rule.spec.annotations ?? {};
 
@@ -183,9 +170,7 @@ export function toAlertRuleDocument(
     ann[ANN_DISPLAY_NAME] || ann[ANN_DISPLAY_DESCRIPTION]
       ? {
           ...(ann[ANN_DISPLAY_NAME] ? { name: ann[ANN_DISPLAY_NAME] } : {}),
-          ...(ann[ANN_DISPLAY_DESCRIPTION]
-            ? { description: ann[ANN_DISPLAY_DESCRIPTION] }
-            : {}),
+          ...(ann[ANN_DISPLAY_DESCRIPTION] ? { description: ann[ANN_DISPLAY_DESCRIPTION] } : {}),
         }
       : undefined;
 
@@ -208,14 +193,10 @@ export function toAlertRuleDocument(
       for: formatDurationSeconds(rule.spec.for_secs),
       resolveAfter: rule.spec.resolve_after,
       severity: rule.spec.severity,
-      ...(rule.spec.notifications
-        ? { notifications: rule.spec.notifications }
-        : {}),
+      ...(rule.spec.notifications ? { notifications: rule.spec.notifications } : {}),
       notificationMessage: {
         title: ann[ANN_ALERTING_SUMMARY] ?? "",
-        ...(ann[ANN_ALERTING_DESCRIPTION]
-          ? { description: ann[ANN_ALERTING_DESCRIPTION] }
-          : {}),
+        ...(ann[ANN_ALERTING_DESCRIPTION] ? { description: ann[ANN_ALERTING_DESCRIPTION] } : {}),
       },
       query: rule.spec.sql,
       // Always emitted, empty list included: the stored columns are the
@@ -223,21 +204,15 @@ export function toAlertRuleDocument(
       // re-infer a different one on the next apply.
       instanceLabels: rule.spec.label_columns ?? [],
       condition: rule.spec.condition,
-      ...(rule.spec.max_interval_secs !== undefined &&
-      rule.spec.max_interval_secs !== null
+      ...(rule.spec.max_interval_secs !== undefined && rule.spec.max_interval_secs !== null
         ? { maxInterval: formatDurationSeconds(rule.spec.max_interval_secs) }
         : {}),
-      ...(Object.keys(passthrough).length > 0
-        ? { annotations: passthrough }
-        : {}),
+      ...(Object.keys(passthrough).length > 0 ? { annotations: passthrough } : {}),
     },
   };
 }
 
 /** True when a rule is owned by the given repo. */
-export function isOwnedRule(
-  rule: Pick<AlertingRule, "repoid">,
-  repoid?: string,
-): boolean {
+export function isOwnedRule(rule: Pick<AlertingRule, "repoid">, repoid?: string): boolean {
   return repoid === undefined || rule.repoid === repoid;
 }

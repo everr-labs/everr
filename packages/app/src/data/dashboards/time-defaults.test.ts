@@ -1,25 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { dashboardFromResource } from "./normalize";
 import type { DashboardResource } from "./schema";
 import { dashboardTimeDefaults } from "./time-defaults";
 
 describe("dashboardTimeDefaults", () => {
   it("uses an explicit time range", () => {
-    expect(
-      dashboardTimeDefaults({ timeRange: { from: "now/M", to: "now" } }),
-    ).toEqual({ from: "now/M", to: "now" });
+    expect(dashboardTimeDefaults({ timeRange: { from: "now/M", to: "now" } })).toEqual({
+      from: "now/M",
+      to: "now",
+    });
   });
 
   it("ignores an invalid time range", () => {
-    expect(
-      dashboardTimeDefaults({ timeRange: { from: "banana", to: "now" } }),
-    ).toBeUndefined();
+    expect(dashboardTimeDefaults({ timeRange: { from: "banana", to: "now" } })).toBeUndefined();
   });
 
   it("ignores a reversed time range", () => {
-    expect(
-      dashboardTimeDefaults({ timeRange: { from: "now", to: "now-6h" } }),
-    ).toBeUndefined();
+    expect(dashboardTimeDefaults({ timeRange: { from: "now", to: "now-6h" } })).toBeUndefined();
   });
 
   it("derives refresh from a supported refreshInterval", () => {

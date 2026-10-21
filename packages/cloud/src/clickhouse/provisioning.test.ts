@@ -1,19 +1,14 @@
 import { createHmac } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  deprovisionSqlApiOrgUser,
-  provisionSqlApiOrgUser,
-} from "./provisioning";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { deprovisionSqlApiOrgUser, provisionSqlApiOrgUser } from "./provisioning";
 
-const { mockQuery, mockInsert, mockCommand, mockJson, MASTER_KEY } = vi.hoisted(
-  () => ({
-    mockQuery: vi.fn(),
-    mockInsert: vi.fn(),
-    mockCommand: vi.fn(),
-    mockJson: vi.fn(),
-    MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
-  }),
-);
+const { mockQuery, mockInsert, mockCommand, mockJson, MASTER_KEY } = vi.hoisted(() => ({
+  mockQuery: vi.fn(),
+  mockInsert: vi.fn(),
+  mockCommand: vi.fn(),
+  mockJson: vi.fn(),
+  MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
+}));
 
 vi.mock("@clickhouse/client", () => ({
   createClient: vi.fn(() => ({
@@ -46,9 +41,7 @@ import { insertRows } from "@everr/app/lib/clickhouse-writer";
 
 const ORG = "org42";
 const ORG_USER = `sql_api_org_${ORG}`;
-const ORG_PASSWORD = `${createHmac("sha256", MASTER_KEY)
-  .update(ORG)
-  .digest("hex")}A!`;
+const ORG_PASSWORD = `${createHmac("sha256", MASTER_KEY).update(ORG).digest("hex")}A!`;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -149,9 +142,7 @@ describe("provisionSqlApiOrgUser", () => {
 
   it("does not succeed if the provisioned credentials still cannot authenticate", async () => {
     mockQuery.mockRejectedValueOnce(new Error("Authentication failed"));
-    await expect(provisionSqlApiOrgUser(ORG)).rejects.toThrow(
-      "Authentication failed",
-    );
+    await expect(provisionSqlApiOrgUser(ORG)).rejects.toThrow("Authentication failed");
   });
 });
 
@@ -178,13 +169,11 @@ describe("deprovisionSqlApiOrgUser", () => {
 it("forwards shutdown cancellation to all provisioning DDL and the authentication probe", async () => {
   const signal = new AbortController().signal;
   await provisionSqlApiOrgUser(ORG, signal);
-  for (const [args] of mockCommand.mock.calls)
-    expect(args.abort_signal).toBe(signal);
+  for (const [args] of mockCommand.mock.calls) expect(args.abort_signal).toBe(signal);
   expect(mockQuery.mock.calls[0][0].abort_signal).toBe(signal);
   mockCommand.mockClear();
   await deprovisionSqlApiOrgUser(ORG, signal);
-  for (const [args] of mockCommand.mock.calls)
-    expect(args.abort_signal).toBe(signal);
+  for (const [args] of mockCommand.mock.calls) expect(args.abort_signal).toBe(signal);
 });
 
 describe("insertRows", () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   extractInstanceLabels,
   instanceFingerprint,
@@ -9,17 +9,17 @@ import {
 describe("extractInstanceLabels", () => {
   it("uses only the stored columns, ignoring the other string cells", () => {
     expect(
-      extractInstanceLabels(
-        { route: "/x", zone: "eu", error_count: 7, ok: true, n: null },
-        ["route"],
-      ),
+      extractInstanceLabels({ route: "/x", zone: "eu", error_count: 7, ok: true, n: null }, [
+        "route",
+      ]),
     ).toEqual({ route: "/x" });
   });
 
   it("uses explicit columns and stringifies values", () => {
-    expect(
-      extractInstanceLabels({ route: "/x", code: 500 }, ["route", "code"]),
-    ).toEqual({ route: "/x", code: "500" });
+    expect(extractInstanceLabels({ route: "/x", code: 500 }, ["route", "code"])).toEqual({
+      route: "/x",
+      code: "500",
+    });
   });
 
   it("maps absent explicit columns to empty string", () => {
@@ -35,9 +35,7 @@ describe("extractInstanceLabels", () => {
       zone: NULL_LABEL_VALUE,
     });
     expect(NULL_LABEL_VALUE).not.toBe("");
-    expect(
-      instanceFingerprint(extractInstanceLabels({ zone: null }, ["zone"])),
-    ).not.toBe(
+    expect(instanceFingerprint(extractInstanceLabels({ zone: null }, ["zone"]))).not.toBe(
       instanceFingerprint(extractInstanceLabels({ zone: "" }, ["zone"])),
     );
   });
@@ -46,20 +44,9 @@ describe("extractInstanceLabels", () => {
   // from the row values made a fresh instance on every evaluation: a rule with
   // `for` never fired, and one without it fired and resolved on every tick.
   it("treats no stored columns as one instance, whatever the row holds", () => {
-    expect(
-      extractInstanceLabels(
-        { value: 3, last_event: "2026-08-11 08:45:00" },
-        [],
-      ),
-    ).toEqual({});
-    expect(
-      instanceFingerprint(
-        extractInstanceLabels({ value: 3, last_event: "08:45" }, []),
-      ),
-    ).toBe(
-      instanceFingerprint(
-        extractInstanceLabels({ value: 4, last_event: "08:46" }, []),
-      ),
+    expect(extractInstanceLabels({ value: 3, last_event: "2026-08-11 08:45:00" }, [])).toEqual({});
+    expect(instanceFingerprint(extractInstanceLabels({ value: 3, last_event: "08:45" }, []))).toBe(
+      instanceFingerprint(extractInstanceLabels({ value: 4, last_event: "08:46" }, [])),
     );
   });
 });
@@ -73,9 +60,7 @@ describe("instanceFingerprint", () => {
   });
 
   it("differs for different labels", () => {
-    expect(instanceFingerprint({ a: "1" })).not.toBe(
-      instanceFingerprint({ a: "2" }),
-    );
+    expect(instanceFingerprint({ a: "1" })).not.toBe(instanceFingerprint({ a: "2" }));
     expect(instanceFingerprint({})).toMatch(/^[0-9a-f]{16}$/);
   });
 });

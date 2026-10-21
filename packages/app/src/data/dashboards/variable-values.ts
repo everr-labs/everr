@@ -4,11 +4,7 @@
  * arrays, single-select to strings; the All sentinel only when allowAllValue.
  * Invalid shapes fall back to the default. Pure module.
  */
-import {
-  ALL_VALUE,
-  type VariableMeta,
-  type VariableValues,
-} from "./interpolate";
+import { ALL_VALUE, type VariableMeta, type VariableValues } from "./interpolate";
 import type { ListVariable, Variable } from "./schema";
 
 export type VariableUrlValues = Record<string, string | string[]>;
@@ -19,9 +15,7 @@ export type ListVariableSource =
   | { kind: "unknown" };
 
 /** Typed reader over the loose `plugin: { kind, spec }` of a ListVariable. */
-export function getListVariableSource(
-  variable: ListVariable,
-): ListVariableSource {
+export function getListVariableSource(variable: ListVariable): ListVariableSource {
   const { kind, spec } = variable.spec.plugin;
   if (kind === "StaticListVariable" && Array.isArray(spec.values)) {
     return {
@@ -60,10 +54,7 @@ function effectiveValue(
 ): string | string[] | undefined {
   if (variable.kind === "TextVariable") {
     const candidate = typeof urlValue === "string" ? urlValue : undefined;
-    const resolved =
-      candidate !== undefined && candidate !== ""
-        ? candidate
-        : variable.spec.value;
+    const resolved = candidate !== undefined && candidate !== "" ? candidate : variable.spec.value;
     return resolved === "" ? undefined : resolved;
   }
   const multi = variable.spec.allowMultiple === true;
@@ -133,8 +124,7 @@ export function buildAllMeta(
     }
     if (state?.truncated) {
       // Expanding to the capped option set would silently drop values.
-      allErrors[name] =
-        `Variable "$${name}" has too many values to expand "All"`;
+      allErrors[name] = `Variable "$${name}" has too many values to expand "All"`;
       continue;
     }
     if (state?.options) {
@@ -152,10 +142,7 @@ export type ListVariableSort = ListVariable["spec"]["sort"];
  * Sort a list of variable option strings according to the given sort spec.
  * Never mutates the input array.
  */
-export function sortVariableOptions(
-  options: string[],
-  sort: ListVariableSort,
-): string[] {
+export function sortVariableOptions(options: string[], sort: ListVariableSort): string[] {
   if (sort === undefined || sort === "none") return options;
 
   const copy = [...options];
@@ -166,13 +153,9 @@ export function sortVariableOptions(
     case "alphabetical-desc":
       return copy.sort((a, b) => b.localeCompare(a));
     case "alphabetical-ci-asc":
-      return copy.sort((a, b) =>
-        a.localeCompare(b, undefined, { sensitivity: "base" }),
-      );
+      return copy.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
     case "alphabetical-ci-desc":
-      return copy.sort((a, b) =>
-        b.localeCompare(a, undefined, { sensitivity: "base" }),
-      );
+      return copy.sort((a, b) => b.localeCompare(a, undefined, { sensitivity: "base" }));
     case "numerical-asc": {
       const toNum = (v: string) => {
         const n = Number(v);
@@ -191,13 +174,10 @@ export function sortVariableOptions(
 }
 
 /** Subset a record to the given keys (used to scope values/meta per panel). */
-export function pickByNames<T>(
-  record: Record<string, T>,
-  names: string[],
-): Record<string, T> {
+export function pickByNames<T>(record: Record<string, T>, names: string[]): Record<string, T> {
   const result: Record<string, T> = {};
   for (const name of names) {
-    if (name in record) result[name] = record[name]!;
+    if (name in record) result[name] = record[name];
   }
   return result;
 }

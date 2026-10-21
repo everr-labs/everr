@@ -25,15 +25,12 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: () => (
     <AlertDialog defaultOpen>
-      <AlertDialogTrigger render={<Button variant="outline" />}>
-        Delete rule
-      </AlertDialogTrigger>
+      <AlertDialogTrigger render={<Button variant="outline" />}>Delete rule</AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete this alert rule?</AlertDialogTitle>
           <AlertDialogDescription>
-            The rule stops evaluating immediately. The history of its instances
-            stays available.
+            The rule stops evaluating immediately. The history of its instances stays available.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -48,9 +45,7 @@ export const Default: Story = {
 export const WithMedia: Story = {
   render: () => (
     <AlertDialog defaultOpen>
-      <AlertDialogTrigger render={<Button variant="outline" />}>
-        Revoke token
-      </AlertDialogTrigger>
+      <AlertDialogTrigger render={<Button variant="outline" />}>Revoke token</AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia>
@@ -58,8 +53,7 @@ export const WithMedia: Story = {
           </AlertDialogMedia>
           <AlertDialogTitle>Revoke this API token?</AlertDialogTitle>
           <AlertDialogDescription>
-            Every client that uses this token stops sending data until you give
-            it a new token.
+            Every client that uses this token stops sending data until you give it a new token.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -74,15 +68,11 @@ export const WithMedia: Story = {
 export const Small: Story = {
   render: () => (
     <AlertDialog defaultOpen>
-      <AlertDialogTrigger render={<Button variant="outline" />}>
-        Discard draft
-      </AlertDialogTrigger>
+      <AlertDialogTrigger render={<Button variant="outline" />}>Discard draft</AlertDialogTrigger>
       <AlertDialogContent size="sm">
         <AlertDialogHeader>
           <AlertDialogTitle>Discard the draft?</AlertDialogTitle>
-          <AlertDialogDescription>
-            The changes are not saved.
-          </AlertDialogDescription>
+          <AlertDialogDescription>The changes are not saved.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel size="sm">Keep</AlertDialogCancel>

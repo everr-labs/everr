@@ -6,12 +6,12 @@ For every span, decide its name, kind, status behavior, attributes, and whether 
 
 Span names must be low-cardinality. Use operation templates, not concrete identifiers.
 
-| Bad | Better |
-| --- | --- |
-| `GET /api/users/123` | `GET /api/users/:id` |
-| `SELECT * FROM orders WHERE id=99` | `SELECT orders` |
-| `process_payment_for_user_alice` | `process payment` |
-| `send_invoice_98765` | `send invoice` |
+| Bad                                | Better               |
+| ---------------------------------- | -------------------- |
+| `GET /api/users/123`               | `GET /api/users/:id` |
+| `SELECT * FROM orders WHERE id=99` | `SELECT orders`      |
+| `process_payment_for_user_alice`   | `process payment`    |
+| `send_invoice_98765`               | `send invoice`       |
 
 Common formats:
 
@@ -31,8 +31,8 @@ Use framework route templates when available. If not, replace dynamic path segme
 ```javascript
 function parameterizePath(path) {
   return path
-    .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '/{uuid}')
-    .replace(/\/\d+/g, '/{id}');
+    .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/{uuid}")
+    .replace(/\/\d+/g, "/{id}");
 }
 ```
 
@@ -66,14 +66,14 @@ Add business attributes to auto-instrumented spans by retrieving the active span
 
 The RPC conventions moved. Emit the current spelling, not the retired one.
 
-| Retired | Current | Note |
-| --- | --- | --- |
-| `rpc.system` | `rpc.system.name` | Well-known values: `grpc`, `dubbo`, `connectrpc`, `jsonrpc`. Other systems may use their own value. |
-| `rpc.service` | (none) | Absorbed into `rpc.method`. |
-| `rpc.method` | `rpc.method` | Now the fully-qualified `{service}/{method}`, such as `com.example.ExampleService/exampleMethod`. |
-| `rpc.grpc.status_code` | `rpc.response.status_code` | Also changed type: the integer `0` is now the string `OK`. |
-| `rpc.grpc.request.metadata.<key>` | `rpc.request.metadata.<key>` | Same for the response side. |
-| `rpc.message.*` | (none) | Deprecated with no replacement. |
+| Retired                           | Current                      | Note                                                                                                |
+| --------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `rpc.system`                      | `rpc.system.name`            | Well-known values: `grpc`, `dubbo`, `connectrpc`, `jsonrpc`. Other systems may use their own value. |
+| `rpc.service`                     | (none)                       | Absorbed into `rpc.method`.                                                                         |
+| `rpc.method`                      | `rpc.method`                 | Now the fully-qualified `{service}/{method}`, such as `com.example.ExampleService/exampleMethod`.   |
+| `rpc.grpc.status_code`            | `rpc.response.status_code`   | Also changed type: the integer `0` is now the string `OK`.                                          |
+| `rpc.grpc.request.metadata.<key>` | `rpc.request.metadata.<key>` | Same for the response side.                                                                         |
+| `rpc.message.*`                   | (none)                       | Deprecated with no replacement.                                                                     |
 
 Set `error.type` on a failed call. Auto-instrumentation still emits the retired spelling by default; `OTEL_SEMCONV_STABILITY_OPT_IN=rpc` switches it to the current one, and `rpc/dup` emits both during a migration. Do not read both spellings in a query: the two are not interchangeable, because the old method key needs `rpc.service` concatenated onto it and the two status codes do not even share a type.
 
@@ -82,7 +82,7 @@ Set `error.type` on a failed call. Auto-instrumentation still emits the retired 
 Cron jobs, background workers, CLI commands, startup tasks, and batch jobs often have no inbound request span. Wrap the unit of work in a manual root span so outbound database or HTTP spans do not become root `CLIENT` spans.
 
 ```javascript
-await tracer.startActiveSpan('process daily orders', async (span) => {
+await tracer.startActiveSpan("process daily orders", async (span) => {
   try {
     await processDailyOrders();
   } finally {

@@ -48,11 +48,7 @@ export function DashboardGrid({
         <div className="min-w-0 flex-1">
           <VariableBar layout="inline" />
         </div>
-        {actions && (
-          <div className="ml-auto flex h-8 shrink-0 items-center gap-2">
-            {actions}
-          </div>
-        )}
+        {actions && <div className="ml-auto flex h-8 shrink-0 items-center gap-2">{actions}</div>}
       </div>
       {notice && <div className="mb-3">{notice}</div>}
       <div ref={containerRef}>

@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildTree, type DashboardSummary } from "./tree";
 
-const d = (
-  slug: string,
-  project: string,
-  name: string,
-  folderPath: string,
-): DashboardSummary => ({ slug, project, name, folderPath });
+const d = (slug: string, project: string, name: string, folderPath: string): DashboardSummary => ({
+  slug,
+  project,
+  name,
+  folderPath,
+});
 
 describe("buildTree (folder paths)", () => {
   it("nests dashboards by their folderPath segments", () => {
@@ -21,14 +21,8 @@ describe("buildTree (folder paths)", () => {
   });
 
   it("merges dashboards from different projects into the same folder", () => {
-    const tree = buildTree([
-      d("a", "x", "A", "Shared"),
-      d("b", "y", "B", "Shared"),
-    ]);
+    const tree = buildTree([d("a", "x", "A", "Shared"), d("b", "y", "B", "Shared")]);
     expect(tree.folders).toHaveLength(1);
-    expect(tree.folders[0]?.dashboards.map((x) => x.slug).sort()).toEqual([
-      "a",
-      "b",
-    ]);
+    expect(tree.folders[0]?.dashboards.map((x) => x.slug).sort()).toEqual(["a", "b"]);
   });
 });

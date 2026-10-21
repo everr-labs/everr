@@ -38,14 +38,8 @@ const SCOPE_INPUT = z.enum(ALL_API_KEY_SCOPES);
 const CreateApiKeyInput = z
   .object({
     name: z.string().trim().min(1, "Name is required"),
-    expiresInDays: z
-      .number()
-      .int()
-      .positive("Expiry must be a positive number of days")
-      .optional(),
-    scopes: z
-      .array(SCOPE_INPUT)
-      .min(1, "Pick at least one capability for the key"),
+    expiresInDays: z.number().int().positive("Expiry must be a positive number of days").optional(),
+    scopes: z.array(SCOPE_INPUT).min(1, "Pick at least one capability for the key"),
     public: z.boolean().optional(),
     allowedOrigins: z
       .array(z.string().trim().min(1))
@@ -91,13 +85,9 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
     const permissions = permissionsForScopes(data.scopes);
 
     const expiresIn =
-      data.expiresInDays !== undefined
-        ? data.expiresInDays * 24 * 60 * 60
-        : undefined;
+      data.expiresInDays !== undefined ? data.expiresInDays * 24 * 60 * 60 : undefined;
 
-    const metadata = data.public
-      ? buildPublicKeyMetadata(data.allowedOrigins ?? [])
-      : undefined;
+    const metadata = data.public ? buildPublicKeyMetadata(data.allowedOrigins ?? []) : undefined;
 
     // `permissions` is a server-only field: better-auth rejects it when the
     // create call carries a request/headers (it treats that as a client
@@ -116,11 +106,11 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
       },
     });
 
-    const created = result as {
+    const created: {
       key?: string | null;
       id?: string;
       permissions?: Record<string, string[]> | null;
-    } | null;
+    } | null = result;
 
     // The full key is only ever returned at creation; a missing/null one means
     // creation didn't actually succeed, so fail loudly rather than handing the
@@ -149,6 +139,7 @@ export const listApiKeys = createOrganizationAdminServerFn({
     },
     headers: getRequestHeaders(),
   });
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- better-auth's listApiKeys row type isn't structurally the app's ApiKey (this endpoint serializes timestamp columns to strings and parses `permissions` into an object); reconciled at runtime
   const keys = (result?.apiKeys ?? []) as ApiKey[];
   // Defense-in-depth: the query already scopes to our configId, but pin it.
   return keys.filter((k) => k.configId === API_KEY_CONFIG_ID);

@@ -1,11 +1,8 @@
 import type { AlertingRuleCondition } from "../types";
 
-export function alertingConditionValue(
-  row: Record<string, unknown>,
-): number | null {
+export function alertingConditionValue(row: Record<string, unknown>): number | null {
   const raw = row.value;
-  if (raw === null || raw === undefined || typeof raw === "boolean")
-    return null;
+  if (raw === null || raw === undefined || typeof raw === "boolean") return null;
   if (typeof raw === "string" && raw.trim() === "") return null;
   const value = Number(raw);
   return Number.isFinite(value) ? value : null;

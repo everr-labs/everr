@@ -30,11 +30,7 @@ export const requireOrgMiddleware = createMiddleware()
       throw new Error("No active organization");
     }
 
-    const membership = await findOrganizationForMember(
-      db,
-      session.user.id,
-      activeOrgId,
-    );
+    const membership = await findOrganizationForMember(db, session.user.id, activeOrgId);
     if (!membership) throw new Error("Not a member of the active organization");
     const { memberRole, ...organization } = membership;
 
@@ -99,6 +95,4 @@ export const createOrganizationAdminServerFn = createServerFn().middleware([
  * This is useful for routes or function that need to be authenticated but not necessarily have an
  * active organization yet, such as organization selection and creation.
  */
-export const createPartiallyAuthenticatedServerFn = createServerFn().middleware(
-  [authMiddleware],
-);
+export const createPartiallyAuthenticatedServerFn = createServerFn().middleware([authMiddleware]);

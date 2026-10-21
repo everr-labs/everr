@@ -68,10 +68,7 @@ async function installFakeClock(client: PGlite): Promise<void> {
     const now = Date.now();
     if (now === published) return;
     published = now;
-    await query(`SELECT set_config($1, $2, false)`, [
-      CLOCK_SETTING,
-      new Date(now).toISOString(),
-    ]);
+    await query(`SELECT set_config($1, $2, false)`, [CLOCK_SETTING, new Date(now).toISOString()]);
   };
 
   client.query = (async (...args: Parameters<typeof query>) => {
@@ -149,9 +146,7 @@ function withRowCount(client: PGlite): PGlite {
     countRows(await query(...args))) as typeof client.query;
 
   const transaction = client.transaction.bind(client);
-  client.transaction = (async (
-    callback: (tx: { query: PGlite["query"] }) => Promise<unknown>,
-  ) =>
+  client.transaction = (async (callback: (tx: { query: PGlite["query"] }) => Promise<unknown>) =>
     transaction(async (tx) => {
       const txQuery = tx.query.bind(tx);
       tx.query = (async (...args: Parameters<typeof txQuery>) =>
@@ -180,9 +175,7 @@ export async function createTestDatabase(
     WHERE schemaname = 'public' OR schemaname = ${GRAPHILE_WORKER_SCHEMA}
   `);
   if (targets.rows.length === 0) {
-    throw new Error(
-      "createTestDatabase: schema application produced no tables to truncate",
-    );
+    throw new Error("createTestDatabase: schema application produced no tables to truncate");
   }
   const truncateList = targets.rows.map((row) => row.target).join(", ");
 
@@ -190,9 +183,7 @@ export async function createTestDatabase(
     db,
     client,
     async truncate() {
-      await db.execute(
-        sql.raw(`TRUNCATE TABLE ${truncateList} RESTART IDENTITY CASCADE`),
-      );
+      await db.execute(sql.raw(`TRUNCATE TABLE ${truncateList} RESTART IDENTITY CASCADE`));
     },
     async close() {
       await client.close();

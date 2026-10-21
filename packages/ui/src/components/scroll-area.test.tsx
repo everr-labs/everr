@@ -1,16 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import { ScrollArea, ScrollAreaScroller } from "./scroll-area";
 
 // jsdom lays nothing out, so every element measures 0x0 and Base UI reads the
 // scroll area as having nothing to scroll. Scrollbars only mount for an axis
 // that overflows, so the size has to be faked for them to appear at all.
-const sizeKeys = [
-  "clientHeight",
-  "clientWidth",
-  "scrollHeight",
-  "scrollWidth",
-] as const;
+const sizeKeys = ["clientHeight", "clientWidth", "scrollHeight", "scrollWidth"] as const;
 
 function overflowBothAxes() {
   for (const key of sizeKeys) {
@@ -61,9 +56,7 @@ describe("ScrollArea", () => {
         <p>content</p>
       </ScrollArea>,
     );
-    const viewport = screen
-      .getByText("content")
-      .closest("[data-slot='scroll-area-viewport']");
+    const viewport = screen.getByText("content").closest("[data-slot='scroll-area-viewport']");
     expect(viewport).toHaveAttribute("data-scroll-to-top", "");
   });
 
@@ -75,9 +68,7 @@ describe("ScrollArea", () => {
       </ScrollArea>,
     );
     await waitFor(() => {
-      const bars = container.querySelectorAll(
-        "[data-slot='scroll-area-scrollbar']",
-      );
+      const bars = container.querySelectorAll("[data-slot='scroll-area-scrollbar']");
       expect(bars).toHaveLength(1);
       expect(bars[0]).toHaveAttribute("data-orientation", "vertical");
     });
@@ -98,9 +89,7 @@ describe("ScrollArea", () => {
       </>,
     );
     const [v, h, b] = Array.from(
-      container.querySelectorAll<HTMLElement>(
-        "[data-slot='scroll-area-viewport']",
-      ),
+      container.querySelectorAll<HTMLElement>("[data-slot='scroll-area-viewport']"),
     );
     expect(v?.style.overflowX).toBe("hidden");
     expect(v?.style.overflowY).toBe("");
@@ -127,9 +116,7 @@ describe("ScrollArea", () => {
       </ScrollArea>,
     );
     await waitFor(() =>
-      expect(
-        container.querySelectorAll("[data-slot='scroll-area-scrollbar']"),
-      ).toHaveLength(2),
+      expect(container.querySelectorAll("[data-slot='scroll-area-scrollbar']")).toHaveLength(2),
     );
   });
 
@@ -140,9 +127,7 @@ describe("ScrollArea", () => {
       </ScrollArea>,
     );
     await waitFor(() =>
-      expect(
-        container.querySelectorAll("[data-slot='scroll-area-scrollbar']"),
-      ).toHaveLength(0),
+      expect(container.querySelectorAll("[data-slot='scroll-area-scrollbar']")).toHaveLength(0),
     );
   });
 });
@@ -174,9 +159,7 @@ describe("ScrollAreaScroller", () => {
         <p>rows</p>
       </ScrollAreaScroller>,
     );
-    const viewport = container.querySelector<HTMLDivElement>(
-      "[data-slot='scroll-area-viewport']",
-    );
+    const viewport = container.querySelector<HTMLDivElement>("[data-slot='scroll-area-viewport']");
     expect(viewport?.style.overflowY).toBe("");
   });
 
@@ -186,11 +169,7 @@ describe("ScrollAreaScroller", () => {
         <p>rows</p>
       </ScrollAreaScroller>,
     );
-    expect(container.querySelector("[data-slot='scroll-area']")).toHaveClass(
-      "h-full",
-    );
-    expect(
-      container.querySelector("[data-slot='scroll-area-viewport']"),
-    ).not.toHaveClass("h-full");
+    expect(container.querySelector("[data-slot='scroll-area']")).toHaveClass("h-full");
+    expect(container.querySelector("[data-slot='scroll-area-viewport']")).not.toHaveClass("h-full");
   });
 });

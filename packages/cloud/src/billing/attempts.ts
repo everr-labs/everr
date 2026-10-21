@@ -16,10 +16,7 @@ export function metadataFor(intent: Intent): CreationMetadata {
 }
 export const creationLock = (ownerId: string, name: string) =>
   JSON.stringify(["pro-organization-checkout", ownerId, name]);
-export async function readIntent(
-  db: BillingDependencies["db"],
-  metadata: CreationMetadata,
-) {
+export async function readIntent(db: BillingDependencies["db"], metadata: CreationMetadata) {
   const [intent] = await db
     .select()
     .from(proOrganizationCheckout)
@@ -30,9 +27,6 @@ export async function readIntent(
     intent.organizationName !== metadata.everrOrganizationName ||
     intent.organizationSlug !== metadata.everrOrganizationSlug
   )
-    throw new BillingError(
-      "identity_conflict",
-      "Checkout does not match its creation request.",
-    );
+    throw new BillingError("identity_conflict", "Checkout does not match its creation request.");
   return intent;
 }

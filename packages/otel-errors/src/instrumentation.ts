@@ -1,16 +1,7 @@
 import { isMainThread } from "node:worker_threads";
-import {
-  diag,
-  type MeterProvider,
-  metrics,
-  type TracerProvider,
-  trace,
-} from "@opentelemetry/api";
+import { diag, type MeterProvider, metrics, type TracerProvider, trace } from "@opentelemetry/api";
 import { type LoggerProvider, logs } from "@opentelemetry/api-logs";
-import type {
-  Instrumentation,
-  InstrumentationConfig,
-} from "@opentelemetry/instrumentation";
+import type { Instrumentation, InstrumentationConfig } from "@opentelemetry/instrumentation";
 import { capture, setLogger } from "./capture.js";
 import { resolveFlushable } from "./providers.js";
 import { PKG_NAME, PKG_VERSION } from "./version.js";
@@ -95,9 +86,7 @@ const FATAL_EVENTS: Array<[FatalEventName, string]> = [
  * directly. It does not extend `InstrumentationBase`, because the full
  * function of that class is the patching of modules.
  */
-export class ErrorsInstrumentation
-  implements Instrumentation<ErrorsInstrumentationConfig>
-{
+export class ErrorsInstrumentation implements Instrumentation<ErrorsInstrumentationConfig> {
   readonly instrumentationName = PKG_NAME;
   readonly instrumentationVersion = PKG_VERSION;
 
@@ -184,6 +173,7 @@ export class ErrorsInstrumentation
         `${PKG_NAME}: a second ErrorsInstrumentation was installed; every crash is now captured twice`,
       );
     }
+    // oxlint-disable-next-line typescript/no-this-alias -- Global hooks need the active instrumentation instance after registration returns.
     installed = this;
 
     for (const [eventName, mechanism] of FATAL_EVENTS) {
@@ -199,8 +189,7 @@ export class ErrorsInstrumentation
         console.error(reason);
 
         const fatal =
-          eventName === "uncaughtException" ||
-          this._config.onUnhandledRejection === "strict";
+          eventName === "uncaughtException" || this._config.onUnhandledRejection === "strict";
 
         capture({
           error: reason,
@@ -221,9 +210,7 @@ export class ErrorsInstrumentation
         // process.listenerCount: Next.js keeps the "unhandledRejection"
         // listeners in a private queue behind one filter listener, and it
         // patches only process.listeners to show that queue.
-        const otherHandlers = process
-          .listeners(eventName)
-          .some((listener) => listener !== handler);
+        const otherHandlers = process.listeners(eventName).some((listener) => listener !== handler);
 
         void this.flush().finally(() => {
           if (this._config.onFatal === "continue") {
@@ -234,10 +221,7 @@ export class ErrorsInstrumentation
           // the crash. But if the app installed a listener also, the app
           // controls the exit. Refer to
           // exitEvenIfOtherHandlersAreRegistered.
-          if (
-            this._config.exitEvenIfOtherHandlersAreRegistered ||
-            !otherHandlers
-          ) {
+          if (this._config.exitEvenIfOtherHandlersAreRegistered || !otherHandlers) {
             process.exit(1);
           }
         });
@@ -275,31 +259,25 @@ export class ErrorsInstrumentation
    */
   private async flush(): Promise<void> {
     const targets = [
-      resolveFlushable(this.loggerProvider) ??
-        resolveFlushable(logs.getLoggerProvider()),
-      resolveFlushable(this.tracerProvider) ??
-        resolveFlushable(trace.getTracerProvider()),
-      resolveFlushable(this.meterProvider) ??
-        resolveFlushable(metrics.getMeterProvider()),
+      resolveFlushable(this.loggerProvider) ?? resolveFlushable(logs.getLoggerProvider()),
+      resolveFlushable(this.tracerProvider) ?? resolveFlushable(trace.getTracerProvider()),
+      resolveFlushable(this.meterProvider) ?? resolveFlushable(metrics.getMeterProvider()),
     ];
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       await Promise.race([
         Promise.all(
-          targets.map((target) =>
-            target
-              ?.forceFlush()
-              .catch((err) =>
-                diag.error(`${PKG_NAME}: flush on fatal failed`, err),
-              ),
-          ),
+          targets
+            .filter((target) => target !== null)
+            .map((target) =>
+              target
+                .forceFlush()
+                .catch((err) => diag.error(`${PKG_NAME}: flush on fatal failed`, err)),
+            ),
         ),
         new Promise<void>((resolve) => {
-          timer = setTimeout(
-            resolve,
-            this._config.shutdownTimeout ?? DEFAULT_SHUTDOWN_TIMEOUT_MS,
-          );
+          timer = setTimeout(resolve, this._config.shutdownTimeout ?? DEFAULT_SHUTDOWN_TIMEOUT_MS);
           timer.unref?.();
         }),
       ]);

@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import type { WebSDK } from "./client.js";
 import { captureError } from "./index.js";
 import { attrs, type OtlpBatch, startClient } from "./test-kit.js";
@@ -54,9 +54,10 @@ describe("error normalization", () => {
     await client.flush();
     const probes = batches
       .flatMap((b) => b.records)
-      .filter((r) =>
-        String(attrs(r)["exception.message"] ?? "").startsWith("stack-probe-"),
-      );
+      .filter((r) => {
+        const message = attrs(r)["exception.message"];
+        return typeof message === "string" && message.startsWith("stack-probe-");
+      });
     expect(probes.length).toBeGreaterThan(0);
     for (const record of probes) {
       expect(attrs(record)["exception.type"]).toBe("Error");
@@ -75,8 +76,8 @@ describe("error normalization", () => {
     await client.flush();
     const byMessage = new Map<string, number>();
     for (const record of batches.flatMap((b) => b.records)) {
-      const message = String(attrs(record)["exception.message"] ?? "");
-      if (!message.startsWith("burst-")) continue;
+      const message = attrs(record)["exception.message"];
+      if (typeof message !== "string" || !message.startsWith("burst-")) continue;
       byMessage.set(message, (byMessage.get(message) ?? 0) + 1);
     }
     expect(byMessage.size).toBeGreaterThan(0);

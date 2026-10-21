@@ -1,8 +1,4 @@
-import {
-  queryOptions,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { HomeStatus } from "#app/common/onboarding.ts";
 import { completeOnboarding, getHomeStatus } from "./server";
 
@@ -12,8 +8,7 @@ export function homeStatusQueryOptions(userId: string, organizationId: string) {
     queryFn: () => getHomeStatus({ data: { organizationId } }),
     staleTime: 15_000,
     // Another member may complete this organization's onboarding.
-    refetchInterval: (query) =>
-      query.state.data?.onboardingCompleted ? false : 15_000,
+    refetchInterval: (query) => (query.state.data?.onboardingCompleted ? false : 15_000),
     refetchIntervalInBackground: false,
   });
 }

@@ -8,10 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { DashboardLayout } from "#app/components/dashboard-layout.tsx";
-import {
-  ResolvedTimeRangeSearchSchema,
-  TimeRangeSearchSchema,
-} from "#app/lib/time-range.ts";
+import { ResolvedTimeRangeSearchSchema, TimeRangeSearchSchema } from "#app/lib/time-range.ts";
 
 const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   // Explore section filters live at this level (not deeper on `_explore`) so the
@@ -36,9 +33,7 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
     .catch(undefined),
 });
 
-export const Route = createFileRoute(
-  "/_authenticated/_organization/_dashboard",
-)({
+export const Route = createFileRoute("/_authenticated/_organization/_dashboard")({
   validateSearch: DashboardSearchSchema,
   search: {
     // `service`/`environment` are retained HERE (not on `_explore`) on purpose:
@@ -58,14 +53,7 @@ export const Route = createFileRoute(
     // See ExploreSearchShape for why the schemas must stay optional.
     middlewares: [
       stripSearchParams({ service: [], environment: [] }),
-      retainSearchParams([
-        "from",
-        "to",
-        "refresh",
-        "service",
-        "environment",
-        "preview",
-      ]),
+      retainSearchParams(["from", "to", "refresh", "service", "environment", "preview"]),
     ],
   },
   beforeLoad({ search }) {

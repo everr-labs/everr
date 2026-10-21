@@ -43,7 +43,5 @@ export function runInTransaction<T>(
   executor: DbExecutor,
   fn: (tx: Transaction) => Promise<T>,
 ): Promise<T> {
-  return executor instanceof PgTransaction
-    ? fn(executor)
-    : executor.transaction(fn);
+  return executor instanceof PgTransaction ? fn(executor) : executor.transaction(fn);
 }

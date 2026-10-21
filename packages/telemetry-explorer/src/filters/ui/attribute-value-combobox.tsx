@@ -2,10 +2,7 @@ import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { attributeValuesOptions } from "../../attribute-filter/options";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
-import type {
-  AttributeFilter,
-  AttributeSource,
-} from "../../attribute-filter/schemas";
+import type { AttributeFilter, AttributeSource } from "../../attribute-filter/schemas";
 
 export function AttributeValueCombobox({
   repo,
@@ -31,9 +28,7 @@ export function AttributeValueCombobox({
   onChange: (next: AttributeFilter[]) => void;
 }) {
   const matches = (filter: AttributeFilter) =>
-    filter.source === source &&
-    filter.key === attributeKey &&
-    filter.op === "in";
+    filter.source === source && filter.key === attributeKey && filter.op === "in";
 
   const current = attributes.find(matches);
   const values = current?.values ?? [];
@@ -48,11 +43,7 @@ export function AttributeValueCombobox({
   };
 
   const options = {
-    ...attributeValuesOptions(
-      repo,
-      { timeRange, source, key: attributeKey },
-      { domain },
-    ),
+    ...attributeValuesOptions(repo, { timeRange, source, key: attributeKey }, { domain }),
     select: (data: string[]) => data,
   };
 

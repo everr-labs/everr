@@ -24,8 +24,7 @@ export function createInstallationIdentity(
       organizationHooks: () => ({
         async beforeCreateOrganization() {
           throw new APIError("FORBIDDEN", {
-            message:
-              "This installation supports one workspace. Use initial setup to create it.",
+            message: "This installation supports one workspace. Use initial setup to create it.",
           });
         },
       }),

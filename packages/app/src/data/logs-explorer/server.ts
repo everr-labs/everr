@@ -23,43 +23,31 @@ function repoFromContext(clickhouse: {
 
 export const getLogsExplorer = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(LogsExplorerInputSchema)
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).explorer(data),
-  );
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).explorer(data));
 
 export const getLogsTotals = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(LogsTotalsInputSchema)
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).totals(data),
-  );
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).totals(data));
 
 export const getLogDetail = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(LogIdentitySchema)
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).detail(data),
-  );
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).detail(data));
 
 export const getLogsHistogram = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(LogHistogramInputSchema)
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).histogram(data),
-  );
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).histogram(data));
 
 export const getLogFilterOptions = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(z.object({ timeRange: TimeRangeSchema }))
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).filterOptions(data),
-  );
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).filterOptions(data));
 
 export const getLogAttributeKeys = createAuthenticatedServerFn({
   method: "GET",
 })
   .inputValidator(LogAttributeKeysInputSchema)
-  .handler(({ data, context: { clickhouse } }) =>
-    repoFromContext(clickhouse).attributeKeys(data),
-  );
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).attributeKeys(data));
 
 export const getLogAttributeValues = createAuthenticatedServerFn({
   method: "GET",

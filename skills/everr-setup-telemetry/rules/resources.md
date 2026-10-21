@@ -20,7 +20,7 @@ Example:
 
 ```typescript
 resourceFromAttributes({
-  'service.name': 'checkout-api',
+  "service.name": "checkout-api",
 });
 ```
 

@@ -34,10 +34,7 @@ export function buildWhereClause(input: WhereInput): WhereResult {
     clauses.push("ServiceName IN {services:Array(String)}");
   }
 
-  const attr = buildAttributeClauses(
-    input.attributes ?? [],
-    logsAttributeColumn,
-  );
+  const attr = buildAttributeClauses(input.attributes ?? [], logsAttributeColumn);
   clauses.push(...attr.clauses);
   Object.assign(params, attr.params);
 

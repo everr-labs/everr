@@ -2,20 +2,12 @@ import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 import { truncateWithEllipsis } from "#app/lib/truncate.ts";
 import { CHANNEL_TEXT_MAX } from "../channel-text-limits";
 import { type ChannelNotification, composeText } from "./message";
-import {
-  ChannelSendError,
-  isPermanentStatus,
-  SEND_TIMEOUT_MS,
-} from "./outbound";
+import { ChannelSendError, isPermanentStatus, SEND_TIMEOUT_MS } from "./outbound";
 
 // Alert messages are deliberately plain text. With no parse_mode and no
 // inline buttons, Telegram has nothing to validate or reject, so a send fails
 // only for a real delivery problem.
-async function sendTelegramMessage(
-  botToken: string,
-  chatId: string,
-  text: string,
-): Promise<void> {
+async function sendTelegramMessage(botToken: string, chatId: string, text: string): Promise<void> {
   const token = botToken.trim();
   if (!token) {
     // No retry can supply a token the channel does not hold.
@@ -31,25 +23,19 @@ async function sendTelegramMessage(
 
   // The endpoint is ours, not the channel's, so this is the one provider that
   // needs no outbound-URL guard: no user input reaches the host.
-  const response = await fetch(
-    `https://api.telegram.org/bot${token}/sendMessage`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: bounded }),
-      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-    },
-  );
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: bounded }),
+    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+  });
 
   if (!response.ok) {
-    throw new ChannelSendError(
-      `telegram sendMessage failed: ${response.status}`,
-      {
-        permanent: isPermanentStatus(response.status),
-        status: response.status,
-        responseBody: await response.text().catch(() => ""),
-      },
-    );
+    throw new ChannelSendError(`telegram sendMessage failed: ${response.status}`, {
+      permanent: isPermanentStatus(response.status),
+      status: response.status,
+      responseBody: await response.text().catch(() => ""),
+    });
   }
 }
 
@@ -73,13 +59,11 @@ export async function sendTelegramNotification(
 ): Promise<void> {
   const text = composeText(notification, CHANNEL_TEXT_MAX.telegram);
   const results = await Promise.allSettled(
-    config.chat_ids.map((chatId) =>
-      sendTelegramMessage(config.bot_token, chatId, text),
-    ),
+    config.chat_ids.map((chatId) => sendTelegramMessage(config.bot_token, chatId, text)),
   );
   const failures = results
     .filter((result) => result.status === "rejected")
-    .map((result) => result.reason as unknown);
+    .map((result) => result.reason);
   if (failures.length === 0) return;
 
   const permanent = failures.every(
@@ -93,8 +77,7 @@ export async function sendTelegramNotification(
       permanent,
       // Telegram's own answer travels on, so the trail keeps the one detail
       // that names the cause ("chat not found", "bot was blocked").
-      responseBody:
-        first instanceof ChannelSendError ? first.responseBody : undefined,
+      responseBody: first instanceof ChannelSendError ? first.responseBody : undefined,
     },
   );
 }

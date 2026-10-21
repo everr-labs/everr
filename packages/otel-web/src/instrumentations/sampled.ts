@@ -18,10 +18,7 @@ import type { Instrumentation } from "./runtime.js";
  * still gets the same decision each time, but that decision is the same as the
  * decision for each other instrumentation without a name in the same session.
  */
-export function sampled(
-  instrumentation: Instrumentation,
-  rate: number,
-): Instrumentation {
+export function sampled(instrumentation: Instrumentation, rate: number): Instrumentation {
   const clamped = rate <= 0 ? 0 : rate >= 1 ? 1 : rate;
   const wrapped: Instrumentation = (ctx) => {
     if (clamped <= 0) return;

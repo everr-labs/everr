@@ -1,5 +1,5 @@
 import { QueryBuilder } from "drizzle-orm/pg-core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   jobs: [] as { task: string; payload: unknown }[],
@@ -87,9 +87,7 @@ function recordingTx(state: {
       from: () => ({
         innerJoin: () => ({
           where: () =>
-            Promise.resolve(
-              (state.orphanedEventIds ?? []).map((eventId) => ({ eventId })),
-            ),
+            Promise.resolve((state.orphanedEventIds ?? []).map((eventId) => ({ eventId }))),
         }),
       }),
     }),
@@ -125,12 +123,7 @@ describe("closeRuleLifecycle", () => {
       eventUpdates: [] as Record<string, unknown>[],
     };
 
-    const result = await closeRuleLifecycle(
-      recordingTx(state),
-      def,
-      "rule_paused",
-      at,
-    );
+    const result = await closeRuleLifecycle(recordingTx(state), def, "rule_paused", at);
 
     expect(state.insertedJournalRows).toHaveLength(1);
     expect(state.insertedJournalRows[0]).toHaveLength(2);
@@ -180,21 +173,11 @@ describe("closeRuleLifecycle", () => {
       orphanedEventIds: [orphanedId],
     });
 
-    const deleted = await closeRuleLifecycle(
-      recordingTx(state()),
-      def,
-      "rule_deleted",
-      at,
-    );
+    const deleted = await closeRuleLifecycle(recordingTx(state()), def, "rule_deleted", at);
     expect(deleted.suppressedEventIds).toEqual([orphanedId]);
 
     mocks.jobs = [];
-    const paused = await closeRuleLifecycle(
-      recordingTx(state()),
-      def,
-      "rule_paused",
-      at,
-    );
+    const paused = await closeRuleLifecycle(recordingTx(state()), def, "rule_paused", at);
     expect(paused.suppressedEventIds).toEqual([]);
   });
 
@@ -223,12 +206,7 @@ describe("closeRuleLifecycle", () => {
       eventUpdates: [] as Record<string, unknown>[],
     };
 
-    const result = await closeRuleLifecycle(
-      recordingTx(state),
-      def,
-      "rule_deleted",
-      at,
-    );
+    const result = await closeRuleLifecycle(recordingTx(state), def, "rule_deleted", at);
 
     expect(result).toEqual({ closedEventIds: [], suppressedEventIds: [] });
     expect(state.insertedJournalRows).toEqual([]);

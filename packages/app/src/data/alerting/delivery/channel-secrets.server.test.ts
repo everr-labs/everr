@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("#app/env/auth.ts", () => ({
   authEnv: { BETTER_AUTH_SECRET: "a-test-secret-long-enough-to-hash" },
@@ -34,9 +34,7 @@ describe("the channel secret envelope", () => {
       chat_ids: ["-100", "-200"],
     });
     expect(sealed).not.toContain("123:secret");
-    expect(sealed).not.toContain(
-      Buffer.from("123:secret").toString("base64url"),
-    );
+    expect(sealed).not.toContain(Buffer.from("123:secret").toString("base64url"));
   });
 
   it("refuses a public part that was edited under the ciphertext", () => {
@@ -45,9 +43,7 @@ describe("the channel secret envelope", () => {
       url: "https://hooks.slack.com/x",
     });
     const parts = sealed.split(":");
-    parts[3] = Buffer.from(
-      JSON.stringify({ type: "webhook", url: "***" }),
-    ).toString("base64url");
+    parts[3] = Buffer.from(JSON.stringify({ type: "webhook", url: "***" })).toString("base64url");
     const forged = parts.join(":");
     // The forged copy reads as a webhook to a screen, and that is what a
     // send would then refuse: the cipher's additional data no longer matches.
@@ -69,24 +65,17 @@ describe("the channel secret envelope", () => {
     expect(() => decryptChannelConfig(ORG, ID, sealed)).toThrow();
   });
 
-  it.each([
-    "",
-    "a:b:c",
-    "a:b:c:d:e",
-    ":b:c:d",
-    "a::c:d",
-    "a:b::d",
-    "a:b:c:",
-  ])("refuses a malformed envelope: %s", (sealed) => {
-    expect(() => decryptChannelConfig(ORG, ID, sealed)).toThrow(/unsupported/);
-    expect(() => readRedactedChannelConfig(sealed)).toThrow(/unsupported/);
-  });
+  it.each(["", "a:b:c", "a:b:c:d:e", ":b:c:d", "a::c:d", "a:b::d", "a:b:c:"])(
+    "refuses a malformed envelope: %s",
+    (sealed) => {
+      expect(() => decryptChannelConfig(ORG, ID, sealed)).toThrow(/unsupported/);
+      expect(() => readRedactedChannelConfig(sealed)).toThrow(/unsupported/);
+    },
+  );
 
   it("validates the public config", () => {
     const parts = encryptChannelConfig(ORG, ID, TELEGRAM).split(":");
-    parts[3] = Buffer.from(JSON.stringify({ type: "unknown" })).toString(
-      "base64url",
-    );
+    parts[3] = Buffer.from(JSON.stringify({ type: "unknown" })).toString("base64url");
     expect(() => readRedactedChannelConfig(parts.join(":"))).toThrow();
   });
 });

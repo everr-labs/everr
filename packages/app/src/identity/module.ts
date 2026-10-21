@@ -25,16 +25,9 @@ import {
 } from "#app/common/invitation.ts";
 import type { ApplicationIdentity } from "#app/composition/identity.ts";
 import type { Database } from "#app/db/database.ts";
-import {
-  member,
-  session as sessionTable,
-  user as userTable,
-} from "#app/db/schema/index.ts";
+import { member, session as sessionTable, user as userTable } from "#app/db/schema/index.ts";
 import { enforceIdentityPolicy } from "#app/identity/enforce-policy.ts";
-import {
-  membershipMutationPlugin,
-  membershipOrganizationHooks,
-} from "#app/identity/membership.ts";
+import { membershipMutationPlugin, membershipOrganizationHooks } from "#app/identity/membership.ts";
 import { selectSoleOrganization } from "#app/lib/auto-org.ts";
 import {
   cliDeviceOrganizationPlugin,
@@ -46,18 +39,12 @@ import type {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "#app/lib/email.server.tsx";
-import {
-  createIdentityAuthHooks,
-  type ResolvedSession,
-} from "#app/telemetry/auth-identity.ts";
+import { createIdentityAuthHooks, type ResolvedSession } from "#app/telemetry/auth-identity.ts";
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import { createAccountLifecycle } from "./account";
 import { invitationVisibilityPlugin } from "./invitations";
 
-async function getMarkedDeviceOrganizationId(
-  db: Database,
-  session: { userId: string },
-) {
+async function getMarkedDeviceOrganizationId(db: Database, session: { userId: string }) {
   // Captured by the /device/token before-hook (see cli-device-organization).
   const organizationId = getCapturedDeviceOrganizationId();
   if (!organizationId) {
@@ -67,12 +54,7 @@ async function getMarkedDeviceOrganizationId(
   const membership = await db
     .select({ organizationId: member.organizationId })
     .from(member)
-    .where(
-      and(
-        eq(member.userId, session.userId),
-        eq(member.organizationId, organizationId),
-      ),
-    )
+    .where(and(eq(member.userId, session.userId), eq(member.organizationId, organizationId)))
     .limit(1);
 
   return membership[0]?.organizationId ?? null;
@@ -82,18 +64,12 @@ async function getMarkedDeviceOrganizationId(
 // A new login (notably CLI/device login) should land on the same org the user
 // was last using instead of an arbitrary membership. `session.updatedAt` bumps
 // whenever the active org changes, so the freshest session holds the current org.
-async function getLastUsedOrganizationId(
-  db: Database,
-  session: { userId: string },
-) {
+async function getLastUsedOrganizationId(db: Database, session: { userId: string }) {
   const recentSession = await db
     .select({ organizationId: sessionTable.activeOrganizationId })
     .from(sessionTable)
     .where(
-      and(
-        eq(sessionTable.userId, session.userId),
-        isNotNull(sessionTable.activeOrganizationId),
-      ),
+      and(eq(sessionTable.userId, session.userId), isNotNull(sessionTable.activeOrganizationId)),
     )
     .orderBy(desc(sessionTable.updatedAt))
     .limit(1);
@@ -107,12 +83,7 @@ async function getLastUsedOrganizationId(
   const membership = await db
     .select({ organizationId: member.organizationId })
     .from(member)
-    .where(
-      and(
-        eq(member.userId, session.userId),
-        eq(member.organizationId, candidateOrgId),
-      ),
-    )
+    .where(and(eq(member.userId, session.userId), eq(member.organizationId, candidateOrgId)))
     .limit(1);
 
   return membership[0]?.organizationId ?? null;
@@ -163,20 +134,13 @@ export interface IdentityDependencies {
     sendPasswordReset: typeof sendPasswordResetEmail;
     sendVerification: typeof sendVerificationEmail;
   };
-  canInviteMembers(organizationId: string): Promise<boolean>;
+  canInviteMembers(this: void, organizationId: string): Promise<boolean>;
 }
 
 /** Shared identity behavior, constructed by the selected application's server entry. */
 export function createApplicationAuth(
   { policy, provider }: ApplicationIdentity,
-  {
-    database: db,
-    baseURL,
-    secret,
-    socialProviders,
-    email,
-    canInviteMembers,
-  }: IdentityDependencies,
+  { database: db, baseURL, secret, socialProviders, email, canInviteMembers }: IdentityDependencies,
 ) {
   const assertCanInviteMembers = async (organizationId: string) => {
     if (!(await canInviteMembers(organizationId)))
@@ -184,12 +148,7 @@ export function createApplicationAuth(
         message: "Invitations are unavailable for this organization.",
       });
   };
-  const {
-    authPlugins,
-    identityAdapter,
-    organizationHooks,
-    createSessionOnboardingHook,
-  } = provider;
+  const { authPlugins, identityAdapter, organizationHooks, createSessionOnboardingHook } = provider;
   const creationHooks = organizationHooks();
 
   const auth = betterAuth({
@@ -212,8 +171,7 @@ export function createApplicationAuth(
     user: {
       deleteUser: {
         enabled: true,
-        beforeDelete: async (user): Promise<void> =>
-          accounts.beforeDeleteUser(user.id),
+        beforeDelete: async (user): Promise<void> => accounts.beforeDeleteUser(user.id),
       },
     },
     onAPIError: {
@@ -251,9 +209,7 @@ export function createApplicationAuth(
             await enforceIdentityPolicy(() =>
               policy.beforeUserCreate(
                 user,
-                invitationIdFromRedirect(
-                  typeof callbackURL === "string" ? callbackURL : undefined,
-                ),
+                invitationIdFromRedirect(typeof callbackURL === "string" ? callbackURL : undefined),
               ),
             );
           },
@@ -262,18 +218,12 @@ export function createApplicationAuth(
       session: {
         create: {
           before: async (session) => {
-            let activeOrganizationId = await getMarkedDeviceOrganizationId(
-              db,
-              session,
-            );
+            let activeOrganizationId = await getMarkedDeviceOrganizationId(db, session);
 
             // Prefer the org the user most recently had active (their "current"
             // org) so a fresh login reuses it instead of picking the first one.
             if (!activeOrganizationId) {
-              activeOrganizationId = await getLastUsedOrganizationId(
-                db,
-                session,
-              );
+              activeOrganizationId = await getLastUsedOrganizationId(db, session);
             }
 
             // A single membership is unambiguous. If there are several and no
@@ -289,9 +239,7 @@ export function createApplicationAuth(
                 .limit(2);
 
               activeOrganizationId = selectSoleOrganization(
-                existingMemberships.map(
-                  (membership) => membership.organizationId,
-                ),
+                existingMemberships.map((membership) => membership.organizationId),
               );
             }
 
@@ -302,27 +250,21 @@ export function createApplicationAuth(
               },
             };
           },
-          after: createSessionOnboardingHook(
-            async (body): Promise<{ id: string } | null> =>
-              createOrganization({ body }),
+          after: createSessionOnboardingHook(async (body): Promise<{ id: string } | null> =>
+            createOrganization({ body }),
           ),
         },
       },
     },
     hooks: createIdentityAuthHooks(
-      async (
-        headers,
-      ): Promise<{ response: ResolvedSession | null; headers: Headers }> =>
+      async (headers): Promise<{ response: ResolvedSession | null; headers: Headers }> =>
         auth.api.getSession({ headers, returnHeaders: true }),
     ),
     plugins: [
       invitationVisibilityPlugin(),
       cliDeviceOrganizationPlugin({
         onError: (stage, error) => {
-          serverLogger.error(
-            `cli_device_organization.${stage}.failed`,
-            exceptionAttributes(error),
-          );
+          serverLogger.error(`cli_device_organization.${stage}.failed`, exceptionAttributes(error));
         },
       }),
       organizationPlugin({
@@ -382,10 +324,7 @@ export function createApplicationAuth(
           beforeCreateInvitation: async ({ invitation: newInvitation }) => {
             await assertCanInviteMembers(newInvitation.organizationId);
           },
-          beforeAcceptInvitation: async ({
-            invitation: acceptedInvitation,
-            user,
-          }) => {
+          beforeAcceptInvitation: async ({ invitation: acceptedInvitation, user }) => {
             await assertCanInviteMembers(acceptedInvitation.organizationId);
             await enforceIdentityPolicy(() =>
               policy.beforeMembershipChange(
@@ -396,9 +335,7 @@ export function createApplicationAuth(
             );
           },
           beforeDeleteOrganization: async ({ organization }) => {
-            await enforceIdentityPolicy(() =>
-              policy.assertDeletable(organization.id),
-            );
+            await enforceIdentityPolicy(() => policy.assertDeletable(organization.id));
           },
         },
       }),
@@ -435,9 +372,8 @@ export function createApplicationAuth(
         provider.beforeMembershipMutation,
       ),
       ...(authPlugins?.(
-        async (input: {
-          body: { name: string; slug: string; userId: string };
-        }): Promise<unknown> => createOrganization(input),
+        async (input: { body: { name: string; slug: string; userId: string } }): Promise<unknown> =>
+          createOrganization(input),
       ) ?? []),
       jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),
       oauthProvider({
@@ -450,13 +386,7 @@ export function createApplicationAuth(
         // "/.well-known/oauth-authorization-server/api/auth" (see the route of the
         // same path); silence better-auth's startup check now that it exists.
         silenceWarnings: { oauthAuthServerConfig: true },
-        scopes: [
-          "openid",
-          "profile",
-          "email",
-          "offline_access",
-          "observability:read",
-        ],
+        scopes: ["openid", "profile", "email", "offline_access", "observability:read"],
         postLogin: {
           // `page` + `shouldRedirect` are required by the type, but we never
           // divert to a separate picker: the active org is shown and switchable on
@@ -488,11 +418,11 @@ export function createApplicationAuth(
 
   // Preserve Better Auth's response options and endpoint metadata while giving
   // server calls the same lock lifetime as HTTP requests and account deletion.
-  const createOrganization = Object.assign(
+  const createOrganization: typeof auth.api.createOrganization = Object.assign(
     (input: Parameters<typeof auth.api.createOrganization>[0]) =>
       provider.withIdentityRequest(() => auth.api.createOrganization(input)),
     auth.api.createOrganization,
-  ) as typeof auth.api.createOrganization;
+  );
 
   const accounts = createAccountLifecycle({
     database: db,
@@ -508,8 +438,6 @@ export function createApplicationAuth(
     api: { ...auth.api, createOrganization },
     deleteAccount: accounts.deleteAccount,
     handler: (request: Request) =>
-      provider.withIdentityRequest(() =>
-        runWithDeviceOrgCapture(() => auth.handler(request)),
-      ),
+      provider.withIdentityRequest(() => runWithDeviceOrgCapture(() => auth.handler(request))),
   };
 }

@@ -26,13 +26,7 @@ export const Default: Story = {
   render: (args) => (
     <Collapsible {...args} className="w-80">
       <CollapsibleTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-between"
-          />
-        }
+        render={<Button variant="ghost" size="sm" className="w-full justify-between" />}
       >
         Resource attributes
         <ChevronsUpDownIcon />
@@ -51,13 +45,7 @@ export const OpenByDefault: Story = {
   render: (args) => (
     <Collapsible {...args} className="w-80">
       <CollapsibleTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-between"
-          />
-        }
+        render={<Button variant="ghost" size="sm" className="w-full justify-between" />}
       >
         Resource attributes
         <ChevronsUpDownIcon />
@@ -96,13 +84,7 @@ export const Disabled: Story = {
   render: (args) => (
     <Collapsible {...args} className="w-80">
       <CollapsibleTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-between"
-          />
-        }
+        render={<Button variant="ghost" size="sm" className="w-full justify-between" />}
       >
         Resource attributes
         <ChevronsUpDownIcon />

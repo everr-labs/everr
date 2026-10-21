@@ -12,7 +12,7 @@
     "unused-class-members": "error",
     "unused-dependencies": "error",
     "duplicate-exports": "error",
-    "stale-suppressions": "error"
+    "stale-suppressions": "error",
   },
   "entry": [
     // Invoked by the ClickHouse Docker build and local schema harness.
@@ -46,7 +46,11 @@
   // sample in content/docs/guides/browser-telemetry.mdx (the reader
   // installs them in their own app); they are not docs-site dependencies.
   "ignoreDependencies": [
-    // Loaded by Oxlint and its boundary plugin from .oxlintrc.json.
+    "@tanstack/eslint-plugin-query",
+    "@tanstack/eslint-plugin-router",
+    "vite-plus",
+    "@voidzero-dev/vite-plus-core",
+    // Loaded by Oxlint and its boundary plugin from oxlint.boundaries.mts.
     "eslint-plugin-boundaries",
     "eslint-import-resolver-typescript",
     // size-limit resolves its preset from package.json at runtime; nothing
@@ -57,26 +61,26 @@
     "@opentelemetry/exporter-trace-otlp-http",
     "@opentelemetry/sdk-trace-web",
     // Stryker loads its runner plugin from stryker.config.json at runtime.
-    "@stryker-mutator/vitest-runner"
+    "@stryker-mutator/vitest-runner",
   ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
   "dynamicallyLoaded": [
     "packages/docs/content/**/*.{md,mdx}",
-    "packages/otel-errors/test/fixtures/*.mjs"
+    "packages/otel-errors/test/fixtures/*.mjs",
   ],
   "overrides": [
     {
       // Child-process fixtures intentionally import built package output, which
       // does not exist during CI's pre-build dead-code scan.
       "files": ["packages/otel-errors/test/fixtures/*.mjs"],
-      "rules": { "unresolved-imports": "off" }
+      "rules": { "unresolved-imports": "off" },
     },
     {
       // The Vite alias for @everr/ui points at a source directory, which is a
       // path rather than a resolvable module.
       "files": ["packages/storybook/.storybook/main.ts"],
-      "rules": { "unresolved-imports": "off" }
+      "rules": { "unresolved-imports": "off" },
     },
     {
       // The /pricing page renders the cards. The calculator, feature matrix,
@@ -85,15 +89,15 @@
       "files": [
         "packages/docs/src/components/pricing-calculator.tsx",
         "packages/docs/src/components/pricing-matrix.tsx",
-        "packages/docs/src/components/pricing-toggle.tsx"
+        "packages/docs/src/components/pricing-toggle.tsx",
       ],
-      "rules": { "unused-files": "off", "unused-exports": "off" }
+      "rules": { "unused-files": "off", "unused-exports": "off" },
     },
     {
       // Keep the homepage skeptic section until /why-observability is redesigned.
       "files": ["packages/docs/src/components/skeptic-section.tsx"],
-      "rules": { "unused-files": "off", "unused-exports": "off" }
-    }
+      "rules": { "unused-files": "off", "unused-exports": "off" },
+    },
   ],
   // Internal workspace libraries whose exported API surface is intentional —
   // subcomponents (shadcn-style) and repository methods accessed structurally
@@ -104,7 +108,7 @@
     // Published to npm: the exported surface is the product, so exports with
     // no in-repo consumer are intentional.
     "@everr/otel-errors",
-    "@everr/otel-web"
+    "@everr/otel-web",
   ],
   // Error subclasses commonly set `name` and are discriminated via
   // `err.name === "..."` rather than `instanceof`; fallow can't see those
@@ -115,11 +119,11 @@
     { "extends": "Error", "members": ["name"] },
     {
       "implements": "LogRecordExporter",
-      "members": ["export", "shutdown", "forceFlush"]
+      "members": ["export", "shutdown", "forceFlush"],
     },
     {
       "implements": "SpanExporter",
-      "members": ["export", "shutdown", "forceFlush"]
+      "members": ["export", "shutdown", "forceFlush"],
     },
     {
       // The OTel SDK drives an instrumentation entirely through this
@@ -135,29 +139,29 @@
         "getConfig",
         "setTracerProvider",
         "setMeterProvider",
-        "setLoggerProvider"
-      ]
-    }
+        "setLoggerProvider",
+      ],
+    },
   ],
   "duplicates": {
     // TanStack Router's generated route tree contains many structurally
     // identical declarations by design — not actionable copy-paste.
-    "ignore": ["**/routeTree.gen.ts"]
+    "ignore": ["**/routeTree.gen.ts"],
   },
   "ignoreExports": [
     {
       // Explicitly registered TanStack layouts still require the named Route export.
       "file": "packages/app/src/routes/**/-_*.tsx",
-      "exports": ["Route"]
+      "exports": ["Route"],
     },
     {
       // TanStack generated route types and convention-based cloud route exports.
       "file": "packages/cloud/src/routeTree.gen.ts",
-      "exports": ["FileRouteTypes", "RootRouteChildren"]
+      "exports": ["FileRouteTypes", "RootRouteChildren"],
     },
     {
       "file": "packages/{app/src/app,cloud/src}/routes/**",
-      "exports": ["Route"]
+      "exports": ["Route"],
     },
     {
       // Intentional namespace-barrel API: the app exposes a zero-prop
@@ -165,24 +169,24 @@
       // exports the parameterized primitive of the same name. Same export name
       // on purpose, parallel implementations.
       "file": "packages/app/src/components/analytics/refresh-picker.tsx",
-      "exports": ["*"]
+      "exports": ["*"],
     },
     {
       "file": "packages/ui/src/components/refresh-picker.tsx",
-      "exports": ["*"]
+      "exports": ["*"],
     },
     {
       "file": "packages/app/src/components/analytics/time-range-picker.tsx",
-      "exports": ["*"]
+      "exports": ["*"],
     },
     {
       "file": "packages/ui/src/components/time-range-picker.tsx",
-      "exports": ["*"]
+      "exports": ["*"],
     },
     {
       // Dashboard Zod schemas — Perses-compat surface (variables/datasources) kept schema-only by design.
       "file": "packages/app/src/data/dashboards/schema.ts",
-      "exports": ["*"]
+      "exports": ["*"],
     },
     {
       // Test stand-in for @/lib/clickhouse (an embedded ClickHouse, not a
@@ -196,14 +200,14 @@
         "query",
         "insertRows",
         "createClickhouseQuery",
-        "SqlApiResult"
-      ]
+        "SqlApiResult",
+      ],
     },
     {
       // Test double for @/db/client, same reasoning: vi.mock substitutes the
       // module, fallow cannot trace the consumer.
       "file": "packages/app/src/server/alerting/testing/db-proxy.ts",
-      "exports": ["runInTransaction"]
+      "exports": ["runInTransaction"],
     },
-  ]
+  ],
 }

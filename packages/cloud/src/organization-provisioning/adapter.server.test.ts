@@ -1,13 +1,7 @@
 // @vitest-environment node
 
 import type { Database, DbExecutor, Transaction } from "@everr/app/db/client";
-import {
-  dashboards,
-  invitation,
-  member,
-  organization,
-  user,
-} from "@everr/app/db/schema";
+import { dashboards, invitation, member, organization, user } from "@everr/app/db/schema";
 import {
   createTestDatabase,
   type TestDatabase,
@@ -16,7 +10,7 @@ import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { organization as organizationPlugin } from "better-auth/plugins";
 import { sql } from "drizzle-orm";
 import { PgTransaction } from "drizzle-orm/pg-core";
-import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import { createAutomaticOrganizationSessionHook } from "../auto-org.server";
 import {
   beforeCreateCheckoutOrganization,
@@ -24,20 +18,12 @@ import {
 } from "../billing/organization-context.server";
 import * as billingSchema from "../db/schema";
 import { cloudTestMigrations } from "../testing/migrations";
-import {
-  isOrganizationProvisioned,
-  parseOrganizationMetadata,
-} from "./metadata";
+import { isOrganizationProvisioned, parseOrganizationMetadata } from "./metadata";
 
 vi.mock("@everr/app/db/client", () => ({
   db: undefined,
-  runInTransaction: <T>(
-    executor: DbExecutor,
-    run: (tx: Transaction) => Promise<T>,
-  ) =>
-    executor instanceof PgTransaction
-      ? run(executor)
-      : executor.transaction(run),
+  runInTransaction: <T>(executor: DbExecutor, run: (tx: Transaction) => Promise<T>) =>
+    executor instanceof PgTransaction ? run(executor) : executor.transaction(run),
 }));
 
 import { organizationLifecycleAdapter } from "./adapter.server";
@@ -61,9 +47,7 @@ function createAuth(
   afterCreateOrganization?: (input: {
     organization: { id: string; metadata?: unknown };
   }) => Promise<void>,
-  afterCreateSession?: ReturnType<
-    typeof createAutomaticOrganizationSessionHook
-  >,
+  afterCreateSession?: ReturnType<typeof createAutomaticOrganizationSessionHook>,
 ) {
   return betterAuth({
     baseURL: "http://localhost:3000",
@@ -137,24 +121,19 @@ it("commits organization creation and provisioning intent together", async () =>
   await create();
   expect(await jobs()).toEqual(["clickhouse/provision-organization"]);
   expect(
-    isOrganizationProvisioned(
-      (await fixture.db.select().from(organization))[0].metadata,
-    ),
+    isOrganizationProvisioned((await fixture.db.select().from(organization))[0].metadata),
   ).toBe(false);
 });
 it("rolls back creation if the queue cannot record provisioning intent", async () => {
   await rejectEnqueues();
   try {
     await expect(
-      withOrganizationCreationId(
-        { id: "org-test", slug: "org-test", ownerId: "owner" },
-        () => create(),
+      withOrganizationCreationId({ id: "org-test", slug: "org-test", ownerId: "owner" }, () =>
+        create(),
       ),
     ).rejects.toThrow();
     expect(await fixture.db.select().from(organization)).toEqual([]);
-    expect(
-      await fixture.db.select().from(billingSchema.organizationBilling),
-    ).toEqual([]);
+    expect(await fixture.db.select().from(billingSchema.organizationBilling)).toEqual([]);
     expect(await jobs()).toEqual([]);
   } finally {
     await allowEnqueues();
@@ -171,9 +150,7 @@ it("keeps the organization and its resources when recording cleanup fails", asyn
   });
   await rejectEnqueues();
   try {
-    await expect(
-      adapter.delete({ model: "organization", where }),
-    ).rejects.toThrow();
+    await expect(adapter.delete({ model: "organization", where })).rejects.toThrow();
     expect(await fixture.db.select().from(organization)).toHaveLength(1);
     expect(await fixture.db.select().from(dashboards)).toHaveLength(1);
     expect(await jobs()).toEqual(["clickhouse/provision-organization"]);
@@ -241,15 +218,9 @@ it("protects provisioning metadata through actual create and update endpoints wh
   });
 
   clickhouseMocks.provision.mockResolvedValue(undefined);
-  const tasks = createOrganizationTaskList(
-    fixture.db as unknown as Database,
-    async () => {},
-  );
+  const tasks = createOrganizationTaskList(fixture.db as unknown as Database, async () => {});
   if (!created) throw new Error("Organization was not created");
-  await tasks[PROVISION_ORGANIZATION_TASK]?.(
-    { organizationId: created.id },
-    {} as never,
-  );
+  await tasks[PROVISION_ORGANIZATION_TASK]?.({ organizationId: created.id }, {} as never);
   [stored] = await fixture.db.select().from(organization);
   expect(parseOrganizationMetadata(stored.metadata)).toEqual({
     clickhouseReady: true,
@@ -301,8 +272,7 @@ function enableAutomaticOrganizations() {
   // while Better Auth opens its separate organization transaction. The lock's
   // concurrency behavior is covered by auto-org.server.test.ts.
   const database = Object.assign(Object.create(fixture.db), {
-    transaction: (run: (executor: typeof fixture.db) => Promise<unknown>) =>
-      run(fixture.db),
+    transaction: (run: (executor: typeof fixture.db) => Promise<unknown>) => run(fixture.db),
   }) as Database;
   auth = createAuth(
     undefined,
@@ -322,9 +292,9 @@ it("creates and selects an automatic Hobby organization after email signup commi
     name: "Owner's projects",
     metadata: JSON.stringify({ clickhouseReady: false }),
   });
-  expect(
-    await fixture.db.select().from(billingSchema.organizationBilling),
-  ).toEqual([expect.objectContaining({ orgId: created.id, plan: "hobby" })]);
+  expect(await fixture.db.select().from(billingSchema.organizationBilling)).toEqual([
+    expect.objectContaining({ orgId: created.id, plan: "hobby" }),
+  ]);
   expect(session?.session.activeOrganizationId).toBe(created.id);
   expect(await fixture.db.select().from(member)).toEqual([
     expect.objectContaining({
@@ -397,14 +367,13 @@ it("runs the actual Better Auth create and delete endpoints through the lifecycl
       }),
   );
   expect(created).toBeTruthy();
-  if (!created)
-    throw new Error("Organization creation returned no organization");
+  if (!created) throw new Error("Organization creation returned no organization");
   expect(created.id).toBe("verified-checkout-org");
   expect(created).not.toHaveProperty("plan");
   expect(created).not.toHaveProperty("polarCustomerId");
-  expect(
-    await fixture.db.select().from(billingSchema.organizationBilling),
-  ).toEqual([{ orgId: created.id, plan: "pro", polarCustomerId: null }]);
+  expect(await fixture.db.select().from(billingSchema.organizationBilling)).toEqual([
+    { orgId: created.id, plan: "pro", polarCustomerId: null },
+  ]);
   expect(await jobs()).toEqual(["clickhouse/provision-organization"]);
   await rejectEnqueues();
   try {
@@ -415,9 +384,7 @@ it("runs the actual Better Auth create and delete endpoints through the lifecycl
       }),
     ).rejects.toThrow();
     expect(await fixture.db.select().from(organization)).toHaveLength(1);
-    expect(
-      (await fixture.client.query("SELECT * FROM member")).rows,
-    ).toHaveLength(1);
+    expect((await fixture.client.query("SELECT * FROM member")).rows).toHaveLength(1);
     expect(await jobs()).toEqual(["clickhouse/provision-organization"]);
   } finally {
     await allowEnqueues();
@@ -427,9 +394,7 @@ it("runs the actual Better Auth create and delete endpoints through the lifecycl
     body: { organizationId: created.id },
   });
   expect(await fixture.db.select().from(organization)).toEqual([]);
-  expect(
-    await fixture.db.select().from(billingSchema.organizationBilling),
-  ).toEqual([]);
+  expect(await fixture.db.select().from(billingSchema.organizationBilling)).toEqual([]);
   expect((await fixture.client.query("SELECT * FROM member")).rows).toEqual([]);
   expect(await jobs()).toEqual([
     "clickhouse/provision-organization",
@@ -444,10 +409,7 @@ it("returns a ready organization from the actual endpoint when its durable job f
   auth = createAuth(async ({ organization: created }) => {
     expect(await jobs()).toEqual([PROVISION_ORGANIZATION_TASK]);
     const pending = waitForOrganizationProvisioning(created.id, database);
-    await tasks[PROVISION_ORGANIZATION_TASK]?.(
-      { organizationId: created.id },
-      {} as never,
-    );
+    await tasks[PROVISION_ORGANIZATION_TASK]?.({ organizationId: created.id }, {} as never);
     if (await pending)
       Object.assign(created, {
         metadata: {
@@ -463,9 +425,7 @@ it("returns a ready organization from the actual endpoint when its durable job f
   });
   expect(isOrganizationProvisioned(created?.metadata)).toBe(true);
   expect(
-    isOrganizationProvisioned(
-      (await fixture.db.select().from(organization))[0].metadata,
-    ),
+    isOrganizationProvisioned((await fixture.db.select().from(organization))[0].metadata),
   ).toBe(true);
   expect(clickhouseMocks.provision).toHaveBeenCalledOnce();
 });

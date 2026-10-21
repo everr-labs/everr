@@ -1,12 +1,9 @@
 // @vitest-environment node
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "#app/data/alerting/delivery/defaults.ts";
 import { ALERT_PROCESS_EVENT_TASK } from "#app/data/alerting/delivery/tasks.ts";
-import {
-  createSilence,
-  expireSilence,
-} from "#app/data/alerting/silences/repository.ts";
+import { createSilence, expireSilence } from "#app/data/alerting/silences/repository.ts";
 import type { AlertingSilenceInput } from "#app/data/alerting/types.ts";
 import {
   alertDeliveries,
@@ -21,12 +18,10 @@ import {
   TEST_ACTOR,
   TEST_ORG,
 } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -39,7 +34,7 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
   return clickhouseMock;
 });
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 describe("the alerting pipeline's suppression", () => {
   it("a silence matching the instance's labels defers the notification, and the instance still reaches firing", async () => {
@@ -63,9 +58,7 @@ describe("the alerting pipeline's suppression", () => {
           row.event_type === "notification_deferred" ||
           row.event_type === "notification_suppressed",
       );
-    expect(outcomes.map((row) => row.event_type)).toEqual([
-      "notification_deferred",
-    ]);
+    expect(outcomes.map((row) => row.event_type)).toEqual(["notification_deferred"]);
     expect(outcomes[0].silenced).toBe(true);
 
     // The Postgres journal row is the record of the defer decision: tied to
@@ -133,8 +126,7 @@ describe("the alerting pipeline's suppression", () => {
       silenced: true,
       silence_id: silence.id,
       silence_comment: "checkout migration window",
-      silence_matchers_json:
-        '[{"label":"service","op":"eq","value":"checkout"}]',
+      silence_matchers_json: '[{"label":"service","op":"eq","value":"checkout"}]',
     });
   });
 
@@ -215,16 +207,13 @@ describe("the alerting pipeline's suppression", () => {
       silenced: true,
       silence_id: silence.id,
       silence_comment: "checkout migration window",
-      silence_matchers_json:
-        '[{"label":"service","op":"eq","value":"checkout"}]',
+      silence_matchers_json: '[{"label":"service","op":"eq","value":"checkout"}]',
     });
   });
 
   it("refuses a window that is not an instant in time", async () => {
     const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };
-    const matchers = [
-      { label: "service", op: "eq" as const, value: "checkout" },
-    ];
+    const matchers = [{ label: "service", op: "eq" as const, value: "checkout" }];
 
     // `new Date("2026-08-18 09:00:00")` parses in the server's own timezone,
     // and the window check still passes, so an accepted value here would mute
@@ -242,9 +231,7 @@ describe("the alerting pipeline's suppression", () => {
       starts_at: "2026-08-18T09:00:00.000Z",
       ends_at: "2026-08-18T11:00:00.000Z",
     });
-    expect(new Date(created.starts_at).toISOString()).toBe(
-      "2026-08-18T09:00:00.000Z",
-    );
+    expect(new Date(created.starts_at).toISOString()).toBe("2026-08-18T09:00:00.000Z");
   });
 
   it("holds one chain twice when a second silence takes over from the first", async () => {
@@ -272,13 +259,20 @@ describe("the alerting pipeline's suppression", () => {
       .clickhouse.historyRows()
       .filter((row) => row.event_type === "notification_deferred");
     expect(holds).toHaveLength(2);
-    expect(holds.map((row) => row.silence_id).sort()).toEqual(
-      [first.id, second.id].sort(),
+    expect(
+      holds
+        .map((row) => row.silence_id)
+        .sort((a, b) => (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? "")),
+    ).toEqual(
+      [first.id, second.id].sort((a, b) =>
+        (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? ""),
+      ),
     );
-    expect(holds.map((row) => row.silence_comment).sort()).toEqual([
-      "first window",
-      "second window",
-    ]);
+    expect(
+      holds
+        .map((row) => row.silence_comment)
+        .sort((a, b) => (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? "")),
+    ).toEqual(["first window", "second window"]);
   });
 
   it("canceling the silence releases every held event in one statement", async () => {
@@ -321,9 +315,7 @@ describe("the alerting pipeline's suppression", () => {
     // isolates the two release jobs the cancel itself wrote.
     const now = Date.now();
     const releaseJobs = (await harness().pendingJobs()).filter(
-      (job) =>
-        job.identifier === ALERT_PROCESS_EVENT_TASK &&
-        job.runAt.getTime() <= now,
+      (job) => job.identifier === ALERT_PROCESS_EVENT_TASK && job.runAt.getTime() <= now,
     );
     expect(releaseJobs).toHaveLength(2);
 
@@ -406,10 +398,7 @@ describe("the alerting pipeline's suppression", () => {
       },
     );
 
-    await expireSilence(
-      { organizationId: TEST_ORG, actor: TEST_ACTOR },
-      created.id,
-    );
+    await expireSilence({ organizationId: TEST_ORG, actor: TEST_ACTOR }, created.id);
 
     const [row] = await harness()
       .db.select()
@@ -432,10 +421,7 @@ describe("the alerting pipeline's suppression", () => {
       author: "Attacker Name",
     } as unknown as AlertingSilenceInput;
 
-    const created = await createSilence(
-      { organizationId: TEST_ORG, actor },
-      maliciousInput,
-    );
+    const created = await createSilence({ organizationId: TEST_ORG, actor }, maliciousInput);
 
     expect(created.author).toBe("Real Name");
     const [row] = await harness()
@@ -473,13 +459,9 @@ describe("the alerting pipeline's suppression", () => {
       .db.select()
       .from(alertEvents)
       .where(eq(alertEvents.eventType, "instance_fired"));
-    const heldEvent = firedEvents.find(
-      (row) => row.instanceLabels.service === "checkout",
-    );
+    const heldEvent = firedEvents.find((row) => row.instanceLabels.service === "checkout");
     expect(heldEvent?.processedAt).toBeNull();
-    const deliveredEvents = firedEvents.filter(
-      (row) => row.instanceLabels.service !== "checkout",
-    );
+    const deliveredEvents = firedEvents.filter((row) => row.instanceLabels.service !== "checkout");
     expect(deliveredEvents.every((row) => row.silenceId === null)).toBe(true);
   });
 });

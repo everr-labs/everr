@@ -1,3 +1,5 @@
+/* oxlint-disable jsx-a11y/no-noninteractive-element-interactions -- Pointer movement only adds a visual chart readout; the chart is described by its accessible name and surrounding data. */
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { useMemo } from "react";
@@ -31,8 +33,7 @@ const LANE_HEIGHT = "2.25rem";
  *  out rather than composed from the two lengths: Tailwind reads class names
  *  out of the source text, so an interpolated one compiles to nothing and the
  *  lanes silently lose the grid. */
-const LANE_GRID =
-  "grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_5rem] items-center gap-x-3";
+const LANE_GRID = "grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_5rem] items-center gap-x-3";
 /** Must track the grid above: the crosshair is positioned against the plot
  *  column, which starts where the label column and its gap end, and stops
  *  where the value column and its gap begin. */
@@ -109,18 +110,14 @@ function Lane({
   // Each lane's own range, so its shape fills the lane it was given.
   const domain = useMemo(() => laneDomain(visible), [visible]);
 
-  const y = (value: number) =>
-    PLOT_H - ((value - domain.min) / (domain.max - domain.min)) * PLOT_H;
+  const y = (value: number) => PLOT_H - ((value - domain.min) / (domain.max - domain.min)) * PLOT_H;
   const x = (at: number) => ((minutes - at) / minutes) * PLOT_W;
   // How wide the hover marker is: one bucket, so it covers the reading it
   // names and nothing either side of it.
   const width = Math.max(1.2, (bucketMinutes / minutes) * PLOT_W * 0.86);
 
   // Oldest first, so the path is drawn left to right.
-  const ordered = useMemo(
-    () => [...visible].sort((a, b) => b.at - a.at),
-    [visible],
-  );
+  const ordered = useMemo(() => [...visible].sort((a, b) => b.at - a.at), [visible]);
   // A line bridges whatever it is drawn across, so a stretch the rule never
   // evaluated would read as a slow drift between two distant readings.
   //
@@ -146,18 +143,13 @@ function Lane({
     return out;
   }, [ordered, gapMinutes]);
 
-  const label = useMemo(
-    () => `${lane.labels}: ${describe(visible)}`,
-    [lane.labels, visible],
-  );
+  const label = useMemo(() => `${lane.labels}: ${describe(visible)}`, [lane.labels, visible]);
 
-  const guide =
-    threshold > domain.min && threshold < domain.max ? y(threshold) : null;
+  const guide = threshold > domain.min && threshold < domain.max ? y(threshold) : null;
   // Only the reading the pointer is actually over: a lane that stopped
   // evaluating gets no mark for an instant inside its gap, so the mark and the
   // tooltip row appear and disappear together.
-  const marker =
-    hoveredAt == null ? null : pointNear(visible, hoveredAt, bucketMinutes / 2);
+  const marker = hoveredAt == null ? null : pointNear(visible, hoveredAt, bucketMinutes / 2);
 
   if (visible.length === 0) {
     return (
@@ -171,21 +163,14 @@ function Lane({
   }
 
   return (
-    <div
-      className="relative rounded-sm bg-muted/25"
-      style={{ height: LANE_HEIGHT }}
-    >
+    <div className="relative rounded-sm bg-muted/25" style={{ height: LANE_HEIGHT }}>
       <svg
         viewBox={`0 0 ${PLOT_W} ${PLOT_H}`}
         preserveAspectRatio="none"
         className="h-full w-full"
         onMouseMove={(event) => {
           const box = event.currentTarget.getBoundingClientRect();
-          onScrub(
-            (event.clientX - box.left) / box.width,
-            event.clientX,
-            event.clientY,
-          );
+          onScrub((event.clientX - box.left) / box.width, event.clientX, event.clientY);
         }}
         role="img"
         aria-label={label}
@@ -298,13 +283,7 @@ function Lane({
  * With every lane on its own scale, two lines of the same shape can be two
  * orders of magnitude apart. This is the column that says which.
  */
-function LaneValue({
-  lane,
-  minutes,
-}: {
-  lane: InstanceValueSeries;
-  minutes: number;
-}) {
+function LaneValue({ lane, minutes }: { lane: InstanceValueSeries; minutes: number }) {
   const last = useMemo(() => {
     let newest: InstanceValuePoint | null = null;
     for (const point of lane.points) {
@@ -315,11 +294,7 @@ function LaneValue({
   }, [lane.points, minutes]);
 
   if (!last) {
-    return (
-      <span className="text-right font-mono text-xs text-muted-foreground/60">
-        n/a
-      </span>
-    );
+    return <span className="text-right font-mono text-xs text-muted-foreground/60">n/a</span>;
   }
   return (
     <span
@@ -368,10 +343,7 @@ export function AlertInstanceChart({
   // whichever of its readings happens to be closest, which would print a
   // number from another instant as if it were this one's.
   const rows = useMemo(
-    () =>
-      hovered
-        ? instanceRowsAt(lanes, hovered.at, minutes, bucketMinutes / 2)
-        : [],
+    () => (hovered ? instanceRowsAt(lanes, hovered.at, minutes, bucketMinutes / 2) : []),
     [lanes, hovered, minutes, bucketMinutes],
   );
 
@@ -392,10 +364,7 @@ export function AlertInstanceChart({
 
         {lanes.map((lane, index) => (
           <div key={lane.fingerprint} className="contents">
-            <span
-              title={lane.labels}
-              className="truncate font-mono text-xs text-muted-foreground"
-            >
+            <span title={lane.labels} className="truncate font-mono text-xs text-muted-foreground">
               {lane.labels}
             </span>
             <div className="py-0.5">
@@ -426,10 +395,7 @@ export function AlertInstanceChart({
 
       {hovered && rows.length > 0 && (
         <CursorTooltip x={hovered.clientX} y={hovered.clientY}>
-          <SeriesTooltipContent
-            title={tooltipTime(windowTo, hovered.at)}
-            rows={rows}
-          />
+          <SeriesTooltipContent title={tooltipTime(windowTo, hovered.at)} rows={rows} />
         </CursorTooltip>
       )}
       {hidden > 0 && (

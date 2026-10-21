@@ -4,11 +4,11 @@ Renders query rows as a plain table. Columns and their order come entirely from 
 
 ## Options (`plugin.spec`)
 
-| Option | Type | Default | Values | Effect |
-| --- | --- | --- | --- | --- |
-| `stickyHeader` | boolean | `false` | `true` | Keep the header row visible while the body scrolls. Only the literal `true` enables it. |
-| `valueFormat` | object | none | see shared rule | Default numeric format; read `rules/value-format.md`. |
-| `columns` | map | `{}` | column name to `{ valueFormat }` | Override the default format for a named column. |
+| Option         | Type    | Default | Values                           | Effect                                                                                  |
+| -------------- | ------- | ------- | -------------------------------- | --------------------------------------------------------------------------------------- |
+| `stickyHeader` | boolean | `false` | `true`                           | Keep the header row visible while the body scrolls. Only the literal `true` enables it. |
+| `valueFormat`  | object  | none    | see shared rule                  | Default numeric format; read `rules/value-format.md`.                                   |
+| `columns`      | map     | `{}`    | column name to `{ valueFormat }` | Override the default format for a named column.                                         |
 
 ```yaml
 plugin:

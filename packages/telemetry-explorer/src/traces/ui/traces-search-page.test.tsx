@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactNode, useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { stubNarrowViewport } from "../../test-utils/viewport";
 import type { TracesRepositoryLike } from "../data/repository";
 
@@ -16,6 +16,7 @@ vi.mock("react-virtuoso", () => ({
   }) => (
     <div data-testid="virtuoso-mock">
       {data.map((item, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- The test virtualizer renders a fixed fixture in source order.
         <div key={i}>{itemContent(i, item)}</div>
       ))}
     </div>
@@ -44,9 +45,7 @@ function makeRepo(): TracesRepositoryLike {
     getTrace: vi.fn().mockResolvedValue([]),
     listServiceIdentities: vi
       .fn()
-      .mockResolvedValue([
-        { serviceNamespace: "shop", serviceName: "demo-api" },
-      ]),
+      .mockResolvedValue([{ serviceNamespace: "shop", serviceName: "demo-api" }]),
     attributeKeys: vi.fn().mockResolvedValue([]),
     attributeValues: vi.fn().mockResolvedValue([]),
   } as unknown as TracesRepositoryLike;
@@ -113,9 +112,7 @@ afterEach(() => {
 
 describe("Traces page filter rail", () => {
   it("puts the persistent zone above the page filters in one rail", () => {
-    render(
-      <TracesPageHarness persistentFilters={<div>persistent zone</div>} />,
-    );
+    render(<TracesPageHarness persistentFilters={<div>persistent zone</div>} />);
 
     const rail = screen.getByRole("complementary", { name: "Trace filters" });
     expect(within(rail).getByText("persistent zone")).toBeInTheDocument();
@@ -131,9 +128,7 @@ describe("Traces page filter rail", () => {
     expect(rail).toContainElement(input);
     // One field only. The rail holds it, and no second field is above the
     // results.
-    expect(screen.getAllByPlaceholderText("Filter by span name")).toHaveLength(
-      1,
-    );
+    expect(screen.getAllByPlaceholderText("Filter by span name")).toHaveLength(1);
   });
 
   it("applies the search on Enter, not on every keystroke", async () => {
@@ -159,39 +154,26 @@ describe("Traces page filter rail", () => {
       />,
     );
 
-    await user.click(
-      screen.getByRole("button", { name: "Clear page filters" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Clear page filters" }));
 
     const patch = onSearchChange.mock.calls[0]?.[0];
     expect(patch).toMatchObject({ name: "", status: "all", namespace: [] });
     expect(patch).not.toHaveProperty("service");
-    expect(
-      (screen.getByPlaceholderText("Filter by span name") as HTMLInputElement)
-        .value,
-    ).toBe("");
+    expect((screen.getByPlaceholderText("Filter by span name") as HTMLInputElement).value).toBe("");
   });
 
   it("below 1024px the rail moves into a sheet behind a Filters button", async () => {
     stubNarrowViewport();
     const user = userEvent.setup();
-    render(
-      <TracesPageHarness persistentFilters={<div>persistent zone</div>} />,
-    );
+    render(<TracesPageHarness persistentFilters={<div>persistent zone</div>} />);
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: /Filters/ }),
-      ).toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: /Filters/ })).toBeInTheDocument(),
     );
-    expect(
-      screen.queryByRole("complementary", { name: "Trace filters" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Trace filters" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Filters/ }));
-    expect(
-      screen.getByRole("complementary", { name: "Trace filters" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Trace filters" })).toBeInTheDocument();
     expect(screen.getByText("persistent zone")).toBeInTheDocument();
   });
 
@@ -207,9 +189,7 @@ describe("Traces page filter rail", () => {
     // Service, Environment and Status. The button replaces a rail that the user
     // cannot see, so it must report every filter that narrows the results.
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent(
-        "3",
-      ),
+      expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("3"),
     );
   });
 
@@ -217,9 +197,7 @@ describe("Traces page filter rail", () => {
     render(<TracesPageHarness />);
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("link", { name: "GET /api/orders" }),
-      ).toBeInTheDocument(),
+      expect(screen.getByRole("link", { name: "GET /api/orders" })).toBeInTheDocument(),
     );
     expect(screen.getByText("GET")).toBeInTheDocument();
   });

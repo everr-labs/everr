@@ -18,9 +18,7 @@ const columns: Column<ActiveBranch>[] = [
   },
   {
     header: "Latest Status",
-    cell: (branch) => (
-      <ConclusionIcon conclusion={branch.latestConclusion} className="size-4" />
-    ),
+    cell: (branch) => <ConclusionIcon conclusion={branch.latestConclusion} className="size-4" />,
   },
   {
     header: "Latest Run",
@@ -36,16 +34,12 @@ const columns: Column<ActiveBranch>[] = [
   },
   {
     header: "Runs",
-    cell: (branch) => (
-      <span className="font-mono text-xs">{branch.totalRuns}</span>
-    ),
+    cell: (branch) => <span className="font-mono text-xs">{branch.totalRuns}</span>,
   },
   {
     header: "Success Rate",
     cell: (branch) => (
-      <Badge variant={getSuccessRateVariant(branch.successRate)}>
-        {branch.successRate}%
-      </Badge>
+      <Badge variant={getSuccessRateVariant(branch.successRate)}>{branch.successRate}%</Badge>
     ),
   },
   {

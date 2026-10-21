@@ -1,6 +1,6 @@
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   wheres: [] as unknown[],
@@ -43,11 +43,7 @@ vi.mock("#app/db/client.ts", () => {
 });
 
 vi.mock("#app/data/alerting/delivery/tasks.ts", () => ({
-  enqueueProcessAlertEvent: (
-    _tx: unknown,
-    eventId: string,
-    opts: Record<string, unknown>,
-  ) => {
+  enqueueProcessAlertEvent: (_tx: unknown, eventId: string, opts: Record<string, unknown>) => {
     mocks.enqueued.push({ eventId, ...opts });
     return Promise.resolve();
   },
@@ -58,10 +54,10 @@ vi.mock("../history/clickhouse", () => ({
     mocks.history.push(rows);
     return Promise.resolve();
   },
-  journalTerminalRow: (
-    event: { id: string },
-    opts: Record<string, unknown> = {},
-  ) => ({ notificationEventId: event.id, ...opts }),
+  journalTerminalRow: (event: { id: string }, opts: Record<string, unknown> = {}) => ({
+    notificationEventId: event.id,
+    ...opts,
+  }),
   journalHoldRow: (event: { id: string }, silence: { id: string }) => ({
     notificationEventId: event.id,
     held: silence.id,
@@ -112,9 +108,7 @@ describe("deferSuppressedEvent", () => {
     ]);
     // The hold is recorded even though the notification is not decided: a
     // chain with a fire and nothing after it reads as a lost write.
-    expect(mocks.history).toEqual([
-      [{ notificationEventId: event.id, held: silence.id }],
-    ]);
+    expect(mocks.history).toEqual([[{ notificationEventId: event.id, held: silence.id }]]);
   });
 
   // A pause or delete stamped the event between this processor's read and its
@@ -137,11 +131,7 @@ describe("deferSuppressedEvent", () => {
     mocks.selectRows = [[]];
     mocks.stampReturn = [{ id: event.id }];
 
-    await deferSuppressedEvent(
-      { ...event, processedAt: dispatchStamp },
-      silence,
-      now,
-    );
+    await deferSuppressedEvent({ ...event, processedAt: dispatchStamp }, silence, now);
 
     const stamp = new PgDialect().sqlToQuery(mocks.stampWheres[0] as SQL);
     expect(stamp.sql).toContain('"processed_at" = ');
