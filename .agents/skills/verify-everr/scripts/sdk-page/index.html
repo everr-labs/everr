@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>verify-everr SDK page</title>
+  </head>
+  <body>
+    <!-- verify-everr: a minimal integrator page for @everr/otel-web, served by web-sdk-page. -->
+    <h1>Verify SDK page</h1>
+    <p id="status">loading</p>
+    <button id="add">Add item</button>
+    <button id="boom">Throw error</button>
+    <button id="fail-fetch">Failing request</button>
+    <button id="emit">Emit clip</button>
+    <p>items: <span id="count">0</span></p>
+    <ul id="items"></ul>
+    <script type="module" src="./entry.js"></script>
+  </body>
+</html>

@@ -1,0 +1,201 @@
+{
+  "repoid": "verify-everr",
+  "state": {
+    "runbooks": [
+      {
+        "path": "runbooks/verify-runbook.yaml",
+        "resource": {
+          "kind": "Runbook",
+          "metadata": {
+            "name": "verify-runbook",
+            "project": "verify"
+          },
+          "spec": {
+            "display": {
+              "name": "Verify Runbook"
+            },
+            "variables": [
+              {
+                "kind": "ListVariable",
+                "spec": {
+                  "name": "svc",
+                  "display": {
+                    "name": "Service"
+                  },
+                  "defaultValue": "verify-seed-api",
+                  "plugin": {
+                    "kind": "StaticListVariable",
+                    "spec": {
+                      "values": [
+                        "verify-seed-api",
+                        "no-such-service"
+                      ]
+                    }
+                  }
+                }
+              }
+            ],
+            "panels": {
+              "seeded-logs": {
+                "kind": "Panel",
+                "spec": {
+                  "display": {
+                    "name": "Seeded logs"
+                  },
+                  "plugin": {
+                    "kind": "StatChart",
+                    "spec": {
+                      "calculation": "sum"
+                    }
+                  },
+                  "queries": [
+                    {
+                      "kind": "ClickHouseSQL",
+                      "spec": {
+                        "plugin": {
+                          "kind": "ClickHouseSQL",
+                          "spec": {
+                            "query": "SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS logs FROM logs WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName = $svc GROUP BY ts ORDER BY ts"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "markdown": {
+              "inline": "# Verify runbook\n\nEmbedded panel below.\n\n```panel\nref: seeded-logs\n```\n"
+            }
+          }
+        }
+      }
+    ],
+    "alerts": [],
+    "dashboards": [
+      {
+        "path": "dashboards/traffic.yaml",
+        "resource": {
+          "kind": "Dashboard",
+          "metadata": {
+            "name": "traffic",
+            "project": "verify"
+          },
+          "spec": {
+            "display": {
+              "name": "Verify Traffic"
+            },
+            "timeRange": {
+              "from": "now-1h",
+              "to": "now"
+            },
+            "variables": [
+              {
+                "kind": "ListVariable",
+                "spec": {
+                  "name": "svc",
+                  "display": {
+                    "name": "Service"
+                  },
+                  "defaultValue": "verify-seed-api",
+                  "plugin": {
+                    "kind": "StaticListVariable",
+                    "spec": {
+                      "values": [
+                        "verify-seed-api",
+                        "no-such-service"
+                      ]
+                    }
+                  }
+                }
+              }
+            ],
+            "panels": {
+              "seeded-logs": {
+                "kind": "Panel",
+                "spec": {
+                  "display": {
+                    "name": "Seeded logs"
+                  },
+                  "plugin": {
+                    "kind": "StatChart",
+                    "spec": {
+                      "calculation": "sum"
+                    }
+                  },
+                  "queries": [
+                    {
+                      "kind": "ClickHouseSQL",
+                      "spec": {
+                        "plugin": {
+                          "kind": "ClickHouseSQL",
+                          "spec": {
+                            "query": "SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS logs FROM logs WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName = $svc GROUP BY ts ORDER BY ts"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "seeded-spans": {
+                "kind": "Panel",
+                "spec": {
+                  "display": {
+                    "name": "Seeded spans"
+                  },
+                  "plugin": {
+                    "kind": "StatChart",
+                    "spec": {
+                      "calculation": "sum"
+                    }
+                  },
+                  "queries": [
+                    {
+                      "kind": "ClickHouseSQL",
+                      "spec": {
+                        "plugin": {
+                          "kind": "ClickHouseSQL",
+                          "spec": {
+                            "query": "SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS spans FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName = $svc GROUP BY ts ORDER BY ts"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "layouts": [
+              {
+                "kind": "Grid",
+                "spec": {
+                  "items": [
+                    {
+                      "x": 0,
+                      "y": 0,
+                      "width": 12,
+                      "height": 6,
+                      "content": {
+                        "$ref": "#/spec/panels/seeded-logs"
+                      }
+                    },
+                    {
+                      "x": 12,
+                      "y": 0,
+                      "width": 12,
+                      "height": 6,
+                      "content": {
+                        "$ref": "#/spec/panels/seeded-spans"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
