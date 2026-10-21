@@ -30,7 +30,7 @@ function walk(
   entry: string,
   graph = new Map<string, string[]>(),
 ): Map<string, string[]> {
-  const file = resolve(entry);
+  const file = resolve(import.meta.dirname, "..", entry);
   if (graph.has(file)) return graph;
   const specifiers = importsOf(file);
   graph.set(file, specifiers);

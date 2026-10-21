@@ -1,29 +1,10 @@
 name: Verify Action dist
 
+on:
+  workflow_call:
+
 permissions:
   contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
-  cancel-in-progress: true
-
-on:
-  pull_request:
-    paths:
-      - .github/actions/everr-action/**
-      - .github/workflows/verify-action-dist.yml
-      - .nvmrc
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-
-  push:
-    branches: [main]
-    paths:
-      - .github/actions/everr-action/**
-      - .github/workflows/verify-action-dist.yml
-      - .nvmrc
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
 
 jobs:
   verify-dist:

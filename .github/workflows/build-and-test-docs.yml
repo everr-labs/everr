@@ -1,0 +1,29 @@
+name: Build & Check Docs
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck docs
+        run: pnpm --filter @everr/docs types:check
+      - name: Build docs
+        env:
+          VITE_POSTHOG_PROJECT_TOKEN: ci-build-placeholder
+        run: pnpm --filter @everr/docs build
