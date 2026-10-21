@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
     steps:
       - uses: actions/checkout@v4
       - name: Collect resource usage
@@ -21,4 +21,4 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:ci
+      - run: pnpm test:ci --maxWorkers=100%

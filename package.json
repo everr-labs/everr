@@ -15,7 +15,7 @@
     "changeset:tag": "changeset tag",
     "postinstall": "lefthook install",
     "test": "vitest",
-    "test:ci": "vitest run --coverage.enabled=false --maxWorkers=2",
+    "test:ci": "vitest run --coverage.enabled=false",
     "test:watch": "vitest --watch --ui",
     "dev:local": "pnpm --filter @everr/local-app dev",
     "dev:local:ui": "pnpm --filter @everr/local-app dev:ui",
