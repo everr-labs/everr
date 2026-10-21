@@ -165,8 +165,8 @@ async function main() {
   await vite.listen();
   vite.printUrls();
 
-  for (const directory of ["packages/cli/src", "packages/cli/assets"]) {
-    watchers.push(watch(path.join(repoDir, directory), { recursive: true }, scheduleRebuild));
+  for (const directory of [path.join(cliDir, "src"), path.dirname(embeddedAssets.collectorGz)]) {
+    watchers.push(watch(directory, { recursive: true }, scheduleRebuild));
   }
   for (const [directory, files] of [
     [repoDir, ["Cargo.toml", "Cargo.lock"]],
