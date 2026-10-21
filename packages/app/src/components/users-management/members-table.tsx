@@ -22,7 +22,8 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatDate } from "./format-date";
-import { type Member, type OrgRole, useRemoveMember, useUpdateMemberRole } from "./queries";
+import { useRemoveMember, useUpdateMemberRole } from "./queries";
+import { type Member, type OrgRole, OrgRoleSchema } from "./schemas";
 
 interface MembersTableProps {
   members: Member[];
@@ -103,15 +104,13 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
           <Select
             value={row.role}
             onValueChange={(value) => {
-              // oxlint-disable-next-line typescript/consistent-type-assertions -- Select only emits the OrgRole option values; better-auth types the role as a plain string.
-              const next = value as OrgRole;
-              if (next === row.role) return;
+              const next = OrgRoleSchema.safeParse(value);
+              if (!next.success || next.data === row.role) return;
               setRolePending({
                 memberId: row.id,
                 memberName: row.user?.name ?? row.user?.email ?? "Member",
-                // oxlint-disable-next-line typescript/consistent-type-assertions -- better-auth types the member role as a plain string; it is always one of the OrgRole values.
-                currentRole: row.role as OrgRole,
-                nextRole: next,
+                currentRole: row.role,
+                nextRole: next.data,
               });
             }}
           >

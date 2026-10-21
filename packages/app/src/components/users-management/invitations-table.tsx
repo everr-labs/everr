@@ -14,7 +14,8 @@ import { Button } from "@everr/ui/components/button";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { toast } from "sonner";
 import { formatDate } from "./format-date";
-import { type Invitation, useRevokeInvitation } from "./queries";
+import { useRevokeInvitation } from "./queries";
+import type { Invitation } from "./schemas";
 
 interface InvitationsTableProps {
   invitations: Invitation[];

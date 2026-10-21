@@ -24,7 +24,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { invitationUrl } from "#app/common/invitation.ts";
 import { InvitationLink } from "./invitation-link";
-import { type OrgRole, useInviteMember } from "./queries";
+import { useInviteMember } from "./queries";
+import { type OrgRole, OrgRoleSchema } from "./schemas";
 
 export function InviteMemberDialog() {
   const { emailEnabled } = useRouteContext({ from: "__root__" });
@@ -106,7 +107,10 @@ export function InviteMemberDialog() {
                 <Select
                   value={role}
                   disabled={invite.isPending}
-                  onValueChange={(v) => setRole(v === "admin" ? "admin" : "member")}
+                  onValueChange={(value) => {
+                    const next = OrgRoleSchema.safeParse(value);
+                    if (next.success) setRole(next.data);
+                  }}
                 >
                   <SelectTrigger id="invite-role">
                     <SelectValue />

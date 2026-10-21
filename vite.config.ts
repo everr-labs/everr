@@ -219,6 +219,18 @@ export default defineConfig({
     ],
     overrides: [
       {
+        // This boundary validates auth payloads with Zod before they reach the UI.
+        files: ["packages/app/src/components/users-management/*.{ts,tsx}"],
+        excludeFiles: ["**/*.test.{ts,tsx}"],
+        rules: {
+          "typescript/no-unsafe-assignment": "error",
+          "typescript/no-unsafe-argument": "error",
+          "typescript/no-unsafe-call": "error",
+          "typescript/no-unsafe-member-access": "error",
+          "typescript/no-unsafe-return": "error",
+        },
+      },
+      {
         // Tests lean on assertions for mocks/fixtures where the type is known by
         // construction; only the assertion bans are relaxed here. Everything else
         // (including no-explicit-any) stays on in tests.
