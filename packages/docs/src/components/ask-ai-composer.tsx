@@ -45,8 +45,8 @@ export function AskAiComposer() {
               aria-label={status === "copied" ? "Prompt copied" : "Copy prompt"}
               title={status === "copied" ? "Copied" : "Copy prompt"}
               disabled={!prompt.trim()}
-              onClick={(...args) => {
-                void copy?.(...args);
+              onClick={() => {
+                void copy();
               }}
             >
               {status === "copied" ? (

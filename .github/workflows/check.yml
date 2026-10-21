@@ -3,14 +3,8 @@ name: Lint & Format
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
-  cancel-in-progress: true
-
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_call:
 
 jobs:
   check:
