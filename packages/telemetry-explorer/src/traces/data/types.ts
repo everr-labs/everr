@@ -56,3 +56,19 @@ export type ServiceIdentity = {
   serviceNamespace: string;
   serviceName: string;
 };
+
+/**
+ * One Log that shares a Trace and Span with a Span in the trace. The waterfall
+ * draws it on that Span's row at its timestamp. A Log with no Span id has no
+ * row and is left out.
+ */
+export type TraceLogMarker = {
+  spanId: string;
+  timestamp: string;
+  timestampNs: string;
+  severityNumber: number;
+  severityText: string;
+  body: string;
+  eventName: string;
+  isError: boolean;
+};

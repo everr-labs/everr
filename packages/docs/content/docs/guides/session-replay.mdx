@@ -1,0 +1,193 @@
+---
+title: Session replay
+description: Record the last 5 minutes of a browser Session with recording(), emit Clips by hand or automatically, and control what the recorder can capture.
+---
+
+`recording()` is a WebSDK Instrumentation that keeps the last 5 minutes of the page's DOM history in memory with rrweb. The screen history of one Session is its Recording, made of one or more Clips. Nothing leaves the page until a Clip is emitted: automatically when an error or a failed request happens, or when your app calls `emitRecording()`.
+
+A Clip is stored as Segments and counts against the same telemetry quota as your other signals. The Replay player shows it at the top of a Trace or error view, above the existing waterfall.
+
+## Setup
+
+Install `@everr/otel-web` if it is not installed yet:
+
+```sh
+pnpm add @everr/otel-web
+```
+
+Add `recording()` to the WebSDK instrumentations. Import it from the `@everr/otel-web/recording` subpath, so apps that do not record do not pay its bundle cost:
+
+```ts
+import { errors, network, WebSDK } from "@everr/otel-web";
+import { recording } from "@everr/otel-web/recording";
+
+new WebSDK({
+  serviceName: "acme-web",
+  ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
+  dev: import.meta.env.DEV,
+  instrumentations: [
+    errors(),
+    network(),
+    recording({ sampleRate: 0.1 }),
+  ],
+});
+```
+
+`recording()` buffers on its own. `errors()` adds the global error handlers whose errors emit automatic Clips, and `network()` makes failed requests emit them. A manual `captureError()` call also emits an automatic Clip. Without one of those paths, Clips are sent only when your app calls `emitRecording()`.
+
+The recorder code loads with a dynamic import only for a sampled Session. You do not install rrweb yourself: the WebSDK owns the recorder version.
+
+Only one `recording()` records on a page. A second `recording()` installed by another WebSDK does nothing. `recording()` returns only the teardown that `shutdown()` calls.
+
+For the ingest key and the local Collector endpoint, see [Browser telemetry](/docs/guides/browser-telemetry).
+
+## Sampling
+
+`sampleRate` is the share of Sessions that load the recorder and buffer. The default is `1`, so every Session records. `0` records none, and values outside the range from 0 to 1 are clamped.
+
+The decision is made once per Session from a hash of the Session id, so every tab and reload of the same Session decides the same way. A new Session during a page decides again: the old Stream ends, its buffer is dropped, and a new Stream starts with a full snapshot. A Clip never mixes two Sessions.
+
+The default has a cost: with `sampleRate: 1`, every Session loads the recorder chunk (about 23 KB gzip) and runs rrweb's observers for the life of the page, even when no Clip is sent. That is the price of having the minutes before an error. Lower `sampleRate` to load the recorder on a smaller share of Sessions.
+
+<Callout type="warn" title="Do not wrap recording() in sampled() as well">
+  An outer `sampled(recording(), rate)` multiplies with `sampleRate`. With
+  `sampled(recording(), 0.5)` and `recording({ sampleRate: 0.5 })`, only about
+  25% of Sessions record, not 50%. Use `sampleRate` alone.
+</Callout>
+
+## Automatic Clips
+
+Any error on the shared capture path emits a Clip: an unhandled error or rejection caught by `errors()`, a React error boundary, or a manual `captureError()`. Errors removed by the `errors()` `ignore` and `denyUrls` filters emit no Clip.
+
+With `network()` installed, a request with a 5xx response or no response emits a Clip. That covers a rejected fetch, and an XHR that errors or times out. A 4xx is not a trigger, and an explicit abort is not a trigger.
+
+An automatic Clip holds the last 60 seconds and stays open for the 10 seconds after its trigger. A burst of triggers extends the open tail to 10 seconds after the latest trigger, up to 60 seconds after the first trigger. A trigger after that opens a new automatic Clip.
+
+A Session has at most 5 automatic Clips, counted across every tab and reload. Manual Clips never merge and do not count toward that cap. Each automatic Clip has a `recording` root Span with `everr.recording.trigger` set to `error` or `network`, the Clip id, the Stream id, and the truncation attribute when the start left the buffer.
+
+## Send a Clip by hand
+
+`emitRecording()` sends a Clip from the current Stream. It accepts one start option and an optional tail:
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `last` | number | none | Start the Clip this many milliseconds before the call. |
+| `since` | string or number | none | Start at a mark name, or at an epoch-millisecond timestamp. |
+| `next` | number | `0` | Keep the Clip open this many milliseconds after the call, up to 60 000. |
+
+`last` and `since` cannot be used together. With neither, the Clip is the whole buffer.
+
+```ts
+import { emitRecording } from "@everr/otel-web/recording";
+
+emitRecording(); // the whole buffer
+emitRecording({ last: 15_000 }); // the last 15 seconds
+emitRecording({ since: "cart-open" }); // from the mark to now
+emitRecording({ since: Date.now() - 5_000 }); // from a timestamp to now
+emitRecording({ last: 30_000, next: 10_000 }); // 30 seconds before, 10 seconds after
+```
+
+A Clip starts at the last full snapshot at or before the requested start, because rrweb can only play from a full snapshot. That snapshot is at most about 10 seconds early within the last minute, and at most about 60 seconds early for an older moment. The buffered part is sent at once. A `next` tail sends more Segments every 5 seconds, and the Span closes when the tail ends.
+
+When the requested start is before the oldest buffered moment, the Clip starts there and sets `everr.recording.clip.truncated` to `true`. That happens when the start is older than the 5 minute window, was dropped by the 10 MB memory cap, was before the Stream started, or names a mark that has left the buffer.
+
+`emitRecording()` does nothing before the recorder chunk has loaded or in an unsampled Session. The same is true of `pauseRecording()` and `resumeRecording()`.
+
+## Marks
+
+`markRecording(name)` puts a named point in the current Stream's buffer for a later `emitRecording({ since: name })`. A later mark with the same name replaces the earlier one. A mark leaves the buffer with the events at its time.
+
+The call also emits a log with event name `everr.browser.recording.mark` and attribute `everr.recording.mark.name`. That log is stored in `logs` like any other log, and it is emitted in unsampled Sessions too, so a mark appears on every Session's timeline. It is not a Segment and is not routed to the recordings table.
+
+## Pause and resume
+
+`pauseRecording()` stops the rrweb recorder on the current page. Nothing is buffered while it is paused, so no Clip can contain that time. `resumeRecording()` starts the recorder again with a full snapshot. A Clip that covers a paused range shows it as a gap.
+
+Both act on the current page. Another tab records its own Stream independently.
+
+## Privacy
+
+Privacy runs in the browser, before an event enters the buffer. Masking and Blocking happen before anything leaves the page. Cookieless and Consented modes use the same rules.
+
+### Defaults
+
+The privacy bundle is on when the WebSDK `dev` option is not true. When it is on, these defaults apply:
+
+| Data | Default |
+| --- | --- |
+| All text | Masked |
+| All input values | Masked |
+| `title`, `placeholder`, and `aria-label` attributes | Masked |
+| Media: `img`, `svg`, `video`, `object`, `picture`, `embed`, `map`, `audio`, and icon links | Blocked |
+| `base` and same-origin `srcdoc` iframes | Blocked |
+| File inputs | Ignored |
+| Password inputs | Masked, always |
+
+A Mask replaces text with asterisks of the same length and keeps the element. A Block replaces an element with an empty placeholder of the same size. Ignore leaves input events inside an element out of the Recording and keeps the element.
+
+A CSS `background-image` is not Blocked. Cross-origin iframes, canvas, and shadow DOM are recorded as rrweb records them, with no custom handling.
+
+### Mark elements in markup
+
+Mark elements you control with a class or the matching `data-` attribute:
+
+| Class | Attribute | Effect |
+| --- | --- | --- |
+| `everr-mask` | `data-everr-mask` | Mask the element's text and input values. |
+| `everr-block` | `data-everr-block` | Block the element. |
+| `everr-ignore` | `data-everr-ignore` | Ignore input events inside the element. |
+
+### Options
+
+All options are top level on `recording()`:
+
+| Option | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `maskAllText` | boolean | on when the bundle is on | Mask every text node. |
+| `maskAllInputs` | boolean | on when the bundle is on | Mask every input value. |
+| `blockAllMedia` | boolean | on when the bundle is on | Block the media elements listed above. |
+| `mask` | string[] | `[]` | Selectors to Mask, added to the markers. |
+| `unmask` | string[] | `[]` | Selectors whose text and inputs are not Masked. Wins over Mask. |
+| `block` | string[] | `[]` | Selectors to Block, added to the markers. |
+| `unblock` | string[] | `[]` | Selectors that win over Block. |
+| `ignore` | string[] | `[]` | Selectors to Ignore, added to the markers. File inputs stay Ignored. |
+| `maskFn` | `(text: string) => string` | asterisks | Replaces the default asterisk substitution. |
+| `maskAttributes` | string[] | `title`, `placeholder`, `aria-label` when the bundle is on | Attributes to Mask. Passing a list replaces the default list. |
+
+Explicit options win over the defaults whether or not `dev` is true, except that passwords stay Masked and file inputs stay Ignored. Markers and selector options always apply. `unmask` wins over Mask and `unblock` wins over Block. A Blocked parent still drops its children, so `unblock` cannot reveal an element inside a Blocked parent: unblock the parent instead.
+
+<Callout type="warn" title="dev: true disables the privacy bundle">
+  `dev` is the only gate on the privacy bundle. An app deployed with
+  `dev: true`, for example a staging build, sends unmasked text, inputs,
+  attributes, and media. Set `dev: false` anywhere real people use the app.
+</Callout>
+
+## Find a Recording
+
+Open a Trace or an error in Everr. If a Clip covers that moment, the Replay player sits above the trace view and opens at the matching moment. The player shows the requested start, the trigger moment and tail of an automatic Clip, truncation, paused ranges, and gaps in the Segment index.
+
+You can also list the Clips of a Session with a `traces` query on the `recording` Span:
+
+```sql
+SELECT Timestamp,
+  toString(SpanAttributes.`everr.recording.clip.id`) AS clip,
+  toString(SpanAttributes.`everr.recording.trigger`) AS trigger
+FROM traces
+WHERE Timestamp > now() - INTERVAL 24 HOUR
+  AND SpanName = 'recording'
+  AND toString(SpanAttributes.`session.id`) = '<session-id>'
+ORDER BY Timestamp ASC
+LIMIT 50
+```
+
+Marks are in `logs` with `EventName = 'everr.browser.recording.mark'`. The recordings table holds the raw rrweb payload for the Replay player. It is not a table to read by hand or to hand to an Agent.
+
+## Known limits
+
+- `dev: true` sends unmasked content outside a developer's machine.
+- `emitRecording()` does nothing in an unsampled Session.
+- A CSS `background-image` is not Blocked.
+- rrweb has no mutation cap, so a page with very many DOM changes costs more CPU.
+- A full page load or reload document request is its own Trace and has no Session.
+- A cross-origin request that does not send `traceparent` is its own Trace.
+- Cron, webhooks, and other Traces with no browser Client Span have no Session and no player.

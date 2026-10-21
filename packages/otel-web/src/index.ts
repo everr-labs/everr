@@ -7,7 +7,8 @@
 // The WebSDK operates in the two module graphs of a full-stack framework. The
 // browser gets all the signals. The server gets the logger and captureError on
 // the same pipeline. The exports for React are in the separate
-// `@everr/otel-web/react` entry.
+// `@everr/otel-web/react` entry. The recording entry is
+// `@everr/otel-web/recording`. This file does not import it.
 
 export { WebSDK } from "./client.js";
 export { captureError } from "./errors.js";
@@ -45,13 +46,22 @@ export type {
 } from "./pipeline/emitter.js";
 export { setAttributes } from "./state/attributes.js";
 export {
+  type AutomaticRecordingTrigger,
+  type RecordingTrigger,
+  setRecordingTrigger,
+} from "./state/clip-trigger.js";
+export { emitLogNow } from "./state/emit.js";
+export {
   type RouteResolvers,
   type RouteTemplateResolver,
   setRouteResolver,
 } from "./state/route.js";
 export {
+  claimAutomaticClip,
   clearIdentity,
   identify,
+  onSessionChange,
+  passiveSessionId,
   revoke,
   setPersistence,
 } from "./state/session.js";

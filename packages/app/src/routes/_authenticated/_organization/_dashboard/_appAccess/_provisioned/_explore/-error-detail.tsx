@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { runSpansOptions } from "@/data/runs/options";
+import { ErrorReplayPlayer } from "./-replay/error-replay";
 
 export function ErrorDetailRouteContent({
   fingerprint,
@@ -60,6 +61,12 @@ export function ErrorDetailRouteContent({
       )}
       renderTracePanel={({ occurrence }) => (
         <WebErrorTracePanel occurrence={occurrence} />
+      )}
+      renderPlayer={({ occurrence }) => (
+        <ErrorReplayPlayer
+          key={getErrorOccurrenceKey(occurrence)}
+          occurrence={occurrence}
+        />
       )}
     />
   );

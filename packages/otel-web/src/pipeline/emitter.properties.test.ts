@@ -125,6 +125,49 @@ describe("exit-flush budget", () => {
     );
   });
 
+  it("keeps every exit payload, including Segments, within the limit", () => {
+    vi.useFakeTimers();
+    fc.assert(
+      fc.property(
+        sizes(10),
+        sizes(10),
+        sizes(4),
+        (logSizes, spanSizes, segmentSizes) => {
+          const { sent, emitter } = makeEmitter();
+          const [emit, , exitFlush, emitSpan, emitNow, beginExit] = emitter;
+          for (const size of logSizes)
+            emit("log", { filler: "x".repeat(size) });
+          for (const size of spanSizes) {
+            emitSpan("a".repeat(32), "b".repeat(16), "span", 1, 2, {
+              filler: "x".repeat(size),
+            });
+          }
+          beginExit();
+          for (const size of segmentSizes) {
+            emitNow(
+              "everr.browser.recording.segment",
+              {},
+              undefined,
+              undefined,
+              "s".repeat(size),
+            );
+          }
+          exitFlush();
+
+          const exits = sent.filter((batch) => batch.keepalive);
+          const total = exits.reduce((sum, batch) => sum + batch.bytes, 0);
+          expect(total).toBeLessThanOrEqual(EXIT_BUDGET);
+          // A Segment goes whole or it does not go at all.
+          const segments = exits.filter((batch) =>
+            batch.logNames.includes("everr.browser.recording.segment"),
+          );
+          expect(segments.length).toBeLessThanOrEqual(segmentSizes.length);
+        },
+      ),
+      { numRuns: 40 },
+    );
+  });
+
   it("leaves both queues empty: a later flush posts nothing", () => {
     vi.useFakeTimers();
     fc.assert(
@@ -159,16 +202,16 @@ describe("OTLP attribute mapping", () => {
     fc.constant(undefined),
   );
 
-  it("types every value into its OTLP arm and drops the nullish", () => {
+  it("types every value into its OTLP arm and drops the nullish", async () => {
     vi.useFakeTimers();
-    fc.assert(
-      fc.property(
+    await fc.assert(
+      fc.asyncProperty(
         fc.dictionary(fc.string({ minLength: 1 }), attrValue, { maxKeys: 12 }),
-        (record) => {
+        async (record) => {
           const { sent, emitter } = makeEmitter();
           const [emit, flush] = emitter;
           emit("probe", record);
-          void flush();
+          await flush();
           const wire = new Map(
             sent[0].attributes.map(({ key, value }) => [key, value]),
           );

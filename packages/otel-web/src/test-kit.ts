@@ -6,7 +6,7 @@ import { network } from "./instrumentations/network/index.js";
 import { pageviews } from "./instrumentations/pageviews/index.js";
 import { performance as performanceInstrumentation } from "./instrumentations/performance/index.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
-import { stubTransportFetch } from "./test-fetch.js";
+import { readOtlpBody, stubTransportFetch } from "./test-fetch.js";
 import type { WebSDKOptions } from "./types.js";
 
 /** All the built-in instrumentations. The tests use this set by default. */
@@ -60,17 +60,42 @@ export type OtlpBatch = {
   spans: OtlpSpan[];
 };
 
+// A page request in a test, as opposed to an OTLP export. The network
+// instrumentation wraps the transport fetch, so the response has to be chosen
+// on the transport itself. Unset, every request is parsed as OTLP.
+let appFetch:
+  | ((
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => Response | Promise<Response>)
+  | undefined;
+
+/** The next non-OTLP fetch. Pass undefined to parse every request as OTLP. */
+export function setAppFetch(next: typeof appFetch): void {
+  appFetch = next;
+}
+
 /** Replaces the global fetch. It returns the list of the captured batches, and
  * the code adds each new batch to that list. */
 function stubOtlpFetch(): OtlpBatch[] {
   const batches: OtlpBatch[] = [];
   stubTransportFetch(
-    vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const payload = JSON.parse(String(init?.body));
+    vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const href = String(url);
+      if (
+        appFetch &&
+        !href.includes("/v1/logs") &&
+        !href.includes("/v1/traces")
+      ) {
+        return appFetch(url, init);
+      }
+      const body =
+        typeof init?.body === "string" ? init.body : await readOtlpBody(init);
+      const payload = JSON.parse(body);
       const resourceLog = payload.resourceLogs?.[0];
       const resourceSpan = payload.resourceSpans?.[0];
       batches.push({
-        url: String(url),
+        url: href,
         keepalive: Boolean(init?.keepalive),
         resource: (resourceLog ?? resourceSpan).resource.attributes,
         records: resourceLog?.scopeLogs[0].logRecords ?? [],

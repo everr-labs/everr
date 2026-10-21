@@ -11,9 +11,11 @@
 //   the store.
 // - `everr.session`: the session as `{ id, t }`, where `t` is the time of the
 //   last activity. The session changes after the usual timeout of 30 minutes
-//   without activity. Each record that the SDK sends is activity. Thus the
-//   timeout measures an interval without activity, and not an interval of the
-//   clock.
+//   without activity. Each record that the SDK sends is activity, except a
+//   recording Segment, the `recording` span, and a recording mark log. Those
+//   read the id and leave `t` where it is, so Clip traffic does not keep the
+//   Session alive. The timeout measures an interval without activity, and not
+//   an interval of the clock.
 //
 // The code does not store the identified user. The identify() function writes
 // the `user.*` keys into the ambient set of setAttributes. Thus those keys stay
@@ -85,6 +87,101 @@ let session: SessionState | null = null;
 const STORAGE_WRITE_DELAY_MS = 30_000;
 let lastWrite = 0;
 
+// A Session emits at most this many automatic Clips. Manual Clips do not count.
+const AUTO_CLIP_CAP = 5;
+
+function clipCount(value: number | undefined): number {
+  return typeof value === "number" && value > 0 ? value : 0;
+}
+
+// Recording Segments, the recording span, and mark logs read the id through
+// passiveSession. A Clip must not slide `t`, or the Session would stay alive
+// for as long as Clips are sent.
+const sessionListeners = new Set<(id: string) => void>();
+let passiveDepth = 0;
+
+/**
+ * Runs `read` without recording Session activity. The recording pipeline uses
+ * this for Segments, the `recording` span, and mark logs.
+ */
+export function passiveSession<T>(read: () => T): T {
+  passiveDepth += 1;
+  try {
+    return read();
+  } finally {
+    passiveDepth -= 1;
+  }
+}
+
+/**
+ * Listens for a new Session id. The recording instrumentation ends its Stream
+ * here, so a Clip cannot mix two Sessions. The listener runs inside
+ * `sessionId()`, before that call returns.
+ */
+export function onSessionChange(listener: (id: string) => void): () => void {
+  sessionListeners.add(listener);
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
+
+function rotateSession(): string {
+  const store = currentStore();
+  const base = store.readSession() ?? session;
+  const now = Date.now();
+  const previous = session?.id;
+  let next: SessionState;
+  if (base && now - base.t <= SESSION_TIMEOUT_MS) {
+    // The store wins across tabs. The memory copy covers a write that has not
+    // reached the store yet. A later write must not drop the higher count.
+    const remembered =
+      session?.id === base.id ? clipCount(session.autoClips) : 0;
+    const autoClips = Math.max(clipCount(base.autoClips), remembered);
+    next = {
+      id: base.id,
+      t: now,
+      ...(autoClips > 0 ? { autoClips } : {}),
+    };
+  } else {
+    next = { id: uniqueId(), t: now };
+  }
+  session = next;
+  if (next.id !== base?.id || now - lastWrite >= STORAGE_WRITE_DELAY_MS) {
+    lastWrite = now;
+    store.writeSession(next);
+  }
+  if (next.id !== previous) {
+    for (const listener of sessionListeners) listener(next.id);
+  }
+  return next.id;
+}
+
+/**
+ * Reserves one automatic Clip for the current Session. Returns false when
+ * this Session already has 5, or when no Session exists yet. The count is
+ * written at once, not on the activity delay, so a reload sees it.
+ */
+export function claimAutomaticClip(): boolean {
+  const store = currentStore();
+  const stored = store.readSession();
+  const base = stored ?? session;
+  if (!base) return false;
+  const memory = session?.id === base.id ? session : undefined;
+  const count = Math.max(
+    clipCount(base.autoClips),
+    clipCount(memory?.autoClips),
+  );
+  if (count >= AUTO_CLIP_CAP) return false;
+  const next: SessionState = {
+    id: base.id,
+    t: Math.max(base.t, memory?.t ?? 0),
+    autoClips: count + 1,
+  };
+  session = memory ? { ...memory, t: next.t, autoClips: next.autoClips } : next;
+  store.writeSession(next);
+  return true;
+}
+
 /**
  * Finds the session id for the record that the SDK sends, and records the
  * activity.
@@ -93,21 +190,27 @@ let lastWrite = 0;
  * the session. But it writes the store on a delay. Two conditions write
  * immediately: a new session id, which no other tab can find in memory, and the
  * exit path through persistSession().
+ *
+ * A passive read returns the id this page already has and does not move `t`.
+ * It does not adopt another tab's Session either: that happens on the next
+ * active read, which is what ends the Stream.
  */
 export function sessionId(): string {
-  const store = currentStore();
-  const base = store.readSession() ?? session;
-  const now = Date.now();
-  const next =
-    base && now - base.t <= SESSION_TIMEOUT_MS
-      ? { id: base.id, t: now }
-      : { id: uniqueId(), t: now };
-  session = next;
-  if (next.id !== base?.id || now - lastWrite >= STORAGE_WRITE_DELAY_MS) {
-    lastWrite = now;
-    store.writeSession(next);
+  if (passiveDepth > 0) {
+    return session?.id ?? currentStore().readSession()?.id ?? rotateSession();
   }
-  return next.id;
+  return rotateSession();
+}
+
+/**
+ * The current Session id without recording activity. A Clip resolves the
+ * Session through this before it builds any Segment, so a Session that changed
+ * since the last record ends the Stream first. Without it, the passive read
+ * inside the first Segment would rotate the Session with the old events still
+ * in flight.
+ */
+export function passiveSessionId(): string {
+  return passiveSession(sessionId);
 }
 
 /**

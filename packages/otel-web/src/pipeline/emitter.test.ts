@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { stubTransportFetch } from "../test-fetch.js";
+import { readOtlpBody, stubTransportFetch } from "../test-fetch.js";
 import type { OtlpSpan } from "../test-kit.js";
 import {
   type BeforeSend,
@@ -43,15 +43,18 @@ function makeEmitter(
 ) {
   sent = [];
   stubTransportFetch(
-    vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+    vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      // Read the exit body synchronously: exitFlush does not await its posts.
+      const body =
+        typeof init?.body === "string" ? init.body : await readOtlpBody(init);
       sent.push({
         url: String(url),
         headers: (init?.headers ?? {}) as Record<string, string>,
         keepalive: init?.keepalive,
-        bodyLength: String(init?.body).length,
-        payload: JSON.parse(String(init?.body)),
+        bodyLength: body.length,
+        payload: JSON.parse(body),
       });
-      return Promise.resolve(new Response(null, { status: 200 }));
+      return new Response(null, { status: 200 });
     }),
   );
   return createEmitter(
@@ -92,8 +95,9 @@ describe("createEmitter", () => {
     expect(sentRecords()).toHaveLength(2);
   });
 
-  it("flushes immediately when the batch size is reached", () => {
+  it("flushes immediately when the batch size is reached", async () => {
     for (let i = 0; i < 32; i++) emit("everr.browser.page_view");
+    await vi.advanceTimersByTimeAsync(0);
     expect(sent).toHaveLength(1);
     expect(sentRecords()).toHaveLength(32);
   });
@@ -215,6 +219,34 @@ describe("createEmitter", () => {
     // The records of the exit are the most recent records, and thus they stay.
     // The code removes the interactions at the front of the queue, which had
     // the full delay of the batch to go out on a usual flush.
+    expect(names.at(-1)).toBe("everr.browser.page_leave");
+    expect(names.at(-2)).toBe("browser.web_vital");
+  });
+
+  it("keeps the exit flush plain JSON inside the keepalive budget when gzip exists", () => {
+    vi.stubGlobal(
+      "CompressionStream",
+      (
+        globalThis as typeof globalThis & {
+          __testCompressionStream?: typeof CompressionStream;
+        }
+      ).__testCompressionStream,
+    );
+    const filler = "x".repeat(3000);
+    for (let i = 0; i < 29; i++)
+      emit("everr.browser.interaction.click", { filler });
+    emit("browser.web_vital", { filler });
+    emit("everr.browser.page_leave", { filler });
+    exitFlush();
+
+    // exitFlush does not await. A gzipped body would still be in flight, so
+    // the request has to be on the wire already, as the plain JSON string the
+    // budget was measured against.
+    expect(sent).toHaveLength(1);
+    expect(sent[0].keepalive).toBe(true);
+    expect(sent[0].headers["Content-Encoding"]).toBeUndefined();
+    expect(sent[0].bodyLength).toBeLessThanOrEqual(64_000);
+    const names = sentRecords().map((r) => r.eventName);
     expect(names.at(-1)).toBe("everr.browser.page_leave");
     expect(names.at(-2)).toBe("browser.web_vital");
   });
@@ -603,6 +635,75 @@ describe("exit budget and transport hardening", () => {
     ).toBeLessThanOrEqual(64_000);
   });
 
+  it("holds an exit Segment for the flush and sends it in the room logs leave", () => {
+    const [emitC, , exitFlushC, , emitNowC, beginExitC] = makeEmitter();
+    emitC("everr.browser.page_view", { filler: "x".repeat(20_000) });
+    beginExitC();
+    emitNowC(
+      "everr.browser.recording.segment",
+      { "everr.recording.segment.index": 0 },
+      undefined,
+      undefined,
+      "s".repeat(10_000),
+    );
+    // A Segment does not post while the page hides: it waits for the flush.
+    expect(sent).toHaveLength(0);
+
+    exitFlushC();
+    const exit = sent.filter((batch) => batch.keepalive);
+    const logs = exit.find((batch) => batch.url.endsWith("/v1/logs"));
+    const segment = exit.filter((batch) => batch.url.endsWith("/v1/logs"))[1];
+    expect(logs?.bodyLength).toBeGreaterThan(20_000);
+    expect(segment).toBeDefined();
+    expect(segment?.headers["Content-Encoding"]).toBeUndefined();
+    expect(segment?.payload.resourceLogs[0].scopeLogs[0].logRecords).toEqual([
+      expect.objectContaining({
+        eventName: "everr.browser.recording.segment",
+        body: { stringValue: "s".repeat(10_000) },
+      }),
+    ]);
+    expect(
+      (logs?.bodyLength ?? 0) + (segment?.bodyLength ?? 0),
+    ).toBeLessThanOrEqual(64_000);
+  });
+
+  it("drops an exit Segment whole when the logs leave less room than it needs", () => {
+    const [emitC, , exitFlushC, , emitNowC, beginExitC] = makeEmitter();
+    emitC("everr.browser.page_view", { filler: "x".repeat(40_000) });
+    beginExitC();
+    emitNowC(
+      "everr.browser.recording.segment",
+      {},
+      undefined,
+      undefined,
+      "s".repeat(30_000),
+    );
+    exitFlushC();
+
+    const exits = sent.filter((batch) => batch.keepalive);
+    expect(
+      exits.flatMap(
+        (batch) => batch.payload.resourceLogs[0].scopeLogs[0].logRecords,
+      ),
+    ).toEqual([
+      expect.objectContaining({ eventName: "everr.browser.page_view" }),
+    ]);
+  });
+
+  it("caps an exit Segment at 32 KB even when the logs leave more", () => {
+    const [, , exitFlushC, , emitNowC, beginExitC] = makeEmitter();
+    beginExitC();
+    emitNowC(
+      "everr.browser.recording.segment",
+      {},
+      undefined,
+      undefined,
+      "s".repeat(40_000),
+    );
+    exitFlushC();
+    expect(sent).toHaveLength(0);
+  });
+
   it("swallows a synchronously-throwing fetch on every delivery path", async () => {
     // Change the behavior of the fetch mock captured at module load so this
     // test exercises the transport's synchronous failure path.
@@ -672,6 +773,70 @@ describe("a caller-supplied send owns delivery", () => {
       }>;
     };
     expect(payload.resourceLogs[0].scopeLogs[0].logRecords).toHaveLength(20);
+  });
+
+  it("ships every exit Segment in full, one request for each, for a host", () => {
+    const delivered: Delivered[] = [];
+    const [, , exitFlushC, , emitNowC, beginExitC] = makeSendEmitter(
+      (signal, body) => {
+        delivered.push({ signal, body });
+      },
+    );
+
+    beginExitC();
+    emitNowC(
+      "everr.browser.recording.segment",
+      { "everr.recording.segment.index": 0 },
+      undefined,
+      undefined,
+      "s".repeat(40_000),
+    );
+    emitNowC(
+      "everr.browser.recording.segment",
+      { "everr.recording.segment.index": 1 },
+      undefined,
+      undefined,
+      "t".repeat(1_000),
+    );
+    exitFlushC();
+
+    expect(delivered).toHaveLength(2);
+    for (const item of delivered) {
+      expect(item.signal).toBe("logs");
+      const payload = JSON.parse(item.body) as {
+        resourceLogs: Array<{
+          scopeLogs: Array<{ logRecords: unknown[] }>;
+        }>;
+      };
+      expect(payload.resourceLogs[0].scopeLogs[0].logRecords).toHaveLength(1);
+    }
+    // The keepalive limit is a constraint of fetch only. A Segment above 32 KB
+    // goes to the host whole.
+    expect(delivered[0].body.length).toBeGreaterThan(32_000);
+  });
+
+  it("does not retry a Segment that the host fails at exit", () => {
+    const bodies: string[] = [];
+    const [, , exitFlushC, , emitNowC, beginExitC] = makeSendEmitter(
+      (_signal, body) => {
+        bodies.push(body);
+        throw new Error("segment lost");
+      },
+    );
+
+    beginExitC();
+    emitNowC(
+      "everr.browser.recording.segment",
+      {},
+      undefined,
+      undefined,
+      "s".repeat(1_000),
+    );
+    exitFlushC();
+
+    // One attempt. The gap in everr.recording.segment.index is the record of
+    // the loss.
+    expect(bodies).toHaveLength(1);
   });
 
   it("still truncates when the transport asks for it", () => {

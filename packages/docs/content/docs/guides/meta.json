@@ -4,6 +4,7 @@
   "pages": [
     "production-telemetry",
     "browser-telemetry",
+    "session-replay",
     "publishing-resources",
     "writing-good-alerts",
     "link-alerts-to-runbooks",

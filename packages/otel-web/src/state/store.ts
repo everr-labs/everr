@@ -5,8 +5,13 @@
 
 import type { Persistence } from "../types.js";
 
-/** The session in the store: its id and the time of the last activity. */
-export type SessionState = { id: string; t: number };
+/**
+ * The session in the store: its id, the time of the last activity, and how
+ * many automatic Clips this Session has emitted. The count is absent until
+ * the first one. It lives on the session so a reload and another tab share
+ * it, and a new session id starts again at zero.
+ */
+export type SessionState = { id: string; t: number; autoClips?: number };
 
 export type IdentityStore = {
   readVisitor(): string | null;
@@ -43,11 +48,18 @@ const localStorageStore: IdentityStore = {
   },
   readSession: () => {
     try {
-      const parsed: { id?: unknown; t?: unknown } = JSON.parse(
-        localStorage.getItem(SESSION_KEY) ?? "null",
-      );
-      if (typeof parsed?.id === "string" && typeof parsed.t === "number")
-        return parsed as SessionState;
+      const parsed: { id?: unknown; t?: unknown; autoClips?: unknown } =
+        JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null");
+      if (typeof parsed?.id === "string" && typeof parsed.t === "number") {
+        const autoClips = parsed.autoClips;
+        return {
+          id: parsed.id,
+          t: parsed.t,
+          ...(typeof autoClips === "number" && autoClips > 0
+            ? { autoClips }
+            : {}),
+        };
+      }
     } catch {
       // The store is not available, or the data is not correct.
     }

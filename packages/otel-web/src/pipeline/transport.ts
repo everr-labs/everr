@@ -43,6 +43,23 @@ type TransportConfig = [send: Send, truncateAtExit: boolean];
 // in fetchSend is too late when an earlier instance already patched fetch.
 const doFetch = globalThis.fetch;
 
+// A browser compresses the body with the CompressionStream API. The exit path
+// never uses it: that request must stay small in the synchronous page-hide
+// handler, and the keepalive body is already limited. An old browser has no
+// CompressionStream, and a compression error must not lose the batch, so both
+// conditions send the plain JSON string.
+async function gzip(body: string): Promise<string | Uint8Array> {
+  if (typeof CompressionStream === "undefined") return body;
+  try {
+    const stream = new Response(body).body;
+    if (!stream) return body;
+    const gzipped = stream.pipeThrough(new CompressionStream("gzip"));
+    return new Uint8Array(await new Response(gzipped).arrayBuffer());
+  } catch {
+    return body;
+  }
+}
+
 /** Sends each batch with POST to the OTLP endpoint that the code found. */
 export function fetchSend(
   logsUrl: string,
@@ -50,13 +67,22 @@ export function fetchSend(
   extraHeaders: Record<string, string> | undefined,
 ): Send {
   const headers = { "Content-Type": "application/json", ...extraHeaders };
-  return (signal, body, keepalive) =>
-    doFetch(signal === "logs" ? logsUrl : tracesUrl, {
-      method: "POST",
-      headers,
-      body,
-      keepalive,
-    });
+  return (signal, body, keepalive) => {
+    const url = signal === "logs" ? logsUrl : tracesUrl;
+    if (keepalive || typeof CompressionStream === "undefined") {
+      return doFetch(url, { method: "POST", headers, body, keepalive });
+    }
+    return gzip(body).then((payload) =>
+      doFetch(url, {
+        method: "POST",
+        headers:
+          payload === body
+            ? headers
+            : { ...headers, "Content-Encoding": "gzip" },
+        body: payload as BodyInit,
+      }),
+    );
+  };
 }
 
 export function resolveTransport(options: {
