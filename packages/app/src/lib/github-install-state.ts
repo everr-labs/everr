@@ -40,7 +40,7 @@ export function parseInstallState(
   state: string,
   now = Math.floor(Date.now() / 1000),
 ): InstallStatePayload {
-  const [encodedPayload, signature] = state.split("../integrations/github");
+  const [encodedPayload, signature] = state.split(".");
   if (!encodedPayload || !signature) {
     throw new Error("Invalid state format.");
   }
