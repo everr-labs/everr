@@ -182,10 +182,7 @@ function LogHistogramChart({
                     }
                   </span>
                   <span className="ml-auto font-mono font-medium tabular-nums">
-                    {
-                      // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve locale formatting on the original value without introducing coercion or validation.
-                      (value as number).toLocaleString()
-                    }
+                    {value.toLocaleString()}
                   </span>
                 </>
               )}

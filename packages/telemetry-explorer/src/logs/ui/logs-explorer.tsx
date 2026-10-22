@@ -324,8 +324,7 @@ export function LogsExplorer({
                 ) : isError ? (
                   <RetryError
                     title="Failed to load logs"
-                    // oxlint-disable-next-line typescript/consistent-type-assertions -- Keep the existing type-only assertion without changing runtime property access, coercion, or third-party interop.
-                    message={(error as Error).message}
+                    message={error.message}
                     onRetry={() => {
                       void refetch();
                     }}
