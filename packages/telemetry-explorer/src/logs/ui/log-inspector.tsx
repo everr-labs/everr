@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import { logDetailOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { LogDetail, LogExplorerRow } from "../schemas";
@@ -52,20 +52,6 @@ export interface LogInspectorPanelProps {
 
 function levelBadgeClassName(level: LogExplorerRow["level"]) {
   return LOG_LEVEL_META[level].badgeClassName;
-}
-
-function useDelayedFlag(active: boolean, delayMs: number) {
-  const [delayed, setDelayed] = useState(false);
-  useEffect(() => {
-    if (!active) {
-      // oxlint-disable-next-line react/set-state-in-effect -- Preserve the existing delayed-flag reset timing; moving this reset into render changes observable loading behavior.
-      setDelayed(false);
-      return;
-    }
-    const id = setTimeout(() => setDelayed(true), delayMs);
-    return () => clearTimeout(id);
-  }, [active, delayMs]);
-  return delayed;
 }
 
 function severityLabel(log: LogDetail) {

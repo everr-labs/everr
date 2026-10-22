@@ -127,8 +127,7 @@ export const DisabledItem: Story = {
 };
 
 export const Controlled: Story = {
-  render: (args) => {
-    // oxlint-disable-next-line react-hooks/rules-of-hooks -- Storybook executes this existing render callback as a React story; retain its original callback identity and naming.
+  render: function ToggleGroupStory(args) {
     const [value, setValue] = React.useState<string[]>(["center"]);
 
     return (

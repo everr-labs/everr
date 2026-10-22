@@ -15,10 +15,8 @@ const meta = {
     onChange: () => {},
     onRefresh: () => {},
   },
-  render: (args) => {
-    // oxlint-disable-next-line react-hooks/rules-of-hooks -- Storybook executes this existing render callback as a React story; retain its original callback identity and naming.
+  render: function RefreshPickerStory(args) {
     const [interval, setInterval] = useState(args.value);
-    // oxlint-disable-next-line react-hooks/rules-of-hooks -- Storybook executes this existing render callback as a React story; retain its original callback identity and naming.
     const [fetchCount, setFetchCount] = useState(0);
     return (
       <div className="flex flex-col items-start gap-3">

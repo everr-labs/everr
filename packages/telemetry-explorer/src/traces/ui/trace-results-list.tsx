@@ -16,7 +16,7 @@ import { Check, Copy } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
-import { useDelayedFlag } from "../util/use-delayed-flag";
+import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import { DurationBar } from "./duration-bar";
 import { isSafeMethod, splitSpanName } from "./http-method";
 import { serviceColor } from "./shared/service-color";

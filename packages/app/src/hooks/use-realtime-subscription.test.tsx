@@ -95,6 +95,54 @@ describe("useRealtimeSubscription — tenant scope", () => {
 });
 
 describe("useRealtimeSubscription — trace scope", () => {
+  it("keeps equivalent subscriptions connected and replaces changed scope or trace subscriptions", () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const initialProps: Parameters<typeof useRealtimeSubscription>[0] = {
+      scope: "trace",
+      traceId: "first",
+    };
+    const { rerender, unmount } = renderHook<void, Parameters<typeof useRealtimeSubscription>[0]>(
+      (opts: Parameters<typeof useRealtimeSubscription>[0]) => useRealtimeSubscription(opts),
+      { initialProps, wrapper: createWrapper(queryClient) },
+    );
+    const first = latestEs();
+
+    rerender({ scope: "trace", traceId: "first" });
+    expect(MockEventSource.instances).toHaveLength(1);
+    expect(first.close).not.toHaveBeenCalled();
+
+    rerender({ scope: "trace", traceId: "second" });
+    expect(first.close).toHaveBeenCalledOnce();
+    expect(MockEventSource.instances).toHaveLength(2);
+    expect(latestEs().url).toBe("/api/events/stream?scope=trace&key=second");
+    sendUpdate();
+    act(() => {
+      vi.advanceTimersByTime(THROTTLE_MS);
+    });
+    expect(invalidateQueries.mock.calls).toEqual([
+      [{ queryKey: ["runs", "details", "second"] }],
+      [{ queryKey: ["runs", "jobs", "second"] }],
+      [{ queryKey: ["runs", "allJobsSteps", "second"] }],
+    ]);
+
+    const second = latestEs();
+    rerender({ scope: "tenant" });
+    expect(second.close).toHaveBeenCalledOnce();
+    expect(MockEventSource.instances).toHaveLength(3);
+    expect(latestEs().url).toBe("/api/events/stream?scope=tenant");
+    rerender({ scope: "tenant" });
+    expect(MockEventSource.instances).toHaveLength(3);
+
+    const tenant = latestEs();
+    rerender({ scope: "trace", traceId: "" });
+    expect(tenant.close).toHaveBeenCalledOnce();
+    expect(latestEs().url).toBe("/api/events/stream?scope=trace&key=");
+    unmount();
+    expect(latestEs().close).toHaveBeenCalledOnce();
+  });
+
   it("opens EventSource with scope=trace and traceId", () => {
     renderHook(() => useRealtimeSubscription({ scope: "trace", traceId: "abc123" }), { wrapper });
 

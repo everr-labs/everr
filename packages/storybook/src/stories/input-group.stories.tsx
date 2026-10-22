@@ -171,8 +171,7 @@ export const Invalid: Story = {
 };
 
 export const Controlled: Story = {
-  render: () => {
-    // oxlint-disable-next-line react-hooks/rules-of-hooks -- Storybook executes this existing render callback as a React story; retain its original callback identity and naming.
+  render: function InputGroupStory() {
     const [value, setValue] = React.useState("checkout");
 
     return (

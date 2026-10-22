@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/to
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
-import { useDelayedFlag } from "../../traces/util/use-delayed-flag";
+import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import type { RunListItem } from "../schemas";
 import { ConclusionIcon } from "./conclusion-icon";
 import { SenderCell } from "./sender-cell";
