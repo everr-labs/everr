@@ -121,8 +121,7 @@ export function TimeSeriesChartVisualization({
     () => buildChartModel(data ?? [], domain),
     [data, domain],
   );
-  const activeSeries =
-    focusedSeries && modelSeries.some(({ id }) => id === focusedSeries) ? focusedSeries : null;
+  const activeSeries = modelSeries.find(({ identity }) => identity === focusedSeries)?.id ?? null;
 
   const stackedData = useMemo(
     () => (stacked ? buildStackedData(chartData, modelSeries) : null),
@@ -141,9 +140,9 @@ export function TimeSeriesChartVisualization({
         for (const points of stackedData) {
           const v = points[i]?.[1];
           if (typeof v === "number") top += v;
+          lo = Math.min(lo, top);
+          hi = Math.max(hi, top);
         }
-        lo = Math.min(lo, top);
-        hi = Math.max(hi, top);
       }
     } else {
       for (const { data: points } of modelSeries) {
@@ -238,6 +237,7 @@ export function TimeSeriesChartVisualization({
         silent: true,
         clip: true,
         stack: stacked ? "stack" : undefined,
+        stackStrategy: "all",
         areaStyle: stacked ? { color, opacity: dimmed ? 0.06 : 0.4 } : undefined,
         lineStyle: { color, width: lineWidth, opacity: dimmed ? 0.15 : 1 },
         itemStyle: { color },
@@ -482,7 +482,7 @@ export function TimeSeriesChartVisualization({
           tabIndex={0}
           aria-label="Series legend"
         >
-          {modelSeries.map(({ id, label, color }) => (
+          {modelSeries.map(({ id, identity, label, color }) => (
             <button
               key={id}
               type="button"
@@ -492,7 +492,7 @@ export function TimeSeriesChartVisualization({
                 activeSeries !== null && activeSeries !== id && "opacity-40",
               )}
               onClick={() => {
-                setFocusedSeries((current) => (current === id ? null : id));
+                setFocusedSeries((current) => (current === identity ? null : identity));
                 setTooltipState(null);
                 cursorStore.clear(cursorSourceRef.current);
               }}

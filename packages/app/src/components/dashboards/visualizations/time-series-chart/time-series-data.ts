@@ -18,6 +18,8 @@ export type SeriesPoint = [timestamp: number, value: number | null];
 
 export interface ChartSeries {
   id: string;
+  /** Stable within a query even when refreshed rows change series order. */
+  identity: string;
   label: string;
   color: string;
   data: SeriesPoint[];
@@ -128,13 +130,14 @@ export function buildChartModel(
   // Both the rendered lines and merged hover timeline derive from these maps.
   const pendingSeries: Array<{
     id: string;
+    identity: string;
     label: string;
     color: string;
     samples: Map<number, number | null>;
   }> = [];
   let seriesIndex = 0;
 
-  dataSets.forEach((data) => {
+  dataSets.forEach((data, queryIndex) => {
     if (!data || data.length === 0) return;
     const tk = detectTimeKey(data);
     if (!tk) return;
@@ -170,6 +173,7 @@ export function buildChartModel(
       const samples = new Map<number, number | null>();
       pendingSeries.push({
         id: renderKey,
+        identity: JSON.stringify([queryIndex, tk, groupKeys, name]),
         label: name,
         color: SERIES_COLORS[seriesIndex % SERIES_COLORS.length] ?? "hsl(263, 90%, 65%)",
         samples,
