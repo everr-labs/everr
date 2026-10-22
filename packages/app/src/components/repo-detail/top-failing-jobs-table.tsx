@@ -1,7 +1,7 @@
 import { Badge } from "@everr/ui/components/badge";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
-import type { TopFailingJob } from "@/data/repo-detail/schemas";
+import type { TopFailingJob } from "#app/data/repo-detail/schemas.ts";
 
 interface TopFailingJobsTableProps {
   data: TopFailingJob[];

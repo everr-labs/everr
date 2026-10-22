@@ -2,12 +2,12 @@ import { RetryError } from "@everr/ui/components/retry-error";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ChannelDialog } from "@/components/alerts/channel-dialog";
-import { DeliveryDialog } from "@/components/alerts/delivery-dialog";
-import { NotificationsPage } from "@/components/alerts/notifications-page";
-import { alertNotificationsOptions } from "@/data/alerting/delivery/options";
-import { useNotificationControls } from "@/hooks/use-notification-controls";
-import { useTimeRange } from "@/hooks/use-time-range";
+import { ChannelDialog } from "#app/components/alerts/channel-dialog.tsx";
+import { DeliveryDialog } from "#app/components/alerts/delivery-dialog.tsx";
+import { NotificationsPage } from "#app/components/alerts/notifications-page.tsx";
+import { alertNotificationsOptions } from "#app/data/alerting/delivery/options.ts";
+import { useNotificationControls } from "#app/hooks/use-notification-controls.ts";
+import { useTimeRange } from "#app/hooks/use-time-range.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/notifications",

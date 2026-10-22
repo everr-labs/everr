@@ -8,8 +8,8 @@ interface ImportMetaEnv {
    */
   readonly VITE_EVERR_PUBLIC_INGEST_KEY?: string;
   /**
-   * Optional OTLP endpoint override for browser telemetry. Defaults to the
-   * hosted ingest endpoint when a key is set, or the local collector in dev.
+   * OTLP endpoint for browser telemetry. Required in production;
+   * development can use the local collector.
    */
   readonly VITE_EVERR_INGEST_ENDPOINT?: string;
 }

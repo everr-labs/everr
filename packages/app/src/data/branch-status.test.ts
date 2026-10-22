@@ -1,13 +1,13 @@
 import type { QueryResultRow } from "pg";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   pool: {
     query: vi.fn(),
   },
 }));
 
-import { pool } from "@/db/client";
+import { pool } from "#app/db/client.ts";
 import { getBranchStatus } from "./branch-status";
 
 const mockedQuery = vi.mocked(

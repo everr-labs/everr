@@ -1,0 +1,224 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      javascript: ${{ steps.paths.outputs.javascript }}
+      app: ${{ steps.paths.outputs.app }}
+      docs: ${{ steps.paths.outputs.docs }}
+      cli: ${{ steps.paths.outputs.cli }}
+      collector: ${{ steps.paths.outputs.collector }}
+      bundle: ${{ steps.paths.outputs.bundle }}
+      action: ${{ steps.paths.outputs.action }}
+      fallow: ${{ steps.paths.outputs.fallow }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v4
+        id: paths
+        with:
+          filters: |
+            javascript:
+              - '.github/**'
+              - '.nvmrc'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'biome.json'
+              - '.oxlintrc.json'
+              - 'vitest*.ts'
+              - 'tsconfig*.json'
+              - '.dockerignore'
+              - 'packages/**'
+              - 'skills/**'
+            app:
+              - '.github/**'
+              - '.nvmrc'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'biome.json'
+              - '.oxlintrc.json'
+              - 'vitest*.ts'
+              - 'tsconfig*.json'
+              - '.dockerignore'
+              - 'packages/app/**'
+              - 'packages/cloud/**'
+              - 'packages/datemath/**'
+              - 'packages/otel-errors/**'
+              - 'packages/otel-web/**'
+              - 'packages/tanstack-start-otel/**'
+              - 'packages/telemetry-explorer/**'
+              - 'packages/ui/**'
+              - 'skills/everr-use-telemetry/rules/schema.md'
+            docs:
+              - '.github/**'
+              - '.nvmrc'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'biome.json'
+              - '.oxlintrc.json'
+              - 'vitest*.ts'
+              - 'tsconfig*.json'
+              - '.dockerignore'
+              - 'packages/docs/**'
+              - 'packages/datemath/**'
+              - 'packages/otel-errors/**'
+              - 'packages/otel-web/**'
+              - 'packages/ui/**'
+            cli:
+              - '.github/**'
+              - '.nvmrc'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'biome.json'
+              - '.oxlintrc.json'
+              - 'vitest*.ts'
+              - 'tsconfig*.json'
+              - '.dockerignore'
+              - 'packages/cli/**'
+              - 'packages/local-app/**'
+              - 'packages/datemath/**'
+              - 'packages/otel-errors/**'
+              - 'packages/otel-web/**'
+              - 'packages/telemetry-explorer/**'
+              - 'packages/ui/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'collector/**'
+              - 'skills/**'
+              - 'packages/docs/Dockerfile'
+              - 'packages/docs/public/install.sh'
+              - 'packages/docs/content/docs/reference/cli.mdx'
+            collector:
+              - '.github/**'
+              - '.dockerignore'
+              - 'collector/**'
+            bundle:
+              - '.github/**'
+              - '.nvmrc'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'biome.json'
+              - '.oxlintrc.json'
+              - 'vitest*.ts'
+              - 'tsconfig*.json'
+              - '.dockerignore'
+              - 'packages/otel-web/**'
+              - 'packages/otel-errors/**'
+            action:
+              - '.github/**'
+              - '.nvmrc'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'biome.json'
+              - '.oxlintrc.json'
+              - 'vitest*.ts'
+              - 'tsconfig*.json'
+              - '.dockerignore'
+            fallow:
+              - '.github/**'
+              - '.nvmrc'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'biome.json'
+              - '.oxlintrc.json'
+              - 'vitest*.ts'
+              - 'tsconfig*.json'
+              - '.dockerignore'
+              - '.fallowrc.jsonc'
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.mts'
+              - '**/*.cts'
+              - '**/*.js'
+              - '**/*.mjs'
+              - '**/*.cjs'
+
+  javascript:
+    needs: changes
+    if: needs.changes.outputs.javascript == 'true'
+    uses: ./.github/workflows/test-javascript.yml
+
+  app:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    uses: ./.github/workflows/build-and-test-app.yml
+
+  docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    uses: ./.github/workflows/build-and-test-docs.yml
+
+  cli:
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    uses: ./.github/workflows/build-everr-cli.yml
+
+  collector:
+    needs: changes
+    if: needs.changes.outputs.collector == 'true'
+    uses: ./.github/workflows/build-and-test-collector.yml
+
+  bundle:
+    needs: changes
+    if: needs.changes.outputs.bundle == 'true'
+    uses: ./.github/workflows/bundle-size.yml
+
+  action:
+    needs: changes
+    if: needs.changes.outputs.action == 'true'
+    uses: ./.github/workflows/verify-action-dist.yml
+
+  fallow:
+    needs: changes
+    if: needs.changes.outputs.fallow == 'true'
+    uses: ./.github/workflows/fallow.yml
+
+  checks:
+    name: All checks
+    runs-on: ubuntu-latest
+    needs: [changes, javascript, app, docs, cli, collector, bundle, action, fallow]
+    if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    steps:
+      - name: Require all selected checks to pass
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          node -e 'const results = JSON.parse(process.env.RESULTS); if (results.some(result => !["success", "skipped"].includes(result))) process.exit(1)'
+
+  images:
+    needs: [changes, checks]
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.checks.result == 'success' &&
+      (needs.changes.outputs.app == 'true' || needs.changes.outputs.collector == 'true' || needs.changes.outputs.docs == 'true')
+    uses: ./.github/workflows/build-and-push-images.yml
+    secrets: inherit
+    with:
+      app: ${{ needs.changes.outputs.app == 'true' }}
+      collector: ${{ needs.changes.outputs.collector == 'true' }}
+      docs: ${{ needs.changes.outputs.docs == 'true' }}

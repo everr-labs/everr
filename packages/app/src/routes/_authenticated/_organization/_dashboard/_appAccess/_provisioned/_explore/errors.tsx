@@ -11,9 +11,9 @@ import {
   stripSearchParams,
   useSearch,
 } from "@tanstack/react-router";
-import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
-import { remoteErrorsRepo } from "@/data/errors/remote-repo";
-import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
+import { remoteErrorsRepo } from "#app/data/errors/remote-repo.ts";
+import { useRealtimeSubscription } from "#app/hooks/use-realtime-subscription.ts";
 
 const RouteSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
 const defaultSearch = RouteSearchSchema.parse({});

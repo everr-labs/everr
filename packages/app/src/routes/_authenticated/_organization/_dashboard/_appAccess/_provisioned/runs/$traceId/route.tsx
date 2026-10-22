@@ -25,15 +25,15 @@ import {
   useParams,
 } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { PageContainer } from "@/components/page-container";
-import { JobTreeNav } from "@/components/run-detail/job-tree-nav";
-import { RunHeader } from "@/components/run-detail/run-header";
+import { PageContainer } from "#app/components/page-container.tsx";
+import { JobTreeNav } from "#app/components/run-detail/job-tree-nav.tsx";
+import { RunHeader } from "#app/components/run-detail/run-header.tsx";
 import {
   allJobsStepsOptions,
   runDetailsOptions,
   runJobsOptions,
-} from "@/data/runs/options";
-import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
+} from "#app/data/runs/options.ts";
+import { useRealtimeSubscription } from "#app/hooks/use-realtime-subscription.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId",

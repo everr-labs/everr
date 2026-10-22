@@ -1,6 +1,10 @@
+import { deployment } from "@composition/deployment";
+
 import { z } from "zod";
-import { db } from "@/db/client";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import type { HomeStatus } from "#app/common/onboarding.ts";
+import { db } from "#app/db/client.ts";
+import { env } from "#app/env/index.ts";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import { createOnboardingStore } from "./store";
 
 const store = createOnboardingStore(db);
@@ -20,14 +24,18 @@ function onboardingScope(
 
 export const getHomeStatus = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(identityInput)
-  .handler(({ data, context: { session } }) =>
-    store.getStatus(
-      onboardingScope(
-        data.organizationId,
-        session.session.activeOrganizationId,
-        session.user.id,
-      ),
-    ),
+  .handler(
+    async ({ data, context: { session } }): Promise<HomeStatus> => ({
+      ...(await store.getStatus(
+        onboardingScope(
+          data.organizationId,
+          session.session.activeOrganizationId,
+          session.user.id,
+        ),
+      )),
+      ingestEndpoint: deployment.ingestEndpoint,
+      appUrl: env.BETTER_AUTH_URL,
+    }),
   );
 
 export const completeOnboarding = createAuthenticatedServerFn({

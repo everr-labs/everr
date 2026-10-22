@@ -4,7 +4,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
-import type { PreviewStatus } from "@/data/previews/overlay";
+import type { PreviewStatus } from "#app/data/previews/overlay.ts";
 
 // Each visible status maps 1:1 to a Badge tone variant (see @everr/ui badge).
 // "unchanged" earns no badge, so it's excluded.

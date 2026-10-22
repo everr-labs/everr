@@ -12,8 +12,8 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { DashboardResource } from "@/data/dashboards/schema";
-import type { Runbook } from "@/data/runbooks/schema";
+import type { DashboardResource } from "#app/data/dashboards/schema.ts";
+import type { Runbook } from "#app/data/runbooks/schema.ts";
 
 export const githubInstallationStatusEnum = pgEnum("installation_status", [
   "active",

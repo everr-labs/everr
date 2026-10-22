@@ -47,6 +47,13 @@ func TestDrainContract(t *testing.T) {
 
 func TestConcurrentDrainAndBounds(t *testing.T) {
 	m := newMeter(Config{MaxSeries: 1}, zap.NewNop())
+	// Record reads the clock under the meter lock. Advance it explicitly so
+	// this test exercises concurrent drains, not clock-generation overflow.
+	at := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	m.now = func() time.Time {
+		at = at.Add(time.Nanosecond)
+		return at
+	}
 	var wg sync.WaitGroup
 	for range 8 {
 		wg.Add(1)

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { Transaction } from "@/db/client";
-import { addWorkerJobInTransaction } from "@/server/worker/jobs";
+import type { Transaction } from "#app/db/client.ts";
+import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
 import { alertingPartitionQueue } from "../scheduling/evaluation-jobs.server";
 import { currentTraceLink, TraceLinkSchema } from "../trace-link";
 

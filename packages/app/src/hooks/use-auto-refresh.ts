@@ -6,7 +6,7 @@ import {
   applyRouteTimeDefaults,
   type RefreshInterval,
   ResolvedTimeRangeSearchSchema,
-} from "@/lib/time-range";
+} from "#app/lib/time-range.ts";
 import { useRouteTimeDefaults } from "./use-time-range";
 
 export function useAutoRefresh() {

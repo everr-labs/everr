@@ -1,5 +1,54 @@
 # Everr CLI
 
+## Installations and sessions
+
+Run `everr cloud login` to authenticate with Everr Cloud. For self-hosted installations,
+supply the app URL:
+
+```sh
+everr cloud login --url https://observability.acme.com
+everr cloud status --json
+everr cloud logout
+```
+
+Approve the login in your browser and select an organization. The onboarding page
+copies a command with the installation URL. Use `--no-open` to print the
+authorization URL without opening a browser.
+
+The CLI saves one session containing the API URL and token. A successful login
+replaces it; failed logins preserve the previous session. Without `--url`, login
+reuses the saved URL or the build's default when no session exists. Login does not
+create or read repository target configuration. To switch installations or
+accounts, authenticate again with `everr cloud login`. Remote queries use
+`everr cloud query`, including self-hosted installations.
+
+Sessions live in `session.json` under the platform's user configuration directory:
+`~/Library/Application Support/everr` on macOS, or
+`${XDG_CONFIG_HOME:-~/.config}/everr` on Linux. Debug builds use `session-dev.json`
+and default to `http://localhost:5173`; releases default to `https://app.everr.dev`.
+Session files are private to the user. `EVERR_CONFIG_DIR` overrides the directory
+with an absolute path. Existing session files remain readable.
+
+Use `everr cloud status` to check the installation, account, organization, and
+ingestion endpoint. `--json` returns `url`, account and organization identity, and
+`ingestEndpoint` from the server. Cloud advertises its hosted ingest
+endpoint; self-hosted installations advertise `EVERR_PUBLIC_INGEST_URL`. A null
+endpoint means it is unconfigured or unavailable on an older server. The ingestion
+endpoint is not stored in the session file. Save it in the application's exporter
+configuration and document the settings under Telemetry. App and ingestion URLs
+can differ. Ordinary queries use the saved session directly.
+
+For unattended `apply`, set `EVERR_API_KEY` (or the deprecated `EVERR_API_TOKEN`)
+and `EVERR_API_URL`. With a key, an omitted URL falls back to the saved session's
+URL. Other remote commands use the saved session. Exporters use separate ingestion
+keys rather than the CLI session token.
+
+Local commands and the local UI operate independently of remote login. They read
+neither the session file nor repository target configuration. The local UI manages
+local telemetry without remote account or sign-in controls.
+
+## Development
+
 `pnpm --filter @everr/cli build:debug` builds the local UI, prepares the collector and chDB library, and embeds them in the CLI. `build:release` produces the release binary and checksum. The CLI version comes from this package's `package.json`.
 
 `everr local start` serves the bundled UI and starts the collector until interrupted. Successful startup prints the Everr banner in a terminal and the OTLP, SQL, and UI addresses; detached startup also prints the log path. Redirected output omits the banner. `--no-open` suppresses browser launch; `--quiet` suppresses startup output and browser launch. If the collector and UI are already ready and share an instance ID, another `local start` prints the endpoints and exits successfully. Partial instances or occupied ports cause an error; startup never stops existing listeners.
@@ -14,9 +63,9 @@ Detached supervisor and collector output goes to `~/Library/Logs/everr/local.log
 
 `everr local ui` opens the configured local UI URL in your default browser and prints `ui: <url>`. It requires the same matching ready instance as `local status`. Otherwise, it reports the same diagnostics and exits with code 2, without starting services. If browser launch fails, it exits with code 1 and prints the URL to open manually.
 
-`everr cloud status` checks the saved session with Everr Cloud and prints the current user's name, email, organization, and Cloud URL as `Name:`, `Email:`, `Organization:`, and `Cloud:` rows. Missing or expired sessions and request failures produce an error without changing the saved session. The command does not print the session token.
+`everr cloud status` checks the saved session with its installation and prints the current user's name, email, organization, installation URL, and ingestion endpoint as `Name:`, `Email:`, `Organization:`, `Installation:`, and `Ingestion endpoint:` rows. `--json` returns these connection details as JSON. Missing or expired sessions and request failures produce an error without changing the saved session. The command does not print the session token.
 
-Install bundled agent skills for your project with `everr skills install --all --project`. Start local telemetry with `everr local start`. Cloud sign-in and ingest keys are separate follow-up steps when you want hosted telemetry or CI.
+Install bundled agent skills for your project with `everr skills install --all --project`. Start local telemetry with `everr local start`. Installation sign-in and ingest keys are separate follow-up steps when you want remote telemetry or CI.
 
 ## Telemetry
 

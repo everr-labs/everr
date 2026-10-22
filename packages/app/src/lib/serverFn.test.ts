@@ -1,8 +1,15 @@
+import { storage } from "@composition/storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 import {
   composeMiddleware,
   type FunctionMiddlewareHandler,
 } from "./test-middleware";
+
+const { assertStorageReady } = storage;
+vi.mock("@composition/storage", () => ({
+  storage: { assertStorageReady: vi.fn() },
+}));
 
 const mocked = vi.hoisted(() => ({
   handler: null as FunctionMiddlewareHandler | null,
@@ -40,6 +47,7 @@ function getRequireOrgHandler(): FunctionMiddlewareHandler {
 
 beforeEach(() => {
   vi.resetModules();
+  vi.mocked(assertStorageReady).mockReset();
   mocked.handler = null;
   mocked.middlewareDefinition = null;
   mocked.allDefinitions = [];
@@ -47,11 +55,12 @@ beforeEach(() => {
   mocked.createServerFnMiddleware.mockReturnValue(mocked.createServerFnResult);
   mocked.getRequest.mockReset();
   mocked.getActiveMemberRole.mockReset();
-  mocked.getActiveMemberRole.mockResolvedValue({ role: "owner" });
   mocked.getSession.mockReset();
   mocked.getOrganization
     .mockReset()
-    .mockResolvedValue([{ id: "org_123", metadata: null }]);
+    .mockResolvedValue([
+      { id: "org_123", metadata: null, memberRole: "owner" },
+    ]);
 });
 
 async function loadModule() {
@@ -92,7 +101,7 @@ async function loadModule() {
   vi.doMock("@tanstack/react-start/server", () => ({
     getRequest: mocked.getRequest,
   }));
-  vi.doMock("./auth.server", () => ({
+  vi.doMock("#app/identity/server.ts", () => ({
     auth: {
       api: {
         getActiveMemberRole: mocked.getActiveMemberRole,
@@ -101,7 +110,7 @@ async function loadModule() {
     },
   }));
 
-  vi.doMock("@/db/client", () => ({
+  vi.doMock("#app/db/client.ts", () => ({
     db: {
       select: () => ({
         from: () => ({
@@ -142,7 +151,7 @@ describe("createOrganizationAdminServerFn", () => {
     ]);
   });
 
-  it.each(["admin", "owner"])("allows an %s", async (role) => {
+  it.each(["admin", "owner", "member, admin"])("allows an %s", async (role) => {
     await loadModule();
     const request = new Request("http://localhost/_server");
     const nextResult = new Response(null, { status: 204 });
@@ -151,14 +160,15 @@ describe("createOrganizationAdminServerFn", () => {
       user: { id: "user_123" },
       session: { id: "session_123", activeOrganizationId: "org_123" },
     });
-    mocked.getActiveMemberRole.mockResolvedValue({ role });
+    mocked.getOrganization.mockResolvedValue([
+      { id: "org_123", metadata: null, memberRole: role },
+    ]);
 
     const response = await getHandler()({ request, next });
 
     expect(response).toBe(nextResult);
-    expect(mocked.getActiveMemberRole).toHaveBeenCalledWith({
-      headers: request.headers,
-    });
+    expect(mocked.getOrganization).toHaveBeenCalledOnce();
+    expect(mocked.getActiveMemberRole).not.toHaveBeenCalled();
   });
 
   it("rejects an ordinary member", async () => {
@@ -169,17 +179,21 @@ describe("createOrganizationAdminServerFn", () => {
       user: { id: "user_123" },
       session: { id: "session_123", activeOrganizationId: "org_123" },
     });
-    mocked.getActiveMemberRole.mockResolvedValue({ role: "member" });
+    mocked.getOrganization.mockResolvedValue([
+      { id: "org_123", metadata: null, memberRole: "member" },
+    ]);
 
     await expect(getHandler()({ request, next })).rejects.toBeInstanceOf(
       NotOrganizationAdminError,
     );
     expect(next).not.toHaveBeenCalled();
+    expect(mocked.getOrganization).toHaveBeenCalledOnce();
+    expect(mocked.getActiveMemberRole).not.toHaveBeenCalled();
   });
 });
 
 describe("authMiddleware", () => {
-  it("authenticates via better-auth session and populates context", async () => {
+  it("authenticates and populates context with the active organization", async () => {
     await loadModule();
     const request = new Request("http://localhost/_server");
     const nextResult = new Response(null, { status: 204 });
@@ -196,6 +210,7 @@ describe("authMiddleware", () => {
     expect(next).toHaveBeenCalledWith({
       context: {
         organization: { id: "org_123", metadata: null },
+        memberRole: "owner",
         session: {
           user: { id: "user_123" },
           session: {
@@ -252,7 +267,9 @@ describe("organization readiness boundary", () => {
       user: { id: "u" },
       session: { activeOrganizationId: "org" },
     });
-    mocked.getOrganization.mockResolvedValue([{ id: "org", metadata }]);
+    mocked.getOrganization.mockResolvedValue([
+      { id: "org", metadata, memberRole: "owner" },
+    ]);
     const next = vi.fn().mockResolvedValue("ok");
     await mocked.allDefinitions[2]?.__handler({
       request: new Request("http://localhost/_server"),
@@ -260,9 +277,21 @@ describe("organization readiness boundary", () => {
     });
     expect(next).toHaveBeenCalledOnce();
     expect(mocked.getOrganization).toHaveBeenCalledOnce();
+    expect(assertStorageReady).toHaveBeenCalledWith(metadata);
+    const { context } = next.mock.calls[0][0];
+    const { querySqlApi } = await import("./clickhouse");
+    await context.sql.query("SELECT {value:UInt8}", { value: 1 });
+    expect(querySqlApi).toHaveBeenLastCalledWith(
+      "SELECT {value:UInt8}",
+      "org",
+      { value: 1 },
+    );
   });
-  it("blocks pending data functions while allowing organization and billing access", async () => {
+  it("blocks pending data functions while allowing organization access", async () => {
     await loadModule();
+    vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+      throw new StorageNotReadyError();
+    });
     mocked.getSession.mockResolvedValue({
       user: { id: "u" },
       session: { activeOrganizationId: "org" },
@@ -271,6 +300,7 @@ describe("organization readiness boundary", () => {
       {
         id: "org",
         metadata: { clickhouseReady: false },
+        memberRole: "owner",
       },
     ]);
     const args = {
@@ -279,7 +309,7 @@ describe("organization readiness boundary", () => {
     };
     await expect(
       mocked.allDefinitions[2]?.__handler(args),
-    ).rejects.toMatchObject({ name: "ClickhouseProvisioningPendingError" });
+    ).rejects.toMatchObject({ name: "StorageNotReadyError" });
     expect(args.next).not.toHaveBeenCalled();
     await getRequireOrgHandler()(args);
     expect(args.next).toHaveBeenCalledOnce();

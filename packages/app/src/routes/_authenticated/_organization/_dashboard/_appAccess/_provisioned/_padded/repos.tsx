@@ -2,14 +2,14 @@ import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { ActiveBranchesTable } from "@/components/repo-detail/active-branches-table";
-import { RepoDurationTrendChart } from "@/components/repo-detail/repo-duration-trend-chart";
-import { RepoHeader } from "@/components/repo-detail/repo-header";
-import { RepoRecentRuns } from "@/components/repo-detail/repo-recent-runs";
-import { RepoSuccessRateChart } from "@/components/repo-detail/repo-success-rate-chart";
-import { TopFailingJobsTable } from "@/components/repo-detail/top-failing-jobs-table";
-import { TimeRangePanel } from "@/components/time-range-panel";
-import type { TimeRangeInput } from "@/data/analytics/schemas";
+import { ActiveBranchesTable } from "#app/components/repo-detail/active-branches-table.tsx";
+import { RepoDurationTrendChart } from "#app/components/repo-detail/repo-duration-trend-chart.tsx";
+import { RepoHeader } from "#app/components/repo-detail/repo-header.tsx";
+import { RepoRecentRuns } from "#app/components/repo-detail/repo-recent-runs.tsx";
+import { RepoSuccessRateChart } from "#app/components/repo-detail/repo-success-rate-chart.tsx";
+import { TopFailingJobsTable } from "#app/components/repo-detail/top-failing-jobs-table.tsx";
+import { TimeRangePanel } from "#app/components/time-range-panel.tsx";
+import type { TimeRangeInput } from "#app/data/analytics/schemas.ts";
 import {
   activeBranchesOptions,
   repoDurationTrendOptions,
@@ -17,8 +17,8 @@ import {
   repoStatsOptions,
   repoSuccessRateTrendOptions,
   topFailingJobsOptions,
-} from "@/data/repo-detail/options";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+} from "#app/data/repo-detail/options.ts";
+import { TimeRangeSearchSchema } from "#app/lib/time-range.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/repos",

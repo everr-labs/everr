@@ -1,8 +1,9 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import { PgTransaction } from "drizzle-orm/pg-core";
-import { Pool, type PoolConfig } from "pg";
-import * as schema from "@/db/schema";
-import { dbEnv } from "@/env/db";
+import type { PoolConfig } from "pg";
+import { dbEnv } from "#app/env/db.ts";
+import { createDatabase } from "./database";
+
+export type { Database, DbExecutor, Transaction } from "./database";
+export { runInTransaction } from "./database";
 
 const shouldUseSsl = ["true", "1", "yes", "on"].includes(
   dbEnv.DATABASE_SSL?.toLowerCase() ?? "",
@@ -21,35 +22,4 @@ export const databasePoolConfig: PoolConfig = {
   connectionTimeoutMillis: 10_000,
 };
 
-export const pool = new Pool(databasePoolConfig);
-
-export const db = drizzle(pool, { schema });
-
-export type Database = typeof db;
-/** The `tx` handle inside `db.transaction(async (tx) => …)`. */
-export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-/**
- * Anything that can run queries: the base pool or an open transaction. Reconcilers
- * take one so the whole apply (register + every kind) commits or rolls back as a
- * unit; dry-run reads pass the base `db`.
- */
-export type DbExecutor = Database | Transaction;
-
-/**
- * Run `fn` atomically: a real transaction on the base pool, the transaction
- * itself when one is already open. Reusing instead of nesting matters: a
- * nested call opens a savepoint, every writing savepoint burns a
- * subtransaction id that RELEASE does not return, and past 64 in one
- * transaction every snapshot in the cluster degrades to pg_subtrans lookups.
- * The cost of reuse is that a failure aborts the whole open transaction,
- * which is what callers here want: the registry rolls the entire apply back
- * on any mutation failure anyway.
- */
-export function runInTransaction<T>(
-  executor: DbExecutor,
-  fn: (tx: Transaction) => Promise<T>,
-): Promise<T> {
-  return executor instanceof PgTransaction
-    ? fn(executor)
-    : executor.transaction(fn);
-}
+export const { pool, db } = createDatabase(databasePoolConfig);

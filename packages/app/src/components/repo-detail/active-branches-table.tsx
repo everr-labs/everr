@@ -4,8 +4,8 @@ import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
-import type { ActiveBranch } from "@/data/repo-detail/schemas";
-import { getSuccessRateVariant } from "@/lib/formatting";
+import type { ActiveBranch } from "#app/data/repo-detail/schemas.ts";
+import { getSuccessRateVariant } from "#app/lib/formatting.ts";
 
 interface ActiveBranchesTableProps {
   data: ActiveBranch[];

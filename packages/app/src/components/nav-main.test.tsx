@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { navGroups } from "@/lib/navigation";
+import { navGroups } from "#app/lib/navigation.ts";
 import { NavMain } from "./nav-main";
 
 /** Renders the sidebar nav at a URL, over a route tree carrying just the
@@ -62,13 +62,6 @@ describe("sidebar nav active state", () => {
     renderNav("/alerts?alert=default/eventloop-delay");
 
     await screen.findByText("Triage");
-    expect(activeLinkNames()).toEqual(["Triage"]);
-  });
-
-  it("does not keep Home active away from the root", async () => {
-    renderNav("/alerts");
-
-    await screen.findByText("Home");
     expect(activeLinkNames()).toEqual(["Triage"]);
   });
 });

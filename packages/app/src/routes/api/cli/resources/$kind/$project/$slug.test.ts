@@ -3,21 +3,24 @@ import {
   deleteResource,
   getResource,
   ReservedProjectError,
-} from "@/data/as-code/resource-admin.server";
+} from "#app/data/as-code/resource-admin.server.ts";
 import { getRouteHandler } from "../../../-test-utils";
 import { Route } from "./$slug";
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: { select: vi.fn(), delete: vi.fn(), update: vi.fn() },
 }));
 
-vi.mock("@/data/as-code/resource-admin.server", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@/data/as-code/resource-admin.server")
-  >()),
-  getResource: vi.fn(),
-  deleteResource: vi.fn(),
-}));
+vi.mock(
+  "#app/data/as-code/resource-admin.server.ts",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("#app/data/as-code/resource-admin.server.ts")
+    >()),
+    getResource: vi.fn(),
+    deleteResource: vi.fn(),
+  }),
+);
 
 const mockedGet = vi.mocked(getResource);
 const mockedDelete = vi.mocked(deleteResource);

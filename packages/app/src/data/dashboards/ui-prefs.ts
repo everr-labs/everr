@@ -3,7 +3,7 @@ import {
   readLocalStorage,
   removeLocalStorage,
   writeLocalStorage,
-} from "@/lib/local-storage";
+} from "#app/lib/local-storage.ts";
 
 /**
  * Sticky UI flags for the dashboards rail. Local to the browser on purpose,

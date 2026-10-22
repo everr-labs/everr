@@ -1,19 +1,22 @@
+import { notFound } from "@tanstack/react-router";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db/client";
-import { githubInstallationOrganizations } from "@/db/schema";
+import { db } from "#app/db/client.ts";
+import { githubInstallationOrganizations } from "#app/db/schema/index.ts";
 import {
   createAuthenticatedServerFn,
   createOrganizationAdminServerFn,
-} from "@/lib/serverFn";
+} from "#app/lib/serverFn.ts";
 import {
   backfillRepo,
   JOB_QUOTA_PER_REPO,
   listInstallationRepos,
-} from "@/server/github-events/backfill";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+} from "#app/server/github-events/backfill.ts";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
+import { getGithubConfiguration } from "../integrations/github/configuration";
 
 async function getInstallationsForOrganization(organizationId: string) {
+  if (!getGithubConfiguration()) throw notFound();
   return db
     .select({
       installationId: githubInstallationOrganizations.githubInstallationId,

@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { pool } from "@/db/client";
-import type { ClickhouseQuery } from "@/lib/clickhouse";
-import { normalizeTimestampToUtc } from "@/lib/formatting";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { pool } from "#app/db/client.ts";
+import type { ClickhouseQuery } from "#app/lib/clickhouse.ts";
+import { normalizeTimestampToUtc } from "#app/lib/formatting.ts";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import type { Job, LogEntry, Run, Span, Step } from "./schemas";
 
 const DEFAULT_LOG_PAGE_SIZE = 1000;

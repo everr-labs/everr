@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { ApiKey } from "@/data/api-keys";
+import type { ApiKey } from "#app/data/api-keys.ts";
 
 const mocks = vi.hoisted(() => ({
   createApiKey: vi.fn(),
@@ -16,10 +16,10 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestHeaders: () => ({}),
 }));
-vi.mock("@/data/api-keys", () => mocks);
+vi.mock("#app/data/api-keys.ts", () => mocks);
 // The page's admin guard runs in `beforeLoad`, never in the component, so the
 // handler only has to exist.
-vi.mock("@/lib/serverFn", () => ({
+vi.mock("#app/lib/serverFn.ts", () => ({
   createAuthenticatedServerFn: { handler: (fn: unknown) => fn },
 }));
 

@@ -1,51 +1,10 @@
-name: Build & Test App
+name: Build & Check App
+
+on:
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  # For pushes, this lets concurrent runs happen, so each push gets a result.
-  # But for other events (e.g. PRs), we can cancel the previous runs.
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
-  cancel-in-progress: true
-
-on:
-  pull_request:
-    paths:
-      - .github/workflows/build-and-test-app.yml
-      - .nvmrc
-      - biome.json
-      - package.json
-      - packages/app/**
-      - skills/everr-use-telemetry/rules/schema.md
-      - packages/datemath/**
-      - packages/otel-errors/**
-      - packages/otel-web/**
-      - packages/tanstack-start-otel/**
-      - packages/telemetry-explorer/**
-      - packages/ui/**
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - vitest.config.ts
-
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/build-and-test-app.yml
-      - .nvmrc
-      - biome.json
-      - package.json
-      - packages/app/**
-      - skills/everr-use-telemetry/rules/schema.md
-      - packages/datemath/**
-      - packages/otel-errors/**
-      - packages/otel-web/**
-      - packages/tanstack-start-otel/**
-      - packages/telemetry-explorer/**
-      - packages/ui/**
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - vitest.config.ts
 
 jobs:
   ci:
@@ -73,25 +32,41 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm exec biome check packages/app packages/datemath
+        run: >-
+          pnpm exec biome check
+          packages/app packages/cloud packages/datemath packages/otel-errors
+          packages/otel-web packages/tanstack-start-otel
+          packages/telemetry-explorer packages/ui
+
+      - name: Check package boundaries
+        run: pnpm check:boundaries
 
       - name: Typecheck
-        run: pnpm -r --filter @everr/app... typecheck
-
-      - name: Test
-        run: pnpm -r --filter @everr/app... test:ci
+        run: pnpm -r --filter @everr/app-cloud... typecheck
 
       - name: Generate migrations
-        run: |
-          DATABASE_HOST="localhost", DATABASE_NAME="mock", DATABASE_PORT="5432", DATABASE_USER="postgres", DATABASE_PASSWORD="postgres" pnpm -r --filter @everr/app db:generate
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_NAME: mock
+          DATABASE_PORT: "5432"
+          DATABASE_USER: postgres
+          DATABASE_PASSWORD: postgres
+        run: pnpm -r --filter @everr/app --filter @everr/app-cloud db:generate
 
       - name: Ensure no unstaged/changed files
         run: |
           if [[ -n "$(git status --porcelain)" ]]; then
-            echo "❌ Uncommitted migrations. run 'pnpm db:generate' and commit the changes."
+            echo "❌ Uncommitted migrations. Run db:generate in packages/app and packages/cloud and commit the changes."
             git status --porcelain
             git diff
             exit 1
           fi
       - name: Build
         run: pnpm -r --filter @everr/app build
+
+      - name: Build Cloud
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          BETTER_AUTH_URL: http://localhost:3000
+          BETTER_AUTH_SECRET: ci-prerender-only-not-a-runtime-secret
+        run: pnpm --filter @everr/app-cloud build

@@ -18,11 +18,11 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LayoutDashboard, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
-import { BUILTIN_MANIFEST } from "@/data/dashboards/built-in/manifest";
-import { dashboardListOptions } from "@/data/dashboards/options";
-import { searchRunsOptions } from "@/data/runs-list/options";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { navGroups } from "@/lib/navigation";
+import { BUILTIN_MANIFEST } from "#app/data/dashboards/built-in/manifest.ts";
+import { dashboardListOptions } from "#app/data/dashboards/options.ts";
+import { searchRunsOptions } from "#app/data/runs-list/options.ts";
+import { useDebouncedValue } from "#app/hooks/use-debounced-value.ts";
+import { navGroups } from "#app/lib/navigation.ts";
 
 export function CommandBar() {
   const navigate = useNavigate();
@@ -39,11 +39,6 @@ export function CommandBar() {
   });
 
   const { data: dashboardList } = useQuery(dashboardListOptions(preview));
-
-  function handleSelect(url: string) {
-    toggleCommandBar(false);
-    navigate({ to: url });
-  }
 
   const toggleCommandBar = useCallback((open: boolean) => {
     if (document.startViewTransition) {
@@ -116,7 +111,13 @@ export function CommandBar() {
                   <CommandItem
                     key={run.traceId}
                     value={`run ${run.runId} ${run.workflowName} ${run.repo}`}
-                    onSelect={() => handleSelect(`/runs/${run.traceId}`)}
+                    onSelect={() => {
+                      toggleCommandBar(false);
+                      navigate({
+                        to: "/runs/$traceId",
+                        params: { traceId: run.traceId },
+                      });
+                    }}
                     forceMount
                   >
                     <ConclusionIcon
@@ -139,9 +140,13 @@ export function CommandBar() {
                   <CommandItem
                     key={`${d.project}/${d.slug}`}
                     value={`dashboard ${d.name} ${d.slug}`}
-                    onSelect={() =>
-                      handleSelect(`/dashboards/${d.project}/${d.slug}`)
-                    }
+                    onSelect={() => {
+                      toggleCommandBar(false);
+                      navigate({
+                        to: "/dashboards/$project/$slug",
+                        params: { project: d.project, slug: d.slug },
+                      });
+                    }}
                   >
                     <LayoutDashboard />
                     {d.name}
@@ -154,7 +159,13 @@ export function CommandBar() {
                 <CommandItem
                   key={b.id}
                   value={`built-in dashboard ${b.name} ${b.id}`}
-                  onSelect={() => handleSelect(`/dashboards/built-in/${b.id}`)}
+                  onSelect={() => {
+                    toggleCommandBar(false);
+                    navigate({
+                      to: "/dashboards/built-in/$slug",
+                      params: { slug: b.id },
+                    });
+                  }}
                 >
                   <LayoutDashboard />
                   {b.name}
@@ -169,7 +180,10 @@ export function CommandBar() {
                 {group.items.map((item) => (
                   <CommandItem
                     key={item.url}
-                    onSelect={() => handleSelect(item.url)}
+                    onSelect={() => {
+                      toggleCommandBar(false);
+                      navigate({ to: item.url });
+                    }}
                   >
                     <item.icon />
                     {item.title}

@@ -7,8 +7,8 @@ import {
   ruleSilenceSeed,
   type SilenceCancelTarget,
   type SilenceSeed,
-} from "@/data/alerting/silences/commands";
-import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
+} from "#app/data/alerting/silences/commands.ts";
+import type { AlertSilenceRecord } from "#app/data/alerting/triage/view.ts";
 import { Section } from "./detail-section";
 import { SilenceRowAction, SilenceWindow } from "./silence-row";
 import { isOpen, STATE_META, windowBounds, windowText } from "./silence-state";

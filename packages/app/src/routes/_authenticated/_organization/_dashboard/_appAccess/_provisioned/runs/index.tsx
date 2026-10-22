@@ -5,9 +5,9 @@ import {
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
-import { runsRepository } from "@/data/runs-list/repository";
-import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+import { runsRepository } from "#app/data/runs-list/repository.ts";
+import { useRealtimeSubscription } from "#app/hooks/use-realtime-subscription.ts";
+import { TimeRangeSearchSchema } from "#app/lib/time-range.ts";
 
 // `.catch([])` keeps the page resilient to malformed array params — e.g. the
 // auth redirect serializes an empty array as `repos=` (a bare string), which a

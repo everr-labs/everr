@@ -5,17 +5,17 @@ const mocks = vi.hoisted(() => ({
   jobs: [] as { task: string; payload: unknown }[],
 }));
 
-vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
-vi.mock("@/server/worker/jobs", () => ({
+vi.mock("#app/db/client.ts", () => ({ db: {}, pool: {} }));
+vi.mock("#app/server/worker/jobs.ts", () => ({
   addWorkerJobInTransaction: (_tx: unknown, task: string, payload: unknown) => {
     mocks.jobs.push({ task, payload });
     return Promise.resolve();
   },
 }));
 
-import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
-import type { Transaction } from "@/db/client";
-import { alertEvents } from "@/db/schema";
+import { ALERT_PROJECT_LIFECYCLE_TASK } from "#app/data/alerting/history/tasks.ts";
+import type { Transaction } from "#app/db/client.ts";
+import { alertEvents } from "#app/db/schema/index.ts";
 import {
   cancelableNotifyingEventsFilter,
   closeRuleLifecycle,

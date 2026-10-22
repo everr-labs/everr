@@ -36,5 +36,15 @@
     "jsdom": "^29.1.1",
     "typescript": "catalog:",
     "vitest": "^4.1.5"
+  },
+  "exports": {
+    "./components/everr-logo-paths": "./src/components/everr-logo-paths.ts",
+    "./components/*": "./src/components/*.tsx",
+    "./lib/*": "./src/lib/*.ts",
+    "./hooks/*": "./src/hooks/*.ts",
+    "./testing/*": "./src/testing/*.ts",
+    "./styles/*": "./src/styles/*",
+    "./assets/*": "./src/assets/*",
+    "./src/styles/global.css": "./src/styles/global.css"
   }
 }

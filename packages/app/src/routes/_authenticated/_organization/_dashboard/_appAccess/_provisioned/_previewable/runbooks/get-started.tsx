@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ResourceEmptyState } from "@/components/resource-empty-state";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ResourceEmptyState } from "#app/components/resource-empty-state.tsx";
 
 const ASSISTANT_RUNBOOK_PROMPT =
   "/everr-setup-resources Help me build a good first runbook based on the telemetry we have in production";
@@ -9,7 +9,7 @@ export const Route = createFileRoute(
 )({
   staticData: {
     breadcrumb: () => [
-      { label: "Runbooks", to: "/runbooks" },
+      { label: "Runbooks", link: <Link to="/runbooks" /> },
       { label: "Get started" },
     ],
   },

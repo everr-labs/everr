@@ -1,52 +1,10 @@
 name: Everr CLI CI
 
+on:
+  workflow_call:
+
 permissions:
   contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-on:
-  pull_request:
-    paths:
-      - .github/workflows/build-everr-cli.yml
-      - packages/cli/**
-      - skills/**
-      - packages/local-app/**
-      - Cargo.toml
-      - Cargo.lock
-      - collector/**
-      - packages/ui/**
-      - packages/telemetry-explorer/**
-      - packages/otel-web/**
-      - package.json
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - .nvmrc
-      - packages/docs/Dockerfile
-      - packages/docs/public/install.sh
-      - packages/docs/content/docs/reference/cli.mdx
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/build-everr-cli.yml
-      - packages/cli/**
-      - skills/**
-      - packages/local-app/**
-      - Cargo.toml
-      - Cargo.lock
-      - collector/**
-      - packages/ui/**
-      - packages/telemetry-explorer/**
-      - packages/otel-web/**
-      - package.json
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - .nvmrc
-      - packages/docs/Dockerfile
-      - packages/docs/public/install.sh
-      - packages/docs/content/docs/reference/cli.mdx
 
 jobs:
   build:
@@ -80,11 +38,14 @@ jobs:
         with:
           workspaces: . -> target
 
-      - name: Test
-        run: pnpm --filter @everr/cli test:rust
+      - name: Typecheck local frontend
+        run: pnpm --filter @everr/local-app typecheck
 
       - name: Build release binary
         run: pnpm --filter @everr/cli build:release
+
+      - name: Test Rust with prepared assets
+        run: pnpm --filter @everr/cli test:rust --prepared
 
       - name: Smoke test
         run: ./target/release/everr --help

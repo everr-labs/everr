@@ -1,50 +1,130 @@
 use crate::api::ApiClient;
 use crate::build;
-use crate::device_auth::{AuthConfig, login_with_prompt};
-use crate::state::{Session, SessionStore, is_no_active_session_error};
-use anyhow::{Result, anyhow};
-
-use crate::cli::LoginArgs;
+use crate::cli::{CloudStatusArgs, LoginArgs};
+use crate::device_auth::{AuthConfig, authorize_with_prompt};
+use crate::state::{Session, SessionStore};
+use anyhow::{Context, Result, anyhow, bail};
 
 const API_BASE_URL_OVERRIDE_ENV: &str = "EVERR_API_BASE_URL_FOR_TESTS";
 
-pub async fn login(_args: LoginArgs) -> Result<()> {
-    let config = resolve_auth_config()?;
-    let store = session_store();
-    let session = login_with_prompt(&config, &store, open_browser_immediately).await?;
-    print_session_identity(&session).await?;
-    println!(
-        "Logged in. Session saved at {}",
-        store.session_file_path()?.display()
-    );
+pub fn normalize_url(value: &str) -> Result<String> {
+    let mut url = reqwest::Url::parse(value.trim()).context("Invalid installation URL")?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        bail!("Installation URL must be an HTTP(S) URL without credentials, query, or fragment");
+    }
+    let path = url.path().trim_end_matches('/').to_owned();
+    url.set_path(&path);
+    Ok(url.to_string().trim_end_matches('/').to_owned())
+}
+
+pub fn require_session() -> Result<Session> {
+    SessionStore::user()?
+        .load_session()?
+        .context("No active session. Run `everr cloud login`.")
+}
+
+pub fn client(allow_api_key: bool) -> Result<ApiClient> {
+    if allow_api_key {
+        if let Some(token) = std::env::var("EVERR_API_KEY")
+            .ok()
+            .filter(|token| !token.is_empty())
+            .or_else(|| {
+                std::env::var("EVERR_API_TOKEN")
+                    .ok()
+                    .filter(|token| !token.is_empty())
+            })
+        {
+            let url = match std::env::var("EVERR_API_URL").ok().filter(|url| !url.is_empty()) {
+                Some(url) => url,
+                None => SessionStore::user()?.load_session()?.map(|session| session.api_base_url)
+                    .context("EVERR_API_KEY is set but no target URL is configured; set EVERR_API_URL or run `everr cloud login`.")?,
+            };
+            return ApiClient::from_token(&normalize_url(&url)?, &token);
+        }
+    }
+    ApiClient::from_session(&require_session()?)
+}
+
+pub async fn login(args: LoginArgs) -> Result<()> {
+    let store = SessionStore::user()?;
+    let url = match args.url {
+        Some(url) => url,
+        None => match store.load_session()? {
+            Some(session) => session.api_base_url,
+            None => current_api_base_url()?,
+        },
+    };
+    let config = AuthConfig {
+        api_base_url: normalize_url(&url)?,
+    };
+    println!("Authenticating with {}", config.api_base_url);
+    let session = authorize_with_prompt(&config, |url, code| async move {
+        if args.no_open {
+            println!("Open {url} and confirm code {code}");
+        } else {
+            open_browser_immediately(url.to_string(), code).await;
+        }
+    })
+    .await?;
+    let client = ApiClient::from_session(&session)?;
+    let identity = client.get_me().await?;
+    store.save_session(&session)?;
+    println!("Logged in as {}", identity.email);
+    println!("Using organization: {}", identity.organization_name);
     Ok(())
 }
 
-pub(crate) async fn print_session_identity(session: &Session) -> Result<()> {
-    let Ok(client) = ApiClient::from_session(session) else {
+pub async fn logout() -> Result<()> {
+    let store = SessionStore::user()?;
+    let Some(session) = store.load_session()? else {
+        println!("No active session.");
         return Ok(());
     };
-
-    let me = client.get_me().await.ok();
-    for line in identity_summary_lines(
-        me.as_ref().map(|me| me.email.as_str()),
-        me.as_ref().map(|me| me.organization_name.as_str()),
-    ) {
-        cliclack::log::success(line)?;
+    ApiClient::from_session(&session)?.logout().await?;
+    if store.clear_session(&session)? {
+        println!("Logged out.");
+    } else {
+        println!("Revoked the previous session. A newer login was preserved.");
     }
-
     Ok(())
 }
 
-pub(crate) fn identity_summary_lines(email: Option<&str>, org_name: Option<&str>) -> Vec<String> {
-    let mut lines = Vec::new();
-    if let Some(email) = email {
-        lines.push(format!("Logged in as {email}"));
+pub async fn status(args: CloudStatusArgs) -> Result<()> {
+    let client = client(false)?;
+    let me = client.get_me().await?;
+    if args.json {
+        #[derive(serde::Serialize)]
+        struct ConnectionInfo<'a> {
+            url: &'a str,
+            #[serde(flatten)]
+            identity: crate::api::MeResponse,
+        }
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&ConnectionInfo {
+                url: client.base_url(),
+                identity: me
+            })?
+        );
+        return Ok(());
     }
-    if let Some(org_name) = org_name {
-        lines.push(format!("Using organization: {org_name}"));
-    }
-    lines
+    println!("Name: {}", me.name);
+    println!("Email: {}", me.email);
+    println!("Organization: {}", me.organization_name);
+    println!("Installation: {}", client.base_url());
+    println!(
+        "Ingestion endpoint: {}",
+        me.ingest_endpoint
+            .as_deref()
+            .unwrap_or("not configured or unavailable on this server")
+    );
+    Ok(())
 }
 
 pub async fn open_browser_immediately(verification_url: String, user_code: String) {
@@ -75,53 +155,6 @@ fn trimmed_non_empty(value: &str) -> Option<&str> {
     }
 }
 
-pub fn logout() -> Result<()> {
-    let store = session_store();
-    let had_session = store.clear_session()?;
-    if had_session {
-        println!("Logged out.");
-    } else {
-        println!("No active session.");
-    }
-
-    Ok(())
-}
-
-pub async fn status() -> Result<()> {
-    let session = require_session()?;
-    let client = ApiClient::from_session(&session)?;
-    let me = client.get_me().await?;
-
-    println!("Name: {}", me.name);
-    println!("Email: {}", me.email);
-    println!("Organization: {}", me.organization_name);
-    println!("Cloud: {}", session.api_base_url);
-    Ok(())
-}
-
-pub fn require_session() -> Result<Session> {
-    let store = session_store();
-    let api_base_url = current_api_base_url()?;
-    match store.load_session_for_api_base_url(&api_base_url) {
-        Ok(session) => Ok(session),
-        Err(error) if is_no_active_session_error(&error) => Err(anyhow!(
-            "no active session; run `{} cloud login`",
-            build::command_name()
-        )),
-        Err(error) => Err(error),
-    }
-}
-
-pub fn resolve_auth_config() -> Result<AuthConfig> {
-    Ok(AuthConfig {
-        api_base_url: current_api_base_url()?,
-    })
-}
-
-pub fn session_store() -> SessionStore {
-    SessionStore::for_namespace(build::session_namespace())
-}
-
 fn current_api_base_url() -> Result<String> {
     if let Ok(value) = std::env::var(API_BASE_URL_OVERRIDE_ENV) {
         let trimmed = trimmed_non_empty(&value)
@@ -130,42 +163,4 @@ fn current_api_base_url() -> Result<String> {
     }
 
     Ok(build::default_api_base_url().to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::build;
-
-    use super::session_store;
-
-    #[test]
-    fn session_namespace_is_fixed() {
-        let store = session_store();
-        let path = store.session_file_path().unwrap();
-        assert_eq!(
-            path.parent().unwrap().file_name().unwrap(),
-            build::session_namespace()
-        );
-        assert_eq!(
-            path.file_name().unwrap(),
-            build::default_session_file_name()
-        );
-    }
-
-    #[test]
-    fn auth_config_uses_current_build_default_base_url() {
-        let config = super::resolve_auth_config().expect("auth config");
-        assert_eq!(config.api_base_url, build::default_api_base_url());
-    }
-
-    #[test]
-    fn identity_summary_lines_include_email_and_org() {
-        assert_eq!(
-            super::identity_summary_lines(Some("user@example.com"), Some("Acme")),
-            vec![
-                "Logged in as user@example.com".to_string(),
-                "Using organization: Acme".to_string(),
-            ]
-        );
-    }
 }

@@ -1,6 +1,12 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 
+import {
+  sendInvitationEmail,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from "./email.server";
+
 const mocks = vi.hoisted(() => ({
   send: vi.fn(
     async (_message: {
@@ -11,25 +17,24 @@ const mocks = vi.hoisted(() => ({
     }) => {},
   ),
   logError: vi.fn(),
+  enabled: true,
 }));
-
-vi.mock("@/lib/mailer.server", () => ({ mailer: { send: mocks.send } }));
-vi.mock("@/env", () => ({
-  env: { BETTER_AUTH_URL: "https://app.everr.dev" },
+vi.mock("#app/lib/mailer.server.ts", () => ({
+  get mailer() {
+    return mocks.enabled ? { send: mocks.send } : null;
+  },
 }));
-vi.mock("@/telemetry/logger", () => ({
+vi.mock("#app/env/index.ts", () => ({
+  env: { BETTER_AUTH_URL: "https://app.example.com" },
+}));
+vi.mock("#app/telemetry/logger.ts", () => ({
   serverLogger: { error: mocks.logError },
   exceptionAttributes: (error: unknown) => ({ error }),
 }));
 
-import {
-  sendInvitationEmail,
-  sendPasswordResetEmail,
-  sendVerificationEmail,
-} from "./email.server";
-
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.enabled = true;
 });
 
 it.each([
@@ -83,7 +88,7 @@ it.each([
   expect(message?.html).toContain(email.url);
   expect(message?.html).toContain("Everr");
   expect(message?.html).toContain(
-    'src="https://app.everr.dev/email/everr-mark.png"',
+    'src="https://app.example.com/email/everr-mark.png"',
   );
 });
 
@@ -102,4 +107,18 @@ it("logs a delivery failure without rejecting the auth callback", async () => {
     "mailer.send.failed",
     expect.objectContaining({ error: expect.any(Error) }),
   );
+});
+
+it("skips email delivery when SMTP is unconfigured", async () => {
+  mocks.enabled = false;
+  sendInvitationEmail({
+    to: "recipient@example.com",
+    inviterName: "Alex",
+    organizationName: "Example Team",
+    role: "member",
+    inviteUrl: "https://example.com/invite/token",
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(mocks.send).not.toHaveBeenCalled();
+  expect(mocks.logError).not.toHaveBeenCalled();
 });

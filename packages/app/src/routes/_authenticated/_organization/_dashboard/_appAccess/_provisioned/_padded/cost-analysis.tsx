@@ -9,19 +9,19 @@ import { useState } from "react";
 import {
   ActionsUsageChart,
   type ActionsUsageDimension,
-} from "@/components/cost-analysis/actions-usage-chart";
-import { CostByWorkflowTable } from "@/components/cost-analysis/cost-by-workflow-table";
-import { PageHeader } from "@/components/page-header";
-import { TimeRangePanel } from "@/components/time-range-panel";
-import type { TimeRangeInput } from "@/data/analytics/schemas";
+} from "#app/components/cost-analysis/actions-usage-chart.tsx";
+import { CostByWorkflowTable } from "#app/components/cost-analysis/cost-by-workflow-table.tsx";
+import { PageHeader } from "#app/components/page-header.tsx";
+import { TimeRangePanel } from "#app/components/time-range-panel.tsx";
+import type { TimeRangeInput } from "#app/data/analytics/schemas.ts";
 import {
   costByWorkflowOptions,
   costOverTimeBreakdownOptions,
   costOverviewOptions,
-} from "@/data/cost-analysis/options";
-import type { CostMetric } from "@/data/cost-analysis/schemas";
-import { formatCost } from "@/lib/runner-pricing";
-import { TimeRangeSearchSchema } from "@/lib/time-range";
+} from "#app/data/cost-analysis/options.ts";
+import type { CostMetric } from "#app/data/cost-analysis/schemas.ts";
+import { formatCost } from "#app/lib/runner-pricing.ts";
+import { TimeRangeSearchSchema } from "#app/lib/time-range.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis",

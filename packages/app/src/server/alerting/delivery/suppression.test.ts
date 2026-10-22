@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   history: [] as unknown[][],
 }));
 
-vi.mock("@/db/client", () => {
+vi.mock("#app/db/client.ts", () => {
   const selectResult = () => {
     const rows = mocks.selectRows.shift() ?? [];
     return Object.assign(Promise.resolve(rows), {
@@ -42,7 +42,7 @@ vi.mock("@/db/client", () => {
   };
 });
 
-vi.mock("@/data/alerting/delivery/tasks", () => ({
+vi.mock("#app/data/alerting/delivery/tasks.ts", () => ({
   enqueueProcessAlertEvent: (
     _tx: unknown,
     eventId: string,
@@ -68,7 +68,7 @@ vi.mock("../history/clickhouse", () => ({
   }),
 }));
 
-import type { alertEvents } from "@/db/schema";
+import type { alertEvents } from "#app/db/schema/index.ts";
 import { deferSuppressedEvent } from "./suppression";
 
 beforeEach(() => {

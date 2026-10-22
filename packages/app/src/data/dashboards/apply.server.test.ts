@@ -1,6 +1,6 @@
 import { eq, isNull } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { db } from "@/db/client";
+import { db } from "#app/db/client.ts";
 
 // ---------------------------------------------------------------------------
 // Mock the db client with a chainable fluent builder. The reconciler runs on
@@ -14,7 +14,7 @@ let insertImpl: () => unknown = () => [{ slug: "aaaaaaaaaaaa" }];
 let updateImpl: () => unknown = () => ({ returning: () => [] });
 let deleteImpl: () => unknown = () => [];
 
-vi.mock("@/db/client", () => {
+vi.mock("#app/db/client.ts", () => {
   const selectChain = {
     from: vi.fn(() => selectChain),
     // Un-queued selects (e.g. the cross-repo conflict probe) resolve to no rows.
@@ -51,7 +51,7 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn(() => ({ op: "sql" })),
 }));
 
-vi.mock("@/db/schema", () => ({
+vi.mock("#app/db/schema/index.ts", () => ({
   dashboards: {
     id: "id",
     organizationId: "organization_id",

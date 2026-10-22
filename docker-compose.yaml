@@ -22,6 +22,7 @@ services:
       WEB_APP_ADMIN_PASSWORD: web-app-admin-dev
     volumes:
       - ./volumes/clickhouse:/var/lib/clickhouse:Z
+      - ./clickhouse/dev/99-configure-access.sql:/docker-entrypoint-initdb.d/99-configure-dev-access.sql:ro,Z
 
   postgres:
     # Matches the managed instance (Scaleway RDB `PostgreSQL-17`), so a

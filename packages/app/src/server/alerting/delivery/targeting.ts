@@ -4,13 +4,13 @@ import {
   ALERTING_DEFAULT_GROUP_BY,
   type AlertingDefaultTier,
   defaultTierFor,
-} from "@/data/alerting/delivery/defaults";
-import { db } from "@/db/client";
+} from "#app/data/alerting/delivery/defaults.ts";
+import { db } from "#app/db/client.ts";
 import {
   alertDefaultChannels,
   alertDefinitions,
   type alertEvents,
-} from "@/db/schema";
+} from "#app/db/schema/index.ts";
 
 function stableJson(value: Record<string, string>) {
   return JSON.stringify(

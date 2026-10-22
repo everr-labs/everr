@@ -1,11 +1,11 @@
 import { and, asc, eq, sql } from "drizzle-orm";
-import { type DbExecutor, db } from "@/db/client";
+import { type DbExecutor, db } from "#app/db/client.ts";
 import {
   alertDefinitions,
   alertDeliveryEvents,
   alertEvents,
   alertNotificationGroupEvents,
-} from "@/db/schema";
+} from "#app/db/schema/index.ts";
 
 /**
  * The delivery pipeline's only reads of the journal. Every query here

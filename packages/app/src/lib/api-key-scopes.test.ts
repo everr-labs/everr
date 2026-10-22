@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { describeApiKeyScopes, hasApiKeyScope } from "@/lib/api-key-scopes";
+import {
+  describeApiKeyScopes,
+  hasApiKeyScope,
+} from "#app/lib/api-key-scopes.ts";
 
 describe("hasApiKeyScope", () => {
   it("rejects keys with no capabilities (null/undefined permissions)", () => {

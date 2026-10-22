@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { RunbookNotFound } from "@/components/runbooks/runbook-not-found";
-import { RunbookViewer } from "@/components/runbooks/runbook-viewer";
+import { RunbookNotFound } from "#app/components/runbooks/runbook-not-found.tsx";
+import { RunbookViewer } from "#app/components/runbooks/runbook-viewer.tsx";
 import { loadRunbook, runbookBreadcrumb, runbookHead } from "./-runbook-route";
 
 export const Route = createFileRoute(

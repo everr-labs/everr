@@ -22,24 +22,27 @@ If your agent set up telemetry, you should find a **Telemetry** section in your 
 /everr-setup-telemetry Prepare this app's production export to Everr Cloud using the existing instrumentation. Document the required deployment settings and how to verify ingestion.
 ```
 
-If you're configuring production manually, here are the common environment variables: 
+If you're configuring production manually, here are the common environment variables:
 ```sh
 export OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.everr.dev/
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <ingestion-key>"
 ```
 
-The `ingestion-key` is the API Key generated above. Don't forget to set `deployment.environment.name` to `production` and keep the same stable `service.name` used in local development. 
+The `ingestion-key` is the API Key generated above. Don't forget to set `deployment.environment.name` to `production` and keep the same stable `service.name` used in local development.
 
 Rebuild, redeploy, or restart as required by your runtime. If you already run your own OpenTelemetry Collector in production, configure its exporter instead. See [Production telemetry](/docs/guides/production-telemetry) for collector configuration and authentication details.
 
 ## Verify Cloud ingestion
 
-Trigger a request or job covered by your production instrumentation and be sure your CLI is acting as that organization with `everr cloud login`.
+Trigger a request or job covered by your production instrumentation. Run `everr cloud login` if needed, then `everr cloud status` to confirm the saved session's organization owns the ingestion key. To use another installation or account, log in again; see [Authentication](/docs/reference/cli#authentication-and-remote-queries).
 
 Then, you can ask your AI agent:
- ```
+
+```
 /everr-use-telemetry verify cloud telemetry sent from production environment
-```  Or, use the CLI manually, replacing `my-service` with your service name:
+```
+
+Or, use the CLI manually, replacing `my-service` with your service name:
 
 ```sh
 everr cloud query "$(cat <<'SQL'

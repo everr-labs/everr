@@ -75,6 +75,7 @@ impl ApiClient {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         let http = reqwest::Client::builder()
             .default_headers(headers)
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .context("failed to build HTTP client")?;
         let base_url = api_base_url.trim_end_matches('/').to_string();
@@ -85,6 +86,23 @@ impl ApiClient {
             base_endpoint,
             auth_kind,
         })
+    }
+
+    pub fn print_target(&self) {
+        eprintln!("Target: {}", self.base_url);
+    }
+
+    pub async fn logout(&self) -> Result<()> {
+        let response = self
+            .http
+            .post(format!("{}/api/auth/sign-out", self.base_url))
+            .json(&serde_json::json!({}))
+            .send()
+            .await?;
+        if response.status().is_success() || response.status() == StatusCode::UNAUTHORIZED {
+            return Ok(());
+        }
+        anyhow::bail!("Could not revoke session: {}", response.status());
     }
 
     pub async fn apply(
@@ -193,22 +211,13 @@ impl ApiClient {
             params.push(("key", k));
         }
 
-        let response = self
+        let request = self
             .http
             .get(format!("{}/api/events/stream", self.base_url))
-            .query(&params)
-            .send()
-            .await
-            .context("SSE connection failed")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "<failed to read body>".to_string());
-            return Err(http_status_error(status, text, "SSE connection"));
-        }
+            .query(&params);
+        let response = self
+            .send_checked(request, "SSE connection failed", "SSE connection")
+            .await?;
 
         let stream = response
             .bytes_stream()
@@ -463,6 +472,12 @@ pub struct MeResponse {
     pub email: String,
     pub name: String,
     pub organization_name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub organization_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub user_id: String,
+    #[serde(default)]
+    pub ingest_endpoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -567,6 +582,7 @@ mod api_client_tests {
         assert_eq!(identity.email, "user@example.test");
         assert_eq!(identity.name, "Test User");
         assert_eq!(identity.organization_name, "Test Org");
+        assert_eq!(identity.ingest_endpoint, None);
         mock.assert_async().await;
     }
 
@@ -632,7 +648,7 @@ mod api_client_tests {
         // Session path: a 401 directs the user to `cloud login`.
         assert!(is_reauthentication_required(&error));
         let message = error.to_string();
-        assert!(message.contains("cloud login"), "got: {message}");
+        assert!(message.contains("everr cloud login"), "got: {message}");
         assert!(!message.contains("EVERR_API_KEY"), "got: {message}");
         mock.assert_async().await;
     }

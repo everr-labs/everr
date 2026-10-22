@@ -1,18 +1,24 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
-import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
-import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
-import { parseAlertingPrincipal } from "@/data/alerting/session";
-import { db } from "@/db/client";
-import { organization } from "@/db/schema";
-import { hasApiKeyScope } from "@/lib/api-key-scopes";
-import { auth } from "@/lib/auth.server";
-import { createClickhouseQuery } from "@/lib/clickhouse";
-import { mergeTelemetryIdentity } from "@/telemetry/identity";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
+import { parseAlertingPrincipal } from "#app/data/alerting/session.ts";
+import { db } from "#app/db/client.ts";
+import { organization } from "#app/db/schema/index.ts";
+import { auth } from "#app/identity/server.ts";
+import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
+import { createClickhouseQuery } from "#app/lib/clickhouse.ts";
+import {
+  createOrganizationSql,
+  type OrganizationSql,
+} from "#app/lib/organization-sql.ts";
+import { getSession } from "#app/lib/session.server.ts";
+import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
 export interface ApplyAuth {
   organizationId: string;
   organizationName: string;
+  /** SQL access for the authenticated organization, after its readiness check. */
+  sql: OrganizationSql;
   /** Audit principal, e.g. "apikey:<keyId>" or "user:<userId>". */
   principalId: string;
   /**
@@ -53,19 +59,20 @@ export function extractBearerKey(headers: Headers): string | null {
 }
 
 /**
- * Look up the org's display name directly from the DB. This avoids the
- * session-gated `getFullOrganization` endpoint, so it works on the API key
- * path (which has no session) too. Check readiness at the same boundary.
+ * Organization identity and ready SQL access shared by API key and session auth.
+ * The direct DB lookup also supports API keys without a user session.
  */
-async function organizationName(organizationId: string): Promise<string> {
+async function resolveOrganization(organizationId: string) {
   const [row] = await db
     .select({ name: organization.name, metadata: organization.metadata })
     .from(organization)
     .where(eq(organization.id, organizationId))
     .limit(1);
   if (!row) throw new Error("Organization not found");
-  assertOrganizationProvisioned(row.metadata);
-  return row.name;
+  return {
+    organizationName: row.name,
+    sql: createOrganizationSql(organizationId, row.metadata),
+  };
 }
 
 /**
@@ -95,13 +102,13 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
     mergeTelemetryIdentity({ organizationId });
     return {
       organizationId,
-      organizationName: await organizationName(organizationId),
+      ...(await resolveOrganization(organizationId)),
       principalId: `apikey:${result.key.id}`,
       applyActions: result.key.permissions?.apply ?? [],
     };
   }
 
-  const session = await auth.api.getSession({ headers });
+  const session = await getSession({ headers });
   if (!session?.session || !session?.user) {
     throw new Error("Unauthenticated");
   }
@@ -111,7 +118,7 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
   }
   return {
     organizationId,
-    organizationName: await organizationName(organizationId),
+    ...(await resolveOrganization(organizationId)),
     principalId: `user:${session.user.id}`,
     applyActions: null,
   };
@@ -139,6 +146,7 @@ export function buildApplyContext(apiAuth: ApplyAuth) {
       name: apiAuth.organizationName,
     },
     applyActions: apiAuth.applyActions,
+    sql: apiAuth.sql,
     clickhouse: { query: createClickhouseQuery(apiAuth.organizationId) },
   };
 }
@@ -162,7 +170,7 @@ const AUTH_ERROR_STATUS: Record<string, number> = {
 };
 
 export function applyAuthErrorResponse(error: unknown): Response | null {
-  if (error instanceof ClickhouseProvisioningPendingError)
+  if (error instanceof StorageNotReadyError)
     return Response.json(
       { error: error.message },
       { status: 503, headers: { "Retry-After": "5" } },

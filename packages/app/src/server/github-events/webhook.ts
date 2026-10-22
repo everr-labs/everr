@@ -1,10 +1,13 @@
 import { verify } from "@octokit/webhooks-methods";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db/client";
-import { githubInstallationOrganizations } from "@/db/schema";
-import { env } from "@/env";
-import { serverLogger } from "@/telemetry/logger";
+import { db } from "#app/db/client.ts";
+import { githubInstallationOrganizations } from "#app/db/schema/index.ts";
+import {
+  getGithubConfiguration,
+  requireGithubConfiguration,
+} from "#app/integrations/github/configuration.ts";
+import { serverLogger } from "#app/telemetry/logger.ts";
 import { enqueueWebhookEvent } from "./enqueue";
 import { headersToRecord } from "./headers";
 
@@ -99,6 +102,9 @@ async function handleInstallationEvent(args: {
 export async function handleGitHubWebhookRequest(
   request: Request,
 ): Promise<Response> {
+  if (!getGithubConfiguration())
+    return new Response("Not found", { status: 404 });
+
   if (request.method !== "POST") {
     return new Response("method not allowed", { status: 405 });
   }
@@ -110,7 +116,11 @@ export async function handleGitHubWebhookRequest(
 
   const bodyText = await request.text();
   if (
-    !(await verify(env.GITHUB_APP_WEBHOOK_SECRET, bodyText, signatureHeader))
+    !(await verify(
+      requireGithubConfiguration().GITHUB_APP_WEBHOOK_SECRET,
+      bodyText,
+      signatureHeader,
+    ))
   ) {
     return new Response("invalid signature", { status: 401 });
   }

@@ -11,13 +11,13 @@ Instead, bake into the runbook visualizations needed to do the investigations/an
 A runbook is one `kind: Runbook` YAML file plus the `.md` files it points at, named `<slug>.runbook.yaml` in the apply tree. 
 It renders read-only in the webapp at `/runbooks/<project>/<slug>`.
 
-Runbooks reuse the exact same panel, variable, and query model as dashboards — a panel object inside a runbook **is** a dashboard panel, byte for byte. Read `rules/queries.md` for that model; this file covers the runbook-specific schema and the ```panel embed syntax.
+Runbooks reuse the exact same panel, variable, and query model as dashboards, a panel object inside a runbook **is** a dashboard panel, byte for byte. Read `rules/queries.md` for that model; this file covers the runbook-specific schema and the ```panel embed syntax.
 
 ## Reading a runbook as an agent
 
-The `.md` source on disk is the canonical artifact. **There is no fetch/get command** — agents run on the user's machine and read the source files directly with the normal file tools. To investigate with a runbook, open its `.md` file(s).
+The `.md` source on disk is the canonical artifact. **There is no fetch/get command**, agents run on the user's machine and read the source files directly with the normal file tools. To investigate with a runbook, open its `.md` file(s).
 
-Each ```panel fence contains a runnable panel whose query is **ClickHouse SQL**. To use a runbook's panel during an investigation, extract the `query:` from the fence (or from the panel it `ref:`s in the YAML) and run or adapt it — via `everr cloud query "<sql>"` or the **`everr-use-telemetry`** skill. Queries use `{from:String}`/`{to:String}`/`{step:UInt32}` time params and `$variable` tokens; substitute concrete values when running ad hoc.
+Each ```panel fence contains a runnable panel whose query is **ClickHouse SQL**. To use a runbook's panel during an investigation, extract the `query:` from the fence (or from the panel it `ref:`s in the YAML) and run or adapt it, via `everr cloud query "<sql>"` or the **`everr-use-telemetry`** skill. Queries use `{from:String}`/`{to:String}`/`{step:UInt32}` time params and `$variable` tokens; substitute concrete values when running ad hoc.
 
 ## The Runbook YAML schema
 
@@ -37,7 +37,7 @@ spec:
     error-rate:
       kind: Panel
       spec: { ... }              # exactly a dashboard Panel spec
-  markdown:                      # REQUIRED — the index page
+  markdown:                      # REQUIRED, the index page
     file: ./high-error-rate.runbook.md  # path relative to this YAML; inlined by the CLI at apply time
   pages:                         # optional; recursive child pages
     - name: triage               # page slug; unique among its siblings
@@ -54,16 +54,16 @@ Rules:
 
 - **`spec.markdown` is required.** It is the index page (and the entire runbook when there are no child pages). There is no implicit "first page is the default."
 - **`spec.pages` is optional and recursive.** Each page has `name` (slug, **unique among its siblings**), optional `display`, **required** `markdown`, and optional nested `pages`. The viewer URL joins page names: `/runbooks/<project>/<slug>/triage/network`.
-- **`markdown` is `{ file: <path> }`.** Always write each page as its own markdown file next to the YAML, named with the `.runbook.md` suffix — never inline markdown in the YAML. Paths resolve **relative to the YAML** and must stay **inside the apply directory**. The CLI reads each file and inlines its content at apply time. A missing file fails the apply, naming both the YAML and the markdown path.
+- **`markdown` is `{ file: <path> }`.** Always write each page as its own markdown file next to the YAML, named with the `.runbook.md` suffix, never inline markdown in the YAML. Paths resolve **relative to the YAML** and must stay **inside the apply directory**. The CLI reads each file and inlines its content at apply time. A missing file fails the apply, naming both the YAML and the markdown path.
 - **Link between pages** with a relative path to the sibling page's markdown file (resolved against the current file, e.g. `[Triage](./triage.runbook.md)` or `[Network](./triage/network.runbook.md)`), or by the page's path (`[Triage](triage)`, `[Network](triage/network)`). The viewer rewrites these into in-app navigation. Absolute (`/...`) and external (`http(s):`, `mailto:`) URLs are left untouched.
 - **`spec.variables` and `spec.panels` are the dashboard schema, reused verbatim.** Variables interpolate `$name` into panel queries server-side, identically to dashboards.
-- **Never put raw ```sql blocks in the prose for someone to run by hand.** If a query is worth showing, embed it as a ```panel — panels render live against the selected time range, while SQL blocks in prose are dead text.
+- **Never put raw ```sql blocks in the prose for someone to run by hand.** If a query is worth showing, embed it as a ```panel, panels render live against the selected time range, while SQL blocks in prose are dead text.
 
 ## The two ```panel embed forms
 
-A runbook page embeds a visualization with a fenced ```panel block whose body is YAML. There are two forms, discriminated by shape. Every form takes an optional top-level `height:` in pixels (**80–2000, default 350**).
+A runbook page embeds a visualization with a fenced ```panel block whose body is YAML. There are two forms, discriminated by shape. Every form takes an optional top-level `height:` in pixels (**80 to 2000, default 350**).
 
-**1. Inline one-off panel** — a full `kind: Panel` object, defined right in the markdown:
+**1. Inline one-off panel**, a full `kind: Panel` object, defined right in the markdown:
 
 ````markdown
 ```panel
@@ -90,7 +90,7 @@ spec:
 ```
 ````
 
-**2. Reference to a shared panel** — `ref:` names a key in this runbook's `spec.panels`:
+**2. Reference to a shared panel**, `ref:` names a key in this runbook's `spec.panels`:
 
 ````markdown
 ```panel
@@ -101,7 +101,7 @@ height: 200
 
 ## Apply semantics
 
-Runbooks reconcile through the same apply tree as dashboards and alerts — see the skill root for the manifest, file layout, and delete-by-default semantics. Validation is **strict at apply time**, with precise messages and paths:
+Runbooks reconcile through the same apply tree as dashboards and alerts, see the skill root for the manifest, file layout, and delete-by-default semantics. Validation is **strict at apply time**, with precise messages and paths:
 
 - Malformed fence YAML, a `ref:` to a missing shared panel, or invalid panel/visualization options **fail the apply**.
 - Inline and `ref:` panel specs are validated against the visualization registry, exactly like dashboard panels.

@@ -1,23 +1,17 @@
 name: Build & Push Images
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/build-and-push-images.yml
-      - packages/app/**
-      - skills/everr-use-telemetry/rules/schema.md
-      - packages/datemath/**
-      - packages/docs/**
-      - packages/otel-errors/**
-      - packages/otel-web/**
-      - packages/tanstack-start-otel/**
-      - packages/telemetry-explorer/**
-      - packages/ui/**
-      - collector/**
-      - package.json
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
+  workflow_call:
+    inputs:
+      app:
+        type: boolean
+        required: true
+      collector:
+        type: boolean
+        required: true
+      docs:
+        type: boolean
+        required: true
 
 permissions:
   contents: read
@@ -31,58 +25,10 @@ env:
   SCW_REGISTRY_NAMESPACE: everr
 
 jobs:
-  detect-changes:
-    name: Detect Changes
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    outputs:
-      app: ${{ steps.filter.outputs.app }}
-      collector: ${{ steps.filter.outputs.collector }}
-      docs: ${{ steps.filter.outputs.docs }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Collect resource usage
-        uses: ./.github/actions/everr-action
-        with:
-          check-run-id: ${{ job.check_run_id }}
-
-      - name: Detect changed paths
-        id: filter
-        uses: dorny/paths-filter@v4
-        with:
-          filters: |
-            app:
-              - .github/workflows/build-and-push-images.yml
-              - packages/app/**
-              - skills/everr-use-telemetry/rules/schema.md
-              - packages/datemath/**
-              - packages/otel-errors/**
-              - packages/otel-web/**
-              - packages/tanstack-start-otel/**
-              - packages/telemetry-explorer/**
-              - packages/ui/**
-              - package.json
-              - pnpm-lock.yaml
-              - pnpm-workspace.yaml
-            collector:
-              - .github/workflows/build-and-push-images.yml
-              - collector/**
-            docs:
-              - .github/workflows/build-and-push-images.yml
-              - packages/docs/**
-              - packages/otel-errors/**
-              - packages/otel-web/**
-              - packages/ui/**
-              - package.json
-              - pnpm-lock.yaml
-              - pnpm-workspace.yaml
-
   build-app:
-    name: Build App Image
+    name: Build Everr Cloud Image
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: detect-changes
-    if: needs.detect-changes.outputs.app == 'true'
+    if: inputs.app
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -108,11 +54,11 @@ jobs:
           username: nologin
           password: ${{ steps.scw-creds.outputs.SCW_SECRET_KEY }}
 
-      - name: Build and push app image
+      - name: Build and push Everr Cloud image
         uses: useblacksmith/build-push-action@v2
         with:
           context: .
-          file: packages/app/Dockerfile
+          file: packages/cloud/Dockerfile
           push: true
           build-args: |
             VITE_EVERR_PUBLIC_INGEST_KEY=${{ vars.APP_EVERR_PUBLIC_INGEST_KEY }}
@@ -123,8 +69,7 @@ jobs:
   build-collector:
     name: Build Collector Image
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: detect-changes
-    if: needs.detect-changes.outputs.collector == 'true'
+    if: inputs.collector
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -163,8 +108,7 @@ jobs:
   build-docs:
     name: Build Docs Image
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: detect-changes
-    if: needs.detect-changes.outputs.docs == 'true'
+    if: inputs.docs
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -208,13 +152,15 @@ jobs:
   notify-deploy:
     name: Notify Deploy Repo
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: [detect-changes, build-app, build-collector, build-docs]
+    needs: [build-app, build-collector, build-docs]
     if: |
       always() &&
-      (needs.detect-changes.outputs.app == 'true' ||
-       needs.detect-changes.outputs.collector == 'true' ||
-       needs.detect-changes.outputs.docs == 'true') &&
-      !contains(needs.*.result, 'failure')
+      (inputs.app ||
+       inputs.collector ||
+       inputs.docs) &&
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -242,7 +188,7 @@ jobs:
           client-payload: |
             {
               "sha": "${{ github.sha }}",
-              "app": ${{ needs.detect-changes.outputs.app }},
-              "collector": ${{ needs.detect-changes.outputs.collector }},
-              "docs": ${{ needs.detect-changes.outputs.docs }}
+              "app": ${{ inputs.app }},
+              "collector": ${{ inputs.collector }},
+              "docs": ${{ inputs.docs }}
             }

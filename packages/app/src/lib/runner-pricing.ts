@@ -5,7 +5,7 @@ export interface RunnerPricing {
   tier: string;
 }
 
-export interface CostResult {
+interface CostResult {
   estimatedCost: number;
   actualMinutes: number;
   pricing: RunnerPricing;

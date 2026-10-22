@@ -2,16 +2,19 @@
 FROM golang:1.26.0-alpine AS build
 WORKDIR /collector
 
+ARG EVERR_BUILD_TARGET=cloud
+
 COPY . .
 
 RUN apk --update add --no-cache git make bash ca-certificates
 
-RUN make build
+RUN make build EVERR_BUILD_TARGET=${EVERR_BUILD_TARGET}
 
 # STAGE 2 - final image
 FROM alpine:3.23
 
-ARG BIN_PATH=/collector/build/everr-collector
+ARG EVERR_BUILD_TARGET=cloud
+ARG BIN_PATH=/collector/build/${EVERR_BUILD_TARGET}/everr-collector
 ARG UID=10001
 
 RUN adduser -D -u ${UID} collector \

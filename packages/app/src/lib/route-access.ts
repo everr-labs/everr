@@ -1,6 +1,7 @@
+import { productClient } from "@composition/client";
 import { redirect } from "@tanstack/react-router";
-import { getActiveOrganizationAccess } from "@/data/organization-access";
-import type { auth } from "@/lib/auth.server";
+import { getActiveOrganizationAccess } from "#app/data/organization-access.ts";
+import type { auth } from "#app/identity/server.ts";
 
 type Session = typeof auth.$Infer.Session;
 
@@ -34,17 +35,18 @@ export async function requireOrganization({
   location: { href: string };
   search: { returnTo?: string };
 }) {
-  const chooseOrganization = () =>
+  const missingWorkspace = () =>
     redirect({
-      to: "/choose-organization",
+      to: productClient.missingWorkspaceRoute,
       search: { returnTo: search.returnTo ?? location.href },
       replace: true,
     });
-  if (!session.session.activeOrganizationId) throw chooseOrganization();
+  if (!session.session.activeOrganizationId) throw missingWorkspace();
   const access = await getActiveOrganizationAccess();
-  if (access.status === "missing") throw chooseOrganization();
+  if (access.status === "missing") throw missingWorkspace();
   return {
     organization: access.organization,
+    entryRedirect: access.entryRedirect,
     session: {
       ...session,
       session: {

@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ClickhouseProvisioningPendingError } from "@/common/clickhouse-provisioning";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 import { isExpectedServerFunctionError } from "./expected-errors";
 
 // Coverage for these messages used to live in the server-fn telemetry test,
 // which moved to @everr/tanstack-start-otel. The package takes the predicate
 // as an option, so the app's list is asserted here.
 describe("isExpectedServerFunctionError", () => {
-  it("treats pending organization setup as expected control flow", () => {
-    expect(
-      isExpectedServerFunctionError(new ClickhouseProvisioningPendingError()),
-    ).toBe(true);
+  it("treats pending storage setup as expected control flow", () => {
+    expect(isExpectedServerFunctionError(new StorageNotReadyError())).toBe(
+      true,
+    );
   });
   it.each([
     "Unauthenticated",

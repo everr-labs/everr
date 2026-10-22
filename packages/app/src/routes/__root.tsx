@@ -1,7 +1,13 @@
+import { entry } from "@composition/entry";
+
+import { getGithubConfiguration } from "#app/integrations/github/configuration.ts";
+import { socialProviders } from "#app/lib/auth-providers.server.ts";
+import { mailer } from "#app/lib/mailer.server.ts";
+import { getSession } from "#app/lib/session.server.ts";
 // This import has an effect at load. It starts the error capture of the browser
 // when the client build loads. It does nothing during the SSR and when the app
 // has no configuration. Refer to telemetry/client.
-import "@/telemetry/client";
+import "#app/telemetry/client.ts";
 import favicon from "@everr/ui/assets/favicon.svg?url";
 import { Toaster } from "@everr/ui/components/sonner";
 import { TooltipProvider } from "@everr/ui/components/tooltip";
@@ -13,50 +19,61 @@ import {
   createRootRouteWithContext,
   HeadContent,
   Outlet,
+  redirect,
   Scripts,
   useRouter,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { createIsomorphicFn, createServerFn } from "@tanstack/react-start";
 import { getCookie, getRequestHeaders } from "@tanstack/react-start/server";
-import { auth } from "@/lib/auth.server";
-import {
-  ORGANIZATION_CREATION_COOKIE,
-  readCreatedOrganizationId,
-} from "@/lib/organization-creation-continuation.server";
-import appCss from "@/styles/app.css?url";
-import { CONSENT_COOKIE, isConsentDecision } from "@/telemetry/consent";
-import { ConsentGate } from "@/telemetry/consent-gate";
+import appCss from "#app/styles/app.css?url";
+import { CONSENT_COOKIE, isConsentDecision } from "#app/telemetry/consent.ts";
+import { ConsentGate } from "#app/telemetry/consent-gate.tsx";
 import type { RouterContext } from "../router";
 
 // Load session and consent together so auth guards see the same session.
-const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
-  const session = await auth.api.getSession({
-    headers: getRequestHeaders(),
-  });
-  const consentValue = getCookie(CONSENT_COOKIE);
+const getRootContext = createServerFn({ method: "GET" })
+  .inputValidator((pathname: string) => pathname)
+  .handler(async ({ data: pathname }) => {
+    const session = await getSession({
+      headers: getRequestHeaders(),
+    });
+    const consentValue = getCookie(CONSENT_COOKIE);
+    const entryRedirect = await entry.getEntryRedirect(pathname);
 
-  return {
-    createdOrganizationId: await readCreatedOrganizationId(
-      getCookie(ORGANIZATION_CREATION_COOKIE),
-      session?.session,
-    ),
-    session:
-      session?.session && session?.user
-        ? { user: session.user, session: session.session }
-        : null,
-    consent: isConsentDecision(consentValue) ? consentValue : undefined,
-  };
-});
+    const context = {
+      emailEnabled: mailer !== null,
+      googleSignInEnabled: Boolean(socialProviders?.google),
+      githubEnabled: Boolean(getGithubConfiguration()),
+      session:
+        session?.session && session?.user
+          ? { user: session.user, session: session.session }
+          : null,
+      consent: isConsentDecision(consentValue) ? consentValue : undefined,
+    };
+    if (entryRedirect)
+      throw "href" in entryRedirect
+        ? redirect({ href: entryRedirect.href, replace: true })
+        : redirect({ to: entryRedirect.to, replace: true });
+    return context;
+  });
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: createIsomorphicFn()
-    .server(() =>
-      process.env.TSS_PRERENDERING === "true"
-        ? { session: null, consent: undefined, createdOrganizationId: null }
-        : getRootContext(),
-    )
-    .client(() => getRootContext()),
+    .server(async ({ location }: { location: { pathname: string } }) => {
+      if (process.env.TSS_PRERENDERING === "true")
+        return {
+          session: null,
+          consent: undefined,
+          emailEnabled: false,
+          googleSignInEnabled: false,
+          githubEnabled: false,
+        };
+      return getRootContext({ data: location.pathname });
+    })
+    .client(({ location }: { location: { pathname: string } }) =>
+      getRootContext({ data: location.pathname }),
+    ),
   head: () => ({
     meta: [
       {

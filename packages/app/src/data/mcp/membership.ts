@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { member, organization } from "@/db/schema";
+import { db } from "#app/db/client.ts";
+import { member, organization } from "#app/db/schema/index.ts";
 
 export class McpMembershipError extends Error {}
 

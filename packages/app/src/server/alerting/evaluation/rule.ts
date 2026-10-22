@@ -1,13 +1,12 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
-import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
-import { renderMessage } from "@/data/alerting/delivery/template";
-import { uuidv7 } from "@/data/alerting/history/ids";
+import { enqueueProcessAlertEvent } from "#app/data/alerting/delivery/tasks.ts";
+import { renderMessage } from "#app/data/alerting/delivery/template.ts";
+import { uuidv7 } from "#app/data/alerting/history/ids.ts";
 import {
   alertingConditionMatches,
   alertingConditionValue,
-} from "@/data/alerting/rules/condition";
+} from "#app/data/alerting/rules/condition.ts";
 import {
   ALERT_EVALUATE_TASK,
   alertEvaluationJobKey,
@@ -16,24 +15,24 @@ import {
   alertingRetryDelaySeconds,
   type EvaluatePayload,
   nextAlertEvaluationAt,
-} from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { db } from "@/db/client";
+} from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
+import { db } from "#app/db/client.ts";
 import {
   alertDefinitions,
   alertEvaluations,
   alertEvents,
   alertInstances,
   organization,
-} from "@/db/schema";
-import { env } from "@/env";
-import { querySqlApiWithMeta } from "@/lib/clickhouse";
-import { previewDefinitionsEnqueueable } from "@/server/alerting/scheduling/scanner";
-import { addWorkerJobInTransaction } from "@/server/worker/jobs";
+} from "#app/db/schema/index.ts";
+import { env } from "#app/env/index.ts";
+import { createOrganizationSql } from "#app/lib/organization-sql.ts";
+import { previewDefinitionsEnqueueable } from "#app/server/alerting/scheduling/scanner.ts";
+import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
 import {
   errorMessage,
   exceptionAttributes,
   serverLogger,
-} from "@/telemetry/logger";
+} from "#app/telemetry/logger.ts";
 import {
   type AlertHistoryDefinition,
   type AlertHistoryRow,
@@ -419,8 +418,8 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   // floor, not the plan: a rule quiet for 15 minutes has already missed the
   // window it exists to watch.
   try {
-    assertOrganizationProvisioned(record.metadata);
-    await evaluateAlertRule(def, payload, scheduledFor);
+    const storage = createOrganizationSql(def.organizationId, record.metadata);
+    await evaluateAlertRule(def, payload, scheduledFor, storage);
     recordAlertEvaluation("ok");
   } catch (cause) {
     recordAlertEvaluation("query_failed");
@@ -432,14 +431,12 @@ async function evaluateAlertRule(
   def: typeof alertDefinitions.$inferSelect,
   payload: z.infer<typeof EvaluatePayloadSchema>,
   scheduledFor: Date,
+  storage: Pick<ReturnType<typeof createOrganizationSql>, "queryWithMeta">,
 ): Promise<void> {
   // The rule's own query is the slow step, and the previous instances depend
   // only on the rule id, so the read does not have to wait behind it.
   const [result, previousRows] = await Promise.all([
-    querySqlApiWithMeta<Record<string, unknown>>(
-      def.spec.sql,
-      def.organizationId,
-    ),
+    storage.queryWithMeta<Record<string, unknown>>(def.spec.sql),
     db
       .select()
       .from(alertInstances)

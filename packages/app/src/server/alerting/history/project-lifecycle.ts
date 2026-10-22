@@ -1,7 +1,7 @@
 import { inArray } from "drizzle-orm";
-import { AlertLifecycleProjectionPayloadSchema } from "@/data/alerting/history/tasks";
-import { db } from "@/db/client";
-import { alertEvents } from "@/db/schema";
+import { AlertLifecycleProjectionPayloadSchema } from "#app/data/alerting/history/tasks.ts";
+import { db } from "#app/db/client.ts";
+import { alertEvents } from "#app/db/schema/index.ts";
 import {
   historyDefFromJournalRow,
   instanceHistoryRow,

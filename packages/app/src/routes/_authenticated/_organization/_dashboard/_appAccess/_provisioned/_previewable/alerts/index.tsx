@@ -8,20 +8,20 @@ import {
   ALERT_PANEL_SEARCH,
   AlertDetailShell,
   useAlertDetail,
-} from "@/components/alerts/alert-detail-shell";
-import { RuleInventory } from "@/components/alerts/rule-inventory";
-import { SilenceDialog } from "@/components/alerts/silence-dialog";
-import { TriageList } from "@/components/alerts/triage-list";
-import { ResourceEmptyState } from "@/components/resource-empty-state";
+} from "#app/components/alerts/alert-detail-shell.tsx";
+import { RuleInventory } from "#app/components/alerts/rule-inventory.tsx";
+import { SilenceDialog } from "#app/components/alerts/silence-dialog.tsx";
+import { TriageList } from "#app/components/alerts/triage-list.tsx";
+import { ResourceEmptyState } from "#app/components/resource-empty-state.tsx";
 import {
   cancelSilenceById,
   ruleSilenceSeed,
-} from "@/data/alerting/silences/commands";
+} from "#app/data/alerting/silences/commands.ts";
 import {
   alertTriageOptions,
   ruleStateHistoryOptions,
-} from "@/data/alerting/triage/options";
-import { useTimeRange } from "@/hooks/use-time-range";
+} from "#app/data/alerting/triage/options.ts";
+import { useTimeRange } from "#app/hooks/use-time-range.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/",

@@ -1,4 +1,4 @@
-import type { BucketGranularity } from "@/lib/time-range";
+import type { BucketGranularity } from "#app/lib/time-range.ts";
 
 export type { BucketGranularity };
 

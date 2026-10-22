@@ -3,14 +3,14 @@
  * are resolved here before the existing PostgreSQL adapter is called.
  */
 import * as z from "zod";
-import { loadRule } from "@/data/alerting/rules/read";
-import { alertingMutationScope } from "@/data/alerting/session";
-import { parseMatchers } from "@/data/alerting/silences/matchers";
+import { loadRule } from "#app/data/alerting/rules/read.ts";
+import { alertingMutationScope } from "#app/data/alerting/session.ts";
+import { parseMatchers } from "#app/data/alerting/silences/matchers.ts";
 import {
   createSilence,
   expireSilence,
-} from "@/data/alerting/silences/repository";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+} from "#app/data/alerting/silences/repository.ts";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
 export const createAlertSilence = createAuthenticatedServerFn({
   method: "POST",

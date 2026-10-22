@@ -6,19 +6,19 @@ import {
 } from "@tanstack/react-router";
 import { FileQuestion } from "lucide-react";
 import { useEffect, useMemo } from "react";
-import { DashboardProvider } from "@/components/dashboards/use-dashboard";
+import { DashboardProvider } from "#app/components/dashboards/use-dashboard.tsx";
 import {
   useHasVisibleVariables,
   VariableBar,
-} from "@/components/dashboards/variable-bar";
-import { lastViewedRunbook } from "@/data/runbooks/last-viewed";
-import { runbookOptions } from "@/data/runbooks/options";
+} from "#app/components/dashboards/variable-bar.tsx";
+import { lastViewedRunbook } from "#app/data/runbooks/last-viewed.ts";
+import { runbookOptions } from "#app/data/runbooks/options.ts";
 import {
   findPage,
   makeRunbookLinkResolver,
   pageNavTree,
   toDashboardDocument,
-} from "@/data/runbooks/pages";
+} from "#app/data/runbooks/pages.ts";
 import { RunbookMarkdown } from "./runbook-markdown";
 import { RunbookPagesNav } from "./runbook-pages-nav";
 

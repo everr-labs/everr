@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/clickhouse", () => ({
+vi.mock("#app/lib/clickhouse.ts", () => ({
   query: vi.fn(),
+  querySqlApi: vi.fn(),
 }));
 
-import { query } from "@/lib/clickhouse";
+import { query } from "#app/lib/clickhouse.ts";
 import {
   getLogDetail,
   getLogFilterOptions,

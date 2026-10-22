@@ -1,4 +1,4 @@
-import type { Panel, PluginSpecValue } from "@/data/dashboards/schema";
+import type { Panel, PluginSpecValue } from "#app/data/dashboards/schema.ts";
 
 const CLICKHOUSE_QUERY_KIND = "ClickHouseSQL";
 const TESTDATA_QUERY_KIND = "TestData";

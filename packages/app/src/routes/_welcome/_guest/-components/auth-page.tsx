@@ -3,7 +3,7 @@ import { Separator } from "@everr/ui/components/separator";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { siGoogle } from "simple-icons";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "#app/lib/auth-client.ts";
 
 export function AuthPageHeader({
   title,

@@ -1,20 +1,20 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
-import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
-import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
-import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
-import { DashboardProvider } from "@/components/dashboards/use-dashboard";
-import { lastViewedDashboard } from "@/data/dashboards/last-viewed";
-import { dashboardOptions } from "@/data/dashboards/options";
-import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
+import gridLayoutOverridesCSS from "#app/components/dashboards/dashboard-grid.css?url";
+import { DashboardGrid } from "#app/components/dashboards/dashboard-grid.tsx";
+import { DashboardNotFound } from "#app/components/dashboards/dashboard-not-found.tsx";
+import { DashboardProvider } from "#app/components/dashboards/use-dashboard.tsx";
+import { lastViewedDashboard } from "#app/data/dashboards/last-viewed.ts";
+import { dashboardOptions } from "#app/data/dashboards/options.ts";
+import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug",
 )({
   staticData: {
     breadcrumb: (match: { loaderData?: { name: string } }) => [
-      { label: "Dashboards", to: "/dashboards" },
+      { label: "Dashboards", link: <Link to="/dashboards" /> },
       { label: match.loaderData?.name ?? "Dashboard" },
     ],
   },

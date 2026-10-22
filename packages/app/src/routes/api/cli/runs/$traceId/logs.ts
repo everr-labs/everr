@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getStepLogs } from "@/data/runs/server";
+import { getStepLogs } from "#app/data/runs/server.ts";
 
 const StepLogsQuerySchema = z
   .object({

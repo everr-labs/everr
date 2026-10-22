@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { LogEntry } from "@/data/runs/schemas";
+import type { LogEntry } from "#app/data/runs/schemas.ts";
 import { LogViewer } from "./log-viewer";
 
 // Virtuoso needs element dimensions that jsdom doesn't provide

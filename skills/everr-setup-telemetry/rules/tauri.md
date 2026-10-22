@@ -62,10 +62,12 @@ Local development:
 OTEL_EXPORTER_OTLP_ENDPOINT=<otlp-url-from-status>
 ```
 
-Production with Everr hosted ingest:
+Remote export (Everr Cloud or self-hosted):
+
+Resolve the remote endpoint during setup using [Remote setup](../references/remote-setup.md) and persist the actual value in application configuration.
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.everr.dev/
+OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-cloud-status>
 EVERR_INGEST_KEY=<secret-manager-reference>
 ```
 
@@ -236,7 +238,7 @@ Resolve the exporter endpoint + headers once, drive the `rust.md` backend setup 
 
 ```rust
 // Resolve once; the same values drive backend telemetry and the proxy.
-let endpoint = resolve_otlp_endpoint();   // OTEL_EXPORTER_OTLP_ENDPOINT (or hosted ingest)
+let endpoint = resolve_otlp_endpoint();   // OTEL_EXPORTER_OTLP_ENDPOINT
 let headers = ingest_headers_from_env();  // EVERR_INGEST_KEY -> Authorization: Bearer <key>
 
 let telemetry_context = TelemetryContext::new("<release-version>", "<deployment-environment>");
@@ -261,7 +263,7 @@ tauri::Builder::default()
 telemetry_guard.shutdown();
 ```
 
-Keep `ingest_headers_from_env()` server-side. If exporting to Everr hosted ingest, it reads `EVERR_INGEST_KEY` and returns `Authorization: Bearer <key>`. When no endpoint resolves, use `OtlpProxy::disabled()` and the `rust.md` setup's disabled path.
+Keep `ingest_headers_from_env()` server-side. If exporting to Everr remote ingest, it reads `EVERR_INGEST_KEY` and returns `Authorization: Bearer <key>`. When no endpoint resolves, use `OtlpProxy::disabled()` and the `rust.md` setup's disabled path.
 
 ## Rust Backend Errors
 

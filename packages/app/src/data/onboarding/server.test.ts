@@ -1,8 +1,17 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
+vi.mock("@composition/deployment", () => ({
+  deployment: { ingestEndpoint: "https://ingest.example.test/" },
+}));
+
 const store = vi.hoisted(() => ({ getStatus: vi.fn(), complete: vi.fn() }));
-vi.mock("@/db/client", () => ({ db: {} }));
-vi.mock("./store", () => ({ createOnboardingStore: () => store }));
+vi.mock("#app/db/client.ts", () => ({ db: {} }));
+vi.mock("#app/data/onboarding/store.ts", () => ({
+  createOnboardingStore: () => store,
+}));
+vi.mock("#app/env/index.ts", () => ({
+  env: { BETTER_AUTH_URL: "https://app.example.test" },
+}));
 
 import { completeOnboarding, getHomeStatus } from "./server";
 
@@ -36,4 +45,19 @@ it("rejects injected identity, secrets and flag values", async () => {
     ).rejects.toThrow();
   }
   expect(store.complete).not.toHaveBeenCalled();
+});
+
+it("includes the configured ingestion endpoint and application URL", async () => {
+  store.getStatus.mockResolvedValue({
+    canCreateKeys: true,
+    onboardingCompleted: false,
+  });
+  expect(await getHomeStatus({ data: { organizationId: "test_org" } })).toEqual(
+    {
+      canCreateKeys: true,
+      onboardingCompleted: false,
+      ingestEndpoint: "https://ingest.example.test/",
+      appUrl: "https://app.example.test",
+    },
+  );
 });

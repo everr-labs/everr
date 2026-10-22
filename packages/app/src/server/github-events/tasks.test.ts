@@ -52,12 +52,12 @@ const taskMocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {},
   pool: {},
 }));
 
-vi.mock("@/telemetry/logger", () => ({
+vi.mock("#app/telemetry/logger.ts", () => ({
   exceptionAttributes: (reason: unknown) => {
     const error = reason instanceof Error ? reason : new Error(String(reason));
     return {
@@ -73,14 +73,14 @@ vi.mock("@/telemetry/logger", () => ({
   },
 }));
 
-vi.mock("@/telemetry/node", () => ({
+vi.mock("#app/telemetry/node.ts", () => ({
   getTelemetryTracer: () => ({
     startActiveSpan: taskMocks.startActiveSpan,
   }),
 }));
 
-vi.mock("@/telemetry/identity", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/telemetry/identity")>()),
+vi.mock("#app/telemetry/identity.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("#app/telemetry/identity.ts")>()),
   mergeTelemetryIdentity: taskMocks.mergeTelemetryIdentity,
 }));
 

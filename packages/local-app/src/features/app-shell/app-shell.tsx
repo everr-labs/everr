@@ -1,32 +1,8 @@
 import { Card, CardContent } from "@everr/ui/components/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@everr/ui/components/dropdown-menu";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
-import { Link, Outlet, useNavigate } from "@tanstack/react-router";
-import {
-  Bug,
-  CircleUser,
-  Code,
-  LogIn,
-  LogOut,
-  ScrollText,
-  Settings,
-  Workflow,
-} from "lucide-react";
+import { Link, Outlet } from "@tanstack/react-router";
+import { Bug, Code, ScrollText, Settings, Workflow } from "lucide-react";
 import { useState } from "react";
-import {
-  useAuthStatusQuery,
-  useSignInMutation,
-  useSignOutMutation,
-  useUserProfileQuery,
-} from "../auth/auth";
 import { TitleBarSlotsContext } from "./title-bar";
 
 export function AppShell() {
@@ -72,9 +48,6 @@ export function AppShell() {
                   <Code className="size-[18px]" />
                 </SidebarLink>
               )}
-              <div className="mt-auto flex flex-col items-center gap-1.5">
-                <AuthStatusIndicator />
-              </div>
             </nav>
             <CardContent className="min-w-0 flex-1 p-0">
               {/* No overscroll-none: the ancestor main and Card are both
@@ -108,89 +81,5 @@ function SidebarLink({
     >
       {children}
     </Link>
-  );
-}
-
-function AuthStatusIndicator() {
-  const navigate = useNavigate();
-  const authStatusQuery = useAuthStatusQuery();
-  const signInMutation = useSignInMutation();
-  const signOutMutation = useSignOutMutation();
-  const signedIn = authStatusQuery.data?.status === "signed_in";
-  const profileQuery = useUserProfileQuery(signedIn);
-  const profile = profileQuery.data;
-  const orgName = profile?.organizationName;
-  const displayName = profile?.name || profile?.email;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        className="relative flex size-9 cursor-pointer items-center justify-center rounded-md text-[var(--settings-text-muted)] transition-colors hover:bg-white/[0.06] hover:text-[var(--settings-text)]"
-        aria-label="Account"
-      >
-        <CircleUser className="size-[18px]" />
-        <span
-          className={`absolute bottom-1.5 right-1.5 size-2 rounded-full ring-1 ring-[var(--settings-panel)] ${signedIn ? "bg-emerald-500" : "bg-red-400"}`}
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        side="right"
-        align="end"
-        sideOffset={8}
-        className="min-w-[220px] max-w-[280px]"
-      >
-        {signedIn && (displayName || orgName) ? (
-          <>
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="grid gap-0.5">
-                {displayName ? (
-                  <span className="truncate text-sm font-medium text-[var(--settings-text)]">
-                    {displayName}
-                  </span>
-                ) : null}
-                {orgName ? (
-                  <span className="truncate text-xs font-normal text-[var(--settings-text-muted)]">
-                    {orgName}
-                  </span>
-                ) : null}
-              </DropdownMenuLabel>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
-        {signedIn ? (
-          <DropdownMenuItem
-            disabled={signOutMutation.isPending}
-            render={
-              <button
-                type="button"
-                className="w-full"
-                onClick={() => void signOutMutation.mutateAsync()}
-              >
-                <LogOut className="mr-2 size-4" />
-                Sign out
-              </button>
-            }
-          />
-        ) : (
-          <DropdownMenuItem
-            disabled={signInMutation.isPending}
-            render={
-              <button
-                type="button"
-                className="w-full"
-                onClick={() => {
-                  void signInMutation.mutateAsync();
-                  void navigate({ to: "/settings" });
-                }}
-              >
-                <LogIn className="mr-2 size-4" />
-                Sign in
-              </button>
-            }
-          />
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

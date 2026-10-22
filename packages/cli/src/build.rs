@@ -28,6 +28,10 @@ pub const DEFAULT_SESSION_FILE_NAME: &str = "session-dev.json";
 #[cfg(not(debug_assertions))]
 pub const DEFAULT_SESSION_FILE_NAME: &str = "session.json";
 
+pub const fn default_session_file_name() -> &'static str {
+    DEFAULT_SESSION_FILE_NAME
+}
+
 pub const fn build_type_label() -> &'static str {
     BUILD_TYPE_LABEL
 }
@@ -51,10 +55,6 @@ pub const fn default_api_base_url() -> &'static str {
 
 pub const fn default_docs_base_url() -> &'static str {
     DEFAULT_DOCS_BASE_URL
-}
-
-pub const fn default_session_file_name() -> &'static str {
-    DEFAULT_SESSION_FILE_NAME
 }
 
 pub const fn session_namespace() -> &'static str {
@@ -139,10 +139,7 @@ pub fn telemetry_dir() -> anyhow::Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        build_type_label, default_api_base_url, default_session_file_name, session_namespace,
-        telemetry_dir,
-    };
+    use super::{build_type_label, default_api_base_url, session_namespace, telemetry_dir};
 
     #[test]
     fn debug_builds_use_local_defaults() {
@@ -151,7 +148,6 @@ mod tests {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         assert_eq!(build_type_label(), "debug");
         assert_eq!(default_api_base_url(), "http://localhost:5173");
-        assert_eq!(default_session_file_name(), "session-dev.json");
         assert_eq!(session_namespace(), "everr");
     }
 

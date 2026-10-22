@@ -18,10 +18,10 @@
 
 import { createHash, createHmac } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
-import { db } from "@/db/client";
-import { workflowRuns } from "@/db/schema";
-import { githubEnv } from "@/env/github";
-import { serverLogger } from "@/telemetry/logger";
+import { db } from "#app/db/client.ts";
+import { workflowRuns } from "#app/db/schema/index.ts";
+import { requireGithubConfiguration } from "#app/integrations/github/configuration.ts";
+import { serverLogger } from "#app/telemetry/logger.ts";
 import { enqueueWebhookEvent } from "./enqueue";
 import { getInstallationToken, paginate } from "./github-api";
 import { generateWorkflowTraceId } from "./trace-id";
@@ -315,7 +315,7 @@ function signedHeaders(
   eventType: "workflow_run" | "workflow_job",
   body: Buffer,
 ) {
-  const signature = `sha256=${createHmac("sha256", githubEnv.GITHUB_APP_WEBHOOK_SECRET).update(body).digest("hex")}`;
+  const signature = `sha256=${createHmac("sha256", requireGithubConfiguration().GITHUB_APP_WEBHOOK_SECRET).update(body).digest("hex")}`;
   return {
     "x-github-event": [eventType],
     "x-hub-signature-256": [signature],

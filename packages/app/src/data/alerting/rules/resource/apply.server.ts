@@ -1,16 +1,20 @@
-import { listChannels } from "@/data/alerting/delivery/repository";
-import { AlertingError } from "@/data/alerting/errors";
-import * as alerting from "@/data/alerting/rules/repository";
-import type { AlertingRuleView } from "@/data/alerting/types";
-import { ApplyValidationError } from "@/data/as-code/errors";
-import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
-import type { OwnershipConflict } from "@/data/as-code/ownership";
-import { stableStringify } from "@/data/as-code/reconcile";
-import type { ApplyCache, Reconciler } from "@/data/as-code/registry";
-import { authEnv } from "@/env/auth";
-import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
-import { createLimiter } from "@/lib/limiter";
-import { errorMessage } from "@/telemetry/logger";
+import { listChannels } from "#app/data/alerting/delivery/repository.ts";
+import { AlertingError } from "#app/data/alerting/errors.ts";
+import * as alerting from "#app/data/alerting/rules/repository.ts";
+import type { AlertingRuleView } from "#app/data/alerting/types.ts";
+import { ApplyValidationError } from "#app/data/as-code/errors.ts";
+import {
+  formatResourceName,
+  parseResourceName,
+} from "#app/data/as-code/identity.ts";
+import type { OwnershipConflict } from "#app/data/as-code/ownership.ts";
+import { stableStringify } from "#app/data/as-code/reconcile.ts";
+import type { ApplyCache, Reconciler } from "#app/data/as-code/registry.ts";
+import { authEnv } from "#app/env/auth.ts";
+import type { SqlApiResult } from "#app/lib/clickhouse.ts";
+import { createLimiter } from "#app/lib/limiter.ts";
+import type { OrganizationSql } from "#app/lib/organization-sql.ts";
+import { errorMessage } from "#app/telemetry/logger.ts";
 import {
   extractVariables,
   validateMessageRefs,
@@ -95,13 +99,12 @@ function isNumericTypedColumn(chType: string): boolean {
 async function validateAlertRuleQuery(
   path: string,
   rule: AlertRuleYaml,
-  organizationId: string,
+  sql: Pick<OrganizationSql, "queryWithMeta">,
 ): Promise<{ warning?: string; instanceLabelColumns: string[] }> {
   let queryResult: SqlApiResult<Record<string, unknown>>;
   try {
-    queryResult = await querySqlApiWithMeta<Record<string, unknown>>(
+    queryResult = await sql.queryWithMeta<Record<string, unknown>>(
       rule.spec.query,
-      organizationId,
     );
   } catch (error) {
     throw new ApplyValidationError(
@@ -220,13 +223,16 @@ function isAlertingVersionConflict(error: unknown): boolean {
 }
 
 /** Reconciles one repo's live or preview rules without crossing ownership scopes. */
-export const applyAlertSpecs: Reconciler = async ({
+export const applyAlertSpecs = async ({
   namespace,
   resources,
   dryRun,
   adopt,
   db: executor,
   cache,
+  sql,
+}: Parameters<Reconciler>[0] & {
+  sql: Pick<OrganizationSql, "queryWithMeta">;
 }): Promise<ApplyAlertsResult> => {
   const { orgId, repoid } = namespace;
   // A missing first-apply preview id scopes to no existing rules.
@@ -256,7 +262,7 @@ export const applyAlertSpecs: Reconciler = async ({
     parsed.map((p) =>
       cachedQueryValidation(cache, p.path, p.rule, orgId, () =>
         runValidation(undefined, () =>
-          validateAlertRuleQuery(p.path, p.rule, orgId),
+          validateAlertRuleQuery(p.path, p.rule, sql),
         ),
       ),
     ),

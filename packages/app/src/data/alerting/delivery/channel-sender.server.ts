@@ -1,4 +1,4 @@
-import type { AlertingChannelConfig } from "@/data/alerting/types";
+import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 import { sendDiscordNotification } from "./providers/discord";
 import type { ChannelNotification } from "./providers/message";
 import { sendSlackNotification } from "./providers/slack";

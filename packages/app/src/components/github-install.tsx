@@ -1,7 +1,7 @@
 import { Button } from "@everr/ui/components/button";
 import { Check, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getGithubAppInstallStatus } from "@/data/github";
+import { getGithubAppInstallStatus } from "#app/data/github.ts";
 
 export function GithubInstall({
   installed,

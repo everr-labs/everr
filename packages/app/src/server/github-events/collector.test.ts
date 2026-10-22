@@ -1,33 +1,52 @@
+import { storage } from "@composition/storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/env", () => ({
-  env: { INGRESS_COLLECTOR_URL: "http://collector.test/webhook/github" },
+import { retentionForOrg } from "#app/lib/retention.server.ts";
+import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
+import { replayWebhookToCollector } from "./collector";
+
+vi.mock("@composition/storage", () => ({
+  storage: {
+    telemetryTenantId: vi.fn<(organizationId: string) => string | undefined>(),
+  },
 }));
-vi.mock("@/lib/retention.server", () => ({
+vi.mock("#app/integrations/github/configuration.ts", () => ({
+  requireGithubConfiguration: () => ({
+    INGRESS_COLLECTOR_URL: "http://collector.test/webhook/github",
+  }),
+}));
+vi.mock("#app/lib/retention.server.ts", () => ({
   retentionForOrg: vi.fn(),
 }));
-
-import { resolveRetention } from "@/lib/retention";
-import { retentionForOrg } from "@/lib/retention.server";
-import { replayWebhookToCollector } from "./collector";
 
 describe("replayWebhookToCollector", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("sends tenant and retention headers to the collector", async () => {
-    vi.mocked(retentionForOrg).mockResolvedValueOnce(resolveRetention("hobby"));
+  it.each([
+    "org_7",
+    undefined,
+  ])("sends authoritative tenant %s and retention headers", async (tenantId) => {
+    vi.mocked(storage.telemetryTenantId).mockReturnValueOnce(tenantId);
+    vi.mocked(retentionForOrg).mockResolvedValueOnce(retentionForDays(14));
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await replayWebhookToCollector(
-      { headers: { "x-github-event": ["push"] }, body: Buffer.from("{}") },
+      {
+        headers: {
+          "x-github-event": ["push"],
+          "x-everr-tenant-id": ["untrusted"],
+        },
+        body: Buffer.from("{}"),
+      },
       "org_7",
     );
 
     const [, init] = fetchMock.mock.calls[0];
     const headers = init?.headers as Headers;
-    expect(headers.get("x-everr-tenant-id")).toBe("org_7");
+    expect(headers.get("x-everr-tenant-id")).toBe(tenantId ?? null);
+    expect(storage.telemetryTenantId).toHaveBeenCalledWith("org_7");
     expect(headers.get("x-everr-retention-logs-days")).toBe("14");
     expect(headers.get("x-everr-retention-traces-days")).toBe("14");
     expect(headers.get("x-everr-retention-metrics-days")).toBe("14");

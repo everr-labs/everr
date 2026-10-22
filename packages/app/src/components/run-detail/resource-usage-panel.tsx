@@ -17,13 +17,13 @@ import {
 import type {
   JobResourceUsage,
   ResourceUsagePoint,
-} from "@/data/resource-usage";
+} from "#app/data/resource-usage.ts";
 import {
   formatBytes,
   formatPercent,
   formatSpeed,
   formatTimeOfDay,
-} from "@/lib/formatting";
+} from "#app/lib/formatting.ts";
 
 interface ResourceUsagePanelProps {
   data: JobResourceUsage;

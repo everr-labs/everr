@@ -1,6 +1,6 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
-import { invalidateAlertTriage } from "@/data/alerting/triage/options";
+import { invalidateAlertTriage } from "#app/data/alerting/triage/options.ts";
 import { getAlertNotifications } from "./server";
 
 const notificationsQueryKey = ["alerting", "notifications"] as const;

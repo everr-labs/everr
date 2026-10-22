@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Span } from "@/data/runs/schemas";
+import type { Span } from "#app/data/runs/schemas.ts";
 import {
   buildSpanTree,
   flattenTree,

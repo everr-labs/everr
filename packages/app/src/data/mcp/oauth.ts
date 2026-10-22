@@ -1,6 +1,6 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
+import { createPartiallyAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import { setActiveOrg, submitConsent } from "./oauth-server";
 
 const ConsentInput = z.object({

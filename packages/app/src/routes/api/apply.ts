@@ -2,10 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   canApplyMutate,
   requireOrgOrApiKeyMiddleware,
-} from "@/data/as-code/apply-auth.server";
-import { ApplyValidationError } from "@/data/as-code/errors";
-import { applyResources } from "@/data/as-code/registry";
-import { applyInput } from "@/data/as-code/schema";
+} from "#app/data/as-code/apply-auth.server.ts";
+import { ApplyValidationError } from "#app/data/as-code/errors.ts";
+import { applyResources } from "#app/data/as-code/registry.ts";
+import { applyInput } from "#app/data/as-code/schema.ts";
 
 export const Route = createFileRoute("/api/apply")({
   server: {
@@ -42,6 +42,7 @@ export const Route = createFileRoute("/api/apply")({
         try {
           const summary = await applyResources({
             orgId: context.session.session.activeOrganizationId,
+            sql: context.sql,
             repoid: parsed.data.repoid,
             state: parsed.data.state,
             source: parsed.data.source,

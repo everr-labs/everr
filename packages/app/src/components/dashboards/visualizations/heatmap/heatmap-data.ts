@@ -1,4 +1,4 @@
-import { isNumericValue } from "@/lib/numeric";
+import { isNumericValue } from "#app/lib/numeric.ts";
 import { detectTimeKey, toNumber, toTimestamp } from "../data-utils";
 import type { QueryResultRow } from "../index";
 import type { HeatmapSpec } from "./spec";

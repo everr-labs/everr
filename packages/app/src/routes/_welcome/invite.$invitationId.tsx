@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
@@ -7,8 +8,8 @@ import {
   isMemberOfOrg,
   lookupInvitation,
   resolveInvitationLoader,
-} from "@/data/invite";
-import { authClient } from "@/lib/auth-client";
+} from "#app/data/invite.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 
 export const Route = createFileRoute("/_welcome/invite/$invitationId")({
   loader: async ({ context: { session }, params: { invitationId } }) => {
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/_welcome/invite/$invitationId")({
 function AcceptInvitation() {
   const { invitationId } = Route.useParams();
   const data = Route.useLoaderData();
+  const { emailEnabled, session } = Route.useRouteContext();
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -37,7 +39,15 @@ function AcceptInvitation() {
         {data.status === "unauthenticated" && (
           <UnauthenticatedContent invitationId={invitationId} data={data} />
         )}
-        {data.status === "accept-ready" && <AcceptReadyContent data={data} />}
+        {data.status === "accept-ready" &&
+          (emailEnabled && !session?.user.emailVerified ? (
+            <VerifyEmailContent
+              email={session?.user.email ?? ""}
+              invitationId={invitationId}
+            />
+          ) : (
+            <AcceptReadyContent data={data} />
+          ))}
         {data.status === "wrong-recipient" && (
           <WrongRecipientContent invitationId={invitationId} data={data} />
         )}
@@ -182,6 +192,52 @@ function UnauthenticatedContent({
           Create account
         </Button>
       </div>
+    </>
+  );
+}
+
+function VerifyEmailContent({
+  email,
+  invitationId,
+}: {
+  email: string;
+  invitationId: string;
+}) {
+  const verification = useMutation({
+    mutationFn: async () => {
+      const result = await authClient.sendVerificationEmail({
+        email,
+        callbackURL: `/invite/${invitationId}`,
+      });
+      if (result.error)
+        throw new Error(
+          result.error.message ?? "Could not send verification email.",
+        );
+    },
+  });
+  return (
+    <>
+      <Heading
+        title="Verify your email"
+        subtitle={`Verify ${email} before accepting this invitation.`}
+      />
+      <Button
+        className="w-full"
+        disabled={verification.isPending}
+        onClick={() => verification.mutate()}
+      >
+        {verification.isPending ? "Sending..." : "Send verification email"}
+      </Button>
+      {verification.isSuccess && (
+        <p role="status" className="text-sm text-muted-foreground text-center">
+          Check your inbox. The verification link will bring you back here.
+        </p>
+      )}
+      {verification.error && (
+        <p role="alert" className="text-sm text-destructive">
+          {verification.error.message}
+        </p>
+      )}
     </>
   );
 }

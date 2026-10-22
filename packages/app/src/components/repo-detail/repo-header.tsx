@@ -1,7 +1,7 @@
 import { Badge } from "@everr/ui/components/badge";
 import { formatDuration } from "@everr/ui/lib/formatting";
-import type { RepoStats } from "@/data/repo-detail/schemas";
-import { getSuccessRateVariant } from "@/lib/formatting";
+import type { RepoStats } from "#app/data/repo-detail/schemas.ts";
+import { getSuccessRateVariant } from "#app/lib/formatting.ts";
 
 interface RepoHeaderProps {
   name: string;

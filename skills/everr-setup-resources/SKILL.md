@@ -5,10 +5,13 @@ description: Use when creating, editing, applying, or inspecting Everr as-code r
 
 ## Startup Access
 
-Authoring resources is just editing files. Two things need access:
+Use the CLI's saved login session. Run commands with the access already available; request scoped access if the sandbox blocks the selected installation, local collector, or CLI configuration directory. The CLI manages credentials. Keep credential contents out of tool output and project files.
 
-- **`everr apply`** talks to your Everr host. Allow production network `https://app.everr.dev` and filesystem read of `~/Library/Application Support/everr/session.json` (and `session-dev.json`) and their parent directory. Apply uses your `everr cloud login` session, or `EVERR_API_KEY` for CI (the deprecated alias `EVERR_API_TOKEN` still works).
-- **Writing correct queries** means knowing your real ClickHouse columns. Discover them with `everr cloud query "DESCRIBE TABLE traces"` (or sample rows), or use the `everr-use-telemetry` skill. **Do not invent metric/label/column names.**
+Remote commands use the API URL and token in the saved session. A new agent session reuses that login. Use `everr cloud status --json` to confirm the installation and account or obtain the UI URL; switch installations with `everr cloud login --url <app-url>`.
+
+`everr apply` uses the saved login or `EVERR_API_KEY` for unattended application (`EVERR_API_TOKEN` remains an alias). `everr resources` and `everr cloud query` use the login. Follow the CLI's reauthentication hint, or use the installation's onboarding login command for first setup.
+
+Discover real query columns with `everr cloud query "DESCRIBE TABLE traces"` or the `everr-use-telemetry` skill before authoring resource queries.
 
 # Setting Up Everr Resources
 

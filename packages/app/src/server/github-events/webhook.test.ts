@@ -18,11 +18,18 @@ const { webhookSecret, webhookMocks } = vi.hoisted(() => {
   };
 });
 
+vi.mock("#app/integrations/github/configuration.ts", () => ({
+  getGithubConfiguration: () => ({ GITHUB_APP_WEBHOOK_SECRET: webhookSecret }),
+  requireGithubConfiguration: () => ({
+    GITHUB_APP_WEBHOOK_SECRET: webhookSecret,
+  }),
+}));
+
 vi.mock("./enqueue", () => ({
   enqueueWebhookEvent: webhookMocks.enqueueWebhookEvent,
 }));
 
-vi.mock("@/db/client", () => {
+vi.mock("#app/db/client.ts", () => {
   const set = vi
     .fn()
     .mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
@@ -33,13 +40,13 @@ vi.mock("@/db/client", () => {
   };
 });
 
-vi.mock("@/db/schema", () => ({
+vi.mock("#app/db/schema/index.ts", () => ({
   githubInstallationOrganizations: {
     githubInstallationId: "github_installation_id",
   },
 }));
 
-import { db } from "@/db/client";
+import { db } from "#app/db/client.ts";
 import { handleGitHubWebhookRequest } from "./webhook";
 
 const mockedDb = vi.mocked(db);

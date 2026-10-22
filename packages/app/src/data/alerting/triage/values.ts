@@ -10,12 +10,12 @@
  * that column and is rejected or silently empty depending on the types.
  */
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
-import { alertingConditionMatches } from "@/data/alerting/rules/condition";
+import { alertingConditionMatches } from "#app/data/alerting/rules/condition.ts";
 import type {
   AlertingEvaluationSample,
   AlertingRuleSpec,
-} from "@/data/alerting/types";
-import type { ClickhouseQuery } from "@/lib/clickhouse";
+} from "#app/data/alerting/types.ts";
+import type { ClickhouseQuery } from "#app/lib/clickhouse.ts";
 import { formatLabels } from "./format";
 import type { InstanceValuePoint, InstanceValueSeries } from "./view";
 

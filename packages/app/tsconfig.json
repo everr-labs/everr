@@ -1,19 +1,16 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
     "module": "ESNext",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client", "vite-plugin-svgr/client"],
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": false,
     "noEmit": true,
-
-    /* Linting */
     "skipLibCheck": true,
     "strict": true,
     "noUnusedLocals": true,
@@ -21,8 +18,19 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "@everr/ui/*": ["../ui/src/*"]
+      "@composition/storage": ["./src/app/composition/storage.ts"],
+      "@composition/identity": ["./src/app/composition/identity.ts"],
+      "@composition/layouts": ["./src/app/composition/layouts.tsx"],
+      "@composition/pages": ["./src/app/composition/pages.tsx"],
+      "@composition/ui": ["./src/app/composition/ui.tsx"],
+      "@composition/client": ["./src/app/composition/client.tsx"],
+      "@composition/product": ["./src/app/composition/product.ts"],
+      "@composition/navigation": ["./src/app/composition/navigation.ts"],
+      "@composition/dashboards": ["./src/app/composition/dashboards.ts"],
+      "@composition/routes": ["./src/routeTree.gen.ts"],
+      "@composition/runtime": ["./src/app/composition/runtime.ts"],
+      "@composition/entry": ["./src/app/composition/entry.ts"],
+      "@composition/deployment": ["./src/app/composition/deployment.ts"]
     }
   }
 }

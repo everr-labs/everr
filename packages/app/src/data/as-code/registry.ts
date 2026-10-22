@@ -1,9 +1,13 @@
-import { applyAlertSpecs } from "@/data/alerting/rules/resource/apply.server";
-import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
-import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
-import type { Namespace } from "@/data/previews/scope";
-import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
-import { type DbExecutor, db } from "@/db/client";
+import { applyAlertSpecs } from "#app/data/alerting/rules/resource/apply.server.ts";
+import { applyDashboardSpecs } from "#app/data/dashboards/apply.server.ts";
+import {
+  findPreviewId,
+  upsertPreview,
+} from "#app/data/previews/apply.server.ts";
+import type { Namespace } from "#app/data/previews/scope.ts";
+import { applyRunbookSpecs } from "#app/data/runbooks/apply.server.ts";
+import { type DbExecutor, db } from "#app/db/client.ts";
+import type { OrganizationSql } from "#app/lib/organization-sql.ts";
 import { ApplyValidationError } from "./errors";
 import type { OwnershipConflict } from "./ownership";
 import {
@@ -67,24 +71,6 @@ export type Reconciler = (opts: {
   note?: string;
 }>;
 
-/**
- * State key → (kind label, reconciler). Every registered kind reconciles on
- * each apply, including an empty array, so the submitted state is the complete
- * desired state for the repo — an absent kind prunes within the repoid.
- *
- * Keep the kinds in sync with classify_documents in
- * packages/cli/src/apply.rs, which routes documents by kind CLI-side.
- */
-const REGISTRY: {
-  key: keyof ApplyInput["state"];
-  kind: string;
-  reconcile: Reconciler;
-}[] = [
-  { key: "dashboards", kind: "Dashboard", reconcile: applyDashboardSpecs },
-  { key: "runbooks", kind: "Runbook", reconcile: applyRunbookSpecs },
-  { key: "alerts", kind: "AlertRule", reconcile: applyAlertSpecs },
-];
-
 function validateResourceKind(
   resources: ApplyResourceEntry[],
   expectedKind: string,
@@ -117,6 +103,8 @@ function validateResourceKind(
  */
 export async function applyResources(opts: {
   orgId: string;
+  /** Ready SQL access for validating alert queries within this apply target. */
+  sql: Pick<OrganizationSql, "queryWithMeta">;
   repoid: string;
   preview?: string;
   state: ApplyInput["state"];
@@ -126,6 +114,27 @@ export async function applyResources(opts: {
   adopt?: boolean;
 }): Promise<ApplyResourcesResult> {
   const { orgId, repoid, state, source, dryRun, adopt } = opts;
+  /**
+   * State key → (kind label, reconciler). Every registered kind reconciles on
+   * each apply, including an empty array, so the submitted state is the complete
+   * desired state for the repo; an absent kind prunes within the repoid.
+   *
+   * Keep the kinds in sync with classify_documents in
+   * packages/cli/src/apply.rs, which routes documents by kind CLI-side.
+   */
+  const registry: {
+    key: keyof ApplyInput["state"];
+    kind: string;
+    reconcile: Reconciler;
+  }[] = [
+    { key: "dashboards", kind: "Dashboard", reconcile: applyDashboardSpecs },
+    { key: "runbooks", kind: "Runbook", reconcile: applyRunbookSpecs },
+    {
+      key: "alerts",
+      kind: "AlertRule",
+      reconcile: (args) => applyAlertSpecs({ ...args, sql: opts.sql }),
+    },
+  ];
   // null = live. previewNameSchema is min-length, so a present name is never "".
   const previewName = opts.preview ?? null;
 
@@ -171,7 +180,7 @@ export async function applyResources(opts: {
   // Both passes see the same submitted documents, so document-only work (the
   // per-rule ClickHouse schema check, above all) runs once instead of twice.
   const cache: ApplyCache = new Map();
-  for (const { key, kind, reconcile } of REGISTRY) {
+  for (const { key, kind, reconcile } of registry) {
     validateResourceKind(state[key], kind);
     const r = await reconcile({
       namespace,
@@ -243,7 +252,7 @@ export async function applyResources(opts: {
   // kinds' mutations and apply never half-changes live state.
   const results: KindResult[] = [];
   await db.transaction(async (tx) => {
-    for (const { key, kind, reconcile } of REGISTRY) {
+    for (const { key, kind, reconcile } of registry) {
       const r = await reconcile({
         namespace: applied,
         resources: state[key],

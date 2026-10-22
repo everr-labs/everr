@@ -6,8 +6,8 @@ import { formatDuration } from "@everr/ui/lib/formatting";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import type { RunListItem } from "@/data/runs-list/schemas";
-import { formatCost } from "@/lib/runner-pricing";
+import type { RunListItem } from "#app/data/runs-list/schemas.ts";
+import { formatCost } from "#app/lib/runner-pricing.ts";
 
 interface RunsTableProps {
   data: (RunListItem & { estimatedCost?: number })[];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { InstanceValuePoint } from "@/data/alerting/triage/view";
+import type { InstanceValuePoint } from "#app/data/alerting/triage/view.ts";
 import {
   BREACHING,
   instanceRowsAt,

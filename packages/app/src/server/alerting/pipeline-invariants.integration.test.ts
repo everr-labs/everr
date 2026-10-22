@@ -2,38 +2,47 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
-import { ALERT_FLUSH_GROUP_TASK } from "@/data/alerting/delivery/tasks";
-import { uuidv7 } from "@/data/alerting/history/ids";
-import { deleteRule } from "@/data/alerting/rules/repository";
+import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "#app/data/alerting/delivery/defaults.ts";
+import { ALERT_FLUSH_GROUP_TASK } from "#app/data/alerting/delivery/tasks.ts";
+import { uuidv7 } from "#app/data/alerting/history/ids.ts";
+import { deleteRule } from "#app/data/alerting/rules/repository.ts";
 import {
   ALERT_EVALUATE_TASK,
   type EvaluatePayload,
   enqueueAlertEvaluation,
-} from "@/data/alerting/scheduling/evaluation-jobs.server";
+} from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
 import {
   alertDeliveries,
   alertEvents,
   alertInstances,
   alertNotificationGroupEvents,
   alertNotificationGroups,
-} from "@/db/schema";
-import { addWorkerJobInTransaction } from "@/server/worker/jobs";
+} from "#app/db/schema/index.ts";
 import {
   asDbExecutor,
   insertDirectRule,
   insertPreview,
   insertRule,
   TEST_ORG,
-} from "./testing/fixtures";
-import { useAlertingHarness } from "./testing/harness";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@/db/client", async () => {
-  const { testDb, runInTransaction } = await import("./testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 

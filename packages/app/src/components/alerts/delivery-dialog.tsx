@@ -15,12 +15,12 @@ import { useState } from "react";
 import {
   ALERTING_SEVERITY_TIERS,
   type AlertingDefaultTier,
-} from "@/data/alerting/delivery/defaults";
+} from "#app/data/alerting/delivery/defaults.ts";
 import type {
   NotificationChannelView,
   NotificationDestinationView,
-} from "@/data/alerting/delivery/view";
-import type { AlertingDefaultDestination } from "@/data/alerting/types";
+} from "#app/data/alerting/delivery/view.ts";
+import type { AlertingDefaultDestination } from "#app/data/alerting/types.ts";
 import { SEVERITY_DOT, TIER_LABEL } from "./alert-status";
 import { CHANNEL_LABEL, ChannelMark } from "./channel-mark";
 

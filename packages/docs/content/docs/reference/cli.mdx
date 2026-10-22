@@ -3,16 +3,39 @@ title: CLI
 description: Reference for all Everr CLI commands.
 ---
 
-The Everr CLI queries local and Cloud telemetry, inspects GitHub Actions CI runs, manages bundled skills, and reconciles resources as code. Run `everr --help` or `everr <command> --help` for the help included with your installed version.
+The Everr CLI queries local telemetry and remote Cloud or self-hosted installations, inspects GitHub Actions CI runs, manages bundled skills, and reconciles resources as code. Run `everr --help` or `everr <command> --help` for the help included with your installed version.
+
+## Authentication and remote queries
+
+Authenticate with `everr cloud login` and sign out with `everr cloud logout`. See [Cloud](#cloud) for login options and remote commands.
+
+The CLI keeps one session. A successful login replaces it; a failed login preserves the previous session. To switch installations or accounts, log in again:
+
+```sh
+everr cloud login --url https://observability.acme.com
+everr cloud status
+everr cloud logout
+```
+
+The session file contains only the API URL and token. It is stored at `~/Library/Application Support/everr/session.json` on macOS or `${XDG_CONFIG_HOME:-~/.config}/everr/session.json` on Linux. `EVERR_CONFIG_DIR` overrides the directory and must be an absolute path. Debug builds use `session-dev.json` and default to `http://localhost:5173` when no session is saved. Login does not create repository configuration.
+
+CLI sessions authenticate queries and resource management. Application exporters use separate ingestion keys and an explicitly configured ingestion endpoint.
 
 ## Cloud
 
-- `everr cloud login`: authenticate with Everr Cloud and save the local session
-- `everr cloud logout`: clear the saved Everr Cloud session
-- `everr cloud status`: check the current session and print the user's name, email, organization, and Cloud URL
-  - Prints `Name:`, `Email:`, `Organization:`, and `Cloud:` rows. Missing or expired sessions and request failures produce an error without changing the saved session.
-- `everr cloud query "<SQL>"`: run read-only SQL against CI and Production telemetry stored in Everr Cloud
+These commands also work with the self-hosted installation selected by the saved session:
+
+- `everr cloud login`: authenticate in your browser and save one session
+  - `--url <app-url>`: select another installation. Without this flag, login reuses the saved session's URL or the build default.
+  - `--no-open`: print the authorization URL without opening a browser
+- `everr cloud logout`: revoke the saved session and remove the local session file
+- `everr cloud status [--json]`: check the saved session and show the current identity, app URL, and ingestion endpoint
+  - Prints `Name:`, `Email:`, `Organization:`, `Installation:`, and `Ingestion endpoint:` rows. Missing or expired sessions and request failures produce an error without changing the saved session.
+  - `--json`: return `url`, account and organization identity, and `ingestEndpoint`, without the token
+- `everr cloud query "<SQL>"`: run read-only SQL against the saved session's installation
   - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
+
+During exporter setup, use `everr cloud status --json` to discover `ingestEndpoint`, the installation's OTLP/HTTP base URL. Save that URL in your exporter's configuration. It is fetched from the server when status is called and is not cached in the session file. A null endpoint means the server has not advertised one; app and ingestion URLs can differ.
 
 ## Maintenance
 
@@ -64,6 +87,8 @@ The `--agent` option can be repeated. With no Agent filter, a command targets al
 
 ## Local telemetry
 
+Local commands and the local browser UI work without a remote login and do not read the session file. The local UI has no remote account or sign-in controls.
+
 - `everr local start`: start the local collector and browser UI in the foreground
   - `-d`, `--detach`: run in the background and return once ready. The instance survives closing the terminal; stop it with `everr local stop`. Detached mode does not start at boot or automatically restart a crashed supervisor.
   - `--no-open`: start without opening a browser
@@ -103,7 +128,7 @@ The Repoid is inferred from the repository's `origin` remote and normalized to `
 - `--yes`, `-y`: skip confirmation for a live apply (required in non-interactive contexts)
 - `--adopt`: adopt resources in the applied directory that another Repoid currently owns. Use `--dry-run` first to review the ownership changes.
 
-Apply uses the saved `everr cloud login` session by default. In CI, set `EVERR_API_KEY` to an Organization API Key with the `apply` capability. `EVERR_API_TOKEN` remains available as a deprecated alias. When either variable is set, `EVERR_API_URL` can override the API base URL.
+Apply uses the saved login session by default. For unattended runs, set `EVERR_API_KEY` to an Organization API Key with the `apply` capability; `EVERR_API_TOKEN` remains a deprecated alias. With a key, `EVERR_API_URL` selects the installation, falling back to the URL in the saved session when omitted. A runner without a saved session must supply `EVERR_API_URL`.
 
 ### Inspect and manage live resources
 
@@ -112,4 +137,4 @@ Apply uses the saved `everr cloud login` session by default. In CI, set `EVERR_A
 - `everr resources delete <kind> <slug> [--project <name>]`: delete a live resource immediately, without prompting
 - `everr resources adopt <kind> <slug> [--project <name>] [--yes]`: adopt a live resource into the current repository's Repoid. Interactive terminals prompt for confirmation; non-interactive contexts require `--yes`.
 
-`--project` defaults to `default`. These commands require a saved `everr cloud login` session and do not accept `EVERR_API_KEY`.
+`--project` defaults to `default`. These commands require the saved login session and do not accept `EVERR_API_KEY`.

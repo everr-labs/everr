@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 // Only so that importing `./scanner` for the pure functions below does not
 // build a real database pool. Nothing here answers a query: every case in
 // this file is a pure function.
-vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
+vi.mock("#app/db/client.ts", () => ({ db: {}, pool: {} }));
 
 import {
   alertingPartitionQueue,
   alertingRetryAt,
   alertingRetryDelaySeconds,
   nextAlertEvaluationAt,
-} from "@/data/alerting/scheduling/evaluation-jobs.server";
+} from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
 import { staleEnqueueCutoff } from "./scanner";
 
 describe("alert scanner", () => {

@@ -7,7 +7,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { getRouter } from "../../router";
-import { mockCommands } from "../../test-commands";
 
 const local = vi.hoisted(() => ({
   client: {},
@@ -57,16 +56,6 @@ vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
 
 describe("local traces routes", () => {
   function renderTracesRoute(initialEntries: string[]) {
-    mockCommands((command) => {
-      if (command === "get_auth_status") {
-        return {
-          status: "signed_out",
-          session_path: "/tmp/everr/session.json",
-        };
-      }
-      if (command === "get_pending_sign_in") return null;
-      throw new Error(`Unexpected local command: ${command}`);
-    });
     const router = getRouter();
     router.update({ history: createMemoryHistory({ initialEntries }) });
     render(<RouterProvider router={router} />);

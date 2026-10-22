@@ -1,6 +1,6 @@
 import { Client } from "pg";
-import { dbEnv } from "@/env/db";
-import { serverLogger } from "@/telemetry/logger";
+import { dbEnv } from "#app/env/db.ts";
+import { serverLogger } from "#app/telemetry/logger.ts";
 import type { NotifyPayload } from "./notify";
 
 export type Topic = "tenant" | "trace" | "commit" | "author";

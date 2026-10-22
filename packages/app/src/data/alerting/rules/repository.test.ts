@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // build a real database pool. Nothing here answers a query: every mutation
 // this module exports is covered against a real PostgreSQL by the pipeline
 // integration suite.
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {},
   pool: {},
   runInTransaction: () => Promise.resolve(),

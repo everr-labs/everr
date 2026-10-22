@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   setActive: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("#app/lib/auth-client.ts", () => ({
   authClient: {
     device: Object.assign(mocks.verify, {
       approve: mocks.approve,

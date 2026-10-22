@@ -2,20 +2,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   adoptResource,
   ReservedProjectError,
-} from "@/data/as-code/resource-admin.server";
+} from "#app/data/as-code/resource-admin.server.ts";
 import { getRouteHandler } from "../../../../-test-utils";
 import { Route } from "./adopt";
 
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: { select: vi.fn(), delete: vi.fn(), update: vi.fn() },
 }));
 
-vi.mock("@/data/as-code/resource-admin.server", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@/data/as-code/resource-admin.server")
-  >()),
-  adoptResource: vi.fn(),
-}));
+vi.mock(
+  "#app/data/as-code/resource-admin.server.ts",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("#app/data/as-code/resource-admin.server.ts")
+    >()),
+    adoptResource: vi.fn(),
+  }),
+);
 
 const mockedAdopt = vi.mocked(adoptResource);
 

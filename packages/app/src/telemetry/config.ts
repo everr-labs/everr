@@ -1,7 +1,8 @@
+import { productClient } from "@composition/client";
+
 const TELEMETRY_SERVICE_NAME = "everr-dev-app";
 const TELEMETRY_SERVICE_NAMESPACE = "everr";
 const DEFAULT_LOCAL_OTLP_ENDPOINT = "http://127.0.0.1:54318";
-const EVERR_HOSTED_OTLP_ENDPOINT = "https://ingest.everr.dev";
 
 export type TelemetrySignal = "traces" | "metrics" | "logs";
 
@@ -23,6 +24,21 @@ export type TelemetryConfig = {
   resourceAttributes: Record<string, string>;
 };
 
+export function resolveBrowserTelemetryConfig(env: {
+  endpoint?: string;
+  publicKey?: string;
+}) {
+  const endpoint =
+    cleanEnvValue(env.endpoint) ??
+    (cleanEnvValue(env.publicKey)
+      ? productClient.telemetryEndpoint
+      : undefined);
+  return {
+    endpoint,
+    ingestKey: endpoint ? cleanEnvValue(env.publicKey) : undefined,
+  };
+}
+
 export function resolveTelemetryConfig(
   env: TelemetryEnv,
   serviceInstanceId: string,
@@ -31,13 +47,19 @@ export function resolveTelemetryConfig(
   const everrEndpoint = cleanEnvValue(env.EVERR_INGEST_ENDPOINT);
   const ingestKey = cleanEnvValue(env.EVERR_INGEST_KEY);
 
-  const endpoint = normalizeBaseEndpoint(
-    explicitEndpoint ??
-      (ingestKey
-        ? (everrEndpoint ?? EVERR_HOSTED_OTLP_ENDPOINT)
-        : DEFAULT_LOCAL_OTLP_ENDPOINT),
-  );
-  const usesEverrIngest = !explicitEndpoint && Boolean(ingestKey);
+  const everrIngestEndpoint = ingestKey
+    ? (everrEndpoint ?? productClient.telemetryEndpoint)
+    : undefined;
+  const localDevelopmentEndpoint = isLocalDevelopment(env)
+    ? DEFAULT_LOCAL_OTLP_ENDPOINT
+    : undefined;
+  const selectedEndpoint =
+    explicitEndpoint ?? everrIngestEndpoint ?? localDevelopmentEndpoint;
+  if (!selectedEndpoint) return null;
+
+  const endpoint = normalizeBaseEndpoint(selectedEndpoint);
+  const usesEverrIngest =
+    !explicitEndpoint && Boolean(ingestKey && everrIngestEndpoint);
 
   return {
     endpoint,
@@ -96,9 +118,11 @@ function normalizeBaseEndpoint(endpoint: string) {
   return endpoint.replace(/\/+$/, "");
 }
 
-function localServiceVersion(env: TelemetryEnv) {
+function isLocalDevelopment(env: TelemetryEnv) {
   const nodeEnv = cleanEnvValue(env.NODE_ENV);
-  return nodeEnv === "development" || nodeEnv === "test"
-    ? "local-dev"
-    : undefined;
+  return nodeEnv === "development" || nodeEnv === "test";
+}
+
+function localServiceVersion(env: TelemetryEnv) {
+  return isLocalDevelopment(env) ? "local-dev" : undefined;
 }

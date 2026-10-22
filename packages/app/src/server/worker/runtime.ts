@@ -1,19 +1,18 @@
 import { EventEmitter } from "node:events";
+import { runtime } from "@composition/runtime";
 import { run, type WorkerEvents } from "graphile-worker";
-import { pool } from "@/db/client";
-import { alertCronItems, alertTaskList } from "@/server/alerting/runtime";
-import { githubEventsTaskList } from "@/server/github-events/tasks";
-import {
-  startOrganizationWorker,
-  stopOrganizationWorker,
-} from "@/server/organization-provisioning/worker";
+import { pool } from "#app/db/client.ts";
+import { githubTasks } from "#app/integrations/github/registration.ts";
+import { alertCronItems, alertTaskList } from "#app/server/alerting/runtime.ts";
 import {
   previewsCronItems,
   previewsTaskList,
-} from "@/server/previews/00-runtime";
-import { registerShutdownHook } from "@/server/shutdown";
+} from "#app/server/previews/00-runtime.ts";
+import { registerShutdownHook } from "#app/server/shutdown.ts";
 import { attachGraphileWorkerEventLogging } from "./events";
 import { managedWorker } from "./managed-worker";
+
+const { startAppWorkers } = runtime;
 
 const general = managedWorker({
   name: "everrGeneralWorker",
@@ -29,7 +28,7 @@ const general = managedWorker({
       pgPool: pool,
       taskList: {
         ...alertTaskList,
-        ...githubEventsTaskList,
+        ...(await githubTasks()),
         ...previewsTaskList,
       },
     });
@@ -46,14 +45,40 @@ const general = managedWorker({
   },
 });
 
-registerShutdownHook("worker.general", "workers", () => general.stop());
-registerShutdownHook("worker.organizations", "workers", stopOrganizationWorker);
-
 export async function startWorkerRuntime() {
-  await Promise.all([general.start(), startOrganizationWorker()]);
-  return {
-    stop: async () => {
-      await Promise.all([general.stop(), stopOrganizationWorker()]);
-    },
+  const application = Promise.resolve().then(() => startAppWorkers());
+  let stopping: Promise<void> | undefined;
+  const stop = () => {
+    stopping ??= (async () => {
+      const results = await Promise.allSettled([
+        general.stop(),
+        application.then(
+          (workers) => workers.stop(),
+          () => {}, // Failed startup has no application handle to release.
+        ),
+      ]);
+      const errors = results.flatMap((result) =>
+        result.status === "rejected" ? [result.reason] : [],
+      );
+      if (errors.length)
+        throw new AggregateError(errors, "Worker shutdown failed");
+    })();
+    return stopping;
   };
+  registerShutdownHook("worker.runtime", "workers", stop);
+
+  try {
+    await Promise.all([general.start(), application]);
+    return { stop };
+  } catch (error) {
+    try {
+      await stop();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "Worker startup and rollback failed",
+      );
+    }
+    throw error;
+  }
 }

@@ -16,7 +16,7 @@ import {
   type ErrorComponentProps,
   Link,
 } from "@tanstack/react-router";
-import { remoteTracesRepo } from "@/data/traces/remote-repo";
+import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId",

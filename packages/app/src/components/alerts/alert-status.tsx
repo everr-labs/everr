@@ -17,9 +17,9 @@ import {
   Pause,
   TriangleAlert,
 } from "lucide-react";
-import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
-import type { RuleInventoryState } from "@/data/alerting/rules/read";
-import type { AlertingSeverity } from "@/data/alerting/types";
+import type { AlertingDefaultTier } from "#app/data/alerting/delivery/defaults.ts";
+import type { RuleInventoryState } from "#app/data/alerting/rules/read.ts";
+import type { AlertingSeverity } from "#app/data/alerting/types.ts";
 
 type StatusMeta = {
   icon: LucideIcon;

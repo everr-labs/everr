@@ -13,27 +13,30 @@ import {
   insertRule,
   insertSilence,
   TEST_ORG,
-} from "@/server/alerting/testing/fixtures";
-import { useAlertingHarness } from "@/server/alerting/testing/harness";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@/db/client", async () => {
+vi.mock("#app/db/client.ts", async () => {
   const { testDb, runInTransaction } = await import(
-    "@/server/alerting/testing/db-proxy"
+    "#app/server/alerting/testing/db-proxy.ts"
   );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock(
-  "@/lib/clickhouse",
-  async () => import("@/server/alerting/testing/test-clickhouse"),
-);
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 import {
   loadOpenSilences,
   loadSilencesForPage,
   loadSilencesInWindow,
-} from "@/data/alerting/silences/repository";
-import { silenceFor, silenceRecord } from "./silences";
+} from "#app/data/alerting/silences/repository.ts";
+import {
+  silenceFor,
+  silenceRecord,
+} from "#app/data/alerting/triage/silences.ts";
 
 const harness = useAlertingHarness();
 

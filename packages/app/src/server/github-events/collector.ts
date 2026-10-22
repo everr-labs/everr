@@ -1,11 +1,12 @@
-import { env } from "@/env";
-import { retentionForOrg } from "@/lib/retention.server";
+import { storage } from "@composition/storage";
+
+import { requireGithubConfiguration } from "#app/integrations/github/configuration.ts";
+import { retentionForOrg } from "#app/lib/retention.server.ts";
 import { GH_EVENTS_CONFIG } from "./config";
 import { recordToHeaders, stripHopByHopHeaders } from "./headers";
 import type { WebhookHeaders } from "./types";
 import { TerminalEventError } from "./types";
 
-const tenantHeaderName = "x-everr-tenant-id";
 // The collector's internal pipeline copies these into resource attributes
 // (collector/config.example.yml, processor `resource`); the views stamp
 // retention_days from them and strip them before storage.
@@ -38,18 +39,23 @@ export async function replayWebhookToCollector(
 ): Promise<void> {
   const headers = recordToHeaders(event.headers);
   stripHopByHopHeaders(headers);
-  headers.set(tenantHeaderName, organizationId);
+  const tenantId = storage.telemetryTenantId(organizationId);
+  headers.delete("x-everr-tenant-id");
+  if (tenantId !== undefined) headers.set("x-everr-tenant-id", tenantId);
   const retention = await retentionForOrg(organizationId);
   headers.set(retentionHeaderNames.logsDays, String(retention.logsDays));
   headers.set(retentionHeaderNames.tracesDays, String(retention.tracesDays));
   headers.set(retentionHeaderNames.metricsDays, String(retention.metricsDays));
 
-  const response = await fetch(env.INGRESS_COLLECTOR_URL, {
-    method: "POST",
-    headers,
-    body: new Uint8Array(event.body),
-    signal: AbortSignal.timeout(GH_EVENTS_CONFIG.replayTimeoutMs),
-  });
+  const response = await fetch(
+    requireGithubConfiguration().INGRESS_COLLECTOR_URL,
+    {
+      method: "POST",
+      headers,
+      body: new Uint8Array(event.body),
+      signal: AbortSignal.timeout(GH_EVENTS_CONFIG.replayTimeoutMs),
+    },
+  );
 
   if (response.ok) {
     return;

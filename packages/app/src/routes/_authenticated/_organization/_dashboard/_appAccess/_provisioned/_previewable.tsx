@@ -2,11 +2,11 @@ import { Button } from "@everr/ui/components/button";
 import { PreviewFrame } from "@everr/ui/components/preview-frame";
 import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";
 import { GitBranch, LogOut } from "lucide-react";
-import { ScrollingPageContainer } from "@/components/page-container";
-import { previewMessage } from "@/components/preview-message";
-import type { PreviewStatus } from "@/data/previews/overlay";
-import { usePreview } from "@/hooks/use-preview";
-import { usePreviewDismissed } from "@/hooks/use-preview-dismissed";
+import { ScrollingPageContainer } from "#app/components/page-container.tsx";
+import { previewMessage } from "#app/components/preview-message.ts";
+import type { PreviewStatus } from "#app/data/previews/overlay.ts";
+import { usePreview } from "#app/hooks/use-preview.ts";
+import { usePreviewDismissed } from "#app/hooks/use-preview-dismissed.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable",

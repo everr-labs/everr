@@ -1,9 +1,9 @@
+import { routeTree } from "@composition/routes";
 import { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { registerRouter } from "@/telemetry/route-pattern";
+import { registerRouter } from "#app/telemetry/route-pattern.ts";
 import { RootErrorComponent } from "./components/root-error";
-import { routeTree } from "./routeTree.gen";
 
 export interface RouterContext {
   queryClient: QueryClient;

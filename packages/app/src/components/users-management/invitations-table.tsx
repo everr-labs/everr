@@ -47,28 +47,30 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
     {
       header: <span className="sr-only">Actions</span>,
       cell: (row) => (
-        <AlertDialog>
-          <AlertDialogTrigger render={<Button variant="ghost" size="sm" />}>
-            Revoke
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Revoke invitation</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will cancel the invitation to {row.email}. They won't be
-                able to join using this link.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => handleRevoke(row.id, row.email)}
-              >
-                Revoke
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <div className="flex justify-end gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger render={<Button variant="ghost" size="sm" />}>
+              Revoke
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Revoke invitation</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will cancel the invitation to {row.email}. They won't be
+                  able to join using this link.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => handleRevoke(row.id, row.email)}
+                >
+                  Revoke
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       ),
       cellClassName: "py-2 pr-3 text-right",
       className: "pb-2 pr-3",

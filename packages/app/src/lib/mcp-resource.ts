@@ -1,4 +1,4 @@
-import { env } from "@/env";
+import { env } from "#app/env/index.ts";
 
 // Single source of truth for Better-Auth-derived URLs. Trimmed from
 // BETTER_AUTH_URL — never the request origin (a 127.0.0.1-vs-localhost mismatch

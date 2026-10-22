@@ -1,0 +1,11 @@
+import type { ApplicationRuntime } from "#app/composition/runtime.ts";
+
+export const runtime: ApplicationRuntime = {
+  async migrateDatabase(database) {
+    const { migrateDatabase } = await import("#app/db/migrations.ts");
+    return migrateDatabase(database);
+  },
+  async startAppWorkers() {
+    return { async stop() {} };
+  },
+};

@@ -1,11 +1,11 @@
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
-import { lastViewedDashboard } from "@/data/dashboards/last-viewed";
+import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
+import { lastViewedDashboard } from "#app/data/dashboards/last-viewed.ts";
 import {
   dashboardListOptions,
   telemetryCapabilitiesOptions,
-} from "@/data/dashboards/options";
+} from "#app/data/dashboards/options.ts";
 
 const toBuiltin = (slug: string) =>
   redirect({

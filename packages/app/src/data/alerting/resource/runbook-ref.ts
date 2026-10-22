@@ -1,9 +1,9 @@
 import * as z from "zod";
-import { formatResourceName } from "@/data/as-code/identity";
+import { formatResourceName } from "#app/data/as-code/identity.ts";
 import {
   dashboardProjectSchema,
   dashboardSlugSchema,
-} from "@/data/dashboards/schema";
+} from "#app/data/dashboards/schema.ts";
 
 function runbookRefParts(
   raw: string,

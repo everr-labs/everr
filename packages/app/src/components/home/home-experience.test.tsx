@@ -6,10 +6,13 @@ import {
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { HomeStatus } from "@/common/onboarding";
-import { createApiKey } from "@/data/api-keys";
-import { homeStatusQueryOptions } from "@/data/onboarding/options";
-import { completeOnboarding, getHomeStatus } from "@/data/onboarding/server";
+import type { HomeStatus } from "#app/common/onboarding.ts";
+import { createApiKey } from "#app/data/api-keys.ts";
+import { homeStatusQueryOptions } from "#app/data/onboarding/options.ts";
+import {
+  completeOnboarding,
+  getHomeStatus,
+} from "#app/data/onboarding/server.ts";
 import { HomeExperience } from "./home-experience";
 import { onboardingProgressKey } from "./use-setup-progress";
 
@@ -18,17 +21,19 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigation,
 }));
 
-vi.mock("@/data/onboarding/server", () => ({
+vi.mock("#app/data/onboarding/server.ts", () => ({
   getHomeStatus: vi.fn(),
   completeOnboarding: vi.fn(),
 }));
-vi.mock("@/data/api-keys", () => ({
+vi.mock("#app/data/api-keys.ts", () => ({
   createApiKey: vi.fn(),
   listApiKeys: vi.fn(),
 }));
-vi.mock("@/lib/auth-client", () => ({ authClient: { apiKey: {} } }));
+vi.mock("#app/lib/auth-client.ts", () => ({ authClient: { apiKey: {} } }));
 
 const initial = (): HomeStatus => ({
+  appUrl: "https://app.example.test",
+  ingestEndpoint: "https://ingest.example.com/",
   canCreateKeys: true,
   onboardingCompleted: false,
 });
@@ -161,7 +166,7 @@ it("walks the agent path through local verification and finishes onboarding", as
     screen.getByRole("button", { name: "Copy production endpoint" }),
   );
   expect(await navigator.clipboard.readText()).toBe(
-    "https://ingest.everr.dev/",
+    "https://ingest.example.com/",
   );
   expect(screen.queryByText("Telemetry Usage dashboard")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Finish onboarding" }));
@@ -607,4 +612,31 @@ it("keeps verification explicit and offers recovery without marking onboarding c
   expect(
     screen.getByRole("button", { name: "Set up manually" }),
   ).toHaveAttribute("aria-pressed", "true");
+});
+
+it("copies the installation login command and shows its ingestion endpoint", async () => {
+  persisted.appUrl = "https://observability.example.test";
+  persisted.ingestEndpoint = "https://telemetry.example.test/otlp";
+  seedProgress("production");
+  const { user } = mount();
+  const command =
+    "everr cloud login --url 'https://observability.example.test'";
+  expect(screen.getByText(command)).toBeVisible();
+  await user.click(
+    screen.getByRole("button", { name: "Copy CLI login command" }),
+  );
+  expect(await navigator.clipboard.readText()).toBe(command);
+  expect(screen.getByText(persisted.ingestEndpoint)).toBeVisible();
+  expect(screen.queryByText("https://ingest.example.com/")).toBeNull();
+});
+
+it("asks for administrator configuration when no ingestion endpoint is available", () => {
+  delete persisted.ingestEndpoint;
+  seedProgress("production");
+  mount();
+  expect(screen.getByText(/Ask your administrator to configure/)).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Copy production endpoint" }),
+  ).toBeNull();
+  expect(screen.queryByText("https://ingest.example.com/")).toBeNull();
 });

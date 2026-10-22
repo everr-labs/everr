@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { githubInstallationOrganizations } from "@/db/schema";
+import { db } from "#app/db/client.ts";
+import { githubInstallationOrganizations } from "#app/db/schema/index.ts";
 import { GH_EVENTS_CONFIG } from "./config";
 import { StaleInstallationError } from "./types";
 

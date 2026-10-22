@@ -1,5 +1,5 @@
-import { alertingConditionValue } from "@/data/alerting/rules/condition";
-import type { AlertingEvaluationSample } from "@/data/alerting/types";
+import { alertingConditionValue } from "#app/data/alerting/rules/condition.ts";
+import type { AlertingEvaluationSample } from "#app/data/alerting/types.ts";
 import { rowsToInstances } from "./instances";
 
 // A chart cannot make dozens of simultaneous label sets legible, and keeping

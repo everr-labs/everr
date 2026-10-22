@@ -2,12 +2,12 @@
 import fc from "fast-check";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/env/auth", () => ({
+vi.mock("#app/env/auth.ts", () => ({
   authEnv: { BETTER_AUTH_SECRET: "a-test-secret-long-enough-to-hash" },
 }));
 
-import { ALERTING_REDACTED_SECRET as REDACTED } from "@/data/alerting/schema";
-import type { AlertingChannelConfig } from "@/data/alerting/types";
+import { ALERTING_REDACTED_SECRET as REDACTED } from "#app/data/alerting/schema.ts";
+import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 import {
   decryptChannelConfig,
   encryptChannelConfig,

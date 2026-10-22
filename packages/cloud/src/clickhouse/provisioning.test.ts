@@ -1,0 +1,203 @@
+import { createHmac } from "node:crypto";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  deprovisionSqlApiOrgUser,
+  provisionSqlApiOrgUser,
+} from "./provisioning";
+
+const { mockQuery, mockInsert, mockCommand, mockJson, MASTER_KEY } = vi.hoisted(
+  () => ({
+    mockQuery: vi.fn(),
+    mockInsert: vi.fn(),
+    mockCommand: vi.fn(),
+    mockJson: vi.fn(),
+    MASTER_KEY: "test-master-key-must-be-at-least-32-chars-long",
+  }),
+);
+
+vi.mock("@clickhouse/client", () => ({
+  createClient: vi.fn(() => ({
+    query: mockQuery,
+    insert: mockInsert,
+    command: mockCommand,
+  })),
+}));
+
+vi.mock("../app/env", () => ({
+  appEnv: { CLICKHOUSE_SQL_API_MASTER_KEY: MASTER_KEY },
+}));
+
+vi.mock("@everr/app/env", () => ({
+  env: {
+    CLICKHOUSE_URL: "http://localhost:8123",
+    CLICKHOUSE_USERNAME: "default",
+    CLICKHOUSE_PASSWORD: "password",
+    CLICKHOUSE_DATABASE: "default",
+    CLICKHOUSE_ADMIN_USERNAME: "web_app_admin",
+    CLICKHOUSE_ADMIN_PASSWORD: "web-app-admin-password",
+    CLICKHOUSE_SQL_API_MASTER_KEY: MASTER_KEY,
+  },
+}));
+
+vi.unmock("@everr/app/lib/clickhouse");
+
+import { query, querySqlApi } from "@everr/app/lib/clickhouse";
+import { insertRows } from "@everr/app/lib/clickhouse-writer";
+
+const ORG = "org42";
+const ORG_USER = `sql_api_org_${ORG}`;
+const ORG_PASSWORD = `${createHmac("sha256", MASTER_KEY)
+  .update(ORG)
+  .digest("hex")}A!`;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockJson.mockReturnValue([]);
+  mockQuery.mockResolvedValue({ json: mockJson });
+  mockCommand.mockResolvedValue(undefined);
+});
+
+describe("query", () => {
+  it("forwards caller-supplied settings alongside the tenant scope", async () => {
+    await query("SELECT 1", ORG, undefined, { max_execution_time: 30 });
+
+    expect(mockQuery).toHaveBeenCalledWith({
+      query: "SELECT 1",
+      query_params: undefined,
+      format: "JSONEachRow",
+      clickhouse_settings: {
+        max_execution_time: 30,
+        SQL_everr_tenant_id: ORG,
+      },
+    });
+  });
+
+  it("never lets a caller-supplied setting override the tenant scope", async () => {
+    await query("SELECT 1", ORG, undefined, {
+      SQL_everr_tenant_id: "someone-elses-org",
+    });
+
+    expect(mockQuery.mock.calls[0][0].clickhouse_settings).toEqual({
+      SQL_everr_tenant_id: ORG,
+    });
+  });
+});
+
+describe("querySqlApi", () => {
+  it("authenticates per-query as the org user and forwards query params", async () => {
+    await querySqlApi("SELECT {n:UInt8}", ORG, { n: 1 });
+
+    expect(mockQuery).toHaveBeenCalledWith({
+      query: "SELECT {n:UInt8}",
+      query_params: { n: 1 },
+      format: "JSONEachRow",
+      auth: { username: ORG_USER, password: ORG_PASSWORD },
+      http_headers: { "X-ClickHouse-Quota": ORG_USER },
+    });
+    // Per-org user provisioning happens at org creation (identity/server.ts), never
+    // on the read path.
+    expect(mockCommand).not.toHaveBeenCalled();
+  });
+
+  it("derives a deterministic password from the tenant id and the master key", async () => {
+    await querySqlApi("SELECT 1", ORG);
+    const firstAuth = mockQuery.mock.calls[0][0].auth;
+
+    mockQuery.mockClear();
+    await querySqlApi("SELECT 1", ORG);
+    const secondAuth = mockQuery.mock.calls[0][0].auth;
+
+    expect(firstAuth).toEqual(secondAuth);
+    expect(firstAuth.password).toBe(ORG_PASSWORD);
+  });
+});
+
+describe("provisionSqlApiOrgUser", () => {
+  it("creates the org user, grants sql_api_role, and creates per-table row policies", async () => {
+    await provisionSqlApiOrgUser(ORG);
+
+    const calls = mockCommand.mock.calls.map(([args]) => args.query);
+    expect(calls).toEqual([
+      `CREATE USER IF NOT EXISTS \`${ORG_USER}\` IDENTIFIED WITH sha256_password BY '${ORG_PASSWORD}' SETTINGS PROFILE 'sql_api_profile'`,
+      "SET ROLE sql_api_role",
+      `GRANT sql_api_role TO \`${ORG_USER}\``,
+      `ALTER USER \`${ORG_USER}\` DEFAULT ROLE sql_api_role`,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_traces\` ON app.\`traces\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_logs\` ON app.\`logs\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_gauge\` ON app.\`metrics_gauge\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_sum\` ON app.\`metrics_sum\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_histogram\` ON app.\`metrics_histogram\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_exponential_histogram\` ON app.\`metrics_exponential_histogram\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_summary\` ON app.\`metrics_summary\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_alert_events\` ON app.\`alert_events\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_traces_trace_id_ts\` ON app.\`traces_trace_id_ts\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+    ]);
+
+    const setRoleCall = mockCommand.mock.calls[1][0];
+    const grantCall = mockCommand.mock.calls[2][0];
+    expect(setRoleCall.clickhouse_settings.session_id).toBeDefined();
+    expect(grantCall.clickhouse_settings.session_id).toBe(
+      setRoleCall.clickhouse_settings.session_id,
+    );
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "SELECT 1 FROM app.traces LIMIT 0",
+        auth: { username: ORG_USER, password: ORG_PASSWORD },
+      }),
+    );
+  });
+
+  it("does not succeed if the provisioned credentials still cannot authenticate", async () => {
+    mockQuery.mockRejectedValueOnce(new Error("Authentication failed"));
+    await expect(provisionSqlApiOrgUser(ORG)).rejects.toThrow(
+      "Authentication failed",
+    );
+  });
+});
+
+describe("deprovisionSqlApiOrgUser", () => {
+  it("drops the per-table policies before dropping the user", async () => {
+    await deprovisionSqlApiOrgUser(ORG);
+
+    const calls = mockCommand.mock.calls.map(([args]) => args.query);
+    expect(calls).toEqual([
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_traces\` ON app.\`traces\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_logs\` ON app.\`logs\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_gauge\` ON app.\`metrics_gauge\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_sum\` ON app.\`metrics_sum\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_histogram\` ON app.\`metrics_histogram\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_exponential_histogram\` ON app.\`metrics_exponential_histogram\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_metrics_summary\` ON app.\`metrics_summary\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_alert_events\` ON app.\`alert_events\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_traces_trace_id_ts\` ON app.\`traces_trace_id_ts\``,
+      `DROP USER IF EXISTS \`${ORG_USER}\``,
+    ]);
+  });
+});
+
+it("forwards shutdown cancellation to all provisioning DDL and the authentication probe", async () => {
+  const signal = new AbortController().signal;
+  await provisionSqlApiOrgUser(ORG, signal);
+  for (const [args] of mockCommand.mock.calls)
+    expect(args.abort_signal).toBe(signal);
+  expect(mockQuery.mock.calls[0][0].abort_signal).toBe(signal);
+  mockCommand.mockClear();
+  await deprovisionSqlApiOrgUser(ORG, signal);
+  for (const [args] of mockCommand.mock.calls)
+    expect(args.abort_signal).toBe(signal);
+});
+
+describe("insertRows", () => {
+  it("stamps each organization in a mixed batch and overrides supplied tenant columns", async () => {
+    const rows = [
+      { organizationId: "org-a", tenant_id: "wrong", body: "first" },
+      { organizationId: "org-b", tenant_id: "wrong", body: "second" },
+    ];
+    await insertRows("app.logs", rows);
+    expect(mockInsert.mock.calls[0][0].values).toEqual([
+      { tenant_id: "org-a", body: "first" },
+      { tenant_id: "org-b", body: "second" },
+    ]);
+    expect(rows[0].tenant_id).toBe("wrong");
+  });
+});

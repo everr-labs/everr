@@ -5,15 +5,11 @@ description: Use when a task mentions CI, GitHub Actions, workflow runs, checks,
 
 ## Startup Access
 
-Before using the everr CLI, request for the smallest sandbox access that lets Everr commands work:
-
-- Filesystem read: `~/Library/Application Support/everr/session.json`, `~/Library/Application Support/everr/session-dev.json`, and their parent directory.
-- Local network: `127.0.0.1`, `localhost`, and the ports 54318, 54320, 54418, 54420.
-- Production network: `https://app.everr.dev`
-
-If the current tool cannot ask for a blanket permission grant, request scoped command approvals before the first Everr command instead of trying a sandboxed command that is expected to fail.
+Use the CLI's saved login session. Run commands with the access already available; request scoped access if the sandbox blocks the selected installation, local collector, or CLI configuration directory. The CLI manages credentials. Keep credential contents out of tool output and project files.
 
 # Working With CI Using Everr
+
+The CLI uses one saved login session across repositories and agent sessions. Use `everr cloud status --json` to confirm the installation and account or obtain the UI URL. Switch installations with `everr cloud login --url <app-url>` and follow login hints if authentication expires.
 
 From the repository root, run `everr ci status` to check the current commit's pipeline state. Use Everr's structured GitHub Actions data for workflow logs, test output in step logs, and pipeline timing before `gh`, the GitHub UI, memory, or pasted logs.
 
@@ -51,7 +47,7 @@ Always include a time filter, scoped repo/branch/run/workflow/job filters when k
 
 ## Querying The Everr DB
 
-Run read-only ClickHouse SQL with `everr cloud query "<SQL>"`. Use `SHOW TABLES`, `DESCRIBE TABLE traces`, or `DESCRIBE TABLE logs` when unsure about columns. Cloud CI data usually starts in `traces`; step log lines are in `logs`; metrics are in `metrics_gauge` and `metrics_sum`.
+Run read-only ClickHouse SQL with `everr cloud query "<SQL>"`. Use `SHOW TABLES`, `DESCRIBE TABLE traces`, or `DESCRIBE TABLE logs` when unsure about columns. CI data usually starts in `traces`; step log lines are in `logs`; metrics are in `metrics_gauge` and `metrics_sum`.
 
 Everr CI follows OpenTelemetry semantic conventions where they exist. The conventions used in CI data include:
 - `service.name` as `ServiceName` (`github-actions`)

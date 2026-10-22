@@ -10,9 +10,13 @@ import {
   it,
   vi,
 } from "vitest";
-import { alertDefinitions } from "@/db/schema";
+import { alertDefinitions } from "#app/db/schema/index.ts";
 import { BACKOFF_EXPRESSION_TEST } from "./job-driver";
-import { createTestDatabase, type TestDatabase } from "./pglite-database";
+import {
+  applyTestSchema,
+  createTestDatabase,
+  type TestDatabase,
+} from "./pglite-database";
 
 let database: TestDatabase;
 
@@ -41,8 +45,9 @@ afterAll(async () => {
 });
 
 describe("createTestDatabase", () => {
-  it("applies the app schema", async () => {
+  it("applies migrations once", async () => {
     await database.db.insert(alertDefinitions).values(RULE);
+    await applyTestSchema(database.client);
 
     const rows = await database.db.select().from(alertDefinitions);
     expect(rows).toHaveLength(1);

@@ -16,7 +16,7 @@ Use this rule for Node.js services, CLIs, workers, background jobs, and test run
 - Start with `@opentelemetry/sdk-node` and `@opentelemetry/auto-instrumentations-node`.
 - Configure exporters in code so the environment stays small and the app can set redaction, resource attributes, metric readers, log processors, and shutdown behavior explicitly.
 - Load telemetry before importing HTTP, framework, database, queue, AWS SDK, GraphQL, gRPC, logger, or job-runner modules.
-- Export to OTLP over HTTP for Everr local and hosted ingest unless project constraints require a different protocol.
+- Export to OTLP over HTTP for Everr local and remote ingest unless project constraints require a different protocol.
 - Prefer framework-native OpenTelemetry support or OpenTelemetry contrib instrumentation for common libraries, then add manual spans only for work the library instrumentation cannot see.
 - Use `@everr/otel-errors` for error capture: add `new ErrorsInstrumentation()` to the SDK's `instrumentations`. Do not hand-roll process error handlers or exception logging.
 
@@ -64,15 +64,18 @@ If the app only needs traces at first, install the SDK, auto-instrumentations, r
 Local development or test:
 
 ```bash
-# Optional: override the hardcoded default collector endpoint.
-OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:54318
+# Endpoint returned by everr local status.
+OTEL_EXPORTER_OTLP_ENDPOINT=<otlp-url-from-status>
 ```
 
-Cloud ingest, only for environments selected for cloud export:
+Remote ingest, for the selected installation and requested environments:
 
 ```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-cloud-status>
 EVERR_INGEST_KEY=<secret-manager-reference>
 ```
+
+Resolve remote endpoints with [Remote setup](../references/remote-setup.md). Persist the endpoint explicitly; supplying only a key does not select a destination. This example leaves the SDK disabled when no endpoint is configured.
 
 Hardcode a stable `service.name` in the setup module. Use existing deployment variables for `service.version` and `deployment.environment.name` if the app already has them. Do not add a large OTel env block just to enable signals; code should select the trace, metric, and log exporters.
 
@@ -101,7 +104,6 @@ import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node';
 
 const stateKey = Symbol.for('app.telemetry.sdk');
 const SERVICE_NAME = 'app-service';
-const DEFAULT_COLLECTOR_ENDPOINT = 'http://127.0.0.1:54318';
 
 const globalState = globalThis as typeof globalThis & {
   [stateKey]?: { sdk: NodeSDK };
@@ -113,6 +115,7 @@ if (!globalState[stateKey]) {
 
 function startTelemetry() {
   const config = resolveTelemetryConfig(process.env);
+  if (!config) return;
   const endpoint = normalizeBaseEndpoint(config.endpoint);
   const sdk = new NodeSDK({
     resource: resourceFromAttributes({
@@ -172,11 +175,8 @@ function startTelemetry() {
 }
 
 function resolveTelemetryConfig(env: NodeJS.ProcessEnv) {
-  const endpoint =
-    env.OTEL_EXPORTER_OTLP_ENDPOINT ||
-    (env.EVERR_INGEST_KEY
-      ? 'https://ingest.everr.dev'
-      : DEFAULT_COLLECTOR_ENDPOINT);
+  const endpoint = env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  if (!endpoint) return;
 
   return {
     endpoint,

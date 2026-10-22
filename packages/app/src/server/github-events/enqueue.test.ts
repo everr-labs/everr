@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebhookJobData } from "./types";
 
 const addWorkerJob = vi.fn();
-vi.mock("@/server/worker/jobs", () => ({
+vi.mock("#app/server/worker/jobs.ts", () => ({
   addWorkerJob: (...args: unknown[]) => addWorkerJob(...args),
 }));
 

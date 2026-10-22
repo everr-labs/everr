@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { identityKey } from "@/data/as-code/reconcile";
+import { identityKey } from "#app/data/as-code/reconcile.ts";
 import { overlayPreview } from "./overlay";
 
 const r = (

@@ -4,11 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";
 
-vi.mock("@/data/api-keys", () => ({
+vi.mock("#app/data/api-keys.ts", () => ({
   createApiKey: vi.fn(),
   listApiKeys: vi.fn(),
 }));
-vi.mock("@/lib/auth-client", () => ({ authClient: { apiKey: {} } }));
+vi.mock("#app/lib/auth-client.ts", () => ({ authClient: { apiKey: {} } }));
 
 const clients: QueryClient[] = [];
 afterEach(() => {

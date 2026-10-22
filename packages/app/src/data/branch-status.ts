@@ -1,5 +1,5 @@
-import { pool } from "@/db/client";
-import type { WorkflowJobStep } from "@/db/schema";
+import { pool } from "#app/db/client.ts";
+import type { WorkflowJobStep } from "#app/db/schema/index.ts";
 
 export type FirstFailingStep = {
   stepNumber: number;

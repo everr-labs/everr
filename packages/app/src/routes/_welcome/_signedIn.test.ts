@@ -1,9 +1,9 @@
-vi.mock("@/data/organization-access", () => ({
+vi.mock("#app/data/organization-access.ts", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
 
 import { expect, it, vi } from "vitest";
-import { Route } from "./_signedIn";
+import { Route } from "./-_signedIn";
 
 const beforeLoad = Route.options.beforeLoad as unknown as (args: {
   context: {
@@ -19,14 +19,14 @@ it("requires a session while preserving the onboarding destination through sign-
   try {
     beforeLoad({
       context: { session: null },
-      location: { href: "/create-organization?returnTo=%2Flogs" },
+      location: { href: "/access-required?returnTo=%2Flogs" },
     });
     expect.fail("Expected a sign-in redirect");
   } catch (cause) {
     expect(cause).toMatchObject({
       options: {
         to: "/auth/sign-in",
-        search: { redirect: "/create-organization?returnTo=%2Flogs" },
+        search: { redirect: "/access-required?returnTo=%2Flogs" },
       },
     });
   }
@@ -40,7 +40,7 @@ it("admits signed-in users without an active organization", () => {
   expect(
     beforeLoad({
       context: { session },
-      location: { href: "/choose-organization" },
+      location: { href: "/access-required" },
     }),
   ).toEqual({ session });
 });

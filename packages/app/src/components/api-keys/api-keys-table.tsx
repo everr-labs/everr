@@ -27,14 +27,14 @@ import {
 } from "@everr/ui/components/tooltip";
 import { Globe, KeyRound, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
-import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
-import { formatDate } from "@/components/users-management/format-date";
+import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
+import { formatDate } from "#app/components/users-management/format-date.ts";
 import {
   API_KEY_SCOPES,
   type ApiKeyPermissions,
   describeApiKeyScopes,
-} from "@/lib/api-key-scopes";
-import { publicKeyMetadataOf } from "@/lib/public-ingest-keys";
+} from "#app/lib/api-key-scopes.ts";
+import { publicKeyMetadataOf } from "#app/lib/public-ingest-keys.ts";
 import { type ApiKey, useRevokeApiKey } from "./queries";
 import { SCOPE_ICONS } from "./scope-meta";
 

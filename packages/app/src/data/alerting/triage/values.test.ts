@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ClickhouseQuery } from "@/lib/clickhouse";
+import type { ClickhouseQuery } from "#app/lib/clickhouse.ts";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 
 const MINUTE = 60_000;

@@ -12,8 +12,8 @@ import {
   BREAKDOWN_OTHER_KEY,
   type CostMetric,
   type CostOverTimeBreakdown,
-} from "@/data/cost-analysis/schemas";
-import { formatCost } from "@/lib/runner-pricing";
+} from "#app/data/cost-analysis/schemas.ts";
+import { formatCost } from "#app/lib/runner-pricing.ts";
 import { formatBucket } from "./format-bucket";
 
 export type ActionsUsageDimension = "repo" | "runner";

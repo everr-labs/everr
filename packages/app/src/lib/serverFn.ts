@@ -1,14 +1,13 @@
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
-import { and, eq } from "drizzle-orm";
-import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
-import { db } from "@/db/client";
-import { member, organization as organizationTable } from "@/db/schema";
-import { auth } from "@/lib/auth.server";
-import { isOrganizationAdmin } from "@/lib/organization-role";
+import { db } from "#app/db/client.ts";
+import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
+import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
+import { createOrganizationSql } from "#app/lib/organization-sql.ts";
+import { getSession } from "#app/lib/session.server.ts";
 import { createClickhouseQuery } from "./clickhouse";
 
 const authMiddleware = createMiddleware().server(async ({ request, next }) => {
-  const session = await auth.api.getSession({
+  const session = await getSession({
     headers: request.headers,
   });
 
@@ -31,27 +30,18 @@ export const requireOrgMiddleware = createMiddleware()
       throw new Error("No active organization");
     }
 
-    const [organization] = await db
-      .select({
-        id: organizationTable.id,
-        name: organizationTable.name,
-        metadata: organizationTable.metadata,
-      })
-      .from(organizationTable)
-      .innerJoin(member, eq(member.organizationId, organizationTable.id))
-      .where(
-        and(
-          eq(organizationTable.id, activeOrgId),
-          eq(member.userId, session.user.id),
-        ),
-      )
-      .limit(1);
-    if (!organization)
-      throw new Error("Not a member of the active organization");
+    const membership = await findOrganizationForMember(
+      db,
+      session.user.id,
+      activeOrgId,
+    );
+    if (!membership) throw new Error("Not a member of the active organization");
+    const { memberRole, ...organization } = membership;
 
     return next({
       context: {
         organization,
+        memberRole,
         session: {
           session: {
             ...session.session,
@@ -66,15 +56,18 @@ export const requireOrgMiddleware = createMiddleware()
     });
   });
 
-const requireProvisionedOrgMiddleware = createMiddleware()
+const requireStorageReadyMiddleware = createMiddleware()
   .middleware([requireOrgMiddleware])
   .server(({ next, context: { organization } }) => {
-    assertOrganizationProvisioned(organization.metadata);
-    return next();
+    return next({
+      context: {
+        sql: createOrganizationSql(organization.id, organization.metadata),
+      },
+    });
   });
 
 export const createAuthenticatedServerFn = createServerFn().middleware([
-  requireProvisionedOrgMiddleware,
+  requireStorageReadyMiddleware,
 ]);
 
 export class NotOrganizationAdminError extends Error {
@@ -87,11 +80,8 @@ export class NotOrganizationAdminError extends Error {
 
 const requireOrganizationAdminMiddleware = createMiddleware()
   .middleware([requireOrgMiddleware])
-  .server(async ({ request, next, context: { session } }) => {
-    const { role } = await auth.api.getActiveMemberRole({
-      headers: request.headers,
-    });
-    if (!isOrganizationAdmin(role)) {
+  .server(({ next, context: { session, memberRole } }) => {
+    if (!isOrganizationAdmin(memberRole)) {
       throw new NotOrganizationAdminError();
     }
 

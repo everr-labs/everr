@@ -1,3 +1,4 @@
+import { productUI } from "@composition/ui";
 import { Button } from "@everr/ui/components/button";
 import { Label } from "@everr/ui/components/label";
 import {
@@ -10,8 +11,8 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
-import { getOrganizations } from "@/data/auth";
-import { approveDevice, denyDevice } from "@/lib/device-auth";
+import { getOrganizations } from "#app/data/auth.ts";
+import { approveDevice, denyDevice } from "#app/lib/device-auth.ts";
 
 export const Route = createFileRoute("/_authenticated/_organization/device")({
   staticData: { authEntry: "/auth/sign-up" },
@@ -163,7 +164,7 @@ function CliDeviceApprovalPage() {
                   role="alert"
                   className="text-destructive mt-4 text-center text-sm"
                 >
-                  {errorMessage}
+                  {errorMessage} <productUI.DeviceLoginRecovery />
                 </p>
               ) : null}
             </>

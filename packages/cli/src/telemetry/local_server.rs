@@ -1,7 +1,6 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
-use super::local_auth::LocalAuth;
-use crate::{build, device_auth::build_auth_http_client, internal_telemetry};
+use crate::{build, internal_telemetry};
 use anyhow::{Context, Result, anyhow, bail};
 #[cfg(everr_embedded_local_ui)]
 use axum::body::Body;
@@ -42,7 +41,6 @@ pub(super) struct StopLocalResponse {
 struct ServerState {
     origin: String,
     identity: super::local_instance::Identity,
-    auth: Arc<LocalAuth>,
     supervisor: mpsc::Sender<SupervisorRequest>,
     http: reqwest::Client,
     sql: super::client::QueryClient,
@@ -111,11 +109,6 @@ impl LocalServer {
                 state: ServerState {
                     origin: build::local_ui_origin(),
                     identity: super::local_instance::Identity::ui(_instance_id),
-                    auth: Arc::new(LocalAuth::new(
-                        crate::auth::session_store(),
-                        crate::auth::resolve_auth_config()?,
-                        build_auth_http_client()?,
-                    )),
                     supervisor: _supervisor,
                     sql: crate::telemetry::client::QueryClient::new(build::sql_http_origin()),
                     telemetry: internal_telemetry::Config::from_env(internal_telemetry::Source::Ui),
@@ -273,13 +266,6 @@ fn json_response(value: impl Serialize) -> Response {
 
 async fn dispatch(state: &ServerState, command: &str, args: Value) -> Result<Response> {
     Ok(match command {
-        "get_auth_status" => json_response(state.auth.status()?),
-        "get_pending_sign_in" => json_response(state.auth.pending_sign_in().await),
-        "start_sign_in" => json_response(state.auth.start_sign_in().await?),
-        "poll_sign_in" => json_response(state.auth.poll_sign_in().await?),
-        "open_sign_in_browser" => json_response(state.auth.open_sign_in_browser().await?),
-        "sign_out" => json_response(state.auth.sign_out().await?),
-        "get_user_profile" => json_response(state.auth.user_profile().await?),
         "get_collector_status" => json_response(collector_status(state).await?),
         "restart_collector" => {
             let (tx, rx) = oneshot::channel();
@@ -387,17 +373,9 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let origin = format!("http://{}", listener.local_addr().unwrap());
         let (supervisor, _) = mpsc::channel(1);
-        let auth_dir = tempfile::tempdir().unwrap();
         let state = ServerState {
             origin: origin.clone(),
             identity: crate::telemetry::local_instance::Identity::ui("test-instance".into()),
-            auth: Arc::new(LocalAuth::new(
-                crate::state::SessionStore::for_namespace(auth_dir.path().to_string_lossy()),
-                crate::device_auth::AuthConfig {
-                    api_base_url: "http://example.test".into(),
-                },
-                reqwest::Client::new(),
-            )),
             supervisor,
             http: reqwest::Client::builder()
                 .timeout(internal_telemetry::EXPORT_TIMEOUT)
@@ -408,7 +386,6 @@ mod tests {
             telemetry,
         };
         let task = tokio::spawn(async move {
-            let _auth_dir = auth_dir;
             axum::serve(listener, router(state)).await.unwrap();
         });
         (origin, task)
@@ -531,48 +508,6 @@ mod tests {
             failed.remove_async().await;
         }
         unexpected.assert_async().await;
-        task.abort();
-    }
-
-    #[tokio::test]
-    async fn signed_out_commands_preserve_json_responses() {
-        let (origin, task) = test_server().await;
-        let client = reqwest::Client::new();
-        for (command, expected) in [
-            ("get_pending_sign_in", Value::Null),
-            ("poll_sign_in", json!({"status":"expired"})),
-            ("get_user_profile", Value::Null),
-        ] {
-            let response = client
-                .post(format!("{origin}/api/commands/{command}"))
-                .header("origin", &origin)
-                .header("x-everr-local", "1")
-                .json(&json!({}))
-                .send()
-                .await
-                .unwrap();
-            assert_eq!(response.status(), StatusCode::OK);
-            assert_eq!(response.json::<Value>().await.unwrap(), expected);
-        }
-        let response = client
-            .post(format!("{origin}/api/commands/get_auth_status"))
-            .header("origin", &origin)
-            .header("x-everr-local", "1")
-            .json(&json!({}))
-            .send()
-            .await
-            .unwrap()
-            .json::<Value>()
-            .await
-            .unwrap();
-        assert_eq!(response["status"], "signed_out");
-        assert!(
-            response["session_path"]
-                .as_str()
-                .unwrap()
-                .ends_with("session-dev.json")
-        );
-        assert_eq!(response.as_object().unwrap().len(), 2);
         task.abort();
     }
 

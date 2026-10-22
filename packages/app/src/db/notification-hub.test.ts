@@ -19,7 +19,7 @@ vi.mock("pg", () => {
   return { Client: MockClient };
 });
 
-vi.mock("@/env/db", () => ({
+vi.mock("#app/env/db.ts", () => ({
   dbEnv: {
     DATABASE_HOST: "localhost",
     DATABASE_NAME: "testdb",

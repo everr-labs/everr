@@ -1,12 +1,19 @@
+import { runtime } from "@composition/runtime";
+
 import {
   createStartHandler,
   defaultStreamHandler,
   defineHandlerCallback,
 } from "@tanstack/react-start/server";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { db } from "@/db/client";
-import { startWorkerRuntime } from "@/server/worker/runtime";
-import { captureError, getTelemetryTracer, SpanKind } from "@/telemetry/node";
+import { withMigrationLock } from "#app/db/migrations.ts";
+import { startWorkerRuntime } from "#app/server/worker/runtime.ts";
+import {
+  captureError,
+  getTelemetryTracer,
+  SpanKind,
+} from "#app/telemetry/node.ts";
+
+const { migrateDatabase } = runtime;
 
 const startupTracer = getTelemetryTracer("everr-app.startup");
 
@@ -16,7 +23,7 @@ if (process.env.TSS_PRERENDERING !== "true") {
     { kind: SpanKind.INTERNAL },
     async (span) => {
       try {
-        await migrate(db, { migrationsFolder: "./drizzle" });
+        await withMigrationLock(migrateDatabase);
       } catch (error) {
         captureError(error, {
           "everr.error.source": "startup.database_migration",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isNumericValue } from "@/lib/numeric";
+import { isNumericValue } from "#app/lib/numeric.ts";
 import {
   detectTimeKey,
   getValueKeys,

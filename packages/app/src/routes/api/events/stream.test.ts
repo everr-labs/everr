@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { NotifyPayload } from "@/db/notify";
+import type { NotifyPayload } from "#app/db/notify.ts";
 
-vi.mock("@/db/hub", () => ({
+vi.mock("#app/db/hub.ts", () => ({
   subscribe: vi.fn(() => vi.fn()),
   subscribeTenant: vi.fn(() => vi.fn()),
   subscribeAuthor: vi.fn(() => vi.fn()),
@@ -9,7 +9,7 @@ vi.mock("@/db/hub", () => ({
 
 // @/lib/better-auth is mocked globally in test-setup.ts
 
-vi.mock("@/lib/sse", () => ({
+vi.mock("#app/lib/sse.ts", () => ({
   createSSEStream: vi.fn(() => ({
     sendEvent: vi.fn(),
     close: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock("@/lib/sse", () => ({
   })),
 }));
 
-import { subscribe, subscribeAuthor, subscribeTenant } from "@/db/hub";
+import { subscribe, subscribeAuthor, subscribeTenant } from "#app/db/hub.ts";
 import { Route } from "./stream";
 
 const mockedSubscribe = vi.mocked(subscribe);
@@ -161,7 +161,7 @@ describe("GET /api/events/stream", () => {
   });
 
   it("forwards the payload directly to the SSE stream when a notification arrives", async () => {
-    const { createSSEStream } = await import("@/lib/sse");
+    const { createSSEStream } = await import("#app/lib/sse.ts");
     const mockSendEvent = vi.fn();
     vi.mocked(createSSEStream).mockReturnValueOnce({
       sendEvent: mockSendEvent,
@@ -201,7 +201,7 @@ describe("GET /api/events/stream", () => {
   });
 
   it("forwards the payload for a keyed scope (scope=commit)", async () => {
-    const { createSSEStream } = await import("@/lib/sse");
+    const { createSSEStream } = await import("#app/lib/sse.ts");
     const mockSendEvent = vi.fn();
     vi.mocked(createSSEStream).mockReturnValueOnce({
       sendEvent: mockSendEvent,

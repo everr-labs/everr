@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/env", () => ({
-  env: {
+vi.mock("#app/integrations/github/configuration.ts", () => ({
+  getGithubConfiguration: () => ({
     GITHUB_APP_INSTALL_URL: "https://github.com/apps/everr/installations/new",
-  },
+  }),
 }));
 
-vi.mock("@/lib/github-install-state", () => ({
+vi.mock("#app/lib/github-install-state.ts", () => ({
   createInstallState: vi.fn(() => "signed-state"),
 }));
 
-import { auth } from "@/lib/auth.server";
-import { createInstallState } from "@/lib/github-install-state";
+import { auth } from "#app/identity/server.ts";
+import { createInstallState } from "#app/lib/github-install-state.ts";
 import { Route } from "./start";
 
 function getHandler() {

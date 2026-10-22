@@ -7,8 +7,8 @@
 
 import { createSign } from "node:crypto";
 import QuickLRU from "quick-lru";
-import { githubEnv } from "@/env/github";
-import { serverLogger } from "@/telemetry/logger";
+import { requireGithubConfiguration } from "#app/integrations/github/configuration.ts";
+import { serverLogger } from "#app/telemetry/logger.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -38,7 +38,7 @@ function createAppJwt(): string {
   const payload = {
     iat: now - 60,
     exp: now + 60,
-    iss: String(githubEnv.GITHUB_APP_ID),
+    iss: String(requireGithubConfiguration().GITHUB_APP_ID),
   };
 
   const header = Buffer.from(
@@ -49,7 +49,10 @@ function createAppJwt(): string {
 
   const sign = createSign("RSA-SHA256");
   sign.update(sigInput);
-  const signature = sign.sign(githubEnv.GITHUB_APP_PRIVATE_KEY, "base64url");
+  const signature = sign.sign(
+    requireGithubConfiguration().GITHUB_APP_PRIVATE_KEY,
+    "base64url",
+  );
 
   return `${sigInput}.${signature}`;
 }

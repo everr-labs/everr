@@ -1,17 +1,19 @@
+import { productClient } from "@composition/client";
 import { createFileRoute } from "@tanstack/react-router";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
-import { HomeSearchSchema } from "@/common/onboarding";
-import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
-import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
-import { DashboardProvider } from "@/components/dashboards/use-dashboard";
-import { HomeExperience } from "@/components/home/home-experience";
-import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
-import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
+import { HomeSearchSchema } from "#app/common/onboarding.ts";
+import gridLayoutOverridesCSS from "#app/components/dashboards/dashboard-grid.css?url";
+import { DashboardHome } from "#app/components/home/dashboard-home.tsx";
+import { HomeExperience } from "#app/components/home/home-experience.tsx";
+import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
+import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
 
-// The ordinary Home renders the Telemetry Usage built-in from the catalog.
-const usage = getBuiltinDashboard("telemetry-usage");
-if (!usage) throw new Error("Missing telemetry-usage built-in dashboard");
-const usageDocument = usage.document;
+const homeDashboard = getBuiltinDashboard(productClient.homeDashboardId);
+if (!homeDashboard)
+  throw new Error(
+    `Missing ${productClient.homeDashboardId} built-in dashboard`,
+  );
+const homeDashboardDocument = homeDashboard.document;
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/",
@@ -25,7 +27,9 @@ export const Route = createFileRoute(
       { rel: "stylesheet", href: gridLayoutOverridesCSS },
     ],
   }),
-  loader: () => ({ timeDefaults: dashboardTimeDefaults(usageDocument.spec) }),
+  loader: () => ({
+    timeDefaults: dashboardTimeDefaults(homeDashboardDocument.spec),
+  }),
   component: HomePage,
 });
 
@@ -38,9 +42,7 @@ function HomePage() {
       organizationId={session.session.activeOrganizationId}
       setupRequested={setup === 1}
     >
-      <DashboardProvider document={usageDocument}>
-        <DashboardGrid frameToggle={false} />
-      </DashboardProvider>
+      <DashboardHome document={homeDashboardDocument} />
     </HomeExperience>
   );
 }

@@ -1,4 +1,4 @@
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "#app/lib/auth-client.ts";
 
 export type DeviceActionResult = { ok: true } | { ok: false; message: string };
 

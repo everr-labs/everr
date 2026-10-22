@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { env } from "@/env";
+import { requireGithubConfiguration } from "#app/integrations/github/configuration.ts";
 
 type InstallStatePayload = {
   exp: number;
@@ -10,7 +10,10 @@ type InstallStatePayload = {
 const stateTTLSeconds = 10 * 60;
 
 function sign(input: string): string {
-  return createHmac("sha256", env.GITHUB_APP_STATE_SECRET)
+  return createHmac(
+    "sha256",
+    requireGithubConfiguration().GITHUB_APP_STATE_SECRET,
+  )
     .update(input)
     .digest("base64url");
 }

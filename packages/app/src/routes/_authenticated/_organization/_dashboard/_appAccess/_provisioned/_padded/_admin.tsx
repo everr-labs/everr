@@ -8,7 +8,7 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import {
   ensureOrganizationAdmin,
   NotOrganizationAdminError,
-} from "@/data/organization-admin";
+} from "#app/data/organization-admin.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin",

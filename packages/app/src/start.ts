@@ -4,9 +4,9 @@ import {
   type RouterLike,
 } from "@everr/tanstack-start-otel";
 import { createMiddleware, createStart } from "@tanstack/react-start";
-import { getRouter } from "@/router";
-import { isExpectedServerFunctionError } from "@/telemetry/expected-errors";
-import { withTelemetryIdentityScope } from "@/telemetry/identity";
+import { getRouter } from "#app/router.tsx";
+import { isExpectedServerFunctionError } from "#app/telemetry/expected-errors.ts";
+import { withTelemetryIdentityScope } from "#app/telemetry/identity.ts";
 
 export const startInstance = createStart(() => ({
   // Loaders depend on browser state (localStorage, auth cookies via the

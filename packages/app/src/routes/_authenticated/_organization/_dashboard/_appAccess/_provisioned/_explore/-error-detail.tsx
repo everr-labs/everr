@@ -9,8 +9,8 @@ import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { remoteErrorsRepo } from "@/data/errors/remote-repo";
-import { runSpansOptions } from "@/data/runs/options";
+import { remoteErrorsRepo } from "#app/data/errors/remote-repo.ts";
+import { runSpansOptions } from "#app/data/runs/options.ts";
 
 export function ErrorDetailRouteContent({
   fingerprint,

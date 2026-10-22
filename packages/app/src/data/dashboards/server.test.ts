@@ -1,7 +1,7 @@
 import { isNotFound } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { db } from "@/db/client";
-import { querySqlApi } from "@/lib/clickhouse";
+import { db } from "#app/db/client.ts";
+import { querySqlApi } from "#app/lib/clickhouse.ts";
 
 // Spy on `eq`/`isNull` while keeping every other drizzle-orm export real, so
 // the live-mode filter (`isNull(dashboards.previewId)`) is assertable without
@@ -22,7 +22,7 @@ let updateImpl: () => unknown = () => ({ returning: () => [] });
 let insertImpl: () => unknown = () => [{ slug: "aaaaaaaaaaaa" }];
 let deleteImpl: () => unknown = () => [];
 
-vi.mock("@/db/client", () => {
+vi.mock("#app/db/client.ts", () => {
   const selectChain = {
     from: vi.fn(() => selectChain),
     leftJoin: vi.fn(() => selectChain),
@@ -57,7 +57,7 @@ vi.mock("@/db/client", () => {
   };
 });
 
-vi.mock("@/db/schema", () => ({
+vi.mock("#app/db/schema/index.ts", () => ({
   dashboards: {
     id: "id",
     organizationId: "organization_id",

@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
 export interface ResourceUsagePoint {
   timestamp: number; // Unix ms

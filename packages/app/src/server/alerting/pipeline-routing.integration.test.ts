@@ -1,20 +1,32 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { alertDeliveries, alertNotificationGroups } from "@/db/schema";
+import {
+  alertDeliveries,
+  alertNotificationGroups,
+} from "#app/db/schema/index.ts";
 import {
   insertChannel,
   insertDefaultChannels,
   insertDirectRule,
   insertRule,
-} from "./testing/fixtures";
-import { useAlertingHarness } from "./testing/harness";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@/db/client", async () => {
-  const { testDb, runInTransaction } = await import("./testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 

@@ -10,10 +10,10 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { afterEach, expect, it, vi } from "vitest";
-import { remoteTracesRepo } from "@/data/traces/remote-repo";
+import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 import { Route } from "./traces_.$traceId";
 
-vi.mock("@/data/traces/remote-repo", () => ({
+vi.mock("#app/data/traces/remote-repo.ts", () => ({
   remoteTracesRepo: { getTrace: vi.fn(async () => []) },
 }));
 

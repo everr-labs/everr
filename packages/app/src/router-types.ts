@@ -1,10 +1,10 @@
 import "@tanstack/react-router";
 import type { AnyRouteMatch } from "@tanstack/react-router";
+import type { ReactElement } from "react";
 
 export interface BreadcrumbSegment {
   label: string;
-  to?: string;
-  search?: Record<string, unknown>;
+  link?: ReactElement;
 }
 
 declare module "@tanstack/react-router" {

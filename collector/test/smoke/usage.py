@@ -277,7 +277,7 @@ def main():
         proc = None
 
         def start():
-            process = subprocess.Popen([str(ROOT / 'build/everr-collector'), '--config', str(temp / 'config.json')],
+            process = subprocess.Popen([str(ROOT / 'build/cloud/everr-collector'), '--config', str(temp / 'config.json')],
                                        stdout=log, stderr=log)
             def ready():
                 if process.poll() is not None:

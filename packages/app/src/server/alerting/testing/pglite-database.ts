@@ -1,11 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { sql } from "drizzle-orm";
+import type { MigrationConfig } from "drizzle-orm/migrator";
 import { drizzle, type PgliteDatabase } from "drizzle-orm/pglite";
-import * as schema from "@/db/schema";
+import { migrate } from "drizzle-orm/pglite/migrator";
+import * as schema from "#app/db/schema/index.ts";
 
 const GRAPHILE_WORKER_SCHEMA = "graphile_worker";
 const CLOCK_SCHEMA = "test_clock";
@@ -16,11 +17,6 @@ export interface TestDatabase {
   client: PGlite;
   truncate(): Promise<void>;
   close(): Promise<void>;
-}
-
-function drizzleMigrationsDir(): string {
-  // testing/ -> alerting/ -> server/ -> src/ -> packages/app/
-  return join(dirname(fileURLToPath(import.meta.url)), "../../../../drizzle");
 }
 
 function graphileWorkerSqlDir(): string {
@@ -107,15 +103,18 @@ async function applyGraphileWorkerSchema(client: PGlite): Promise<void> {
   }
 }
 
-async function applyAppSchema(client: PGlite): Promise<void> {
-  for (const file of sqlFilesIn(drizzleMigrationsDir())) {
-    for (const statement of readFileSync(file, "utf8").split(
-      "--> statement-breakpoint",
-    )) {
-      if (statement.trim().length === 0) continue;
-      await client.exec(statement);
-    }
-  }
+/** Run the same versioned migrations used by installations. */
+export async function applyTestSchema(
+  client: PGlite,
+  additionalMigrations: MigrationConfig[] = [],
+): Promise<void> {
+  const db = drizzle(client);
+  await migrate(db, {
+    migrationsFolder: resolve(import.meta.dirname, "../../../../drizzle"),
+    migrationsSchema: "drizzle",
+    migrationsTable: "__drizzle_migrations",
+  });
+  for (const migrations of additionalMigrations) await migrate(db, migrations);
 }
 
 /**
@@ -162,11 +161,13 @@ function withRowCount(client: PGlite): PGlite {
   return client;
 }
 
-export async function createTestDatabase(): Promise<TestDatabase> {
+export async function createTestDatabase(
+  additionalMigrations: MigrationConfig[] = [],
+): Promise<TestDatabase> {
   const client = withRowCount(await PGlite.create());
   await installFakeClock(client);
   await applyGraphileWorkerSchema(client);
-  await applyAppSchema(client);
+  await applyTestSchema(client, additionalMigrations);
   const db = drizzle(client, { schema });
 
   // Discovered rather than hand-listed, so a table added to the schema is

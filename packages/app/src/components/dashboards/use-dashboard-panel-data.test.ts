@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 // The pure helpers under test live alongside the hook, whose import chain
 // (options -> server -> db client) touches server-only env at module load.
 // jsdom runs as a "client", so stub the db client to keep that import inert.
-vi.mock("@/db/client", () => ({ db: {} }));
+vi.mock("#app/db/client.ts", () => ({ db: {} }));
 
 import type { PanelQuerySource } from "./query-array";
 import {

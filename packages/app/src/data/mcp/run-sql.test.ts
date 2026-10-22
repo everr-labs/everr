@@ -1,10 +1,9 @@
 import { ClickHouseError } from "@clickhouse/client";
+import { storage } from "@composition/storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
 // vi.hoisted so the hoisted vi.mock factory can reference this safely.
-const { previewSqlApi } = vi.hoisted(() => ({ previewSqlApi: vi.fn() }));
-
-vi.mock("@/lib/clickhouse", () => ({ previewSqlApi }));
 
 import {
   MCP_MAX_CELL_CHARS,
@@ -13,7 +12,17 @@ import {
 } from "./query-tool-description";
 import { runSqlForConnection } from "./run-sql";
 
-beforeEach(() => previewSqlApi.mockReset());
+const { assertStorageReady } = storage;
+vi.mock("@composition/storage", () => ({
+  storage: { assertStorageReady: vi.fn() },
+}));
+const { previewSqlApi } = vi.hoisted(() => ({ previewSqlApi: vi.fn() }));
+vi.mock("#app/lib/clickhouse.ts", () => ({ previewSqlApi }));
+
+beforeEach(() => {
+  vi.mocked(assertStorageReady).mockReset();
+  previewSqlApi.mockReset();
+});
 
 function run(sql: string) {
   return runSqlForConnection({ orgId: "org-1", metadata: null, sql });
@@ -24,20 +33,27 @@ function chError(type: string, message: string, code = "0") {
 }
 
 describe("runSqlForConnection", () => {
-  it("rejects empty SQL", async () => {
+  it("rejects empty SQL before checking storage readiness", async () => {
     expect(await run(" ")).toEqual({
       isError: true,
       content: ["SQL query is required."],
     });
+    expect(assertStorageReady).not.toHaveBeenCalled();
+    expect(previewSqlApi).not.toHaveBeenCalled();
   });
 
   it("rejects pending setup before issuing SQL", async () => {
+    vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+      throw new StorageNotReadyError();
+    });
     const result = await runSqlForConnection({
       orgId: "org-1",
       metadata: { clickhouseReady: false },
       sql: "SELECT 1",
     });
+    expect(result.content[0]).toBe("Storage is not ready.");
     expect(result.isError).toBe(true);
+    expect(assertStorageReady).toHaveBeenCalledWith({ clickhouseReady: false });
     expect(previewSqlApi).not.toHaveBeenCalled();
   });
 

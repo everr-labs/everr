@@ -1,15 +1,20 @@
 import { ClickHouseError } from "@clickhouse/client";
+import { storage } from "@composition/storage";
 import { trace } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
-vi.mock("@/lib/clickhouse", () => ({
+import { querySqlApi } from "#app/lib/clickhouse.ts";
+import { SCHEMA_PROBE_MESSAGE } from "#app/lib/sql-api-error.ts";
+import { Route } from "./sql";
+
+const { assertStorageReady } = storage;
+vi.mock("@composition/storage", () => ({
+  storage: { assertStorageReady: vi.fn() },
+}));
+vi.mock("#app/lib/clickhouse.ts", () => ({
   querySqlApi: vi.fn(),
 }));
-
-import { CLICKHOUSE_SETUP_MESSAGE } from "@/common/clickhouse-provisioning";
-import { querySqlApi } from "@/lib/clickhouse";
-import { SCHEMA_PROBE_MESSAGE } from "@/lib/sql-api-error";
-import { Route } from "./sql";
 
 const mockedQuerySqlApi = vi.mocked(querySqlApi);
 
@@ -43,6 +48,9 @@ beforeEach(() => {
 
 describe("/api/cli/sql", () => {
   it("returns a friendly retryable response while organization setup is pending", async () => {
+    vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+      throw new StorageNotReadyError();
+    });
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/sql", {
         method: "POST",
@@ -54,15 +62,18 @@ describe("/api/cli/sql", () => {
       },
     });
     expect(mockedQuerySqlApi).not.toHaveBeenCalled();
+    expect(assertStorageReady).toHaveBeenCalledWith({ clickhouseReady: false });
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBe("5");
-    expect(await response.json()).toEqual({ error: CLICKHOUSE_SETUP_MESSAGE });
+    expect(await response.json()).toEqual({
+      error: "Storage is not ready.",
+    });
     expect(span.setAttribute).toHaveBeenCalledWith(
-      "everr.cloud_query.outcome",
+      "everr.sql_query.outcome",
       "user_error",
     );
     expect(span.setAttribute).toHaveBeenCalledWith(
-      "everr.cloud_query.kind",
+      "everr.sql_query.kind",
       "account_setup",
     );
     expect(span.setStatus).not.toHaveBeenCalled();
@@ -83,11 +94,15 @@ describe("/api/cli/sql", () => {
     expect(response.headers.get("content-type")).toContain(
       "application/x-ndjson",
     );
-    expect(mockedQuerySqlApi).toHaveBeenCalledWith("SELECT 1 AS ok", "org-42");
+    expect(mockedQuerySqlApi).toHaveBeenCalledWith(
+      "SELECT 1 AS ok",
+      "org-42",
+      undefined,
+    );
     expect(await response.text()).toBe('{"ok":1}\n');
   });
 
-  it("returns 400 when SQL is empty", async () => {
+  it("returns 400 for empty SQL before checking storage readiness", async () => {
     const response = await getHandler()({
       request: new Request("http://localhost/api/cli/sql", {
         method: "POST",
@@ -99,6 +114,7 @@ describe("/api/cli/sql", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "SQL query is required." });
+    expect(assertStorageReady).not.toHaveBeenCalled();
     expect(mockedQuerySqlApi).not.toHaveBeenCalled();
   });
 
@@ -124,7 +140,7 @@ describe("/api/cli/sql", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(mockedQuerySqlApi).toHaveBeenCalledWith(sql, "org-42");
+    expect(mockedQuerySqlApi).toHaveBeenCalledWith(sql, "org-42", undefined);
   });
 
   it("returns 400 when ClickHouse rejects the SQL", async () => {
@@ -161,14 +177,13 @@ describe("/api/cli/sql", () => {
       "ACCESS_DENIED",
       "497",
       "sql_api_org_PKeXt: Not enough privileges. To execute this query, it's " +
-        "necessary to have the grant SELECT(tenant_id, traces_days, logs_days, " +
-        "metrics_days) ON app.tenant_retention. ",
+        "necessary to have the grant SELECT(private_value) ON app.private_records. ",
     ],
     [
       "UNKNOWN_TABLE",
       "60",
-      "Unknown table expression identifier 'app.tenant_retention' in scope " +
-        "SELECT * FROM app.tenant_retention",
+      "Unknown table expression identifier 'app.private_records' in scope " +
+        "SELECT * FROM app.private_records",
     ],
     ["UNKNOWN_DATABASE", "81", "Database secret_db does not exist."],
   ])("collapses %s into a uniform message that leaks no schema", async (type, code, rawMessage) => {
@@ -176,28 +191,28 @@ describe("/api/cli/sql", () => {
       new ClickHouseError({ message: rawMessage, code, type }),
     );
 
-    const response = await postSql("SELECT * FROM app.tenant_retention");
+    const response = await postSql("SELECT * FROM app.private_records");
     const body = (await response.json()) as { error: string };
 
     expect(response.status).toBe(400);
     expect(body.error).toBe(SCHEMA_PROBE_MESSAGE);
     // The raw error must not reach the client: no table/column names, no
     // per-org ClickHouse username, no "exists vs not" distinction.
-    expect(body.error).not.toContain("tenant_retention");
-    expect(body.error).not.toContain("traces_days");
+    expect(body.error).not.toContain("private_records");
+    expect(body.error).not.toContain("private_value");
     expect(body.error).not.toContain("sql_api_org_");
   });
 
   it("matches schema-probe errors even when the type is unparsed", async () => {
     mockedQuerySqlApi.mockRejectedValue(
       new ClickHouseError({
-        message: "Not enough privileges ... ON app.tenant_retention.",
+        message: "Not enough privileges ... ON app.private_records.",
         code: "497",
         type: undefined,
       }),
     );
 
-    const response = await postSql("SELECT * FROM app.tenant_retention");
+    const response = await postSql("SELECT * FROM app.private_records");
     expect(await response.json()).toEqual({ error: SCHEMA_PROBE_MESSAGE });
   });
 

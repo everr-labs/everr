@@ -77,7 +77,7 @@ vi.mock("@tanstack/react-start", () => ({
 // client and trigger env access. Individual tests can override this mock.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/clickhouse", () => {
+vi.mock("#app/lib/clickhouse.ts", () => {
   const query = vi.fn();
   const querySqlApi = vi.fn();
 
@@ -96,12 +96,12 @@ vi.mock("@/lib/clickhouse", () => {
 // from getAuth(), with the same guards as the real authMiddleware.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/serverFn", async () => {
-  const { query } = await import("@/lib/clickhouse");
-  const { auth } = await import("@/lib/auth.server");
+vi.mock("#app/lib/serverFn.ts", async () => {
+  const { query, querySqlApi } = await import("#app/lib/clickhouse.ts");
+  const { auth } = await import("#app/identity/server.ts");
 
   // requireOrgMiddleware: active org guaranteed + ClickHouse bound to it.
-  const makeAuthChain = () =>
+  const makeAuthChain = (withSql = false) =>
     makeServerFnChain((fn) => async (opts?: { data?: unknown }) => {
       return fn({
         data: opts?.data,
@@ -119,6 +119,14 @@ vi.mock("@/lib/serverFn", async () => {
               image: null,
             },
           },
+          ...(withSql
+            ? {
+                sql: {
+                  query: <T>(sql: string, params?: Record<string, unknown>) =>
+                    querySqlApi<T>(sql, "test_org", params),
+                },
+              }
+            : {}),
           clickhouse: {
             query: <T>(sql: string, params?: Record<string, unknown>) =>
               query<T>(sql, "42", params),
@@ -147,19 +155,20 @@ vi.mock("@/lib/serverFn", async () => {
 
   return {
     requireOrgMiddleware: { __handler: vi.fn() },
-    createAuthenticatedServerFn: vi.fn(makeAuthChain),
-    createOrganizationAdminServerFn: vi.fn(makeAuthChain),
+    createAuthenticatedServerFn: vi.fn(() => makeAuthChain(true)),
+    createOrganizationAdminServerFn: vi.fn(() => makeAuthChain()),
     createPartiallyAuthenticatedServerFn: vi.fn(makePartialAuthChain),
   };
 });
 
 // ---------------------------------------------------------------------------
-// @/lib/auth.server — prevent env/db access at import time.
+// #app/identity/server.ts — prevent env/db access at import time.
 // Individual tests can override specific methods.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/auth.server", () => ({
+vi.mock("#app/identity/server.ts", () => ({
   auth: {
+    deleteAccount: vi.fn(),
     api: {
       getSession: vi.fn().mockResolvedValue({
         user: {
@@ -206,4 +215,12 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
 // ---------------------------------------------------------------------------
 afterEach(() => {
   cleanup();
+});
+
+// Consumer tests use the configured auth double. Session recovery has database-backed tests.
+vi.mock("#app/lib/session.server.ts", async () => {
+  const { auth } = await import("#app/identity/server.ts");
+  return {
+    getSession: (options: { headers: Headers }) => auth.api.getSession(options),
+  };
 });

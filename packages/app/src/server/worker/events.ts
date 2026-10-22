@@ -1,7 +1,7 @@
 import { performance } from "node:perf_hooks";
 import { metrics } from "@opentelemetry/api";
 import type { WorkerEvents } from "graphile-worker";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 
 const meter = metrics.getMeter("everr-app.worker");
 const activeJobs = meter.createUpDownCounter("worker.jobs.active", {

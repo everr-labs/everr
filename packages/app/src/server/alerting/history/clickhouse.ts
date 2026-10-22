@@ -1,21 +1,21 @@
-import type { AlertHistoryEventType } from "@/data/alerting/history/event-types";
+import type { AlertHistoryEventType } from "#app/data/alerting/history/event-types.ts";
 import {
   deterministicDeliveryEventId,
   deterministicHoldEventId,
   deterministicSuppressionEventId,
   uuidv7,
   uuidv7Time,
-} from "@/data/alerting/history/ids";
-import { ALERTING_SILENCE_COMMENT_MAX } from "@/data/alerting/schema";
+} from "#app/data/alerting/history/ids.ts";
+import { ALERTING_SILENCE_COMMENT_MAX } from "#app/data/alerting/schema.ts";
 import type {
   AlertingEvaluationSample,
   AlertingMatcher,
-} from "@/data/alerting/types";
-import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
-import { formatResourceName } from "@/data/as-code/identity";
-import { insertAdminRows } from "@/lib/clickhouse";
-import { retentionForOrg } from "@/lib/retention.server";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+} from "#app/data/alerting/types.ts";
+import type { AlertingLifecycleReason } from "#app/data/alerting/vocabulary.ts";
+import { formatResourceName } from "#app/data/as-code/identity.ts";
+import { insertRows } from "#app/lib/clickhouse-writer.ts";
+import { retentionForOrg } from "#app/lib/retention.server.ts";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import {
   capAlertLabels,
   resolveAlertServiceName,
@@ -114,7 +114,7 @@ export type AlertHistoryRow = {
   event_id: string;
   notification_event_id: string;
   episode_id: string;
-  tenant_id: string;
+  organizationId: string;
   alert_definition_id: string;
   repoid: string;
   slug: string;
@@ -160,7 +160,7 @@ function baseHistoryRow(opts: {
     event_id: opts.eventId ?? uuidv7(opts.occurredAt),
     notification_event_id: opts.notificationEventId ?? ZERO_UUID,
     episode_id: ZERO_UUID,
-    tenant_id: opts.def.organizationId,
+    organizationId: opts.def.organizationId,
     alert_definition_id: opts.def.id,
     repoid: opts.def.repoid,
     slug: opts.def.slug,
@@ -488,14 +488,12 @@ async function insertAlertHistoryRows(
   rows: AlertHistoryRow[],
   { sync, convergesOnRetry }: { sync: boolean; convergesOnRetry: boolean },
 ): Promise<void> {
-  // Free keeps evaluation and lifecycle history for 14 days; Pro keeps
-  // evaluations for 30 days and lifecycle history for 365 days. Each row gets
-  // its event-class entitlement here as a write-time snapshot. A batch
-  // can hold rows of several tenants; retentionForOrg caches per tenant, so
-  // the lookup runs once per tenant in the batch.
+  // Resolve the configured retention windows before writing history.
+  // Each row captures its event-class retention at write time. Lookups
+  // are cached per organization for batches spanning multiple organizations.
   const stamped = await Promise.all(
     rows.map(async (row) => {
-      const retention = await retentionForOrg(row.tenant_id);
+      const retention = await retentionForOrg(row.organizationId);
       return {
         ...row,
         retention_days: isEvaluationHistoryEvent(row.event_type)
@@ -504,7 +502,7 @@ async function insertAlertHistoryRows(
       };
     }),
   );
-  return insertAdminRows("app.alert_events", stamped, {
+  return insertRows("app.alert_events", stamped, {
     async_insert: sync ? 0 : 1,
     ...(sync ? {} : { wait_for_async_insert: 1 }),
     date_time_input_format: "best_effort",

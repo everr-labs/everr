@@ -1,6 +1,10 @@
 include ./Makefile.Common
 
-CUSTOM_COL_DIR ?= $(SRC_ROOT)/collector/build
+EVERR_BUILD_TARGET ?= cloud
+MANIFEST ?= config/manifest.$(EVERR_BUILD_TARGET).yaml
+OUT ?= ./build/$(EVERR_BUILD_TARGET)
+DEBUG_COMPILATION ?= false
+CUSTOM_COL_DIR ?= $(SRC_ROOT)/collector/build/$(EVERR_BUILD_TARGET)
 OS := $(shell uname | tr '[:upper:]' '[:lower:]')
 ARCH := $(shell uname -m)
 
@@ -18,12 +22,14 @@ endif
 
 .PHONY: build
 build: $(addprefix $(TOOLS_BIN_DIR)/, builder)
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 $(OCB) --config config/manifest.yaml
+	mkdir -p "$(OUT)"
+	env 'dist.output_path=$(OUT)' 'dist.debug_compilation=$(DEBUG_COMPILATION)' \
+	  GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 $(OCB) --config $(MANIFEST)
 
 .PHONY: build-debug
-build-debug: install-tools
-	sed 's/debug_compilation: false/debug_compilation: true/g' config/manifest.yaml > config/manifest-debug.yaml
-	$(OCB) --config config/manifest-debug.yaml
+build-debug: DEBUG_COMPILATION = true
+build-debug: OUT = ./build/$(EVERR_BUILD_TARGET)-debug
+build-debug: build
 
 .PHONY: build-local
 build-local:
@@ -57,7 +63,7 @@ test-all:
 
 .PHONY: dockerbuild
 dockerbuild:
-	docker build . -t everr-labs/everr-collector:localdev
+	docker build . --build-arg EVERR_BUILD_TARGET=$(EVERR_BUILD_TARGET) -t everr-labs/everr-collector:localdev
 
 .PHONY: dockerrun
 dockerrun: dockerbuild

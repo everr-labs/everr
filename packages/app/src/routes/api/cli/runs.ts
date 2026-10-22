@@ -2,7 +2,7 @@ import { RUN_STATUS_FILTERS } from "@everr/telemetry-explorer/runs";
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getRunsList } from "@/data/runs-list/server";
+import { getRunsList } from "#app/data/runs-list/server.ts";
 
 const ConclusionEnum = z.enum(RUN_STATUS_FILTERS);
 

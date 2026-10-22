@@ -19,8 +19,8 @@ import {
   X,
 } from "lucide-react";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Span } from "@/data/runs/schemas";
-import { parseDuration } from "@/lib/formatting";
+import type { Span } from "#app/data/runs/schemas.ts";
+import { parseDuration } from "#app/lib/formatting.ts";
 import { SpanDetailPanel } from "./span-detail-panel";
 import {
   buildSpanTree,

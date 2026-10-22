@@ -1,0 +1,127 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  file_storage/ingestion:
+    directory: ${env:EVERR_QUEUE_DIRECTORY:-/var/lib/everr/queue}
+    create_directory: true
+    fsync: true
+  # Authenticates public OTLP ingest by exchanging a Bearer key with the
+  # everr app's internal verify endpoint. The shared secret guards that
+  # endpoint; rotate both sides together.
+  everr_apikey:
+    endpoint: ${env:EVERR_VERIFY_ENDPOINT:-http://app:3000/api/internal/verify-key}
+    shared_secret: ${env:INGEST_VERIFY_SHARED_SECRET}
+
+receivers:
+  # Public OTLP ingest is authenticated by the everr_apikey extension.
+  # Self-host uses retention from auth context and stores no tenant stamp.
+  otlp/public:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        auth:
+          authenticator: everr_apikey
+        # Browser ingestion: CORS preflights carry no Authorization header,
+        # so the receiver must admit any origin at the CORS layer. Real
+        # enforcement is per key: the everr_apikey extension forwards the
+        # request's Origin to verify-key, which only allows public keys from
+        # their allowlisted origins.
+        cors:
+          allowed_origins: ["*"]
+          allowed_headers: ["Authorization", "Content-Type"]
+        # confighttp's default (20 MiB), made explicit for the public edge.
+        max_request_body_size: 20971520
+      grpc:
+        endpoint: 0.0.0.0:4317
+        auth:
+          authenticator: everr_apikey
+
+processors:
+  # Reserve the everr.* metric namespace on every incoming metrics pipeline.
+  # Reserve the namespace so clients cannot forge internal Everr metrics.
+  filter/reserved_everr:
+    error_mode: propagate
+    metric_conditions:
+      - 'IsMatch(metric.name, "^everr[.]")'
+  # Public pipeline: strip any client-supplied tenant or retention attr from
+  # spans/logs/metric points so only the auth-derived values land downstream.
+  attributes/strip_user_tenant:
+    actions:
+      - action: delete
+        key: everr.tenant.id
+      - action: delete
+        key: everr.retention.days
+
+  # Resource attributes bypass the attributes processor above. Delete a
+  # client supplied tenant from the resource before ClickHouse ingestion.
+  resource/strip_user_tenant:
+    attributes:
+      - action: delete
+        key: everr.tenant.id
+
+  # Public pipeline: stamp retention from the auth context onto the resource.
+  resource/public_retention_traces:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_traces_days
+  resource/public_retention_logs:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_logs_days
+  resource/public_retention_metrics:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_metrics_days
+
+exporters:
+  # Writes into otel.* landing tables (ENGINE = Null). Nothing is stored there;
+  # the views in clickhouse/init/10-create-mvs.sql map landing rows into
+  # app.*. `ttl` is unused with create_schema: false.
+  clickhouse:
+    endpoint: ${env:CLICKHOUSE_ENDPOINT:-http://clickhouse:8123}
+    username: collector_rw
+    password: ${env:COLLECTOR_RW_PASSWORD}
+    database: otel
+    create_schema: false
+    connection_params:
+      wait_for_async_insert: "1"
+      materialized_views_ignore_errors: "0"
+    # Logs and traces write JSON attribute columns with typed values and one
+    # keys array per attribute column; the landing tables in
+    # clickhouse/init/03 declare that column set. A Map exporter against those
+    # tables fails every insert, and the reverse too, so this flag and the
+    # schema move together.
+    json: true
+    # Successful exporter calls acknowledge durable admission. Delivery,
+    # batching, and retries remain inside the standard exporter.
+    sending_queue:
+      enabled: true
+      storage: file_storage/ingestion
+      wait_for_result: false
+      queue_size: 10000
+      num_consumers: 10
+      batch:
+        min_size: 8192
+        flush_timeout: 1s
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0s
+service:
+  extensions: [health_check, everr_apikey, file_storage/ingestion]
+  pipelines:
+    # Retention comes from authenticated keys; self-host has no tenant stamp.
+    traces/public:
+      receivers: [otlp/public]
+      processors: [attributes/strip_user_tenant, resource/strip_user_tenant, resource/public_retention_traces]
+      exporters: [clickhouse]
+    metrics/public:
+      receivers: [otlp/public]
+      processors: [filter/reserved_everr, attributes/strip_user_tenant, resource/strip_user_tenant, resource/public_retention_metrics]
+      exporters: [clickhouse]
+    logs/public:
+      receivers: [otlp/public]
+      processors: [attributes/strip_user_tenant, resource/strip_user_tenant, resource/public_retention_logs]
+      exporters: [clickhouse]

@@ -13,7 +13,7 @@ COPY packages/datemath/package.json ./packages/datemath/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/telemetry-explorer/package.json ./packages/telemetry-explorer/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --ignore-scripts
+    pnpm install --filter @everr/app... --frozen-lockfile --ignore-scripts
 
 # Stage 2: build
 FROM deps AS build
@@ -35,9 +35,14 @@ COPY skills/everr-use-telemetry/rules/schema.md ./skills/everr-use-telemetry/rul
 RUN SKIP_ENV_VALIDATION=true \
     BETTER_AUTH_URL=http://localhost:3000 \
     BETTER_AUTH_SECRET=prerender-only-not-a-runtime-secret \
-    EMAIL_DSN=smtp://localhost:1025 \
     pnpm --filter @everr/app build && \
     test -s packages/app/.output/public/_shell.html
+
+# Require every source SQL file and journal in the output so startup can migrate.
+RUN set -eu; \
+    for file in packages/app/drizzle/*.sql packages/app/drizzle/meta/_journal.json; do \
+      test -s "packages/app/.output/drizzle/${file#packages/app/drizzle/}"; \
+    done
 
 # Stage 3: production
 # Node 24.21.0, keep in sync with the builder and .nvmrc.
@@ -46,10 +51,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 # Nitro includes the runtime dependencies in its standalone output.
 COPY --from=build /app/packages/app/.output ./.output
-
-# Drizzle needs the SQL files and journal, but not development snapshots.
-COPY packages/app/drizzle/*.sql ./drizzle/
-COPY packages/app/drizzle/meta/_journal.json ./drizzle/meta/_journal.json
 
 EXPOSE 3000
 CMD [".output/server/index.mjs"]

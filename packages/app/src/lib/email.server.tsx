@@ -1,22 +1,24 @@
 import type { ReactElement } from "react";
 import { render } from "react-email";
-import InvitationEmail from "@/emails/invitation";
-import PasswordResetEmail from "@/emails/password-reset";
-import VerificationEmail from "@/emails/verification";
-import { env } from "@/env";
-import { mailer } from "@/lib/mailer.server";
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import InvitationEmail from "#app/emails/invitation.tsx";
+import PasswordResetEmail from "#app/emails/password-reset.tsx";
+import VerificationEmail from "#app/emails/verification.tsx";
+import { env } from "#app/env/index.ts";
+import { mailer } from "#app/lib/mailer.server.ts";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 
 const assetBaseUrl = new URL("/email", env.BETTER_AUTH_URL).toString();
 
 // Auth emails are fire-and-forget: failures are logged, never surfaced to the
 // request that triggered them.
 function sendInBackground(
-  params: Parameters<typeof mailer.send>[0],
+  params: Parameters<NonNullable<typeof mailer>["send"]>[0],
   email: ReactElement,
 ): void {
+  const delivery = mailer;
+  if (!delivery) return;
   void render(email)
-    .then((html) => mailer.send({ ...params, html }))
+    .then((html) => delivery.send({ ...params, html }))
     .catch((error) =>
       serverLogger.error("mailer.send.failed", exceptionAttributes(error)),
     );

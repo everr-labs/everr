@@ -6,15 +6,15 @@
  * lives together in the silences repository.
  */
 
-import type { AlertRuleOption } from "@/data/alerting/rules/read";
-import { formatMatchers } from "@/data/alerting/silences/matchers";
+import type { AlertRuleOption } from "#app/data/alerting/rules/read.ts";
+import { formatMatchers } from "#app/data/alerting/silences/matchers.ts";
 import {
   ruleSubject,
   silenceIsInForce,
   silenceSelects,
-} from "@/data/alerting/silences/matching";
-import type { SilenceRow } from "@/data/alerting/silences/repository";
-import type { AlertingMatcher } from "@/data/alerting/types";
+} from "#app/data/alerting/silences/matching.ts";
+import type { SilenceRow } from "#app/data/alerting/silences/repository.ts";
+import type { AlertingMatcher } from "#app/data/alerting/types.ts";
 import { formatElapsed, silenceImpact } from "./format";
 import type { AlertSilenceRecord, AlertSilenceView } from "./view";
 

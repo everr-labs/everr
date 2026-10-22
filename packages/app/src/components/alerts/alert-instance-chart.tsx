@@ -5,7 +5,7 @@ import type {
   ChartWindow,
   InstanceValuePoint,
   InstanceValueSeries,
-} from "@/data/alerting/triage/view";
+} from "#app/data/alerting/triage/view.ts";
 import {
   BREACHING,
   ChartCrosshair,

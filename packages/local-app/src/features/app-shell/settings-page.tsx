@@ -1,6 +1,5 @@
 import { Button } from "@everr/ui/components/button";
 import { RotateCw } from "lucide-react";
-import { AuthSettingsSection } from "../auth/auth";
 import {
   useCollectorStatusQuery,
   useRestartCollectorMutation,
@@ -76,7 +75,6 @@ function LocalTelemetrySection() {
 export function SettingsPage() {
   return (
     <SectionsPage title="Settings">
-      <AuthSettingsSection />
       <LocalTelemetrySection />
     </SectionsPage>
   );

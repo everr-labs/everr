@@ -5,19 +5,19 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
-} from "@/data/alerting/delivery/defaults";
-import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
+} from "#app/data/alerting/delivery/defaults.ts";
+import { ALERT_PROJECT_LIFECYCLE_TASK } from "#app/data/alerting/history/tasks.ts";
 import {
   deleteRule,
   pauseRule,
   resumeRule,
   updateRule,
-} from "@/data/alerting/rules/repository";
+} from "#app/data/alerting/rules/repository.ts";
 import {
   ALERT_EVALUATE_TASK,
   alertingRetryDelaySeconds,
   nextAlertEvaluationAt,
-} from "@/data/alerting/scheduling/evaluation-jobs.server";
+} from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
 import {
   alertDefinitions,
   alertDeliveries,
@@ -25,13 +25,13 @@ import {
   alertInstances,
   alertNotificationGroupEvents,
   alertNotificationGroups,
-} from "@/db/schema";
+} from "#app/db/schema/index.ts";
 import {
   ALERT_RETRY_MAX_INTERVAL_FACTOR,
   evaluateAlert,
-} from "@/server/alerting/evaluation/rule";
-import { scanDueAlerts } from "@/server/alerting/scheduling/scanner";
-import { projectAlertLifecycle } from "./history/project-lifecycle";
+} from "#app/server/alerting/evaluation/rule.ts";
+import { projectAlertLifecycle } from "#app/server/alerting/history/project-lifecycle.ts";
+import { scanDueAlerts } from "#app/server/alerting/scheduling/scanner.ts";
 import {
   asDbExecutor,
   insertChannel,
@@ -41,15 +41,24 @@ import {
   insertSilence,
   TEST_ACTOR,
   TEST_ORG,
-} from "./testing/fixtures";
-import { useAlertingHarness } from "./testing/harness";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@/db/client", async () => {
-  const { testDb, runInTransaction } = await import("./testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 

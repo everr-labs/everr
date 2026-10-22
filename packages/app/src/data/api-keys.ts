@@ -1,19 +1,19 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
-import type { ApiKeyRow } from "@/db/schema/auth";
+import type { ApiKeyRow } from "#app/db/schema/auth.ts";
+import { auth } from "#app/identity/server.ts";
 import {
   ALL_API_KEY_SCOPES,
   API_KEY_SCOPES,
   type ApiKeyPermissions,
   type ApiKeyScope,
-} from "@/lib/api-key-scopes";
-import { auth } from "@/lib/auth.server";
+} from "#app/lib/api-key-scopes.ts";
 import {
   buildPublicKeyMetadata,
   type PublicKeyMetadata,
   publicKeyInputError,
-} from "@/lib/public-ingest-keys";
-import { createOrganizationAdminServerFn } from "@/lib/serverFn";
+} from "#app/lib/public-ingest-keys.ts";
+import { createOrganizationAdminServerFn } from "#app/lib/serverFn.ts";
 
 /**
  * The shape of an `ek_` key as the UI receives it. Derived from the DB row

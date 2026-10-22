@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { lastViewedStore } from "@/data/last-viewed";
+import { lastViewedStore } from "#app/data/last-viewed.ts";
 
 /**
  * The runbook, page, and heading to reopen when `/runbooks` is visited without

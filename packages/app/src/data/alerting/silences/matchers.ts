@@ -14,7 +14,7 @@
  * than the one it was seeded from, which is the failure this module exists to
  * prevent.
  */
-import type { AlertingMatcher } from "@/data/alerting/types";
+import type { AlertingMatcher } from "#app/data/alerting/types.ts";
 
 const OPERATOR: Record<AlertingMatcher["op"], string> = { eq: "=", ne: "!=" };
 

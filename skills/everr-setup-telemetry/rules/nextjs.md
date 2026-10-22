@@ -11,7 +11,7 @@ browser and server traces into one trace follows the seam section of
 ## Contents
 
 - Setup: [Prerequisites](#prerequisites), [File placement](#file-placement), [Node SDK](#node-sdk-setup), [Setup notes](#setup-notes)
-- Destination: [Local collector](#local-collector-configuration) or [Cloud](#cloud-configuration), for the selected environments only
+- Destination: [Local collector](#local-collector-configuration) or [Remote](#remote-configuration), for the selected environments only
 - Signals: [Route handlers](#route-handler-enrichment), [Errors](#error-handling), [Metrics](#metrics)
 - Completion: [Validation](#validation), [References](#references)
 
@@ -19,8 +19,8 @@ browser and server traces into one trace follows the seam section of
 
 - Next.js 13+ with App Router.
 - Route handlers or server actions run on the Node.js runtime.
-- An OTLP HTTP endpoint for the selected local or cloud destination.
-- OTLP endpoint configuration available to the server process, plus an ingest key only for cloud export.
+- An OTLP HTTP endpoint for the selected local or remote destination.
+- OTLP endpoint configuration available to the server process, plus an ingest key only for remote export.
 
 Use the project package manager. Typical server packages:
 
@@ -59,18 +59,18 @@ Use existing deployment variables for version and environment if the app already
 has them. Do not add sampling or protocol variables just to enable local
 signals.
 
-## Cloud Configuration
+## Remote Configuration
 
-Use this only for environments selected for hosted ingest. Local-only setup requires no cloud key and preserves existing production configuration.
+Use this only for environments selected for remote ingest. Local-only setup requires no remote key and preserves existing production configuration.
 
-Set these in the deployment platform environment, or the local environment for development cloud export, not in source code:
+Set these in the deployment platform environment, or the local environment for development remote export, not in source code:
 
 ```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-cloud-status>
 EVERR_INGEST_KEY=<secret-manager-reference>
 ```
 
-The setup code should derive the hosted endpoint and bearer header from the
-ingest key. Keep release and environment metadata on existing deployment
+Resolve the endpoint using [Remote setup](../references/remote-setup.md), persist it explicitly, and attach the matching ingestion key as a bearer header. Keep release and environment metadata on existing deployment
 variables such as `VERCEL_GIT_COMMIT_SHA`, `VERCEL_ENV`, or `NODE_ENV`.
 
 Read environment variables inside `register()`, not at module evaluation time.
@@ -140,10 +140,8 @@ declare global {
 }
 
 function otlpEndpoint(signal: 'traces' | 'metrics' | 'logs') {
-  const base =
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT ??
-    (process.env.EVERR_INGEST_KEY ? 'https://ingest.everr.dev' : undefined) ??
-    'http://localhost:4318';
+  const base = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  if (!base) throw new Error('OTEL_EXPORTER_OTLP_ENDPOINT is required');
   return `${base.replace(/\/+$/, '')}/v1/${signal}`;
 }
 
@@ -183,7 +181,7 @@ async function shutdown(exitCode?: number) {
   if (exitCode !== undefined) process.exit(exitCode);
 }
 
-if (!globalThis.__otelSdk) {
+if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT && !globalThis.__otelSdk) {
   // The undici instrumentation already traces fetch. Without this, Next.js
   // adds its own span for each fetch and every call is traced twice.
   process.env.NEXT_OTEL_FETCH_DISABLED = '1';
@@ -283,7 +281,7 @@ export const onRequestError: Instrumentation.onRequestError = async (
 ## Setup Notes
 
 - Use `OTEL_EXPORTER_OTLP_ENDPOINT` only for local or custom gateway export.
-- Use `EVERR_INGEST_KEY` for hosted ingest and build the bearer header in code.
+- Use `EVERR_INGEST_KEY` for remote ingest and build the bearer header in code.
   Do not hardcode secrets in `instrumentation.ts`.
 - Use `resourceFromAttributes`, not `new Resource()`.
 - Hardcode a stable `service.name` in the setup code, and set `service.version` and `deployment.environment.name` for
@@ -389,7 +387,7 @@ After setup:
 
 1. Run `next build`. The dev server skips strict type checking, so a setup
    that works under `next dev` can still fail the production build.
-2. Start the app with the selected local or cloud OTLP endpoint. Follow [Validation](validation.md) for the matching query command and filters.
+2. Start the app with the selected local or remote OTLP endpoint. Follow [Validation](validation.md) for the matching query command and filters.
 3. Hit a route handler that should produce telemetry.
 4. Verify a server span exists for the route under `service.name`.
 5. Verify an exception path emits an error-severity log with

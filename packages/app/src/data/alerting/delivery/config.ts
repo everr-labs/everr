@@ -1,5 +1,5 @@
 import { and, eq, lt, or, type SQL } from "drizzle-orm";
-import { alertDeliveries } from "@/db/schema";
+import { alertDeliveries } from "#app/db/schema/index.ts";
 
 export const ALERT_DELIVERY_MAX_ATTEMPTS = 5;
 

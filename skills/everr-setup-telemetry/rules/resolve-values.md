@@ -64,19 +64,19 @@ Generate automatically; do not ask the user.
 
 For the local collector destination, run `everr local status` and use the returned `otlp:` URL. Do not guess a localhost port.
 
-For the cloud destination, use `https://ingest.everr.dev/` in the environments selected for cloud export. The destination does not determine `deployment.environment.name`. Preserve configuration for environments outside the task.
+For a remote destination, follow [Remote setup](../references/remote-setup.md): use `ingestEndpoint` from `everr cloud status --json` during setup, then persist it in the application configuration. Keep the destination separate from `deployment.environment.name` and preserve configuration outside the task.
 
 ## Authentication
 
 For local collector endpoints, no application auth header is normally needed.
 
-For cloud ingest from a server or backend:
+For remote ingest from a server or backend:
 
-- Load the ingest key from the secret manager, or the local environment for development/test cloud export.
+- Load the ingest key from the secret manager, or the local environment for development/test remote export.
 - Use `EVERR_INGEST_KEY` by convention.
 - Set `Authorization: Bearer <ingest-key>` server-side only.
 - Never commit keys, print keys, invent keys, or expose `EVERR_INGEST_KEY` in browser bundles.
 
-Browser cloud telemetry authenticates with a **public** ingest key instead: origin-bound, ingest-only, safe in page source, injected through a client build variable such as `VITE_EVERR_PUBLIC_INGEST_KEY`. Never ship a secret key to the browser. See [Browser](browser.md#key-model).
+Browser remote telemetry authenticates with a **public** ingest key instead: origin-bound, ingest-only, safe in page source, injected through a client build variable such as `VITE_EVERR_PUBLIC_INGEST_KEY`. Never ship a secret key to the browser. See [Browser](browser.md#key-model).
 
-For cloud credentials and CLI query access, follow [Cloud setup](../references/cloud-setup.md). Local-only setup requires neither cloud login nor an ingest key.
+For remote credentials and CLI query access, follow [Remote setup](../references/remote-setup.md). Local-only setup requires neither remote login nor an ingest key.

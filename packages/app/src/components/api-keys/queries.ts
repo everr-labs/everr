@@ -3,11 +3,11 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { createApiKey, listApiKeys } from "@/data/api-keys";
-import type { ApiKeyScope } from "@/lib/api-key-scopes";
-import { authClient } from "@/lib/auth-client";
+import { createApiKey, listApiKeys } from "#app/data/api-keys.ts";
+import type { ApiKeyScope } from "#app/lib/api-key-scopes.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 
-export type { ApiKey } from "@/data/api-keys";
+export type { ApiKey } from "#app/data/api-keys.ts";
 
 // better-auth groups keys by `configId`. The value stays "ingest" so keys
 // minted before the rename keep resolving; only the UI vocabulary changed.

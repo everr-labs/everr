@@ -1,9 +1,9 @@
 import {
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
-} from "@/data/alerting/delivery/defaults";
-import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
-import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
+} from "#app/data/alerting/delivery/defaults.ts";
+import { IDLE_GROUP_FLUSH_AT } from "#app/data/alerting/delivery/tasks.ts";
+import type { AlertingLifecycleReason } from "#app/data/alerting/vocabulary.ts";
 
 /**
  * What identifies an instance across the events that describe it. A fire and

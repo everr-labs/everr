@@ -40,18 +40,18 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
+import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
 import { Route as ExploreFileRoute } from "../_explore";
 
-vi.mock("@/data/logs-explorer/remote-repo", () => ({
+vi.mock("#app/data/logs-explorer/remote-repo.ts", () => ({
   remoteRepo: {},
 }));
 
-vi.mock("@/data/errors/remote-repo", () => ({
+vi.mock("#app/data/errors/remote-repo.ts", () => ({
   remoteErrorsRepo: {},
 }));
 
-vi.mock("@/data/traces/remote-repo", () => ({
+vi.mock("#app/data/traces/remote-repo.ts", () => ({
   remoteTracesRepo: {},
 }));
 

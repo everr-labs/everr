@@ -13,12 +13,12 @@ import { cn } from "@everr/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
 import { useCallback } from "react";
-import { ALL_VALUE } from "@/data/dashboards/interpolate";
+import { ALL_VALUE } from "#app/data/dashboards/interpolate.ts";
 import type {
   ListVariable,
   TextVariable,
   Variable,
-} from "@/data/dashboards/schema";
+} from "#app/data/dashboards/schema.ts";
 import {
   useDashboardVariables,
   type VariableOptionsState,

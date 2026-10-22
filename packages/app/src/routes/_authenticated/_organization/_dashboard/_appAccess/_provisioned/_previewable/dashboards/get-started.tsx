@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ResourceEmptyState } from "@/components/resource-empty-state";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ResourceEmptyState } from "#app/components/resource-empty-state.tsx";
 
 const ASSISTANT_DASHBOARD_PROMPT =
   "/everr-setup-resources Help me build a good first dashboard based on the telemetry we have in production";
@@ -9,7 +9,7 @@ export const Route = createFileRoute(
 )({
   staticData: {
     breadcrumb: () => [
-      { label: "Dashboards", to: "/dashboards" },
+      { label: "Dashboards", link: <Link to="/dashboards" /> },
       { label: "Get started" },
     ],
   },

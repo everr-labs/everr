@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { organization, user } from "@/db/schema";
+import { db } from "#app/db/client.ts";
+import { organization, user } from "#app/db/schema/index.ts";
 
 export type McpIdentity = {
   user: { id: string; name: string; email: string };

@@ -3,7 +3,7 @@ import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
-import type { RepoRecentRun } from "@/data/repo-detail/schemas";
+import type { RepoRecentRun } from "#app/data/repo-detail/schemas.ts";
 
 interface RepoRecentRunsProps {
   data: RepoRecentRun[];

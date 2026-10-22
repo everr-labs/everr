@@ -1,24 +1,45 @@
-import {parse} from "dotenv";
+import {
+  appAliases,
+  appDirectory,
+  installationComposition,
+  type AppComposition,
+} from "./vite.app.ts";
+import { parse } from "dotenv";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 import svgr from "vite-plugin-svgr";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const env = parse(readFileSync(join(__dirname, ".env.example"), "utf8"))
+export const alertingIntegrationTests = [
+  `${appDirectory}src/{data,server}/alerting/**/*.integration.test.ts`,
+];
 
-export default defineConfig({
-	resolve: {
-		tsconfigPaths: true,
-	},
-	plugins: [
-		viteReact(),
-		svgr({ svgrOptions: { dimensions: false } }),
-	],
-	test: {
-		environment: "jsdom",
-		setupFiles: ["./src/test-setup.ts"],
-		reporters: ["verbose"],
-		env: env,
-		},
-});
+export function createAppTestConfig(
+  composition: AppComposition = installationComposition,
+  root = appDirectory,
+) {
+  return defineConfig({
+    root,
+    resolve: {
+      tsconfigPaths: true,
+      dedupe: [
+        "react",
+        "react-dom",
+        "@tanstack/react-start",
+        "@tanstack/react-router",
+        "@tanstack/react-query",
+      ],
+      alias: [...appAliases(composition)],
+    },
+    plugins: [viteReact(), svgr({ svgrOptions: { dimensions: false } })],
+    test: {
+      environment: "jsdom",
+      setupFiles: [join(appDirectory, "src/test-setup.ts")],
+      reporters: ["verbose"],
+      env: parse(readFileSync(join(root, ".env.example"), "utf8")),
+    },
+  });
+}
+
+export default createAppTestConfig();

@@ -1,8 +1,8 @@
 import { AlertCircle } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
-import { DashboardPanel } from "@/components/dashboards/dashboard-panel";
-import { useDashboard } from "@/components/dashboards/use-dashboard";
-import { type PanelEmbed, parsePanelEmbed } from "@/data/runbooks/embed";
+import { DashboardPanel } from "#app/components/dashboards/dashboard-panel.tsx";
+import { useDashboard } from "#app/components/dashboards/use-dashboard.tsx";
+import { type PanelEmbed, parsePanelEmbed } from "#app/data/runbooks/embed.ts";
 
 const DEFAULT_HEIGHT = 350;
 

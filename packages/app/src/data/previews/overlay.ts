@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { stableStringify } from "@/data/as-code/reconcile";
+import { stableStringify } from "#app/data/as-code/reconcile.ts";
 
 export const PreviewStatusSchema = z.enum([
   "added",

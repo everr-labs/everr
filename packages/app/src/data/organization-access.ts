@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { member, organization as organizationTable } from "@/db/schema";
-import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
+import { entry } from "@composition/entry";
+import { db } from "#app/db/client.ts";
+import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
+import { createPartiallyAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
 export const getActiveOrganizationAccess = createPartiallyAuthenticatedServerFn(
   {
@@ -10,18 +10,19 @@ export const getActiveOrganizationAccess = createPartiallyAuthenticatedServerFn(
 ).handler(async ({ context: { session } }) => {
   const activeOrgId = session.session.activeOrganizationId;
   if (!activeOrgId) return { status: "missing" as const };
-  const [organization] = await db
-    .select({ id: organizationTable.id, metadata: organizationTable.metadata })
-    .from(organizationTable)
-    .innerJoin(member, eq(member.organizationId, organizationTable.id))
-    .where(
-      and(
-        eq(organizationTable.id, activeOrgId),
-        eq(member.userId, session.user.id),
-      ),
-    )
-    .limit(1);
+  const organization = await findOrganizationForMember(
+    db,
+    session.user.id,
+    activeOrgId,
+  );
   return organization
-    ? { status: "available" as const, organization }
+    ? {
+        status: "available" as const,
+        organization: { id: organization.id, metadata: organization.metadata },
+        entryRedirect: await entry.getOrganizationEntryRedirect({
+          id: session.session.id,
+          activeOrganizationId: organization.id,
+        }),
+      }
     : { status: "missing" as const };
 });

@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { firstZodIssue } from "@/lib/zod-issue";
+import { firstZodIssue } from "#app/lib/zod-issue.ts";
 import { AlertingError } from "./errors";
 
 export function throwAlertingPersistenceError(

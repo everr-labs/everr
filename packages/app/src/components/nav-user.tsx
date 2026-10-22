@@ -13,48 +13,40 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@everr/ui/components/sidebar";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouteContext } from "@tanstack/react-router";
 import {
-  Check,
   ChevronsUpDown,
   CookieIcon,
-  CreditCard,
   GitPullRequest,
   KeyRound,
   LogOut,
-  Plus,
   Settings,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
-import { useOrganizationActivation } from "@/components/use-organization-activation";
-import { authClient } from "@/lib/auth-client";
-import { isOrganizationAdmin } from "@/lib/organization-role";
-import { useOpenConsentSettings } from "@/telemetry/consent-gate";
+import type { ReactNode } from "react";
+import { authClient } from "#app/lib/auth-client.ts";
+import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
+import { useOpenConsentSettings } from "#app/telemetry/consent-gate.tsx";
 
-export function NavUser() {
-  const activateOrganization = useOrganizationActivation();
+export interface UserMenuProps {
+  beforeOrganization?: ReactNode;
+  /** Rendered inside the organization group, only for organization admins. */
+  organizationItems?: ReactNode;
+}
+
+export function UserMenu({
+  beforeOrganization,
+  organizationItems,
+}: UserMenuProps) {
   const openConsentSettings = useOpenConsentSettings();
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
-  const { data: orgs } = authClient.useListOrganizations();
   const userRole = activeOrg?.members?.find(
     (m) => m.userId === session?.user?.id,
   )?.role;
+  const { githubEnabled } = useRouteContext({ from: "__root__" });
   const isAdmin = isOrganizationAdmin(userRole);
   const { isMobile } = useSidebar();
-
-  async function handleSwitchOrg(orgId: string) {
-    try {
-      await activateOrganization(orgId);
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not switch organization.",
-      );
-    }
-  }
 
   if (!session?.user) {
     return null;
@@ -120,31 +112,7 @@ export function NavUser() {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Organization</DropdownMenuLabel>
-              {orgs?.map((org) => (
-                <DropdownMenuItem
-                  key={org.id}
-                  onClick={() => void handleSwitchOrg(org.id)}
-                >
-                  {org.id === activeOrg?.id ? (
-                    <Check />
-                  ) : (
-                    <span className="size-4" />
-                  )}
-                  <span className="truncate">{org.name}</span>
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem
-                render={
-                  <Link to="/create-organization" search={{ returnTo: "/" }} />
-                }
-                nativeButton={false}
-              >
-                <Plus />
-                Create organization
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
+            {beforeOrganization}
             {activeOrg && isAdmin ? (
               <>
                 <DropdownMenuSeparator />
@@ -164,20 +132,16 @@ export function NavUser() {
                     <KeyRound />
                     API keys
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/github" />}
-                    nativeButton={false}
-                  >
-                    <GitPullRequest />
-                    GitHub
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/billing" />}
-                    nativeButton={false}
-                  >
-                    <CreditCard />
-                    Plan &amp; Billing
-                  </DropdownMenuItem>
+                  {githubEnabled ? (
+                    <DropdownMenuItem
+                      render={<Link to="/github" />}
+                      nativeButton={false}
+                    >
+                      <GitPullRequest />
+                      GitHub
+                    </DropdownMenuItem>
+                  ) : null}
+                  {organizationItems}
                 </DropdownMenuGroup>
               </>
             ) : null}

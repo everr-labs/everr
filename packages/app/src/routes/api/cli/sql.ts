@@ -1,9 +1,8 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { createFileRoute } from "@tanstack/react-router";
-import { assertOrganizationProvisioned } from "@/common/organization-provisioning";
-import { querySqlApi } from "@/lib/clickhouse";
-import { sanitizeSqlApiError } from "@/lib/sql-api-error";
-import { classifyCloudQueryError } from "@/lib/sql-api-observability";
+import { createOrganizationSql } from "#app/lib/organization-sql.ts";
+import { sanitizeSqlApiError } from "#app/lib/sql-api-error.ts";
+import { classifySqlQueryError } from "#app/lib/sql-api-observability.ts";
 
 function toNdjson(rows: Array<Record<string, unknown>>): string {
   if (rows.length === 0) {
@@ -20,15 +19,15 @@ export const Route = createFileRoute("/api/cli/sql")({
         const sql = await request.text();
         // The active span here is the SERVER span opened by the telemetry request middleware
         // (it wraps the whole fetch). We annotate it directly rather than open a
-        // child, so cloud-query health is queryable off the request span itself.
+        // child, so SQL query health is queryable off the request span itself.
         const span = trace.getActiveSpan();
         const orgId = context.session.session.activeOrganizationId;
 
-        span?.setAttribute("everr.feature", "cloud_query");
+        span?.setAttribute("everr.feature", "sql_query");
 
         if (!sql.trim()) {
-          span?.setAttribute("everr.cloud_query.outcome", "user_error");
-          span?.setAttribute("everr.cloud_query.kind", "empty");
+          span?.setAttribute("everr.sql_query.outcome", "user_error");
+          span?.setAttribute("everr.sql_query.kind", "empty");
           return Response.json(
             { error: "SQL query is required." },
             { status: 400 },
@@ -36,11 +35,14 @@ export const Route = createFileRoute("/api/cli/sql")({
         }
 
         try {
-          assertOrganizationProvisioned(context.organization.metadata);
-          const rows = await querySqlApi<Record<string, unknown>>(sql, orgId);
+          const storage = createOrganizationSql(
+            orgId,
+            context.organization.metadata,
+          );
+          const rows = await storage.query<Record<string, unknown>>(sql);
 
-          span?.setAttribute("everr.cloud_query.outcome", "ok");
-          span?.setAttribute("everr.cloud_query.result_rows", rows.length);
+          span?.setAttribute("everr.sql_query.outcome", "ok");
+          span?.setAttribute("everr.sql_query.result_rows", rows.length);
 
           return new Response(toNdjson(rows), {
             headers: {
@@ -48,10 +50,10 @@ export const Route = createFileRoute("/api/cli/sql")({
             },
           });
         } catch (error) {
-          const { outcome, kind } = classifyCloudQueryError(error);
+          const { outcome, kind } = classifySqlQueryError(error);
           if (span) {
-            span.setAttribute("everr.cloud_query.outcome", outcome);
-            span.setAttribute("everr.cloud_query.kind", kind);
+            span.setAttribute("everr.sql_query.outcome", outcome);
+            span.setAttribute("everr.sql_query.kind", kind);
             // Only our-fault failures mark the span as an error, so error-rate
             // and the pager ignore user typos. User errors stay Ok-status.
             if (outcome === "system_error") {

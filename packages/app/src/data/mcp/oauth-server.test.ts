@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/env", () => ({
+vi.mock("#app/env/index.ts", () => ({
   env: { BETTER_AUTH_URL: "http://localhost:5173" },
 }));
-vi.mock("@/lib/auth.server", () => ({ auth: { api: {} } }));
+vi.mock("#app/identity/server.ts", () => ({ auth: { api: {} } }));
 
-import { auth } from "@/lib/auth.server";
+import { auth } from "#app/identity/server.ts";
 import { setActiveOrg, submitConsent } from "./oauth-server";
 
 const api = auth.api as unknown as Record<string, ReturnType<typeof vi.fn>>;

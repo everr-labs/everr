@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/data/branch-status", () => ({
+vi.mock("#app/data/branch-status.ts", () => ({
   getBranchStatus: vi.fn(),
 }));
 
-import { getBranchStatus } from "@/data/branch-status";
+import { getBranchStatus } from "#app/data/branch-status.ts";
 import { cliSessionContext, getRouteHandler } from "../-test-utils";
 import { Route } from "./status";
 

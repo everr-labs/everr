@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 // Only so that importing the row modules for their pure halves does not build
 // a real database pool. Nothing here answers a query: the loaders are covered
 // against real stores by the alerting integration suites.
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {},
   pool: {},
   runInTransaction: () => Promise.resolve(),
@@ -12,9 +12,9 @@ vi.mock("@/db/client", () => ({
 import type {
   AlertInstanceRead,
   AlertRuleRead,
-} from "@/data/alerting/rules/read";
-import type { SilenceRow } from "@/data/alerting/silences/repository";
-import type { AlertingRuleSpec } from "@/data/alerting/types";
+} from "#app/data/alerting/rules/read.ts";
+import type { SilenceRow } from "#app/data/alerting/silences/repository.ts";
+import type { AlertingRuleSpec } from "#app/data/alerting/types.ts";
 import {
   type AlertDetailInput,
   assembleAlertDetail,

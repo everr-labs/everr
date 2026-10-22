@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
-import { env } from "@/env";
+import { env } from "#app/env/index.ts";
 
 interface SendEmailParams {
   to: string;
@@ -43,23 +43,24 @@ class NodemailerMailer implements Mailer {
   }
 }
 
-function createMailer(): Mailer {
-  if (env.NODE_ENV === "production") {
-    if (!env.EMAIL_DSN) {
-      throw new Error("EMAIL_DSN is required in production");
-    }
+function createMailer(): Mailer | null {
+  if (env.NODE_ENV === "development") {
     return new NodemailerMailer(
-      env.EMAIL_FROM,
+      env.EMAIL_FROM ?? "Everr <noreply@localhost>",
       env.EMAIL_REPLY_TO,
-      env.EMAIL_DSN,
+      { host: "localhost", port: 1025, secure: false },
     );
   }
 
-  return new NodemailerMailer(env.EMAIL_FROM, env.EMAIL_REPLY_TO, {
-    host: "localhost",
-    port: 1025,
-    secure: false,
-  });
+  if (!env.EMAIL_DSN) return null;
+  if (!env.EMAIL_FROM) {
+    throw new Error("EMAIL_FROM is required when EMAIL_DSN is configured");
+  }
+  return new NodemailerMailer(
+    env.EMAIL_FROM,
+    env.EMAIL_REPLY_TO,
+    env.EMAIL_DSN,
+  );
 }
 
 export const mailer = createMailer();

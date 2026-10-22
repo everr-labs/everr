@@ -59,7 +59,6 @@ jobs:
           go-version-file: collector/go.mod
           cache-dependency-path: collector/**/go.sum
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @everr/cli test:rust
       - name: Import Apple Developer ID certificate
         if: runner.os == 'macOS'
         env:
@@ -119,6 +118,8 @@ jobs:
           if [[ -n "${APPLE_KEYCHAIN_PATH:-}" ]]; then
             security delete-keychain "$APPLE_KEYCHAIN_PATH"
           fi
+      - name: Test Rust with prepared assets
+        run: pnpm --filter @everr/cli test:rust --prepared
       - name: Stage binary
         shell: bash
         run: |

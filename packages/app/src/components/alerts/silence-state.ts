@@ -3,7 +3,7 @@
  * state, which states are still open, and how its window prints. Shared so
  * the detail's list and the Silences page cannot drift apart on the same row.
  */
-import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
+import type { AlertSilenceRecord } from "#app/data/alerting/triage/view.ts";
 
 type SilenceState = AlertSilenceRecord["state"];
 

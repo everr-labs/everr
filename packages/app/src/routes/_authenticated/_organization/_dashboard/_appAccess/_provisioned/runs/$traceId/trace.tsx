@@ -1,9 +1,9 @@
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { createFileRoute } from "@tanstack/react-router";
-import { DataPanel } from "@/components/data-panel";
-import { PanelShell } from "@/components/panel-shell";
-import { TraceWaterfall } from "@/components/run-detail/trace-waterfall";
-import { runDetailsOptions, runSpansOptions } from "@/data/runs/options";
+import { DataPanel } from "#app/components/data-panel.tsx";
+import { PanelShell } from "#app/components/panel-shell.tsx";
+import { TraceWaterfall } from "#app/components/run-detail/trace-waterfall.tsx";
+import { runDetailsOptions, runSpansOptions } from "#app/data/runs/options.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/trace",

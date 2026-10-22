@@ -3,7 +3,8 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import { INVITATION_EMAIL_HEADER } from "#app/common/invitation.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 
 type ListMembersResult = Awaited<
   ReturnType<typeof authClient.organization.listMembers>
@@ -77,13 +78,21 @@ export function invitationsQueryOptions() {
 export function useInviteMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: { email: string; role: OrgRole }) => {
+    mutationFn: async (vars: {
+      email: string;
+      role: OrgRole;
+      sendEmail: boolean;
+    }) => {
       const res = await authClient.organization.inviteMember({
         email: vars.email,
         role: vars.role,
+        fetchOptions: {
+          headers: { [INVITATION_EMAIL_HEADER]: String(vars.sendEmail) },
+        },
       });
       if (res.error)
-        throw new Error(res.error.message ?? "Failed to send invitation");
+        throw new Error(res.error.message ?? "Failed to create invitation");
+      if (!res.data) throw new Error("Invitation was not returned");
       return res.data;
     },
     onSuccess: () => {

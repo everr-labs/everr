@@ -2,12 +2,18 @@ import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
-import { returnToSchema } from "@/common/return-to";
-import { authClient } from "@/lib/auth-client";
+import { returnToSchema } from "#app/common/return-to.ts";
+import { canOpenSignup } from "#app/data/signup.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 import {
   AuthPageHeader,
   AuthProviderSeparator,
@@ -23,10 +29,16 @@ const SignUpSearchSchema = z.object({
 
 export const Route = createFileRoute("/_welcome/_guest/auth/sign-up")({
   validateSearch: SignUpSearchSchema,
+  beforeLoad: async ({ search }) => {
+    if (!(await canOpenSignup({ data: { redirect: search.redirect } }))) {
+      throw redirect({ to: "/auth/sign-in", search, replace: true });
+    }
+  },
   component: SignUp,
 });
 
 function SignUp() {
+  const { googleSignInEnabled } = Route.useRouteContext();
   const navigate = useNavigate();
   const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +64,7 @@ function SignUp() {
           name: value.name,
           email: value.email,
           password: value.password,
+          callbackURL,
         });
 
         if (result.error) {
@@ -78,16 +91,18 @@ function SignUp() {
         subtitle="Get started with Everr"
       />
 
-      <div className="flex flex-col gap-4">
-        <GoogleAuthButton
-          label="Sign up with Google"
-          callbackURL={callbackURL}
-          errorCallbackURL={errorCallbackURL}
-          disabled={isSubmitting}
-          onError={setError}
-        />
-        <AuthProviderSeparator />
-      </div>
+      {googleSignInEnabled && (
+        <div className="flex flex-col gap-4">
+          <GoogleAuthButton
+            label="Sign up with Google"
+            callbackURL={callbackURL}
+            errorCallbackURL={errorCallbackURL}
+            disabled={isSubmitting}
+            onError={setError}
+          />
+          <AuthProviderSeparator />
+        </div>
+      )}
 
       <form
         className="space-y-5"

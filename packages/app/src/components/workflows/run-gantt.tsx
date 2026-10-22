@@ -16,10 +16,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { workflowRunTimelinesOptions } from "@/data/workflows/options";
-import type { WorkflowRunGantt } from "@/data/workflows/schemas";
-import { useTimeRange } from "@/hooks/use-time-range";
-import { formatCost } from "@/lib/runner-pricing";
+import { workflowRunTimelinesOptions } from "#app/data/workflows/options.ts";
+import type { WorkflowRunGantt } from "#app/data/workflows/schemas.ts";
+import { useTimeRange } from "#app/hooks/use-time-range.ts";
+import { formatCost } from "#app/lib/runner-pricing.ts";
 
 interface WorkflowJobTimelineProps {
   workflowName: string;

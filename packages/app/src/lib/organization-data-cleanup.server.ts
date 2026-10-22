@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { type DbExecutor, db, runInTransaction } from "@/db/client";
+import { type DbExecutor, db, runInTransaction } from "#app/db/client.ts";
 import {
   alertChannels,
   alertDefaultChannels,
@@ -16,7 +16,7 @@ import {
   runbooks,
   workflowJobs,
   workflowRuns,
-} from "@/db/schema";
+} from "#app/db/schema/index.ts";
 
 export async function deletePostgresOrganizationData(
   organizationId: string,

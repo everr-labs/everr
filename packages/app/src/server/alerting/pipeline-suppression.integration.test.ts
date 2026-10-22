@@ -1,34 +1,43 @@
 // @vitest-environment node
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
-import { ALERT_PROCESS_EVENT_TASK } from "@/data/alerting/delivery/tasks";
+import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "#app/data/alerting/delivery/defaults.ts";
+import { ALERT_PROCESS_EVENT_TASK } from "#app/data/alerting/delivery/tasks.ts";
 import {
   createSilence,
   expireSilence,
-} from "@/data/alerting/silences/repository";
-import type { AlertingSilenceInput } from "@/data/alerting/types";
+} from "#app/data/alerting/silences/repository.ts";
+import type { AlertingSilenceInput } from "#app/data/alerting/types.ts";
 import {
   alertDeliveries,
   alertEvents,
   alertInstances,
   alertSilences,
-} from "@/db/schema";
+} from "#app/db/schema/index.ts";
 import {
   insertDirectRule,
   insertPreview,
   insertSilence,
   TEST_ACTOR,
   TEST_ORG,
-} from "./testing/fixtures";
-import { useAlertingHarness } from "./testing/harness";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@/db/client", async () => {
-  const { testDb, runInTransaction } = await import("./testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 

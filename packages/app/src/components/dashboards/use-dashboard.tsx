@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useContext } from "react";
-import type { Dashboard } from "@/data/dashboards/schema";
+import type { Dashboard } from "#app/data/dashboards/schema.ts";
 
 const DashboardContext = createContext<Dashboard | null>(null);
 

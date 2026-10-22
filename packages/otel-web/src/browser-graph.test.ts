@@ -8,6 +8,7 @@
 // imports, and it fails with a clear message.
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const FORBIDDEN = ["@opentelemetry/", "@everr/otel-errors"];
@@ -30,7 +31,7 @@ function walk(
   entry: string,
   graph = new Map<string, string[]>(),
 ): Map<string, string[]> {
-  const file = resolve(entry);
+  const file = resolve(dirname(fileURLToPath(import.meta.url)), "..", entry);
   if (graph.has(file)) return graph;
   const specifiers = importsOf(file);
   graph.set(file, specifiers);

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { auth } from "@/lib/auth.server";
+import { auth } from "#app/identity/server.ts";
 import { getActiveOrganization, getOrganizations } from "./auth";
 
 // getActiveOrganization reads request headers; the shared test-setup does not
@@ -20,14 +20,12 @@ it("lists the authenticated user's organizations for device approval", async () 
       name: "Org A",
       slug: "org-a",
       createdAt: new Date(),
-      plan: "hobby",
     },
     {
       id: "org-b",
       name: "Org B",
       slug: "org-b",
       createdAt: new Date(),
-      plan: "pro",
     },
   ]);
 

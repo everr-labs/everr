@@ -1,6 +1,6 @@
 import { PgTransaction } from "drizzle-orm/pg-core";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
-import type * as schema from "@/db/schema";
+import type * as schema from "#app/db/schema/index.ts";
 
 type TestDb = PgliteDatabase<typeof schema>;
 

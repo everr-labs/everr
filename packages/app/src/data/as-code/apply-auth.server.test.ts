@@ -1,8 +1,27 @@
+import { storage } from "@composition/storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
+import { querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
 
+// Org-name lookup goes through a direct DB select; control its result via orgRows.
+
+import { parseAlertingPrincipal } from "#app/data/alerting/session.ts";
+import {
+  applyAuthErrorResponse,
+  buildApplyContext,
+  canApplyMutate,
+  extractBearerKey,
+  requireOrgOrApiKeyMiddleware,
+  resolveApplyAuth,
+} from "./apply-auth.server";
+
+const { assertStorageReady } = storage;
+vi.mock("@composition/storage", () => ({
+  storage: { assertStorageReady: vi.fn() },
+}));
 const verifyApiKey = vi.fn();
 const getSession = vi.fn();
-vi.mock("@/lib/auth.server", () => ({
+vi.mock("#app/identity/server.ts", () => ({
   auth: {
     api: {
       verifyApiKey: (...a: unknown[]) => verifyApiKey(...a),
@@ -10,13 +29,12 @@ vi.mock("@/lib/auth.server", () => ({
     },
   },
 }));
-vi.mock("@/lib/clickhouse", () => ({
+vi.mock("#app/lib/clickhouse.ts", () => ({
   createClickhouseQuery: () => () => Promise.resolve([]),
+  querySqlApiWithMeta: vi.fn(),
 }));
-
-// Org-name lookup goes through a direct DB select; control its result via orgRows.
 let orgRows: unknown[] = [];
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     select: () => ({
       from: () => ({
@@ -27,19 +45,9 @@ vi.mock("@/db/client", () => ({
     }),
   },
 }));
-vi.mock("@/db/schema", () => ({
+vi.mock("#app/db/schema/index.ts", () => ({
   organization: { id: "id", name: "name" },
 }));
-
-import { parseAlertingPrincipal } from "@/data/alerting/session";
-import {
-  applyAuthErrorResponse,
-  buildApplyContext,
-  canApplyMutate,
-  extractBearerKey,
-  requireOrgOrApiKeyMiddleware,
-  resolveApplyAuth,
-} from "./apply-auth.server";
 
 function headers(map: Record<string, string>): Headers {
   return new Headers(map);
@@ -88,6 +96,7 @@ describe("resolveApplyAuth", () => {
     expect(result).toEqual({
       organizationId: "org-1",
       organizationName: "Acme",
+      sql: expect.objectContaining({ queryWithMeta: expect.any(Function) }),
       principalId: "apikey:k1",
       applyActions: ["read", "write", "delete"],
     });
@@ -95,6 +104,8 @@ describe("resolveApplyAuth", () => {
       body: { key: "ek_abc", configId: "ingest" },
     });
     expect(getSession).not.toHaveBeenCalled();
+    await result.sql.queryWithMeta("SELECT 1");
+    expect(querySqlApiWithMeta).toHaveBeenCalledWith("SELECT 1", "org-1");
   });
 
   it("threads a read-only applyActions through for a read-only key", async () => {
@@ -202,6 +213,7 @@ describe("resolveApplyAuth", () => {
     expect(result).toEqual({
       organizationId: "org-9",
       organizationName: "Globex",
+      sql: expect.objectContaining({ queryWithMeta: expect.any(Function) }),
       principalId: "user:u1",
       applyActions: null,
     });
@@ -227,10 +239,12 @@ describe("resolveApplyAuth", () => {
 });
 
 describe("buildApplyContext", () => {
+  const sql = { query: vi.fn(), queryWithMeta: vi.fn(), preview: vi.fn() };
   it("exposes the resolved org as active org and in context.organization", () => {
     const ctx = buildApplyContext({
       organizationId: "org-k",
       organizationName: "Kettle",
+      sql,
       principalId: "apikey:1",
       applyActions: ["read", "write", "delete"],
     });
@@ -239,6 +253,7 @@ describe("buildApplyContext", () => {
     expect(ctx.session.principalId).toBe("apikey:1");
     expect(ctx.organization).toEqual({ id: "org-k", name: "Kettle" });
     expect(ctx.applyActions).toEqual(["read", "write", "delete"]);
+    expect(ctx.sql).toBe(sql);
   });
 
   it("derives the audit actor from the principal, key or user", () => {
@@ -246,6 +261,7 @@ describe("buildApplyContext", () => {
       buildApplyContext({
         organizationId: "org-k",
         organizationName: "Kettle",
+        sql,
         principalId,
         applyActions: null,
       }).actor;
@@ -266,6 +282,7 @@ describe("buildApplyContext", () => {
     const ctx = buildApplyContext({
       organizationId: "org-k",
       organizationName: "Kettle",
+      sql,
       principalId: "user:u1",
       applyActions: null,
     });
@@ -390,6 +407,9 @@ describe("requireOrgOrApiKeyMiddleware", () => {
 });
 
 it("returns a retryable setup response for a pending API-key organization", async () => {
+  vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+    throw new StorageNotReadyError();
+  });
   verifyApiKey.mockResolvedValueOnce({
     valid: true,
     key: { id: "key", referenceId: "org", permissions: { apply: ["*"] } },

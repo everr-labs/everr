@@ -4,9 +4,9 @@ import {
   parseCronItems,
   type TaskList,
 } from "graphile-worker";
-import { deleteStalePreviews } from "@/data/previews/apply.server";
-import { env } from "@/env";
-import { serverLogger } from "@/telemetry/logger";
+import { deleteStalePreviews } from "#app/data/previews/apply.server.ts";
+import { env } from "#app/env/index.ts";
+import { serverLogger } from "#app/telemetry/logger.ts";
 
 const PREVIEWS_RETENTION_TASK = "previews/retention";
 

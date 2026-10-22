@@ -8,12 +8,12 @@ import type { ComponentType, SVGProps } from "react";
 // Brand marks; Slack's and Telegram's colors are intentional and ignore
 // currentColor, the webhook glyph keeps its red accent but follows the text
 // color for the rest.
-import DiscordIcon from "@/assets/discord.svg?react";
-import SlackIcon from "@/assets/slack.svg?react";
-import TelegramIcon from "@/assets/telegram.svg?react";
-import WebhookIcon from "@/assets/webhook.svg?react";
-import type { ChannelType } from "@/data/alerting/delivery/channel-input";
-import type { AlertingChannelConfig } from "@/data/alerting/types";
+import DiscordIcon from "#app/assets/discord.svg?react";
+import SlackIcon from "#app/assets/slack.svg?react";
+import TelegramIcon from "#app/assets/telegram.svg?react";
+import WebhookIcon from "#app/assets/webhook.svg?react";
+import type { ChannelType } from "#app/data/alerting/delivery/channel-input.ts";
+import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 
 const CHANNEL_TYPES: ChannelType[] = [
   "slack",

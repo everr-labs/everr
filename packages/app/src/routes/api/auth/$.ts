@@ -1,23 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { auth } from "@/lib/auth.server";
-import { withBillingRequest } from "@/lib/billing/lock.server";
-import { runWithDeviceOrgCapture } from "@/lib/cli-device-organization";
+import { auth } from "#app/identity/server.ts";
 
-// runWithDeviceOrgCapture opens the request-scoped store that carries the
-// device-login org from the /device/token hook into session creation (see
-// cli-device-organization.ts); it's a no-op for every other auth request.
 export const Route = createFileRoute("/api/auth/$")({
   server: {
     handlers: {
       GET: ({ request }) =>
-        redirectAuthErrorPage(request) ??
-        withBillingRequest(() =>
-          runWithDeviceOrgCapture(() => auth.handler(request)),
-        ),
-      POST: ({ request }) =>
-        withBillingRequest(() =>
-          runWithDeviceOrgCapture(() => auth.handler(request)),
-        ),
+        redirectAuthErrorPage(request) ?? auth.handler(request),
+      POST: ({ request }) => auth.handler(request),
     },
   },
 });

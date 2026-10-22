@@ -1,13 +1,13 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
-import * as alertRules from "@/data/alerting/rules/repository";
+import * as alertRules from "#app/data/alerting/rules/repository.ts";
 import {
   fromAlertingRule,
   toAlertRuleDocument,
-} from "@/data/alerting/rules/resource/mapping";
-import type { AlertingRuleView } from "@/data/alerting/types";
-import { BUILTIN_PROJECT } from "@/data/dashboards/schema";
-import { db } from "@/db/client";
-import { dashboards, runbooks } from "@/db/schema/app";
+} from "#app/data/alerting/rules/resource/mapping.ts";
+import type { AlertingRuleView } from "#app/data/alerting/types.ts";
+import { BUILTIN_PROJECT } from "#app/data/dashboards/schema.ts";
+import { db } from "#app/db/client.ts";
+import { dashboards, runbooks } from "#app/db/schema/app.ts";
 
 export const RESOURCE_KINDS = ["dashboard", "runbook", "alert"] as const;
 export type ResourceKind = (typeof RESOURCE_KINDS)[number];

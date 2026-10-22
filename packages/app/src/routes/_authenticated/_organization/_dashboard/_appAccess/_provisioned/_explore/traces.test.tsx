@@ -16,7 +16,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { Route as TracesFileRoute } from "./traces";
 
-vi.mock("@/data/traces/remote-repo", () => ({
+vi.mock("#app/data/traces/remote-repo.ts", () => ({
   remoteTracesRepo: {},
 }));
 

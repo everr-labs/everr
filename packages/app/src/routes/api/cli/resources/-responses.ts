@@ -1,7 +1,7 @@
 import {
   RESOURCE_KINDS,
   ReservedProjectError,
-} from "@/data/as-code/resource-admin.server";
+} from "#app/data/as-code/resource-admin.server.ts";
 
 /** 400 response for a `kind` path/query segment that is not a ResourceKind. */
 export function unknownKindResponse(kind: string): Response {

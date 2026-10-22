@@ -19,7 +19,7 @@ import { useRef } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { Route } from "./traces_.$traceId";
 
-vi.mock("@/data/traces/remote-repo", () => ({ remoteTracesRepo: {} }));
+vi.mock("#app/data/traces/remote-repo.ts", () => ({ remoteTracesRepo: {} }));
 vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("@everr/telemetry-explorer/traces")

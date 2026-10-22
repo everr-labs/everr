@@ -3,8 +3,8 @@ import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterAll, beforeEach, expect, it } from "vitest";
-import type { Database } from "@/db/client";
-import * as schema from "@/db/schema";
+import type { Database } from "#app/db/client.ts";
+import * as schema from "#app/db/schema/index.ts";
 import { createOnboardingStore } from "./store";
 
 const client = new PGlite();
@@ -102,7 +102,7 @@ it.each([
 it("makes completion idempotent and preserves other metadata including changes since Home was loaded", async () => {
   const initialMetadata = {
     onboardingCompleted: false,
-    billing: { customer: "existing", flags: ["one", "two"] },
+    integration: { connection: "existing", flags: ["one", "two"] },
     featureEnabled: true,
   };
   await database

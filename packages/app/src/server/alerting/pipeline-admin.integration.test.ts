@@ -1,34 +1,43 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import { decryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
+import { decryptChannelConfig } from "#app/data/alerting/delivery/channel-secrets.server.ts";
 import {
   createChannel,
   deleteChannel,
   listChannels,
   updateChannel,
-} from "@/data/alerting/delivery/repository";
+} from "#app/data/alerting/delivery/repository.ts";
 import {
   createSilence,
   expireSilence,
   listSilences,
-} from "@/data/alerting/silences/repository";
-import { listResources } from "@/data/as-code/resource-admin.server";
-import { alertChannels } from "@/db/schema";
+} from "#app/data/alerting/silences/repository.ts";
+import { listResources } from "#app/data/as-code/resource-admin.server.ts";
+import { alertChannels } from "#app/db/schema/index.ts";
 import {
   insertPreview,
   insertRule,
   TEST_ACTOR,
   TEST_ORG,
-} from "./testing/fixtures";
-import { useAlertingHarness } from "./testing/harness";
+} from "#app/server/alerting/testing/fixtures.ts";
+import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
 
-vi.mock("@/db/client", async () => {
-  const { testDb, runInTransaction } = await import("./testing/db-proxy");
+vi.mock("#app/db/client.ts", async () => {
+  const { testDb, runInTransaction } = await import(
+    "#app/server/alerting/testing/db-proxy.ts"
+  );
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
+vi.mock("#app/lib/clickhouse.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
+vi.mock("#app/lib/clickhouse-writer.ts", async () => {
+  const { clickhouseMock } = await import("#app/testing/test-clickhouse.ts");
+  return clickhouseMock;
+});
 
 const harness = useAlertingHarness();
 

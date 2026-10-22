@@ -17,25 +17,25 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
-import { RailList } from "@/components/rail/rail-list";
-import { groupLabelClass, RailRow } from "@/components/rail/rail-row";
+import { RailList } from "#app/components/rail/rail-list.tsx";
+import { groupLabelClass, RailRow } from "#app/components/rail/rail-row.tsx";
 import {
   evaluateBuiltin,
   type TelemetryCapabilities,
-} from "@/data/dashboards/built-in/capabilities";
-import { BUILTIN_DASHBOARDS } from "@/data/dashboards/built-in/catalog";
+} from "#app/data/dashboards/built-in/capabilities.ts";
+import { BUILTIN_DASHBOARDS } from "#app/data/dashboards/built-in/catalog/index.ts";
 import type {
   BuiltinCategory,
   BuiltinDashboard,
-} from "@/data/dashboards/built-in/types";
+} from "#app/data/dashboards/built-in/types.ts";
 import {
   dashboardListOptions,
   telemetryCapabilitiesOptions,
-} from "@/data/dashboards/options";
+} from "#app/data/dashboards/options.ts";
 import {
   readBuiltinsCollapsed,
   writeBuiltinsCollapsed,
-} from "@/data/dashboards/ui-prefs";
+} from "#app/data/dashboards/ui-prefs.ts";
 import { DashboardTree } from "./dashboard-tree";
 
 function searchBuiltins(search: string): BuiltinDashboard[] {

@@ -4,8 +4,8 @@
  */
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { z } from "zod";
-import { loadRules } from "@/data/alerting/rules/read";
-import { createAuthenticatedServerFn } from "@/lib/serverFn";
+import { loadRules } from "#app/data/alerting/rules/read.ts";
+import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import {
   AlertingChannelConfigInputSchema,
   AlertingChannelInputSchema,

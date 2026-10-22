@@ -5,15 +5,18 @@
  */
 import { notFound } from "@tanstack/react-router";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { ANN_DISPLAY_NAME } from "@/data/alerting/resource-annotations";
-import { alertingConditionOperatorLabel } from "@/data/alerting/rules/condition";
+import { ANN_DISPLAY_NAME } from "#app/data/alerting/resource-annotations.ts";
+import { alertingConditionOperatorLabel } from "#app/data/alerting/rules/condition.ts";
 import type {
   AlertingEvaluationSample,
   AlertingRuleSpec,
-} from "@/data/alerting/types";
-import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
-import { db } from "@/db/client";
-import { alertDefinitions, alertInstances } from "@/db/schema";
+} from "#app/data/alerting/types.ts";
+import {
+  formatResourceName,
+  parseResourceName,
+} from "#app/data/as-code/identity.ts";
+import { db } from "#app/db/client.ts";
+import { alertDefinitions, alertInstances } from "#app/db/schema/index.ts";
 
 /** How a rule presents when its state needs attention. */
 export type TriageStatus = "degraded" | "firing" | "pending";

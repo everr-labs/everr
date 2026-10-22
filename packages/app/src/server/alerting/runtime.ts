@@ -7,13 +7,13 @@ import {
   ALERT_FLUSH_GROUP_TASK,
   ALERT_PROCESS_EVENT_TASK,
   ALERT_SEND_DELIVERY_TASK,
-} from "@/data/alerting/delivery/tasks";
-import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
+} from "#app/data/alerting/delivery/tasks.ts";
+import { ALERT_PROJECT_LIFECYCLE_TASK } from "#app/data/alerting/history/tasks.ts";
 import {
   ALERT_EVALUATE_TASK,
   type EvaluatePayload,
-} from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { serverLogger } from "@/telemetry/logger";
+} from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
+import { serverLogger } from "#app/telemetry/logger.ts";
 import { flushAlertGroup } from "./delivery/flush-group";
 import { processAlertEvent } from "./delivery/process-event";
 import { sendAlertDelivery } from "./delivery/send-delivery";

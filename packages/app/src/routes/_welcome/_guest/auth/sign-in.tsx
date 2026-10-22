@@ -1,3 +1,4 @@
+import { productUI } from "@composition/ui";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -6,8 +7,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
-import { returnToSchema } from "@/common/return-to";
-import { authClient } from "@/lib/auth-client";
+import { returnToSchema } from "#app/common/return-to.ts";
+import { authClient } from "#app/lib/auth-client.ts";
 import {
   AuthPageHeader,
   AuthProviderSeparator,
@@ -26,6 +27,7 @@ export const Route = createFileRoute("/_welcome/_guest/auth/sign-in")({
 });
 
 function SignIn() {
+  const { googleSignInEnabled } = Route.useRouteContext();
   const navigate = useNavigate();
   const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
@@ -72,16 +74,18 @@ function SignIn() {
         subtitle="Enter your credentials to continue"
       />
 
-      <div className="flex flex-col gap-4">
-        <GoogleAuthButton
-          label="Sign in with Google"
-          callbackURL={callbackURL}
-          errorCallbackURL={errorCallbackURL}
-          disabled={isSubmitting}
-          onError={setError}
-        />
-        <AuthProviderSeparator />
-      </div>
+      {googleSignInEnabled && (
+        <div className="flex flex-col gap-4">
+          <GoogleAuthButton
+            label="Sign in with Google"
+            callbackURL={callbackURL}
+            errorCallbackURL={errorCallbackURL}
+            disabled={isSubmitting}
+            onError={setError}
+          />
+          <AuthProviderSeparator />
+        </div>
+      )}
 
       <form
         className="space-y-5"
@@ -153,16 +157,7 @@ function SignIn() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Don't have an account?{" "}
-        <Link
-          to="/auth/sign-up"
-          search={{ redirect: redirectTo, email: prefillEmail }}
-          className="font-medium text-foreground hover:underline"
-        >
-          Sign up
-        </Link>
-      </p>
+      <productUI.SignInFooter redirect={redirectTo} email={prefillEmail} />
     </>
   );
 }

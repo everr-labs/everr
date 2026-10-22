@@ -21,9 +21,7 @@ type CollectorStatus = {
   telemetryDir?: string;
 };
 
-function renderMainApp(
-  options: { collectorStatus?: CollectorStatus; signedIn?: boolean } = {},
-) {
+function renderMainApp(options: { collectorStatus?: CollectorStatus } = {}) {
   const runningCollectorStatus = {
     status: "running",
     otlpEndpoint: "http://127.0.0.1:54318",
@@ -37,43 +35,8 @@ function renderMainApp(
     return collectorStatus;
   });
 
-  let signedIn = options.signedIn ?? false;
-  let pendingSignIn: unknown = null;
-  const openSignInBrowserSpy = vi.fn(() => null);
-  mockCommands((command) => {
+  const localCommandSpy = vi.fn((command: string) => {
     switch (command) {
-      case "get_auth_status":
-        return {
-          status: signedIn ? "signed_in" : "signed_out",
-          session_path: "/tmp/everr/session.json",
-        };
-      case "get_pending_sign_in":
-      case "poll_sign_in":
-        return pendingSignIn;
-      case "start_sign_in":
-        pendingSignIn = {
-          status: "pending",
-          user_code: "ABCD-EFGH",
-          verification_url: "https://app.everr.dev/cli/device?code=ABCD-EFGH",
-          expires_at: new Date(Date.now() + 600_000).toISOString(),
-          poll_interval_seconds: 5,
-        };
-        return pendingSignIn;
-      case "open_sign_in_browser":
-        return openSignInBrowserSpy();
-      case "sign_out":
-        signedIn = false;
-        pendingSignIn = null;
-        return {
-          status: "signed_out",
-          session_path: "/tmp/everr/session.json",
-        };
-      case "get_user_profile":
-        return {
-          name: "Test User",
-          email: "user@example.com",
-          organizationName: "Test Organization",
-        };
       case "get_collector_status":
         return collectorStatus;
       case "telemetry_sql_query":
@@ -84,6 +47,7 @@ function renderMainApp(
         throw new Error(`Unexpected local command: ${command}`);
     }
   });
+  mockCommands(localCommandSpy);
 
   const router = getRouter();
   router.update({
@@ -95,12 +59,12 @@ function renderMainApp(
     </QueryClientProvider>,
   );
 
-  return { router, restartCollectorSpy, openSignInBrowserSpy };
+  return { router, restartCollectorSpy, localCommandSpy };
 }
 
 describe("local telemetry explorer", () => {
-  it("opens local telemetry without requiring a Cloud account", async () => {
-    const { router } = renderMainApp();
+  it("navigates local telemetry using only collector commands", async () => {
+    const { router, localCommandSpy } = renderMainApp();
     await act(async () => {
       await router.navigate({ to: "/logs" });
     });
@@ -108,46 +72,16 @@ describe("local telemetry explorer", () => {
     for (const name of ["Logs", "Traces", "Errors", "Settings"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
+    const localCommands = new Set([
+      "get_collector_status",
+      "telemetry_sql_query",
+    ]);
+    await waitFor(() => expect(localCommandSpy).toHaveBeenCalled());
     expect(
-      screen.queryByRole("link", { name: "Your CI runs" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
-    expect(
-      screen.queryByText("Authenticate your Everr account"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("offers sign-in from settings without CI settings", async () => {
-    const { router, openSignInBrowserSpy } = renderMainApp();
-    await act(async () => {
-      await router.navigate({ to: "/settings" });
-    });
-    const signIn = await screen.findByRole("button", { name: "Sign in" });
-    fireEvent.click(signIn);
-    const openBrowser = await screen.findByRole("button", {
-      name: "Open browser",
-    });
-    fireEvent.click(openBrowser);
-    await waitFor(() => expect(openSignInBrowserSpy).toHaveBeenCalledTimes(1));
-    expect(screen.queryByText("CI author emails")).not.toBeInTheDocument();
-  });
-
-  it("shows the account identity and removes it after sign-out", async () => {
-    renderMainApp({ signedIn: true });
-    fireEvent.click(await screen.findByRole("button", { name: "Account" }));
-
-    expect(await screen.findByText("Test User")).toBeVisible();
-    expect(screen.getByText("Test Organization")).toBeVisible();
-
-    fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
-    await waitFor(() => {
-      expect(screen.queryByText("Test User")).not.toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Account" }));
-    expect(
-      await screen.findByRole("menuitem", { name: "Sign in" }),
-    ).toBeVisible();
-    expect(screen.queryByText("Test Organization")).not.toBeInTheDocument();
+      localCommandSpy.mock.calls.every(([command]) =>
+        localCommands.has(command),
+      ),
+    ).toBe(true);
   });
 });
 

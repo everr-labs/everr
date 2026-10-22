@@ -8,9 +8,9 @@ import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { FileSearch } from "lucide-react";
-import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
-import { remoteRepo } from "@/data/logs-explorer/remote-repo";
-import { runJobsOptions } from "@/data/runs/options";
+import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
+import { remoteRepo } from "#app/data/logs-explorer/remote-repo.ts";
+import { runJobsOptions } from "#app/data/runs/options.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs",

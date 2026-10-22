@@ -7,7 +7,7 @@ import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
   runWithDeviceOrgCapture,
-} from "@/lib/cli-device-organization";
+} from "#app/lib/cli-device-organization.ts";
 
 // Drives a real device-authorization flow through the installed better-auth
 // (memory adapter) and asserts the approval-time org lands on the created
@@ -49,7 +49,7 @@ function makeTestAuth() {
         create: {
           before: async (session) => ({
             // Mirrors the marked-device-org branch of the production
-            // session.create.before hook (auth.server.ts).
+            // session.create.before hook (identity/server.ts).
             data: {
               ...session,
               activeOrganizationId: getCapturedDeviceOrganizationId(),

@@ -1,5 +1,20 @@
+import { storage } from "@composition/storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
+import { ALERT_EVALUATE_TASK } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
+import {
+  evaluateAlert,
+  isNoopInactiveTransition,
+  shouldEnqueueProcessEvent,
+  transitionEventRows,
+} from "./rule";
+import type { AlertInstanceTransition } from "./state-machine";
+
+const { assertStorageReady } = storage;
+vi.mock("@composition/storage", () => ({
+  storage: { assertStorageReady: vi.fn() },
+}));
 const mocks = vi.hoisted(() => ({
   definition: null as unknown,
   metadata: null as unknown,
@@ -17,16 +32,14 @@ const mocks = vi.hoisted(() => ({
   history: vi.fn(),
   previewAlerts: "on" as "on" | "off",
 }));
-
-vi.mock("@/env", () => ({
+vi.mock("#app/env/index.ts", () => ({
   env: {
     get EVERR_PREVIEW_ALERTS() {
       return mocks.previewAlerts;
     },
   },
 }));
-
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     select: () => ({
       from: () => ({
@@ -52,29 +65,17 @@ vi.mock("@/db/client", () => ({
   },
   pool: {},
 }));
-
-vi.mock("@/lib/clickhouse", () => ({ querySqlApiWithMeta: mocks.query }));
-
-vi.mock("@/server/worker/jobs", () => ({
+vi.mock("#app/lib/clickhouse.ts", () => ({ querySqlApiWithMeta: mocks.query }));
+vi.mock("#app/server/worker/jobs.ts", () => ({
   addWorkerJobInTransaction: (_tx: unknown, task: string, payload: unknown) => {
     mocks.scheduledJobs.push({ task, payload });
     return Promise.resolve();
   },
 }));
-
 vi.mock("../history/clickhouse", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   recordAlertHistory: mocks.history,
 }));
-
-import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import {
-  evaluateAlert,
-  isNoopInactiveTransition,
-  shouldEnqueueProcessEvent,
-  transitionEventRows,
-} from "./rule";
-import type { AlertInstanceTransition } from "./state-machine";
 
 /** Records what the failure path writes, without a database behind it. */
 function recordingTx() {
@@ -144,6 +145,7 @@ const payload = {
 
 describe("evaluateAlert scheduling state", () => {
   beforeEach(() => {
+    vi.mocked(assertStorageReady).mockReset();
     mocks.definition = definition;
     mocks.metadata = null;
     mocks.freshDefinition = undefined;
@@ -157,13 +159,19 @@ describe("evaluateAlert scheduling state", () => {
   });
 
   it("defers evaluation for pending organizations without issuing SQL", async () => {
+    vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+      throw new StorageNotReadyError();
+    });
     mocks.metadata = { clickhouseReady: false };
     mocks.transaction.mockImplementation(
       (cb: (tx: unknown) => Promise<unknown>) => cb(recordingTx()),
     );
     await evaluateAlert(payload);
+    expect(assertStorageReady).toHaveBeenCalledWith({ clickhouseReady: false });
     expect(mocks.query).not.toHaveBeenCalled();
     expect(mocks.scheduledJobs).toHaveLength(1);
+    expect(mocks.scheduledJobs[0].task).toBe(ALERT_EVALUATE_TASK);
+    expect(mocks.history).toHaveBeenCalled();
   });
 
   // The switch must end running chains, not only gate the scanner: the
@@ -195,6 +203,10 @@ describe("evaluateAlert scheduling state", () => {
       );
 
     await expect(evaluateAlert(payload)).resolves.toBeUndefined();
+    expect(mocks.query).toHaveBeenCalledWith(
+      definition.spec.sql,
+      definition.organizationId,
+    );
 
     expect(mocks.definitionUpdates).toContainEqual(
       expect.objectContaining({ degradedSince: expect.anything() }),

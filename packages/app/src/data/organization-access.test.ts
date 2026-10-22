@@ -1,14 +1,22 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ rows: vi.fn(), select: vi.fn() }));
-vi.mock("@/db/client", () => ({ db: { select: mocks.select } }));
+const mocks = vi.hoisted(() => ({
+  rows: vi.fn(),
+  select: vi.fn(),
+  entryRedirect: vi.fn(),
+}));
+vi.mock("@composition/entry", () => ({
+  entry: { getOrganizationEntryRedirect: mocks.entryRedirect },
+}));
+vi.mock("#app/db/client.ts", () => ({ db: { select: mocks.select } }));
 
-import { auth } from "@/lib/auth.server";
+import { auth } from "#app/identity/server.ts";
 import { getActiveOrganizationAccess } from "./organization-access";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.entryRedirect.mockResolvedValue(undefined);
   mocks.select.mockImplementation(() => ({
     from: () => ({
       innerJoin: () => ({ where: () => ({ limit: mocks.rows }) }),
@@ -22,6 +30,7 @@ it("returns membership and metadata without calling the full organization endpoi
   expect(await getActiveOrganizationAccess()).toEqual({
     status: "available",
     organization: { id: "test_org", metadata: '{"clickhouseReady":false}' },
+    entryRedirect: undefined,
   });
   expect(auth.api.getFullOrganization).not.toHaveBeenCalled();
 });
@@ -42,4 +51,19 @@ it("preserves infrastructure failures instead of classifying them as missing mem
   await expect(getActiveOrganizationAccess()).rejects.toThrow(
     "Database unavailable",
   );
+});
+
+it("resolves application entry only after membership verification", async () => {
+  mocks.rows.mockResolvedValue([]);
+  await getActiveOrganizationAccess();
+  expect(mocks.entryRedirect).not.toHaveBeenCalled();
+  mocks.rows.mockResolvedValue([{ id: "test_org", metadata: null }]);
+  mocks.entryRedirect.mockResolvedValue({ to: "/setup" });
+  expect(await getActiveOrganizationAccess()).toMatchObject({
+    entryRedirect: { to: "/setup" },
+  });
+  expect(mocks.entryRedirect).toHaveBeenCalledWith({
+    id: "test_session",
+    activeOrganizationId: "test_org",
+  });
 });

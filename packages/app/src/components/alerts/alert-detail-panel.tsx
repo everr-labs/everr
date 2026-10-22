@@ -9,12 +9,12 @@ import {
 } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowUpRight, NotebookText, X } from "lucide-react";
-import type { RuleInventoryState } from "@/data/alerting/rules/read";
+import type { RuleInventoryState } from "#app/data/alerting/rules/read.ts";
 import type {
   SilenceCancelTarget,
   SilenceSeed,
-} from "@/data/alerting/silences/commands";
-import type { AlertDetail } from "@/data/alerting/triage/view";
+} from "#app/data/alerting/silences/commands.ts";
+import type { AlertDetail } from "#app/data/alerting/triage/view.ts";
 import { AlertInstanceChart } from "./alert-instance-chart";
 import { STATUS_META, StatusIcon } from "./alert-status";
 import { Section } from "./detail-section";

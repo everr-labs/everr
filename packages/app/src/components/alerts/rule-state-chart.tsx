@@ -2,12 +2,15 @@ import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { memo, useMemo } from "react";
-import { formatAgoPhrase, formatElapsed } from "@/data/alerting/triage/format";
+import {
+  formatAgoPhrase,
+  formatElapsed,
+} from "#app/data/alerting/triage/format.ts";
 import type {
   ChartWindow,
   InstanceValueSeries,
   RuleStateSegment,
-} from "@/data/alerting/triage/view";
+} from "#app/data/alerting/triage/view.ts";
 import { STATUS_META, StatusIcon } from "./alert-status";
 import {
   ChartCrosshair,

@@ -1,4 +1,4 @@
-import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 
 type Phase = "workers" | "telemetry";
 type ShutdownState = {

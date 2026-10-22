@@ -33,6 +33,7 @@ impl Instance {
             .env("EVERR_SQL_HTTP_ORIGIN", &self.origins[0])
             .env("EVERR_OTLP_HTTP_ORIGIN", &self.origins[1])
             .env("EVERR_LOCAL_UI_ORIGIN", &self.origins[2])
+            .env("EVERR_CONFIG_DIR", self.data.path().join("remote-config"))
             .env("EVERR_TELEMETRY_DIR", self.data.path())
             .env("EVERR_LOCAL_LOG_DIR", self.data.path().join("logs"))
             .env("EVERR_INTERNAL_TELEMETRY_ENDPOINT", &self.origins[1]);
@@ -110,6 +111,14 @@ impl Drop for Foreground {
 #[test]
 fn detached_and_foreground_instances_share_the_full_lifecycle() {
     let instance = Instance::new();
+    // Local commands must work even with an unusable remote session.
+    let config = instance.data.path().join("remote-config");
+    std::fs::create_dir(&config).unwrap();
+    std::fs::write(
+        config.join(everr_cli::build::default_session_file_name()),
+        "invalid",
+    )
+    .unwrap();
     let log_dir = instance.data.path().join("logs");
     std::fs::create_dir(&log_dir).unwrap();
     // Force rotation from real supervisor output, without restarting it.

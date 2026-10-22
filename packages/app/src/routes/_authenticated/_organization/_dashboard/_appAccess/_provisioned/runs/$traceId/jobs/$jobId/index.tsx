@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@everr/ui/components/card";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { runDetailsOptions } from "@/data/runs/options";
+import { runDetailsOptions } from "#app/data/runs/options.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/",

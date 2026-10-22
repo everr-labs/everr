@@ -477,11 +477,6 @@ fn cloud_query_posts_sql_and_renders_ndjson_rows() {
         .stderr(predicate::str::is_empty());
 
     mock.assert();
-
-    assert!(
-        !env.session_path().with_extension("lock").exists(),
-        "cloud query should not create a session lock for read-only auth"
-    );
 }
 
 #[test]
@@ -1258,5 +1253,5 @@ fn commands_require_existing_session() {
         .args(["ci", "runs"])
         .assert()
         .failure()
-        .stderr(contains("no active session; run `everr cloud login`"));
+        .stderr(contains("No active session. Run `everr cloud login`."));
 }

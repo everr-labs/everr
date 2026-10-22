@@ -2,8 +2,11 @@ import type {
   AlertingRule,
   AlertingRuleInput,
   AlertingSeverity,
-} from "@/data/alerting/types";
-import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
+} from "#app/data/alerting/types.ts";
+import {
+  formatResourceName,
+  parseResourceName,
+} from "#app/data/as-code/identity.ts";
 import { formatRunbookRef, parseRunbookRef } from "../../resource/runbook-ref";
 import {
   ANN_ALERTING_DESCRIPTION,

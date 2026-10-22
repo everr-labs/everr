@@ -264,7 +264,7 @@ impl CommandTelemetry {
                 Some(match &args.command {
                     CloudSubcommand::Login(_) => "login",
                     CloudSubcommand::Logout => "logout",
-                    CloudSubcommand::Status => "status",
+                    CloudSubcommand::Status(_) => "status",
                     CloudSubcommand::Query(_) => "query",
                 }),
             ),

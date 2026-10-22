@@ -10,7 +10,7 @@ import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
-import { registerShutdownHook } from "@/server/shutdown";
+import { registerShutdownHook } from "#app/server/shutdown.ts";
 import { resolveTelemetryConfig, signalUrl } from "./config";
 import { identityLogProcessor, identitySpanProcessor } from "./identity";
 

@@ -3,13 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dashboardReconciler = vi.fn();
 const runbookReconciler = vi.fn();
 const alertReconciler = vi.fn();
-vi.mock("@/data/dashboards/apply.server", () => ({
+vi.mock("#app/data/dashboards/apply.server.ts", () => ({
   applyDashboardSpecs: (...a: unknown[]) => dashboardReconciler(...a),
 }));
-vi.mock("@/data/runbooks/apply.server", () => ({
+vi.mock("#app/data/runbooks/apply.server.ts", () => ({
   applyRunbookSpecs: (...a: unknown[]) => runbookReconciler(...a),
 }));
-vi.mock("@/data/alerting/rules/resource/apply.server", () => ({
+vi.mock("#app/data/alerting/rules/resource/apply.server.ts", () => ({
   applyAlertSpecs: (...a: unknown[]) => alertReconciler(...a),
 }));
 // Cross-kind runbook-link validation is exercised in its own suite; mock it
@@ -23,14 +23,14 @@ vi.mock("./runbook-links.server", () => ({
 }));
 const upsertPreview = vi.fn();
 const findPreviewId = vi.fn();
-vi.mock("@/data/previews/apply.server", () => ({
+vi.mock("#app/data/previews/apply.server.ts", () => ({
   upsertPreview: (...a: unknown[]) => upsertPreview(...a),
   findPreviewId: (...a: unknown[]) => findPreviewId(...a),
 }));
 
 // The real apply pass runs inside one db.transaction; the mock just invokes
 // the callback with a stand-in executor so the reconcilers (also mocked) run.
-vi.mock("@/db/client", () => ({
+vi.mock("#app/db/client.ts", () => ({
   db: {
     transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
       fn({ tx: true }),
@@ -38,9 +38,14 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
-import { db } from "@/db/client";
+import { db } from "#app/db/client.ts";
 import { ApplyValidationError } from "./errors";
-import { applyResources } from "./registry";
+import { applyResources as applyWithSql } from "./registry";
+
+const sql = { queryWithMeta: vi.fn() };
+const applyResources = (
+  opts: Omit<Parameters<typeof applyWithSql>[0], "sql">,
+) => applyWithSql({ ...opts, sql });
 
 const empty = {
   created: [],
@@ -97,7 +102,10 @@ describe("applyResources", () => {
       expect.objectContaining({ namespace: liveNs, resources: [runbook] }),
     );
     expect(alertReconciler).toHaveBeenCalledWith(
-      expect.objectContaining({ namespace: liveNs, resources: [alert] }),
+      expect.objectContaining({ namespace: liveNs, resources: [alert], sql }),
+    );
+    expect(alertReconciler.mock.calls.every(([args]) => args.sql === sql)).toBe(
+      true,
     );
     // The write pass (the last call; the first is validation) hands every
     // reconciler the shared transaction executor, so a failing kind rolls

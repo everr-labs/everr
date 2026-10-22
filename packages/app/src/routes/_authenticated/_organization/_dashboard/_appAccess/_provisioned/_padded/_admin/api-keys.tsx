@@ -3,10 +3,10 @@ import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ApiKeysSections } from "@/components/api-keys/api-keys-table";
-import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
-import { apiKeysQueryOptions } from "@/components/api-keys/queries";
-import { PageHeader } from "@/components/page-header";
+import { ApiKeysSections } from "#app/components/api-keys/api-keys-table.tsx";
+import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
+import { apiKeysQueryOptions } from "#app/components/api-keys/queries.ts";
+import { PageHeader } from "#app/components/page-header.tsx";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys",

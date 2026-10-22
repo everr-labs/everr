@@ -8,19 +8,19 @@ import {
   NotebookText,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { PreviewStatusBadge } from "@/components/preview-status-badge";
+import { PreviewStatusBadge } from "#app/components/preview-status-badge.tsx";
 import {
   railRowActiveProps,
   railRowClass,
   rowIndent,
-} from "@/components/rail/rail-row";
+} from "#app/components/rail/rail-row.tsx";
 import {
   buildTree,
   type DashboardSummary,
   type FolderNode,
   folderAncestorPaths,
   searchItems,
-} from "@/data/dashboards/tree";
+} from "#app/data/dashboards/tree.ts";
 
 type TreeResource = "dashboard" | "runbook";
 

@@ -9,7 +9,7 @@ import {
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { AlertNotificationsData } from "@/data/alerting/delivery/view";
+import type { AlertNotificationsData } from "#app/data/alerting/delivery/view.ts";
 import { NotificationsPage } from "./notifications-page";
 
 function channel(

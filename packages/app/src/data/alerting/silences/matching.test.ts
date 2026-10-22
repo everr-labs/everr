@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { alertEvents } from "@/db/schema";
+import type { alertEvents } from "#app/db/schema/index.ts";
 import type { AlertingMatcher } from "../types";
 import {
   eventSubject,

@@ -15,6 +15,8 @@
     "stale-suppressions": "error"
   },
   "entry": [
+    // Invoked by the ClickHouse Docker build and local schema harness.
+    "clickhouse/render.mjs",
     // CI scripts invoked directly by GitHub Actions workflows.
     ".github/actions/everr-action/scripts/build-readme.mjs",
     ".github/actions/everr-action/scripts/sampler-macos.mjs",
@@ -24,6 +26,12 @@
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
+    // Application-owned cloud adapters and policy selected through composition.
+    "packages/cloud/src/app/**",
+    // Compile-only navigation fixtures exercise the generated route contracts.
+    "packages/app/src/testing/navigation.typecheck.tsx",
+    "packages/app/src/app/testing/navigation.typecheck.tsx",
+    "packages/cloud/src/app/testing/navigation.typecheck.tsx",
     // size-limit's own config file, resolved by its CLI at runtime; nothing
     // in the package imports it.
     "packages/otel-web/.size-limit.cjs",
@@ -38,6 +46,9 @@
   // sample in content/docs/guides/browser-telemetry.mdx (the reader
   // installs them in their own app); they are not docs-site dependencies.
   "ignoreDependencies": [
+    // Loaded by Oxlint and its boundary plugin from .oxlintrc.json.
+    "eslint-plugin-boundaries",
+    "eslint-import-resolver-typescript",
     // size-limit resolves its preset from package.json at runtime; nothing
     // imports it.
     "@size-limit/preset-small-lib",
@@ -135,6 +146,20 @@
   },
   "ignoreExports": [
     {
+      // Explicitly registered TanStack layouts still require the named Route export.
+      "file": "packages/app/src/routes/**/-_*.tsx",
+      "exports": ["Route"]
+    },
+    {
+      // TanStack generated route types and convention-based cloud route exports.
+      "file": "packages/cloud/src/routeTree.gen.ts",
+      "exports": ["FileRouteTypes", "RootRouteChildren"]
+    },
+    {
+      "file": "packages/{app/src/app,cloud/src}/routes/**",
+      "exports": ["Route"]
+    },
+    {
       // Intentional namespace-barrel API: the app exposes a zero-prop
       // `<RefreshPicker />` / `<TimeRangePicker />` bound to app hooks; @everr/ui
       // exports the parameterized primitive of the same name. Same export name
@@ -164,12 +189,12 @@
       // double): vi.mock swaps the whole module in, so its exports are
       // consumed by name-matching module substitution, not by any import
       // fallow can see. Same export names on purpose.
-      "file": "packages/app/src/server/alerting/testing/test-clickhouse.ts",
+      "file": "packages/cloud/src/testing/test-clickhouse.ts",
       "exports": [
         "querySqlApiWithMeta",
         "querySqlApi",
         "query",
-        "insertAdminRows",
+        "insertRows",
         "createClickhouseQuery",
         "SqlApiResult"
       ]

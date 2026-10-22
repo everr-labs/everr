@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import type { TaskSpec } from "graphile-worker";
-import type { Transaction } from "@/db/client";
-import { addWorkerJob, addWorkerJobInTransaction } from "@/server/worker/jobs";
+import type { Transaction } from "#app/db/client.ts";
+import {
+  addWorkerJob,
+  addWorkerJobInTransaction,
+} from "#app/server/worker/jobs.ts";
 import { currentTraceLink } from "../trace-link";
 
 export const ALERT_EVALUATE_TASK = "alerts/evaluate";

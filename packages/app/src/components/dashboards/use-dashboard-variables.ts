@@ -3,16 +3,16 @@ import { useSearch } from "@tanstack/react-router";
 import type {
   VariableMeta,
   VariableValues,
-} from "@/data/dashboards/interpolate";
-import { variableOptionsQueryOptions } from "@/data/dashboards/options";
-import type { Variable } from "@/data/dashboards/schema";
+} from "#app/data/dashboards/interpolate.ts";
+import { variableOptionsQueryOptions } from "#app/data/dashboards/options.ts";
+import type { Variable } from "#app/data/dashboards/schema.ts";
 import {
   buildAllMeta,
   effectiveVariableValues,
   getListVariableSource,
   sortVariableOptions,
-} from "@/data/dashboards/variable-values";
-import { useTimeRange } from "@/hooks/use-time-range";
+} from "#app/data/dashboards/variable-values.ts";
+import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { useDashboard } from "./use-dashboard";
 
 export interface VariableOptionsState {

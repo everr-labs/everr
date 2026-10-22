@@ -39,6 +39,11 @@ impl CliTestEnv {
 
     pub fn command_for_binary(&self, binary: &Path) -> Command {
         let mut cmd = Command::new(binary);
+        cmd.current_dir(&self.home_dir);
+        cmd.env_remove("EVERR_CONFIG_DIR");
+        cmd.env_remove("EVERR_API_KEY");
+        cmd.env_remove("EVERR_API_TOKEN");
+        cmd.env_remove("EVERR_API_URL");
         cmd.env("HOME", &self.home_dir);
         cmd.env("XDG_CONFIG_HOME", &self.config_dir);
         cmd.env("XDG_DATA_HOME", self.home_dir.join(".local").join("share"));
@@ -57,12 +62,6 @@ impl CliTestEnv {
         cmd
     }
 
-    pub fn session_path(&self) -> PathBuf {
-        self.config_dir
-            .join(build::session_namespace())
-            .join(build::default_session_file_name())
-    }
-
     pub fn update_cache_path(&self) -> PathBuf {
         platform_data_local_dir(&self.home_dir)
             .join(build::session_namespace())
@@ -77,27 +76,21 @@ impl CliTestEnv {
             .join("telemetry-dev")
     }
 
-    pub fn write_session(&self, api_base_url: &str, token: &str) {
-        let session_path = self.session_path();
-        if let Some(parent) = session_path.parent() {
-            fs::create_dir_all(parent).expect("create session parent dir");
-        }
+    pub fn session_store(&self) -> everr_cli::state::SessionStore {
+        everr_cli::state::SessionStore::at(self.config_dir.join(build::session_namespace()))
+    }
 
-        let body = serde_json::json!({
-            "session": {
-                "api_base_url": api_base_url,
-                "token": token,
-            },
-            "settings": {
-                "completed_base_url": null,
-                "wizard_completed": false,
-            },
-        });
-        fs::write(
-            session_path,
-            serde_json::to_string_pretty(&body).expect("serialize session"),
-        )
-        .expect("write session file");
+    pub fn session_path(&self) -> PathBuf {
+        self.session_store().session_file_path()
+    }
+
+    pub fn write_session(&self, api_base_url: &str, token: &str) {
+        self.session_store()
+            .save_session(&everr_cli::state::Session {
+                api_base_url: api_base_url.to_owned(),
+                token: token.to_owned(),
+            })
+            .expect("save test session");
     }
 
     pub fn init_git_repo(&self, relative_dir: &str, branch: &str, remote: &str) -> PathBuf {

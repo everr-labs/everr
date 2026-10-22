@@ -6,12 +6,12 @@ import {
   type SilenceCancelTarget,
   type SilenceDraft,
   type SilenceSeed,
-} from "@/data/alerting/silences/commands";
+} from "#app/data/alerting/silences/commands.ts";
 import {
   cancelAlertSilence,
   createAlertSilence,
-} from "@/data/alerting/silences/server";
-import { invalidateAlertTriage } from "@/data/alerting/triage/options";
+} from "#app/data/alerting/silences/server.ts";
+import { invalidateAlertTriage } from "#app/data/alerting/triage/options.ts";
 
 /**
  * Everything a screen needs to make and unmake silences: the two writes, and

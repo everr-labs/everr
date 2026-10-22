@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ALERTING_DEFAULT_TIERS } from "@/data/alerting/delivery/defaults";
-import { PreviewStatusSchema } from "@/data/previews/overlay";
+import { ALERTING_DEFAULT_TIERS } from "#app/data/alerting/delivery/defaults.ts";
+import { PreviewStatusSchema } from "#app/data/previews/overlay.ts";
 import {
   alertingChannelNamesSchema,
   alertingResourceNameSchema,

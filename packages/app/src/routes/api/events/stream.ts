@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import { z } from "zod";
-import { subscribe, subscribeAuthor, subscribeTenant } from "@/db/hub";
-import { auth } from "@/lib/auth.server";
-import { createSSEStream } from "@/lib/sse";
+import { subscribe, subscribeAuthor, subscribeTenant } from "#app/db/hub.ts";
+import { getSession } from "#app/lib/session.server.ts";
+import { createSSEStream } from "#app/lib/sse.ts";
 
 const StreamQuerySchema = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("tenant") }),
@@ -14,7 +14,7 @@ const StreamQuerySchema = z.discriminatedUnion("scope", [
 
 const authMiddleware = createMiddleware({ type: "request" }).server(
   async ({ next, request }) => {
-    const session = await auth.api.getSession({
+    const session = await getSession({
       headers: request.headers,
     });
 
@@ -50,7 +50,6 @@ export const Route = createFileRoute("/api/events/stream")({
     handlers: {
       GET: async ({ request, context }) => {
         const { session } = context;
-
         const url = new URL(request.url);
         const parsed = StreamQuerySchema.safeParse({
           scope: url.searchParams.get("scope") ?? undefined,

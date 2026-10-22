@@ -34,14 +34,16 @@ Main-process dependencies are the Node setup from `nodejs.md` (`@everr/otel-erro
 
 ## Runtime Configuration
 
+Resolve `<ingestEndpoint-from-cloud-status>` during setup using [Remote setup](../references/remote-setup.md), then persist the actual endpoint in application configuration.
+
 Only the main process reads exporter configuration. The renderer runs `@everr/otel-web`, which builds each OTLP/JSON payload itself and calls the preload-exposed `proxyOtlp`. The main process forwards the encoded bytes to `{endpoint}/v1/{signal}` with the configured headers. The main process's own telemetry exports directly through its SDK.
 
 ```bash
 # Local development
 OTEL_EXPORTER_OTLP_ENDPOINT=<otlp-url-from-status>
 
-# Production with Everr hosted ingest
-OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.everr.dev/
+# Remote export (Everr Cloud or self-hosted)
+OTEL_EXPORTER_OTLP_ENDPOINT=<ingestEndpoint-from-cloud-status>
 EVERR_INGEST_KEY=<secret-manager-reference>
 ```
 

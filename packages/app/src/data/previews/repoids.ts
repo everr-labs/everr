@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { previews } from "@/db/schema";
+import { db } from "#app/db/client.ts";
+import { previews } from "#app/db/schema/index.ts";
 
 // Repoids a preview covers — the overlay's replacement boundary. Server-only
 // (touches `db` at module top level; must not be imported by a client

@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { TimeRangeInput } from "@/data/analytics/schemas";
+import type { TimeRangeInput } from "#app/data/analytics/schemas.ts";
 import {
   getCostByWorkflow,
   getCostOverTimeBreakdown,

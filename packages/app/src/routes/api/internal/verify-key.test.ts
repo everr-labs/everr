@@ -1,15 +1,22 @@
+import { storage } from "@composition/storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveRetention } from "@/lib/retention";
+import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 import { Route } from "./verify-key";
 
-vi.mock("@/env", () => ({
+vi.mock("@composition/storage", () => ({
+  storage: {
+    telemetryTenantId: vi.fn<(organizationId: string) => string | undefined>(),
+  },
+}));
+
+vi.mock("#app/env/index.ts", () => ({
   env: {
     INGEST_VERIFY_SHARED_SECRET:
       "test-shared-secret-with-at-least-32-characters",
   },
 }));
 
-vi.mock("@/lib/auth.server", () => ({
+vi.mock("#app/identity/server.ts", () => ({
   auth: {
     api: {
       verifyApiKey: vi.fn(),
@@ -17,7 +24,7 @@ vi.mock("@/lib/auth.server", () => ({
   },
 }));
 
-vi.mock("@/lib/retention.server", () => ({
+vi.mock("#app/lib/retention.server.ts", () => ({
   retentionForOrg: vi.fn(),
 }));
 
@@ -45,14 +52,14 @@ function makeRequest(body: unknown, secret: string | null = SECRET): Request {
 }
 
 async function mockVerify(result: unknown) {
-  const { auth } = await import("@/lib/auth.server");
+  const { auth } = await import("#app/identity/server.ts");
   vi.mocked(auth.api.verifyApiKey).mockResolvedValueOnce(result as never);
 }
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  const { retentionForOrg } = await import("@/lib/retention.server");
-  vi.mocked(retentionForOrg).mockResolvedValue(resolveRetention("pro"));
+  const { retentionForOrg } = await import("#app/lib/retention.server.ts");
+  vi.mocked(retentionForOrg).mockResolvedValue(retentionForDays(365, 30));
 });
 
 describe("/api/internal/verify-key", () => {
@@ -100,7 +107,17 @@ describe("/api/internal/verify-key", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 200 with tenantId for a valid ingest key", async () => {
+  it.each([
+    "org_42",
+    undefined,
+  ])("returns tenant %s and each signal's retention", async (tenantId) => {
+    vi.mocked(storage.telemetryTenantId).mockReturnValueOnce(tenantId);
+    const { retentionForOrg } = await import("#app/lib/retention.server.ts");
+    vi.mocked(retentionForOrg).mockResolvedValueOnce({
+      ...retentionForDays(90),
+      tracesDays: 14,
+      logsDays: 7,
+    });
     await mockVerify({
       valid: true,
       error: null,
@@ -115,18 +132,17 @@ describe("/api/internal/verify-key", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      tenantId: "org_42",
+      ...(tenantId === undefined ? {} : { tenantId }),
       keyId: "ak_3",
-      tracesDays: 365,
-      logsDays: 365,
-      metricsDays: 365,
+      tracesDays: 14,
+      logsDays: 7,
+      metricsDays: 90,
     });
-    const { retentionForOrg } = await import("@/lib/retention.server");
     expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 
     // The configId pin is the sole guarantee that a CLI/user-scoped key
     // can't be used for ingest — assert we still pass it.
-    const { auth } = await import("@/lib/auth.server");
+    const { auth } = await import("#app/identity/server.ts");
     expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
       body: { key: "the-key", configId: "ingest" },
     });
@@ -194,7 +210,6 @@ describe("/api/internal/verify-key browser origin policy", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      tenantId: "org_42",
       keyId: "ak_public",
       tracesDays: 365,
       logsDays: 365,
@@ -262,7 +277,6 @@ describe("/api/internal/verify-key browser origin policy", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      tenantId: "org_42",
       keyId: "ak_secret",
       tracesDays: 365,
       logsDays: 365,

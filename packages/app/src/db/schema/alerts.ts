@@ -16,15 +16,18 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { ChannelNotification } from "@/data/alerting/delivery/providers/message";
-import type { AlertingMatcher, AlertingRuleSpec } from "@/data/alerting/types";
-import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
+import type { ChannelNotification } from "#app/data/alerting/delivery/providers/message.ts";
+import type {
+  AlertingMatcher,
+  AlertingRuleSpec,
+} from "#app/data/alerting/types.ts";
+import type { AlertingLifecycleReason } from "#app/data/alerting/vocabulary.ts";
 import {
   ALERTING_EVENT_TYPES,
   ALERTING_INSTANCE_STATUSES,
   ALERTING_LIFECYCLE_REASONS,
   ALERTING_SEVERITIES,
-} from "@/data/alerting/vocabulary";
+} from "#app/data/alerting/vocabulary.ts";
 import { previews } from "./app";
 
 // Derived from the vocabulary export, not hand-listed, so a reason added
