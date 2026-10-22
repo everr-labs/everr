@@ -57,10 +57,8 @@ describe("member response boundary", () => {
     { name: "missing envelope", data: undefined },
     { name: "null response", data: null },
     { name: "wrong envelope", data: { users: [member] } },
-    { name: "unknown role", data: [{ ...member, role: "super-admin" }] },
-    { name: "partly unknown roles", data: [{ ...member, role: "member,super-admin" }] },
-    { name: "empty role", data: [{ ...member, role: "" }] },
-    { name: "empty role component", data: [{ ...member, role: "member," }] },
+    { name: "non-string role", data: [{ ...member, role: 42 }] },
+    { name: "array role", data: [{ ...member, role: ["member", "admin"] }] },
     { name: "malformed date", data: [{ ...member, createdAt: "not-a-date" }] },
     { name: "null date", data: [{ ...member, createdAt: null }] },
     { name: "missing identity", data: [{ ...member, userId: undefined }] },
@@ -77,8 +75,8 @@ describe("member response boundary", () => {
     expect(members[0]?.user).toBeNull();
   });
 
-  it.each(["owner,member", "member, admin"])(
-    "preserves composite member roles: %s",
+  it.each(["owner,member", "member, admin", "auditor", "auditor,owner"])(
+    "preserves Better Auth member roles: %s",
     async (role) => {
       mocks.listMembers.mockResolvedValue({
         data: { members: [{ ...member, role }] },
@@ -92,15 +90,18 @@ describe("member response boundary", () => {
 });
 
 describe("invitation response boundary", () => {
-  it("preserves composite invitation roles", async () => {
-    mocks.listInvitations.mockResolvedValue({
-      data: [{ ...invitation, role: "admin,member" }],
-      error: null,
-    });
-    expect(await client.fetchQuery(invitationsQueryOptions())).toEqual([
-      { ...invitation, role: "admin,member", expiresAt: new Date(timestamp) },
-    ]);
-  });
+  it.each(["admin,member", "auditor", "admin,auditor"])(
+    "preserves Better Auth invitation roles: %s",
+    async (role) => {
+      mocks.listInvitations.mockResolvedValue({
+        data: [{ ...invitation, role }],
+        error: null,
+      });
+      expect(await client.fetchQuery(invitationsQueryOptions())).toEqual([
+        { ...invitation, role, expiresAt: new Date(timestamp) },
+      ]);
+    },
+  );
 
   it.each([
     { name: "array", data: [invitation] },
@@ -130,8 +131,8 @@ describe("invitation response boundary", () => {
   it.each([
     { name: "missing envelope", data: undefined },
     { name: "non-array payload", data: { invitations: "not-an-array" } },
-    { name: "unknown role", data: [{ ...invitation, role: "super-admin" }] },
-    { name: "partly unknown roles", data: [{ ...invitation, role: "admin,super-admin" }] },
+    { name: "non-string role", data: [{ ...invitation, role: null }] },
+    { name: "array role", data: [{ ...invitation, role: ["member", "admin"] }] },
     { name: "unknown status", data: [{ ...invitation, status: "unexpected" }] },
     { name: "missing status", data: [{ ...invitation, status: undefined }] },
     { name: "malformed date", data: [{ ...invitation, expiresAt: "not-a-date" }] },

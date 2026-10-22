@@ -1,38 +1,44 @@
+import type {
+  Invitation as BetterAuthInvitation,
+  Member as BetterAuthMember,
+} from "better-auth/plugins/organization";
 import { z } from "zod";
 
 export const OrgRoleSchema = z.enum(["member", "admin", "owner"]);
 export type OrgRole = z.infer<typeof OrgRoleSchema>;
 
-// Better Auth stores memberships and invitations with comma-separated roles.
-// Picker inputs remain single roles, while responses preserve every role.
-const OrgRoleListSchema = z
-  .string()
-  .refine(
-    (role) => role.split(",").every((part) => OrgRoleSchema.safeParse(part.trim()).success),
-    "Invalid organization roles",
-  );
-
 // Better Auth responses can contain Date objects or their JSON representation.
 const AuthDateSchema = z.union([z.date(), z.iso.datetime({ offset: true })]).pipe(z.coerce.date());
 const IdSchema = z.string().min(1);
+const MemberProfileSchema = z
+  .object({ name: z.string().nullish(), email: z.string().nullish() })
+  .nullish();
 
+export type Member = Pick<BetterAuthMember, "id" | "userId" | "role" | "createdAt"> & {
+  user?: z.infer<typeof MemberProfileSchema>;
+};
+export type Invitation = Pick<
+  BetterAuthInvitation,
+  "id" | "email" | "role" | "status" | "expiresAt"
+>;
+
+// Response roles follow Better Auth's string contract, including custom and
+// comma-separated roles. The picker schema only restricts new selections.
 const MemberSchema = z.object({
   id: IdSchema,
   userId: IdSchema,
-  role: OrgRoleListSchema,
+  role: z.string(),
   createdAt: AuthDateSchema,
-  user: z.object({ name: z.string().nullish(), email: z.string().nullish() }).nullish(),
-});
-export type Member = z.infer<typeof MemberSchema>;
+  user: MemberProfileSchema,
+}) satisfies z.ZodType<Member>;
 
 export const InvitationSchema = z.object({
   id: IdSchema,
   email: z.email(),
-  role: OrgRoleListSchema,
+  role: z.string(),
   status: z.enum(["pending", "accepted", "rejected", "canceled"]),
   expiresAt: AuthDateSchema,
-});
-export type Invitation = z.infer<typeof InvitationSchema>;
+}) satisfies z.ZodType<Invitation>;
 
 // Accept both response envelopes supported by our auth client, then expose only
 // validated arrays to the query cache and table components.

@@ -81,18 +81,21 @@ it("keeps invitation failures visible and retries without blocking the members l
   expect(screen.queryByText("Failed to load invitations")).not.toBeInTheDocument();
 });
 
-it("protects the last owner when their membership has multiple roles", async () => {
-  mocks.listMembers.mockResolvedValue({
-    data: [{ ...member, userId: "other-user", role: "member,owner" }],
-    error: null,
-  });
-  renderPage();
-  const row = (await screen.findByText("Workspace Owner")).closest("tr");
-  expect(row).not.toBeNull();
-  expect(row).toHaveTextContent("member,owner");
-  expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-});
+it.each(["member,owner", "auditor,owner"])(
+  "protects the last owner with roles %s",
+  async (role) => {
+    mocks.listMembers.mockResolvedValue({
+      data: [{ ...member, userId: "other-user", role }],
+      error: null,
+    });
+    renderPage();
+    const row = (await screen.findByText("Workspace Owner")).closest("tr");
+    expect(row).not.toBeNull();
+    expect(row).toHaveTextContent(role);
+    expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  },
+);
 
 it("counts composite owners when allowing another owner's role to change", async () => {
   mocks.listMembers.mockResolvedValue({
