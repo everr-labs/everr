@@ -1,73 +1,19 @@
 name: Build & Test Collector
-defaults:
-  run:
-    working-directory: ./collector
 
-concurrency:
-  # For pushes, this lets concurrent runs happen, so each push gets a result.
-  # But for other events (e.g. PRs), we can cancel the previous runs.
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
-  cancel-in-progress: true
+on:
+  workflow_call:
 
 permissions:
   contents: read
 
-on:
-  pull_request:
-    paths:
-      - .github/workflows/build-and-test-collector.yml
-      - collector/**
-
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/build-and-test-collector.yml
-      - collector/**
+defaults:
+  run:
+    working-directory: ./collector
 
 jobs:
-  install-tools:
-    name: Install Tools
-    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Collect resource usage
-        uses: ./.github/actions/everr-action
-        with:
-          check-run-id: ${{ job.check_run_id }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: collector/go.mod
-          cache: false
-
-      - name: Cache Go and Tools
-        id: cache
-        timeout-minutes: 5
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/go/bin
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            ./collector/.tools
-          key: go-cache-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            go-cache-
-      - name: Warm module cache
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: go mod download
-
-      - name: Make install-tools
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: make install-tools
-
   lint:
     name: Lint
     runs-on: blacksmith-2vcpu-ubuntu-2404-arm
-    needs: install-tools
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,6 +24,7 @@ jobs:
           check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go
+        id: go
         uses: actions/setup-go@v5
         with:
           go-version-file: collector/go.mod
@@ -93,12 +40,15 @@ jobs:
             ~/go/pkg/mod
             ~/.cache/go-build
             ./collector/.tools
-          key: go-cache-${{ hashFiles('**/go.sum') }}
+          key: go-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('collector/**/go.mod', 'collector/**/go.sum') }}
           restore-keys: |
-            go-cache-
+            go-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-
       - name: Warm module cache
         if: steps.cache.outputs.cache-hit != 'true'
         run: go mod download
+
+      - name: Install tools
+        run: make install-tools
 
       - name: Make lint-all
         run: make lint-all
@@ -126,7 +76,6 @@ jobs:
   build:
     name: Build
     runs-on: blacksmith-2vcpu-ubuntu-2404-arm
-    needs: install-tools
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -137,6 +86,7 @@ jobs:
           check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go
+        id: go
         uses: actions/setup-go@v5
         with:
           go-version-file: collector/go.mod
@@ -152,9 +102,9 @@ jobs:
             ~/go/pkg/mod
             ~/.cache/go-build
             ./collector/.tools
-          key: go-cache-${{ hashFiles('**/go.sum') }}
+          key: go-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('collector/**/go.mod', 'collector/**/go.sum') }}
           restore-keys: |
-            go-cache-
+            go-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-
       - name: Warm module cache
         if: steps.cache.outputs.cache-hit != 'true'
         run: go mod download
@@ -164,8 +114,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    needs: install-tools
+    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -176,6 +125,7 @@ jobs:
           check-run-id: ${{ job.check_run_id }}
 
       - name: Set up Go
+        id: go
         uses: actions/setup-go@v5
         with:
           go-version-file: collector/go.mod
@@ -191,9 +141,9 @@ jobs:
             ~/go/pkg/mod
             ~/.cache/go-build
             ./collector/.tools
-          key: go-cache-${{ hashFiles('**/go.sum') }}
+          key: go-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('collector/**/go.mod', 'collector/**/go.sum') }}
           restore-keys: |
-            go-cache-
+            go-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-
       - name: Warm module cache
         if: steps.cache.outputs.cache-hit != 'true'
         run: go mod download

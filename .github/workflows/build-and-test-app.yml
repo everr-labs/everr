@@ -1,55 +1,10 @@
-name: Build & Test App
+name: Build & Check App
+
+on:
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  # For pushes, this lets concurrent runs happen, so each push gets a result.
-  # But for other events (e.g. PRs), we can cancel the previous runs.
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
-  cancel-in-progress: true
-
-on:
-  pull_request:
-    paths:
-      - .github/workflows/build-and-test-app.yml
-      - .nvmrc
-      - biome.json
-      - .oxlintrc.json
-      - package.json
-      - packages/app/**
-      - packages/cloud/**
-      - skills/everr-use-telemetry/rules/schema.md
-      - packages/datemath/**
-      - packages/otel-errors/**
-      - packages/otel-web/**
-      - packages/tanstack-start-otel/**
-      - packages/telemetry-explorer/**
-      - packages/ui/**
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - vitest.config.ts
-
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/build-and-test-app.yml
-      - .nvmrc
-      - biome.json
-      - .oxlintrc.json
-      - package.json
-      - packages/app/**
-      - packages/cloud/**
-      - skills/everr-use-telemetry/rules/schema.md
-      - packages/datemath/**
-      - packages/otel-errors/**
-      - packages/otel-web/**
-      - packages/tanstack-start-otel/**
-      - packages/telemetry-explorer/**
-      - packages/ui/**
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - vitest.config.ts
 
 jobs:
   ci:
@@ -77,19 +32,17 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm exec biome check packages/app packages/cloud packages/datemath
+        run: >-
+          pnpm exec biome check
+          packages/app packages/cloud packages/datemath packages/otel-errors
+          packages/otel-web packages/tanstack-start-otel
+          packages/telemetry-explorer packages/ui
 
       - name: Check package boundaries
         run: pnpm check:boundaries
 
       - name: Typecheck
         run: pnpm -r --filter @everr/app-cloud... typecheck
-
-      - name: Test
-        run: pnpm -r --filter @everr/app... test:ci
-
-      - name: Test Cloud
-        run: pnpm --filter @everr/app-cloud test --maxWorkers=2
 
       - name: Generate migrations
         env:
