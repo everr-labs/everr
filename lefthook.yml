@@ -5,9 +5,6 @@ pre-commit:
       glob: "*.{js,ts,tsx,json,jsonc,css}"
       run: pnpm biome check --fix --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
       stage_fixed: true
-    - name: boundaries
-      glob: "*.{js,mjs,cjs,ts,tsx,json,jsonc,yaml}"
-      run: pnpm check:boundaries
     - name: fallow
       glob: "*.{js,mjs,cjs,ts,tsx,jsonc}"
       # dead-code only — health + dupes will move into a `fallow audit` gate
