@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { createFileRoute } from "@tanstack/react-router";
@@ -31,11 +30,16 @@ const SCOPE_LABELS: Record<string, { icon: LucideIcon; label: string; descriptio
   },
 };
 
+type ConsentSearch = Record<string, unknown> & {
+  client_id?: string;
+  scope?: string;
+};
+
 export const Route = createFileRoute("/mcp/consent")({
   // Pass through every search param untouched: the authorize redirect lands here
   // with all the signed OAuth params inline, and the whole query string is
   // replayed to /oauth2/consent as oauth_query.
-  validateSearch: (s: Record<string, unknown>) => s,
+  validateSearch: (s: Record<string, unknown>): ConsentSearch => s,
   loader: async () => {
     const [orgs, session] = await Promise.all([
       authClient.organization.list(),
@@ -51,7 +55,7 @@ export const Route = createFileRoute("/mcp/consent")({
 
 function Consent() {
   const { organizations, activeOrganizationId } = Route.useLoaderData();
-  const search = Route.useSearch() as { client_id?: string; scope?: string };
+  const search = Route.useSearch();
   const clientId = search.client_id ?? "";
   const scope = search.scope ?? "";
   const scopes = scope.split(/\s+/).filter(Boolean);

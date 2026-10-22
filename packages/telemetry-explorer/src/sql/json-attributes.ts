@@ -46,8 +46,8 @@ export function flattenAttributes(value: unknown): Record<string, string> {
     return out;
   }
   const walk = (node: object, prefix: string) => {
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- This tuple view preserves the original entry iteration without narrowing or dropping attribute values.
-    for (const [name, leaf] of Object.entries(node) as [string, unknown][]) {
+    const entries: [string, unknown][] = Object.entries(node);
+    for (const [name, leaf] of entries) {
       const key = prefix ? `${prefix}.${name}` : name;
       if (leaf === null || leaf === undefined) continue;
       if (Array.isArray(leaf)) {

@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { queryLabel, SERIES_COLORS, toNumber } from "../data-utils";
 import type { QueryResultRow } from "../index";
 import type { TreemapSpec } from "./spec";
@@ -73,7 +72,7 @@ export function buildTreemapTiles(frames: QueryResultRow[][], spec: TreemapSpec)
     }
   });
 
-  const fallback = SERIES_COLORS[0] as string;
+  const fallback = SERIES_COLORS[0];
   let tiles = [...acc.values()]
     .sort((a, b) => b.value - a.value)
     .map((t, i) => {
