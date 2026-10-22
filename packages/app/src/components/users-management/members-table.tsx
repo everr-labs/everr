@@ -21,6 +21,7 @@ import {
 } from "@everr/ui/components/select";
 import { useState } from "react";
 import { toast } from "sonner";
+import { isOrganizationOwner } from "#app/lib/organization-role.ts";
 import { formatDate } from "./format-date";
 import { useRemoveMember, useUpdateMemberRole } from "./queries";
 import { type Member, type OrgRole, OrgRoleSchema } from "./schemas";
@@ -33,7 +34,7 @@ interface MembersTableProps {
 interface RoleChangePending {
   memberId: string;
   memberName: string;
-  currentRole: OrgRole;
+  currentRole: Member["role"];
   nextRole: OrgRole;
 }
 
@@ -42,7 +43,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
   const remove = useRemoveMember();
   const [rolePending, setRolePending] = useState<RoleChangePending | null>(null);
 
-  const ownerCount = members.filter((m) => m.role === "owner").length;
+  const ownerCount = members.filter((m) => isOrganizationOwner(m.role)).length;
 
   const confirmRoleChange = () => {
     if (!rolePending) return;
@@ -89,7 +90,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
     {
       header: "Role",
       cell: (row) => {
-        const isLastOwner = row.role === "owner" && ownerCount <= 1;
+        const isLastOwner = isOrganizationOwner(row.role) && ownerCount <= 1;
         const isSelf = row.userId === currentUserId;
 
         if (isLastOwner || isSelf) {
@@ -115,7 +116,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
             }}
           >
             <SelectTrigger size="sm">
-              <SelectValue />
+              <SelectValue className="capitalize">{row.role}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="member">Member</SelectItem>
@@ -134,7 +135,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
       header: <span className="sr-only">Actions</span>,
       cell: (row) => {
         const isSelf = row.userId === currentUserId;
-        const isLastOwner = row.role === "owner" && ownerCount <= 1;
+        const isLastOwner = isOrganizationOwner(row.role) && ownerCount <= 1;
         if (isSelf || isLastOwner) return null;
         const memberName = row.user?.name ?? row.user?.email ?? "this member";
 

@@ -193,7 +193,8 @@ function ChannelForm({
             value={draft.type}
             disabled={busy}
             onChange={(v) => {
-              if (v === "slack" || v === "discord" || v === "telegram") patch({ type: v });
+              const option = CHANNEL_OPTIONS.find(({ value }) => value === v);
+              if (option) patch({ type: option.value });
             }}
             options={CHANNEL_OPTIONS}
           />

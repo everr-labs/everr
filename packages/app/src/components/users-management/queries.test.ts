@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ listMembers: vi.fn(), listInvitations: vi.fn()
 vi.mock("#app/lib/auth-client.ts", () => ({ authClient: { organization: mocks } }));
 
 import { invitationsQueryOptions, membersQueryOptions } from "./queries";
+import { InviteMemberInputSchema, UpdateMemberRoleInputSchema } from "./schemas";
 
 const timestamp = "2026-10-21T12:00:00.000Z";
 const member = {
@@ -57,6 +58,9 @@ describe("member response boundary", () => {
     { name: "null response", data: null },
     { name: "wrong envelope", data: { users: [member] } },
     { name: "unknown role", data: [{ ...member, role: "super-admin" }] },
+    { name: "partly unknown roles", data: [{ ...member, role: "member,super-admin" }] },
+    { name: "empty role", data: [{ ...member, role: "" }] },
+    { name: "empty role component", data: [{ ...member, role: "member," }] },
     { name: "malformed date", data: [{ ...member, createdAt: "not-a-date" }] },
     { name: "null date", data: [{ ...member, createdAt: null }] },
     { name: "missing identity", data: [{ ...member, userId: undefined }] },
@@ -72,9 +76,32 @@ describe("member response boundary", () => {
     const members = await client.fetchQuery(membersQueryOptions());
     expect(members[0]?.user).toBeNull();
   });
+
+  it.each(["owner,member", "member, admin"])(
+    "preserves composite member roles: %s",
+    async (role) => {
+      mocks.listMembers.mockResolvedValue({
+        data: { members: [{ ...member, role }] },
+        error: null,
+      });
+      expect(await client.fetchQuery(membersQueryOptions())).toEqual([
+        { ...member, role, createdAt: new Date(timestamp) },
+      ]);
+    },
+  );
 });
 
 describe("invitation response boundary", () => {
+  it("preserves composite invitation roles", async () => {
+    mocks.listInvitations.mockResolvedValue({
+      data: [{ ...invitation, role: "admin,member" }],
+      error: null,
+    });
+    expect(await client.fetchQuery(invitationsQueryOptions())).toEqual([
+      { ...invitation, role: "admin,member", expiresAt: new Date(timestamp) },
+    ]);
+  });
+
   it.each([
     { name: "array", data: [invitation] },
     { name: "envelope", data: { invitations: [invitation] } },
@@ -104,6 +131,7 @@ describe("invitation response boundary", () => {
     { name: "missing envelope", data: undefined },
     { name: "non-array payload", data: { invitations: "not-an-array" } },
     { name: "unknown role", data: [{ ...invitation, role: "super-admin" }] },
+    { name: "partly unknown roles", data: [{ ...invitation, role: "admin,super-admin" }] },
     { name: "unknown status", data: [{ ...invitation, status: "unexpected" }] },
     { name: "missing status", data: [{ ...invitation, status: undefined }] },
     { name: "malformed date", data: [{ ...invitation, expiresAt: "not-a-date" }] },
@@ -111,4 +139,27 @@ describe("invitation response boundary", () => {
     mocks.listInvitations.mockResolvedValue({ data, error: null });
     await expect(client.fetchQuery(invitationsQueryOptions())).rejects.toBeInstanceOf(z.ZodError);
   });
+});
+
+it("keeps role changes and new invitations restricted to a single selectable role", () => {
+  expect(
+    UpdateMemberRoleInputSchema.safeParse({ memberId: "member-1", role: "admin" }).success,
+  ).toBe(true);
+  expect(
+    UpdateMemberRoleInputSchema.safeParse({ memberId: "member-1", role: "admin,member" }).success,
+  ).toBe(false);
+  expect(
+    InviteMemberInputSchema.safeParse({
+      email: "invited@example.test",
+      role: "member",
+      sendEmail: false,
+    }).success,
+  ).toBe(true);
+  expect(
+    InviteMemberInputSchema.safeParse({
+      email: "invited@example.test",
+      role: "admin,member",
+      sendEmail: false,
+    }).success,
+  ).toBe(false);
 });

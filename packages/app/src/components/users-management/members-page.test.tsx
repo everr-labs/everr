@@ -1,9 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
-const mocks = vi.hoisted(() => ({ listMembers: vi.fn(), listInvitations: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  listMembers: vi.fn(),
+  listInvitations: vi.fn(),
+  updateMemberRole: vi.fn(),
+}));
 vi.mock("#app/lib/auth-client.ts", () => ({
   authClient: {
     organization: mocks,
@@ -30,6 +34,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.listMembers.mockResolvedValue({ data: { members: [member] }, error: null });
   mocks.listInvitations.mockResolvedValue({ data: [], error: null });
+  mocks.updateMemberRole.mockResolvedValue({ data: {}, error: null });
 });
 afterEach(() => client.clear());
 
@@ -74,4 +79,62 @@ it("keeps invitation failures visible and retries without blocking the members l
   await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
   expect(await screen.findByText("pending@example.test")).toBeVisible();
   expect(screen.queryByText("Failed to load invitations")).not.toBeInTheDocument();
+});
+
+it("protects the last owner when their membership has multiple roles", async () => {
+  mocks.listMembers.mockResolvedValue({
+    data: [{ ...member, userId: "other-user", role: "member,owner" }],
+    error: null,
+  });
+  renderPage();
+  const row = (await screen.findByText("Workspace Owner")).closest("tr");
+  expect(row).not.toBeNull();
+  expect(row).toHaveTextContent("member,owner");
+  expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+});
+
+it("counts composite owners when allowing another owner's role to change", async () => {
+  mocks.listMembers.mockResolvedValue({
+    data: [
+      { ...member, role: "member,owner" },
+      { ...member, id: "other-member", userId: "other-user", user: { name: "Other Owner" } },
+    ],
+    error: null,
+  });
+  renderPage();
+  const row = (await screen.findByText("Other Owner")).closest("tr");
+  expect(row).not.toBeNull();
+  expect(within(row!).getByRole("combobox")).toBeVisible();
+  expect(within(row!).getByRole("button", { name: "Remove" })).toBeVisible();
+});
+
+it("displays composite roles and submits a selected replacement role", async () => {
+  mocks.listMembers.mockResolvedValue({
+    data: [
+      member,
+      {
+        ...member,
+        id: "other-member",
+        userId: "other-user",
+        role: "admin,member",
+        user: { name: "Teammate" },
+      },
+    ],
+    error: null,
+  });
+  renderPage();
+  const user = userEvent.setup();
+  const rolePicker = await screen.findByRole("combobox");
+  expect(rolePicker).toHaveTextContent("admin,member");
+  await user.click(rolePicker);
+  await user.click(await screen.findByRole("option", { name: /^Member$/ }));
+  expect(await screen.findByText(/Change Teammate's role from/)).toHaveTextContent("admin,member");
+  await user.click(screen.getByRole("button", { name: "Change role" }));
+  await waitFor(() =>
+    expect(mocks.updateMemberRole).toHaveBeenCalledWith({
+      memberId: "other-member",
+      role: "member",
+    }),
+  );
 });
