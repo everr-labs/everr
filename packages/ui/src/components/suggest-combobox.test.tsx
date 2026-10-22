@@ -51,6 +51,19 @@ function renderCombobox({
   return { queryFn, onChange };
 }
 
+it("connects the trigger to its rendered popup", async () => {
+  renderCombobox({ items: [{ value: "critical" }] });
+  const trigger = screen.getByRole("combobox", { name: "Matcher value" });
+  await userEvent.setup().click(trigger);
+  const list = await screen.findByRole("listbox");
+  const popup = document.getElementById(trigger.getAttribute("aria-controls") ?? "");
+  expect(popup).toBeInTheDocument();
+  expect(popup).toHaveAttribute("role", trigger.getAttribute("aria-haspopup"));
+  expect(popup).toContainElement(list);
+  const search = screen.getByPlaceholderText("Search or type...");
+  expect(document.getElementById(search.getAttribute("aria-controls") ?? "")).toBe(list);
+});
+
 it("loads suggestions only once opened", async () => {
   const user = userEvent.setup();
   const { queryFn } = renderCombobox({

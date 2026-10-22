@@ -10,7 +10,7 @@
 import { z } from "zod";
 import type { ApiKeyScope } from "./api-key-scopes";
 
-export const PublicKeyMetadataSchema = z.object({
+const PublicKeyMetadataSchema = z.object({
   public: z.literal(true),
   allowedOrigins: z.array(z.string()),
 });

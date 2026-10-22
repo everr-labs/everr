@@ -1,6 +1,6 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- This composite control or canvas chart needs its ARIA role and cannot be represented by a native input, select, or img. */
 import { ChevronDownIcon } from "lucide-react";
-import { type ComponentType, type ReactNode, type SVGProps, useMemo, useState, useId } from "react";
+import { type ComponentType, type ReactNode, type SVGProps, useMemo, useState } from "react";
 import { Button } from "./button";
 import {
   Command,
@@ -62,7 +62,6 @@ export function OptionCombobox({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const listId = useId();
   const selected = options.find((o) => o.value === value);
 
   // Insertion order of a Map is the order the groups were met, so a caller
@@ -84,12 +83,12 @@ export function OptionCombobox({
     <div className={className}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
+          id={id}
           render={
             <Button
-              id={id}
               variant="outline"
+              // oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- PopoverTrigger supplies aria-controls with the rendered popup's ID.
               role="combobox"
-              aria-controls={open ? listId : undefined}
               aria-expanded={open}
               aria-label={label}
               disabled={disabled}
@@ -117,7 +116,7 @@ export function OptionCombobox({
         <PopoverContent align="start" className="w-(--anchor-width) p-0">
           <Command className="p-0">
             {searchable && <CommandInput placeholder={searchPlaceholder} />}
-            <CommandList id={listId}>
+            <CommandList>
               {searchable && <CommandEmpty>{emptyMessage}</CommandEmpty>}
               {groups.map(([group, items]) => (
                 <CommandGroup key={group ?? ""} heading={group}>

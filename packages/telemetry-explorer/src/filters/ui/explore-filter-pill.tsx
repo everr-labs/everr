@@ -13,7 +13,7 @@ import { cn } from "@everr/ui/lib/utils";
 import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, XIcon } from "lucide-react";
-import { type ComponentType, useId, useState } from "react";
+import { type ComponentType, useState } from "react";
 
 interface FilterQueryOptions<TData> {
   queryKey: QueryKey;
@@ -56,8 +56,6 @@ export function ExploreFilterPill<TData>({
   countNoun,
   className,
 }: ExploreFilterPillProps<TData>) {
-  const id = useId();
-  const listboxId = `${id}-listbox`;
   const [open, setOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
@@ -93,11 +91,9 @@ export function ExploreFilterPill<TData>({
             <PopoverTrigger
               render={
                 <Button
-                  id={id}
                   variant="outline"
-                  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- trigger opens a searchable listbox popover (combobox pattern); a rich <button> with icon + label + chevron can't be an <input>/<select>
+                  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Rich combobox trigger; PopoverTrigger supplies aria-controls with the rendered popup's ID.
                   role="combobox"
-                  aria-controls={open ? listboxId : undefined}
                   aria-expanded={open}
                   className={cn("max-w-52 gap-1.5", isActive && "border-primary/35", className)}
                 />
@@ -153,7 +149,7 @@ export function ExploreFilterPill<TData>({
             inputGroupClassName="border-none rounded-none bg-transparent h-9"
             placeholder={searchPlaceholder ?? "Search..."}
           />
-          <CommandList id={listboxId}>
+          <CommandList>
             <CommandEmpty>{isLoading ? "Loading…" : "No results."}</CommandEmpty>
             <CommandGroup>
               <CommandItem

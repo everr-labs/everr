@@ -1,5 +1,4 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- This composite control or canvas chart needs its ARIA role and cannot be represented by a native input, select, or img. */
-import { useId } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon } from "lucide-react";
 import { cn } from "../lib/utils";
@@ -60,7 +59,6 @@ export function SuggestCombobox<TData>({
   disabled,
   displayValue,
 }: SuggestComboboxProps<TData>) {
-  const listId = useId();
   const { open, onOpenChange, search, setSearch, query, offerCustom } = useComboboxCustomEntry();
 
   const { data: items = [], isLoading } = useQuery({
@@ -85,8 +83,8 @@ export function SuggestCombobox<TData>({
         render={
           <Button
             variant="outline"
+            // oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- PopoverTrigger supplies aria-controls with the rendered popup's ID.
             role="combobox"
-            aria-controls={open ? listId : undefined}
             aria-expanded={open}
             aria-label={label}
             disabled={disabled}
@@ -119,7 +117,7 @@ export function SuggestCombobox<TData>({
             value={search}
             onValueChange={setSearch}
           />
-          <CommandList id={listId}>
+          <CommandList>
             <CommandEmpty>
               {isLoading ? "Loading..." : "No suggestions. Type a value."}
             </CommandEmpty>

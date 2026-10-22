@@ -79,7 +79,7 @@ it("sends the selected owner role instead of falling back to member", async () =
   await user.click(screen.getByRole("button", { name: "Invite member" }));
   await user.type(screen.getByRole("textbox", { name: "Email" }), "owner@example.test");
   await user.click(screen.getByRole("combobox", { name: "Role" }));
-  await user.click(screen.getByRole("option", { name: "Owner" }));
+  await user.click(await screen.findByRole("option", { name: "Owner" }));
   await user.click(screen.getByRole("button", { name: "Create invitation" }));
   expect(await screen.findByText(`${window.location.origin}/invite/invite-123`)).toBeVisible();
   expect(mocks.invite).toHaveBeenCalledWith({

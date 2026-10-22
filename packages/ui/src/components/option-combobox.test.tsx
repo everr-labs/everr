@@ -48,6 +48,40 @@ it("shows the selected option's label on the trigger", () => {
   expect(trigger).not.toHaveTextContent("Send alerts to an HTTP endpoint.");
 });
 
+it.each([undefined, "channel-picker"])(
+  "connects trigger id %s to its popup and preserves the search list association",
+  async (id) => {
+    const user = userEvent.setup();
+    render(
+      <OptionCombobox
+        id={id}
+        label="Channel type"
+        value="webhook"
+        onChange={vi.fn()}
+        options={OPTIONS}
+        searchable
+      />,
+    );
+    const trigger = screen.getByRole("combobox", { name: "Channel type" });
+    await user.click(trigger);
+    const list = await screen.findByRole("listbox");
+    const popup = document.getElementById(trigger.getAttribute("aria-controls") ?? "");
+    expect(popup).toBeInTheDocument();
+    expect(popup).toHaveAttribute("role", trigger.getAttribute("aria-haspopup"));
+    expect(popup).toContainElement(list);
+    const search = screen.getByPlaceholderText("Search…");
+    expect(document.getElementById(search.getAttribute("aria-controls") ?? "")).toBe(list);
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "false"));
+    expect(trigger).not.toHaveAttribute("aria-controls");
+    await user.click(trigger);
+    expect(document.getElementById(trigger.getAttribute("aria-controls") ?? "")).toContainElement(
+      await screen.findByRole("listbox"),
+    );
+  },
+);
+
 it("shows supporting copy inside the expanded options", async () => {
   const user = userEvent.setup();
   renderCombobox();

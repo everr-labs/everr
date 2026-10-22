@@ -53,7 +53,6 @@ export function FilterCombobox<TData>({
   allowCustom = false,
 }: FilterComboboxProps<TData>) {
   const id = useId();
-  const listId = useId();
   const { open, onOpenChange, search, setSearch, query, offerCustom } = useComboboxCustomEntry();
 
   const { data: items = [], isLoading } = useQuery({
@@ -91,13 +90,12 @@ export function FilterCombobox<TData>({
       </Label>
       <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger
+          id={id}
           render={
             <Button
-              id={id}
               variant="outline"
-              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- this is a Popover trigger button that opens a listbox popup; it renders badges and cannot be a native input or select
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Rich combobox trigger; PopoverTrigger supplies aria-controls with the rendered popup's ID.
               role="combobox"
-              aria-controls={open ? listId : undefined}
               aria-expanded={open}
               className={cn(
                 "justify-between",
@@ -159,7 +157,7 @@ export function FilterCombobox<TData>({
               value={search}
               onValueChange={setSearch}
             />
-            <CommandList id={listId}>
+            <CommandList>
               <CommandEmpty>{isLoading ? "Loading..." : "No results."}</CommandEmpty>
               <CommandGroup>
                 <CommandItem

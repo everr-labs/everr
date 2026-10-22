@@ -1,3 +1,8 @@
+// @vitest-environment node
+import { apiKey } from "@better-auth/api-key";
+import { betterAuth } from "better-auth";
+import { memoryAdapter } from "better-auth/adapters/memory";
+import { organization } from "better-auth/plugins";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vite-plus/test";
 import { auth } from "#app/identity/server.ts";
 import {
@@ -5,10 +10,12 @@ import {
   createApiKey,
   listApiKeys,
   permissionsForScopes,
+  type ApiKey,
 } from "./api-keys";
 
+const request = vi.hoisted(() => ({ headers: {} as HeadersInit }));
 vi.mock("@tanstack/react-start/server", () => ({
-  getRequestHeaders: () => ({}),
+  getRequestHeaders: () => request.headers,
 }));
 
 vi.mock("#app/identity/server.ts", () => ({
@@ -20,6 +27,7 @@ const listApiKeysMock = vi.mocked(auth.api.listApiKeys);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  request.headers = {};
 });
 
 describe("permissionsForScopes", () => {
@@ -220,19 +228,21 @@ describe("createApiKey (server fn)", () => {
   });
 });
 
-describe("listApiKeys response validation", () => {
-  const key = {
+describe("listApiKeys provider projection", () => {
+  const key: ApiKey = {
     id: "ak_1",
     configId: "ingest",
     name: "CI key",
     start: "ek_masked",
-    createdAt: "2026-10-20T10:00:00Z",
+    prefix: "ek_",
+    createdAt: new Date("2026-10-20T10:00:00Z"),
     expiresAt: null,
+    lastRequest: null,
     permissions: { ingest: ["write"], apply: ["read"] },
     metadata: null,
   };
 
-  it("returns validated UI fields and strips provider-only data", async () => {
+  it("projects typed UI fields and strips provider-only data", async () => {
     listApiKeysMock.mockResolvedValueOnce({
       apiKeys: [{ ...key, key: "provider-key-material", referenceId: "test_org" }],
     } as never);
@@ -243,23 +253,10 @@ describe("listApiKeys response validation", () => {
     });
   });
 
-  it.each([new Date("2026-10-20T10:00:00Z"), "2026-10-20T10:00:00+01:00"])(
-    "accepts provider dates and serialized dates: %s",
-    async (createdAt) => {
-      listApiKeysMock.mockResolvedValueOnce({ apiKeys: [{ ...key, createdAt }] } as never);
-      expect((await listApiKeys())[0].createdAt).toEqual(createdAt);
-    },
-  );
-
-  it.each([
-    { public: true, allowedOrigins: ["https://example.com"] },
-    JSON.stringify({ public: true, allowedOrigins: ["https://example.com"] }),
-  ])("validates public metadata from objects and JSON strings: %j", async (metadata) => {
+  it("preserves public-key metadata returned by the provider", async () => {
+    const metadata = { public: true, allowedOrigins: ["https://example.com"] };
     listApiKeysMock.mockResolvedValueOnce({ apiKeys: [{ ...key, metadata }] } as never);
-    expect((await listApiKeys())[0].metadata).toEqual({
-      public: true,
-      allowedOrigins: ["https://example.com"],
-    });
+    expect((await listApiKeys())[0].metadata).toEqual(metadata);
   });
 
   it("retains unrelated JSON metadata on secret keys", async () => {
@@ -267,6 +264,21 @@ describe("listApiKeys response validation", () => {
     listApiKeysMock.mockResolvedValueOnce({ apiKeys: [{ ...key, metadata }] } as never);
     expect((await listApiKeys())[0].metadata).toEqual(metadata);
   });
+
+  it.each([
+    { metadata: [] },
+    { metadata: ["ci", "automation"] },
+    { metadata: [{ labels: ["ci"], enabled: true }] },
+  ])(
+    "retains provider-supported array metadata without breaking the key list: %j",
+    async ({ metadata }) => {
+      listApiKeysMock.mockResolvedValueOnce({ apiKeys: [{ ...key, metadata }, key] } as never);
+      const listed = await listApiKeys();
+      expect(listed).toHaveLength(2);
+      expect(listed[0].metadata).toEqual(metadata);
+      expect(listed[1].id).toBe(key.id);
+    },
+  );
 
   it("keeps empty lists and filters out other key configurations", async () => {
     listApiKeysMock.mockResolvedValueOnce({ apiKeys: [] } as never);
@@ -277,20 +289,83 @@ describe("listApiKeys response validation", () => {
     expect(await listApiKeys()).toEqual([key]);
   });
 
-  it.each([
-    null,
-    {},
-    { apiKeys: null },
-    { apiKeys: [{}] },
-    { apiKeys: [{ ...key, id: "" }] },
-    { apiKeys: [{ ...key, createdAt: "not-a-date" }] },
-    { apiKeys: [{ ...key, permissions: { ingest: "write" } }] },
-    { apiKeys: [{ ...key, permissions: { ingest: [42] } }] },
-    { apiKeys: [{ ...key, metadata: "invalid-json" }] },
-    { apiKeys: [{ ...key, metadata: { public: true, allowedOrigins: [42] } }] },
-  ])("rejects a malformed list instead of presenting an empty list: %j", async (response) => {
-    listApiKeysMock.mockResolvedValueOnce(response as never);
-    await expect(listApiKeys()).rejects.toThrow("Invalid API key response");
+  it("propagates provider errors rather than presenting an empty list", async () => {
+    const error = new Error("API key service unavailable");
+    listApiKeysMock.mockRejectedValueOnce(error);
+    await expect(listApiKeys()).rejects.toBe(error);
+  });
+
+  it("lists array metadata created through the real provider's HTTP endpoint", async () => {
+    const provider = betterAuth({
+      baseURL: "http://localhost:3000",
+      secret: "api-key-provider-contract-test-secret",
+      database: memoryAdapter({
+        user: [],
+        account: [],
+        session: [],
+        verification: [],
+        organization: [],
+        member: [],
+        invitation: [],
+        apikey: [],
+      }),
+      advanced: {
+        database: {
+          generateId: ({ model }) => (model === "organization" ? "test_org" : crypto.randomUUID()),
+        },
+      },
+      emailAndPassword: { enabled: true },
+      plugins: [
+        organization(),
+        apiKey([
+          {
+            configId: "ingest",
+            references: "organization",
+            defaultPrefix: "ek_",
+            requireName: true,
+            enableMetadata: true,
+            rateLimit: { enabled: false },
+          },
+        ]),
+      ],
+    });
+    const signedIn = await provider.api.signUpEmail({
+      body: { name: "Owner", email: "owner@example.test", password: "contract-test-password" },
+      asResponse: true,
+    });
+    expect(signedIn.status).toBe(200);
+    const headers = new Headers({ cookie: signedIn.headers.get("set-cookie") ?? "" });
+    const org = await provider.api.createOrganization({
+      headers,
+      body: { name: "Contract test", slug: "contract-test" },
+    });
+    expect(org?.id).toBe("test_org");
+    const metadata = ["ci", "automation"];
+    const create = (value: unknown) =>
+      provider.handler(
+        new Request("http://localhost:3000/api/auth/api-key/create", {
+          method: "POST",
+          headers: new Headers({
+            cookie: headers.get("cookie") ?? "",
+            "content-type": "application/json",
+          }),
+          body: JSON.stringify({
+            configId: "ingest",
+            organizationId: org?.id,
+            name: "CI",
+            metadata: value,
+          }),
+        }),
+      );
+    expect((await create(metadata)).status).toBe(200);
+    expect((await create("unsupported string metadata")).status).toBe(400);
+    request.headers = headers;
+    listApiKeysMock.mockImplementationOnce((options) => provider.api.listApiKeys(options));
+    const listed = await listApiKeys();
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({ configId: "ingest", metadata });
+    expect(listed[0]).not.toHaveProperty("key");
+    expect(listed[0]).not.toHaveProperty("referenceId");
   });
 });
 

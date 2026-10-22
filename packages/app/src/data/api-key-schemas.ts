@@ -1,48 +1,27 @@
+import type { ApiKey as BetterAuthApiKey } from "@better-auth/api-key";
 import { z } from "zod";
-import { PublicKeyMetadataSchema } from "#app/lib/public-ingest-keys.ts";
 
-const IdSchema = z.string().min(1);
-const AuthDateSchema = z.union([z.date(), z.iso.datetime({ offset: true })]);
-const PermissionsSchema = z.record(z.string(), z.array(z.string()));
+// Project the provider's typed fields without exposing its hashed key or owner ID.
+// Its metadata type is narrower than the JSON values its endpoints accept.
+// Check JSON transport safety here; publicKeyMetadataOf applies Everr's policy.
+export const ApiKeyMetadataSchema = z.json();
 
-const MetadataSchema = z.preprocess(
-  (input) => {
-    if (typeof input !== "string") return input;
-    try {
-      const parsed: unknown = JSON.parse(input);
-      return parsed;
-    } catch {
-      return input;
-    }
-  },
-  z
-    .union([
-      PublicKeyMetadataSchema,
-      z.record(z.string(), z.json()).refine((metadata) => metadata.public !== true),
-    ])
-    .nullish(),
-);
+export type ApiKey = Pick<
+  BetterAuthApiKey,
+  | "id"
+  | "configId"
+  | "name"
+  | "start"
+  | "prefix"
+  | "createdAt"
+  | "expiresAt"
+  | "lastRequest"
+  | "permissions"
+> & { metadata: z.infer<typeof ApiKeyMetadataSchema> };
 
-// Expose only the fields used by the key list, not the provider's full DB row.
-const ApiKeySchema = z.object({
-  id: IdSchema,
-  configId: IdSchema,
-  name: z.string().nullish(),
-  start: z.string().nullish(),
-  prefix: z.string().nullish(),
-  createdAt: AuthDateSchema.nullish(),
-  expiresAt: AuthDateSchema.nullish(),
-  lastRequest: AuthDateSchema.nullish(),
-  permissions: PermissionsSchema.nullish(),
-  metadata: MetadataSchema,
-});
-
-export type ApiKey = z.infer<typeof ApiKeySchema>;
-
-export const ApiKeysResponseSchema = z.object({ apiKeys: z.array(ApiKeySchema) });
-
+// Creation's permissions field is `any` in the provider's endpoint return type.
 export const CreatedApiKeySchema = z.object({
-  id: IdSchema,
+  id: z.string().min(1),
   key: z.string().min(1),
-  permissions: PermissionsSchema.nullish(),
+  permissions: z.record(z.string(), z.array(z.string())).nullish(),
 });

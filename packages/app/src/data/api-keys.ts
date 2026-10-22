@@ -4,7 +4,7 @@ import { auth } from "#app/identity/server.ts";
 import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { buildPublicKeyMetadata, publicKeyInputError } from "#app/lib/public-ingest-keys.ts";
 import { createOrganizationAdminServerFn } from "#app/lib/serverFn.ts";
-import { type ApiKey, ApiKeysResponseSchema, CreatedApiKeySchema } from "./api-key-schemas";
+import { type ApiKey, ApiKeyMetadataSchema, CreatedApiKeySchema } from "./api-key-schemas";
 
 export type { ApiKey } from "./api-key-schemas";
 
@@ -109,12 +109,21 @@ export const listApiKeys = createOrganizationAdminServerFn({
     },
     headers: getRequestHeaders(),
   });
-  const parsed = ApiKeysResponseSchema.safeParse(result);
-  if (!parsed.success) {
-    throw new Error("Invalid API key response", { cause: parsed.error });
-  }
   // Defense-in-depth: the query already scopes to our configId, but pin it.
-  return parsed.data.apiKeys.filter((key) => key.configId === API_KEY_CONFIG_ID);
+  return result.apiKeys
+    .filter((key) => key.configId === API_KEY_CONFIG_ID)
+    .map((key): ApiKey => ({
+      id: key.id,
+      configId: key.configId,
+      name: key.name,
+      start: key.start,
+      prefix: key.prefix,
+      createdAt: key.createdAt,
+      expiresAt: key.expiresAt,
+      lastRequest: key.lastRequest,
+      permissions: key.permissions,
+      metadata: ApiKeyMetadataSchema.parse(key.metadata),
+    }));
 });
 
 export const ApiKeyCreateInputSchema = CreateApiKeyInput;
