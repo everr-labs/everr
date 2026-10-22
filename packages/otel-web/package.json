@@ -1,6 +1,6 @@
 {
   "name": "@everr/otel-web",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Everr browser telemetry SDK: analytics, errors, and web vitals as OTel log records",
   "license": "Apache-2.0",
   "repository": {
